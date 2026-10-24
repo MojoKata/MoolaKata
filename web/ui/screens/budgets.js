@@ -18,6 +18,7 @@ import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { dec, num } from '../app/dec.js';
 import { TransactionDialog } from './transaction-dialog.js';
+import { Amt } from '../components/amount.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'This month'],
@@ -27,6 +28,8 @@ const TABS = /** @type {[string, string][]} */ ([
   ['reimbursements', 'Reimbursements'],
 ]);
 TABS.splice(1, 0, ['where', 'Where the money is']);
+TABS.unshift(['list', 'Budgets']);
+TABS.splice(TABS.length - 1, 0, ['compare', 'Compare']);
 
 /** The month shown, kept while moving between tabs and budgets. */
 const shown = signal('');
@@ -95,8 +98,8 @@ export default function Budgets({ id, tab }) {
         value=${b.id} onChange=${(/** @type {any} */ e) =>
           location.assign(`/ui/budgets/${e.currentTarget.value}/${current}`)}>
         ${budgets.map((x) =>
-          html`<option value=${x.id}>${x.name}${
-            x.level === 'owner' ? '' : ` (${x.ownerName})`
+          html`<option value=${x.id}>${x.name}${x.level === 'owner' ? '' : ` (${x.ownerName})`}${
+            x.active ? ' (active)' : ''
           }</option>`
         )}
       </select>
@@ -104,6 +107,21 @@ export default function Budgets({ id, tab }) {
       <button type="button" class="btn"
         onClick=${newBudget}><${Icon} name="plus" /> New budget</button>
     </div>
+    ${!b.active
+      ? html`
+        <div class="notice warn" style=${{ marginBottom: '12px' }}>
+          <${Icon} name="info" />
+          <div class="grow"><b>Scenario:</b> not the budget you follow. ${b.method === 'envelope'
+            ? 'An envelope'
+            : 'A tracking'} budget.</div>
+          <button type="button" class="btn sm" onClick=${() =>
+            openDialog(MakeActiveDialog, { b, from: budgets.find((x) => x.active) }).then((x) =>
+              x && list.reload()
+            )}>Make active</button>
+          <a class="btn sm" href=${`/ui/budgets/${b.id}/compare`}>Compare</a>
+        </div>
+      `
+      : null}
     <${Tabs} tabs=${TABS} current=${current} base=${`/ui/budgets/${b.id}`} />
     ${current === 'month'
       ? html`<${ThisMonth} b=${b} month=${shown.value} reloadList=${list.reload} />`
@@ -113,6 +131,10 @@ export default function Budgets({ id, tab }) {
       ? html`<${Trends} b=${b} month=${shown.value} />`
       : current === 'reimbursements'
       ? html`<${Reimbursements} b=${b} />`
+      : current === 'list'
+      ? html`<${BudgetList} budgets=${budgets} reload=${list.reload} />`
+      : current === 'compare'
+      ? html`<${Compare} b=${b} budgets=${budgets} month=${shown.value} />`
       : current === 'where'
       ? html`<${WhereMoneyIs} b=${b} month=${shown.value} />`
       : html`<${Recurring} b=${b} />`}
@@ -376,6 +398,194 @@ function BudgetRow({ r, cover }) {
           }</div>`
           : null}</div>
     </div>
+  `;
+}
+
+/**
+ * The budgets the user can see: the one they follow, and the scenarios beside it (S7.12).
+ * @param {{ budgets: any[], reload: () => void }} p
+ */
+function BudgetList({ budgets, reload }) {
+  const active = budgets.find((x) => x.active);
+  const item = (/** @type {any} */ x) =>
+    html`
+      <div class="list-item">
+        <div class="grow"><b>${x.name}</b> <span class="pill">${x.method === 'envelope'
+          ? 'Envelope'
+          : 'Tracking'}</span>${x.active
+          ? html`
+            <span class="pill ok">active</span>
+          `
+          : null}
+          <div class="small dim">${x.accountIds.length} account${x.accountIds.length === 1
+            ? ''
+            : 's'}${x.reserves ? ' · reserves' : ''}${x.moves ? ' · moves' : ''} · ${x.level ===
+              'owner'
+            ? (x.sharedWith ? `shared with ${x.sharedWith}` : 'yours')
+            : `${x.ownerName}'s`}</div></div>
+        <a href=${`/ui/budgets/${x.id}/month`}>Open</a>
+        ${x.active
+          ? null
+          : html`<button type="button" class="btn sm" onClick=${() =>
+            openDialog(MakeActiveDialog, { b: x, from: active }).then((y) =>
+              y && reload()
+            )}>Make active</button>`}
+        <button type="button" class="btn sm" onClick=${() =>
+          openDialog(CopyDialog, { b: x }).then((y) => {
+            if (y) location.assign(`/ui/budgets/${y.id}/month`);
+          })}>Copy as scenario…</button>
+      </div>
+    `;
+  return html`
+    <div class="grid g2">
+      <div class="card"><h3>Active<span class="spacer"></span><span class="small dim"
+        style=${{ fontWeight: 400 }}>the budget you follow</span></h3>
+        ${active ? item(active) : html`<p class="small dim">None: make one active.</p>`}</div>
+      <div class="card"><h3>Scenarios<span class="spacer"></span><span class="small dim"
+        style=${{ fontWeight: 400 }}>to try another method or plan</span></h3>
+        ${budgets.filter((x) => !x.active).map(item)}
+        ${budgets.some((x) => !x.active)
+          ? null
+          : html`<p class="small dim">None yet: <b>Copy as scenario…</b> starts one.</p>`}</div>
+    </div>
+  `;
+}
+
+/**
+ * Make a budget the one the user follows (S7.12.1): nothing is rewritten.
+ * @param {{ close: (v?: any) => void, b: any, from?: any }} p
+ */
+function MakeActiveDialog({ close, b, from }) {
+  useDialogGuide('dialog-make-active');
+  const save = useSubmit(async () => {
+    await api.post(`/budgets/${b.id}/active`, {});
+    toast(`${b.name} is the budget you follow`);
+    close(true);
+  });
+  return html`
+    <${Dialog} title="Make this budget active?" close=${close}
+      onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Make active</button>`}>
+      <p style=${{ marginTop: 0 }}><b>${b.name}</b> becomes the budget you follow${from
+        ? html`, in place of <b>${from.name}</b>, which stays as a scenario`
+        : ''}.</p>
+      <p class="small dim">Nothing is rewritten: each keeps its months, moves and leave-outs. From
+        now on the Dashboard, budget alerts and what to move follow it.</p>
+      <${FormError} error=${save.error} />
+      </${Dialog}>
+  `;
+}
+
+/**
+ * Copy as scenario (S7.12.4): the same accounts and plan, in the method chosen.
+ * @param {{ close: (v?: any) => void, b: any }} p
+ */
+function CopyDialog({ close, b }) {
+  useDialogGuide('dialog-copy');
+  const [name, setName] = useState(
+    `${b.name}, ${b.method === 'envelope' ? 'tracking' : 'envelope'}`,
+  );
+  const [method, setMethod] = useState(b.method === 'envelope' ? 'tracking' : 'envelope');
+  const [withMoves, setWithMoves] = useState(true);
+  const save = useSubmit(async () => {
+    const out = await api.post(`/budgets/${b.id}/copy`, { name, method, withMoves }, {
+      idempotent: true,
+    });
+    toast('Copied as a scenario');
+    close(out);
+  });
+  return html`
+    <${Dialog} title="Copy as scenario" close=${close} onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Copy</button>`}>
+      <${Field} label="Name" error=${errAt(save.error, 'name')}>
+        <${Input} value=${name} onInput=${setName} required />
+        </${Field}>
+        <${Field} label="Method" error=${errAt(save.error, 'method')}
+          hint="Each plan line becomes the same amount, planned or assigned each month.">
+          <${Select} value=${method} onChange=${setMethod} options=${METHODS} />
+          </${Field}>
+          <${SwitchRow} label="Bring this month's moves" on=${withMoves} onChange=${setWithMoves} />
+          <p class="small dim">The same accounts and plan, from this month. The budget you follow
+        doesn't change.</p>
+          <${FormError} error=${save.error} shown=${['name', 'method']} />
+          </${Dialog}>
+  `;
+}
+
+/**
+ * The budget beside another, per category, for a month or the year to it (S7.12.3).
+ * @param {{ b: any, budgets: any[], month: string }} p
+ */
+function Compare({ b, budgets, month }) {
+  const others = budgets.filter((x) => x.id !== b.id);
+  const [other, setOther] = useState(
+    (others.find((x) => x.active) || others[0])?.id || '',
+  );
+  const [span, setSpan] = useState('month');
+  const res = useApi(other ? `/budgets/${b.id}/compare` : '', { other, month, span });
+  const v = /** @type {any} */ (res.data);
+  if (!others.length) {
+    return html`<${Empty}>Only one budget so far. <b>Copy as scenario…</b> on Budgets makes another
+      to compare.</${Empty}>`;
+  }
+  const otherName = others.find((x) => x.id === other)?.name || '';
+  const left = (/** @type {any} */ a, /** @type {any} */ s) =>
+    a == null ? '—' : html`<${Amt} v=${String(dec(a).sub(dec(s)))} signed />`;
+  return html`
+    <div class="toolbar">
+      <span class="small dim">${b.name} beside</span>
+      <select class="in" style=${{
+        maxWidth: '220px',
+      }} aria-label="Compared with" id="f-compared-with"
+        value=${other} onChange=${(/** @type {any} */ e) => setOther(e.currentTarget.value)}>
+        ${others.map((x) => html`<option value=${x.id}>${x.name}</option>`)}
+      </select>
+      <select class="in" style=${{ maxWidth: '160px' }} aria-label="Range" id="f-range"
+        value=${span} onChange=${(/** @type {any} */ e) => setSpan(e.currentTarget.value)}>
+        <option value="month">${monthLabel(month)}</option>
+        <option value="year">The year to ${monthLabel(month).split(' ')[0]}</option>
+      </select>
+    </div>
+    ${res.error
+      ? html`<${Failed} error=${res.error} />`
+      : !v
+      ? html`<${Loading} lines=${6} />`
+      : html`
+        <div class="card" style=${{ padding: '4px 8px' }}>
+          <table class="t">
+            <thead>
+              <tr>
+                <th></th>
+                <th class="num">${b.name}: available</th>
+                <th class="num">spent</th>
+                <th class="num">left</th>
+                <th class="num">${otherName}: available</th>
+                <th class="num">spent</th>
+                <th class="num">left</th>
+              </tr>
+            </thead>
+            <tbody>${v.rows.map((/** @type {any} */ r) =>
+              html`
+                <tr>
+                  <td>${r.label}</td>
+                  <td class="num">${r.available == null
+                    ? '—'
+                    : html`<${Amt} v=${r.available} />`}</td>
+                  <td class="num">${r.spent == null ? '—' : html`<${Amt} v=${r.spent} />`}</td>
+                  <td class="num">${left(r.available, r.spent)}</td>
+                  <td class="num">${r.otherAvailable == null
+                    ? '—'
+                    : html`<${Amt} v=${r.otherAvailable} />`}</td>
+                  <td class="num">${r.otherSpent == null
+                    ? '—'
+                    : html`<${Amt} v=${r.otherSpent} />`}</td>
+                  <td class="num">${left(r.otherAvailable, r.otherSpent)}</td>
+                </tr>
+              `
+            )}</tbody>
+          </table>
+        </div>
+      `}
   `;
 }
 

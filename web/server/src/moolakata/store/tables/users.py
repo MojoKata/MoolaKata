@@ -55,6 +55,17 @@ User = record(
     # so it has no password or two-step sign-in.
     Column("linkId", Text, ForeignKey("Link.id", use_alter=True, name="fk_User_linkId_Link")),
     Column("remoteId", Text),
+    # The budget they follow; the others they can see are scenarios (S7.12).
+    Column(
+        "activeBudgetId",
+        Text,
+        ForeignKey(
+            "Budget.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_User_activeBudgetId_Budget",
+        ),
+    ),
     CheckConstraint("theme IN ('dark', 'light', 'system')", name="theme"),
     CheckConstraint("\"alertEmails\" IN ('each', 'daily', 'none')", name="alert_emails"),
     CheckConstraint("\"bitcoinUnit\" IN ('btc', 'sats')", name="bitcoin_unit"),

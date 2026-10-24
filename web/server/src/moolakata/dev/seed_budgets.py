@@ -32,6 +32,7 @@ def seed_budgets(s, people: dict) -> None:
     )
     s.add(b)
     s.flush()
+    alice.activeBudgetId = b.id  # the budget she follows (S7.12)
     for name in ("Everyday checking", "Emergency savings", "Travel Visa"):
         s.add(BudgetAccount(budgetId=b.id, accountId=acct[name].id, createdAt=now))
     plan = [

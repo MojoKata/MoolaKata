@@ -561,6 +561,7 @@ def test_every_dialog_has_its_guide(page):
         ("/ui/budgets/x/reimbursements", "Pair a payback", "dialog-pair"),
         ("/ui/budgets/x/where", "Assign", "dialog-assign"),
         ("/ui/budgets", "Move", "dialog-move"),
+        ("/ui/budgets/x/list", "Copy as scenario", "dialog-copy"),
         ("/ui/receipts", "Receipt Blue Bottle Coffee", "dialog-receipt"),
         ("/ui/projections", "New projection", "dialog-new-projection"),
         ("/ui/gifts/people", "Add a gift plan", "dialog-person"),

@@ -64,11 +64,36 @@ export default function Dashboard() {
         <div class="delta dim">${d.cashAccounts} account${d.cashAccounts === 1 ? '' : 's'} ·
           updated ${ago(d.lastUpdated)}</div>
       </div>
-      <div class="card kpi">
-        <div class="label">Needs attention</div>
-        <div class="value">${d.attention.length}</div>
-        <div class="delta dim">${d.attention.length ? 'see below' : 'nothing right now'}</div>
-      </div>
+      ${d.budget
+        ? html`
+          <a class="card kpi" href=${`/ui/budgets/${d.budget.id}/month`} data-help="budget">
+            <div class="label">${d.budget.name} · ${new Date(d.budget.month + 'T12:00:00')
+              .toLocaleDateString('en-US', { month: 'long' })}</div>
+            <div class="value">
+              <${Amt} v=${d.budget.spent} cents=${false} />
+            </div>
+            <div class="bar mt" style=${{ marginTop: '8px' }}><i class=${num(d.budget.spent) >
+                num(d.budget.plannedSpending)
+              ? 'over'
+              : ''} style=${{
+              width: `${
+                Math.min(
+                  1,
+                  num(d.budget.spent) / Math.max(1, num(d.budget.plannedSpending)),
+                ) * 100
+              }%`,
+            }}></i></div>
+            <div class="delta dim">of <${Amt} v=${d.budget.plannedSpending} cents=${false} />
+              planned${d.budget.daysLeft ? ` · ${d.budget.daysLeft} days left` : ''}</div>
+          </a>
+        `
+        : html`
+          <div class="card kpi">
+            <div class="label">Needs attention</div>
+            <div class="value">${d.attention.length}</div>
+            <div class="delta dim">${d.attention.length ? 'see below' : 'nothing right now'}</div>
+          </div>
+        `}
     </div>
     <div class="card mt"><h3>Net worth<span class="spacer"></span><${Chips} label="Range"
       value=${range} onChange=${setRange} options=${RANGES} /></h3>

@@ -28,6 +28,7 @@ class User(Record):
     alertSummaryAt: dt.datetime | None = None
     linkId: str | None = None
     remoteId: str | None = None
+    activeBudgetId: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

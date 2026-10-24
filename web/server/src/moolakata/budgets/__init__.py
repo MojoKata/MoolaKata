@@ -71,6 +71,24 @@ def account_ids(s: Session, budget: Budget, viewer: str | None = None) -> list[s
     ]
 
 
+def active_id(s: Session, user_id: str) -> str | None:
+    """The budget a user follows (S7.12), if they can still see it."""
+    from .. import access
+    from ..store.entities.users import User
+
+    u = s.get(User, user_id)
+    if u is None or not u.activeBudgetId:
+        return None
+    b = s.get(Budget, u.activeBudgetId)
+    if b is None or b.deleted:
+        return None
+    try:
+        access.budget(s, user_id, b.id)
+    except Exception:  # no longer shared with them
+        return None
+    return b.id
+
+
 @dataclass
 class Tree:
     """The categories, each with its parent and kind; and, while one budget's figures are

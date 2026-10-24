@@ -363,6 +363,17 @@
  */
 
 /**
+ * The active budget's month (S7.12, S12.2.1).
+ * @typedef {Object} BudgetCard
+ * @property {string} id
+ * @property {string} name
+ * @property {string} month
+ * @property {import('../app/dec.js').Dec} spent
+ * @property {import('../app/dec.js').Dec} plannedSpending
+ * @property {number} daysLeft
+ */
+
+/**
  * @typedef {Object} BudgetChange
  * @property {(string | null)} [name]
  * @property {(Array<string> | null)} [accountIds]
@@ -385,6 +396,7 @@
  * @property {boolean} moves
  * @property {(string | null)} startMonth
  * @property {Array<RoleOut>} roles
+ * @property {boolean} active
  * @property {number} version
  */
 
@@ -538,6 +550,28 @@
  */
 
 /**
+ * @typedef {Object} CompareRow
+ * @property {string} categoryId
+ * @property {string} label
+ * @property {(import('../app/dec.js').Dec | null)} available
+ * @property {(import('../app/dec.js').Dec | null)} spent
+ * @property {(import('../app/dec.js').Dec | null)} otherAvailable
+ * @property {(import('../app/dec.js').Dec | null)} otherSpent
+ */
+
+/**
+ * The active budget and one scenario side by side (S7.12.3).
+ * @typedef {Object} CompareView
+ * @property {string} budgetId
+ * @property {string} otherId
+ * @property {string} first
+ * @property {string} last
+ * @property {Array<CompareRow>} rows
+ * @property {(import('../app/dec.js').Dec | null)} toBudget
+ * @property {(import('../app/dec.js').Dec | null)} otherToBudget
+ */
+
+/**
  * @typedef {Object} Confirm
  * @property {string} token
  * @property {Object<string, string>} [words]
@@ -649,6 +683,13 @@
  */
 
 /**
+ * @typedef {Object} CopyIn
+ * @property {string} name
+ * @property {string} method
+ * @property {boolean} [withMoves]
+ */
+
+/**
  * @typedef {Object} CopyState
  * @property {moolakata__ui__linked__Household} household
  * @property {boolean} hasKey
@@ -698,6 +739,7 @@
  * @property {(string | null)} lastUpdated
  * @property {Array<GroupTotal>} groups
  * @property {Array<Attention>} attention
+ * @property {(BudgetCard | null)} budget
  */
 
 /**

@@ -2031,6 +2031,55 @@
         "title": "BrokerageIn",
         "type": "object"
       },
+      "BudgetCard": {
+        "additionalProperties": false,
+        "description": "The active budget's month (S7.12, S12.2.1).",
+        "properties": {
+          "daysLeft": {
+            "title": "Daysleft",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plannedSpending": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Plannedspending",
+            "type": "number"
+          },
+          "spent": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Spent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "month",
+          "spent",
+          "plannedSpending",
+          "daysLeft"
+        ],
+        "title": "BudgetCard",
+        "type": "object"
+      },
       "BudgetChange": {
         "additionalProperties": false,
         "properties": {
@@ -2109,6 +2158,10 @@
             "title": "Accountids",
             "type": "array"
           },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -2182,6 +2235,7 @@
           "moves",
           "startMonth",
           "roles",
+          "active",
           "version"
         ],
         "title": "BudgetRow",
@@ -3102,6 +3156,161 @@
         "title": "Colour",
         "type": "object"
       },
+      "CompareRow": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "otherAvailable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otheravailable"
+          },
+          "otherSpent": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otherspent"
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "available",
+          "spent",
+          "otherAvailable",
+          "otherSpent"
+        ],
+        "title": "CompareRow",
+        "type": "object"
+      },
+      "CompareView": {
+        "additionalProperties": false,
+        "description": "The active budget and one scenario side by side (S7.12.3).",
+        "properties": {
+          "budgetId": {
+            "title": "Budgetid",
+            "type": "string"
+          },
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "otherId": {
+            "title": "Otherid",
+            "type": "string"
+          },
+          "otherToBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Othertobudget"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CompareRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "toBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tobudget"
+          }
+        },
+        "required": [
+          "budgetId",
+          "otherId",
+          "first",
+          "last",
+          "rows",
+          "toBudget",
+          "otherToBudget"
+        ],
+        "title": "CompareView",
+        "type": "object"
+      },
       "Confirm": {
         "additionalProperties": false,
         "properties": {
@@ -3749,6 +3958,30 @@
         "title": "CopiesOut",
         "type": "object"
       },
+      "CopyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "withMoves": {
+            "default": false,
+            "title": "Withmoves",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "method"
+        ],
+        "title": "CopyIn",
+        "type": "object"
+      },
       "CopyState": {
         "additionalProperties": false,
         "properties": {
@@ -3978,6 +4211,16 @@
             "title": "Attention",
             "type": "array"
           },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "cash": {
             "examples": [
               1234.5
@@ -4053,7 +4296,8 @@
           "cashAccounts",
           "lastUpdated",
           "groups",
-          "attention"
+          "attention",
+          "budget"
         ],
         "title": "Dashboard",
         "type": "object"
@@ -29554,6 +29798,45 @@
         ]
       }
     },
+    "/ui/api/budgets/{budget_id}/active": {
+      "post": {
+        "description": "The budget the caller follows from now on; the one before becomes a scenario. Nothing\nis rewritten (S7.12.1).",
+        "operationId": "make_active_ui_api_budgets__budget_id__active_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Make Active",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}/cash-flow": {
       "get": {
         "operationId": "budget_cash_flow_ui_api_budgets__budget_id__cash_flow_get",
@@ -29603,6 +29886,138 @@
           }
         },
         "summary": "Budget Cash Flow",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/compare": {
+      "get": {
+        "description": "Two budgets side by side, per category: what is available and spent, for the month or\nthe year to it (S7.12.3).",
+        "operationId": "compare_ui_api_budgets__budget_id__compare_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "other",
+            "required": true,
+            "schema": {
+              "title": "Other",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "span",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "pattern": "^(month|year)$",
+              "title": "Span",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Compare",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/copy": {
+      "post": {
+        "description": "Copy as scenario (S7.12.4): the same accounts and plan from this month, in the method\nchosen, with this month's moves when asked. The copy is the caller's; the budget they\nfollow doesn't change.",
+        "operationId": "copy_budget_ui_api_budgets__budget_id__copy_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRow"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Location": {
+                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Copy Budget",
         "tags": [
           "budgets"
         ]

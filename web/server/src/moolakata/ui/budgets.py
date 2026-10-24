@@ -51,6 +51,7 @@ class BudgetRow(Model):
     moves: bool
     startMonth: dt.date | None
     roles: list[RoleOut]
+    active: bool  # the one the caller follows; the others are scenarios (S7.12)
     version: int
 
 
@@ -167,6 +168,33 @@ class GiveIn(Model):
     transactionId: str
     to: str  # a reserve's category id, "spread" or "own"
     amount: Money
+
+
+class CopyIn(Model):
+    name: str
+    method: str  # tracking or envelope
+    withMoves: bool = False  # this month's moves come along
+
+
+class CompareRow(Model):
+    categoryId: str
+    label: str
+    available: Money | None  # in the active budget; none where it doesn't plan the category
+    spent: Money | None
+    otherAvailable: Money | None  # in the scenario
+    otherSpent: Money | None
+
+
+class CompareView(Model):
+    """The active budget and one scenario side by side (S7.12.3)."""
+
+    budgetId: str
+    otherId: str
+    first: dt.date
+    last: dt.date
+    rows: list[CompareRow]
+    toBudget: Money | None  # the active budget's, when an envelope budget
+    otherToBudget: Money | None
 
 
 class Proposal(Model):
@@ -330,6 +358,7 @@ def shape(s, b: Budget, level: str, viewer: str | None = None) -> BudgetRow:
         moves=b.moves,
         startMonth=b.startMonth,
         roles=[RoleOut(**r.__dict__) for r in plan.roles(s, b, rows, clock.today())],
+        active=viewer is not None and budgets.active_id(s, viewer) == b.id,
         version=b.version,
     )
 
@@ -485,6 +514,9 @@ def create_budget(body: NewBudget, request: Request, c: Caller = Depends(caller)
         s.add(b)
         s.flush()
         _set_accounts(s, b, body.accountIds, c.id)
+        # A user's first budget is the one they follow (S7.12.1).
+        if budgets.active_id(s, c.id) is None:
+            s.get(User, c.id).activeBudgetId = b.id
         activity.record(
             s, "budget.created", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
         )
@@ -553,6 +585,8 @@ def delete_budget(
         b, lvl = access.budget(s, c.id, budget_id, "owner")
         check(b, version, lambda: shape(s, b, lvl, c.id))
         b.mark_deleted(c.id)
+        for u in s.scalars(select(User).where(User.activeBudgetId == b.id)):
+            u.activeBudgetId = None
         activity.record(
             s, "budget.deleted", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
         )
@@ -1016,7 +1050,9 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
                     **got,
                 )
             )
-        return WhereView(month=m, sayToMove=True, heldIn=out, cards=cards)
+        # Only the budget the caller follows says what to move (S7.12.2).
+        active = budgets.active_id(s, c.id) == b.id
+        return WhereView(month=m, sayToMove=active, heldIn=out, cards=cards)
 
 
 def _card_month(s, a: Account, month: dt.date) -> dict:
@@ -1117,6 +1153,154 @@ def give_landed(
         )
         s.flush()
     return where(budget_id, request, c, month or m.isoformat()[:7])
+
+
+@router.post("/budgets/{budget_id}/active", response_model=BudgetRow)
+def make_active(budget_id: str, request: Request, c: Caller = Depends(caller)):
+    """The budget the caller follows from now on; the one before becomes a scenario. Nothing
+    is rewritten (S7.12.1)."""
+    with server(request).db.tx() as s:
+        b, lvl = access.budget(s, c.id, budget_id)
+        s.get(User, c.id).activeBudgetId = b.id
+        activity.record(
+            s, "budget.activated", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
+        )
+        s.flush()
+        return shape(s, b, lvl, c.id)
+
+
+@router.post("/budgets/{budget_id}/copy", response_model=BudgetRow, status_code=201)
+def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depends(caller)):
+    """Copy as scenario (S7.12.4): the same accounts and plan from this month, in the method
+    chosen, with this month's moves when asked. The copy is the caller's; the budget they
+    follow doesn't change."""
+    if body.method not in ("tracking", "envelope"):
+        raise refuse("method", "method-invalid", "Tracking or envelope.")
+    if not body.name.strip() or len(body.name) > 80:
+        raise refuse("name", "name-invalid", "Enter a name of up to 80 characters.")
+    month = budgets.month_of(clock.today())
+    with server(request).db.tx() as s:
+        src, _ = access.budget(s, c.id, budget_id)
+        b = Budget(
+            id=ids.new_id("Bdgt"),
+            ownerId=c.id,
+            name=body.name.strip(),
+            method=body.method,
+            reserves=src.reserves,
+            moves=src.moves or body.method == "envelope",
+            startMonth=month,
+        )
+        s.add(b)
+        s.flush()
+        mine = {a.id for a, _ in access.visible_accounts(s, c.id)}
+        _set_accounts(s, b, [a for a in budgets.account_ids(s, src, c.id) if a in mine], c.id)
+        for ln in budgets.in_force(budgets.lines(s, src), month).values():
+            s.add(
+                BudgetLine(
+                    id=ids.new_id("BdgLn"),
+                    budgetId=b.id,
+                    categoryId=ln.categoryId,
+                    fromMonth=month,
+                    amount=ln.amount,
+                    cadence=ln.cadence,
+                    rollover=ln.rollover,
+                    overspend=ln.overspend,
+                    projectionId=ln.projectionId,
+                    target=ln.target,
+                    heldInId=ln.heldInId,
+                )
+            )
+        if body.withMoves:
+            for m in s.scalars(
+                select(BudgetMove).where(
+                    BudgetMove.budgetId == src.id,
+                    BudgetMove.month == month,
+                    BudgetMove.deleted == false(),
+                )
+            ):
+                if b.method != "envelope" and not (m.fromCategoryId and m.toCategoryId):
+                    continue  # To Budget is an envelope budget's alone
+                s.add(
+                    BudgetMove(
+                        id=ids.new_id("BdgMv"),
+                        budgetId=b.id,
+                        month=month,
+                        fromCategoryId=m.fromCategoryId,
+                        toCategoryId=m.toCategoryId,
+                        amount=m.amount,
+                        note=m.note,
+                        transactionId=m.transactionId,
+                        createdById=c.id,
+                    )
+                )
+        if budgets.active_id(s, c.id) is None:
+            s.get(User, c.id).activeBudgetId = b.id
+        activity.record(
+            s, "budget.created", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
+        )
+        s.flush()
+        out = shape(s, b, "owner", c.id)
+    return JSONResponse(
+        out.model_dump(mode="json"),
+        status_code=201,
+        headers={"Location": f"/ui/api/budgets/{b.id}"},
+    )
+
+
+@router.get("/budgets/{budget_id}/compare", response_model=CompareView)
+def compare(
+    budget_id: str,
+    request: Request,
+    c: Caller = Depends(caller),
+    other: str = Query(...),
+    month: str | None = None,
+    span: str = Query("month", pattern="^(month|year)$"),
+):
+    """Two budgets side by side, per category: what is available and spent, for the month or
+    the year to it (S7.12.3)."""
+    last = _month(month)
+    first = last.replace(month=1) if span == "year" else last
+    today = clock.today()
+    with server(request).db.read() as s:
+        a, _ = access.budget(s, c.id, budget_id)
+        b, _ = access.budget(s, c.id, other)
+        sums: dict[str, dict[str, list]] = {}
+        labels: dict[str, str] = {}
+        to_budget = {}
+        for key, bud in (("a", a), ("b", b)):
+            m = first
+            while m <= last:
+                v = budgets.month_view(s, bud, m, today, c.id)
+                for r in v.rows:
+                    if r.kind == "income" or (r.cadence == "year" and m != last):
+                        continue
+                    labels[r.categoryId] = r.label
+                    got = sums.setdefault(r.categoryId, {}).setdefault(key, [Decimal(0)] * 2)
+                    avail = r.balance + r.actual if r.target is not None else r.planned
+                    got[0] += avail if r.cadence == "month" or m == last else 0
+                    got[1] += r.actual if r.cadence == "month" or m == last else 0
+                to_budget[key] = getattr(v, "toBudget", None)
+                m = budgets.add_months(m, 1)
+        rows = [
+            CompareRow(
+                categoryId=k,
+                label=labels[k],
+                available=v["a"][0] if "a" in v else None,
+                spent=v["a"][1] if "a" in v else None,
+                otherAvailable=v["b"][0] if "b" in v else None,
+                otherSpent=v["b"][1] if "b" in v else None,
+            )
+            for k, v in sorted(sums.items(), key=lambda x: labels[x[0]])
+        ]
+        return CompareView(
+            budgetId=a.id,
+            otherId=b.id,
+            first=first,
+            last=last,
+            rows=rows,
+            toBudget=to_budget.get("a"),
+            otherToBudget=to_budget.get("b"),
+        )
 
 
 @router.get("/budgets/{budget_id}/estimate", response_model=list[Proposal])

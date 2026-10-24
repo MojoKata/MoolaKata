@@ -7,11 +7,12 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import false, func, select
 
-from .. import access, figures, valuation
+from .. import access, budgets, figures, valuation
 from ..ledger import expected, reconcile
 from ..ledger import types as atypes
 from ..prices import refresh as pricing
 from ..store.entities.accounts import Lot, Split, Transaction
+from ..store.entities.budgets import Budget
 from ..store.repos import ledger as repo
 from .conventions import ExactRoute, Model, Money
 from .deps import Caller, caller, server
@@ -40,6 +41,17 @@ class Attention(Model):
     link: str
 
 
+class BudgetCard(Model):
+    """The active budget's month (S7.12, S12.2.1)."""
+
+    id: str
+    name: str
+    month: dt.date
+    spent: Money
+    plannedSpending: Money
+    daysLeft: int
+
+
 class Dashboard(Model):
     netWorth: Money
     change: Change
@@ -50,6 +62,7 @@ class Dashboard(Model):
     lastUpdated: dt.datetime | None
     groups: list[GroupTotal]
     attention: list[Attention]
+    budget: BudgetCard | None
 
 
 class GroupPoint(Model):
@@ -97,7 +110,21 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
         writable = [a.id for a, lvl in visible if access.RANK[lvl] >= access.RANK["write"]]
         attention = _attention(s, c, [a for a, _ in visible], writable, today, srv.config.dev)
         updated = repo.latest_activity(s, [a.id for a in banking])
+        card = None
+        active = budgets.active_id(s, c.id)
+        if active:
+            b = s.get(Budget, active)
+            v = budgets.month_view(s, b, budgets.month_of(today), today, c.id)
+            card = BudgetCard(
+                id=b.id,
+                name=b.name,
+                month=v.month,
+                spent=v.spent,
+                plannedSpending=v.plannedSpending,
+                daysLeft=v.daysLeft,
+            )
         return Dashboard(
+            budget=card,
             netWorth=now,
             change=Change(
                 **{k: now - total(mine, k) if mine else None for k in ("day", "month", "year")}

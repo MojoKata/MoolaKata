@@ -144,6 +144,11 @@ def calls(i: dict[str, str]):
             None,
             {"accountId": chk, "date": day, "amount": -5, "reimbursable": 5},
         ),
+        "/ui/api/budgets/{budget_id}/copy": (
+            "alice",
+            {"budget_id": i["budget"]},
+            {"name": "Household, envelope", "method": "envelope"},
+        ),
         "/ui/api/budgets/{budget_id}/moves": (
             "alice",
             {"budget_id": i["budget"]},
