@@ -376,7 +376,7 @@ def _copy_problem(e) -> Problem:
 @router.post("/settings/links/{link_id}/copy-key", response_model=Words)
 def make_copy_key(link_id: str, request: Request, c: Caller = Depends(admin)):
     """Create the access key (S11.9.2.1): 12 words, shown once; the password again if given
-    over 10 minutes ago (S13.6.2)."""
+    over 10 minutes ago (S13.7.2)."""
     from ..links import copies
     from ..links.copy import CopyError
     from .deps import recent_auth
@@ -413,7 +413,7 @@ def lock_copy(link_id: str, request: Request, c: Caller = Depends(admin)):
 @router.post("/settings/links/{link_id}/reset-copy", response_model=JobOut, status_code=202)
 def reset_copy(link_id: str, request: Request, c: Caller = Depends(admin)):
     """The copy deleted and taken again in full, as a job (S11.9.8, S13.8.7); the password
-    again if given over 10 minutes ago (S13.6.2)."""
+    again if given over 10 minutes ago (S13.7.2)."""
     from ..links import copies
     from .deps import recent_auth
 
