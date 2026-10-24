@@ -23,6 +23,10 @@ overspent) into the next month. A **year** category compares the year so far wit
 **Not in the plan** lists spending in categories without a plan. Transfers between the budget's
 accounts never count.
 
+## Cover from… {#cover-from}
+
+An overspent category, covered by a move from one with money left this month.
+
 ## Reserves
 
 Money set aside month by month toward a target, for a cost that comes now and then: car repairs, a
@@ -44,6 +48,11 @@ shows how much you meant to put away.
 
 A payment to a loan counts at the bank account it comes from, as the loan's **In budgets** setting
 says: split into interest, escrow, PMI and fees, with the principal as saved, or whole.
+
+## Moves
+
+The month's moves, each shown on both its rows and recorded in Activity. Delete one to undo it. A
+move in a past month changes that month and what carries after it.
 
 ## Left or entered the budget
 

@@ -43,6 +43,15 @@ class BudgetLine(Record):
 
 
 @dataclass(kw_only=True, eq=False)
+class BudgetLeaveOut(SoftDeleted):
+    budgetId: str
+    transactionId: str
+    createdAt: dt.datetime
+    deletedAt: dt.datetime | None = None
+    deletedById: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
 class BudgetMove(Record):
     id: str
     budgetId: str

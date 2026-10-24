@@ -88,6 +88,12 @@ rest counts as spending again, in the month it was spent.
 
 Who pays it back, as you want to see it: _Acme Corp_, _Sam_.
 
+## Leave out {#leave-out}
+
+Each budget counting this transaction, and what it counts as there. **Leave out** is that budget's
+own, for a one-off such as a car bought outright: it then counts nowhere in that budget, and
+Activity records it. The category is the transaction's, the same in every budget.
+
 ## Receipts
 
 The receipts attached to it; each opens its file. **Add a receipt** uploads one or more and attaches

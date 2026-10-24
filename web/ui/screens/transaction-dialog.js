@@ -10,7 +10,7 @@ import { useSubmit } from '../app/hooks.js';
 import { Dialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { cents, fromCents, money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
@@ -377,6 +377,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
           `
           : null}
         </fieldset>
+        ${editing ? html`<${InBudgets} txn=${txn} />` : null}
         ${editing ? html`<${TxnReceipts} txn=${txn} canWrite=${!readOnly} />` : null}
         ${reconciled
           ? html`<div class="notice warn" role="alert">${e.message}</div>`
@@ -397,6 +398,43 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
             'owedBy',
           ]} />`}
       </${Dialog}>
+  `;
+}
+
+/**
+ * The budgets counting a transaction, what it counts as in each, and each one's leave-out
+ * (S7.3.5): the category is the transaction's, the same in every budget.
+ * @param {{ txn: any }} p
+ */
+function InBudgets({ txn }) {
+  const res = useList(`/transactions/${txn.id}/budgets`);
+  const rows = /** @type {any[]} */ (res.data) || [];
+  if (!rows.length) return null;
+  const flip = async (/** @type {any} */ r, /** @type {boolean} */ on) => {
+    try {
+      await api.put(`/budgets/${r.budgetId}/leave-outs/${txn.id}`, { leftOut: on });
+      toast(on ? `Left out of ${r.name}` : `Counted in ${r.name} again`);
+      res.reload();
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    }
+  };
+  return html`
+    <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+      <legend class="small" style=${{ color: 'var(--fg-dim)' }}>In budgets</legend>
+      ${rows.map((r) =>
+        html`<div class="list-item"><span class="grow">${r.name}<div class="small dim">${
+          r.leftOut
+            ? 'left out: counts nowhere in it'
+            : `counts in ${r.countsAs || 'nothing yet: uncategorised'}`
+        }</div></span>
+          <span class="small dim">Leave out</span>
+          <${Switch} on=${r.leftOut} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
+            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.canWrite} /></div>`
+      )}
+      <div class="hint">The category is the transaction's: changing it changes every budget that
+        counts it.</div>
+    </fieldset>
   `;
 }
 

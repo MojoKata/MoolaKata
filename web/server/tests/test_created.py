@@ -66,6 +66,11 @@ def ids(srv) -> dict[str, str]:
             select(Person).where(Person.id.not_in([u.personId for u in users.values()]))
         ).first()
         book = s.scalars(select(TaxBook).where(TaxBook.ownerId == alice.id)).first()
+        from moolakata.store.entities.accounts import Category
+        from moolakata.store.entities.budgets import Budget
+
+        budget = s.scalars(select(Budget).where(Budget.ownerId == alice.id)).first()
+        cats = {c.builtIn: c.id for c in s.scalars(select(Category))}
         deposit = s.scalars(
             select(Transaction).where(
                 Transaction.accountId == acct["checking"],
@@ -86,6 +91,9 @@ def ids(srv) -> dict[str, str]:
             "org": org.id,
             "year": str(book.year + 1),
             "deposit": deposit.id,
+            "budget": budget.id,
+            "cat:food": cats["food"],
+            "cat:personal": cats["personal"],
         }
 
 
@@ -135,6 +143,16 @@ def calls(i: dict[str, str]):
             "alice",
             None,
             {"accountId": chk, "date": day, "amount": -5, "reimbursable": 5},
+        ),
+        "/ui/api/budgets/{budget_id}/moves": (
+            "alice",
+            {"budget_id": i["budget"]},
+            {
+                "month": "2026-10-01",
+                "fromCategoryId": i["cat:personal"],
+                "toCategoryId": i["cat:food"],
+                "amount": 25,
+            },
         ),
         "/ui/api/reimbursements": (
             "alice",

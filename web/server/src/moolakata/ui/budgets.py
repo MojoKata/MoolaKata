@@ -199,6 +199,44 @@ class MovedRow(Model):
     payee: str | None
 
 
+class MoveOut(Model):
+    """An amount put from one category to another for the month (S7.11)."""
+
+    id: str
+    fromCategoryId: str | None  # none: To Budget, or landed money
+    fromLabel: str
+    toCategoryId: str | None
+    toLabel: str
+    amount: Money
+    note: str | None
+    byName: str | None
+    createdAt: dt.datetime
+    landed: bool  # landed money given (S7.10.5), deleted from Where the money is too
+    version: int
+
+
+class MoveIn(Model):
+    month: dt.date
+    fromCategoryId: str | None = None  # none: To Budget, in an envelope budget
+    toCategoryId: str | None = None
+    amount: Money
+    note: str | None = None
+
+
+class InBudget(Model):
+    """A budget counting a transaction, what it counts as there, and its leave-out (S7.3.5)."""
+
+    budgetId: str
+    name: str
+    countsAs: str | None  # the category's path, or none when uncategorised
+    leftOut: bool
+    canWrite: bool
+
+
+class LeaveOutIn(Model):
+    leftOut: bool
+
+
 class MonthView(Model):
     month: dt.date
     rows: list[MonthRow]
@@ -208,6 +246,7 @@ class MonthView(Model):
     spent: Money
     saved: Money
     moved: list[MovedRow]
+    moves: list[MoveOut]
     plannedSpending: Money
     uncategorised: int
     daysLeft: int
@@ -557,6 +596,7 @@ def budget_month(
                 )
                 for x in m.moved
             ],
+            moves=_moves_out(s, b, m.month),
             plannedSpending=m.plannedSpending,
             uncategorised=m.uncategorised,
             daysLeft=m.daysLeft,
@@ -721,6 +761,198 @@ def set_plan(
     return budget_month(budget_id, request, c, month.isoformat()[:7])
 
 
+def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:
+    tr = budgets.tree(s)
+    rows = s.scalars(
+        select(BudgetMove)
+        .where(
+            BudgetMove.budgetId == b.id,
+            BudgetMove.month == month,
+            BudgetMove.deleted == false(),
+        )
+        .order_by(BudgetMove.createdAt)
+    ).all()
+    users = {u.id: u.displayName for u in s.scalars(select(User))}
+
+    def label(cat_id: str | None, landed: bool, side: str) -> str:
+        if cat_id and cat_id in tr.by_id:
+            return tr.label(cat_id)
+        if landed:
+            return "money landed" if side == "from" else "the account's own"
+        return "To Budget"
+
+    return [
+        MoveOut(
+            id=m.id,
+            fromCategoryId=m.fromCategoryId,
+            fromLabel=label(m.fromCategoryId, bool(m.transactionId), "from"),
+            toCategoryId=m.toCategoryId,
+            toLabel=label(m.toCategoryId, bool(m.transactionId), "to"),
+            amount=m.amount,
+            note=m.note,
+            byName=users.get(m.createdById),
+            createdAt=m.createdAt,
+            landed=bool(m.transactionId),
+            version=m.version,
+        )
+        for m in rows
+    ]
+
+
+@router.post("/budgets/{budget_id}/moves", response_model=MoveOut, status_code=201)
+def make_move(budget_id: str, body: MoveIn, request: Request, c: Caller = Depends(caller)):
+    """An amount put from one category, a reserve among them, to another for one month; in an
+    envelope budget, from or to To Budget (S7.11). Made by hand, recorded in Activity."""
+    month = budgets.month_of(body.month)
+    with server(request).db.tx() as s:
+        b, _ = access.budget(s, c.id, budget_id, "write")
+        if not b.moves:
+            raise refuse("moves", "moves-off", "Turn on moves in the budget's settings.")
+        cats = {x.id: x for x in s.scalars(select(Category).where(Category.deleted == false()))}
+        for f in ("fromCategoryId", "toCategoryId"):
+            v = getattr(body, f)
+            if v is not None and (v not in cats or cats[v].kind == "transfer"):
+                raise refuse(f, "category-unknown", "Choose a category.")
+        if body.fromCategoryId == body.toCategoryId or (
+            b.method != "envelope" and (body.fromCategoryId is None or body.toCategoryId is None)
+        ):
+            raise refuse(
+                "toCategoryId",
+                "move-invalid",
+                "From one category to another; To Budget only in an envelope budget.",
+            )
+        if body.amount <= 0:
+            raise refuse("amount", "amount-invalid", "More than nothing.")
+        if body.note is not None and len(body.note) > 200:
+            raise refuse("note", "note-too-long", "At most 200 characters.")
+        mv = BudgetMove(
+            id=ids.new_id("BdgMv"),
+            budgetId=b.id,
+            month=month,
+            fromCategoryId=body.fromCategoryId,
+            toCategoryId=body.toCategoryId,
+            amount=body.amount,
+            note=(body.note or "").strip() or None,
+            createdById=c.id,
+        )
+        s.add(mv)
+        b.updatedAt = clock.now()
+        activity.record(
+            s, "budget.moved", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
+        )
+        s.flush()
+        (out,) = [x for x in _moves_out(s, b, month) if x.id == mv.id]
+    # Read with its month (S13.8.4).
+    return JSONResponse(
+        out.model_dump(mode="json"),
+        status_code=201,
+        headers={"Location": f"/ui/api/budgets/{b.id}/month?month={month.isoformat()[:7]}"},
+    )
+
+
+@router.delete("/budgets/{budget_id}/moves/{move_id}", response_model=Deleted[None])
+def delete_move(
+    budget_id: str,
+    move_id: str,
+    request: Request,
+    c: Caller = Depends(caller),
+    version: int = Depends(if_match),
+):
+    """Deleting a move undoes it."""
+    with server(request).db.tx() as s:
+        b, _ = access.budget(s, c.id, budget_id, "write")
+        mv = s.get(BudgetMove, move_id)
+        if mv is None or mv.deleted or mv.budgetId != b.id:
+            raise Problem(404, "not-found", "No such move.")
+        check(mv, version, lambda: None)
+        mv.mark_deleted(c.id)
+        activity.record(
+            s,
+            "budget.move-deleted",
+            actor=c.id,
+            subject_kind="budget",
+            subject_id=b.id,
+            owner=b.ownerId,
+        )
+        s.flush()
+        return Deleted[None](deleted=gone(mv))
+
+
+@router.get("/transactions/{txn_id}/budgets", response_model=list[InBudget])
+def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
+    """The caller's budgets counting a transaction, what it counts as in each, and each one's
+    leave-out (S7.3.5, S12.2.3). The category is the transaction's, the same in every budget."""
+    from ..store.entities.accounts import Split
+    from ..store.entities.budgets import BudgetLeaveOut
+
+    with server(request).db.read() as s:
+        t = s.get(Transaction, txn_id)
+        if t is None or t.deleted:
+            raise Problem(404, "not-found", "No such transaction.")
+        access.account(s, c.id, t.accountId)
+        tr = budgets.tree(s)
+        parts = s.scalars(
+            select(Split).where(Split.transactionId == t.id, Split.deleted == false())
+        ).all()
+        cats = {p.categoryId for p in parts if p.categoryId} or (
+            {t.categoryId} if t.categoryId else set()
+        )
+        counts_as = ", ".join(sorted(tr.label(x) for x in cats if x in tr.by_id)) or None
+        out = []
+        for b, lvl in access.visible_budgets(s, c.id):
+            if t.accountId not in budgets.account_ids(s, b, c.id):
+                continue
+            left = s.get(BudgetLeaveOut, (b.id, t.id))
+            out.append(
+                InBudget(
+                    budgetId=b.id,
+                    name=b.name,
+                    countsAs=counts_as,
+                    leftOut=left is not None and not left.deleted,
+                    canWrite=lvl in ("owner", "write"),
+                )
+            )
+        return out
+
+
+@router.put("/budgets/{budget_id}/leave-outs/{txn_id}", response_model=InBudget)
+def leave_out(
+    budget_id: str, txn_id: str, body: LeaveOutIn, request: Request, c: Caller = Depends(caller)
+):
+    """Leave a transaction out of this budget, or count it again (S7.3.5)."""
+    from ..store.entities.budgets import BudgetLeaveOut
+
+    with server(request).db.tx() as s:
+        b, lvl = access.budget(s, c.id, budget_id, "write")
+        t = s.get(Transaction, txn_id)
+        if t is None or t.deleted or t.accountId not in budgets.account_ids(s, b, c.id):
+            raise Problem(404, "not-found", "No such transaction in this budget.")
+        row = s.get(BudgetLeaveOut, (b.id, t.id))
+        if body.leftOut and row is None:
+            s.add(BudgetLeaveOut(budgetId=b.id, transactionId=t.id, createdAt=clock.now()))
+        elif body.leftOut and row.deleted:
+            row.restore()
+        elif not body.leftOut and row is not None and not row.deleted:
+            row.mark_deleted(c.id)
+        activity.record(
+            s,
+            "budget.left-out" if body.leftOut else "budget.counted-again",
+            actor=c.id,
+            subject_kind="budget",
+            subject_id=b.id,
+            owner=b.ownerId,
+        )
+        s.flush()
+        tr = budgets.tree(s)
+        return InBudget(
+            budgetId=b.id,
+            name=b.name,
+            countsAs=tr.label(t.categoryId) if t.categoryId in tr.by_id else None,
+            leftOut=body.leftOut,
+            canWrite=lvl in ("owner", "write"),
+        )
+
+
 def _projection_ok(s, b: Budget, projection_id: str) -> bool:
     from ..store.entities.projections import Projection
 
@@ -738,7 +970,7 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
     today = clock.today()
     with server(request).db.read() as s:
         b, _ = access.budget(s, c.id, budget_id)
-        tr = budgets.tree(s)
+        tr = budgets.tree(s, b)
         accts = budgets.account_ids(s, b, c.id)
         rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
         names = {a.id: a.name for a in rows}
@@ -835,7 +1067,7 @@ def give_landed(
         if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
             raise refuse("transactionId", "not-found", "No such money landed.")
         m = budgets.month_of(t.date)
-        tr = budgets.tree(s)
+        tr = budgets.tree(s, b)
         held = {
             h.accountId: h
             for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
@@ -897,7 +1129,7 @@ def estimate(
     """A plan from the last 3, 6 or 12 complete months (S7.1.5): nothing is saved."""
     with server(request).db.read() as s:
         b, _ = access.budget(s, c.id, budget_id, "write")
-        tr = budgets.tree(s)
+        tr = budgets.tree(s, b)
         return [
             Proposal(
                 categoryId=x.categoryId,

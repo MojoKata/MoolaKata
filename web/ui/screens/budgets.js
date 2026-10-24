@@ -151,6 +151,14 @@ function ThisMonth({ b, month, reloadList }) {
     openDialog(EstimateDialog, { b, month, rows: own, version: v.version, months: 6 }).then((
       x,
     ) => x && res.reload());
+  const canMove = b.moves && v.canWrite;
+  const moveTo = (/** @type {string} */ to = '') =>
+    openDialog(MoveDialog, { b, month, rows: v.rows, to }).then((x) => x && res.reload());
+  const unmove = async (/** @type {any} */ m) => {
+    await api.del(`/budgets/${b.id}/moves/${m.id}`, m.version);
+    toast('Move deleted');
+    res.reload();
+  };
   const settings = () =>
     openDialog(BudgetSettingsDialog, { b }).then((x) => {
       if (x) {
@@ -203,7 +211,9 @@ function ThisMonth({ b, month, reloadList }) {
         `
         : null}</h3>
       ${spend.length
-        ? spend.map((/** @type {any} */ r) => html`<${BudgetRow} r=${r} />`)
+        ? spend.map((/** @type {any} */ r) =>
+          html`<${BudgetRow} r=${r} cover=${canMove ? () => moveTo(r.categoryId) : null} />`
+        )
         : html`<p class="small dim">Nothing planned for this month yet.${
           v.canWrite
             ? html`
@@ -255,6 +265,36 @@ function ThisMonth({ b, month, reloadList }) {
         }`
         : null}
     </div>
+    ${canMove || v.moves.length
+      ? html`
+        <div class="card mt"><h3>Moves in ${monthLabel(month).split(' ')[0]}<span
+          class="spacer"></span>${canMove
+            ? html`<button type="button" class="btn sm" onClick=${() => moveTo()}><${Icon}
+            name="plus" /> Move</button>`
+            : null}</h3>
+          ${v.moves.length
+            ? v.moves.map((/** @type {any} */ m) =>
+              html`
+                <div class="list-item">
+                  <div class="grow">${money(m.amount)} from ${m.fromLabel} to ${m.toLabel}<div
+                    class="small dim">${date(m.createdAt.slice(0, 10))}${m.byName
+                      ? ` · ${m.byName}`
+                      : ''}${m.note ? ` · “${m.note}”` : ''}</div></div>
+                  ${v.canWrite
+                    ? html`
+                      <button type="button" class="icon-btn" aria-label="Delete the move"
+                        onClick=${() => unmove(m).catch((e) => toast(e.message))}><${Icon}
+                                            name="x" /></button>
+                    `
+                    : null}
+                </div>
+              `
+            )
+            : html`<p class="small dim">None this month. A move covers one category from another
+              for the month: an overspent row offers <b>Cover from…</b>.</p>`}
+        </div>
+      `
+      : null}
     ${v.moved.length
       ? html`
         <div class="card mt"><h3>Left or entered the budget<span class="spacer"></span>
@@ -283,8 +323,8 @@ function ThisMonth({ b, month, reloadList }) {
   `;
 }
 
-/** @param {{ r: any }} p */
-function BudgetRow({ r }) {
+/** @param {{ r: any, cover?: (() => void) | null }} p */
+function BudgetRow({ r, cover }) {
   const p = num(r.planned) > 0 ? num(r.actual) / num(r.planned) : 1;
   return html`
     <div class="budget-row">
@@ -308,6 +348,13 @@ function BudgetRow({ r }) {
           ? html`
             <span class="pill bad">over</span>
           `
+          : null}${r.state === 'over' && cover
+          ? html`<div><button type="button" class="linklike" data-help="cover-from"
+            onClick=${cover}>Cover from…</button></div>`
+          : null}${num(r.moved)
+          ? html`<div class="dim">${dec(r.moved).gt(0) ? '+' : '−'}${
+            money(dec(r.moved).abs(), { cents: false })
+          } moved ${dec(r.moved).gt(0) ? 'in' : 'out'}</div>`
           : null}${num(
             r.carried,
           )
@@ -329,6 +376,79 @@ function BudgetRow({ r }) {
           }</div>`
           : null}</div>
     </div>
+  `;
+}
+
+/**
+ * A move (S7.11): an amount from one category, a reserve among them, to another for the month;
+ * in an envelope budget, from or to To Budget.
+ * @param {{ close: (v?: any) => void, b: any, month: string, rows: any[], to: string }} p
+ */
+function MoveDialog({ close, b, month, rows, to }) {
+  useDialogGuide('dialog-move');
+  const planned = rows.filter((r) => !r.fromPlan && r.kind !== 'income');
+  const left = (/** @type {any} */ r) => dec(r.target ? r.balance : r.remaining);
+  const envelope = b.method === 'envelope';
+  const sources = planned.filter((r) => left(r).gt(0) && r.categoryId !== to).sort((x, y) =>
+    left(y).sub(left(x)).isNegative() ? -1 : 1
+  );
+  const [from, setFrom] = useState(sources[0]?.categoryId || (envelope ? '' : ''));
+  const [dest, setDest] = useState(to || planned.find((r) => r.state === 'over')?.categoryId || '');
+  const over = planned.find((r) => r.categoryId === dest);
+  const [amount, setAmount] = useState(
+    over && over.state === 'over' ? String(dec(over.remaining).abs()) : '',
+  );
+  const [note, setNote] = useState('');
+  const save = useSubmit(async () => {
+    await api.post(`/budgets/${b.id}/moves`, {
+      month: month + '-01',
+      fromCategoryId: from || null,
+      toCategoryId: dest || null,
+      amount: amount.replace(/[$,\s]/g, ''),
+      note: note || null,
+    });
+    toast('Moved');
+    close(true);
+  });
+  const label = (/** @type {any} */ r) =>
+    `${r.label}${r.target ? ' (reserve)' : ''}: ${money(left(r).abs())} ${
+      left(r).isNegative() ? 'over' : 'left'
+    }`;
+  return html`
+    <${Dialog} title=${`Move money: ${monthLabel(month)}`} close=${close}
+      onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Move</button>`}>
+      <div class="row">
+        <${Field} label="From" error=${errAt(save.error, 'fromCategoryId')}>
+          <${Select} value=${from} onChange=${setFrom} options=${[
+            ...(envelope ? [['', 'To Budget']] : []),
+            ...sources.map((r) => [r.categoryId, label(r)]),
+          ]} />
+          </${Field}>
+          <${Field} label="To" error=${errAt(save.error, 'toCategoryId')}>
+            <${Select} value=${dest} onChange=${setDest} options=${[
+              ...(envelope ? [['', 'To Budget']] : [['', 'Choose a category']]),
+              ...planned.filter((r) => r.categoryId !== from).map((r) => [r.categoryId, label(r)]),
+            ]} />
+            </${Field}>
+            </div>
+            <${Field} label="Amount to move" error=${errAt(save.error, 'amount')}>
+              <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
+              </${Field}>
+              <${Field} label="Note" error=${errAt(save.error, 'note')}>
+                <${Input} value=${note} onInput=${setNote} placeholder="optional" />
+                </${Field}>
+                <p class="small dim">For ${monthLabel(
+                  month,
+                )} only. It shows on both rows and in Activity;
+        delete it to undo.</p>
+                <${FormError} error=${save.error} shown=${[
+                  'fromCategoryId',
+                  'toCategoryId',
+                  'amount',
+                  'note',
+                ]} />
+                </${Dialog}>
   `;
 }
 

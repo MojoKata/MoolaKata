@@ -7921,6 +7921,48 @@
         "title": "ImprovementOut",
         "type": "object"
       },
+      "InBudget": {
+        "additionalProperties": false,
+        "description": "A budget counting a transaction, what it counts as there, and its leave-out (S7.3.5).",
+        "properties": {
+          "budgetId": {
+            "title": "Budgetid",
+            "type": "string"
+          },
+          "canWrite": {
+            "title": "Canwrite",
+            "type": "boolean"
+          },
+          "countsAs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countsas"
+          },
+          "leftOut": {
+            "title": "Leftout",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budgetId",
+          "name",
+          "countsAs",
+          "leftOut",
+          "canWrite"
+        ],
+        "title": "InBudget",
+        "type": "object"
+      },
       "IncomeOut": {
         "additionalProperties": false,
         "properties": {
@@ -9449,6 +9491,20 @@
         "title": "LastYear",
         "type": "object"
       },
+      "LeaveOutIn": {
+        "additionalProperties": false,
+        "properties": {
+          "leftOut": {
+            "title": "Leftout",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "leftOut"
+        ],
+        "title": "LeaveOutIn",
+        "type": "object"
+      },
       "LeftOut": {
         "additionalProperties": false,
         "description": "An account the budget doesn't count that often receives transfers from its accounts.",
@@ -10816,6 +10872,13 @@
             "title": "Moved",
             "type": "array"
           },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/MoveOut"
+            },
+            "title": "Moves",
+            "type": "array"
+          },
           "plannedSpending": {
             "examples": [
               1234.5
@@ -10872,6 +10935,7 @@
           "spent",
           "saved",
           "moved",
+          "moves",
           "plannedSpending",
           "uncategorised",
           "daysLeft",
@@ -10893,6 +10957,161 @@
           "to"
         ],
         "title": "Move",
+        "type": "object"
+      },
+      "MoveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "fromCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromcategoryid"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "toCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tocategoryid"
+          }
+        },
+        "required": [
+          "month",
+          "amount"
+        ],
+        "title": "MoveIn",
+        "type": "object"
+      },
+      "MoveOut": {
+        "additionalProperties": false,
+        "description": "An amount put from one category to another for the month (S7.11).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "byName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byname"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "fromCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromcategoryid"
+          },
+          "fromLabel": {
+            "title": "Fromlabel",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "landed": {
+            "title": "Landed",
+            "type": "boolean"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "toCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tocategoryid"
+          },
+          "toLabel": {
+            "title": "Tolabel",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "fromCategoryId",
+          "fromLabel",
+          "toCategoryId",
+          "toLabel",
+          "amount",
+          "note",
+          "byName",
+          "createdAt",
+          "landed",
+          "version"
+        ],
+        "title": "MoveOut",
         "type": "object"
       },
       "MovedRow": {
@@ -13211,6 +13430,37 @@
           "limit"
         ],
         "title": "Page[ImportRow]",
+        "type": "object"
+      },
+      "Page_InBudget_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InBudget"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[InBudget]",
         "type": "object"
       },
       "Page_InstrumentOut_": {
@@ -16237,7 +16487,9 @@
               "method-not-allowed",
               "month-invalid",
               "months-invalid",
+              "move-invalid",
               "moves-needed",
+              "moves-off",
               "multiplier-invalid",
               "name-invalid",
               "name-missing",
@@ -16271,6 +16523,7 @@
               "not-told-apart",
               "not-yours-to-confirm",
               "note-required",
+              "note-too-long",
               "notes-too-long",
               "nothing-held",
               "nothing-open",
@@ -16596,7 +16849,9 @@
                   "method-not-allowed",
                   "month-invalid",
                   "months-invalid",
+                  "move-invalid",
                   "moves-needed",
+                  "moves-off",
                   "multiplier-invalid",
                   "name-invalid",
                   "name-missing",
@@ -16630,6 +16885,7 @@
                   "not-told-apart",
                   "not-yours-to-confirm",
                   "note-required",
+                  "note-too-long",
                   "notes-too-long",
                   "nothing-held",
                   "nothing-open",
@@ -29491,6 +29747,64 @@
         ]
       }
     },
+    "/ui/api/budgets/{budget_id}/leave-outs/{txn_id}": {
+      "put": {
+        "description": "Leave a transaction out of this budget, or count it again (S7.3.5).",
+        "operationId": "leave_out_ui_api_budgets__budget_id__leave_outs__txn_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "txn_id",
+            "required": true,
+            "schema": {
+              "title": "Txn Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveOutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InBudget"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Leave Out",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}/month": {
       "get": {
         "operationId": "budget_month_ui_api_budgets__budget_id__month_get",
@@ -29540,6 +29854,111 @@
           }
         },
         "summary": "Budget Month",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/moves": {
+      "post": {
+        "description": "An amount put from one category, a reserve among them, to another for one month; in an\nenvelope budget, from or to To Budget (S7.11). Made by hand, recorded in Activity.",
+        "operationId": "make_move_ui_api_budgets__budget_id__moves_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Location": {
+                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Make Move",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/moves/{move_id}": {
+      "delete": {
+        "description": "Deleting a move undoes it.",
+        "operationId": "delete_move_ui_api_budgets__budget_id__moves__move_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "move_id",
+            "required": true,
+            "schema": {
+              "title": "Move Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted_NoneType_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Delete Move",
         "tags": [
           "budgets"
         ]
@@ -40276,6 +40695,68 @@
         "summary": "Both Real",
         "tags": [
           "transactions"
+        ]
+      }
+    },
+    "/ui/api/transactions/{txn_id}/budgets": {
+      "get": {
+        "description": "The caller's budgets counting a transaction, what it counts as in each, and each one's\nleave-out (S7.3.5, S12.2.3). The category is the transaction's, the same in every budget.",
+        "operationId": "in_budgets_ui_api_transactions__txn_id__budgets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "txn_id",
+            "required": true,
+            "schema": {
+              "title": "Txn Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_InBudget_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "In Budgets",
+        "tags": [
+          "budgets"
         ]
       }
     },

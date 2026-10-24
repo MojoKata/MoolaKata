@@ -67,6 +67,14 @@ BudgetLine = record(
 )
 unique_live(BudgetLine, "budgetId", "categoryId", "fromMonth")
 
+# A transaction a budget leaves out (S7.3.5): a one-off it counts nowhere, the budget's choice.
+BudgetLeaveOuts = pairs(
+    "BudgetLeaveOuts",
+    Column("budgetId", Text, ForeignKey("Budget.id", ondelete="CASCADE"), nullable=False),
+    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("budgetId", "transactionId"),
+)
+
 # An amount put into a category for one month (S7.11): from another category, a reserve among
 # them; from or to To Budget in an envelope budget (a category left empty); or landed money, a
 # deposit in an account reserves are held in, given to one of them or kept as the account's own

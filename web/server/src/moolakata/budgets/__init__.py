@@ -73,9 +73,11 @@ def account_ids(s: Session, budget: Budget, viewer: str | None = None) -> list[s
 
 @dataclass
 class Tree:
-    """The categories, each with its parent and kind."""
+    """The categories, each with its parent and kind; and, while one budget's figures are
+    worked out, the transactions it leaves out (S7.3.5)."""
 
     by_id: dict[str, Category]
+    skip: frozenset[str] = frozenset()
 
     def key(self, builtin: str) -> str | None:
         """A shipped category's id, by its key."""
@@ -95,8 +97,22 @@ class Tree:
         return c.name
 
 
-def tree(s: Session) -> Tree:
-    return Tree({c.id: c for c in s.scalars(select(Category).where(Category.deleted == false()))})
+def tree(s: Session, budget: Budget | None = None) -> Tree:
+    """The categories; for a budget, with the transactions it leaves out."""
+    from ..store.entities.budgets import BudgetLeaveOut
+
+    skip = frozenset()
+    if budget is not None:
+        skip = frozenset(
+            s.scalars(
+                select(BudgetLeaveOut.transactionId).where(
+                    BudgetLeaveOut.budgetId == budget.id, BudgetLeaveOut.deleted == false()
+                )
+            )
+        )
+    return Tree(
+        {c.id: c for c in s.scalars(select(Category).where(Category.deleted == false()))}, skip
+    )
 
 
 @dataclass
@@ -162,6 +178,8 @@ def amounts(
     paying = reimbursements.paired_out(s, ids)
     loans_seen: dict[str, dict] = {}
     for t in txns:
+        if t.id in tr.skip:
+            continue  # left out of this budget (S7.3.5)
         other = others.get(t.transferId) if t.transferId else None
         if t.transferId:
             if other is None or other[1].id in inside:
@@ -352,7 +370,7 @@ def month_view(
 ) -> Month:
     from . import plan, reserves
 
-    tr = tree(s)
+    tr = tree(s, budget)
     accts = account_ids(s, budget, viewer)
     every = lines(s, budget)
     now = in_force(every, month)
@@ -532,7 +550,7 @@ def _monthly(
 def cash_flow(s: Session, budget: Budget, month: dt.date, viewer: str | None = None) -> dict:
     """Income by category into spending by top-level category, and what was left: the
     month's Sankey."""
-    tr = tree(s)
+    tr = tree(s, budget)
     totals = amounts(s, account_ids(s, budget, viewer), month, month_end(month), tr=tr)
     sources: dict[str, Decimal] = defaultdict(lambda: ZERO)
     uses: dict[str, Decimal] = defaultdict(lambda: ZERO)
@@ -566,7 +584,7 @@ def trends(
 ) -> list[tuple[dt.date, Decimal, Decimal]]:
     """For each of the last months: planned and actual spending, for one category (with its
     children) or every expense category."""
-    tr = tree(s)
+    tr = tree(s, budget)
     accts = account_ids(s, budget, viewer)
     every = lines(s, budget)
     out = []
