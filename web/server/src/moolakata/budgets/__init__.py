@@ -18,7 +18,7 @@ transactions only, so nothing pending is counted.
 
 import datetime as dt
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from sqlalchemy import false, func, select
@@ -363,6 +363,10 @@ class Month:
     plannedSpending: Decimal
     uncategorised: int
     daysLeft: int
+    toBudget: Decimal | None = None  # an envelope budget's (S7.13)
+    assigned: Decimal | None = None  # by its plan this month
+    assignedByMoves: Decimal | None = None  # from To Budget by moves
+    cards: list = field(default_factory=list)  # its cards' payment lines
 
 
 def _actual(tree_: Tree, totals: dict[str, Decimal], cat_id: str) -> Decimal:
@@ -392,7 +396,13 @@ def month_view(
     accts = account_ids(s, budget, viewer)
     every = lines(s, budget)
     now = in_force(every, month)
-    moved_by = reserves.net_moves(reserves.moves(s, budget))
+    move_rows = reserves.moves(s, budget)
+    moved_by = reserves.net_moves(move_rows)
+    env = None
+    if budget.method == "envelope":
+        from . import envelope
+
+        env = envelope.month(s, budget, accts, tr, every, move_rows, month)
     moved: list[Moved] = []
     totals = amounts(s, accts, month, month_end(month), moved, tr)
     year_start = month.replace(month=1)
@@ -404,6 +414,36 @@ def month_view(
             continue
         kind = tr.by_id[cat_id].kind
         mv = moved_by.get((month, cat_id), ZERO)
+        e = env.envelopes.get(cat_id) if env else None
+        if e is not None:
+            available = e.start + e.assigned + e.moved
+            rows.append(
+                Row(
+                    categoryId=cat_id,
+                    label=tr.label(cat_id),
+                    kind=kind,
+                    cadence=ln.cadence,
+                    rollover=True,
+                    planned=available,
+                    carried=e.start,
+                    actual=e.spent,
+                    remaining=e.balance,
+                    state=_state(available, e.spent)
+                    if ln.target is None or e.balance < ln.target
+                    else "funded",
+                    overspend=ln.overspend,
+                    moved=e.moved,
+                    target=ln.target,
+                    heldInId=ln.heldInId,
+                    balance=e.balance if ln.target is not None else None,
+                    putIn=e.assigned if ln.target is not None else None,
+                    projectionId=ln.projectionId,
+                    projection=plan.monthly_contribution(s, ln.projectionId)
+                    if ln.projectionId
+                    else None,
+                )
+            )
+            continue
         if ln.target is not None and ln.cadence == "month":
             r = reserves.reserve(s, tr, accts, every, moved_by, cat_id, month)
             if r is not None:
@@ -506,6 +546,10 @@ def month_view(
             (r.planned for r in rows if r.kind == "expense" and r.cadence == "month"), ZERO
         ),
         uncategorised=uncategorised(s, accts, month, end),
+        toBudget=env.toBudget if env else None,
+        assigned=env.assigned if env else None,
+        assignedByMoves=env.movedIn if env else None,
+        cards=env.cards if env else [],
         daysLeft=max(0, (end - today).days + 1) if month <= today <= end else 0,
     )
 

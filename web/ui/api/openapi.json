@@ -2340,6 +2340,62 @@
         "title": "CandidateOut",
         "type": "object"
       },
+      "CardLine": {
+        "additionalProperties": false,
+        "description": "A card's payment line in an envelope budget (S7.13.2).",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notBacked": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Notbacked",
+            "type": "number"
+          },
+          "owed": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Owed",
+            "type": "number"
+          },
+          "paid": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paid",
+            "type": "number"
+          },
+          "setAside": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Setaside",
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "setAside",
+          "owed",
+          "paid",
+          "notBacked"
+        ],
+        "title": "CardLine",
+        "type": "object"
+      },
       "CardOut": {
         "additionalProperties": false,
         "properties": {
@@ -11080,9 +11136,46 @@
       "MonthView": {
         "additionalProperties": false,
         "properties": {
+          "assigned": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned"
+          },
+          "assignedByMoves": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignedbymoves"
+          },
           "canWrite": {
             "title": "Canwrite",
             "type": "boolean"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardLine"
+            },
+            "title": "Cards",
+            "type": "array"
           },
           "daysLeft": {
             "title": "Daysleft",
@@ -11154,6 +11247,21 @@
             "title": "Spent",
             "type": "number"
           },
+          "toBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tobudget"
+          },
           "uncategorised": {
             "title": "Uncategorised",
             "type": "integer"
@@ -11180,6 +11288,10 @@
           "saved",
           "moved",
           "moves",
+          "toBudget",
+          "assigned",
+          "assignedByMoves",
+          "cards",
           "plannedSpending",
           "uncategorised",
           "daysLeft",
@@ -11213,6 +11325,17 @@
             "format": "money",
             "title": "Amount",
             "type": "number"
+          },
+          "cardId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cardid"
           },
           "fromCategoryId": {
             "anyOf": [
@@ -16627,6 +16750,7 @@
               "cadence-invalid",
               "cannot-join",
               "cannot-unlock",
+              "card-unknown",
               "cash-invalid",
               "cash-missing",
               "category-twice",
@@ -16989,6 +17113,7 @@
                   "cadence-invalid",
                   "cannot-join",
                   "cannot-unlock",
+                  "card-unknown",
                   "cash-invalid",
                   "cash-missing",
                   "category-twice",

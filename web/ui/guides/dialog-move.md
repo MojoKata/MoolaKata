@@ -10,7 +10,8 @@ hospital bill. In an envelope budget, **To Budget** too.
 
 ## To
 
-The category that needs it.
+The category that needs it; in an envelope budget, a card's payment line, to cover what it owes but
+no envelope set aside.
 
 ## Amount to move
 

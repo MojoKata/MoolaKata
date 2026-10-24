@@ -247,6 +247,7 @@ class MoveIn(Model):
     month: dt.date
     fromCategoryId: str | None = None  # none: To Budget, in an envelope budget
     toCategoryId: str | None = None
+    cardId: str | None = None  # an envelope budget's card payment line (S7.13.2)
     amount: Money
     note: str | None = None
 
@@ -265,6 +266,17 @@ class LeaveOutIn(Model):
     leftOut: bool
 
 
+class CardLine(Model):
+    """A card's payment line in an envelope budget (S7.13.2)."""
+
+    accountId: str
+    name: str
+    setAside: Money
+    owed: Money
+    paid: Money
+    notBacked: Money
+
+
 class MonthView(Model):
     month: dt.date
     rows: list[MonthRow]
@@ -275,6 +287,10 @@ class MonthView(Model):
     saved: Money
     moved: list[MovedRow]
     moves: list[MoveOut]
+    toBudget: Money | None  # an envelope budget's (S7.13.1)
+    assigned: Money | None
+    assignedByMoves: Money | None
+    cards: list[CardLine]
     plannedSpending: Money
     uncategorised: int
     daysLeft: int
@@ -631,6 +647,20 @@ def budget_month(
                 for x in m.moved
             ],
             moves=_moves_out(s, b, m.month),
+            toBudget=m.toBudget,
+            assigned=m.assigned,
+            assignedByMoves=m.assignedByMoves,
+            cards=[
+                CardLine(
+                    accountId=x.accountId,
+                    name=x.name,
+                    setAside=x.setAside,
+                    owed=x.owed,
+                    paid=x.paid,
+                    notBacked=x.notBacked,
+                )
+                for x in m.cards
+            ],
             plannedSpending=m.plannedSpending,
             uncategorised=m.uncategorised,
             daysLeft=m.daysLeft,
@@ -808,9 +838,13 @@ def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:
     ).all()
     users = {u.id: u.displayName for u in s.scalars(select(User))}
 
-    def label(cat_id: str | None, landed: bool, side: str) -> str:
+    cards = {a.id: a.name for a in s.scalars(select(Account).where(Account.type == "credit-card"))}
+
+    def label(cat_id: str | None, landed: bool, side: str, card: str | None = None) -> str:
         if cat_id and cat_id in tr.by_id:
             return tr.label(cat_id)
+        if card and side == "to":
+            return f"{cards.get(card, 'a card')}'s payment"
         if landed:
             return "money landed" if side == "from" else "the account's own"
         return "To Budget"
@@ -821,7 +855,7 @@ def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:
             fromCategoryId=m.fromCategoryId,
             fromLabel=label(m.fromCategoryId, bool(m.transactionId), "from"),
             toCategoryId=m.toCategoryId,
-            toLabel=label(m.toCategoryId, bool(m.transactionId), "to"),
+            toLabel=label(m.toCategoryId, bool(m.transactionId), "to", m.cardId),
             amount=m.amount,
             note=m.note,
             byName=users.get(m.createdById),
@@ -847,7 +881,17 @@ def make_move(budget_id: str, body: MoveIn, request: Request, c: Caller = Depend
             v = getattr(body, f)
             if v is not None and (v not in cats or cats[v].kind == "transfer"):
                 raise refuse(f, "category-unknown", "Choose a category.")
-        if body.fromCategoryId == body.toCategoryId or (
+        if body.cardId is not None:
+            card = s.get(Account, body.cardId)
+            if (
+                b.method != "envelope"
+                or card is None
+                or card.type != "credit-card"
+                or card.id not in budgets.account_ids(s, b)
+                or body.toCategoryId is not None
+            ):
+                raise refuse("cardId", "card-unknown", "One of an envelope budget's cards.")
+        elif body.fromCategoryId == body.toCategoryId or (
             b.method != "envelope" and (body.fromCategoryId is None or body.toCategoryId is None)
         ):
             raise refuse(
@@ -865,6 +909,7 @@ def make_move(budget_id: str, body: MoveIn, request: Request, c: Caller = Depend
             month=month,
             fromCategoryId=body.fromCategoryId,
             toCategoryId=body.toCategoryId,
+            cardId=body.cardId,
             amount=body.amount,
             note=(body.note or "").strip() or None,
             createdById=c.id,

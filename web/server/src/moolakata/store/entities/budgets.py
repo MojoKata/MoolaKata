@@ -61,4 +61,5 @@ class BudgetMove(Record):
     toCategoryId: str | None = None
     note: str | None = None
     transactionId: str | None = None
+    cardId: str | None = None
     createdById: str | None = None

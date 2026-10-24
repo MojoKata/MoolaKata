@@ -89,11 +89,14 @@ BudgetMove = record(
     Column("amount", Cents, nullable=False),
     Column("note", Text),
     Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE")),
+    # In an envelope budget, a card whose payment line the move puts money into (S7.13.2).
+    Column("cardId", Text, ForeignKey("Account.id")),
     Column("createdById", Text, ForeignKey("User.id")),
     CheckConstraint("amount > 0", name="amount"),
     CheckConstraint("strftime('%d', month) = '01'", name="month"),
     CheckConstraint(
-        '"fromCategoryId" IS NOT NULL OR "toCategoryId" IS NOT NULL OR "transactionId" IS NOT NULL',
+        '"fromCategoryId" IS NOT NULL OR "toCategoryId" IS NOT NULL OR "transactionId" IS NOT NULL'
+        ' OR "cardId" IS NOT NULL',
         name="somewhere",
     ),
     Index("ix_BudgetMove_budgetId", "budgetId"),

@@ -100,6 +100,40 @@ def seed_budgets(s, people: dict) -> None:
                 **extra,
             )
         )
+    # A scenario beside it: the same accounts and plan as an envelope budget (S7.12, S7.13).
+    this_month = month_of(clock.today())
+    env = Budget(
+        id=ids.new_id("Bdgt"),
+        ownerId=alice.id,
+        name="Household, envelope",
+        method="envelope",
+        reserves=True,
+        moves=True,
+        startMonth=this_month,
+    )
+    s.add(env)
+    s.flush()
+    for name in ("Everyday checking", "Emergency savings", "Travel Visa"):
+        s.add(BudgetAccount(budgetId=env.id, accountId=acct[name].id, createdAt=now))
+    for key, amount, cadence in (
+        ("housing.rent", "2150.00", "month"),
+        ("housing.utilities", "160.00", "month"),
+        ("food", "600.00", "month"),
+        ("transport.fuel", "120.00", "month"),
+        ("personal", "200.00", "month"),
+        ("travel", "2400.00", "year"),
+    ):
+        s.add(
+            BudgetLine(
+                id=ids.new_id("BdgLn"),
+                budgetId=env.id,
+                categoryId=cat[key].id,
+                fromMonth=this_month,
+                amount=D(amount),
+                cadence=cadence,
+                rollover=True,
+            )
+        )
     s.add(
         Share(
             id=ids.new_id("Share"),

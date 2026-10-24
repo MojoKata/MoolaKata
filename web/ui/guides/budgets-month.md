@@ -14,6 +14,12 @@ is made in.
 
 Which budget, when you have more than one or others share theirs with you.
 
+## To Budget {#to-budget}
+
+In an envelope budget, the money in its accounts not yet handed out: the cash, less what the
+envelopes hold and what is set aside for the cards. Income adds to it; only assigning money takes from
+it. Below zero, more is assigned than there is. **Assign** moves some to an envelope.
+
 ## Categories
 
 Each planned category's spending as a bar: green, then amber at 90% of the plan, red once over. A
@@ -26,6 +32,12 @@ accounts never count.
 ## Cover from… {#cover-from}
 
 An overspent category, covered by a move from one with money left this month.
+
+## Cards
+
+In an envelope budget, each card's payment line: a charge from an envelope with money in it moves that
+much to the line, and a payment to the card takes from it. A charge beyond what its envelope held is
+**owed, not backed**, shown here until a move into the line covers it.
 
 ## Reserves
 

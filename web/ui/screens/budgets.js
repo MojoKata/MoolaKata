@@ -175,7 +175,18 @@ function ThisMonth({ b, month, reloadList }) {
     ) => x && res.reload());
   const canMove = b.moves && v.canWrite;
   const moveTo = (/** @type {string} */ to = '') =>
-    openDialog(MoveDialog, { b, month, rows: v.rows, to }).then((x) => x && res.reload());
+    openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: v.cards }).then((x) =>
+      x && res.reload()
+    );
+  const envelope = b.method === 'envelope';
+  const setAside = v.cards.reduce(
+    (/** @type {any} */ s, /** @type {any} */ x) => s.add(dec(x.setAside)),
+    dec('0'),
+  );
+  const notBacked = v.cards.reduce(
+    (/** @type {any} */ s, /** @type {any} */ x) => s.add(dec(x.notBacked)),
+    dec('0'),
+  );
   const unmove = async (/** @type {any} */ m) => {
     await api.del(`/budgets/${b.id}/moves/${m.id}`, m.version);
     toast('Move deleted');
@@ -189,33 +200,73 @@ function ThisMonth({ b, month, reloadList }) {
       }
     });
   return html`
-    <div class="grid g3">
-      <div class="card kpi">
-        <div class="label">Income</div>
-        <div class="value amt">${money(v.income, {
-          cents: false,
-        })}</div>
-        <div class="delta dim">expected ${money(v.expectedIncome, { cents: false })}</div>
-      </div>
-      <div class="card kpi">
-        <div class="label">Spent</div>
-        <div class="value amt">${money(v.spent, {
-          cents: false,
-        })}</div>
-        <div class="delta dim">of ${money(v.plannedSpending, { cents: false })} planned · ${money(
-          left.abs(),
-          { cents: false },
-        )} ${left.isNegative() ? 'over' : 'left'}${v.daysLeft
-          ? `, ${v.daysLeft} day${v.daysLeft === 1 ? '' : 's'} to go`
-          : ''}</div>
-      </div>
-      <div class="card kpi">
-        <div class="label">Saved</div>
-        <div class="value amt">${money(v.saved, { cents: false })}</div>
-        <div class="delta dim">put away: investing, savings, a loan's principal</div>
-      </div>
-    </div>
-    <div class="card mt"><h3>Categories<span class="spacer"></span>
+    ${envelope
+      ? html`
+        <div class="grid g3">
+          <div class="card kpi" data-help="to-budget">
+            <div class="label">To Budget</div>
+            <div class=${'value amt' + (dec(v.toBudget).isNegative() ? ' down' : '')}>${money(
+              v.toBudget,
+              { cents: false },
+            )}</div>
+            <div class="delta dim">${dec(v.toBudget).isNegative()
+              ? 'more is assigned than there is'
+              : 'left to hand out'}${canMove
+              ? html`
+                · <button type="button" class="linklike" onClick=${() => moveTo()}>Assign</button>
+              `
+              : null}</div>
+          </div>
+          <div class="card kpi">
+            <div class="label">Assigned in ${monthLabel(month).split(' ')[0]}</div>
+            <div class="value amt">${money(dec(v.assigned).add(dec(v.assignedByMoves)), {
+              cents: false,
+            })}</div>
+            <div class="delta dim">${money(v.assigned, { cents: false })} by the plan, ${money(
+              v.assignedByMoves,
+              { cents: false },
+            )} by moves</div>
+          </div>
+          <div class="card kpi">
+            <div class="label">Set aside for cards</div>
+            <div class="value amt">${money(setAside, { cents: false })}</div>
+            <div class=${'delta' + (notBacked.gt(0) ? ' down' : ' dim')}>${notBacked.gt(0)
+              ? `${money(notBacked)} owed, not backed`
+              : 'every card backed'}</div>
+          </div>
+        </div>
+      `
+      : html`
+        <div class="grid g3">
+          <div class="card kpi">
+            <div class="label">Income</div>
+            <div class="value amt">${money(v.income, {
+              cents: false,
+            })}</div>
+            <div class="delta dim">expected ${money(v.expectedIncome, { cents: false })}</div>
+          </div>
+          <div class="card kpi">
+            <div class="label">Spent</div>
+            <div class="value amt">${money(v.spent, {
+              cents: false,
+            })}</div>
+            <div class="delta dim">of ${money(v.plannedSpending, {
+              cents: false,
+            })} planned · ${money(
+              left.abs(),
+              { cents: false },
+            )} ${left.isNegative() ? 'over' : 'left'}${v.daysLeft
+              ? `, ${v.daysLeft} day${v.daysLeft === 1 ? '' : 's'} to go`
+              : ''}</div>
+          </div>
+          <div class="card kpi">
+            <div class="label">Saved</div>
+            <div class="value amt">${money(v.saved, { cents: false })}</div>
+            <div class="delta dim">put away: investing, savings, a loan's principal</div>
+          </div>
+        </div>
+      `}
+    <div class="card mt"><h3>${envelope ? 'Envelopes' : 'Categories'}<span class="spacer"></span>
       <span class="small dim" style=${{ fontWeight: 400 }}>${b.level === 'owner'
         ? b.sharedWith ? `shared with ${b.sharedWith}` : 'yours'
         : `${b.ownerName}'s · ${b.level}`}</span>
@@ -243,6 +294,33 @@ function ThisMonth({ b, month, reloadList }) {
             `
             : ''
         }</p>`}
+      ${v.cards.length
+        ? html`<h4 class="small dim mt">Cards</h4>${
+          v.cards.map((/** @type {any} */ x) =>
+            html`
+              <div class="budget-row">
+                <div>${x.name} <span class="pill">payment</span></div>
+                <div class="bar"><i style=${{
+                  width: `${
+                    num(x.owed) > 0 ? Math.min(1, num(x.setAside) / num(x.owed)) * 100 : 100
+                  }%`,
+                }}></i></div>
+                <div
+                  class="num small amt">${money(x.setAside)} <span class="dim">set aside of ${money(
+                    x.owed,
+                  )} owed</span>${dec(x.notBacked).gt(0)
+                    ? html`<div class="down">${money(x.notBacked)} owed, not backed</div>${
+                      canMove
+                        ? html`<div><button type="button" class="linklike" data-help="cover-from"
+                      onClick=${() => moveTo('card:' + x.accountId)}>Cover from…</button></div>`
+                        : null
+                    }`
+                    : null}</div>
+              </div>
+            `
+          )
+        }`
+        : null}
       ${reserveRows.length
         ? html`<h4 class="small dim mt">Reserves</h4>${
           reserveRows.map((/** @type {any} */ r) =>
@@ -592,9 +670,10 @@ function Compare({ b, budgets, month }) {
 /**
  * A move (S7.11): an amount from one category, a reserve among them, to another for the month;
  * in an envelope budget, from or to To Budget.
- * @param {{ close: (v?: any) => void, b: any, month: string, rows: any[], to: string }} p
+ * @param {{ close: (v?: any) => void, b: any, month: string, rows: any[], to: string,
+ *   cards?: any[] }} p
  */
-function MoveDialog({ close, b, month, rows, to }) {
+function MoveDialog({ close, b, month, rows, to, cards = [] }) {
   useDialogGuide('dialog-move');
   const planned = rows.filter((r) => !r.fromPlan && r.kind !== 'income');
   const left = (/** @type {any} */ r) => dec(r.target ? r.balance : r.remaining);
@@ -605,15 +684,21 @@ function MoveDialog({ close, b, month, rows, to }) {
   const [from, setFrom] = useState(sources[0]?.categoryId || (envelope ? '' : ''));
   const [dest, setDest] = useState(to || planned.find((r) => r.state === 'over')?.categoryId || '');
   const over = planned.find((r) => r.categoryId === dest);
+  const card = cards.find((x) => 'card:' + x.accountId === dest);
   const [amount, setAmount] = useState(
-    over && over.state === 'over' ? String(dec(over.remaining).abs()) : '',
+    card
+      ? String(card.notBacked)
+      : over && over.state === 'over'
+      ? String(dec(over.remaining).abs())
+      : '',
   );
   const [note, setNote] = useState('');
   const save = useSubmit(async () => {
     await api.post(`/budgets/${b.id}/moves`, {
       month: month + '-01',
       fromCategoryId: from || null,
-      toCategoryId: dest || null,
+      toCategoryId: dest && !dest.startsWith('card:') ? dest : null,
+      cardId: dest.startsWith('card:') ? dest.slice(5) : null,
       amount: amount.replace(/[$,\s]/g, ''),
       note: note || null,
     });
@@ -639,6 +724,10 @@ function MoveDialog({ close, b, month, rows, to }) {
             <${Select} value=${dest} onChange=${setDest} options=${[
               ...(envelope ? [['', 'To Budget']] : [['', 'Choose a category']]),
               ...planned.filter((r) => r.categoryId !== from).map((r) => [r.categoryId, label(r)]),
+              ...cards.map((x) => [
+                'card:' + x.accountId,
+                `${x.name}'s payment: ${money(x.notBacked)} not backed`,
+              ]),
             ]} />
             </${Field}>
             </div>
