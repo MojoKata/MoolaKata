@@ -126,6 +126,16 @@ class LandedOut(Model):
     free: Money
 
 
+class TransferIn(Model):
+    """A transfer in from the budget's accounts this month: the reserves' unless kept."""
+
+    transactionId: str
+    date: dt.date
+    payee: str | None
+    amount: Money
+    kept: bool  # kept as the account's own: not counted for the reserves
+
+
 class HeldInOut(Model):
     """An account reserves are held in, and what is to move there (S7.10.4)."""
 
@@ -143,6 +153,7 @@ class HeldInOut(Model):
     limit: int | None
     overLimit: bool  # a move back now would go past the withdrawals allowed
     unassigned: list[LandedOut]
+    transfers: list[TransferIn]
 
 
 class CardOut(Model):
@@ -1114,6 +1125,16 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
                     limit=h.limit,
                     overLimit=h.toMove < 0 and h.limit is not None and h.withdrawals + 1 > h.limit,
                     unassigned=[LandedOut(**x.__dict__) for x in h.unassigned],
+                    transfers=[
+                        TransferIn(
+                            transactionId=x.transactionId,
+                            date=x.date,
+                            payee=x.payee,
+                            amount=x.amount,
+                            kept=kept,
+                        )
+                        for x, kept in h.transfers
+                    ],
                 )
             )
         cards = []
@@ -1191,6 +1212,11 @@ def give_landed(
         }
         h = held.get(t.accountId)
         free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
+        if free is None and h and body.to == "own":
+            # A transfer in from the budget's accounts, kept as the account's own (S7.10.4).
+            free = next(
+                (x.free for x, kept in h.transfers if x.transactionId == t.id and not kept), None
+            )
         if free is None or body.amount <= 0 or body.amount > free:
             raise refuse("amount", "amount-invalid", "No more than is unassigned of it.")
         if body.to == "own":

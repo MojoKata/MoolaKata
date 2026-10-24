@@ -22,13 +22,13 @@ import { changes } from '../app/stream.js';
 import { Amt } from '../components/amount.js';
 
 const TABS = /** @type {[string, string][]} */ ([
-  ['month', 'This month'],
+  ['month', 'Month'],
   ['cash-flow', 'Cash flow'],
   ['trends', 'Trends'],
   ['recurring', 'Recurring'],
   ['reimbursements', 'Reimbursements'],
 ]);
-TABS.splice(1, 0, ['where', 'Where the money is']);
+TABS.splice(1, 0, ['where', 'Where it is']);
 TABS.unshift(['list', 'Budgets']);
 TABS.splice(TABS.length - 1, 0, ['compare', 'Compare']);
 TABS.splice(3, 0, ['review', 'Review']);
@@ -907,7 +907,7 @@ function ReserveRow({ r, held }) {
           <span class="pill ok">Funded</span>
         `
         : html`
-          <span class="dim">${Math.round(p * 100)}%</span>
+          <span class="dim" style=${{ marginLeft: '4px' }}>${Math.round(p * 100)}%</span>
         `}
         <div class="dim">${dec(r.putIn).gt(0)
           ? `+${money(r.putIn, { cents: false })} put in`
@@ -939,6 +939,19 @@ function WhereMoneyIs({ b, month }) {
     return html`<${Empty}>No reserve is held in an account, and no card is among the budget's
       accounts. Give a reserve an account it's held in with <b>Edit plan</b>.</${Empty}>`;
   }
+  const keepOwn = async (/** @type {any} */ x) => {
+    try {
+      await api.post(`/budgets/${b.id}/landed`, {
+        transactionId: x.transactionId,
+        to: 'own',
+        amount: String(x.amount),
+      }, { params: { month } });
+      toast("Kept as the account's own");
+      res.reload();
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    }
+  };
   const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
     openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
   return html`
@@ -959,6 +972,18 @@ function WhereMoneyIs({ b, month }) {
             ? html`<div class="list-item"><span class="grow dim">Landed money given to them</span><span
               class="amt">${money(h.given)}</span></div>`
             : null}
+          ${h.transfers.map((/** @type {any} */ x) =>
+            html`
+              <div
+                class="list-item"><span class="grow">${x.kept
+                  ? "Kept as the account's own"
+                  : 'Moved in'}<div class="small dim">${money(x.amount)} ${x.payee ||
+                  'a transfer'}, ${date(x.date)}</div></span>${x.kept ? null : html`
+                  <button type="button" class="btn sm" data-help="keep-own"
+                    onClick=${() => keepOwn(x)}>Keep as the account's own</button>
+                `}</div>
+            `
+          )}
           ${h.unassigned.map((/** @type {any} */ x) =>
             html`
               <div

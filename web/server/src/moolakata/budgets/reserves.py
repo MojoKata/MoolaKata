@@ -117,6 +117,9 @@ class HeldIn:
     withdrawals: int  # this month
     limit: int | None
     unassigned: list[Landed] = field(default_factory=list)
+    # This month's transfers in from the budget's accounts, each counted for the reserves
+    # unless kept as the account's own (S7.10.4).
+    transfers: list[tuple[Landed, bool]] = field(default_factory=list)
 
     @property
     def toMove(self) -> Decimal:
@@ -168,11 +171,20 @@ def held_in(
             )
         }
         inside = set(accts) - {aid}
+        given_rows = [m for m in move_rows if m.transactionId and m.month <= month]
+        # A transfer kept as the account's own (savings of its own) isn't the reserves'.
+        own: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for m in given_rows:
+            if m.toCategoryId is None:
+                own[m.transactionId] += m.amount
         moved_in = sum(
-            (t.amount for t in txns if t.transferId and others.get(t.transferId) in inside),
+            (
+                t.amount - (own.get(t.id, ZERO) if t.amount > 0 else ZERO)
+                for t in txns
+                if t.transferId and others.get(t.transferId) in inside
+            ),
             ZERO,
         )
-        given_rows = [m for m in move_rows if m.transactionId and m.month <= month]
         by_txn: dict[str, Decimal] = defaultdict(lambda: ZERO)
         for m in given_rows:
             by_txn[m.transactionId] += m.amount
@@ -198,6 +210,17 @@ def held_in(
                 withdrawals=sum(1 for t in txns if t.amount < 0 and month_of(t.date) == month),
                 limit=a.withdrawalsAMonth,
                 unassigned=unassigned,
+                transfers=[
+                    (
+                        Landed(t.id, t.date, t.payee, t.amount, t.amount - own.get(t.id, ZERO)),
+                        own.get(t.id, ZERO) > 0,
+                    )
+                    for t in txns
+                    if t.amount > 0
+                    and t.transferId
+                    and others.get(t.transferId) in inside
+                    and month_of(t.date) == month
+                ],
             )
         )
     return out

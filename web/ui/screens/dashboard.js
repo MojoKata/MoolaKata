@@ -83,8 +83,10 @@ export default function Dashboard() {
                 ) * 100
               }%`,
             }}></i></div>
-            <div class="delta dim">of <${Amt} v=${d.budget.plannedSpending} cents=${false} />
-              planned${d.budget.daysLeft ? ` · ${d.budget.daysLeft} days left` : ''}</div>
+            <div class="delta dim">${'of '}<${Amt} v=${d.budget
+              .plannedSpending} cents=${false} />${` planned${
+              d.budget.daysLeft ? ` · ${d.budget.daysLeft} days left` : ''
+            }`}</div>
           </a>
         `
         : html`

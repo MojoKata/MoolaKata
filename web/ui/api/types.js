@@ -1311,6 +1311,7 @@
  * @property {(number | null)} limit
  * @property {boolean} overLimit
  * @property {Array<LandedOut>} unassigned
+ * @property {Array<TransferIn>} transfers
  */
 
 /**
@@ -4032,6 +4033,16 @@
 /**
  * @typedef {Object} TransferAnswer
  * @property {boolean} confirm
+ */
+
+/**
+ * A transfer in from the budget's accounts this month: the reserves' unless kept.
+ * @typedef {Object} TransferIn
+ * @property {string} transactionId
+ * @property {string} date
+ * @property {(string | null)} payee
+ * @property {import('../app/dec.js').Dec} amount
+ * @property {boolean} kept
  */
 
 /**

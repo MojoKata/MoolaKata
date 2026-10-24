@@ -136,6 +136,25 @@ def test_where_the_money_is(server, frozen):
         "170.00",
         [],
     )
+    # Savings of the account's own, moved in by transfer, kept out of the reserves' figures.
+    own = add(c, acct["id"], "-500.00", "2026-12-02", payee="To Ally, our savings")
+    pair = add(c, savings["id"], "500.00", "2026-12-02", payee="From checking", kind="deposit")
+    assert pair["transferId"] == own["id"]
+    (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
+    assert h["toMove"] == "-330.00"
+    assert [(x["amount"], x["kept"]) for x in h["transfers"]] == [("500.00", False)]
+    r = c.post(
+        f"/ui/api/budgets/{b['id']}/landed",
+        json={"transactionId": pair["id"], "to": "own", "amount": "500.00"},
+    )
+    assert r.status_code == 200, r.text
+    (h,) = r.json()["heldIn"]
+    assert h["toMove"] == "170.00" and h["transfers"][0]["kept"]
+    bad = c.post(
+        f"/ui/api/budgets/{b['id']}/landed",
+        json={"transactionId": pair["id"], "to": "own", "amount": "1.00"},
+    )
+    assert bad.status_code == 422
     # A repair paid from checking: money goes back, and with one withdrawal already this
     # month, a second would go past the account's limit of one.
     v = c.get(f"/ui/api/accounts/{savings['id']}").json()

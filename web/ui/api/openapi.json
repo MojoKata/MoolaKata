@@ -7537,6 +7537,13 @@
             "title": "Total",
             "type": "number"
           },
+          "transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferIn"
+            },
+            "title": "Transfers",
+            "type": "array"
+          },
           "unassigned": {
             "items": {
               "$ref": "#/components/schemas/LandedOut"
@@ -7563,7 +7570,8 @@
           "withdrawals",
           "limit",
           "overLimit",
-          "unassigned"
+          "unassigned",
+          "transfers"
         ],
         "title": "HeldInOut",
         "type": "object"
@@ -23200,6 +23208,53 @@
           "confirm"
         ],
         "title": "TransferAnswer",
+        "type": "object"
+      },
+      "TransferIn": {
+        "additionalProperties": false,
+        "description": "A transfer in from the budget's accounts this month: the reserves' unless kept.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kept": {
+            "title": "Kept",
+            "type": "boolean"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "payee",
+          "amount",
+          "kept"
+        ],
+        "title": "TransferIn",
         "type": "object"
       },
       "TransferLink": {

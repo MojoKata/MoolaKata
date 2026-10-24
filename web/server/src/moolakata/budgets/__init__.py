@@ -414,7 +414,8 @@ def _month_view(
     move_rows = reserves.moves(s, budget)
     moved_by = reserves.net_moves(move_rows)
     env = None
-    if budget.method == "envelope":
+    # An envelope budget has no To Budget before the month it starts in (S7.13.1).
+    if budget.method == "envelope" and month >= (budget.startMonth or month):
         from . import envelope
 
         env = envelope.month(s, budget, accts, tr, every, move_rows, month)
