@@ -21,6 +21,8 @@ ACCOUNT_TYPES = (
     "savings",
     "money-market",
     "cd",
+    "cash",
+    "payment-app",
     "credit-card",
     "brokerage",
     "ira",

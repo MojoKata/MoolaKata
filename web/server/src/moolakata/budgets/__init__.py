@@ -175,6 +175,10 @@ def amounts(
         elif t.categoryId and _counts(tr, t.categoryId):
             out[t.categoryId] += t.amount
             counted = True
+        if other is not None and not counted and other[1].type == "cash" and tr.key("cash"):
+            # Cash taken out to a cash account the budget doesn't count is spent (S7.3.2).
+            out[tr.key("cash")] += t.amount
+            counted = True
         if other is not None and not counted and moved is not None:
             moved.append(Moved(t.id, t.date, t.accountId, other[1].id, t.amount, t.payee))
     return dict(out)

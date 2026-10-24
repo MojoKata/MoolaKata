@@ -401,3 +401,29 @@ def test_a_refund_lowers_spending_in_the_month_it_lands(server, frozen):
     )
     assert row(month(c, b, "2026-09"), "Food")["actual"] == "120.00"
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "50.00"
+
+
+def test_cash_and_payment_apps(server, frozen):
+    """Cash on hand and payment apps are banking accounts (S1.1); cash taken out pairs with the
+    cash account's deposit, and counts as Cash when that account is outside the budget
+    (S7.3.2). Cash expects no statements and has no Reconcile tab (S1.11)."""
+    c, acct, cat, b = setup_budget(server)
+    cash = new_account(c, name="Wallet cash", type="cash", institution="", mask="")
+    venmo = new_account(c, name="Venmo", type="payment-app", institution="Venmo", mask="")
+    assert cash["group"] == venmo["group"] == "banking"
+    assert cash["statementIntervalDefault"] == "none" and not cash["reconcilable"]
+    assert venmo["reconcilable"]
+    out = add(c, acct["id"], "-60.00", "2026-10-07", payee="ATM")
+    dep = add(c, cash["id"], "60.00", "2026-10-07", payee="From the ATM", kind="deposit")
+    assert dep["transferId"] == out["id"]
+    # Money sent to the app, filed by its category on the bank's side.
+    add(
+        c, acct["id"], "-45.00", "2026-10-09", payee="To Venmo", categoryId=cat["Food › Dining out"]
+    )
+    add(c, venmo["id"], "45.00", "2026-10-09", payee="From checking", kind="deposit")
+    v = month(c, b, "2026-10")
+    assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [
+        ("Cash", "60.00"),
+        ("Food › Dining out", "45.00"),
+    ]
+    assert v["moved"] == []

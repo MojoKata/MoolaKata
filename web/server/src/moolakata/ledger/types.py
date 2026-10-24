@@ -5,6 +5,8 @@ GROUPS = {
     "savings": "banking",
     "money-market": "banking",
     "cd": "banking",
+    "cash": "banking",
+    "payment-app": "banking",
     "credit-card": "liabilities",
     "brokerage": "investing",
     "ira": "retirement",
@@ -44,6 +46,8 @@ LABELS = {
     "savings": "Savings",
     "money-market": "Money market",
     "cd": "CD",
+    "cash": "Cash",
+    "payment-app": "Payment app",
     "credit-card": "Credit card",
     "brokerage": "Brokerage",
     "ira": "Traditional IRA",
@@ -73,6 +77,8 @@ TAX = {
     "savings": "taxable",
     "money-market": "taxable",
     "cd": "taxable",
+    "cash": None,
+    "payment-app": None,
     "credit-card": None,
     "brokerage": "taxable",
     "ira": "deferred",
@@ -108,11 +114,11 @@ def investing(account_type: str) -> bool:
 def reconcilable(account_type: str) -> bool:
     """Every account kept from files or statements has a Reconcile tab (S1.11): banking, cards,
     brokerage, retirement and plan accounts, 529s, DAFs and exchanges. A loan is checked
-    against its servicer's balance on its own screen (S1.9.4); a watched wallet and a physical
-    asset have no statements."""
+    against its servicer's balance on its own screen (S1.9.4); a watched wallet, cash on hand
+    and a physical asset have no statements."""
     from ..loans import is_loan
 
-    if is_loan(account_type) or account_type == "crypto-wallet":
+    if is_loan(account_type) or account_type in ("crypto-wallet", "cash"):
         return False
     return GROUPS[account_type] != "physical-assets"
 
