@@ -20,3 +20,13 @@ a year.
 ## Rollover
 
 Carry what is left at the end of a month into the next, or what was overspent out of it.
+
+## Overspent
+
+In an envelope budget, what a category overspent at the month's end does: **carried negative** into
+the next month, or covered **from next month's To Budget**.
+
+## Projection
+
+For a savings line, an active projection: its monthly contribution shows beside the plan, so you see
+whether you put away what your plan assumes.

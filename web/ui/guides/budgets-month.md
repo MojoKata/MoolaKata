@@ -23,6 +23,11 @@ overspent) into the next month. A **year** category compares the year so far wit
 **Not in the plan** lists spending in categories without a plan. Transfers between the budget's
 accounts never count.
 
+## Gifts and Giving
+
+Planned by your gift plans and your giving plan, a year at a time, never typed twice: each shows the
+year so far against its plan, with a link to it.
+
 ## Saved
 
 Money put away rather than spent: a transfer to an investment or savings account the budget doesn't

@@ -2025,6 +2025,17 @@
             ],
             "title": "Accountids"
           },
+          "moves": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moves"
+          },
           "name": {
             "anyOf": [
               {
@@ -2035,6 +2046,31 @@
               }
             ],
             "title": "Name"
+          },
+          "reserves": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserves"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
           }
         },
         "title": "BudgetChange",
@@ -2058,6 +2094,14 @@
             "title": "Level",
             "type": "string"
           },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "moves": {
+            "title": "Moves",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -2070,9 +2114,32 @@
             "title": "Ownername",
             "type": "string"
           },
+          "reserves": {
+            "title": "Reserves",
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleOut"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
           "sharedWith": {
             "title": "Sharedwith",
             "type": "integer"
+          },
+          "startMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startmonth"
           },
           "version": {
             "title": "Version",
@@ -2087,6 +2154,11 @@
           "level",
           "accountIds",
           "sharedWith",
+          "method",
+          "reserves",
+          "moves",
+          "startMonth",
+          "roles",
           "version"
         ],
         "title": "BudgetRow",
@@ -10232,12 +10304,27 @@
             "title": "Categoryid",
             "type": "string"
           },
+          "fromPlan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromplan"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
           },
           "label": {
             "title": "Label",
+            "type": "string"
+          },
+          "overspend": {
+            "title": "Overspend",
             "type": "string"
           },
           "planned": {
@@ -10247,6 +10334,43 @@
             "format": "money",
             "title": "Planned",
             "type": "number"
+          },
+          "projectionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionid"
+          },
+          "projectionMonthly": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionmonthly"
+          },
+          "projectionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionname"
           },
           "remaining": {
             "examples": [
@@ -10275,7 +10399,12 @@
           "carried",
           "actual",
           "remaining",
-          "state"
+          "state",
+          "fromPlan",
+          "overspend",
+          "projectionId",
+          "projectionName",
+          "projectionMonthly"
         ],
         "title": "MonthRow",
         "type": "object"
@@ -10757,9 +10886,24 @@
             "title": "Accountids",
             "type": "array"
           },
+          "method": {
+            "default": "tracking",
+            "title": "Method",
+            "type": "string"
+          },
+          "moves": {
+            "default": false,
+            "title": "Moves",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "reserves": {
+            "default": false,
+            "title": "Reserves",
+            "type": "boolean"
           }
         },
         "required": [
@@ -13042,6 +13186,37 @@
         "title": "Page[ProjectionRow]",
         "type": "object"
       },
+      "Page_Proposal_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[Proposal]",
+        "type": "object"
+      },
       "Page_Purchase_": {
         "properties": {
           "items": {
@@ -14906,6 +15081,22 @@
             "title": "Categoryid",
             "type": "string"
           },
+          "overspend": {
+            "default": "carry",
+            "title": "Overspend",
+            "type": "string"
+          },
+          "projectionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionid"
+          },
           "rollover": {
             "default": false,
             "title": "Rollover",
@@ -15651,6 +15842,7 @@
               "method-not-allowed",
               "month-invalid",
               "months-invalid",
+              "moves-needed",
               "multiplier-invalid",
               "name-invalid",
               "name-missing",
@@ -15697,6 +15889,7 @@
               "organisation-missing",
               "organisation-unknown",
               "origin-refused",
+              "overspend-invalid",
               "owed-by-too-long",
               "owner-counts",
               "owner-only",
@@ -15721,12 +15914,14 @@
               "phrase-wrong",
               "place-missing",
               "plan-exists",
+              "planned-elsewhere",
               "portfolio-unknown",
               "premium-invalid",
               "price-missing",
               "price-negative",
               "principal-invalid",
               "progress-invalid",
+              "projection-unknown",
               "public-url-needed",
               "purity-invalid",
               "quantity-invalid",
@@ -16003,6 +16198,7 @@
                   "method-not-allowed",
                   "month-invalid",
                   "months-invalid",
+                  "moves-needed",
                   "multiplier-invalid",
                   "name-invalid",
                   "name-missing",
@@ -16049,6 +16245,7 @@
                   "organisation-missing",
                   "organisation-unknown",
                   "origin-refused",
+                  "overspend-invalid",
                   "owed-by-too-long",
                   "owner-counts",
                   "owner-only",
@@ -16073,12 +16270,14 @@
                   "phrase-wrong",
                   "place-missing",
                   "plan-exists",
+                  "planned-elsewhere",
                   "portfolio-unknown",
                   "premium-invalid",
                   "price-missing",
                   "price-negative",
                   "principal-invalid",
                   "progress-invalid",
+                  "projection-unknown",
                   "public-url-needed",
                   "purity-invalid",
                   "quantity-invalid",
@@ -16731,6 +16930,66 @@
           "version"
         ],
         "title": "ProjectionRow",
+        "type": "object"
+      },
+      "Proposal": {
+        "additionalProperties": false,
+        "description": "A plan line estimated from history (S7.1.5).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "cadence": {
+            "title": "Cadence",
+            "type": "string"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "amount",
+          "cadence",
+          "source",
+          "detail",
+          "target"
+        ],
+        "title": "Proposal",
         "type": "object"
       },
       "ProposalLeg": {
@@ -18511,6 +18770,91 @@
           "due"
         ],
         "title": "RmdOut",
+        "type": "object"
+      },
+      "RoleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "RoleIn",
+        "type": "object"
+      },
+      "RoleOut": {
+        "additionalProperties": false,
+        "description": "Where an account's money comes from (S7.1.6), worked out unless chosen.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "movedFromProposed": {
+            "title": "Movedfromproposed",
+            "type": "boolean"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          },
+          "paidFromLearned": {
+            "title": "Paidfromlearned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accountId",
+          "paidFromId",
+          "paidFromLearned",
+          "movedFromId",
+          "movedFromProposed"
+        ],
+        "title": "RoleOut",
         "type": "object"
       },
       "RolloverOut": {
@@ -28539,6 +28883,80 @@
           }
         },
         "summary": "Budget Cash Flow",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/estimate": {
+      "get": {
+        "description": "A plan from the last 3, 6 or 12 complete months (S7.1.5): nothing is saved.",
+        "operationId": "estimate_ui_api_budgets__budget_id__estimate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "months",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "maximum": 12,
+              "minimum": 3,
+              "title": "Months",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Proposal_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Estimate",
         "tags": [
           "budgets"
         ]

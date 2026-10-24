@@ -11,8 +11,8 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, budgets, clock, ids
-from ..budgets import recurring
-from ..errors import FieldError, Problem
+from ..budgets import plan, recurring
+from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine
 from ..store.entities.users import User
@@ -20,6 +20,22 @@ from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_matc
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["budgets"])
+
+
+class RoleOut(Model):
+    """Where an account's money comes from (S7.1.6), worked out unless chosen."""
+
+    accountId: str
+    paidFromId: str | None  # a card's paying account
+    paidFromLearned: bool
+    movedFromId: str | None  # where money for reserves held here moves from
+    movedFromProposed: bool
+
+
+class RoleIn(Model):
+    accountId: str
+    paidFromId: str | None = None  # none: learned from the card's payments
+    movedFromId: str | None = None  # none: proposed from the transfers in
 
 
 class BudgetRow(Model):
@@ -30,17 +46,28 @@ class BudgetRow(Model):
     level: str
     accountIds: list[str]
     sharedWith: int
+    method: str  # tracking or envelope (S7.1.3)
+    reserves: bool  # its options (S7.1.4)
+    moves: bool
+    startMonth: dt.date | None
+    roles: list[RoleOut]
     version: int
 
 
 class NewBudget(Model):
     name: str
     accountIds: list[str] = Field(default_factory=list)
+    method: str = "tracking"
+    reserves: bool = False
+    moves: bool = False
 
 
 class BudgetChange(Model):
     name: str | None = None
     accountIds: list[str] | None = None
+    reserves: bool | None = None
+    moves: bool | None = None
+    roles: list[RoleIn] | None = None
 
 
 class PlanLine(Model):
@@ -48,6 +75,8 @@ class PlanLine(Model):
     amount: Money
     cadence: str = "month"
     rollover: bool = False
+    overspend: str = "carry"  # an envelope budget's: carried negative, or from next month
+    projectionId: str | None = None  # a savings line's active projection
 
 
 class Plan(Model):
@@ -68,6 +97,23 @@ class MonthRow(Model):
     actual: Money
     remaining: Money
     state: str
+    fromPlan: str | None  # gifts or giving: planned by those plans, not here (S7.3.6)
+    overspend: str
+    projectionId: str | None
+    projectionName: str | None
+    projectionMonthly: Money | None
+
+
+class Proposal(Model):
+    """A plan line estimated from history (S7.1.5)."""
+
+    categoryId: str
+    label: str
+    amount: Money
+    cadence: str
+    source: str  # history or recurring
+    detail: str
+    target: Money | None  # a yearly cost proposed as a reserve
 
 
 class Unplanned(Model):
@@ -165,14 +211,21 @@ def _names(s, viewer: str, account_ids: set[str]) -> dict[str, str]:
 def shape(s, b: Budget, level: str, viewer: str | None = None) -> BudgetRow:
     owner = s.get(User, b.ownerId)
     shared = len(access.holders(s, "budget", b.id, b.ownerId)) - 1 if level == "owner" else 0
+    accts = _accounts_of(s, b, viewer)
+    rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
     return BudgetRow(
         id=b.id,
         name=b.name,
         ownerId=b.ownerId,
         ownerName=owner.displayName,
         level=level,
-        accountIds=_accounts_of(s, b, viewer),
+        accountIds=accts,
         sharedWith=shared,
+        method=b.method,
+        reserves=b.reserves,
+        moves=b.moves,
+        startMonth=b.startMonth,
+        roles=[RoleOut(**r.__dict__) for r in plan.roles(s, b, rows, clock.today())],
         version=b.version,
     )
 
@@ -214,6 +267,28 @@ def _set_accounts(s, b: Budget, wanted: list[str], by: str) -> None:
     for aid, m in current.items():
         if aid not in wanted and not m.deleted:
             m.mark_deleted(by, now)
+
+
+def _set_roles(s, b: Budget, wanted: list[RoleIn]) -> None:
+    """A card's paying account, or where reserves' money moves from, chosen; none goes back to
+    what the history says."""
+    members = {
+        m.accountId: m
+        for m in s.scalars(
+            select(BudgetAccount).where(
+                BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false()
+            )
+        )
+    }
+    for i, r in enumerate(wanted):
+        m = members.get(r.accountId)
+        for f in ("paidFromId", "movedFromId"):
+            v = getattr(r, f)
+            if m is None or (v is not None and v not in members):
+                raise refuse(
+                    f"roles.{i}.{f}", "account-unknown", "Choose one of the budget's accounts."
+                )
+        m.paidFromId, m.movedFromId = r.paidFromId, r.movedFromId
 
 
 def _month(value: str | None) -> dt.date:
@@ -284,9 +359,25 @@ def get_budget(budget_id: str, request: Request, c: Caller = Depends(caller)):
 
 @router.post("/budgets", response_model=BudgetRow, status_code=201)
 def create_budget(body: NewBudget, request: Request, c: Caller = Depends(caller)):
+    if body.method not in ("tracking", "envelope"):
+        raise Problem(
+            422,
+            "method-invalid",
+            "Tracking or envelope.",
+            [FieldError("method", "method-invalid", "Tracking or envelope.")],
+        )
     with server(request).db.tx() as s:
         _raise(_check(s, c.id, body))
-        b = Budget(id=ids.new_id("Bdgt"), ownerId=c.id, name=body.name.strip())
+        b = Budget(
+            id=ids.new_id("Bdgt"),
+            ownerId=c.id,
+            name=body.name.strip(),
+            method=body.method,
+            reserves=body.reserves,
+            # An envelope budget always has moves (S7.1.4).
+            moves=body.moves or body.method == "envelope",
+            startMonth=budgets.month_of(clock.today()),
+        )
         s.add(b)
         s.flush()
         _set_accounts(s, b, body.accountIds, c.id)
@@ -325,6 +416,17 @@ def change_budget(
             _set_accounts(s, b, body.accountIds, c.id)
             b.updatedAt = clock.now()
             fields.append("accounts")
+        for option in ("reserves", "moves"):
+            value = getattr(body, option)
+            if value is not None and value != getattr(b, option):
+                if option == "moves" and b.method == "envelope" and not value:
+                    raise refuse("moves", "moves-needed", "An envelope budget always has moves.")
+                setattr(b, option, value)
+                fields.append(option)
+        if body.roles is not None:
+            _set_roles(s, b, body.roles)
+            b.updatedAt = clock.now()
+            fields.append("roles")
         if fields:
             activity.record(
                 s,
@@ -366,7 +468,14 @@ def budget_month(
         )
         return MonthView(
             month=m.month,
-            rows=[MonthRow(**r.__dict__) for r in m.rows],
+            rows=[
+                MonthRow(
+                    **{k: v for k, v in r.__dict__.items() if k != "projection"},
+                    projectionName=r.projection[0] if r.projection else None,
+                    projectionMonthly=r.projection[1] if r.projection else None,
+                )
+                for r in m.rows
+            ],
             unplanned=[Unplanned(categoryId=i, label=lb, spent=a) for i, lb, a in m.unplanned],
             income=m.income,
             expectedIncome=m.expectedIncome,
@@ -406,6 +515,7 @@ def set_plan(
         b, lvl = access.budget(s, c.id, budget_id, "write")
         check(b, version, lambda: shape(s, b, lvl, c.id))
         cats = {x.id: x for x in s.scalars(select(Category).where(Category.deleted == false()))}
+        elsewhere = plan.planned_elsewhere(s, b, budgets.tree(s), month.year)
         errors = []
         seen = set()
         for i, ln in enumerate(body.lines):
@@ -426,6 +536,28 @@ def set_plan(
                 errors.append(
                     FieldError(f"lines.{i}.cadence", "cadence-invalid", "Monthly or yearly.")
                 )
+            if ln.categoryId in elsewhere:
+                errors.append(
+                    FieldError(
+                        f"lines.{i}.categoryId",
+                        "planned-elsewhere",
+                        "Planned by your gift or giving plans.",
+                    )
+                )
+            if ln.overspend not in ("carry", "next"):
+                errors.append(
+                    FieldError(
+                        f"lines.{i}.overspend",
+                        "overspend-invalid",
+                        "Carried negative, or from next month's To Budget.",
+                    )
+                )
+            if ln.projectionId and not _projection_ok(s, b, ln.projectionId):
+                errors.append(
+                    FieldError(
+                        f"lines.{i}.projectionId", "projection-unknown", "Choose a projection."
+                    )
+                )
         _raise(errors)
         every = budgets.lines(s, b)
         current = budgets.in_force(every, month)
@@ -433,16 +565,20 @@ def set_plan(
         for cat_id in set(current) | set(wanted):
             new = wanted.get(cat_id)
             values = (
-                (new.amount, new.cadence, new.rollover) if new else (Decimal(0), "month", False)
+                (new.amount, new.cadence, new.rollover, new.overspend, new.projectionId)
+                if new
+                else (Decimal(0), "month", False, "carry", None)
             )
             old = current.get(cat_id)
-            if old is not None and (old.amount, old.cadence, old.rollover) == values:
+            fields = ("amount", "cadence", "rollover", "overspend", "projectionId")
+            if old is not None and tuple(getattr(old, f) for f in fields) == values:
                 continue
             same_month = next(
                 (x for x in every if x.categoryId == cat_id and x.fromMonth == month), None
             )
             if same_month is not None:
-                same_month.amount, same_month.cadence, same_month.rollover = values
+                for f, v in zip(fields, values, strict=True):
+                    setattr(same_month, f, v)
             else:
                 s.add(
                     BudgetLine(
@@ -450,9 +586,7 @@ def set_plan(
                         budgetId=b.id,
                         categoryId=cat_id,
                         fromMonth=month,
-                        amount=values[0],
-                        cadence=values[1],
-                        rollover=values[2],
+                        **dict(zip(fields, values, strict=True)),
                     )
                 )
         b.updatedAt = clock.now()
@@ -466,6 +600,38 @@ def set_plan(
         )
         s.flush()
     return budget_month(budget_id, request, c, month.isoformat()[:7])
+
+
+def _projection_ok(s, b: Budget, projection_id: str) -> bool:
+    from ..store.entities.projections import Projection
+
+    p = s.get(Projection, projection_id)
+    return p is not None and not p.deleted and p.ownerId == b.ownerId
+
+
+@router.get("/budgets/{budget_id}/estimate", response_model=list[Proposal])
+def estimate(
+    budget_id: str,
+    request: Request,
+    c: Caller = Depends(caller),
+    months: int = Query(6, ge=3, le=12),
+):
+    """A plan from the last 3, 6 or 12 complete months (S7.1.5): nothing is saved."""
+    with server(request).db.read() as s:
+        b, _ = access.budget(s, c.id, budget_id, "write")
+        tr = budgets.tree(s)
+        return [
+            Proposal(
+                categoryId=x.categoryId,
+                label=tr.label(x.categoryId),
+                amount=x.amount,
+                cadence=x.cadence,
+                source=x.source,
+                detail=x.detail,
+                target=x.target,
+            )
+            for x in plan.estimate(s, b, budgets.account_ids(s, b, c.id), tr, months, clock.today())
+        ]
 
 
 @router.get("/budgets/{budget_id}/cash-flow", response_model=CashFlow)

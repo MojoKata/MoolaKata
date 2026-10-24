@@ -303,6 +303,10 @@ class Row:
     actual: Decimal  # spent, or received for income
     remaining: Decimal
     state: str  # under, near (90% or more), over
+    fromPlan: str | None = None  # gifts or giving: planned by those plans (S7.3.6)
+    overspend: str = "carry"
+    projectionId: str | None = None
+    projection: tuple[str, Decimal] | None = None  # an active projection's name and monthly
 
 
 @dataclass
@@ -341,6 +345,8 @@ def _state(planned: Decimal, actual: Decimal) -> str:
 def month_view(
     s: Session, budget: Budget, month: dt.date, today: dt.date, viewer: str | None = None
 ) -> Month:
+    from . import plan
+
     tr = tree(s)
     accts = account_ids(s, budget, viewer)
     every = lines(s, budget)
@@ -374,6 +380,32 @@ def month_view(
                 actual=actual,
                 remaining=planned - actual,
                 state=_state(planned, actual) if kind == "expense" else "under",
+                overspend=ln.overspend,
+                projectionId=ln.projectionId,
+                projection=plan.monthly_contribution(s, ln.projectionId)
+                if ln.projectionId
+                else None,
+            )
+        )
+    # Gifts and Giving are planned by the owner's gift and giving plans, a year at a time.
+    for cat_id, amount in plan.planned_elsewhere(s, budget, tr, month.year).items():
+        if cat_id in now or cat_id not in tr.by_id:
+            continue
+        planned_cats.add(cat_id)
+        actual = _actual(tr, ytd, cat_id)
+        rows.append(
+            Row(
+                categoryId=cat_id,
+                label=tr.label(cat_id),
+                kind=tr.by_id[cat_id].kind,
+                cadence="year",
+                rollover=False,
+                planned=amount,
+                carried=ZERO,
+                actual=actual,
+                remaining=amount - actual,
+                state=_state(amount, actual),
+                fromPlan=tr.by_id[cat_id].builtIn,
             )
         )
     rows.sort(key=lambda r: (r.kind != "income", r.label))

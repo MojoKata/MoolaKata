@@ -12,7 +12,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Select, Switch } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
@@ -58,11 +58,20 @@ export default function Budgets({ id, tab }) {
     (_, i) => monthKey(new Date(now.getFullYear(), now.getMonth() + 1 - i, 1)),
   );
   const newBudget = () =>
-    openDialog(BudgetDialog, {}).then((b) => {
-      if (b) {
-        list.reload();
-        location.assign(`/ui/budgets/${b.id}/month`);
+    openDialog(BudgetDialog, {}).then(async (b) => {
+      if (!b) return;
+      // A plan from history first, when chosen (S7.1.5); the budget is made either way.
+      if (b.estimate) {
+        await openDialog(EstimateDialog, {
+          b,
+          month: monthKey(now),
+          rows: [],
+          version: b.version,
+          months: b.estimate,
+        });
       }
+      list.reload();
+      location.assign(`/ui/budgets/${b.id}/month`);
     });
   if (!budgets.length) {
     return html`
@@ -125,10 +134,22 @@ function ThisMonth({ b, month, reloadList }) {
     const done = await openDialog(TransactionDialog, { txn, accounts: accounts.items });
     if (done) res.reload();
   };
+  const own = v.rows.filter((/** @type {any} */ r) => !r.fromPlan);
   const edit = () =>
-    openDialog(PlanDialog, { b, month, rows: v.rows, version: v.version }).then((x) =>
+    openDialog(PlanDialog, { b, month, rows: own, version: v.version }).then((x) =>
       x && res.reload()
     );
+  const estimate = () =>
+    openDialog(EstimateDialog, { b, month, rows: own, version: v.version, months: 6 }).then((
+      x,
+    ) => x && res.reload());
+  const settings = () =>
+    openDialog(BudgetSettingsDialog, { b }).then((x) => {
+      if (x) {
+        reloadList();
+        res.reload();
+      }
+    });
   return html`
     <div class="grid g3">
       <div class="card kpi">
@@ -167,7 +188,11 @@ function ThisMonth({ b, month, reloadList }) {
           )}><${Icon} name="share" /> Share</button>`
         : null}
       ${v.canWrite
-        ? html`<button type="button" class="btn sm" onClick=${edit}>Edit plan</button>`
+        ? html`
+          <button type="button" class="btn sm" onClick=${settings}>Settings</button>
+          <button type="button" class="btn sm" onClick=${estimate}>Estimate from history…</button>
+          <button type="button" class="btn sm" onClick=${edit}>Edit plan</button>
+        `
         : null}</h3>
       ${spend.length
         ? spend.map((/** @type {any} */ r) => html`<${BudgetRow} r=${r} />`)
@@ -277,6 +302,16 @@ function BudgetRow({ r }) {
               { cents: false },
             )
           } rolled over</div>`
+          : null}${r.fromPlan
+          ? html`<div class="dim">planned by your <a href=${
+            r.fromPlan === 'gifts' ? '/ui/gifts/people' : '/ui/giving'
+          }>${r.fromPlan === 'gifts' ? 'gift plans' : 'giving plan'}</a></div>`
+          : null}${r.projectionName
+          ? html`<div class="dim">${r.projectionName} assumes ${
+            money(r.projectionMonthly, {
+              cents: false,
+            })
+          }</div>`
           : null}</div>
     </div>
   `;
@@ -496,55 +531,292 @@ function PairDialog({ close, item }) {
   `;
 }
 
-/** A new budget: its name and the accounts it covers. @param {{ close: (v?: any) => void }} p */
-function BudgetDialog({ close }) {
-  useDialogGuide('dialog-budget');
+/**
+ * The accounts a budget covers, with a note naming those it leaves out that often get transfers
+ * from them (S7.3.2).
+ * @param {{ ids: Set<string>, setIds: (s: Set<string>) => void, error: any }} p
+ */
+function AccountsPicker({ ids, setIds, error }) {
   const accounts = useList('/accounts');
-  const [name, setName] = useState('');
-  const [ids, setIds] = useState(/** @type {Set<string>} */ (new Set()));
   const outside = useList('/budgets/left-out', { accountIds: [...ids].sort() });
   const left = /** @type {any[]} */ (outside.data) || [];
-  const save = useSubmit(async () => {
-    const out = await api.post('/budgets', { name, accountIds: [...ids] }, { idempotent: true });
-    toast('Budget made: plan its categories next');
-    close(out);
-  });
   const list = /** @type {any[]} */ (accounts.data) || [];
   return html`
-    <${Dialog} title="New budget" close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
+    <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+      <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Accounts</legend>
+      ${list.filter((a) => !a.investing).map((a) =>
+        html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
+          data-help="accounts" checked=${ids.has(a.id)} onChange=${() => {
+          const next = new Set(ids);
+          next.has(a.id) ? next.delete(a.id) : next.add(a.id);
+          setIds(next);
+        }} /><span class="grow">${a.name} <span class="small dim">${
+          a.institution || ''
+        }</span></span></label>`
+      )}
+      ${errAt(error, 'accountIds')
+        ? html`<div class="err">${errAt(error, 'accountIds')}</div>`
+        : null}
+    </fieldset>
+    ${left.map((x) =>
+      html`
+        <div class="notice" style=${{ marginBottom: '12px' }}>
+          <${Icon} name="info" />
+          <div><b>${x.name}</b> gets transfers from these accounts (${x.transfers} this year):
+            <button type="button" class="linklike" onClick=${() =>
+              setIds(new Set([...ids, x.accountId]))}>include it?</button> Left out, a
+            transfer to it counts by its category, or waits to be sorted.</div>
+        </div>
+      `
+    )}
+  `;
+}
+
+const METHODS = /** @type {[string, string][]} */ ([
+  ['tracking', 'Tracking: a plan against what is spent'],
+  ['envelope', 'Envelope: hand out the money you have'],
+]);
+
+/**
+ * A new budget: its name, method, options and accounts, and whether to plan it from history.
+ * @param {{ close: (v?: any) => void }} p
+ */
+function BudgetDialog({ close }) {
+  useDialogGuide('dialog-budget');
+  const [name, setName] = useState('');
+  const [method, setMethod] = useState('tracking');
+  const [reserves, setReserves] = useState(true);
+  const [moves, setMoves] = useState(true);
+  const [estimate, setEstimate] = useState('6');
+  const [ids, setIds] = useState(/** @type {Set<string>} */ (new Set()));
+  const save = useSubmit(async () => {
+    const out = await api.post('/budgets', {
+      name,
+      accountIds: [...ids],
+      method,
+      reserves,
+      moves: moves || method === 'envelope',
+    }, { idempotent: true });
+    toast('Budget made');
+    close({ ...out, estimate: Number(estimate) || 0 });
+  });
+  return html`
+    <${Dialog} title="New budget" wide close=${close} onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Make it</button>`}>
       <${Field} label="Name" error=${errAt(save.error, 'name')}>
         <${Input} value=${name} onInput=${setName} placeholder="Household" required />
         </${Field}>
-        <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
-        <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Accounts</legend>
-        ${list.filter((a) => !a.investing).map((a) =>
-          html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
-            data-help="accounts" checked=${ids.has(a.id)} onChange=${() => {
-            const next = new Set(ids);
-            next.has(a.id) ? next.delete(a.id) : next.add(a.id);
-            setIds(next);
-          }} /><span class="grow">${a.name} <span class="small dim">${
-            a.institution || ''
-          }</span></span></label>`
+        <${Field} label="Method" error=${errAt(save.error, 'method')}
+          hint="It keeps its method; copy it as a scenario to try the other.">
+          <${Select} value=${method} onChange=${setMethod} options=${METHODS} />
+          </${Field}>
+          <${SwitchRow} label="Reserves" hint="Save toward a target in a category, month by month."
+            on=${reserves} onChange=${setReserves} />
+          <${SwitchRow} label="Moves" hint=${method === 'envelope'
+            ? 'Always on in an envelope budget.'
+            : 'Cover one category from another for a month.'} on=${moves ||
+            method === 'envelope'} onChange=${setMoves}
+            disabled=${method === 'envelope'} />
+          <${AccountsPicker} ids=${ids} setIds=${setIds} error=${save.error} />
+          <${Field} label="Estimate from history"
+            hint="A plan line per category from its average; you keep, change or drop each.">
+            <${Select} value=${estimate} onChange=${setEstimate} options=${[
+              ['0', "Don't estimate"],
+              ['3', 'The last 3 months'],
+              ['6', 'The last 6 months'],
+              ['12', 'The last 12 months'],
+            ]} />
+            </${Field}>
+            <${FormError} error=${save.error} shown=${['name', 'accountIds', 'method']} />
+            </${Dialog}>
+  `;
+}
+
+/**
+ * A budget's name, options and accounts, and where its money comes from (S7.1.6).
+ * @param {{ close: (v?: any) => void, b: any }} p
+ */
+function BudgetSettingsDialog({ close, b }) {
+  useDialogGuide('dialog-budget-settings');
+  const accounts = useList('/accounts');
+  const list = /** @type {any[]} */ (accounts.data) || [];
+  const byId = Object.fromEntries(list.map((a) => [a.id, a]));
+  const [name, setName] = useState(b.name);
+  const [reserves, setReserves] = useState(b.reserves);
+  const [moves, setMoves] = useState(b.moves);
+  const [ids, setIds] = useState(/** @type {Set<string>} */ (new Set(b.accountIds)));
+  const [roles, setRoles] = useState(
+    Object.fromEntries(
+      b.roles.map((/** @type {any} */ r) => [r.accountId, {
+        paidFromId: r.paidFromLearned ? '' : r.paidFromId || '',
+        movedFromId: r.movedFromProposed ? '' : r.movedFromId || '',
+      }]),
+    ),
+  );
+  const learned = Object.fromEntries(b.roles.map((/** @type {any} */ r) => [r.accountId, r]));
+  const owner = b.level === 'owner';
+  const save = useSubmit(async () => {
+    await api.patch(`/budgets/${b.id}`, {
+      name,
+      reserves,
+      moves,
+      ...(owner ? { accountIds: [...ids] } : {}),
+      roles: b.roles.map((/** @type {any} */ r) => ({
+        accountId: r.accountId,
+        paidFromId: roles[r.accountId]?.paidFromId || null,
+        movedFromId: roles[r.accountId]?.movedFromId || null,
+      })),
+    }, b.version);
+    toast('Saved');
+    close(true);
+  });
+  const inBudget = b.accountIds.map((/** @type {string} */ x) => byId[x]).filter(Boolean);
+  const choices = (/** @type {any} */ a, /** @type {string} */ k) => {
+    const r = learned[a.id];
+    const auto = k === 'paidFromId' ? r?.paidFromId : r?.movedFromId;
+    return [
+      ['', `As its history says${auto && byId[auto] ? `: ${byId[auto].name}` : ''}`],
+      ...inBudget.filter((x) => x.id !== a.id && x.type !== 'credit-card').map((x) => [
+        x.id,
+        x.name,
+      ]),
+    ];
+  };
+  const set = (/** @type {string} */ id, /** @type {string} */ k) => (/** @type {string} */ v) =>
+    setRoles({ ...roles, [id]: { ...roles[id], [k]: v } });
+  return html`
+    <${Dialog} title=${`${b.name}: settings`} wide close=${close}
+      onSubmit=${() => save.run().catch(() => {})}
+      note=${`${
+        b.method === 'envelope' ? 'An envelope' : 'A tracking'
+      } budget: it keeps its method.`}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
+      <${Field} label="Name" error=${errAt(save.error, 'name')}>
+        <${Input} value=${name} onInput=${setName} required /></${Field}>
+      <${SwitchRow} label="Reserves" hint="Save toward a target in a category, month by month."
+        on=${reserves} onChange=${setReserves} />
+      <${SwitchRow} label="Moves" hint=${b.method === 'envelope'
+        ? 'Always on in an envelope budget.'
+        : 'Cover one category from another for a month.'} on=${moves} onChange=${setMoves}
+        disabled=${b.method === 'envelope'} />
+      ${owner ? html`<${AccountsPicker} ids=${ids} setIds=${setIds} error=${save.error} />` : null}
+      <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+        <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Where money comes from</legend>
+        ${[
+          ...inBudget.filter((a) => a.type === 'credit-card'),
+          ...inBudget.filter((a) => a.type !== 'credit-card'),
+        ].map((a) =>
+          a.type === 'credit-card'
+            ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim">paid
+              from</div></span><${Select} value=${roles[a.id]?.paidFromId || ''}
+              onChange=${set(a.id, 'paidFromId')} options=${choices(a, 'paidFromId')}
+              aria-label=${`${a.name}: paid from`} data-help="paid-from" /></div>`
+            : ['savings', 'money-market'].includes(a.type)
+            ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim">money
+              for its reserves moves from</div></span><${Select} value=${
+              roles[a.id]?.movedFromId ||
+              ''
+            } onChange=${set(a.id, 'movedFromId')} options=${choices(a, 'movedFromId')}
+              aria-label=${`${a.name}: moved from`} data-help="moved-from" /></div>`
+            : null
         )}
-        ${errAt(save.error, 'accountIds')
-          ? html`<div class="err">${errAt(save.error, 'accountIds')}</div>`
-          : null}
       </fieldset>
-        ${left.map((x) =>
-          html`
-            <div class="notice" style=${{ marginBottom: '12px' }}>
-              <${Icon} name="info" />
-              <div><b>${x.name}</b> gets transfers from these accounts (${x.transfers} this year):
-                <button type="button" class="linklike" onClick=${() =>
-                  setIds(new Set([...ids, x.accountId]))}>include it?</button> Left out, a
-                transfer to it counts by its category, or waits to be sorted.</div>
-            </div>
-          `
-        )}
-        <${FormError} error=${save.error} shown=${['name', 'accountIds']} />
-        </${Dialog}>
+      <${FormError} error=${save.error} shown=${['name', 'accountIds']} />
+    </${Dialog}>
+  `;
+}
+
+/**
+ * A plan estimated from history (S7.1.5): each proposed line kept, changed or dropped, then
+ * saved into the plan from the month shown on.
+ * @param {{ close: (v?: any) => void, b: any, month: string, rows: any[], version: number,
+ *   months: number }} p
+ */
+function EstimateDialog({ close, b, month, rows, version, months }) {
+  useDialogGuide('dialog-estimate');
+  const [span, setSpan] = useState(String(months));
+  const res = useList(`/budgets/${b.id}/estimate`, { months: span });
+  const found = /** @type {any[]} */ (res.data) || [];
+  const [drop, setDrop] = useState(/** @type {Set<string>} */ (new Set()));
+  const [amounts, setAmounts] = useState(/** @type {Record<string, string>} */ ({}));
+  const save = useSubmit(async () => {
+    const chosen = found.filter((x) => !drop.has(x.categoryId));
+    const mine = new Set(chosen.map((x) => x.categoryId));
+    const lines = [
+      ...rows.filter((r) => !mine.has(r.categoryId)).map((r) => ({
+        categoryId: r.categoryId,
+        amount: String(dec(r.planned).sub(dec(r.carried))),
+        cadence: r.cadence,
+        rollover: r.rollover,
+        overspend: r.overspend,
+        projectionId: r.projectionId,
+      })),
+      ...chosen.map((x) => ({
+        categoryId: x.categoryId,
+        amount: String(amounts[x.categoryId] ?? x.amount).replace(/[$,\s]/g, ''),
+        cadence: x.cadence,
+        rollover: false,
+      })),
+    ];
+    await api.put(`/budgets/${b.id}/plan`, { month: month + '-01', lines }, version);
+    toast('Plan saved');
+    close(true);
+  });
+  return html`
+    <${Dialog} title="Plan from history" wide close=${close}
+      onSubmit=${() => save.run().catch(() => {})} note="Nothing is saved until you save."
+      footer=${html`<button class="btn primary" disabled=${save.busy || !found.length}>Save the
+        plan</button>`}>
+      <${Field} label="Months to average" id="months">
+        <${Select} value=${span} onChange=${setSpan} options=${[
+          ['3', 'The last 3 months'],
+          ['6', 'The last 6 months'],
+          ['12', 'The last 12 months'],
+        ]} /></${Field}>
+      ${res.error
+        ? html`<${Failed} error=${res.error} />`
+        : !res.data
+        ? html`<${Loading} lines=${4} />`
+        : !found.length
+        ? html`<p class="small dim">Nothing to go by yet: no categorised spending in those months.</p>`
+        : html`
+          <table class="t plan">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Category</th>
+                <th class="num">Amount</th>
+                <th>Every</th>
+                <th>From</th>
+              </tr>
+            </thead>
+            <tbody>${found.map((x) =>
+              html`
+                <tr>
+                  <td><input type="checkbox" aria-label=${`Keep ${x.label}`} data-help="keep"
+                    checked=${!drop.has(x.categoryId)} onChange=${() => {
+                      const next = new Set(drop);
+                      next.has(x.categoryId) ? next.delete(x.categoryId) : next.add(x.categoryId);
+                      setDrop(next);
+                    }} /></td>
+                  <td>${x.label}</td>
+                  <td class="num">
+                    <${Input} value=${amounts[x.categoryId] ?? x.amount}
+                      onInput=${(/** @type {string} */ v) =>
+                        setAmounts({ ...amounts, [x.categoryId]: v })}
+                      inputmode="decimal" aria-label=${`${x.label}: amount`} data-help="amount" />
+                  </td>
+                  <td>${x.cadence === 'year' ? 'Year' : 'Month'}</td>
+                  <td class="small dim">${x.detail}${x.target
+                    ? `; a reserve toward ${money(x.target, { cents: false })}`
+                    : ''}</td>
+                </tr>
+              `
+            )}</tbody>
+          </table>
+        `}
+      <${FormError} error=${save.error} />
+    </${Dialog}>
   `;
 }
 
@@ -556,20 +828,35 @@ function BudgetDialog({ close }) {
 function PlanDialog({ close, b, month, rows, version }) {
   useDialogGuide('dialog-plan');
   const cats = useList('/categories');
+  const projections = useList('/projections');
   const [lines, setLines] = useState(
     rows.map((r) => ({
       categoryId: r.categoryId,
       amount: String(dec(r.planned).sub(dec(r.carried))),
       cadence: r.cadence,
       rollover: r.rollover,
+      overspend: r.overspend || 'carry',
+      projectionId: r.projectionId || '',
     })),
   );
+  const kinds = Object.fromEntries(
+    (/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.kind]),
+  );
+  const plans = /** @type {[string, string][]} */ ([
+    ['', 'None'],
+    ...(/** @type {any[]} */ (projections.data) || []).filter((x) => x.active).map((x) => [
+      x.id,
+      x.name,
+    ]),
+  ]);
+  const envelope = b.method === 'envelope';
   const save = useSubmit(async () => {
     await api.put(`/budgets/${b.id}/plan`, {
       month: month + '-01',
       lines: lines.filter((l) => l.categoryId).map((l) => ({
         ...l,
         amount: String(l.amount || '0').trim(),
+        projectionId: kinds[l.categoryId] === 'savings' && l.projectionId ? l.projectionId : null,
       })),
     }, version);
     toast('Plan saved');
@@ -595,6 +882,8 @@ function PlanDialog({ close, b, month, rows, version }) {
             <th class="num">Amount</th>
             <th>Every</th>
             <th>Rollover</th>
+            ${envelope ? html`<th>Overspent</th>` : null}
+            <th>Projection</th>
             <th></th>
           </tr>
         </thead>
@@ -623,6 +912,23 @@ function PlanDialog({ close, b, month, rows, version }) {
                 <${Switch} on=${l.rollover} onChange=${set(i, 'rollover')} label="Rollover"
                   help="rollover" disabled=${l.cadence === 'year'} />
               </td>
+              ${envelope
+                ? html`
+                  <td>
+                    <${Select} value=${l.overspend} onChange=${set(i, 'overspend')} options=${[
+                      ['carry', 'Carried negative'],
+                      ['next', "From next month's To Budget"],
+                    ]} aria-label="Overspent"
+                      data-help="overspent" />
+                  </td>
+                `
+                : null}
+              <td>${kinds[l.categoryId] === 'savings'
+                ? html`
+                  <${Select} value=${l.projectionId} onChange=${set(i, 'projectionId')}
+                    options=${plans} aria-label="Projection" data-help="projection" />
+                `
+                : null}</td>
               <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() =>
                 setLines(lines.filter((_, j) => j !== i))}><${Icon} name="x" /></button></td>
             </tr>
@@ -630,7 +936,14 @@ function PlanDialog({ close, b, month, rows, version }) {
         )}</tbody>
       </table>
       <button type="button" class="btn sm mt" onClick=${() =>
-        setLines([...lines, { categoryId: '', amount: '', cadence: 'month', rollover: false }])}>
+        setLines([...lines, {
+          categoryId: '',
+          amount: '',
+          cadence: 'month',
+          rollover: false,
+          overspend: 'carry',
+          projectionId: '',
+        }])}>
         <${Icon} name="plus" /> Add a category</button>
       <${FormError} error=${save.error} />
       </${Dialog}>
