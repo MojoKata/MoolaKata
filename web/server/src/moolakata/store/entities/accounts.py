@@ -245,6 +245,8 @@ class Loan(Record):
     recasts: str = "[]"
     originalValue: Decimal | None = None
     securedById: str | None = None
+    budgetCounting: str = "split"
+    budgetCategoryId: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

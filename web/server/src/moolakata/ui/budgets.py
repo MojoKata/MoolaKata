@@ -76,6 +76,18 @@ class Unplanned(Model):
     spent: Money
 
 
+class MovedRow(Model):
+    """A transfer between one of the budget's accounts and one it doesn't count, with no
+    category: it counts nowhere until sorted (S7.3.2)."""
+
+    transactionId: str
+    date: dt.date
+    accountName: str
+    otherAccountName: str  # *an account not shared* for one the viewer can't see (S11.3.1)
+    amount: Money  # − left the budget, + entered it
+    payee: str | None
+
+
 class MonthView(Model):
     month: dt.date
     rows: list[MonthRow]
@@ -83,11 +95,21 @@ class MonthView(Model):
     income: Money
     expectedIncome: Money
     spent: Money
+    saved: Money
+    moved: list[MovedRow]
     plannedSpending: Money
     uncategorised: int
     daysLeft: int
     canWrite: bool
     version: int  # the budget's: a change to the plan is made against it (S13.8.6)
+
+
+class LeftOut(Model):
+    """An account the budget doesn't count that often receives transfers from its accounts."""
+
+    accountId: str
+    name: str
+    transfers: int
 
 
 class Flow(Model):
@@ -125,6 +147,19 @@ class RecurringRow(Model):
 
 def _accounts_of(s, b: Budget, viewer: str | None = None) -> list[str]:
     return budgets.account_ids(s, b, viewer)
+
+
+def _names(s, viewer: str, account_ids: set[str]) -> dict[str, str]:
+    """The names of the accounts a viewer may see: their own and those shared with them, so a
+    shared budget never names another account (S7.1.1, S11.3.1)."""
+    if not account_ids:
+        return {}
+    reach = access.reach(s, viewer)
+    return {
+        a.id: a.name
+        for a in s.scalars(select(Account).where(Account.id.in_(account_ids)))
+        if access.account_level(s, viewer, a, reach) is not None
+    }
 
 
 def shape(s, b: Budget, level: str, viewer: str | None = None) -> BudgetRow:
@@ -194,6 +229,49 @@ def _month(value: str | None) -> dt.date:
 def list_budgets(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
         return [shape(s, b, lvl, c.id) for b, lvl in access.visible_budgets(s, c.id)]
+
+
+@router.get("/budgets/left-out", response_model=list[LeftOut])
+def left_out(
+    request: Request,
+    c: Caller = Depends(caller),
+    accountIds: list[str] = Query(default_factory=list),
+):
+    """The caller's accounts outside these that received two or more transfers from them in
+    the last year, to name when a budget is made or edited (S7.3.2). Loans are counted by
+    their payments, so they're never named."""
+    from ..loans import TYPES
+
+    since = clock.today() - dt.timedelta(days=365)
+    with server(request).db.read() as s:
+        visible = {a.id: a for a, _ in access.visible_accounts(s, c.id)}
+        chosen = [a for a in accountIds if a in visible]
+        if not chosen:
+            return []
+        outs = s.scalars(
+            select(Transaction).where(
+                Transaction.accountId.in_(chosen),
+                Transaction.transferId.is_not(None),
+                Transaction.amount < 0,
+                Transaction.deleted == false(),
+                Transaction.date >= since,
+            )
+        ).all()
+        counts: dict[str, int] = {}
+        for o in s.scalars(
+            select(Transaction).where(
+                Transaction.id.in_([x.transferId for x in outs]), Transaction.deleted == false()
+            )
+        ):
+            a = visible.get(o.accountId)
+            if a is None or a.id in chosen or a.type in TYPES:
+                continue
+            counts[a.id] = counts.get(a.id, 0) + 1
+        return [
+            LeftOut(accountId=k, name=visible[k].name, transfers=n)
+            for k, n in sorted(counts.items(), key=lambda x: -x[1])
+            if n >= 2
+        ]
 
 
 @router.get("/budgets/{budget_id}", response_model=BudgetRow)
@@ -283,6 +361,9 @@ def budget_month(
     with server(request).db.read() as s:
         b, lvl = access.budget(s, c.id, budget_id)
         m = budgets.month_view(s, b, _month(month), clock.today(), c.id)
+        names = _names(
+            s, c.id, {x.accountId for x in m.moved} | {x.otherAccountId for x in m.moved}
+        )
         return MonthView(
             month=m.month,
             rows=[MonthRow(**r.__dict__) for r in m.rows],
@@ -290,6 +371,18 @@ def budget_month(
             income=m.income,
             expectedIncome=m.expectedIncome,
             spent=m.spent,
+            saved=m.saved,
+            moved=[
+                MovedRow(
+                    transactionId=x.transactionId,
+                    date=x.date,
+                    accountName=names.get(x.accountId, "an account not shared"),
+                    otherAccountName=names.get(x.otherAccountId, "an account not shared"),
+                    amount=x.amount,
+                    payee=x.payee,
+                )
+                for x in m.moved
+            ],
             plannedSpending=m.plannedSpending,
             uncategorised=m.uncategorised,
             daysLeft=m.daysLeft,

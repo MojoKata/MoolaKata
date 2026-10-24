@@ -65,6 +65,9 @@ class TermsIn(Model):
     recasts: list[Recast] = Field(default_factory=list)
     originalValue: Money | None = None
     securedById: str | None = None  # the property or vehicle it is secured by
+    # How its payments count in budgets (S1.9.7): split by the schedule, or whole.
+    budgetCounting: str = "split"
+    budgetCategoryId: str | None = None  # whole: the category; none is Loan payments
 
 
 class ResetView(Model):
@@ -93,6 +96,8 @@ class TermsOut(Model):
     recasts: list[RecastView]
     originalValue: Money | None
     securedById: str | None
+    budgetCounting: str
+    budgetCategoryId: str | None
     computedPayment: Money
     version: int
 
@@ -216,6 +221,8 @@ def _terms_out(row: Loan) -> TermsOut:
         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
         originalValue=row.originalValue,
         securedById=row.securedById,
+        budgetCounting=row.budgetCounting,
+        budgetCategoryId=row.budgetCategoryId,
         computedPayment=loans.scheduled_payment(t),
         version=row.version,
     )
@@ -330,6 +337,10 @@ def _check(body: TermsIn) -> list[FieldError]:
         e.append(FieldError("method", "method-invalid", "Monthly or daily."))
     if body.drawMonths is not None and not 0 <= body.drawMonths < body.termMonths:
         e.append(FieldError("drawMonths", "draw-invalid", "Shorter than the term."))
+    if body.budgetCounting not in ("split", "whole"):
+        e.append(
+            FieldError("budgetCounting", "counting-invalid", "Split by the schedule, or whole.")
+        )
     for f in ("payment", "escrowTax", "escrowInsurance", "pmi", "originalValue"):
         v = getattr(body, f)
         if v is not None and v < 0:
@@ -363,6 +374,10 @@ def put_terms(
             if it is None or it.deleted:
                 raise refuse("securedById", "not-found", "No such property or vehicle.")
             access.account(s, c.id, it.accountId, "read")
+        if body.budgetCategoryId:
+            cat = s.get(Category, body.budgetCategoryId)
+            if cat is None or cat.deleted or cat.kind == "transfer":
+                raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
         row = loans.loan_of(s, a)
         check(row, version, lambda: view(s, a, lvl))
         values = {
@@ -384,6 +399,8 @@ def put_terms(
             ),
             "originalValue": body.originalValue,
             "securedById": body.securedById,
+            "budgetCounting": body.budgetCounting,
+            "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
         }
         if row is None:
             s.add(Loan(id=ids.new_id("Loan"), accountId=a.id, **values))

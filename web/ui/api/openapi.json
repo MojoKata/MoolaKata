@@ -8965,6 +8965,31 @@
         "title": "LastYear",
         "type": "object"
       },
+      "LeftOut": {
+        "additionalProperties": false,
+        "description": "An account the budget doesn't count that often receives transfers from its accounts.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "transfers": {
+            "title": "Transfers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "transfers"
+        ],
+        "title": "LeftOut",
+        "type": "object"
+      },
       "LegIn": {
         "additionalProperties": false,
         "properties": {
@@ -10174,6 +10199,13 @@
             "title": "Month",
             "type": "string"
           },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/MovedRow"
+            },
+            "title": "Moved",
+            "type": "array"
+          },
           "plannedSpending": {
             "examples": [
               1234.5
@@ -10188,6 +10220,14 @@
             },
             "title": "Rows",
             "type": "array"
+          },
+          "saved": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Saved",
+            "type": "number"
           },
           "spent": {
             "examples": [
@@ -10220,6 +10260,8 @@
           "income",
           "expectedIncome",
           "spent",
+          "saved",
+          "moved",
           "plannedSpending",
           "uncategorised",
           "daysLeft",
@@ -10241,6 +10283,58 @@
           "to"
         ],
         "title": "Move",
+        "type": "object"
+      },
+      "MovedRow": {
+        "additionalProperties": false,
+        "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2).",
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "otherAccountName": {
+            "title": "Otheraccountname",
+            "type": "string"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "accountName",
+          "otherAccountName",
+          "amount",
+          "payee"
+        ],
+        "title": "MovedRow",
         "type": "object"
       },
       "Named": {
@@ -12446,6 +12540,37 @@
           "limit"
         ],
         "title": "Page[InstrumentOut]",
+        "type": "object"
+      },
+      "Page_LeftOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[LeftOut]",
         "type": "object"
       },
       "Page_LinkedFile_": {
@@ -15161,6 +15286,7 @@
               "copy-locked",
               "corporate-kind",
               "count-mismatch",
+              "counting-invalid",
               "daf-invalid",
               "date-ahead",
               "date-in-future",
@@ -15508,6 +15634,7 @@
                   "copy-locked",
                   "corporate-kind",
                   "count-mismatch",
+                  "counting-invalid",
                   "daf-invalid",
                   "date-ahead",
                   "date-in-future",
@@ -20631,6 +20758,22 @@
       "TermsIn": {
         "additionalProperties": false,
         "properties": {
+          "budgetCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budgetcategoryid"
+          },
+          "budgetCounting": {
+            "default": "split",
+            "title": "Budgetcounting",
+            "type": "string"
+          },
           "drawMonths": {
             "anyOf": [
               {
@@ -20785,6 +20928,21 @@
       "TermsOut": {
         "additionalProperties": false,
         "properties": {
+          "budgetCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budgetcategoryid"
+          },
+          "budgetCounting": {
+            "title": "Budgetcounting",
+            "type": "string"
+          },
           "computedPayment": {
             "examples": [
               1234.5
@@ -20953,6 +21111,8 @@
           "recasts",
           "originalValue",
           "securedById",
+          "budgetCounting",
+          "budgetCategoryId",
           "computedPayment",
           "version"
         ],
@@ -27711,6 +27871,71 @@
           }
         },
         "summary": "Create Budget",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/left-out": {
+      "get": {
+        "description": "The caller's accounts outside these that received two or more transfers from them in\nthe last year, to name when a budget is made or edited (S7.3.2). Loans are counted by\ntheir payments, so they're never named.",
+        "operationId": "left_out_ui_api_budgets_left_out_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountIds",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Accountids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LeftOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Left Out",
         "tags": [
           "budgets"
         ]

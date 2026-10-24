@@ -110,7 +110,7 @@ Category = record(
     # Keep receipts for so many years after their record ended (S14.10.1.1); none: for ever,
     # or a subcategory takes its parent's.
     Column("keepReceiptsYears", Integer),
-    _in("kind", ("expense", "income", "transfer"), "kind"),
+    _in("kind", ("expense", "income", "savings", "transfer"), "kind"),
     CheckConstraint(
         '"keepReceiptsYears" IS NULL OR "keepReceiptsYears" >= 1', name="keep_receipts_years"
     ),

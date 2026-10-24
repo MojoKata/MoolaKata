@@ -125,13 +125,13 @@ def ensure_categories(s: Session) -> int:
             parent = Category(id=ids.new_id("Cat"), name=name, kind=kind, taxTag=tag, builtIn=key)
             s.add(parent)
             added += 1
-        for ckey, cname, ctag in children:
+        for ckey, cname, ctag, *ckind in children:
             if ckey not in have:
                 s.add(
                     Category(
                         id=ids.new_id("Cat"),
                         name=cname,
-                        kind=kind,
+                        kind=ckind[0] if ckind else kind,
                         taxTag=ctag,
                         builtIn=ckey,
                         parentId=parent.id,

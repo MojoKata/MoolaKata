@@ -963,8 +963,8 @@ def create_category(body: NewCategory, request: Request, c: Caller = Depends(cal
     name = body.name.strip()
     if not name or len(name) > 60 or "›" in name:
         raise refuse("name", "name-invalid", "Enter a name of up to 60 characters.")
-    if body.kind not in ("expense", "income", "transfer"):
-        raise refuse("kind", "kind-invalid", "Expense, income or transfer.")
+    if body.kind not in ("expense", "income", "savings", "transfer"):
+        raise refuse("kind", "kind-invalid", "Expense, income, savings or transfer.")
     with server(request).db.tx() as s:
         if body.parentId:
             parent = s.get(Category, body.parentId)

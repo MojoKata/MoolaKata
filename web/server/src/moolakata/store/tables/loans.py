@@ -30,7 +30,12 @@ Loan = record(
     Column("originalValue", Cents),
     # The property or vehicle it is secured by, for equity and loan-to-value (S1.9.5).
     Column("securedById", Text, ForeignKey("Item.id", ondelete="SET NULL")),
+    # How its payments count in budgets (S1.9.7): split by the schedule into the shipped Loan
+    # payments categories, or whole in one category (the shipped Loan payments when none).
+    Column("budgetCounting", Text, nullable=False, server_default=text("'split'")),
+    Column("budgetCategoryId", Text, ForeignKey("Category.id")),
     CheckConstraint("method IN ('amortized', 'daily')", name="method"),
+    CheckConstraint("\"budgetCounting\" IN ('split', 'whole')", name="budget_counting"),
     CheckConstraint('"termMonths" > 0', name="term"),
 )
 unique_live(Loan, "accountId")

@@ -17,6 +17,7 @@ import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { dec, num } from '../app/dec.js';
+import { TransactionDialog } from './transaction-dialog.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'This month'],
@@ -111,7 +112,16 @@ function ThisMonth({ b, month, reloadList }) {
   if (!v) return html`<${Loading} lines=${6} />`;
   const spend = v.rows.filter((/** @type {any} */ r) => r.kind === 'expense');
   const income = v.rows.filter((/** @type {any} */ r) => r.kind === 'income');
+  const saving = v.rows.filter((/** @type {any} */ r) => r.kind === 'savings');
   const left = dec(v.plannedSpending).sub(dec(v.spent));
+  const sort = async (/** @type {string} */ txnId) => {
+    const [txn, accounts] = await Promise.all([
+      api.get(`/transactions/${txnId}`),
+      api.get('/accounts'),
+    ]);
+    const done = await openDialog(TransactionDialog, { txn, accounts: accounts.items });
+    if (done) res.reload();
+  };
   const edit = () =>
     openDialog(PlanDialog, { b, month, rows: v.rows, version: v.version }).then((x) =>
       x && res.reload()
@@ -130,16 +140,17 @@ function ThisMonth({ b, month, reloadList }) {
         <div class="value amt">${money(v.spent, {
           cents: false,
         })}</div>
-        <div class="delta dim">of ${money(v.plannedSpending, { cents: false })} planned</div>
+        <div class="delta dim">of ${money(v.plannedSpending, { cents: false })} planned · ${money(
+          left.abs(),
+          { cents: false },
+        )} ${left.isNegative() ? 'over' : 'left'}${v.daysLeft
+          ? `, ${v.daysLeft} day${v.daysLeft === 1 ? '' : 's'} to go`
+          : ''}</div>
       </div>
       <div class="card kpi">
-        <div class="label">${left.isNegative() ? 'Over plan' : 'Left to spend'}</div>
-        <div class="value amt">${money(left.abs(), { cents: false })}</div>
-        <div class="delta dim">${v.daysLeft
-          ? `${v.daysLeft} day${v.daysLeft === 1 ? '' : 's'} left in ${
-            monthLabel(month).split(' ')[0]
-          }`
-          : monthLabel(month)}</div>
+        <div class="label">Saved</div>
+        <div class="value amt">${money(v.saved, { cents: false })}</div>
+        <div class="delta dim">put away: investing, savings, a loan's principal</div>
       </div>
     </div>
     <div class="card mt"><h3>Categories<span class="spacer"></span>
@@ -177,6 +188,11 @@ function ThisMonth({ b, month, reloadList }) {
           )
         }`
         : null}
+      ${saving.length
+        ? html`<h4 class="small dim mt">Savings</h4>${
+          saving.map((/** @type {any} */ r) => html`<${BudgetRow} r=${r} />`)
+        }`
+        : null}
       ${income.length
         ? html`<h4 class="small dim mt">Income</h4>${
           income.map((/** @type {any} */ r) =>
@@ -196,6 +212,27 @@ function ThisMonth({ b, month, reloadList }) {
         }`
         : null}
     </div>
+    ${v.moved.length
+      ? html`
+        <div class="card mt"><h3>Left or entered the budget<span class="spacer"></span>
+          <span class="small dim" style=${{ fontWeight: 400 }}>transfers with no category count
+            nowhere until sorted</span></h3>
+          ${v.moved.map((/** @type {any} */ m) =>
+            html`
+              <div class="list-item">
+                <div class="grow">${date(m.date)} · ${dec(m.amount).isNegative()
+                  ? `${m.accountName} → ${m.otherAccountName}`
+                  : `${m.otherAccountName} → ${m.accountName}`}<div class="small dim">${m.payee ||
+                  'a transfer'}</div></div>
+                <span class="num amt">${money(m.amount)}</span>
+                <button type="button" class="btn sm" data-help="sort" onClick=${() =>
+                  sort(m.transactionId)}>Sort</button>
+              </div>
+            `
+          )}
+        </div>
+      `
+      : null}
     ${v.uncategorised
       ? html`<p class="small"><a href="/ui/transactions?category=none">${v.uncategorised} uncategorised
         transaction${v.uncategorised === 1 ? '' : 's'} to sort →</a></p>`
@@ -350,6 +387,8 @@ function BudgetDialog({ close }) {
   const accounts = useList('/accounts');
   const [name, setName] = useState('');
   const [ids, setIds] = useState(/** @type {Set<string>} */ (new Set()));
+  const outside = useList('/budgets/left-out', { accountIds: [...ids].sort() });
+  const left = /** @type {any[]} */ (outside.data) || [];
   const save = useSubmit(async () => {
     const out = await api.post('/budgets', { name, accountIds: [...ids] }, { idempotent: true });
     toast('Budget made: plan its categories next');
@@ -378,6 +417,17 @@ function BudgetDialog({ close }) {
           ? html`<div class="err">${errAt(save.error, 'accountIds')}</div>`
           : null}
       </fieldset>
+        ${left.map((x) =>
+          html`
+            <div class="notice" style=${{ marginBottom: '12px' }}>
+              <${Icon} name="info" />
+              <div><b>${x.name}</b> gets transfers from these accounts (${x.transfers} this year):
+                <button type="button" class="linklike" onClick=${() =>
+                  setIds(new Set([...ids, x.accountId]))}>include it?</button> Left out, a
+                transfer to it counts by its category, or waits to be sorted.</div>
+            </div>
+          `
+        )}
         <${FormError} error=${save.error} shown=${['name', 'accountIds']} />
         </${Dialog}>
   `;

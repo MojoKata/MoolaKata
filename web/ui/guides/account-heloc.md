@@ -75,6 +75,17 @@ shows your equity in it and the loan-to-value.
 While drawing, payments are interest only. After it, the balance is repaid over the rest of the
 term.
 
+## In budgets {#in-budgets}
+
+How its payments count in budgets, at the bank account each comes from. **Split by the schedule**
+puts interest, escrow, PMI and fees each in its category and principal in a savings category, all
+under _Loan payments_, so a plan line on _Loan payments_ counts the whole payment. **The whole
+payment** counts it all in one category.
+
+## Counts in {#budget-category}
+
+The category the whole payment counts in: _Loan payments_ unless you choose another.
+
 ## Rate resets
 
 An adjustable rate's new rate from each reset date, typed when known. The schedule from that date is
