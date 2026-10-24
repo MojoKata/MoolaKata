@@ -42,6 +42,7 @@ class Series:
     count: int
     missed: bool
     changed: bool
+    categoryId: str | None = None  # its latest transaction's, for a plan from history
 
 
 def _key(payee: str) -> str:
@@ -103,6 +104,7 @@ def _series(txns, today: dt.date) -> Series | None:
         missed=today > nxt + dt.timedelta(days=tol + 2),
         # Only a fixed amount (a subscription, rent) has a change worth flagging.
         changed=_fixed(amounts[:-1], usual) and abs(abs(last.amount) - usual) >= usual * CHANGED,
+        categoryId=getattr(last, "categoryId", None),
     )
 
 

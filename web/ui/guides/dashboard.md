@@ -18,6 +18,11 @@ Brokerage and retirement accounts, valued at the latest daily close of what they
 
 Checking, savings, money-market and CD accounts.
 
+## Budget {#budget}
+
+The budget you follow, this month: what was spent against what was planned. Open it for the rest.
+Without one, the count of what needs attention shows here instead.
+
 ## Range
 
 How far back the chart goes: a month, three months, this year, a year, five years, or everything.

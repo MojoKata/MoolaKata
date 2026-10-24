@@ -80,3 +80,9 @@ its period has passed and a grace after it (15 days monthly, 30 quarterly, 60 ye
 names the one missing, and clears when it arrives, read or kept. Once three statements or imports
 have arrived, MoolaKata proposes the interval they arrive at when it differs; dismissed, it isn't
 proposed again.
+
+## Withdrawals allowed a month {#withdrawals-a-month}
+
+A savings or money-market account's limit on transfers out, the bank's; empty for none. A budget's
+**Where the money is** sums the moves back to checking into one transfer a month and warns before it
+would go past the limit.

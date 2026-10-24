@@ -15,14 +15,14 @@ INTERVALS = ("monthly", "quarterly", "yearly", "none")
 MONTHS = {"monthly": 1, "quarterly": 3, "yearly": 12}
 GRACE_DAYS = {"monthly": 15, "quarterly": 30, "yearly": 60}
 QUARTERLY = ("401k", "403b", "457b", "529", "daf")
-NEVER = ("crypto-wallet",)
+NEVER = ("crypto-wallet", "cash")
 LEARN_FROM = 3  # statements or imports before an interval is learned
 
 
 def default_interval(account_type: str, kept_by: list[str]) -> str:
     """Monthly for banking, cards, brokerage, IRAs, HSAs and loans; quarterly for workplace
-    plans, 529s and donor-advised funds; none for accounts kept by hand, watched wallets and
-    physical assets."""
+    plans, 529s and donor-advised funds; none for cash on hand and other accounts kept by hand,
+    watched wallets and physical assets."""
     if account_type in NEVER or atypes.GROUPS[account_type] == "physical-assets":
         return "none"
     if not {"file", "statement"} & set(kept_by):

@@ -49,6 +49,8 @@ export function termsForm(t, type) {
     recasts: t?.recasts || [],
     originalValue: t?.originalValue ?? '',
     securedById: t?.securedById ?? '',
+    budgetCounting: t?.budgetCounting ?? 'split',
+    budgetCategoryId: t?.budgetCategoryId ?? '',
   };
 }
 
@@ -67,6 +69,10 @@ export function termsBody(f) {
     drawMonths: f.drawMonths === '' ? null : Number(f.drawMonths),
     originalValue: orNull(f.originalValue),
     securedById: f.securedById || null,
+    budgetCounting: f.budgetCounting,
+    budgetCategoryId: f.budgetCounting === 'whole' && f.budgetCategoryId
+      ? f.budgetCategoryId
+      : null,
     resets: f.resets,
     recasts: f.recasts,
   };
@@ -85,6 +91,8 @@ export const TERM_FIELDS = [
   'drawMonths',
   'originalValue',
   'securedById',
+  'budgetCounting',
+  'budgetCategoryId',
 ];
 
 /**
@@ -154,6 +162,37 @@ export function TermsFields({ f, set, e, type }) {
           </${Field}>
       `
       : null}
+    <${InBudgets} f=${f} set=${set} e=${e} />
+  `;
+}
+
+/**
+ * How the loan's payments count in budgets (S1.9.7): split by the schedule, or whole in one
+ * category.
+ * @param {{ f: any, set: (k: string) => (v: any) => void, e: any }} p
+ */
+function InBudgets({ f, set, e }) {
+  const cats = useList('/categories');
+  const list = /** @type {any[]} */ (cats.data) || [];
+  return html`
+    <div class="row">
+      <${Field} label="In budgets" id="in-budgets" error=${errAt(e, 'budgetCounting')}
+        hint="Counted at the bank account a payment comes from.">
+        <${Select} value=${f.budgetCounting} onChange=${set('budgetCounting')} options=${[
+          ['split', 'Split by the schedule'],
+          ['whole', 'The whole payment in one category'],
+        ]} /></${Field}>
+      ${f.budgetCounting === 'whole'
+        ? html`
+          <${Field} label="Counts in" id="budget-category" error=${errAt(e, 'budgetCategoryId')}>
+            <${Select} value=${f.budgetCategoryId} onChange=${set('budgetCategoryId')} options=${[
+              ['', 'Loan payments'],
+              ...list.filter((c) => c.kind !== 'transfer').map((c) => [c.id, c.path]),
+            ]} />
+            </${Field}>
+        `
+        : null}
+    </div>
   `;
 }
 

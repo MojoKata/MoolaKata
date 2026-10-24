@@ -171,6 +171,17 @@
               }
             ],
             "title": "Syncaccount"
+          },
+          "withdrawalsAMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawalsamonth"
           }
         },
         "title": "AccountChange",
@@ -474,6 +485,17 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "withdrawalsAMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawalsamonth"
           }
         },
         "required": [
@@ -511,6 +533,7 @@
           "statementInterval",
           "statementIntervalDefault",
           "statementIntervalProposal",
+          "withdrawalsAMonth",
           "optionsValue",
           "capitalAtRisk",
           "connectionId",
@@ -1280,6 +1303,119 @@
         "title": "Attention",
         "type": "object"
       },
+      "AwaitingRow": {
+        "additionalProperties": false,
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "ageDays": {
+            "title": "Agedays",
+            "type": "integer"
+          },
+          "awaited": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Awaited",
+            "type": "number"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "offers": {
+            "items": {
+              "$ref": "#/components/schemas/Offer"
+            },
+            "title": "Offers",
+            "type": "array"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "paidBack": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paidback",
+            "type": "number"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "reimbursable": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Reimbursable",
+            "type": "number"
+          },
+          "spendingId": {
+            "title": "Spendingid",
+            "type": "string"
+          },
+          "splitId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitid"
+          }
+        },
+        "required": [
+          "spendingId",
+          "splitId",
+          "date",
+          "payee",
+          "accountName",
+          "category",
+          "owedBy",
+          "reimbursable",
+          "paidBack",
+          "awaited",
+          "ageDays",
+          "offers"
+        ],
+        "title": "AwaitingRow",
+        "type": "object"
+      },
       "BackupOut": {
         "additionalProperties": false,
         "properties": {
@@ -1895,6 +2031,55 @@
         "title": "BrokerageIn",
         "type": "object"
       },
+      "BudgetCard": {
+        "additionalProperties": false,
+        "description": "The active budget's month (S7.12, S12.2.1).",
+        "properties": {
+          "daysLeft": {
+            "title": "Daysleft",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plannedSpending": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Plannedspending",
+            "type": "number"
+          },
+          "spent": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Spent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "month",
+          "spent",
+          "plannedSpending",
+          "daysLeft"
+        ],
+        "title": "BudgetCard",
+        "type": "object"
+      },
       "BudgetChange": {
         "additionalProperties": false,
         "properties": {
@@ -1912,6 +2097,17 @@
             ],
             "title": "Accountids"
           },
+          "moves": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moves"
+          },
           "name": {
             "anyOf": [
               {
@@ -1922,6 +2118,31 @@
               }
             ],
             "title": "Name"
+          },
+          "reserves": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserves"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
           }
         },
         "title": "BudgetChange",
@@ -1937,6 +2158,10 @@
             "title": "Accountids",
             "type": "array"
           },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1944,6 +2169,14 @@
           "level": {
             "title": "Level",
             "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "moves": {
+            "title": "Moves",
+            "type": "boolean"
           },
           "name": {
             "title": "Name",
@@ -1957,9 +2190,32 @@
             "title": "Ownername",
             "type": "string"
           },
+          "reserves": {
+            "title": "Reserves",
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleOut"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
           "sharedWith": {
             "title": "Sharedwith",
             "type": "integer"
+          },
+          "startMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startmonth"
           },
           "version": {
             "title": "Version",
@@ -1974,6 +2230,12 @@
           "level",
           "accountIds",
           "sharedWith",
+          "method",
+          "reserves",
+          "moves",
+          "startMonth",
+          "roles",
+          "active",
           "version"
         ],
         "title": "BudgetRow",
@@ -2076,6 +2338,132 @@
           "suggestIfStudent"
         ],
         "title": "CandidateOut",
+        "type": "object"
+      },
+      "CardLine": {
+        "additionalProperties": false,
+        "description": "A card's payment line in an envelope budget (S7.13.2).",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notBacked": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Notbacked",
+            "type": "number"
+          },
+          "owed": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Owed",
+            "type": "number"
+          },
+          "paid": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paid",
+            "type": "number"
+          },
+          "setAside": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Setaside",
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "setAside",
+          "owed",
+          "paid",
+          "notBacked"
+        ],
+        "title": "CardLine",
+        "type": "object"
+      },
+      "CardOut": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "charges": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Charges",
+            "type": "number"
+          },
+          "owed": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Owed",
+            "type": "number"
+          },
+          "paid": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paid",
+            "type": "number"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          },
+          "paidFromName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromname"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "paidFromId",
+          "paidFromName",
+          "owed",
+          "paid",
+          "charges"
+        ],
+        "title": "CardOut",
         "type": "object"
       },
       "Carried": {
@@ -2824,6 +3212,161 @@
         "title": "Colour",
         "type": "object"
       },
+      "CompareRow": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "otherAvailable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otheravailable"
+          },
+          "otherSpent": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otherspent"
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "available",
+          "spent",
+          "otherAvailable",
+          "otherSpent"
+        ],
+        "title": "CompareRow",
+        "type": "object"
+      },
+      "CompareView": {
+        "additionalProperties": false,
+        "description": "The active budget and one scenario side by side (S7.12.3).",
+        "properties": {
+          "budgetId": {
+            "title": "Budgetid",
+            "type": "string"
+          },
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "otherId": {
+            "title": "Otherid",
+            "type": "string"
+          },
+          "otherToBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Othertobudget"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CompareRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "toBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tobudget"
+          }
+        },
+        "required": [
+          "budgetId",
+          "otherId",
+          "first",
+          "last",
+          "rows",
+          "toBudget",
+          "otherToBudget"
+        ],
+        "title": "CompareView",
+        "type": "object"
+      },
       "Confirm": {
         "additionalProperties": false,
         "properties": {
@@ -3471,6 +4014,30 @@
         "title": "CopiesOut",
         "type": "object"
       },
+      "CopyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "withMoves": {
+            "default": false,
+            "title": "Withmoves",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "method"
+        ],
+        "title": "CopyIn",
+        "type": "object"
+      },
       "CopyState": {
         "additionalProperties": false,
         "properties": {
@@ -3700,6 +4267,16 @@
             "title": "Attention",
             "type": "array"
           },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "cash": {
             "examples": [
               1234.5
@@ -3775,7 +4352,8 @@
           "cashAccounts",
           "lastUpdated",
           "groups",
-          "attention"
+          "attention",
+          "budget"
         ],
         "title": "Dashboard",
         "type": "object"
@@ -6371,6 +6949,35 @@
         "title": "GiftYearOut",
         "type": "object"
       },
+      "GiveIn": {
+        "additionalProperties": false,
+        "description": "Landed money given to a reserve, spread among those held there, or kept (S7.10.5).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "to",
+          "amount"
+        ],
+        "title": "GiveIn",
+        "type": "object"
+      },
       "GivingOut": {
         "additionalProperties": false,
         "properties": {
@@ -6832,6 +7439,141 @@
           "inNetWorth"
         ],
         "title": "GroupTotal",
+        "type": "object"
+      },
+      "HeldInOut": {
+        "additionalProperties": false,
+        "description": "An account reserves are held in, and what is to move there (S7.10.4).",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "balance": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Balance",
+            "type": "number"
+          },
+          "given": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Given",
+            "type": "number"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "movedFromName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromname"
+          },
+          "movedIn": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Movedin",
+            "type": "number"
+          },
+          "overLimit": {
+            "title": "Overlimit",
+            "type": "boolean"
+          },
+          "reserves": {
+            "items": {
+              "$ref": "#/components/schemas/ReserveHeld"
+            },
+            "title": "Reserves",
+            "type": "array"
+          },
+          "toMove": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Tomove",
+            "type": "number"
+          },
+          "total": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Total",
+            "type": "number"
+          },
+          "transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferIn"
+            },
+            "title": "Transfers",
+            "type": "array"
+          },
+          "unassigned": {
+            "items": {
+              "$ref": "#/components/schemas/LandedOut"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          },
+          "withdrawals": {
+            "title": "Withdrawals",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "movedFromId",
+          "movedFromName",
+          "reserves",
+          "total",
+          "movedIn",
+          "given",
+          "balance",
+          "toMove",
+          "withdrawals",
+          "limit",
+          "overLimit",
+          "unassigned",
+          "transfers"
+        ],
+        "title": "HeldInOut",
         "type": "object"
       },
       "HoldingCheckRow": {
@@ -7485,6 +8227,48 @@
           "version"
         ],
         "title": "ImprovementOut",
+        "type": "object"
+      },
+      "InBudget": {
+        "additionalProperties": false,
+        "description": "A budget counting a transaction, what it counts as there, and its leave-out (S7.3.5).",
+        "properties": {
+          "budgetId": {
+            "title": "Budgetid",
+            "type": "string"
+          },
+          "canWrite": {
+            "title": "Canwrite",
+            "type": "boolean"
+          },
+          "countsAs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countsas"
+          },
+          "leftOut": {
+            "title": "Leftout",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budgetId",
+          "name",
+          "countsAs",
+          "leftOut",
+          "canWrite"
+        ],
+        "title": "InBudget",
         "type": "object"
       },
       "IncomeOut": {
@@ -8947,6 +9731,56 @@
         "title": "KeyTest",
         "type": "object"
       },
+      "LandedOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "free": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Free",
+            "type": "number"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "payee",
+          "amount",
+          "free"
+        ],
+        "title": "LandedOut",
+        "type": "object"
+      },
       "LastYear": {
         "additionalProperties": false,
         "properties": {
@@ -8963,6 +9797,45 @@
           "figures"
         ],
         "title": "LastYear",
+        "type": "object"
+      },
+      "LeaveOutIn": {
+        "additionalProperties": false,
+        "properties": {
+          "leftOut": {
+            "title": "Leftout",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "leftOut"
+        ],
+        "title": "LeaveOutIn",
+        "type": "object"
+      },
+      "LeftOut": {
+        "additionalProperties": false,
+        "description": "An account the budget doesn't count that often receives transfers from its accounts.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "transfers": {
+            "title": "Transfers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "transfers"
+        ],
+        "title": "LeftOut",
         "type": "object"
       },
       "LegIn": {
@@ -10078,6 +10951,21 @@
             "title": "Actual",
             "type": "number"
           },
+          "balance": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
           "cadence": {
             "title": "Cadence",
             "type": "string"
@@ -10094,12 +10982,46 @@
             "title": "Categoryid",
             "type": "string"
           },
+          "fromPlan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromplan"
+          },
+          "heldInId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldinid"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
           },
           "label": {
             "title": "Label",
+            "type": "string"
+          },
+          "moved": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Moved",
+            "type": "number"
+          },
+          "overspend": {
+            "title": "Overspend",
             "type": "string"
           },
           "planned": {
@@ -10109,6 +11031,58 @@
             "format": "money",
             "title": "Planned",
             "type": "number"
+          },
+          "projectionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionid"
+          },
+          "projectionMonthly": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionmonthly"
+          },
+          "projectionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionname"
+          },
+          "putIn": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Putin"
           },
           "remaining": {
             "examples": [
@@ -10125,6 +11099,21 @@
           "state": {
             "title": "State",
             "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
           }
         },
         "required": [
@@ -10137,7 +11126,17 @@
           "carried",
           "actual",
           "remaining",
-          "state"
+          "state",
+          "fromPlan",
+          "overspend",
+          "projectionId",
+          "projectionName",
+          "projectionMonthly",
+          "moved",
+          "target",
+          "heldInId",
+          "balance",
+          "putIn"
         ],
         "title": "MonthRow",
         "type": "object"
@@ -10145,9 +11144,46 @@
       "MonthView": {
         "additionalProperties": false,
         "properties": {
+          "assigned": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned"
+          },
+          "assignedByMoves": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignedbymoves"
+          },
           "canWrite": {
             "title": "Canwrite",
             "type": "boolean"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardLine"
+            },
+            "title": "Cards",
+            "type": "array"
           },
           "daysLeft": {
             "title": "Daysleft",
@@ -10174,6 +11210,20 @@
             "title": "Month",
             "type": "string"
           },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/MovedRow"
+            },
+            "title": "Moved",
+            "type": "array"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/MoveOut"
+            },
+            "title": "Moves",
+            "type": "array"
+          },
           "plannedSpending": {
             "examples": [
               1234.5
@@ -10189,6 +11239,14 @@
             "title": "Rows",
             "type": "array"
           },
+          "saved": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Saved",
+            "type": "number"
+          },
           "spent": {
             "examples": [
               1234.5
@@ -10196,6 +11254,21 @@
             "format": "money",
             "title": "Spent",
             "type": "number"
+          },
+          "toBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tobudget"
           },
           "uncategorised": {
             "title": "Uncategorised",
@@ -10220,6 +11293,13 @@
           "income",
           "expectedIncome",
           "spent",
+          "saved",
+          "moved",
+          "moves",
+          "toBudget",
+          "assigned",
+          "assignedByMoves",
+          "cards",
           "plannedSpending",
           "uncategorised",
           "daysLeft",
@@ -10241,6 +11321,224 @@
           "to"
         ],
         "title": "Move",
+        "type": "object"
+      },
+      "MoveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "cardId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cardid"
+          },
+          "fromCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromcategoryid"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "toCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tocategoryid"
+          }
+        },
+        "required": [
+          "month",
+          "amount"
+        ],
+        "title": "MoveIn",
+        "type": "object"
+      },
+      "MoveOut": {
+        "additionalProperties": false,
+        "description": "An amount put from one category to another for the month (S7.11).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "byName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byname"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "fromCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromcategoryid"
+          },
+          "fromLabel": {
+            "title": "Fromlabel",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "landed": {
+            "title": "Landed",
+            "type": "boolean"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "toCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tocategoryid"
+          },
+          "toLabel": {
+            "title": "Tolabel",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "fromCategoryId",
+          "fromLabel",
+          "toCategoryId",
+          "toLabel",
+          "amount",
+          "note",
+          "byName",
+          "createdAt",
+          "landed",
+          "version"
+        ],
+        "title": "MoveOut",
+        "type": "object"
+      },
+      "MovedRow": {
+        "additionalProperties": false,
+        "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2).",
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "otherAccountName": {
+            "title": "Otheraccountname",
+            "type": "string"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "accountName",
+          "otherAccountName",
+          "amount",
+          "payee"
+        ],
+        "title": "MovedRow",
         "type": "object"
       },
       "Named": {
@@ -10550,9 +11848,24 @@
             "title": "Accountids",
             "type": "array"
           },
+          "method": {
+            "default": "tracking",
+            "title": "Method",
+            "type": "string"
+          },
+          "moves": {
+            "default": false,
+            "title": "Moves",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "reserves": {
+            "default": false,
+            "title": "Reserves",
+            "type": "boolean"
           }
         },
         "required": [
@@ -11109,6 +12422,52 @@
           "next"
         ],
         "title": "OccasionOut",
+        "type": "object"
+      },
+      "Offer": {
+        "additionalProperties": false,
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "free": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Free",
+            "type": "number"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "payee",
+          "accountName",
+          "free"
+        ],
+        "title": "Offer",
         "type": "object"
       },
       "Offered": {
@@ -11921,6 +13280,34 @@
         "title": "OutcomeOut",
         "type": "object"
       },
+      "Overspent": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "over": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Over",
+            "type": "number"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "over"
+        ],
+        "title": "Overspent",
+        "type": "object"
+      },
       "Page_AccountRow_": {
         "properties": {
           "items": {
@@ -12012,6 +13399,37 @@
           "limit"
         ],
         "title": "Page[Adjustable]",
+        "type": "object"
+      },
+      "Page_AwaitingRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AwaitingRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[AwaitingRow]",
         "type": "object"
       },
       "Page_BookRow_": {
@@ -12417,6 +13835,37 @@
         "title": "Page[ImportRow]",
         "type": "object"
       },
+      "Page_InBudget_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InBudget"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[InBudget]",
+        "type": "object"
+      },
       "Page_InstrumentOut_": {
         "properties": {
           "items": {
@@ -12446,6 +13895,37 @@
           "limit"
         ],
         "title": "Page[InstrumentOut]",
+        "type": "object"
+      },
+      "Page_LeftOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[LeftOut]",
         "type": "object"
       },
       "Page_LinkedFile_": {
@@ -12725,6 +14205,37 @@
           "limit"
         ],
         "title": "Page[ProjectionRow]",
+        "type": "object"
+      },
+      "Page_Proposal_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[Proposal]",
         "type": "object"
       },
       "Page_Purchase_": {
@@ -13274,6 +14785,95 @@
           "accountName"
         ],
         "title": "Paid",
+        "type": "object"
+      },
+      "PairIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "paybackId": {
+            "title": "Paybackid",
+            "type": "string"
+          },
+          "spendingId": {
+            "title": "Spendingid",
+            "type": "string"
+          },
+          "splitId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitid"
+          }
+        },
+        "required": [
+          "spendingId",
+          "paybackId",
+          "amount"
+        ],
+        "title": "PairIn",
+        "type": "object"
+      },
+      "PairOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "paybackId": {
+            "title": "Paybackid",
+            "type": "string"
+          },
+          "spendingId": {
+            "title": "Spendingid",
+            "type": "string"
+          },
+          "splitId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitid"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "spendingId",
+          "splitId",
+          "paybackId",
+          "amount",
+          "version"
+        ],
+        "title": "PairOut",
         "type": "object"
       },
       "PairingOut": {
@@ -14502,10 +16102,52 @@
             "title": "Categoryid",
             "type": "string"
           },
+          "heldInId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldinid"
+          },
+          "overspend": {
+            "default": "carry",
+            "title": "Overspend",
+            "type": "string"
+          },
+          "projectionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionid"
+          },
           "rollover": {
             "default": false,
             "title": "Rollover",
             "type": "boolean"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
           }
         },
         "required": [
@@ -15144,6 +16786,7 @@
               "cadence-invalid",
               "cannot-join",
               "cannot-unlock",
+              "card-unknown",
               "cash-invalid",
               "cash-missing",
               "category-twice",
@@ -15161,6 +16804,7 @@
               "copy-locked",
               "corporate-kind",
               "count-mismatch",
+              "counting-invalid",
               "daf-invalid",
               "date-ahead",
               "date-in-future",
@@ -15229,6 +16873,7 @@
               "legs-differ",
               "legs-twice",
               "level-invalid",
+              "limit-invalid",
               "link-not-active",
               "link-not-valid",
               "locked",
@@ -15246,6 +16891,9 @@
               "method-not-allowed",
               "month-invalid",
               "months-invalid",
+              "move-invalid",
+              "moves-needed",
+              "moves-off",
               "multiplier-invalid",
               "name-invalid",
               "name-missing",
@@ -15258,6 +16906,7 @@
               "no-terms",
               "no-thumbnail",
               "not-a-529",
+              "not-a-deposit",
               "not-a-fund",
               "not-a-loan",
               "not-a-marriage",
@@ -15271,12 +16920,14 @@
               "not-in-it",
               "not-married",
               "not-physical",
+              "not-reimbursable",
               "not-scheduled",
               "not-shared",
               "not-signed-in",
               "not-told-apart",
               "not-yours-to-confirm",
               "note-required",
+              "note-too-long",
               "notes-too-long",
               "nothing-held",
               "nothing-open",
@@ -15290,6 +16941,8 @@
               "organisation-missing",
               "organisation-unknown",
               "origin-refused",
+              "overspend-invalid",
+              "owed-by-too-long",
               "owner-counts",
               "owner-only",
               "owner-sees-it",
@@ -15313,12 +16966,14 @@
               "phrase-wrong",
               "place-missing",
               "plan-exists",
+              "planned-elsewhere",
               "portfolio-unknown",
               "premium-invalid",
               "price-missing",
               "price-negative",
               "principal-invalid",
               "progress-invalid",
+              "projection-unknown",
               "public-url-needed",
               "purity-invalid",
               "quantity-invalid",
@@ -15339,8 +16994,11 @@
               "reconciled-period",
               "reencrypt-pending",
               "reencrypt-running",
+              "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
+              "reserve-balance",
+              "reserve-unknown",
               "result-invalid",
               "right-invalid",
               "root-invalid",
@@ -15491,6 +17149,7 @@
                   "cadence-invalid",
                   "cannot-join",
                   "cannot-unlock",
+                  "card-unknown",
                   "cash-invalid",
                   "cash-missing",
                   "category-twice",
@@ -15508,6 +17167,7 @@
                   "copy-locked",
                   "corporate-kind",
                   "count-mismatch",
+                  "counting-invalid",
                   "daf-invalid",
                   "date-ahead",
                   "date-in-future",
@@ -15576,6 +17236,7 @@
                   "legs-differ",
                   "legs-twice",
                   "level-invalid",
+                  "limit-invalid",
                   "link-not-active",
                   "link-not-valid",
                   "locked",
@@ -15593,6 +17254,9 @@
                   "method-not-allowed",
                   "month-invalid",
                   "months-invalid",
+                  "move-invalid",
+                  "moves-needed",
+                  "moves-off",
                   "multiplier-invalid",
                   "name-invalid",
                   "name-missing",
@@ -15605,6 +17269,7 @@
                   "no-terms",
                   "no-thumbnail",
                   "not-a-529",
+                  "not-a-deposit",
                   "not-a-fund",
                   "not-a-loan",
                   "not-a-marriage",
@@ -15618,12 +17283,14 @@
                   "not-in-it",
                   "not-married",
                   "not-physical",
+                  "not-reimbursable",
                   "not-scheduled",
                   "not-shared",
                   "not-signed-in",
                   "not-told-apart",
                   "not-yours-to-confirm",
                   "note-required",
+                  "note-too-long",
                   "notes-too-long",
                   "nothing-held",
                   "nothing-open",
@@ -15637,6 +17304,8 @@
                   "organisation-missing",
                   "organisation-unknown",
                   "origin-refused",
+                  "overspend-invalid",
+                  "owed-by-too-long",
                   "owner-counts",
                   "owner-only",
                   "owner-sees-it",
@@ -15660,12 +17329,14 @@
                   "phrase-wrong",
                   "place-missing",
                   "plan-exists",
+                  "planned-elsewhere",
                   "portfolio-unknown",
                   "premium-invalid",
                   "price-missing",
                   "price-negative",
                   "principal-invalid",
                   "progress-invalid",
+                  "projection-unknown",
                   "public-url-needed",
                   "purity-invalid",
                   "quantity-invalid",
@@ -15686,8 +17357,11 @@
                   "reconciled-period",
                   "reencrypt-pending",
                   "reencrypt-running",
+                  "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
+                  "reserve-balance",
+                  "reserve-unknown",
                   "result-invalid",
                   "right-invalid",
                   "root-invalid",
@@ -16317,6 +17991,66 @@
           "version"
         ],
         "title": "ProjectionRow",
+        "type": "object"
+      },
+      "Proposal": {
+        "additionalProperties": false,
+        "description": "A plan line estimated from history (S7.1.5).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "cadence": {
+            "title": "Cadence",
+            "type": "string"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "amount",
+          "cadence",
+          "source",
+          "detail",
+          "target"
+        ],
+        "title": "Proposal",
         "type": "object"
       },
       "ProposalLeg": {
@@ -17821,6 +19555,34 @@
         "title": "RelationshipOut",
         "type": "object"
       },
+      "ReserveHeld": {
+        "additionalProperties": false,
+        "properties": {
+          "balance": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Balance",
+            "type": "number"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "balance"
+        ],
+        "title": "ReserveHeld",
+        "type": "object"
+      },
       "Reset": {
         "additionalProperties": false,
         "properties": {
@@ -18048,6 +19810,139 @@
         "title": "ReturnRow",
         "type": "object"
       },
+      "ReviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "title": "ReviewIn",
+        "type": "object"
+      },
+      "ReviewView": {
+        "additionalProperties": false,
+        "description": "The month's review (S7.14): its loose ends, each with its action, and whether it was\nreviewed and has changed since.",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewedOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "moved": {
+            "title": "Moved",
+            "type": "integer"
+          },
+          "overspent": {
+            "items": {
+              "$ref": "#/components/schemas/Overspent"
+            },
+            "title": "Overspent",
+            "type": "array"
+          },
+          "reviewed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "toBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tobudget"
+          },
+          "toMove": {
+            "items": {
+              "$ref": "#/components/schemas/ToMoveOut"
+            },
+            "title": "Tomove",
+            "type": "array"
+          },
+          "uncategorised": {
+            "title": "Uncategorised",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "overspent",
+          "toMove",
+          "uncategorised",
+          "moved",
+          "toBudget",
+          "reviewed",
+          "history"
+        ],
+        "title": "ReviewView",
+        "type": "object"
+      },
+      "ReviewedOut": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "byName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byname"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "at",
+          "byName",
+          "changes"
+        ],
+        "title": "ReviewedOut",
+        "type": "object"
+      },
       "RmdOut": {
         "additionalProperties": false,
         "properties": {
@@ -18097,6 +19992,91 @@
           "due"
         ],
         "title": "RmdOut",
+        "type": "object"
+      },
+      "RoleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "RoleIn",
+        "type": "object"
+      },
+      "RoleOut": {
+        "additionalProperties": false,
+        "description": "Where an account's money comes from (S7.1.6), worked out unless chosen.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "movedFromProposed": {
+            "title": "Movedfromproposed",
+            "type": "boolean"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          },
+          "paidFromLearned": {
+            "title": "Paidfromlearned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accountId",
+          "paidFromId",
+          "paidFromLearned",
+          "movedFromId",
+          "movedFromProposed"
+        ],
+        "title": "RoleOut",
         "type": "object"
       },
       "RolloverOut": {
@@ -19675,6 +21655,32 @@
               }
             ],
             "title": "Memo"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           }
         },
         "required": [
@@ -20631,6 +22637,22 @@
       "TermsIn": {
         "additionalProperties": false,
         "properties": {
+          "budgetCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budgetcategoryid"
+          },
+          "budgetCounting": {
+            "default": "split",
+            "title": "Budgetcounting",
+            "type": "string"
+          },
           "drawMonths": {
             "anyOf": [
               {
@@ -20785,6 +22807,21 @@
       "TermsOut": {
         "additionalProperties": false,
         "properties": {
+          "budgetCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budgetcategoryid"
+          },
+          "budgetCounting": {
+            "title": "Budgetcounting",
+            "type": "string"
+          },
           "computedPayment": {
             "examples": [
               1234.5
@@ -20953,6 +22990,8 @@
           "recasts",
           "originalValue",
           "securedById",
+          "budgetCounting",
+          "budgetCategoryId",
           "computedPayment",
           "version"
         ],
@@ -20971,6 +23010,29 @@
           "to"
         ],
         "title": "TestEmail",
+        "type": "object"
+      },
+      "ToMoveOut": {
+        "additionalProperties": false,
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "toMove": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Tomove",
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountName",
+          "toMove"
+        ],
+        "title": "ToMoveOut",
         "type": "object"
       },
       "Token": {
@@ -21146,6 +23208,53 @@
           "confirm"
         ],
         "title": "TransferAnswer",
+        "type": "object"
+      },
+      "TransferIn": {
+        "additionalProperties": false,
+        "description": "A transfer in from the budget's accounts this month: the reserves' unless kept.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kept": {
+            "title": "Kept",
+            "type": "boolean"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "payee",
+          "amount",
+          "kept"
+        ],
+        "title": "TransferIn",
         "type": "object"
       },
       "TransferLink": {
@@ -21529,6 +23638,17 @@
             ],
             "title": "Memo"
           },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
           "payee": {
             "anyOf": [
               {
@@ -21569,6 +23689,21 @@
               }
             ],
             "title": "Quantity"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           },
           "splits": {
             "anyOf": [
@@ -21723,6 +23858,17 @@
             ],
             "title": "Memo"
           },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
           "payee": {
             "anyOf": [
               {
@@ -21770,6 +23916,21 @@
               }
             ],
             "title": "Quantity"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           },
           "splitRatio": {
             "anyOf": [
@@ -21972,6 +24133,25 @@
             ],
             "title": "Offchainat"
           },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "paidBack": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paidback",
+            "type": "number"
+          },
           "payee": {
             "anyOf": [
               {
@@ -22031,6 +24211,21 @@
           "reconciled": {
             "title": "Reconciled",
             "type": "boolean"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           },
           "splits": {
             "items": {
@@ -22110,6 +24305,9 @@
           "reconciled",
           "amountWas",
           "offChainAt",
+          "reimbursable",
+          "owedBy",
+          "paidBack",
           "splits",
           "tags",
           "receipts",
@@ -22941,6 +25139,42 @@
           "review"
         ],
         "title": "WashOut",
+        "type": "object"
+      },
+      "WhereView": {
+        "additionalProperties": false,
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardOut"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "heldIn": {
+            "items": {
+              "$ref": "#/components/schemas/HeldInOut"
+            },
+            "title": "Heldin",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "sayToMove": {
+            "title": "Saytomove",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "month",
+          "sayToMove",
+          "heldIn",
+          "cards"
+        ],
+        "title": "WhereView",
         "type": "object"
       },
       "WithdrawalYearOut": {
@@ -25220,6 +27454,32 @@
               }
             ],
             "title": "Memo"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           }
         },
         "required": [
@@ -27716,6 +29976,71 @@
         ]
       }
     },
+    "/ui/api/budgets/left-out": {
+      "get": {
+        "description": "The caller's accounts outside these that received two or more transfers from them in\nthe last year, to name when a budget is made or edited (S7.3.2). Loans are counted by\ntheir payments, so they're never named.",
+        "operationId": "left_out_ui_api_budgets_left_out_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountIds",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Accountids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LeftOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Left Out",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}": {
       "delete": {
         "operationId": "delete_budget_ui_api_budgets__budget_id__delete",
@@ -27837,6 +30162,45 @@
         ]
       }
     },
+    "/ui/api/budgets/{budget_id}/active": {
+      "post": {
+        "description": "The budget the caller follows from now on; the one before becomes a scenario. Nothing\nis rewritten (S7.12.1).",
+        "operationId": "make_active_ui_api_budgets__budget_id__active_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Make Active",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}/cash-flow": {
       "get": {
         "operationId": "budget_cash_flow_ui_api_budgets__budget_id__cash_flow_get",
@@ -27886,6 +30250,335 @@
           }
         },
         "summary": "Budget Cash Flow",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/compare": {
+      "get": {
+        "description": "Two budgets side by side, per category: what is available and spent, for the month or\nthe year to it (S7.12.3).",
+        "operationId": "compare_ui_api_budgets__budget_id__compare_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "other",
+            "required": true,
+            "schema": {
+              "title": "Other",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "span",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "pattern": "^(month|year)$",
+              "title": "Span",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Compare",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/copy": {
+      "post": {
+        "description": "Copy as scenario (S7.12.4): the same accounts and plan from this month, in the method\nchosen, with this month's moves when asked. The copy is the caller's; the budget they\nfollow doesn't change.",
+        "operationId": "copy_budget_ui_api_budgets__budget_id__copy_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRow"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Location": {
+                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Copy Budget",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/estimate": {
+      "get": {
+        "description": "A plan from the last 3, 6 or 12 complete months (S7.1.5): nothing is saved.",
+        "operationId": "estimate_ui_api_budgets__budget_id__estimate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "months",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "maximum": 12,
+              "minimum": 3,
+              "title": "Months",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Proposal_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Estimate",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/landed": {
+      "post": {
+        "description": "Landed money given to a reserve, spread among those held where it landed by balance,\nor kept as the account's own (S7.10.5): moves the budget keeps, recorded in Activity.",
+        "operationId": "give_landed_ui_api_budgets__budget_id__landed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GiveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhereView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Give Landed",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/leave-outs/{txn_id}": {
+      "put": {
+        "description": "Leave a transaction out of this budget, or count it again (S7.3.5).",
+        "operationId": "leave_out_ui_api_budgets__budget_id__leave_outs__txn_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "txn_id",
+            "required": true,
+            "schema": {
+              "title": "Txn Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveOutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InBudget"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Leave Out",
         "tags": [
           "budgets"
         ]
@@ -27945,6 +30638,111 @@
         ]
       }
     },
+    "/ui/api/budgets/{budget_id}/moves": {
+      "post": {
+        "description": "An amount put from one category, a reserve among them, to another for one month; in an\nenvelope budget, from or to To Budget (S7.11). Made by hand, recorded in Activity.",
+        "operationId": "make_move_ui_api_budgets__budget_id__moves_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Location": {
+                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Make Move",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/moves/{move_id}": {
+      "delete": {
+        "description": "Deleting a move undoes it.",
+        "operationId": "delete_move_ui_api_budgets__budget_id__moves__move_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "move_id",
+            "required": true,
+            "schema": {
+              "title": "Move Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted_NoneType_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Delete Move",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}/plan": {
       "put": {
         "description": "From the month given on, the plan is what the body lists; earlier months keep theirs.\nThe plan belongs to the budget, so it is made against the budget's version.",
@@ -27957,6 +30755,16 @@
             "schema": {
               "title": "Budget Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Confirm",
+              "type": "boolean"
             }
           }
         ],
@@ -28051,6 +30859,225 @@
           }
         },
         "summary": "Budget Recurring",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/refresh": {
+      "post": {
+        "description": "Refresh: the budget's months worked out again at once (S7.3.10).",
+        "operationId": "refresh_ui_api_budgets__budget_id__refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Refresh",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/reimbursements": {
+      "get": {
+        "description": "What the budget's accounts await, oldest first, each with the deposits that may pay it\nback among the caller's own accounts and those they can change.",
+        "operationId": "awaiting_ui_api_budgets__budget_id__reimbursements_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AwaitingRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Awaiting",
+        "tags": [
+          "reimbursements"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/review": {
+      "get": {
+        "description": "The month before this one unless another is asked: what was overspent, what is to move,\nwhat is left in To Budget, and what waits to be sorted (S7.14).",
+        "operationId": "review_ui_api_budgets__budget_id__review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Review",
+        "tags": [
+          "budgets"
+        ]
+      },
+      "post": {
+        "description": "Mark reviewed (S7.14): who and when, and the month's figures then, so a later change is\nflagged until it is reviewed again. Months are never locked.",
+        "operationId": "mark_reviewed_ui_api_budgets__budget_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Mark Reviewed",
         "tags": [
           "budgets"
         ]
@@ -28156,6 +31183,61 @@
           }
         },
         "summary": "Budget Trends",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/where": {
+      "get": {
+        "description": "Where the money is (S7.10.4): each account reserves are held in, what is to move there\nor back, the money landed there waiting to be given, and each card's payments.",
+        "operationId": "where_ui_api_budgets__budget_id__where_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhereView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Where",
         "tags": [
           "budgets"
         ]
@@ -34330,6 +37412,90 @@
         ]
       }
     },
+    "/ui/api/reimbursements": {
+      "post": {
+        "description": "A deposit paired with reimbursable spending: that much of it pays the spending back and\nisn't income (S2.9.2).",
+        "operationId": "pair_ui_api_reimbursements_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Location": {
+                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Pair",
+        "tags": [
+          "reimbursements"
+        ]
+      }
+    },
+    "/ui/api/reimbursements/{pair_id}": {
+      "delete": {
+        "operationId": "unpair_ui_api_reimbursements__pair_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pair_id",
+            "required": true,
+            "schema": {
+              "title": "Pair Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted_NoneType_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Unpair",
+        "tags": [
+          "reimbursements"
+        ]
+      }
+    },
     "/ui/api/relationships": {
       "get": {
         "description": "The stored relationships of a person (the caller's own by default).",
@@ -38465,6 +41631,68 @@
         "summary": "Both Real",
         "tags": [
           "transactions"
+        ]
+      }
+    },
+    "/ui/api/transactions/{txn_id}/budgets": {
+      "get": {
+        "description": "The caller's budgets counting a transaction, what it counts as in each, and each one's\nleave-out (S7.3.5, S12.2.3). The category is the transaction's, the same in every budget.",
+        "operationId": "in_budgets_ui_api_transactions__txn_id__budgets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "txn_id",
+            "required": true,
+            "schema": {
+              "title": "Txn Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_InBudget_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "In Budgets",
+        "tags": [
+          "budgets"
         ]
       }
     },

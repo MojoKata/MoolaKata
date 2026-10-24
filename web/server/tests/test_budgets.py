@@ -286,3 +286,144 @@ def test_a_shared_budget_names_only_the_accounts_shared_with_its_viewer(server, 
     c.put(f"/ui/api/shares/account/{acct['id']}", json={"users": {bob_id: "read"}})
     (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert theirs["accountName"] == acct["name"]
+
+
+def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server, frozen):
+    """A mortgage payment from a budget's checking account is a matched transfer to the loan,
+    and counts by its parts: interest, escrow and the rest as spending, principal as saved
+    (S1.9.7, S7.3.3)."""
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
+    r = c.put(
+        f"/ui/api/accounts/{loan['id']}/loan",
+        json={
+            "principal": "300000",
+            "startDate": "2026-09-01",
+            "termMonths": 360,
+            "rate": "6",
+            "escrowTax": "300",
+            "escrowInsurance": "100",
+        },
+    )
+    assert r.status_code == 200, r.text
+    r = c.post(
+        f"/ui/api/accounts/{loan['id']}/loan/payments",
+        json={"date": "2026-10-01", "amount": "2198.65", "fromAccountId": acct["id"]},
+    )
+    assert r.status_code == 201, r.text
+    plan(c, b, "2026-10-01", [{"categoryId": cat["Loan payments"], "amount": "2200.00"}])
+    v = month(c, b, "2026-10")
+    lp = row(v, "Loan payments")
+    assert lp["actual"] == "2198.65"
+    assert v["spent"] == "1900.00" and v["saved"] == "298.65"
+
+
+def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="Car", type="auto-loan", institution="Ally")
+    terms = {"principal": "20000", "startDate": "2026-09-01", "termMonths": 60, "rate": "6"}
+    bad = c.put(f"/ui/api/accounts/{loan['id']}/loan", json=terms | {"budgetCounting": "half"})
+    assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "budgetCounting"
+    whole = terms | {"budgetCounting": "whole", "budgetCategoryId": cat["Transportation"]}
+    r = c.put(f"/ui/api/accounts/{loan['id']}/loan", json=whole)
+    assert r.status_code == 200, r.text
+    assert r.json()["terms"]["budgetCounting"] == "whole"
+    c.post(
+        f"/ui/api/accounts/{loan['id']}/loan/payments",
+        json={"date": "2026-10-01", "amount": "386.66", "fromAccountId": acct["id"]},
+    )
+    v = month(c, b, "2026-10")
+    assert v["spent"] == "386.66" and v["saved"] == "0.00"
+    assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [("Transportation", "386.66")]
+
+
+def test_money_leaving_or_entering_the_budget(server, frozen):
+    """A transfer between two of the budget's accounts counts nowhere; one to an account the
+    budget doesn't count counts by its category, or waits to be sorted (S7.3.2)."""
+    c, acct, cat, b = setup_budget(server)
+    savings = new_account(c, name="Savings", type="savings", mask="2222")
+    brokerage = new_account(c, name="Brokerage", type="brokerage", mask="3333")
+    r = c.patch(
+        f"/ui/api/budgets/{b['id']}",
+        json={"accountIds": [acct["id"], savings["id"]]},
+        headers={"If-Match": str(b["version"])},
+    )
+    assert r.status_code == 200, r.text
+    # Inside the budget: nothing moved in or out.
+    add(c, acct["id"], "-200.00", "2026-10-02", payee="To savings")
+    add(c, savings["id"], "200.00", "2026-10-02", payee="From checking", kind="deposit")
+    # Out to the brokerage: no category yet, then filed as savings.
+    out = add(c, acct["id"], "-500.00", "2026-10-05", payee="To Fidelity")
+    inn = add(c, brokerage["id"], "500.00", "2026-10-05", payee="From checking", kind="deposit")
+    assert inn["transferId"] == out["id"]
+    # In from the brokerage, filed as income.
+    back = add(
+        c,
+        acct["id"],
+        "150.00",
+        "2026-10-20",
+        payee="From Fidelity",
+        categoryId=cat["Income › Other income"],
+    )
+    pair = add(c, brokerage["id"], "-150.00", "2026-10-20", payee="To checking", kind="withdrawal")
+    assert pair["transferId"] == back["id"]
+    v = month(c, b, "2026-10")
+    assert v["spent"] == "0.00" and v["saved"] == "0.00" and v["income"] == "150.00"
+    assert [(m["otherAccountName"], m["amount"]) for m in v["moved"]] == [("Brokerage", "-500.00")]
+    r = c.patch(
+        f"/ui/api/transactions/{out['id']}",
+        json={"categoryId": cat["Savings › Investing"]},
+        headers={"If-Match": str(c.get(f"/ui/api/transactions/{out['id']}").json()["version"])},
+    )
+    assert r.status_code == 200, r.text
+    v = month(c, b, "2026-10")
+    assert v["saved"] == "500.00" and v["moved"] == []
+    # The accounts named when the budget is edited: two or more transfers in a year.
+    add(c, acct["id"], "-75.00", "2026-10-12", payee="To Fidelity")
+    add(c, brokerage["id"], "75.00", "2026-10-12", payee="From checking", kind="deposit")
+    named = c.get("/ui/api/budgets/left-out", params={"accountIds": [acct["id"], savings["id"]]})
+    assert named.status_code == 200, named.text
+    assert [(x["name"], x["transfers"]) for x in named.json()["items"]] == [("Brokerage", 2)]
+
+
+def test_a_refund_lowers_spending_in_the_month_it_lands(server, frozen):
+    c, acct, cat, b = setup_budget(server)
+    plan(c, b, "2026-09-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
+    add(c, acct["id"], "-120.00", "2026-09-28", payee="Kroger", categoryId=cat["Food › Groceries"])
+    add(c, acct["id"], "-90.00", "2026-10-03", payee="Kroger", categoryId=cat["Food › Groceries"])
+    add(
+        c,
+        acct["id"],
+        "40.00",
+        "2026-10-06",
+        payee="Kroger refund",
+        categoryId=cat["Food › Groceries"],
+    )
+    assert row(month(c, b, "2026-09"), "Food")["actual"] == "120.00"
+    assert row(month(c, b, "2026-10"), "Food")["actual"] == "50.00"
+
+
+def test_cash_and_payment_apps(server, frozen):
+    """Cash on hand and payment apps are banking accounts (S1.1); cash taken out pairs with the
+    cash account's deposit, and counts as Cash when that account is outside the budget
+    (S7.3.2). Cash expects no statements and has no Reconcile tab (S1.11)."""
+    c, acct, cat, b = setup_budget(server)
+    cash = new_account(c, name="Wallet cash", type="cash", institution="", mask="")
+    venmo = new_account(c, name="Venmo", type="payment-app", institution="Venmo", mask="")
+    assert cash["group"] == venmo["group"] == "banking"
+    assert cash["statementIntervalDefault"] == "none" and not cash["reconcilable"]
+    assert venmo["reconcilable"]
+    out = add(c, acct["id"], "-60.00", "2026-10-07", payee="ATM")
+    dep = add(c, cash["id"], "60.00", "2026-10-07", payee="From the ATM", kind="deposit")
+    assert dep["transferId"] == out["id"]
+    # Money sent to the app, filed by its category on the bank's side.
+    add(
+        c, acct["id"], "-45.00", "2026-10-09", payee="To Venmo", categoryId=cat["Food › Dining out"]
+    )
+    add(c, venmo["id"], "45.00", "2026-10-09", payee="From checking", kind="deposit")
+    v = month(c, b, "2026-10")
+    assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [
+        ("Cash", "60.00"),
+        ("Food › Dining out", "45.00"),
+    ]
+    assert v["moved"] == []

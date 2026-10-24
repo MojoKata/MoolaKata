@@ -1,7 +1,8 @@
-"""The categories that ship (requirements S7.2): a two-level tree, each an expense, income
-or transfer category, some with the tax tag that feeds Taxes."""
+"""The categories that ship (requirements S7.2): a two-level tree, each an expense, income,
+savings or transfer category, some with the tax tag that feeds Taxes."""
 
-# (key, name, kind, tax tag, children: [(key, name, tax tag)])
+# (key, name, kind, tax tag, children: [(key, name, tax tag[, kind])]); a child is its parent's
+# kind unless it says otherwise.
 DEFAULTS = [
     (
         "income",
@@ -81,15 +82,32 @@ DEFAULTS = [
     ("business", "Business", "expense", "business", []),
     ("taxes", "Taxes", "expense", None, []),
     ("fees", "Fees and charges", "expense", None, []),
+    # Cash taken out and spent, or moved to a cash account outside a budget (S7.3.2).
+    ("cash", "Cash", "expense", None, []),
+    (
+        "savings",
+        "Savings",
+        "savings",
+        None,
+        [
+            ("savings.emergency", "Emergency fund", None),
+            ("savings.retirement", "Retirement", None),
+            ("savings.investing", "Investing", None),
+            ("savings.education", "Education", None),
+        ],
+    ),
+    # A loan payment counts in a budget by these parts (S1.9.7), principal as saved.
     (
         "loans",
-        "Loans",
+        "Loan payments",
         "expense",
         None,
         [
-            ("loans.interest", "Loan interest", "loan-interest"),
-            ("loans.pmi", "Mortgage insurance (PMI)", None),
-            ("loans.fees", "Loan fees", None),
+            ("loans.interest", "Interest", "loan-interest"),
+            ("loans.escrow", "Escrow", None),
+            ("loans.pmi", "PMI", None),
+            ("loans.fees", "Fees", None),
+            ("loans.principal", "Principal", None, "savings"),
         ],
     ),
     (

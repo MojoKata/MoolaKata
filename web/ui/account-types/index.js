@@ -28,6 +28,8 @@ import t21 from './vehicle.js';
 import t22 from './other-asset.js';
 import t23 from './529.js';
 import t24 from './daf.js';
+import t27 from './cash.js';
+import t28 from './payment-app.js';
 
 /**
  * @typedef {Object} AccountType
@@ -51,6 +53,8 @@ export const TYPES = [
   t1,
   t2,
   t3,
+  t27,
+  t28,
   t4,
   t5,
   t6,

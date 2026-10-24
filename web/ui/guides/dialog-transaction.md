@@ -72,6 +72,28 @@ A note.
 
 Your own, separated by commas; others who share the account don't see them.
 
+## Reimbursable
+
+Spending someone pays back: an employer's expense, a roommate's half. It keeps its category, for taxes
+and reports, and budgets don't count it while it's awaited. It's listed under **Reimbursements** on
+Budgets, where a deposit that may pay it back is offered to pair; the paired part of the deposit
+isn't income.
+
+## Reimbursable amount
+
+All of it unless you type less. Lower it to what was paid back, or turn **Reimbursable** off, and the
+rest counts as spending again, in the month it was spent.
+
+## Owed by
+
+Who pays it back, as you want to see it: _Acme Corp_, _Sam_.
+
+## Leave out {#leave-out}
+
+Each budget counting this transaction, and what it counts as there. **Leave out** is that budget's
+own, for a one-off such as a car bought outright: it then counts nowhere in that budget, and
+Activity records it. The category is the transaction's, the same in every budget.
+
 ## Receipts
 
 The receipts attached to it; each opens its file. **Add a receipt** uploads one or more and attaches

@@ -163,3 +163,145 @@ def test_the_review_cases_match_their_golden_file(alice):
     held = alice.get("/ui/api/positions").json()["open"]
     nvda = next(x for x in held if x["symbol"] == "NVDA")
     assert nvda["cost"] == "1070.00"
+
+
+def budget_household(c):
+    """A household's budgets over three months, touching every figure of S7: rollover, a
+    reserve held in savings, moves, money leaving the budget, a loan's split payment, a refund,
+    reimbursable spending, and an envelope scenario with a card."""
+    cat = {x["path"]: x["id"] for x in c.get("/ui/api/categories").json()["items"]}
+    chk = new_account(c, name="Checking", mask="2001")
+    sav = new_account(c, name="Savings", type="savings", mask="2002")
+    card = new_account(c, name="Visa", type="credit-card", mask="2003")
+    brk = new_account(c, name="Brokerage", type="brokerage", mask="2004")
+    ids = [chk["id"], sav["id"], card["id"]]
+    b = c.post(
+        "/ui/api/budgets",
+        json={"name": "Household", "accountIds": ids, "reserves": True, "moves": True},
+    ).json()
+    food, fun, repair = cat["Food"], cat["Entertainment"], cat["Transportation › Car maintenance"]
+    lines = [
+        {"categoryId": cat["Income › Salary"], "amount": "4000.00"},
+        {"categoryId": food, "amount": "500.00", "rollover": True},
+        {"categoryId": fun, "amount": "150.00"},
+        {"categoryId": repair, "amount": "100.00", "target": "250.00", "heldInId": sav["id"]},
+        {"categoryId": cat["Loan payments"], "amount": "1100.00"},
+        {"categoryId": cat["Savings › Investing"], "amount": "300.00"},
+    ]
+    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
+    c.put(
+        f"/ui/api/budgets/{b['id']}/plan",
+        json={"month": "2026-09-01", "lines": lines},
+        headers={"If-Match": str(v)},
+    )
+    loan = new_account(c, name="Car loan", type="auto-loan", mask="2005")
+    c.put(
+        f"/ui/api/accounts/{loan['id']}/loan",
+        json={"principal": "20000", "startDate": "2026-08-01", "termMonths": 60, "rate": "6"},
+    )
+    for m in ("09", "10", "11"):
+        add(
+            c,
+            chk["id"],
+            "4000.00",
+            f"2026-{m}-01",
+            payee="Payroll",
+            categoryId=cat["Income › Salary"],
+        )
+        add(
+            c,
+            chk["id"],
+            "-460.00",
+            f"2026-{m}-04",
+            payee="Kroger",
+            categoryId=cat["Food › Groceries"],
+        )
+        c.post(
+            f"/ui/api/accounts/{loan['id']}/loan/payments",
+            json={"date": f"2026-{m}-15", "amount": "1000.00", "fromAccountId": chk["id"]},
+        )
+        add(
+            c,
+            chk["id"],
+            "-300.00",
+            f"2026-{m}-20",
+            payee="To Fidelity",
+            categoryId=cat["Savings › Investing"],
+        )
+        add(c, brk["id"], "300.00", f"2026-{m}-20", payee="From checking", kind="deposit")
+    add(c, chk["id"], "-200.00", "2026-09-28", payee="To savings")
+    add(c, sav["id"], "200.00", "2026-09-28", payee="From checking", kind="deposit")
+    add(c, card["id"], "-260.00", "2026-10-09", payee="Midas", categoryId=repair)
+    add(c, card["id"], "-190.00", "2026-10-12", payee="Concert", categoryId=fun)
+    add(
+        c,
+        chk["id"],
+        "35.00",
+        "2026-10-14",
+        payee="Kroger refund",
+        categoryId=cat["Food › Groceries"],
+    )
+    hotel = add(
+        c,
+        card["id"],
+        "-310.00",
+        "2026-11-03",
+        payee="Hilton",
+        categoryId=cat["Travel"],
+        reimbursable="310.00",
+        owedBy="Acme Corp",
+    )
+    back = add(c, chk["id"], "310.00", "2026-11-18", payee="Acme expense report")
+    c.post(
+        "/ui/api/reimbursements",
+        json={"spendingId": hotel["id"], "paybackId": back["id"], "amount": "310.00"},
+    )
+    c.post(
+        f"/ui/api/budgets/{b['id']}/moves",
+        json={"month": "2026-10-01", "fromCategoryId": food, "toCategoryId": fun, "amount": "40"},
+    )
+    for day, amount in (("2026-10-25", "-450.00"), ("2026-11-25", "-150.00")):
+        add(c, chk["id"], amount, day, payee="Visa payment")
+        add(c, card["id"], amount[1:], day, payee="Thank you", kind="deposit")
+    env = c.post(
+        f"/ui/api/budgets/{b['id']}/copy", json={"name": "Envelopes", "method": "envelope"}
+    ).json()
+    return b, env
+
+
+def budget_figures(c, b) -> list[str]:
+    out = []
+    for month in ("2026-09", "2026-10", "2026-11", "2026-12"):
+        v = c.get(f"/ui/api/budgets/{b['id']}/month", params={"month": month}).json()
+        head = f"{b['name']} {month}"
+        out.append(
+            f"{head} spent {v['spent']} saved {v['saved']} income {v['income']}"
+            f" toBudget {v['toBudget']} moved {len(v['moved'])}"
+        )
+        for r in v["rows"]:
+            out.append(
+                f"{head} {r['label']}: planned {r['planned']} carried {r['carried']}"
+                f" moved {r['moved']} actual {r['actual']} remaining {r['remaining']}"
+                f" {r['state']}" + (f" balance {r['balance']}" if r["balance"] is not None else "")
+            )
+        for x in v["cards"]:
+            out.append(
+                f"{head} card {x['name']}: set aside {x['setAside']} owed {x['owed']}"
+                f" not backed {x['notBacked']}"
+            )
+        w = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": month}).json()
+        for h in w["heldIn"]:
+            out.append(
+                f"{head} held in {h['accountName']}: total {h['total']} moved in {h['movedIn']}"
+                f" to move {h['toMove']}"
+            )
+    return out
+
+
+def test_the_budgets_match_their_golden_file(alice):
+    b, env = budget_household(alice)
+    got = "\n".join(budget_figures(alice, b) + budget_figures(alice, env)) + "\n"
+    path = GOLDEN / "budgets-2026.txt"
+    if os.environ.get("MK_GOLDEN_WRITE") == "1":
+        path.write_text(got)
+    assert got == path.read_text()

@@ -123,6 +123,7 @@ def map_all() -> None:
         (acc.Import, accounts.Import),
         (acc.Transaction, accounts.Transaction),
         (acc.Split, accounts.Split),
+        (acc.Reimbursement, accounts.Reimbursement),
         (acc.Lot, accounts.Lot),
         (acc.Holding, accounts.Holding),
         (acc.Anchor, accounts.Anchor),
@@ -141,7 +142,10 @@ def map_all() -> None:
     _map(sh.PortfolioAccount, sharing.PortfolioAccounts)
     _versioned(bd.Budget, budgets.Budget)
     _versioned(bd.BudgetLine, budgets.BudgetLine)
+    _versioned(bd.BudgetMove, budgets.BudgetMove)
+    _versioned(bd.BudgetReview, budgets.BudgetReview)
     _map(bd.BudgetAccount, budgets.BudgetAccounts)
+    _map(bd.BudgetLeaveOut, budgets.BudgetLeaveOuts)
     _versioned(rc.Receipt, receipts.Receipt)
     _map(rc.ReceiptLink, receipts.ReceiptLinks)
     _map(ed.GiftPerson, people.GiftPersons)

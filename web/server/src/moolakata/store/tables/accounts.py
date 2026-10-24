@@ -21,6 +21,8 @@ ACCOUNT_TYPES = (
     "savings",
     "money-market",
     "cd",
+    "cash",
+    "payment-app",
     "credit-card",
     "brokerage",
     "ira",
@@ -110,7 +112,7 @@ Category = record(
     # Keep receipts for so many years after their record ended (S14.10.1.1); none: for ever,
     # or a subcategory takes its parent's.
     Column("keepReceiptsYears", Integer),
-    _in("kind", ("expense", "income", "transfer"), "kind"),
+    _in("kind", ("expense", "income", "savings", "transfer"), "kind"),
     CheckConstraint(
         '"keepReceiptsYears" IS NULL OR "keepReceiptsYears" >= 1', name="keep_receipts_years"
     ),
@@ -143,6 +145,8 @@ Account = record(
     # key is cleared when the Connection goes: its sync turns off (schema.md §6.4).
     Column("connectionId", Text, ForeignKey("Connection.id")),
     Column("syncAccount", Text),
+    # A savings or money-market account's limit on withdrawals a month, the bank's (S1.2).
+    Column("withdrawalsAMonth", Integer),
     _in("type", ACCOUNT_TYPES, "type"),
     _in("lotMethod", LOT_METHODS, "lot_method"),
     CheckConstraint("mask IS NULL OR (length(mask) = 4 AND mask GLOB '[0-9]*')", name="mask"),
@@ -268,6 +272,9 @@ Transaction = record(
     Column("offChainAt", UtcTimestamp),
     Column("offChainMissedAt", UtcTimestamp),
     Column("offChainKeptAt", UtcTimestamp),
+    # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
+    Column("reimbursable", Cents),
+    Column("owedBy", Text),
     _in("kind", TXN_KINDS, "kind"),
     CheckConstraint(
         '"dividendType" IS NULL OR "dividendType" IN (\'ordinary\', '
@@ -298,7 +305,24 @@ Split = record(
     Column("categoryId", Text, ForeignKey("Category.id")),
     Column("amount", Cents, nullable=False),
     Column("memo", Text),
+    Column("reimbursable", Cents),  # as a transaction's (S2.9)
+    Column("owedBy", Text),
     Index("ix_Split_transactionId", "transactionId"),
+)
+
+# A deposit paired with reimbursable spending, or one split of it (S2.9): how much of the
+# deposit pays that spending back. One deposit can pay back several.
+Reimbursement = record(
+    "Reimbursement",
+    "Rmbrs",
+    Column("spendingId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    Column("splitId", Text, ForeignKey("Split.id", ondelete="CASCADE")),
+    Column("paybackId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    Column("amount", Cents, nullable=False),
+    Column("createdById", Text, ForeignKey("User.id")),
+    CheckConstraint("amount > 0", name="amount"),
+    Index("ix_Reimbursement_spendingId", "spendingId"),
+    Index("ix_Reimbursement_paybackId", "paybackId"),
 )
 
 TransactionTags = pairs(

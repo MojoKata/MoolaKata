@@ -10,7 +10,7 @@ import { useSubmit } from '../app/hooks.js';
 import { Dialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { cents, fromCents, money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
@@ -72,13 +72,19 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
     contributionYear: init?.contributionYear ? String(txn.contributionYear) : '',
     contributionSource: init?.contributionSource || '',
     tags: (init?.tags || []).join(', '),
+    reimbursable: txn?.reimbursable || '',
+    owedBy: txn?.owedBy || '',
   });
+  const [owed, setOwed] = useState(!!txn?.reimbursable);
   const [splits, setSplits] = useState(
-    /** @type {{ categoryId: string, amount: string, memo: string }[]} */ (
+    /** @type {{ categoryId: string, amount: string, memo: string, reimbursable?: string,
+     *   owedBy?: string }[]} */ (
       (txn?.splits || []).map((/** @type {any} */ s) => ({
         categoryId: s.categoryId || '',
         amount: s.amount,
         memo: s.memo || '',
+        reimbursable: s.reimbursable || undefined,
+        owedBy: s.owedBy || undefined,
       }))
     ),
   );
@@ -104,7 +110,14 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
         categoryId: s.categoryId || null,
         amount: clean(s.amount),
         memo: s.memo || null,
+        // A part marked to be paid back keeps its mark (S2.9).
+        ...(s.reimbursable ? { reimbursable: s.reimbursable, owedBy: s.owedBy || null } : {}),
       })),
+      // Spending to be paid back: all of it unless a smaller amount is typed (S2.9).
+      reimbursable: owed && !splits.length
+        ? clean(f.reimbursable) || clean(f.amount).replace(/^-/, '') || null
+        : null,
+      owedBy: owed && !splits.length ? f.owedBy || null : null,
       tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
     };
     if (type.investing) {
@@ -343,7 +356,28 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
         <${Field} label="Memo"><${Input} value=${f.memo} onInput=${set('memo')} /></${Field}>
         <${Field} label="Tags" hint="Yours only, separated by commas."><${Input} value=${f.tags}
           onInput=${set('tags')} /></${Field}>
+        ${!type.investing && !splits.length
+          ? html`
+            <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."
+              on=${owed} onChange=${setOwed} />
+            ${owed
+              ? html`
+                <div class="row">
+                  <${Field} label="Reimbursable amount" error=${errAt(e, 'reimbursable')}>
+                    <${Input} value=${f.reimbursable} onInput=${set('reimbursable')}
+                      inputmode="decimal" placeholder="all of it" />
+                    </${Field}>
+                    <${Field} label="Owed by" error=${errAt(e, 'owedBy')}>
+                      <${Input} value=${f.owedBy} onInput=${set('owedBy')}
+                        placeholder="Acme Corp" />
+                      </${Field}>
+                      </div>
+              `
+              : null}
+          `
+          : null}
         </fieldset>
+        ${editing ? html`<${InBudgets} txn=${txn} />` : null}
         ${editing ? html`<${TxnReceipts} txn=${txn} canWrite=${!readOnly} />` : null}
         ${reconciled
           ? html`<div class="notice warn" role="alert">${e.message}</div>`
@@ -360,8 +394,47 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
             'costBasis',
             'contributionYear',
             'splits',
+            'reimbursable',
+            'owedBy',
           ]} />`}
       </${Dialog}>
+  `;
+}
+
+/**
+ * The budgets counting a transaction, what it counts as in each, and each one's leave-out
+ * (S7.3.5): the category is the transaction's, the same in every budget.
+ * @param {{ txn: any }} p
+ */
+function InBudgets({ txn }) {
+  const res = useList(`/transactions/${txn.id}/budgets`);
+  const rows = /** @type {any[]} */ (res.data) || [];
+  if (!rows.length) return null;
+  const flip = async (/** @type {any} */ r, /** @type {boolean} */ on) => {
+    try {
+      await api.put(`/budgets/${r.budgetId}/leave-outs/${txn.id}`, { leftOut: on });
+      toast(on ? `Left out of ${r.name}` : `Counted in ${r.name} again`);
+      res.reload();
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    }
+  };
+  return html`
+    <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+      <legend class="small" style=${{ color: 'var(--fg-dim)' }}>In budgets</legend>
+      ${rows.map((r) =>
+        html`<div class="list-item"><span class="grow">${r.name}<div class="small dim">${
+          r.leftOut
+            ? 'left out: counts nowhere in it'
+            : `counts in ${r.countsAs || 'nothing yet: uncategorised'}`
+        }</div></span>
+          <span class="small dim">Leave out</span>
+          <${Switch} on=${r.leftOut} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
+            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.canWrite} /></div>`
+      )}
+      <div class="hint">The category is the transaction's: changing it changes every budget that
+        counts it.</div>
+    </fieldset>
   `;
 }
 

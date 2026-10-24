@@ -76,6 +76,7 @@ class AccountDetail(AccountRow):
     statementInterval: str | None  # set; none set follows the type (S1.11.7)
     statementIntervalDefault: str  # the type's
     statementIntervalProposal: str | None  # learned from what arrives, not yet accepted
+    withdrawalsAMonth: int | None  # a savings account's limit, the bank's (S1.2)
     optionsValue: Money | None  # an investing account's options' market value
     capitalAtRisk: Money | None  # beside it (S3.5.6)
     capitalAtRiskUnlimited: bool = False
@@ -112,6 +113,7 @@ class AccountChange(Model):
     active: bool | None = None
     statementInterval: str | None = None  # null: back to the type's default
     dismissIntervalProposal: bool = False
+    withdrawalsAMonth: int | None = None  # a savings account's limit, the bank's (S1.2)
     # Sync using MoolaKata Connector (S18.6.2), the owner's alone: a Connection of theirs and
     # the institution account; null turns it off.
     connectionId: str | None = None
@@ -384,6 +386,7 @@ def row(
         syncAccount=a.syncAccount if level == "owner" else None,
         statementIntervalDefault=expected.default_interval(a.type, json.loads(a.keptBy)),
         statementIntervalProposal=expected.proposal(a, imports_of(s, a.id)),
+        withdrawalsAMonth=a.withdrawalsAMonth,
         **_options_risk(s, a, ledger),
     )
 
@@ -483,6 +486,7 @@ def change_account(
             "dismissIntervalProposal",
             "connectionId",
             "syncAccount",
+            "withdrawalsAMonth",
         }
         if level != "owner" and sent & settings_fields:
             raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
@@ -510,6 +514,24 @@ def change_account(
         if "keptBy" in sent and body.keptBy is not None:
             a.keptBy = exactjson.dumps(body.keptBy)
             changed.append("keptBy")
+        if "withdrawalsAMonth" in sent and a.withdrawalsAMonth != body.withdrawalsAMonth:
+            if body.withdrawalsAMonth is not None and (
+                a.type not in ("savings", "money-market") or not 1 <= body.withdrawalsAMonth <= 99
+            ):
+                raise Problem(
+                    422,
+                    "limit-invalid",
+                    "A savings account's limit: 1 to 99, or empty.",
+                    [
+                        FieldError(
+                            "withdrawalsAMonth",
+                            "limit-invalid",
+                            "A savings account's limit: 1 to 99, or empty.",
+                        )
+                    ],
+                )
+            a.withdrawalsAMonth = body.withdrawalsAMonth
+            changed.append("withdrawalsAMonth")
         if "statementInterval" in sent and a.statementInterval != body.statementInterval:
             a.statementInterval = body.statementInterval
             changed.append("statementInterval")

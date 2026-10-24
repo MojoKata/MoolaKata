@@ -979,8 +979,35 @@ function Settings({ a, reload }) {
                     once per institution and remembered.</p>
               <${SyncCard} a=${a} reload=${reload} />
               <${StatementsExpected} a=${a} reload=${reload} />
+              ${['savings', 'money-market'].includes(a.type)
+                ? html`<${WithdrawalsLimit} a=${a} reload=${reload} />`
+                : null}
               </div>
         `}</div>
+  `;
+}
+
+/**
+ * A savings account's limit on withdrawals a month, the bank's (S1.2): budgets keep the moves
+ * back within it.
+ * @param {{ a: any, reload: () => void }} p
+ */
+function WithdrawalsLimit({ a, reload }) {
+  const [value, setValue] = useState(a.withdrawalsAMonth ? String(a.withdrawalsAMonth) : '');
+  const change = useSubmit(async () => {
+    await api.patch(`/accounts/${a.id}`, {
+      withdrawalsAMonth: value.trim() ? Number(value) : null,
+    }, a.version);
+    toast('Saved');
+    reload();
+  });
+  return html`
+    <${Field} label="Withdrawals allowed a month" id="withdrawals-a-month"
+      error=${errAt(change.error, 'withdrawalsAMonth')}
+      hint="The bank's limit, empty for none. Budgets sum the moves back within it.">
+      <${Input} value=${value} onInput=${setValue} inputmode="numeric" placeholder="no limit"
+        onBlur=${() => change.run().catch(() => {})} />
+      </${Field}>
   `;
 }
 

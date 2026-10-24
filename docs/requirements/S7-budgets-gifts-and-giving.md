@@ -22,7 +22,8 @@
    5. **Estimate from history**: making a budget, or later from its plan, offers a plan line
       per category from its average over the last 3, 6 or 12 months, as the user picks:
       monthly where it was spent in most months, yearly otherwise. The recurring transactions
-      of S7.5 are offered as lines of their own (*Rent $1,850 a month*, *Car insurance $1,140
+      of S7.5, looked for three years back so a yearly bill has the three payments a series
+      needs, are offered as lines of their own (*Rent $1,850 a month*, *Car insurance $1,140
       a year*), a yearly one as a reserve when reserves are on. Each proposed line is kept,
       changed or dropped before the plan is saved.
    6. **Where money comes from**, worked out from the budget's accounts, with nothing to set
@@ -209,7 +210,9 @@
        began (put in and moved in, less spent and moved out), less what was transferred into
        the account from any of the budget's other accounts over that time, net of what was
        transferred out, and less the landed money given to them (S7.10.5). Which checking
-       account a transfer came from doesn't matter. When the reserves are ahead, the
+       account a transfer came from doesn't matter. A transfer in that is savings of the
+       account's own, not the reserves', is listed there too and can be **kept as the account's
+       own**, after which it doesn't count as moved in. When the reserves are ahead, the
        difference is to move from the account's **moved from** account (S7.1.6; *$345 to move
        from UMB Checking to Ally Savings*); when they are behind, after a repair paid from
        checking or a card, it goes back to it, summed into one transfer for the month (*$700
@@ -235,7 +238,8 @@
     amount from one category to another, a reserve among them, for one month (*$40 from Entertainment to Dining,
     March*), and each one's available amount that month changes by it. Where the line rolls
     over, or is a reserve, the move carries on with its remainder. In an envelope budget a
-    move can also come from or go to *To Budget* (*$50 more to Gifts this December*).
+    move can also come from or go to *To Budget* (*$50 more to Gifts this December*), or go
+    into a card's payment line (S7.13.2).
     1. **Made by hand**, never on its own: an overspent row offers **Cover from…**, listing
        the categories and reserves with money left that month, the most first, so an
        emergency fund covers a hospital bill in *Health*; any row offers **Move**.
@@ -273,17 +277,20 @@
     each month until none is left to hand out.
     1. **To Budget** is the cash in the budget's accounts, less what its categories hold and
        what is set aside for its cards (S7.13.2). It starts in the budget's first month, from
-       those accounts' balances that day. Each month the plan's lines assign their amounts, a
-       move from or to *To Budget* assigns more or less, and income adds to it as it lands.
+       those accounts' balances that day, and there is none in the months before. Each month the
+       plan's lines assign their amounts (a yearly line a twelfth of its amount), a move from or
+       to *To Budget* assigns more or less, and income adds to it as it lands.
        Below zero it shows red: more is assigned than there is.
     2. **Cards**: each card among the budget's accounts has a **payment** line, worked out,
        never stored. A charge to the card from a category with money in it moves that much
        from the category to the payment line, and a payment to the card takes from it. A
        part payment leaves the rest on the line, its cash still in the account that pays
-       the card (S7.1.6) and not offered again by *To Budget*. Charges beyond what their category held, and a
-       balance owed when the budget began, are **owed, not backed**, shown on the card's
-       line until a move covers them or a plan line pays them down (a *Card payoff* reserve
-       whose target is the amount owed). Interest and fees are spending in their category.
+       the card (S7.1.6) and not offered again by *To Budget*. A charge beyond what its
+       category held leaves the category at nothing rather than below it, so the debt never
+       adds to *To Budget*; that part, and a balance owed when the budget began, are **owed,
+       not backed**, shown on the card's line until a move into the line covers them (from a
+       category, *To Budget*, or a *Card payoff* reserve whose target is the amount owed).
+       Interest and fees are spending in their category.
     3. **A category's balance** always carries into the next month. One overspent at the
        month's end is carried negative (the default), or taken from the next month's *To
        Budget* when its line says so.

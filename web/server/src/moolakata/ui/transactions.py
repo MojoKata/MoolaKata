@@ -10,7 +10,7 @@ from pydantic import Field
 from sqlalchemy import and_, false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
-from .. import access, activity, clock, ids, washes
+from .. import access, activity, clock, ids, reimbursements, washes
 from ..errors import FieldError, Problem, refuse
 from ..ledger import lots
 from ..ledger import types as atypes
@@ -74,6 +74,8 @@ class SplitIn(Model):
     categoryId: str | None = None
     amount: Money
     memo: str | None = None
+    reimbursable: Money | None = None  # to be paid back (S2.9)
+    owedBy: str | None = None
 
 
 class SplitOut(SplitIn):
@@ -111,6 +113,9 @@ class TxnOut(Model):
     reconciled: bool
     amountWas: Money | None
     offChainAt: dt.datetime | None  # bitcoin no longer on the chain, to keep or delete (S1.6.2.7)
+    reimbursable: Money | None  # to be paid back, and by whom (S2.9)
+    owedBy: str | None
+    paidBack: Money  # what paired deposits have paid back of it and its splits
     splits: list[SplitOut]
     tags: list[str]
     receipts: int
@@ -136,6 +141,8 @@ class TxnIn(Model):
     contributionYear: int | None = None
     contributionSource: str | None = None
     costBasis: Money | None = None
+    reimbursable: Money | None = None
+    owedBy: str | None = None
     splits: list[SplitIn] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     picks: list[PickIn] = Field(default_factory=list)
@@ -156,6 +163,8 @@ class TxnChange(Model):
     contributionSource: str | None = None
     costBasis: Money | None = None
     cleared: bool | None = None
+    reimbursable: Money | None = None
+    owedBy: str | None = None
     splits: list[SplitIn] | None = None
     tags: list[str] | None = None
 
@@ -268,6 +277,7 @@ def shape(
         ):
             splits.setdefault(sp.transactionId, []).append(sp)
     tags = _tags(s, user_id, ids_)
+    paid = reimbursements.paid_back(s, ids_)
     from .. import receipts as receipt_store
 
     attached = receipt_store.receipts_of(s, ids_)
@@ -307,8 +317,18 @@ def shape(
                 reconciled=t.reconciliationId in finished,
                 amountWas=t.amountWas,
                 offChainAt=t.offChainAt,
+                reimbursable=t.reimbursable,
+                owedBy=t.owedBy,
+                paidBack=paid.get(t.id, Decimal(0)),
                 splits=[
-                    SplitOut(id=x.id, categoryId=x.categoryId, amount=x.amount, memo=x.memo)
+                    SplitOut(
+                        id=x.id,
+                        categoryId=x.categoryId,
+                        amount=x.amount,
+                        memo=x.memo,
+                        reimbursable=x.reimbursable,
+                        owedBy=x.owedBy,
+                    )
                     for x in splits.get(t.id, [])
                 ],
                 tags=tags.get(t.id, []),
@@ -469,6 +489,9 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
                     "The parts must add up to the transaction's amount.",
                 )
             )
+    errors += _check_reimbursable(body, "", body.amount)
+    for i, sp in enumerate(getattr(body, "splits", None) or []):
+        errors += _check_reimbursable(sp, f"splits.{i}.", sp.amount)
     if getattr(body, "payee", None) and len(body.payee) > 200:
         errors.append(FieldError("payee", "payee-too-long", "At most 200 characters."))
     if body.contributionSource and body.contributionSource not in (
@@ -481,6 +504,24 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
         )
     if body.contributionYear is not None and not 1970 <= body.contributionYear <= 2100:
         errors.append(FieldError("contributionYear", "year-invalid", "Enter a year."))
+    return errors
+
+
+def _check_reimbursable(body, at: str, amount: Decimal | None) -> list[FieldError]:
+    """Spending marked to be paid back: no more than was spent (S2.9)."""
+    errors = []
+    r = getattr(body, "reimbursable", None)
+    if r is not None and (r <= 0 or amount is None or amount >= 0 or r > -amount):
+        errors.append(
+            FieldError(
+                f"{at}reimbursable",
+                "reimbursable-invalid",
+                "Spending only, and no more than was spent.",
+            )
+        )
+    owed = getattr(body, "owedBy", None)
+    if owed is not None and len(owed) > 80:
+        errors.append(FieldError(f"{at}owedBy", "owed-by-too-long", "At most 80 characters."))
     return errors
 
 
@@ -502,6 +543,8 @@ def _set_splits(s: Session, t: Transaction, splits: list[SplitIn], by: str) -> N
                 categoryId=sp.categoryId,
                 amount=sp.amount,
                 memo=sp.memo,
+                reimbursable=sp.reimbursable,
+                owedBy=(sp.owedBy or "").strip() or None,
             )
         )
     if splits:
@@ -593,6 +636,8 @@ def create_transaction(
             if body.contributionYear
             else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
             contributionSource=body.contributionSource,
+            reimbursable=body.reimbursable,
+            owedBy=(body.owedBy or "").strip() or None,
             createdById=c.id,
         )
         s.add(t)
@@ -708,6 +753,8 @@ def change_transaction(
             "contributionYear",
             "contributionSource",
             "cleared",
+            "reimbursable",
+            "owedBy",
         ):
             if f in sent:
                 value = getattr(body, f)
@@ -963,8 +1010,8 @@ def create_category(body: NewCategory, request: Request, c: Caller = Depends(cal
     name = body.name.strip()
     if not name or len(name) > 60 or "›" in name:
         raise refuse("name", "name-invalid", "Enter a name of up to 60 characters.")
-    if body.kind not in ("expense", "income", "transfer"):
-        raise refuse("kind", "kind-invalid", "Expense, income or transfer.")
+    if body.kind not in ("expense", "income", "savings", "transfer"):
+        raise refuse("kind", "kind-invalid", "Expense, income, savings or transfer.")
     with server(request).db.tx() as s:
         if body.parentId:
             parent = s.get(Category, body.parentId)
