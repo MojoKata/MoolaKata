@@ -39152,7 +39152,7 @@
     },
     "/ui/api/settings/links/{link_id}/copy-key": {
       "post": {
-        "description": "Create the access key (S11.9.2.1): 12 words, shown once; the password again if given\nover 10 minutes ago (S13.6.2).",
+        "description": "Create the access key (S11.9.2.1): 12 words, shown once; the password again if given\nover 10 minutes ago (S13.7.2).",
         "operationId": "make_copy_key_ui_api_settings_links__link_id__copy_key_post",
         "parameters": [
           {
@@ -39363,7 +39363,7 @@
     },
     "/ui/api/settings/links/{link_id}/reset-copy": {
       "post": {
-        "description": "The copy deleted and taken again in full, as a job (S11.9.8, S13.8.7); the password\nagain if given over 10 minutes ago (S13.6.2).",
+        "description": "The copy deleted and taken again in full, as a job (S11.9.8, S13.8.7); the password\nagain if given over 10 minutes ago (S13.7.2).",
         "operationId": "reset_copy_ui_api_settings_links__link_id__reset_copy_post",
         "parameters": [
           {

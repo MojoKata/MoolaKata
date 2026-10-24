@@ -8,3 +8,6 @@ web/.dev-*/
 web/ui/vendor/*/
 .pytest_cache/
 .ruff_cache/
+
+# A review's withheld claims (docs/REVIEW.md §2)
+docs/reviews/*/withheld.md

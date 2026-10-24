@@ -1,4 +1,4 @@
-"""Schwab (requirements S18.9.3): the Trader API, signed in on Schwab's own page. The owner
+"""Schwab (requirements S18.9.2): the Trader API, signed in on Schwab's own page. The owner
 opens the sign-in address the driver reports, signs in, and seals the address they land on
 (with the app's secret) for the connector; the driver exchanges its code for tokens and
 keeps the refresh token in the vault. That token lasts seven days, so the Connection asks for
