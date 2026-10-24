@@ -4,13 +4,15 @@ One line per session (docs/REVIEW.md §2, §3.8). Times are Chicago.
 
 **Commit read:** `6916954` (branch `review-process`, PR #15; its squash onto `main` has the same
 tree). **Measured from:** `294792b` (review 2). **Branch:** `code-review-0003`.
-**Choices:** full, quick (to be checked later, §11.4), serial. Asked for by the user on Oct 24;
-the numbers (§4.3) recommend full; §1 advises checked, as milestone 9 changed code that keys,
+**Choices:** full, quick (to be checked later, §11.4), serial, as the user chose on Oct 24.
+Each session is a subagent with a fresh context, run one at a time from a coordinating session.
+The numbers (§4.3) recommend full; §1 advises checked, as milestone 9 changed code that keys,
 sign-in and secrets depend on, and the user chose to check later.
 
 | Start | End | Phase or unit | Wrote | Left |
 |---|---|---|---|---|
 | Oct 24, 06:29 PM | Oct 24, 06:33 PM | Phase 0 | `doccheck.txt` (0 problems, 31 words to read, 25 uncited first-level items), `cites.tsv`, `map.md` (12 units), `map-spec.py` (the units' paths), `delta.txt` | Phase 1, block `docs-1-money` (§5) |
+| Oct 24, 06:43 PM | Oct 24, 06:53 PM | Phase 1 `docs-1-money` | `docs-1-money.md`: 25 claims (High 0, Med 4: D1-1, D1-13, D1-14, D1-25; Low 21), 4 needing the user (D1-5, D1-12, D1-13, D1-25), no §6 gate claim; the claims digest for README, S1–S9, later, gaps, questions | Phase 1, block `docs-2-platform` (§5) |
 
 **Phase 0's recommendation.** Code read as units: 101,892 lines in 487 files (generated and data,
 54,086 lines, and the guides, 6,062, apart). Changed since `294792b`: 75% counting the
