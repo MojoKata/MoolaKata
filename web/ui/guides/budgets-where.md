@@ -11,6 +11,11 @@ The month whose figures are shown.
 
 Which budget's reserves and cards.
 
+## Refresh
+
+Works the month's figures out again at once; they're kept once worked out, and worked out again
+on their own when anything they come from changes.
+
 ## Unassigned
 
 Money that landed in the account other than by a transfer from the budget's accounts: its interest,

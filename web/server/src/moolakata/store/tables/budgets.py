@@ -67,6 +67,19 @@ BudgetLine = record(
 )
 unique_live(BudgetLine, "budgetId", "categoryId", "fromMonth")
 
+# A budget's month marked reviewed (S7.14): by whom, when, and the figures it had then, so a
+# later change to them is flagged.
+BudgetReview = record(
+    "BudgetReview",
+    "BdgRv",
+    Column("budgetId", Text, ForeignKey("Budget.id", ondelete="CASCADE"), nullable=False),
+    Column("month", Day, nullable=False),
+    Column("figures", Text, nullable=False),
+    Column("reviewedById", Text, ForeignKey("User.id")),
+    CheckConstraint("strftime('%d', month) = '01'", name="month"),
+)
+unique_live(BudgetReview, "budgetId", "month")
+
 # A transaction a budget leaves out (S7.3.5): a one-off it counts nowhere, the budget's choice.
 BudgetLeaveOuts = pairs(
     "BudgetLeaveOuts",

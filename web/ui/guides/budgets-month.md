@@ -14,6 +14,11 @@ is made in.
 
 Which budget, when you have more than one or others share theirs with you.
 
+## Refresh
+
+Works the month's figures out again at once; they're kept once worked out, and worked out again
+on their own when anything they come from changes.
+
 ## To Budget {#to-budget}
 
 In an envelope budget, the money in its accounts not yet handed out: the cash, less what the

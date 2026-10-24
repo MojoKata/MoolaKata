@@ -18,6 +18,7 @@ import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { dec, num } from '../app/dec.js';
 import { TransactionDialog } from './transaction-dialog.js';
+import { changes } from '../app/stream.js';
 import { Amt } from '../components/amount.js';
 
 const TABS = /** @type {[string, string][]} */ ([
@@ -30,6 +31,7 @@ const TABS = /** @type {[string, string][]} */ ([
 TABS.splice(1, 0, ['where', 'Where the money is']);
 TABS.unshift(['list', 'Budgets']);
 TABS.splice(TABS.length - 1, 0, ['compare', 'Compare']);
+TABS.splice(3, 0, ['review', 'Review']);
 
 /** The month shown, kept while moving between tabs and budgets. */
 const shown = signal('');
@@ -103,6 +105,13 @@ export default function Budgets({ id, tab }) {
           }</option>`
         )}
       </select>
+      <button type="button" class="icon-btn" title="Refresh: work the month out again"
+        aria-label="Refresh" data-help="refresh"
+        onClick=${async () => {
+          await api.post(`/budgets/${b.id}/refresh`, {}, { params: { month: shown.value } });
+          changes.value = { ...changes.value, refresh: (changes.value.refresh || 0) + 1 };
+          toast('Worked out again');
+        }}><${Icon} name="refresh" /></button>
       <span class="spacer"></span>
       <button type="button" class="btn"
         onClick=${newBudget}><${Icon} name="plus" /> New budget</button>
@@ -133,6 +142,8 @@ export default function Budgets({ id, tab }) {
       ? html`<${Reimbursements} b=${b} />`
       : current === 'list'
       ? html`<${BudgetList} budgets=${budgets} reload=${list.reload} />`
+      : current === 'review'
+      ? html`<${Review} b=${b} />`
       : current === 'compare'
       ? html`<${Compare} b=${b} budgets=${budgets} month=${shown.value} />`
       : current === 'where'
@@ -143,7 +154,7 @@ export default function Budgets({ id, tab }) {
 
 /** @param {{ b: any, month: string, reloadList: () => void }} p */
 function ThisMonth({ b, month, reloadList }) {
-  const res = useApi(`/budgets/${b.id}/month`, { month }, ['import', 'share']);
+  const res = useApi(`/budgets/${b.id}/month`, { month }, ['import', 'share', 'refresh']);
   const v = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} lines=${6} />`;
@@ -480,6 +491,129 @@ function BudgetRow({ r, cover }) {
 }
 
 /**
+ * The month's review (S7.14): last month's loose ends, each with its action; Mark reviewed, and
+ * a reviewed month flagged when its figures later change. Months are never locked.
+ * @param {{ b: any }} p
+ */
+function Review({ b }) {
+  const [y, m] = today().split('-').map(Number);
+  const [month, setMonth] = useState(monthKey(new Date(y, m - 2, 1)));
+  const res = useApi(`/budgets/${b.id}/review`, { month }, ['import', 'refresh']);
+  const v = /** @type {any} */ (res.data);
+  const mark = useSubmit(async () => {
+    await api.post(`/budgets/${b.id}/review`, { month: month + '-01' });
+    toast(`${monthLabel(month)} marked reviewed`);
+    res.reload();
+  });
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!v) return html`<${Loading} lines=${5} />`;
+  const write = b.level === 'owner' || b.level === 'write';
+  const months = Array.from({ length: 12 }, (_, i) => monthKey(new Date(y, m - 2 - i, 1)));
+  return html`
+    <div class="toolbar">
+      <select class="in" style=${{ maxWidth: '180px' }} aria-label="Month reviewed"
+        id="f-month-reviewed" value=${month} onChange=${(/** @type {any} */ e) =>
+          setMonth(e.currentTarget.value)}>
+        ${months.map((x) => html`<option value=${x}>${monthLabel(x)}</option>`)}
+      </select>
+      <span class="spacer"></span>
+      ${write
+        ? html`
+          <button type="button" class="btn primary" disabled=${mark.busy}
+            onClick=${() => mark.run().catch(() => {})}><${Icon} name="check" /> ${v.reviewed
+              ? 'Review again'
+              : 'Mark reviewed'}</button>
+        `
+        : null}
+    </div>
+    ${v.reviewed
+      ? html`
+        <div class=${'notice' + (v.reviewed.changes.length ? ' warn' : '')} style=${{
+          marginBottom: '12px',
+        }}>
+          <${Icon} name=${v.reviewed.changes.length ? 'alert' : 'check'} />
+          <div>Reviewed ${date(
+            v.reviewed.at.slice(0, 10),
+          )}${v.reviewed.byName ? ` by ${v.reviewed.byName}` : ''}${v.reviewed.changes.length
+            ? html`: <b>changed since reviewed</b>. ${v.reviewed.changes.join('; ')}.`
+            : '.'}</div>
+        </div>
+      `
+      : null}
+    <div class="card"><h3>${monthLabel(month)}</h3>
+      ${v.overspent.map((/** @type {any} */ o) =>
+        html`
+          <div
+            class="list-item"><${Icon} name="alert" /><div class="grow">${o.label} was ${money(
+              o.over,
+            )} over</div><a href=${`/ui/budgets/${b.id}/month`}>See the month</a></div>
+        `
+      )}
+      ${v.toMove.map((/** @type {any} */ x) =>
+        html`
+          <div
+            class="list-item"><${Icon} name="sync" /><div class="grow">${money(
+              dec(x.toMove).abs(),
+            )} to move ${dec(x.toMove).gt(0) ? 'to' : 'back from'} ${x.accountName}</div><a
+                    href=${`/ui/budgets/${b.id}/where`}>Where the money is</a></div>
+        `
+      )}
+      ${v.uncategorised
+        ? html`
+          <div
+            class="list-item"><${Icon} name="tx" /><div class="grow">${v
+              .uncategorised} uncategorised transaction${v.uncategorised === 1 ? '' : 's'}</div><a
+                    href="/ui/transactions?category=none">Sort</a></div>
+        `
+        : null}
+      ${v.moved
+        ? html`
+          <div
+            class="list-item"><${Icon} name="link" /><div class="grow">${v.moved} transfer${v
+                .moved === 1
+              ? ''
+              : 's'} left or entered the budget without a category</div><a
+                    href=${`/ui/budgets/${b.id}/month`}>Sort</a></div>
+        `
+        : null}
+      ${v.toBudget != null && !dec(v.toBudget).isZero()
+        ? html`
+          <div
+            class="list-item"><${Icon} name="info" /><div class="grow">${money(
+              v.toBudget,
+            )} left in To Budget</div><a href=${`/ui/budgets/${b.id}/month`}>Assign</a></div>
+        `
+        : null}
+      ${!v.overspent.length && !v.toMove.length && !v.uncategorised && !v.moved &&
+          (v.toBudget == null || dec(v.toBudget).isZero())
+        ? html`<p class="small dim">Nothing left to do for ${monthLabel(month)}.</p>`
+        : null}
+    </div>
+    ${v.history.length
+      ? html`
+        <div class="card mt"><h3>Months reviewed</h3>
+          ${v.history.map((/** @type {any} */ h) =>
+            html`
+              <div class="list-item">
+                <div
+                  class="grow">${monthLabel(h.month.slice(0, 7))}${h
+                      .changes.length
+                    ? html`
+                      <span class="pill warn">changed since reviewed</span>
+                    `
+                    : null}<div class="small dim">reviewed ${date(h.at.slice(0, 10))}${h.byName
+                    ? ` by ${h.byName}`
+                    : ''}${h.changes.length ? ` · ${h.changes.join('; ')}` : ''}</div></div>
+              </div>
+            `
+          )}
+        </div>
+      `
+      : null}
+  `;
+}
+
+/**
  * The budgets the user can see: the one they follow, and the scenarios beside it (S7.12).
  * @param {{ budgets: any[], reload: () => void }} p
  */
@@ -797,7 +931,7 @@ function ReserveRow({ r, held }) {
  * @param {{ b: any, month: string }} p
  */
 function WhereMoneyIs({ b, month }) {
-  const res = useApi(`/budgets/${b.id}/where`, { month }, ['import']);
+  const res = useApi(`/budgets/${b.id}/where`, { month }, ['import', 'refresh']);
   const w = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!w) return html`<${Loading} lines=${6} />`;

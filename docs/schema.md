@@ -78,6 +78,7 @@ The prefixes of the tables that exist.
 | Asmpt  | AssumptionSet    | A user's expected returns, volatility and inflation for projections.                                  |
 | BdgLn  | BudgetLine       | One category's planned amount in a budget, from a month on, monthly or yearly.                        |
 | BdgMv  | BudgetMove       | An amount put into a category for a month: from another, *To Budget* or landed money. |
+| BdgRv  | BudgetReview     | A budget's month marked reviewed: by whom, when, and the figures it had then.       |
 | Bdgt   | Budget           | A user's plan per category over chosen accounts; shared with a group for a household.                 |
 | Cat    | Category         | A budget category given to bank transactions.                                                         |
 | Cnctr  | Connector        | The MoolaKata Connector paired with this server: its public keys, its reports' state (S18.4).         |
@@ -144,7 +145,6 @@ moves to §3.1 when its table is.
 
 | Prefix | Table          | Description                                                                         |
 |--------|----------------|-------------------------------------------------------------------------------------|
-| BdgRv  | BudgetReview   | A budget's month marked reviewed: by whom, when, and the figures it had then.       |
 | Posn   | Position       | An instrument held in an account, followed from open to closed.                     |
 
 ## 4. Soft deletes

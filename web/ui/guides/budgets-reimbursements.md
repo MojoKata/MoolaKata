@@ -11,6 +11,11 @@ The month the budget's other tabs show; this list isn't by month.
 
 Which budget's accounts to list.
 
+## Refresh
+
+Works the month's figures out again at once; they're kept once worked out, and worked out again
+on their own when anything they come from changes.
+
 ## Pair a payback {#pair}
 
 Pairs a deposit with the spending: that much of it pays the spending back and isn't income. A

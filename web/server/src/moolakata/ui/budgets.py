@@ -197,6 +197,42 @@ class CompareView(Model):
     otherToBudget: Money | None
 
 
+class Overspent(Model):
+    categoryId: str
+    label: str
+    over: Money
+
+
+class ToMoveOut(Model):
+    accountName: str
+    toMove: Money  # + to move there, − back
+
+
+class ReviewedOut(Model):
+    month: dt.date
+    at: dt.datetime
+    byName: str | None
+    changes: list[str]  # what changed since it was reviewed, none when nothing did
+
+
+class ReviewView(Model):
+    """The month's review (S7.14): its loose ends, each with its action, and whether it was
+    reviewed and has changed since."""
+
+    month: dt.date
+    overspent: list[Overspent]
+    toMove: list[ToMoveOut]
+    uncategorised: int
+    moved: int  # transfers that left or entered the budget, to sort
+    toBudget: Money | None  # left in an envelope budget's To Budget
+    reviewed: ReviewedOut | None
+    history: list[ReviewedOut]  # the months before, newest first
+
+
+class ReviewIn(Model):
+    month: dt.date
+
+
 class Proposal(Model):
     """A plan line estimated from history (S7.1.5)."""
 
@@ -1346,6 +1382,162 @@ def compare(
             toBudget=to_budget.get("a"),
             otherToBudget=to_budget.get("b"),
         )
+
+
+def _figures(m) -> dict:
+    """What a review keeps of a month, to flag a later change (S7.14)."""
+    return {
+        "rows": {r.categoryId: [str(r.planned), str(r.actual), r.label] for r in m.rows},
+        "spent": str(m.spent),
+        "income": str(m.income),
+        "saved": str(m.saved),
+        "toBudget": None if m.toBudget is None else str(m.toBudget),
+    }
+
+
+def _changes(then: dict, now: dict) -> list[str]:
+    out = []
+    for cat_id in sorted(set(then["rows"]) | set(now["rows"])):
+        a, b = then["rows"].get(cat_id), now["rows"].get(cat_id)
+        label = (b or a)[2]
+        if a is None:
+            out.append(f"{label}: planned since")
+        elif b is None:
+            out.append(f"{label}: no longer planned")
+        elif a[1] != b[1]:
+            out.append(f"{label}: spent {a[1]} then, {b[1]} now")
+        elif a[0] != b[0]:
+            out.append(f"{label}: planned {a[0]} then, {b[0]} now")
+    for k, name in (("income", "Income"), ("saved", "Saved"), ("toBudget", "To Budget")):
+        if then.get(k) != now.get(k) and not out:
+            out.append(f"{name}: {then.get(k)} then, {now.get(k)} now")
+    return out
+
+
+def _reviewed(
+    s, b: Budget, month: dt.date, viewer: str, figures: dict | None
+) -> ReviewedOut | None:
+    import json
+
+    from ..store.entities.budgets import BudgetReview
+
+    r = s.scalars(
+        select(BudgetReview).where(
+            BudgetReview.budgetId == b.id,
+            BudgetReview.month == month,
+            BudgetReview.deleted == false(),
+        )
+    ).first()
+    if r is None:
+        return None
+    if figures is None:
+        figures = _figures(budgets.month_view(s, b, month, clock.today(), viewer))
+    who = s.get(User, r.reviewedById) if r.reviewedById else None
+    return ReviewedOut(
+        month=month,
+        at=r.updatedAt,
+        byName=who.displayName if who else None,
+        changes=_changes(json.loads(r.figures), figures),
+    )
+
+
+@router.get("/budgets/{budget_id}/review", response_model=ReviewView)
+def review(budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None):
+    """The month before this one unless another is asked: what was overspent, what is to move,
+    what is left in To Budget, and what waits to be sorted (S7.14)."""
+    from ..budgets import reserves
+
+    m = _month(month) if month else budgets.add_months(budgets.month_of(clock.today()), -1)
+    with server(request).db.read() as s:
+        b, _ = access.budget(s, c.id, budget_id)
+        v = budgets.month_view(s, b, m, clock.today(), c.id)
+        to_move = []
+        if budgets.active_id(s, c.id) == b.id:
+            accts = budgets.account_ids(s, b, c.id)
+            names = {a.id: a.name for a in s.scalars(select(Account).where(Account.id.in_(accts)))}
+            for h in reserves.held_in(
+                s, b, accts, budgets.tree(s, b), budgets.lines(s, b), reserves.moves(s, b), m
+            ):
+                if h.toMove:
+                    to_move.append(
+                        ToMoveOut(accountName=names.get(h.accountId, ""), toMove=h.toMove)
+                    )
+        history = []
+        for k in range(1, 7):
+            earlier = budgets.add_months(m, -k)
+            r = _reviewed(s, b, earlier, c.id, None)
+            if r is not None:
+                history.append(r)
+        return ReviewView(
+            month=m,
+            overspent=[
+                Overspent(categoryId=r.categoryId, label=r.label, over=-r.remaining)
+                for r in v.rows
+                if r.state == "over"
+            ],
+            toMove=to_move,
+            uncategorised=v.uncategorised,
+            moved=len(v.moved),
+            toBudget=v.toBudget,
+            reviewed=_reviewed(s, b, m, c.id, _figures(v)),
+            history=history,
+        )
+
+
+@router.post("/budgets/{budget_id}/review", response_model=ReviewView)
+def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = Depends(caller)):
+    """Mark reviewed (S7.14): who and when, and the month's figures then, so a later change is
+    flagged until it is reviewed again. Months are never locked."""
+    import json
+
+    from ..store.entities.budgets import BudgetReview
+
+    m = budgets.month_of(body.month)
+    with server(request).db.tx() as s:
+        b, _ = access.budget(s, c.id, budget_id, "write")
+        figures = json.dumps(_figures(budgets.month_view(s, b, m, clock.today(), c.id)))
+        r = s.scalars(
+            select(BudgetReview).where(
+                BudgetReview.budgetId == b.id,
+                BudgetReview.month == m,
+                BudgetReview.deleted == false(),
+            )
+        ).first()
+        if r is None:
+            s.add(
+                BudgetReview(
+                    id=ids.new_id("BdgRv"),
+                    budgetId=b.id,
+                    month=m,
+                    figures=figures,
+                    reviewedById=c.id,
+                )
+            )
+        else:
+            r.figures, r.reviewedById, r.updatedAt = figures, c.id, clock.now()
+        activity.record(
+            s,
+            "budget.reviewed",
+            actor=c.id,
+            subject_kind="budget",
+            subject_id=b.id,
+            owner=b.ownerId,
+        )
+        s.flush()
+    return review(budget_id, request, c, m.isoformat()[:7])
+
+
+@router.post("/budgets/{budget_id}/refresh", response_model=MonthView)
+def refresh(
+    budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None
+):
+    """Refresh: the budget's months worked out again at once (S7.3.10)."""
+    from ..budgets import cache
+
+    with server(request).db.read() as s:
+        access.budget(s, c.id, budget_id)
+    cache.forget(budget_id)
+    return budget_month(budget_id, request, c, month)
 
 
 @router.get("/budgets/{budget_id}/estimate", response_model=list[Proposal])

@@ -13272,6 +13272,34 @@
         "title": "OutcomeOut",
         "type": "object"
       },
+      "Overspent": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "over": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Over",
+            "type": "number"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "over"
+        ],
+        "title": "Overspent",
+        "type": "object"
+      },
       "Page_AccountRow_": {
         "properties": {
           "items": {
@@ -19774,6 +19802,139 @@
         "title": "ReturnRow",
         "type": "object"
       },
+      "ReviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "title": "ReviewIn",
+        "type": "object"
+      },
+      "ReviewView": {
+        "additionalProperties": false,
+        "description": "The month's review (S7.14): its loose ends, each with its action, and whether it was\nreviewed and has changed since.",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewedOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "moved": {
+            "title": "Moved",
+            "type": "integer"
+          },
+          "overspent": {
+            "items": {
+              "$ref": "#/components/schemas/Overspent"
+            },
+            "title": "Overspent",
+            "type": "array"
+          },
+          "reviewed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "toBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tobudget"
+          },
+          "toMove": {
+            "items": {
+              "$ref": "#/components/schemas/ToMoveOut"
+            },
+            "title": "Tomove",
+            "type": "array"
+          },
+          "uncategorised": {
+            "title": "Uncategorised",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "overspent",
+          "toMove",
+          "uncategorised",
+          "moved",
+          "toBudget",
+          "reviewed",
+          "history"
+        ],
+        "title": "ReviewView",
+        "type": "object"
+      },
+      "ReviewedOut": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "byName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byname"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "at",
+          "byName",
+          "changes"
+        ],
+        "title": "ReviewedOut",
+        "type": "object"
+      },
       "RmdOut": {
         "additionalProperties": false,
         "properties": {
@@ -22841,6 +23002,29 @@
           "to"
         ],
         "title": "TestEmail",
+        "type": "object"
+      },
+      "ToMoveOut": {
+        "additionalProperties": false,
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "toMove": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Tomove",
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountName",
+          "toMove"
+        ],
+        "title": "ToMoveOut",
         "type": "object"
       },
       "Token": {
@@ -30625,6 +30809,61 @@
         ]
       }
     },
+    "/ui/api/budgets/{budget_id}/refresh": {
+      "post": {
+        "description": "Refresh: the budget's months worked out again at once (S7.3.10).",
+        "operationId": "refresh_ui_api_budgets__budget_id__refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Refresh",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}/reimbursements": {
       "get": {
         "description": "What the budget's accounts await, oldest first, each with the deposits that may pay it\nback among the caller's own accounts and those they can change.",
@@ -30684,6 +30923,108 @@
         "summary": "Awaiting",
         "tags": [
           "reimbursements"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/review": {
+      "get": {
+        "description": "The month before this one unless another is asked: what was overspent, what is to move,\nwhat is left in To Budget, and what waits to be sorted (S7.14).",
+        "operationId": "review_ui_api_budgets__budget_id__review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Review",
+        "tags": [
+          "budgets"
+        ]
+      },
+      "post": {
+        "description": "Mark reviewed (S7.14): who and when, and the month's figures then, so a later change is\nflagged until it is reviewed again. Months are never locked.",
+        "operationId": "mark_reviewed_ui_api_budgets__budget_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Mark Reviewed",
+        "tags": [
+          "budgets"
         ]
       }
     },

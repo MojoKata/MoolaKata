@@ -158,6 +158,7 @@ TEXT = {
     "budget.updated": "{actor} changed {fields} of the budget {subject}",
     "budget.planned": "{actor} changed the plan of the budget {subject}",
     "budget.deleted": "{actor} deleted the budget {subject}",
+    "budget.reviewed": "{actor} marked a month of the budget {subject} reviewed",
     "budget.activated": "{actor} made {subject} the budget they follow",
     "budget.moved": "{actor} moved money between categories in the budget {subject}",
     "budget.move-deleted": "{actor} deleted a move in the budget {subject}",

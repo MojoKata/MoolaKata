@@ -526,6 +526,76 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
 
 
 @check
+def cash_short(s: Session, server) -> Iterable[Cause]:
+    """For each user's active budget, each checking account with recurring payments out whose
+    balance, less those expected before its next money in, would fall below zero (S7.6.1)."""
+    from . import budgets
+    from .budgets import recurring
+    from .store.entities.accounts import Account, Transaction
+    from .store.entities.budgets import Budget
+    from .store.repos import ledger
+
+    today = clock.today()
+    for u in s.scalars(
+        select(User).where(User.activeBudgetId.is_not(None), User.deleted == false())
+    ):
+        b_id = budgets.active_id(s, u.id)
+        b = s.get(Budget, b_id) if b_id else None
+        if b is None:
+            continue
+        for aid in budgets.account_ids(s, b, u.id):
+            a = s.get(Account, aid)
+            if a is None or a.type != "checking":
+                continue
+            txns = s.scalars(
+                select(Transaction).where(
+                    Transaction.accountId == a.id,
+                    Transaction.deleted == false(),
+                    Transaction.date >= today - dt.timedelta(days=460),
+                )
+            ).all()
+            # Transfers count here: a regular top-up is money in, a card payment money out.
+            series = recurring.detect([_Plain(t) for t in txns], today)
+            ins = sorted(x.next for x in series if x.usual > 0 and x.next > today)
+            horizon = ins[0] if ins else today + dt.timedelta(days=31)
+            outs = sorted(
+                (x.next, -x.usual) for x in series if x.usual < 0 and today < x.next < horizon
+            )
+            if not outs:
+                continue
+            balance = ledger.load(s, a).balance(today)
+            for day, amount in outs:
+                balance -= amount
+                if balance < 0:
+                    before = f"before money comes in on {horizon:%b %-d}" if ins else "this month"
+                    yield Cause(
+                        key=f"cash:{b.id}:{a.id}",
+                        kind="cash-short",
+                        title=f"{a.name} dips below $0 on the {_ordinal(day.day)}",
+                        about=f"{before} · the recurring payments from it",
+                        user_id=u.id,
+                        link=f"/ui/budgets/{b.id}/recurring",
+                        fix="See the recurring payments",
+                        icon="bank",
+                    )
+                    break
+
+
+class _Plain:
+    """A transaction as the recurring finder sees it, a transfer included."""
+
+    def __init__(self, t):
+        self.payee, self.amount, self.accountId, self.date = t.payee, t.amount, t.accountId, t.date
+        self.transferId = None
+        self.instrumentId = t.instrumentId
+        self.categoryId = t.categoryId
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+@check
 def projections_behind(s: Session, server) -> Iterable[Cause]:
     """An active projection whose actual balance fell below its baseline's band, as of the end
     of the last month: checked monthly (S6.7.5)."""
@@ -847,6 +917,7 @@ _KINDS = {
     "accounts": {"statement-overdue", "reconcile-mismatch"},
     "statement_values": {"statement-value-old"},
     "projections_behind": {"projection-behind"},
+    "cash_short": {"cash-short"},
     "bitcoin_certificate": {"node-certificate"},
     "bitcoin_off_chain": {"off-chain"},
     "connector": {"connector-silent", "connector-locked", "connector-moved", "connection-failing"},

@@ -2245,6 +2245,13 @@
  */
 
 /**
+ * @typedef {Object} Overspent
+ * @property {string} categoryId
+ * @property {string} label
+ * @property {import('../app/dec.js').Dec} over
+ */
+
+/**
  * @typedef {Object} Page_AccountRow_
  * @property {Array<AccountRow>} items
  * @property {number} total
@@ -3383,6 +3390,33 @@
  */
 
 /**
+ * @typedef {Object} ReviewIn
+ * @property {string} month
+ */
+
+/**
+ * The month's review (S7.14): its loose ends, each with its action, and whether it was
+ * reviewed and has changed since.
+ * @typedef {Object} ReviewView
+ * @property {string} month
+ * @property {Array<Overspent>} overspent
+ * @property {Array<ToMoveOut>} toMove
+ * @property {number} uncategorised
+ * @property {number} moved
+ * @property {(import('../app/dec.js').Dec | null)} toBudget
+ * @property {(ReviewedOut | null)} reviewed
+ * @property {Array<ReviewedOut>} history
+ */
+
+/**
+ * @typedef {Object} ReviewedOut
+ * @property {string} month
+ * @property {string} at
+ * @property {(string | null)} byName
+ * @property {Array<string>} changes
+ */
+
+/**
  * @typedef {Object} RmdOut
  * @property {string} account
  * @property {string} owner
@@ -3944,6 +3978,12 @@
 /**
  * @typedef {Object} TestEmail
  * @property {string} to
+ */
+
+/**
+ * @typedef {Object} ToMoveOut
+ * @property {string} accountName
+ * @property {import('../app/dec.js').Dec} toMove
  */
 
 /**
