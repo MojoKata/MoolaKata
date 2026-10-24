@@ -1280,6 +1280,119 @@
         "title": "Attention",
         "type": "object"
       },
+      "AwaitingRow": {
+        "additionalProperties": false,
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "ageDays": {
+            "title": "Agedays",
+            "type": "integer"
+          },
+          "awaited": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Awaited",
+            "type": "number"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "offers": {
+            "items": {
+              "$ref": "#/components/schemas/Offer"
+            },
+            "title": "Offers",
+            "type": "array"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "paidBack": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paidback",
+            "type": "number"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "reimbursable": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Reimbursable",
+            "type": "number"
+          },
+          "spendingId": {
+            "title": "Spendingid",
+            "type": "string"
+          },
+          "splitId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitid"
+          }
+        },
+        "required": [
+          "spendingId",
+          "splitId",
+          "date",
+          "payee",
+          "accountName",
+          "category",
+          "owedBy",
+          "reimbursable",
+          "paidBack",
+          "awaited",
+          "ageDays",
+          "offers"
+        ],
+        "title": "AwaitingRow",
+        "type": "object"
+      },
       "BackupOut": {
         "additionalProperties": false,
         "properties": {
@@ -11205,6 +11318,52 @@
         "title": "OccasionOut",
         "type": "object"
       },
+      "Offer": {
+        "additionalProperties": false,
+        "properties": {
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "free": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Free",
+            "type": "number"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "payee",
+          "accountName",
+          "free"
+        ],
+        "title": "Offer",
+        "type": "object"
+      },
       "Offered": {
         "additionalProperties": false,
         "properties": {
@@ -12106,6 +12265,37 @@
           "limit"
         ],
         "title": "Page[Adjustable]",
+        "type": "object"
+      },
+      "Page_AwaitingRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AwaitingRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[AwaitingRow]",
         "type": "object"
       },
       "Page_BookRow_": {
@@ -13399,6 +13589,95 @@
           "accountName"
         ],
         "title": "Paid",
+        "type": "object"
+      },
+      "PairIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "paybackId": {
+            "title": "Paybackid",
+            "type": "string"
+          },
+          "spendingId": {
+            "title": "Spendingid",
+            "type": "string"
+          },
+          "splitId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitid"
+          }
+        },
+        "required": [
+          "spendingId",
+          "paybackId",
+          "amount"
+        ],
+        "title": "PairIn",
+        "type": "object"
+      },
+      "PairOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "paybackId": {
+            "title": "Paybackid",
+            "type": "string"
+          },
+          "spendingId": {
+            "title": "Spendingid",
+            "type": "string"
+          },
+          "splitId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitid"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "spendingId",
+          "splitId",
+          "paybackId",
+          "amount",
+          "version"
+        ],
+        "title": "PairOut",
         "type": "object"
       },
       "PairingOut": {
@@ -15384,6 +15663,7 @@
               "no-terms",
               "no-thumbnail",
               "not-a-529",
+              "not-a-deposit",
               "not-a-fund",
               "not-a-loan",
               "not-a-marriage",
@@ -15397,6 +15677,7 @@
               "not-in-it",
               "not-married",
               "not-physical",
+              "not-reimbursable",
               "not-scheduled",
               "not-shared",
               "not-signed-in",
@@ -15416,6 +15697,7 @@
               "organisation-missing",
               "organisation-unknown",
               "origin-refused",
+              "owed-by-too-long",
               "owner-counts",
               "owner-only",
               "owner-sees-it",
@@ -15465,6 +15747,7 @@
               "reconciled-period",
               "reencrypt-pending",
               "reencrypt-running",
+              "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
               "result-invalid",
@@ -15732,6 +16015,7 @@
                   "no-terms",
                   "no-thumbnail",
                   "not-a-529",
+                  "not-a-deposit",
                   "not-a-fund",
                   "not-a-loan",
                   "not-a-marriage",
@@ -15745,6 +16029,7 @@
                   "not-in-it",
                   "not-married",
                   "not-physical",
+                  "not-reimbursable",
                   "not-scheduled",
                   "not-shared",
                   "not-signed-in",
@@ -15764,6 +16049,7 @@
                   "organisation-missing",
                   "organisation-unknown",
                   "origin-refused",
+                  "owed-by-too-long",
                   "owner-counts",
                   "owner-only",
                   "owner-sees-it",
@@ -15813,6 +16099,7 @@
                   "reconciled-period",
                   "reencrypt-pending",
                   "reencrypt-running",
+                  "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
                   "result-invalid",
@@ -19802,6 +20089,32 @@
               }
             ],
             "title": "Memo"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           }
         },
         "required": [
@@ -21689,6 +22002,17 @@
             ],
             "title": "Memo"
           },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
           "payee": {
             "anyOf": [
               {
@@ -21729,6 +22053,21 @@
               }
             ],
             "title": "Quantity"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           },
           "splits": {
             "anyOf": [
@@ -21883,6 +22222,17 @@
             ],
             "title": "Memo"
           },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
           "payee": {
             "anyOf": [
               {
@@ -21930,6 +22280,21 @@
               }
             ],
             "title": "Quantity"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           },
           "splitRatio": {
             "anyOf": [
@@ -22132,6 +22497,25 @@
             ],
             "title": "Offchainat"
           },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "paidBack": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paidback",
+            "type": "number"
+          },
           "payee": {
             "anyOf": [
               {
@@ -22191,6 +22575,21 @@
           "reconciled": {
             "title": "Reconciled",
             "type": "boolean"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           },
           "splits": {
             "items": {
@@ -22270,6 +22669,9 @@
           "reconciled",
           "amountWas",
           "offChainAt",
+          "reimbursable",
+          "owedBy",
+          "paidBack",
           "splits",
           "tags",
           "receipts",
@@ -25380,6 +25782,32 @@
               }
             ],
             "title": "Memo"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owedby"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
           }
         },
         "required": [
@@ -28278,6 +28706,68 @@
         "summary": "Budget Recurring",
         "tags": [
           "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/reimbursements": {
+      "get": {
+        "description": "What the budget's accounts await, oldest first, each with the deposits that may pay it\nback among the caller's own accounts and those they can change.",
+        "operationId": "awaiting_ui_api_budgets__budget_id__reimbursements_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AwaitingRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Awaiting",
+        "tags": [
+          "reimbursements"
         ]
       }
     },
@@ -34552,6 +35042,90 @@
         "summary": "Finish Reconciliation",
         "tags": [
           "accounts"
+        ]
+      }
+    },
+    "/ui/api/reimbursements": {
+      "post": {
+        "description": "A deposit paired with reimbursable spending: that much of it pays the spending back and\nisn't income (S2.9.2).",
+        "operationId": "pair_ui_api_reimbursements_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Location": {
+                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Pair",
+        "tags": [
+          "reimbursements"
+        ]
+      }
+    },
+    "/ui/api/reimbursements/{pair_id}": {
+      "delete": {
+        "operationId": "unpair_ui_api_reimbursements__pair_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pair_id",
+            "required": true,
+            "schema": {
+              "title": "Pair Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted_NoneType_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Unpair",
+        "tags": [
+          "reimbursements"
         ]
       }
     },

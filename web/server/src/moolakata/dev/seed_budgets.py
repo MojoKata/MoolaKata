@@ -1,13 +1,15 @@
 """Dev mode's budget (requirements S17.7): Alice's household budget over her banking, shared
-with the Household group at write, planned from a year ago with one change since."""
+with the Household group at write, planned from a year ago with one change since; and a hotel
+her employer pays back, with the deposit that may pay it (S2.9)."""
 
+import datetime as dt
 from decimal import Decimal as D
 
 from sqlalchemy import select
 
 from .. import clock, ids
 from ..budgets import add_months, month_of
-from ..store.entities.accounts import Account, Category
+from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine
 from ..store.entities.sharing import Share
 from ..store.entities.users import Group
@@ -56,6 +58,25 @@ def seed_budgets(s, people: dict) -> None:
             amount=D("600.00"),
         )
     )
+    today = clock.today()
+    for account, days, amount, payee, key, extra in (
+        ("Travel Visa", 12, "-389.20", "Hilton Chicago", "travel", {"owedBy": "Acme Corp"}),
+        ("Everyday checking", 5, "389.20", "Acme Corp expense report", "income.other", {}),
+    ):
+        s.add(
+            Transaction(
+                id=ids.new_id("Txn"),
+                accountId=acct[account].id,
+                date=today - dt.timedelta(days=days),
+                kind="deposit" if amount[0] != "-" else "withdrawal",
+                amount=D(amount),
+                payee=payee,
+                payeeRaw=payee.upper(),
+                categoryId=cat[key].id,
+                reimbursable=D("389.20") if extra else None,
+                **extra,
+            )
+        )
     s.add(
         Share(
             id=ids.new_id("Share"),

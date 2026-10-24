@@ -114,6 +114,7 @@ The prefixes of the tables that exist.
 | Rcpt   | Receipt          | An uploaded file, encrypted on disk, with a date, an amount and what it is attached to.               |
 | Recon  | Reconciliation   | A statement's closing date and balance, ticked off against the transactions.                          |
 | Rltn   | Relationship     | A dated link between two people: spouse, couple, child, friend, colleague, family.                    |
+| Rmbrs  | Reimbursement    | A deposit paired with reimbursable spending: how much of it pays that spending back.                 |
 | Rule   | Rule             | One of a user's categorisation and payee rules: what a transaction matches and what the rule sets.    |
 | Secr   | Secret           | A secret sealed on its own: an API key, a password or a private key.                                  |
 | Sgnup  | SignupRequest    | A person's request for an account, from confirming the email to an admin's decision.                  |
@@ -145,7 +146,6 @@ moves to §3.1 when its table is.
 | BdgMv  | BudgetMove     | An amount put into a category for a month: from another, *To Budget* or landed money. |
 | BdgRv  | BudgetReview   | A budget's month marked reviewed: by whom, when, and the figures it had then.       |
 | Posn   | Position       | An instrument held in an account, followed from open to closed.                     |
-| Rmbrs  | Reimbursement  | A deposit paired with reimbursable spending: how much of it pays that spending back. |
 
 ## 4. Soft deletes
 

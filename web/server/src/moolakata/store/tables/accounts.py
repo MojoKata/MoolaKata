@@ -270,6 +270,9 @@ Transaction = record(
     Column("offChainAt", UtcTimestamp),
     Column("offChainMissedAt", UtcTimestamp),
     Column("offChainKeptAt", UtcTimestamp),
+    # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
+    Column("reimbursable", Cents),
+    Column("owedBy", Text),
     _in("kind", TXN_KINDS, "kind"),
     CheckConstraint(
         '"dividendType" IS NULL OR "dividendType" IN (\'ordinary\', '
@@ -300,7 +303,24 @@ Split = record(
     Column("categoryId", Text, ForeignKey("Category.id")),
     Column("amount", Cents, nullable=False),
     Column("memo", Text),
+    Column("reimbursable", Cents),  # as a transaction's (S2.9)
+    Column("owedBy", Text),
     Index("ix_Split_transactionId", "transactionId"),
+)
+
+# A deposit paired with reimbursable spending, or one split of it (S2.9): how much of the
+# deposit pays that spending back. One deposit can pay back several.
+Reimbursement = record(
+    "Reimbursement",
+    "Rmbrs",
+    Column("spendingId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    Column("splitId", Text, ForeignKey("Split.id", ondelete="CASCADE")),
+    Column("paybackId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    Column("amount", Cents, nullable=False),
+    Column("createdById", Text, ForeignKey("User.id")),
+    CheckConstraint("amount > 0", name="amount"),
+    Index("ix_Reimbursement_spendingId", "spendingId"),
+    Index("ix_Reimbursement_paybackId", "paybackId"),
 )
 
 TransactionTags = pairs(

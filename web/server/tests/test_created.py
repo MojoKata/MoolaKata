@@ -27,6 +27,7 @@ READ_NOWHERE = [
     "/ui/api/accounts/{account_id}/corporate-actions",
     "/ui/api/accounts/{account_id}/loan/payments",
     "/ui/api/accounts/{account_id}/expenses",
+    "/ui/api/reimbursements",
 ]
 
 
@@ -44,7 +45,7 @@ def seeded(store, keyed_config):
 
 def ids(srv) -> dict[str, str]:
     """The seeded records the walk's calls name."""
-    from moolakata.store.entities.accounts import Account, Instrument, Lot
+    from moolakata.store.entities.accounts import Account, Instrument, Lot, Transaction
     from moolakata.store.entities.assets import Item
     from moolakata.store.entities.education import Person
     from moolakata.store.entities.giving import Organisation
@@ -65,6 +66,14 @@ def ids(srv) -> dict[str, str]:
             select(Person).where(Person.id.not_in([u.personId for u in users.values()]))
         ).first()
         book = s.scalars(select(TaxBook).where(TaxBook.ownerId == alice.id)).first()
+        deposit = s.scalars(
+            select(Transaction).where(
+                Transaction.accountId == acct["checking"],
+                Transaction.amount > 5,
+                Transaction.transferId.is_(None),
+                Transaction.instrumentId.is_(None),
+            )
+        ).first()
         org = s.scalars(select(Organisation)).first()
         return {
             **{f"acct:{k}": v for k, v in acct.items()},
@@ -76,6 +85,7 @@ def ids(srv) -> dict[str, str]:
             "book": book.id,
             "org": org.id,
             "year": str(book.year + 1),
+            "deposit": deposit.id,
         }
 
 
@@ -121,7 +131,16 @@ def calls(i: dict[str, str]):
             {"account_id": chk},
             {"statementDate": "2026-09-30", "statementBalance": 100},
         ),
-        "/ui/api/transactions": ("alice", None, {"accountId": chk, "date": day, "amount": -5}),
+        "/ui/api/transactions": (
+            "alice",
+            None,
+            {"accountId": chk, "date": day, "amount": -5, "reimbursable": 5},
+        ),
+        "/ui/api/reimbursements": (
+            "alice",
+            None,
+            lambda made: {"spendingId": made["txn"], "paybackId": i["deposit"], "amount": 5},
+        ),
         "/ui/api/categories": ("alice", None, {"name": "Hobbies", "kind": "expense"}),
         "/ui/api/rules": ("alice", None, {"payeeMatch": "COFFEE", "payee": "Coffee shop"}),
         "/ui/api/price-sources": ("admin", None, {"name": "tiingo"}),
@@ -268,6 +287,8 @@ def test_every_201_answers_a_location_that_reads_what_it_made(seeded):
             made["option"] = r.json()["instrumentId"]
         if path == "/ui/api/persons":
             made["person"] = r.json()["id"]
+        if path == "/ui/api/transactions":
+            made["txn"] = r.json()["id"]
         where = r.headers.get("location")
         if where is None:
             unnamed.append(path)

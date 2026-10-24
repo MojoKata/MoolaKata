@@ -127,6 +127,8 @@ class Transaction(Record):
     offChainAt: dt.datetime | None = None
     offChainMissedAt: dt.datetime | None = None
     offChainKeptAt: dt.datetime | None = None
+    reimbursable: Decimal | None = None
+    owedBy: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)
@@ -136,6 +138,18 @@ class Split(Record):
     amount: Decimal
     categoryId: str | None = None
     memo: str | None = None
+    reimbursable: Decimal | None = None
+    owedBy: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
+class Reimbursement(Record):
+    id: str
+    spendingId: str
+    paybackId: str
+    amount: Decimal
+    splitId: str | None = None
+    createdById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

@@ -10,7 +10,7 @@ import { useSubmit } from '../app/hooks.js';
 import { Dialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { cents, fromCents, money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
@@ -72,13 +72,19 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
     contributionYear: init?.contributionYear ? String(txn.contributionYear) : '',
     contributionSource: init?.contributionSource || '',
     tags: (init?.tags || []).join(', '),
+    reimbursable: txn?.reimbursable || '',
+    owedBy: txn?.owedBy || '',
   });
+  const [owed, setOwed] = useState(!!txn?.reimbursable);
   const [splits, setSplits] = useState(
-    /** @type {{ categoryId: string, amount: string, memo: string }[]} */ (
+    /** @type {{ categoryId: string, amount: string, memo: string, reimbursable?: string,
+     *   owedBy?: string }[]} */ (
       (txn?.splits || []).map((/** @type {any} */ s) => ({
         categoryId: s.categoryId || '',
         amount: s.amount,
         memo: s.memo || '',
+        reimbursable: s.reimbursable || undefined,
+        owedBy: s.owedBy || undefined,
       }))
     ),
   );
@@ -104,7 +110,14 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
         categoryId: s.categoryId || null,
         amount: clean(s.amount),
         memo: s.memo || null,
+        // A part marked to be paid back keeps its mark (S2.9).
+        ...(s.reimbursable ? { reimbursable: s.reimbursable, owedBy: s.owedBy || null } : {}),
       })),
+      // Spending to be paid back: all of it unless a smaller amount is typed (S2.9).
+      reimbursable: owed && !splits.length
+        ? clean(f.reimbursable) || clean(f.amount).replace(/^-/, '') || null
+        : null,
+      owedBy: owed && !splits.length ? f.owedBy || null : null,
       tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
     };
     if (type.investing) {
@@ -343,6 +356,26 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
         <${Field} label="Memo"><${Input} value=${f.memo} onInput=${set('memo')} /></${Field}>
         <${Field} label="Tags" hint="Yours only, separated by commas."><${Input} value=${f.tags}
           onInput=${set('tags')} /></${Field}>
+        ${!type.investing && !splits.length
+          ? html`
+            <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."
+              on=${owed} onChange=${setOwed} />
+            ${owed
+              ? html`
+                <div class="row">
+                  <${Field} label="Reimbursable amount" error=${errAt(e, 'reimbursable')}>
+                    <${Input} value=${f.reimbursable} onInput=${set('reimbursable')}
+                      inputmode="decimal" placeholder="all of it" />
+                    </${Field}>
+                    <${Field} label="Owed by" error=${errAt(e, 'owedBy')}>
+                      <${Input} value=${f.owedBy} onInput=${set('owedBy')}
+                        placeholder="Acme Corp" />
+                      </${Field}>
+                      </div>
+              `
+              : null}
+          `
+          : null}
         </fieldset>
         ${editing ? html`<${TxnReceipts} txn=${txn} canWrite=${!readOnly} />` : null}
         ${reconciled
@@ -360,6 +393,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
             'costBasis',
             'contributionYear',
             'splits',
+            'reimbursable',
+            'owedBy',
           ]} />`}
       </${Dialog}>
   `;

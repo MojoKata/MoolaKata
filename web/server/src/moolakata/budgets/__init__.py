@@ -156,6 +156,10 @@ def amounts(
             )
         ):
             splits[sp.transactionId].append(sp)
+    from .. import reimbursements
+
+    # Spending awaited or paid back isn't counted, nor the part of a deposit that paid it (S2.9).
+    paying = reimbursements.paired_out(s, ids)
     loans_seen: dict[str, dict] = {}
     for t in txns:
         other = others.get(t.transferId) if t.transferId else None
@@ -170,10 +174,10 @@ def amounts(
         if parts:
             for sp in parts:
                 if sp.categoryId and _counts(tr, sp.categoryId):
-                    out[sp.categoryId] += sp.amount
+                    out[sp.categoryId] += _counted(sp.amount, sp.reimbursable)
                     counted = True
         elif t.categoryId and _counts(tr, t.categoryId):
-            out[t.categoryId] += t.amount
+            out[t.categoryId] += _counted(t.amount, t.reimbursable) - paying.get(t.id, ZERO)
             counted = True
         if other is not None and not counted and other[1].type == "cash" and tr.key("cash"):
             # Cash taken out to a cash account the budget doesn't count is spent (S7.3.2).
@@ -182,6 +186,13 @@ def amounts(
         if other is not None and not counted and moved is not None:
             moved.append(Moved(t.id, t.date, t.accountId, other[1].id, t.amount, t.payee))
     return dict(out)
+
+
+def _counted(amount: Decimal, reimbursable: Decimal | None) -> Decimal:
+    """Spending less what is to be paid back of it."""
+    if reimbursable and amount < 0:
+        return amount + min(reimbursable, -amount)
+    return amount
 
 
 def _counts(tr: Tree, cat_id: str) -> bool:

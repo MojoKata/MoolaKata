@@ -556,6 +556,7 @@ def test_every_dialog_has_its_guide(page):
         ("/ui/portfolios", "New portfolio", "dialog-portfolio"),
         ("/ui/budgets", "New budget", "dialog-budget"),
         ("/ui/budgets", "Edit plan", "dialog-plan"),
+        ("/ui/budgets/x/reimbursements", "Pair a payback", "dialog-pair"),
         ("/ui/receipts", "Receipt Blue Bottle Coffee", "dialog-receipt"),
         ("/ui/projections", "New projection", "dialog-new-projection"),
         ("/ui/gifts/people", "Add a gift plan", "dialog-person"),

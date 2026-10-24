@@ -123,6 +123,7 @@ def map_all() -> None:
         (acc.Import, accounts.Import),
         (acc.Transaction, accounts.Transaction),
         (acc.Split, accounts.Split),
+        (acc.Reimbursement, accounts.Reimbursement),
         (acc.Lot, accounts.Lot),
         (acc.Holding, accounts.Holding),
         (acc.Anchor, accounts.Anchor),

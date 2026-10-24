@@ -158,12 +158,16 @@ TEXT = {
     "budget.updated": "{actor} changed {fields} of the budget {subject}",
     "budget.planned": "{actor} changed the plan of the budget {subject}",
     "budget.deleted": "{actor} deleted the budget {subject}",
+    "reimbursement.paired": "{actor} paired a payback with reimbursable spending in {subject}",
+    "reimbursement.unpaired": "{actor} unpaired a payback in {subject}",
     "share.given": "{actor} shared {subject} with {grantee} ({level})",
     "share.changed": "{actor} changed {grantee}'s access to {subject} ({level})",
     "share.removed": "{actor} stopped sharing {subject} with {grantee}",
 }
 FIELD_NAMES = {
     "displayName": "the name",
+    "reimbursable": "what is to be paid back",
+    "owedBy": "who pays it back",
     "categoryId": "the category",
     "category": "the category",
     "amount": "the amount",

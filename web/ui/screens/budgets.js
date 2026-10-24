@@ -24,6 +24,7 @@ const TABS = /** @type {[string, string][]} */ ([
   ['cash-flow', 'Cash flow'],
   ['trends', 'Trends'],
   ['recurring', 'Recurring'],
+  ['reimbursements', 'Reimbursements'],
 ]);
 
 /** The month shown, kept while moving between tabs and budgets. */
@@ -100,6 +101,8 @@ export default function Budgets({ id, tab }) {
       ? html`<${CashFlow} b=${b} month=${shown.value} />`
       : current === 'trends'
       ? html`<${Trends} b=${b} month=${shown.value} />`
+      : current === 'reimbursements'
+      ? html`<${Reimbursements} b=${b} />`
       : html`<${Recurring} b=${b} />`}
   `;
 }
@@ -378,6 +381,118 @@ function Recurring({ b }) {
         )}</tbody>
       </table>
     </div>
+  `;
+}
+
+/**
+ * What the budget's accounts await being paid back (S2.9), oldest first, with the deposits that
+ * may pay each back.
+ * @param {{ b: any }} p
+ */
+function Reimbursements({ b }) {
+  const res = useList(`/budgets/${b.id}/reimbursements`, {}, ['import']);
+  const rows = /** @type {any[]} */ (res.data);
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!rows) return html`<${Loading} lines=${4} />`;
+  if (!rows.length) {
+    return html`<${Empty}>Nothing awaits being paid back. Mark spending <b>Reimbursable</b> in its
+      transaction, and it's listed here, not counted, until a deposit pays it back.</${Empty}>`;
+  }
+  const pair = (/** @type {any} */ r) =>
+    openDialog(PairDialog, { item: r }).then((x) => x && res.reload());
+  return html`
+    <div class="card" style=${{ padding: '4px 8px' }}>
+      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting reimbursement<span class="spacer"></span>
+        <span class="small dim" style=${{ fontWeight: 400 }}>not counted while awaited</span></h3>
+      <table class="t">
+        <thead>
+          <tr>
+            <th>Spent</th>
+            <th>Payee</th>
+            <th>Category</th>
+            <th>Owed by</th>
+            <th class="num">Awaited</th>
+            <th>Age</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows.map((r) =>
+          html`
+            <tr>
+              <td>${date(r.date)}</td>
+              <td>${r.payee || '—'}${r.splitId
+                ? html`
+                  <span class="small dim">(one part)</span>
+                `
+                : null}<div class="small dim">${r.accountName}</div></td>
+              <td>${r.category || '—'}</td>
+              <td>${r.owedBy || '—'}</td>
+              <td class="num amt">${money(r.awaited)}${dec(r.paidBack).gt(0)
+                ? html`<div class="small dim">of ${money(r.reimbursable)}</div>`
+                : null}</td>
+              <td>${r.ageDays} day${r.ageDays === 1 ? '' : 's'}</td>
+              <td><button type="button" class="btn sm" data-help="pair" disabled=${!r.offers
+                .length} onClick=${() => pair(r)}>Pair a payback</button></td>
+            </tr>
+          `
+        )}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+/**
+ * Pair a deposit with spending awaiting being paid back.
+ * @param {{ close: (v?: any) => void, item: any }} p
+ */
+function PairDialog({ close, item }) {
+  useDialogGuide('dialog-pair');
+  const [pick, setPick] = useState(item.offers[0]?.transactionId || '');
+  const offer = item.offers.find((/** @type {any} */ o) => o.transactionId === pick);
+  const most = offer
+    ? (dec(offer.free).lt(dec(item.awaited)) ? offer.free : item.awaited)
+    : item.awaited;
+  const [amount, setAmount] = useState(String(most));
+  const save = useSubmit(async () => {
+    await api.post('/reimbursements', {
+      spendingId: item.spendingId,
+      splitId: item.splitId,
+      paybackId: pick,
+      amount: String(amount).replace(/[$,\s]/g, ''),
+    });
+    toast('Paired: that much is paid back');
+    close(true);
+  });
+  return html`
+    <${Dialog} title="Pair a payback" close=${close} onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy || !pick}>Pair</button>`}>
+      <p style=${{ marginTop: 0 }}>${item.payee || 'Spending'}, ${date(item.date)}: ${money(
+        item.awaited,
+      )} awaited${item.owedBy ? ` from ${item.owedBy}` : ''}.</p>
+      <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+        <legend class="small" style=${{
+          color: 'var(--fg-dim)',
+        }}>Deposits that may pay it back</legend>
+        ${item.offers.map((/** @type {any} */ o) =>
+          html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="radio"
+            name="payback" data-help="deposits" checked=${
+            o.transactionId === pick
+          } onChange=${() => {
+            setPick(o.transactionId);
+            setAmount(String(dec(o.free).lt(dec(item.awaited)) ? o.free : item.awaited));
+          }} /><span class="grow">${o.payee || 'A deposit'}<div class="small dim">${
+            date(
+              o.date,
+            )
+          } · ${o.accountName}</div></span><span class="amt">${money(o.free)}</span></label>`
+        )}
+      </fieldset>
+      <${Field} label="Pays back" error=${errAt(save.error, 'amount')}
+        hint="All of it, or part; one deposit can pay back several.">
+        <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
+        </${Field}>
+        <${FormError} error=${save.error} shown=${['amount']} />
+        </${Dialog}>
   `;
 }
 

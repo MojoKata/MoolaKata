@@ -218,6 +218,22 @@
  */
 
 /**
+ * @typedef {Object} AwaitingRow
+ * @property {string} spendingId
+ * @property {(string | null)} splitId
+ * @property {string} date
+ * @property {(string | null)} payee
+ * @property {string} accountName
+ * @property {(string | null)} category
+ * @property {(string | null)} owedBy
+ * @property {import('../app/dec.js').Dec} reimbursable
+ * @property {import('../app/dec.js').Dec} paidBack
+ * @property {import('../app/dec.js').Dec} awaited
+ * @property {number} ageDays
+ * @property {Array<Offer>} offers
+ */
+
+/**
  * @typedef {Object} BackupOut
  * @property {string} name
  * @property {string} made
@@ -1932,6 +1948,15 @@
  */
 
 /**
+ * @typedef {Object} Offer
+ * @property {string} transactionId
+ * @property {string} date
+ * @property {(string | null)} payee
+ * @property {string} accountName
+ * @property {import('../app/dec.js').Dec} free
+ */
+
+/**
  * @typedef {Object} Offered
  * @property {string} token
  * @property {Array<string>} words
@@ -2069,6 +2094,14 @@
 /**
  * @typedef {Object} Page_Adjustable_
  * @property {Array<Adjustable>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
+ * @typedef {Object} Page_AwaitingRow_
+ * @property {Array<AwaitingRow>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -2404,6 +2437,24 @@
  */
 
 /**
+ * @typedef {Object} PairIn
+ * @property {string} spendingId
+ * @property {(string | null)} [splitId]
+ * @property {string} paybackId
+ * @property {import('../app/dec.js').Dec} amount
+ */
+
+/**
+ * @typedef {Object} PairOut
+ * @property {string} id
+ * @property {string} spendingId
+ * @property {(string | null)} splitId
+ * @property {string} paybackId
+ * @property {import('../app/dec.js').Dec} amount
+ * @property {number} version
+ */
+
+/**
  * @typedef {Object} PairingOut
  * @property {string} code
  * @property {string} expiresAt
@@ -2715,7 +2766,7 @@
  * @property {string} title
  * @property {number} status
  * @property {string} detail
- * @property {("account-disabled" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-invalid" | "admin-exists" | "admins-only" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "assumption-invalid" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "cash-invalid" | "cash-missing" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-invalid" | "contracts-invalid" | "contracts-missing" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "draw-invalid" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "every-invalid" | "expired" | "fees-invalid" | "figure-invalid" | "figure-not-of-year" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-invalid" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "image-too-large" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-twice" | "level-invalid" | "link-not-active" | "link-not-valid" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-invalid" | "method-not-allowed" | "month-invalid" | "months-invalid" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-it" | "not-married" | "not-physical" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-exists" | "portfolio-unknown" | "premium-invalid" | "price-missing" | "price-negative" | "principal-invalid" | "progress-invalid" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "reconciled-period" | "reencrypt-pending" | "reencrypt-running" | "relation-invalid" | "relationship-exists" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-invalid" | "share-read-only" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-invalid" | "source-unknown" | "split-does-not-add-up" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-too-long" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-rules" | "trade-incomplete" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-inactive" | "user-unknown" | "username-invalid" | "username-taken" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
+ * @property {("account-disabled" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-invalid" | "admin-exists" | "admins-only" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "assumption-invalid" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "cash-invalid" | "cash-missing" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-invalid" | "contracts-invalid" | "contracts-missing" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "draw-invalid" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "every-invalid" | "expired" | "fees-invalid" | "figure-invalid" | "figure-not-of-year" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-invalid" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "image-too-large" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-twice" | "level-invalid" | "link-not-active" | "link-not-valid" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-invalid" | "method-not-allowed" | "month-invalid" | "months-invalid" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "owed-by-too-long" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-exists" | "portfolio-unknown" | "premium-invalid" | "price-missing" | "price-negative" | "principal-invalid" | "progress-invalid" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "reconciled-period" | "reencrypt-pending" | "reencrypt-running" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-invalid" | "share-read-only" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-invalid" | "source-unknown" | "split-does-not-add-up" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-too-long" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-rules" | "trade-incomplete" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-inactive" | "user-unknown" | "username-invalid" | "username-taken" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
  * @property {string} errorId
  * @property {Array<ProblemFieldError>} errors
  */
@@ -2723,7 +2774,7 @@
 /**
  * @typedef {Object} ProblemFieldError
  * @property {unknown} field
- * @property {(("account-disabled" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-invalid" | "admin-exists" | "admins-only" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "assumption-invalid" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "cash-invalid" | "cash-missing" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-invalid" | "contracts-invalid" | "contracts-missing" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "draw-invalid" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "every-invalid" | "expired" | "fees-invalid" | "figure-invalid" | "figure-not-of-year" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-invalid" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "image-too-large" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-twice" | "level-invalid" | "link-not-active" | "link-not-valid" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-invalid" | "method-not-allowed" | "month-invalid" | "months-invalid" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-it" | "not-married" | "not-physical" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-exists" | "portfolio-unknown" | "premium-invalid" | "price-missing" | "price-negative" | "principal-invalid" | "progress-invalid" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "reconciled-period" | "reencrypt-pending" | "reencrypt-running" | "relation-invalid" | "relationship-exists" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-invalid" | "share-read-only" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-invalid" | "source-unknown" | "split-does-not-add-up" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-too-long" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-rules" | "trade-incomplete" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-inactive" | "user-unknown" | "username-invalid" | "username-taken" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
+ * @property {(("account-disabled" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-invalid" | "admin-exists" | "admins-only" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "assumption-invalid" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "cash-invalid" | "cash-missing" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-invalid" | "contracts-invalid" | "contracts-missing" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "draw-invalid" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "every-invalid" | "expired" | "fees-invalid" | "figure-invalid" | "figure-not-of-year" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-invalid" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "image-too-large" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-twice" | "level-invalid" | "link-not-active" | "link-not-valid" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-invalid" | "method-not-allowed" | "month-invalid" | "months-invalid" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "owed-by-too-long" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-exists" | "portfolio-unknown" | "premium-invalid" | "price-missing" | "price-negative" | "principal-invalid" | "progress-invalid" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "reconciled-period" | "reencrypt-pending" | "reencrypt-running" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-invalid" | "share-read-only" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-invalid" | "source-unknown" | "split-does-not-add-up" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-too-long" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-rules" | "trade-incomplete" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-inactive" | "user-unknown" | "username-invalid" | "username-taken" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
  * @property {string} message
  */
 
@@ -3439,6 +3490,8 @@
  * @property {(string | null)} [categoryId]
  * @property {import('../app/dec.js').Dec} amount
  * @property {(string | null)} [memo]
+ * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
+ * @property {(string | null)} [owedBy]
  */
 
 /**
@@ -3800,6 +3853,8 @@
  * @property {(string | null)} [contributionSource]
  * @property {(import('../app/dec.js').Dec | null)} [costBasis]
  * @property {(boolean | null)} [cleared]
+ * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
+ * @property {(string | null)} [owedBy]
  * @property {(Array<SplitIn> | null)} [splits]
  * @property {(Array<string> | null)} [tags]
  */
@@ -3823,6 +3878,8 @@
  * @property {(number | null)} [contributionYear]
  * @property {(string | null)} [contributionSource]
  * @property {(import('../app/dec.js').Dec | null)} [costBasis]
+ * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
+ * @property {(string | null)} [owedBy]
  * @property {Array<SplitIn>} [splits]
  * @property {Array<string>} [tags]
  * @property {Array<PickIn>} [picks]
@@ -3855,6 +3912,9 @@
  * @property {boolean} reconciled
  * @property {(import('../app/dec.js').Dec | null)} amountWas
  * @property {(string | null)} offChainAt
+ * @property {(import('../app/dec.js').Dec | null)} reimbursable
+ * @property {(string | null)} owedBy
+ * @property {import('../app/dec.js').Dec} paidBack
  * @property {Array<moolakata__ui__transactions__SplitOut>} splits
  * @property {Array<string>} tags
  * @property {number} receipts
@@ -4411,6 +4471,8 @@
  * @property {(string | null)} [categoryId]
  * @property {import('../app/dec.js').Dec} amount
  * @property {(string | null)} [memo]
+ * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
+ * @property {(string | null)} [owedBy]
  * @property {string} id
  */
 
