@@ -1,0 +1,956 @@
+R1	
+R1.1	
+R1.2	
+R1.3	
+R1.4	
+R1.5	
+R1.6	
+R1.7	
+R1.8	
+R1.9	connector/moolakata_connector/drivers/schwab.py web/server/src/moolakata/money.py web/server/src/moolakata/ui/imports.py
+R1.10	
+R1.11	
+R1.12	
+R1.13	
+R1.14	
+R1.15	
+R1.16	web/server/src/moolakata/projections/bitcoin.py
+R1.17	
+R1.18	
+R1.19	
+R1.20	
+R1.21	
+R1.22	
+R1.23	
+R1.24	
+R1.25	
+R1.26	
+R2	
+R2.1	
+R2.2	
+R2.3	
+R2.4	
+R2.5	
+R2.6	
+R2.7	
+R2.8	
+R2.9	
+R2.10	
+R2.11	
+R2.12	
+R2.13	
+R2.14	
+R2.15	
+R2.16	
+R2.17	
+R2.18	
+R2.19	
+R2.20	
+R2.21	
+R2.22	
+R2.23	
+R2.24	
+R2.25	
+R2.26	
+R3	
+R3.1	web/server/src/moolakata/receipts/ocr.py
+R3.2	web/server/src/moolakata/ledger/__init__.py web/server/src/moolakata/ledger/balances.py web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/imports.py
+R3.3	
+R3.4	
+R3.5	web/server/src/moolakata/bitcoin/sync.py
+R3.6	
+R3.7	web/server/src/moolakata/errors.py web/server/src/moolakata/middleware.py web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/components/fields.js
+R3.8	web/server/src/moolakata/activity.py web/server/src/moolakata/store/tables/activity.py web/server/src/moolakata/ui/activity.py
+R3.9	web/server/src/moolakata/contract.py
+R3.10	web/server/src/moolakata/figures.py web/server/src/moolakata/ui/portfolios.py
+S1	
+S1.1	web/server/src/moolakata/ledger/types.py web/server/src/moolakata/store/alembic/versions/0029_cash_and_payment_apps.py web/server/src/moolakata/ui/accounts.py web/ui/account-types/401k.js web/ui/account-types/403b.js web/ui/account-types/457b.js web/ui/account-types/529.js web/ui/account-types/auto-loan.js web/ui/account-types/brokerage.js web/ui/account-types/cash.js web/ui/account-types/cd.js web/ui/account-types/checking.js web/ui/account-types/collectables.js web/ui/account-types/credit-card.js web/ui/account-types/crypto-exchange.js web/ui/account-types/crypto-wallet.js web/ui/account-types/daf.js web/ui/account-types/heloc.js web/ui/account-types/hsa.js web/ui/account-types/index.js web/ui/account-types/ira.js web/ui/account-types/loan.js web/ui/account-types/money-market.js web/ui/account-types/mortgage.js web/ui/account-types/other-asset.js web/ui/account-types/payment-app.js web/ui/account-types/personal-loan.js web/ui/account-types/precious-metals.js web/ui/account-types/real-estate.js web/ui/account-types/roth-ira.js web/ui/account-types/savings.js web/ui/account-types/student-loan.js web/ui/account-types/vehicle.js
+S1.2	web/server/src/moolakata/store/alembic/versions/0032_reserves_and_moves.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/accounts.py web/ui/screens/account.js
+S1.3	web/server/src/moolakata/connector/files.py web/server/src/moolakata/importers/__init__.py web/server/src/moolakata/store/repos/ledger.py
+S1.3.1	web/server/src/moolakata/ui/imports.py
+S1.3.2	web/server/src/moolakata/importers/csvfile.py web/server/src/moolakata/importers/ofx.py web/server/src/moolakata/store/repos/ledger.py web/ui/screens/import.js
+S1.3.3	web/server/src/moolakata/importers/statements.py web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/receipts/retention.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/store/tables/receipts.py web/server/src/moolakata/ui/imports.py web/ui/screens/import.js
+S1.3.3.1	
+S1.3.3.2	
+S1.3.3.3	
+S1.3.3.4	web/server/src/moolakata/importers/statements.py
+S1.3.3.5	web/server/src/moolakata/importers/statements.py web/server/src/moolakata/ui/imports.py web/ui/screens/import.js
+S1.3.3.6	web/server/src/moolakata/connector/files.py web/server/src/moolakata/importers/statements.py web/server/src/moolakata/ledger/reconcile.py web/server/src/moolakata/receipts/ocr.py web/server/src/moolakata/store/alembic/versions/0004_statement_intervals_and_kept_statements.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/imports.py web/ui/screens/import.js
+S1.3.3.7	
+S1.3.3.7.1	
+S1.3.3.7.2	
+S1.3.3.7.3	
+S1.3.3.7.4	
+S1.3.3.8	web/server/src/moolakata/importers/brokerage.py web/server/src/moolakata/store/alembic/versions/0005_holding_checks_and_statement_values.py web/server/src/moolakata/ui/imports.py web/ui/screens/account.js web/ui/screens/import.js web/ui/screens/transaction-dialog.js
+S1.3.3.8.1	web/server/src/moolakata/ledger/balances.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/accounts.py
+S1.3.3.8.2	web/server/src/moolakata/ledger/holdingcheck.py web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/accounts.py
+S1.3.3.8.3	
+S1.3.4	
+S1.3.5	
+S1.4	
+S1.5	
+S1.6	web/server/src/moolakata/bitcoin/__init__.py web/server/src/moolakata/store/alembic/versions/0009_bitcoin_the_rest.py web/server/src/moolakata/store/tables/wallets.py web/ui/account-types/crypto-wallet.js web/ui/account-types/index.js
+S1.6.1	web/server/src/moolakata/bitcoin/keys.py web/server/src/moolakata/bitcoin/wallet.py web/server/src/moolakata/store/tables/wallets.py web/server/src/moolakata/ui/wallets.py web/ui/components/wallet.js
+S1.6.1.1	
+S1.6.1.2	
+S1.6.1.3	
+S1.6.1.4	web/server/src/moolakata/bitcoin/descriptor.py web/server/src/moolakata/bitcoin/keys.py web/server/src/moolakata/bitcoin/sources.py
+S1.6.2	web/server/src/moolakata/alerts.py web/server/src/moolakata/bitcoin/sources.py web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/runtime.py web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py web/server/src/moolakata/ui/wallets.py web/ui/api/openapi.json web/ui/screens/settings.js
+S1.6.2.1	
+S1.6.2.2	
+S1.6.2.3	
+S1.6.2.4	web/server/src/moolakata/alerts.py web/server/src/moolakata/bitcoin/sources.py web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/screens/settings.js
+S1.6.2.5	
+S1.6.2.6	web/server/src/moolakata/bitcoin/sync.py
+S1.6.2.7	web/server/src/moolakata/alerts.py web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/store/alembic/versions/0021_wallets_kept.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json
+S1.6.3	web/server/src/moolakata/bitcoin/keys.py web/server/src/moolakata/ui/wallets.py web/ui/components/wallet.js
+S1.6.4	web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/profile.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/wallets.py web/ui/app/format.js
+S1.7	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/ledger/transfers.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json
+S1.7.1	web/server/src/moolakata/bitcoin/transfers.py web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/store/alembic/versions/0009_bitcoin_the_rest.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/wallets.py web/ui/screens/account.js
+S1.7.2	
+S1.8	web/server/src/moolakata/education/__init__.py web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/store/tables/education.py web/server/src/moolakata/ui/education.py web/ui/account-types/529.js web/ui/account-types/index.js web/ui/components/edu.js
+S1.8.1	web/server/src/moolakata/store/tables/people.py
+S1.8.2	web/server/src/moolakata/education/__init__.py web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/store/tables/education.py web/server/src/moolakata/ui/education.py
+S1.8.3	web/server/src/moolakata/ledger/types.py web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/store/tables/education.py web/server/src/moolakata/store/tables/receipts.py web/server/src/moolakata/ui/education.py
+S1.8.4	
+S1.8.5	web/server/src/moolakata/ui/education.py
+S1.8.6	
+S1.9	web/server/src/moolakata/loans/__init__.py web/server/src/moolakata/store/tables/loans.py web/server/src/moolakata/ui/loans.py web/server/src/moolakata/valuation.py web/ui/account-types/auto-loan.js web/ui/account-types/heloc.js web/ui/account-types/index.js web/ui/account-types/loan.js web/ui/account-types/mortgage.js web/ui/account-types/personal-loan.js web/ui/account-types/student-loan.js web/ui/components/loan.js
+S1.9.1	web/server/src/moolakata/ui/conventions.py
+S1.9.2	
+S1.9.3	web/server/src/moolakata/loans/__init__.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/loans.py web/ui/api/openapi.json
+S1.9.4	web/server/src/moolakata/alerts.py web/server/src/moolakata/ledger/types.py
+S1.9.5	web/server/src/moolakata/loans/__init__.py web/server/src/moolakata/loans/payoff.py web/server/src/moolakata/store/tables/loans.py web/server/src/moolakata/ui/items.py web/server/src/moolakata/ui/loans.py web/ui/api/openapi.json web/ui/api/types.js
+S1.9.6	
+S1.9.7	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/ledger/categories.py web/server/src/moolakata/store/alembic/versions/0028_what_a_budget_counts.py web/server/src/moolakata/store/tables/loans.py web/server/src/moolakata/ui/loans.py web/ui/components/loan.js
+S1.9.7.1	
+S1.9.7.2	
+S1.10	web/server/src/moolakata/assets/__init__.py web/server/src/moolakata/store/tables/assets.py web/server/src/moolakata/ui/items.py web/server/src/moolakata/valuation.py web/ui/account-types/collectables.js web/ui/account-types/index.js web/ui/account-types/other-asset.js web/ui/account-types/precious-metals.js web/ui/account-types/real-estate.js web/ui/account-types/vehicle.js web/ui/components/items.js
+S1.10.1	web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/store/tables/receipts.py
+S1.10.2	web/server/src/moolakata/assets/__init__.py web/server/src/moolakata/prices/refresh.py
+S1.10.2.1	
+S1.10.2.2	
+S1.10.2.3	
+S1.10.3	web/server/src/moolakata/assets/__init__.py
+S1.10.4	
+S1.10.5	web/server/src/moolakata/assets/__init__.py web/server/src/moolakata/ledger/types.py web/server/src/moolakata/ui/items.py web/ui/api/openapi.json
+S1.10.6	
+S1.11	web/server/src/moolakata/alerts.py web/server/src/moolakata/ledger/reconcile.py web/server/src/moolakata/ledger/types.py web/ui/screens/account.js
+S1.11.1	
+S1.11.2	web/server/src/moolakata/importers/csvfile.py web/server/src/moolakata/ledger/balances.py web/server/src/moolakata/ledger/reconcile.py web/server/src/moolakata/ui/accounts.py web/ui/api/openapi.json
+S1.11.3	web/server/src/moolakata/ledger/reconcile.py web/server/src/moolakata/store/repos/ledger.py
+S1.11.4	web/server/src/moolakata/ui/accounts.py web/ui/api/openapi.json
+S1.11.5	web/server/src/moolakata/ledger/reconcile.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json
+S1.11.6	web/server/src/moolakata/ui/accounts.py web/ui/api/openapi.json
+S1.11.7	web/server/src/moolakata/alerts.py web/server/src/moolakata/ledger/expected.py web/server/src/moolakata/store/alembic/versions/0004_statement_intervals_and_kept_statements.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/accounts.py web/server/src/moolakata/ui/imports.py web/ui/api/openapi.json web/ui/screens/account.js
+S1.11.7.1	
+S1.11.7.2	
+S1.11.7.3	web/server/src/moolakata/ledger/reconcile.py
+S2	
+S2.1	
+S2.2	web/server/src/moolakata/ledger/lots.py
+S2.3	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/store/alembic/versions/0017_figures.py web/server/src/moolakata/ui/accounts.py web/server/src/moolakata/ui/transactions.py
+S2.4	web/server/src/moolakata/corporate.py web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/store/alembic/versions/0019_corporate_actions.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/options.py web/server/src/moolakata/ui/transactions.py web/ui/components/corporate.js
+S2.4.1	
+S2.4.2	
+S2.4.3	
+S2.4.4	
+S2.4.5	
+S2.4.6	
+S2.5	web/server/src/moolakata/importers/ofx.py
+S2.6	web/server/src/moolakata/ui/transactions.py web/ui/screens/transaction-dialog.js
+S2.7	web/server/src/moolakata/dev/seed_accounts.py web/server/src/moolakata/ledger/rules.py web/server/src/moolakata/store/alembic/versions/0018_rules.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/store/repos/rules.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/rules.py web/ui/components/rules.js
+S2.7.1	
+S2.7.2	
+S2.7.3	web/server/src/moolakata/store/repos/ledger.py
+S2.7.4	web/server/src/moolakata/ui/rules.py web/ui/api/openapi.json
+S2.7.5	
+S2.7.6	
+S2.7.7	web/server/src/moolakata/receipts/reading.py
+S2.8	web/server/src/moolakata/taxes/closed.py web/ui/components/corporate.js web/ui/components/optiontrade.js web/ui/screens/transaction-dialog.js
+S2.8.1	
+S2.8.2	
+S2.8.3	web/server/src/moolakata/store/alembic/versions/0023_edits_after_filing.py web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/closed.py
+S2.9	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/dev/seed_budgets.py web/server/src/moolakata/reimbursements.py web/server/src/moolakata/store/alembic/versions/0030_reimbursable_spending.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/reimbursements.py web/server/src/moolakata/ui/transactions.py web/ui/screens/budgets.js web/ui/screens/transaction-dialog.js
+S2.9.1	
+S2.9.2	web/server/src/moolakata/ui/reimbursements.py web/ui/api/openapi.json
+S2.9.3	
+S2.9.4	
+S3	
+S3.1	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/ui/giving.py web/server/src/moolakata/ui/positions.py web/ui/screens/positions.js
+S3.2	web/server/src/moolakata/importers/csvfile.py web/server/src/moolakata/importers/ofx.py web/server/src/moolakata/importers/parsed.py web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/options/__init__.py web/server/src/moolakata/prices/cboe.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/store/tables/options.py web/server/src/moolakata/ui/options.py web/server/src/moolakata/ui/transactions.py web/server/src/moolakata/valuation.py web/ui/components/optiontrade.js
+S3.2.1	
+S3.2.2	
+S3.3	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/ui/options.py
+S3.4	web/server/src/moolakata/importers/ofx.py web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/options/__init__.py web/server/src/moolakata/store/alembic/versions/0017_figures.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/options.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json web/ui/components/optiontrade.js
+S3.5	web/server/src/moolakata/dev/seed_options.py web/server/src/moolakata/options/strategies.py web/server/src/moolakata/store/alembic/versions/0007_strategies.py web/server/src/moolakata/store/tables/options.py web/server/src/moolakata/ui/strategies.py web/ui/components/strategies.js
+S3.5.1	web/server/src/moolakata/options/strategies.py web/server/src/moolakata/ui/strategies.py web/ui/api/openapi.json web/ui/screens/positions.js
+S3.5.2	web/server/src/moolakata/options/strategies.py
+S3.5.3	
+S3.5.4	
+S3.5.5	web/server/src/moolakata/options/strategies.py web/server/src/moolakata/ui/accounts.py web/ui/components/strategies.js
+S3.5.6	web/server/src/moolakata/ui/accounts.py web/server/src/moolakata/ui/portfolios.py
+S3.6	web/server/src/moolakata/alerts.py web/server/src/moolakata/options/__init__.py web/server/src/moolakata/runtime.py web/server/src/moolakata/ui/options.py web/ui/api/openapi.json web/ui/components/optiontrade.js
+S3.7	web/server/src/moolakata/valuation.py web/ui/components/optiontrade.js
+S3.8	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/store/tables/options.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/people.py web/server/src/moolakata/ui/positions.py web/server/src/moolakata/washes.py
+S3.8.1	
+S3.8.2	
+S3.8.3	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/ui/giving.py web/server/src/moolakata/washes.py
+S3.8.4	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/ui/positions.py web/server/src/moolakata/washes.py
+S3.8.5	
+S3.8.5.1	
+S3.8.5.2	
+S3.8.5.3	web/server/src/moolakata/washes.py
+S3.8.5.4	
+S3.9	web/server/src/moolakata/ui/positions.py web/ui/api/openapi.json web/ui/screens/positions.js
+S3.9.1	
+S3.9.2	web/server/src/moolakata/options/strategies.py web/server/src/moolakata/ui/positions.py
+S3.10	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/options/adjust.py web/server/src/moolakata/store/alembic/versions/0008_adjusted_contracts.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/positions.py
+S3.10.1	web/server/src/moolakata/options/adjust.py web/server/src/moolakata/store/repos/ledger.py web/server/src/moolakata/ui/transactions.py
+S3.10.2	web/server/src/moolakata/store/tables/options.py web/server/src/moolakata/ui/options.py web/ui/api/openapi.json web/ui/components/strategies.js
+S3.10.3	web/server/src/moolakata/store/repos/ledger.py
+S3.10.4	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/options/__init__.py
+S3.10.5	web/server/src/moolakata/options/__init__.py web/server/src/moolakata/prices/cboe.py
+S4	
+S4.1	
+S4.2	web/server/src/moolakata/prices/__init__.py
+S4.2.1	web/server/src/moolakata/prices/base.py
+S4.2.2	web/server/src/moolakata/prices/base.py
+S4.2.3	
+S4.3	web/server/src/moolakata/alerts.py web/server/src/moolakata/prices/cboe.py web/server/src/moolakata/prices/coinbase.py web/server/src/moolakata/prices/manual.py web/server/src/moolakata/prices/massive.py web/server/src/moolakata/prices/refresh.py web/server/src/moolakata/prices/tiingo.py web/server/src/moolakata/projections/taxtables.py web/server/src/moolakata/ui/prices.py web/ui/api/openapi.json
+S4.4	web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/prices/coinbase.py web/server/src/moolakata/prices/refresh.py web/server/src/moolakata/ui/prices.py web/ui/api/openapi.json
+S4.5	web/server/src/moolakata/prices/cboe.py web/server/src/moolakata/prices/massive.py web/server/src/moolakata/prices/refresh.py web/ui/components/optiontrade.js
+S4.5.1	
+S4.5.2	
+S4.5.3	
+S4.6	web/server/src/moolakata/store/tables/prices.py web/server/src/moolakata/valuation.py
+S4.7	web/server/src/moolakata/prices/refresh.py web/server/src/moolakata/valuation.py
+S4.8	
+S4.9	
+S4.10	web/server/src/moolakata/prices/manual.py web/server/src/moolakata/prices/refresh.py web/server/src/moolakata/store/alembic/versions/0022_typed_prices_are_their_typers.py web/server/src/moolakata/store/tables/prices.py web/server/src/moolakata/ui/giving.py web/server/src/moolakata/ui/prices.py web/server/src/moolakata/valuation.py
+S5	
+S5.1	web/server/src/moolakata/sharing.py web/server/src/moolakata/store/tables/sharing.py web/server/src/moolakata/ui/portfolios.py web/ui/screens/portfolio-dialog.js web/ui/screens/portfolios.js
+S5.1.1	web/server/src/moolakata/ui/portfolios.py
+S5.1.2	web/server/src/moolakata/sharing.py web/ui/components/share.js
+S5.1.3	
+S5.2	web/server/src/moolakata/figures.py web/server/src/moolakata/ui/portfolios.py web/ui/screens/portfolio.js
+S5.2.1	web/server/src/moolakata/figures.py web/server/src/moolakata/ledger/performance.py web/server/src/moolakata/ui/portfolios.py web/ui/api/openapi.json web/ui/charts/chart.js
+S5.2.2	
+S5.2.3	web/server/src/moolakata/ledger/performance.py web/server/src/moolakata/ui/portfolios.py web/ui/api/openapi.json
+S5.3	web/server/src/moolakata/figures.py web/server/src/moolakata/ui/dashboard.py web/ui/api/openapi.json
+S5.4	web/server/src/moolakata/figures.py
+S6	
+S6.1	web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/store/tables/projections.py
+S6.1.1	
+S6.1.2	
+S6.2	
+S6.2.1	
+S6.2.2	web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/projections/taxtables.py web/server/src/moolakata/ui/education.py web/ui/screens/projections.js
+S6.2.3	
+S6.3	web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/projections/assumptions.py web/server/src/moolakata/store/tables/projections.py web/server/src/moolakata/ui/projections.py web/ui/screens/profile.js
+S6.3.1	web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/projections/bitcoin.py web/server/src/moolakata/projections/engine.py web/server/src/moolakata/ui/projections.py
+S6.3.1.1	web/ui/charts/chart.js web/ui/screens/profile.js
+S6.3.1.2	
+S6.3.1.3	
+S6.3.1.4	
+S6.4	web/server/src/moolakata/projections/engine.py web/server/src/moolakata/ui/projections.py
+S6.4.1	
+S6.4.2	web/ui/charts/chart.js
+S6.4.2.1	
+S6.4.2.2	
+S6.4.2.3	
+S6.4.2.4	
+S6.4.3	
+S6.5	
+S6.6	
+S6.7	web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/store/tables/projections.py web/server/src/moolakata/ui/projections.py web/ui/api/openapi.json
+S6.7.1	
+S6.7.2	web/server/src/moolakata/ui/projections.py web/ui/api/openapi.json
+S6.7.3	web/server/src/moolakata/projections/__init__.py
+S6.7.4	web/server/src/moolakata/ui/projections.py web/ui/screens/projections.js
+S6.7.5	web/server/src/moolakata/alerts.py
+S6.8	web/server/src/moolakata/ui/projections.py
+S6.8.1	web/server/src/moolakata/ui/projections.py web/ui/screens/dashboard.js
+S6.8.2	web/ui/components/plans.js
+S6.8.3	web/server/src/moolakata/store/tables/projections.py web/server/src/moolakata/ui/projections.py web/ui/api/openapi.json
+S6.9	web/server/src/moolakata/projections/__init__.py web/server/src/moolakata/projections/engine.py web/server/src/moolakata/ui/projections.py
+S6.10	web/server/src/moolakata/loans/payoff.py web/server/src/moolakata/store/tables/loans.py web/server/src/moolakata/ui/loans.py web/ui/components/payoff.js
+S6.10.1	
+S6.10.2	
+S6.10.3	
+S6.10.4	
+S6.10.5	
+S6.10.6	web/server/src/moolakata/ui/loans.py
+S7	
+S7.1	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/store/alembic/versions/0031_a_budgets_method_and_reserves.py web/server/src/moolakata/ui/budgets.py web/ui/screens/budgets.js
+S7.1.1	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/ui/budgets.py
+S7.1.2	
+S7.1.3	web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py
+S7.1.4	web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py
+S7.1.5	web/server/src/moolakata/budgets/plan.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.1.6	web/server/src/moolakata/budgets/plan.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.2	web/server/src/moolakata/ledger/categories.py web/server/src/moolakata/store/alembic/versions/0028_what_a_budget_counts.py web/server/src/moolakata/store/tables/accounts.py
+S7.2.1	web/server/src/moolakata/budgets/plan.py web/server/src/moolakata/store/alembic/versions/0031_a_budgets_method_and_reserves.py web/server/src/moolakata/store/tables/budgets.py
+S7.2.2	
+S7.3	web/server/src/moolakata/store/alembic/versions/0028_what_a_budget_counts.py
+S7.3.1	
+S7.3.2	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/ledger/categories.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.3.3	web/server/src/moolakata/budgets/__init__.py
+S7.3.4	web/server/src/moolakata/reimbursements.py
+S7.3.5	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/store/alembic/versions/0033_leave_outs.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/transaction-dialog.js
+S7.3.6	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/budgets/plan.py web/server/src/moolakata/ui/budgets.py
+S7.3.7	
+S7.3.8	
+S7.3.9	
+S7.3.10	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/budgets/cache.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json
+S7.4	web/server/src/moolakata/budgets/__init__.py web/ui/charts/chart.js
+S7.5	web/server/src/moolakata/budgets/recurring.py web/server/src/moolakata/ui/budgets.py web/ui/screens/budgets.js
+S7.5.1	
+S7.5.2	
+S7.6	
+S7.6.1	web/server/src/moolakata/alerts.py
+S7.6.2	
+S7.7	web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/store/tables/people.py web/server/src/moolakata/ui/gifts.py web/ui/screens/gifts.js
+S7.7.1	web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/store/tables/people.py web/server/src/moolakata/ui/gifts.py
+S7.7.2	web/server/src/moolakata/gifts/holidays.py
+S7.7.3	web/server/src/moolakata/alerts.py web/server/src/moolakata/app.py web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/ui/dashboard.py
+S7.8	web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/store/tables/people.py web/server/src/moolakata/ui/gifts.py web/ui/screens/gifts.js
+S7.8.1	web/server/src/moolakata/store/tables/receipts.py
+S7.8.2	
+S7.8.3	
+S7.8.4	web/server/src/moolakata/ui/gifts.py
+S7.8.5	web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/ui/gifts.py
+S7.8.6	web/server/src/moolakata/gifts/__init__.py web/server/src/moolakata/ui/gifts.py web/server/src/moolakata/ui/people.py web/ui/api/openapi.json web/ui/screens/gifts.js
+S7.8.7	web/server/src/moolakata/gifts/__init__.py
+S7.9	web/server/src/moolakata/giving/__init__.py web/server/src/moolakata/store/tables/giving.py web/server/src/moolakata/ui/giving.py web/ui/account-types/daf.js web/ui/screens/giving.js
+S7.9.1	web/server/src/moolakata/giving/__init__.py web/server/src/moolakata/store/tables/giving.py web/server/src/moolakata/ui/giving.py
+S7.9.2	web/server/src/moolakata/ui/giving.py
+S7.9.3	web/server/src/moolakata/giving/__init__.py web/server/src/moolakata/store/tables/giving.py web/server/src/moolakata/ui/giving.py
+S7.9.4	web/server/src/moolakata/giving/__init__.py
+S7.9.5	web/server/src/moolakata/alerts.py web/server/src/moolakata/store/tables/giving.py web/server/src/moolakata/ui/giving.py
+S7.9.6	
+S7.10	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/budgets/reserves.py web/server/src/moolakata/dev/seed_budgets.py web/server/src/moolakata/store/alembic/versions/0031_a_budgets_method_and_reserves.py web/server/src/moolakata/store/alembic/versions/0032_reserves_and_moves.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/screens/budgets.js
+S7.10.1	
+S7.10.2	
+S7.10.3	web/server/src/moolakata/ui/budgets.py web/ui/screens/budgets.js
+S7.10.4	web/server/src/moolakata/budgets/reserves.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.10.5	web/server/src/moolakata/budgets/reserves.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.11	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/store/alembic/versions/0032_reserves_and_moves.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.11.1	
+S7.11.2	
+S7.11.3	
+S7.12	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/dev/seed_budgets.py web/server/src/moolakata/store/alembic/versions/0034_the_active_budget.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/budgets.py web/server/src/moolakata/ui/dashboard.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.12.1	web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/screens/budgets.js
+S7.12.2	web/server/src/moolakata/ui/budgets.py
+S7.12.3	web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S7.12.4	web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/screens/budgets.js
+S7.12.5	
+S7.12.6	
+S7.13	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/budgets/envelope.py web/server/src/moolakata/dev/seed_budgets.py web/server/src/moolakata/store/alembic/versions/0031_a_budgets_method_and_reserves.py
+S7.13.1	web/server/src/moolakata/budgets/__init__.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py
+S7.13.2	web/server/src/moolakata/store/alembic/versions/0035_card_payment_lines.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js
+S7.13.3	web/server/src/moolakata/store/tables/budgets.py
+S7.13.4	
+S7.14	web/server/src/moolakata/store/alembic/versions/0036_month_reviews.py web/server/src/moolakata/store/tables/budgets.py web/server/src/moolakata/ui/budgets.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/budgets.js
+S8	
+S8.1	web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/taxpanels.py web/server/src/moolakata/ui/transactions.py web/ui/components/taxpanels.js
+S8.2	web/server/src/moolakata/taxes/exports.py web/server/src/moolakata/ui/taxpanels.py web/ui/api/openapi.json web/ui/api/types.js web/ui/components/taxpanels.js
+S8.3	web/server/src/moolakata/taxes/panels.py
+S8.4	web/server/src/moolakata/ledger/lots.py web/server/src/moolakata/taxes/panels.py
+S8.5	web/server/src/moolakata/taxes/panels.py
+S8.6	web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/taxpanels.py
+S8.7	web/server/src/moolakata/taxes/panels.py
+S8.8	web/server/src/moolakata/taxes/books.py
+S8.9	web/server/src/moolakata/giving/__init__.py web/server/src/moolakata/store/tables/receipts.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/giving.py
+S8.10	
+S8.11	web/server/src/moolakata/taxes/panels.py
+S8.12	web/server/src/moolakata/taxes/panels.py
+S8.13	web/server/src/moolakata/store/tables/assets.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/items.py web/server/src/moolakata/ui/taxpanels.py web/ui/components/taxpanels.js
+S8.14	web/server/src/moolakata/projections/taxtables.py web/server/src/moolakata/store/alembic/versions/0015_access_between_users.py web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/books.py web/server/src/moolakata/ui/taxes.py
+S8.14.1	web/server/src/moolakata/people/__init__.py web/server/src/moolakata/taxes/books.py
+S8.14.2	web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/books.py web/server/src/moolakata/ui/taxes.py web/ui/api/openapi.json
+S8.14.3	web/server/src/moolakata/sharing.py web/server/src/moolakata/ui/taxes.py
+S8.14.4	web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/books.py web/server/src/moolakata/ui/taxes.py web/ui/api/openapi.json
+S8.14.5	web/server/src/moolakata/dev/seed_taxes.py web/server/src/moolakata/store/alembic/versions/0003_tax_book_dependents.py web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/dependents.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/taxes.py
+S8.14.5.1	web/server/src/moolakata/taxes/dependents.py web/server/src/moolakata/ui/taxes.py web/ui/api/openapi.json
+S8.14.5.2	web/server/src/moolakata/taxes/dependents.py
+S8.14.5.3	web/server/src/moolakata/projections/taxtables.py web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/books.py web/server/src/moolakata/taxes/dependents.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/taxpanels.py
+S8.14.5.4	web/server/src/moolakata/ui/taxes.py
+S8.15	web/server/src/moolakata/store/alembic/versions/0023_edits_after_filing.py web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/books.py web/server/src/moolakata/taxes/closed.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/dashboard.py web/server/src/moolakata/ui/taxes.py web/server/src/moolakata/ui/taxpanels.py web/ui/api/openapi.json web/ui/components/taxpanels.js
+S8.15.1	
+S8.15.2	
+S8.15.3	web/server/src/moolakata/projections/taxtables.py web/server/src/moolakata/taxes/dates.py
+S8.15.4	
+S8.15.5	
+S8.15.6	
+S8.16	web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/ui/taxes.py
+S8.16.1	web/server/src/moolakata/taxes/books.py
+S8.16.2	
+S8.17	web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/books.py web/server/src/moolakata/ui/taxes.py
+S8.18	web/server/src/moolakata/store/tables/education.py web/server/src/moolakata/taxes/dependents.py
+S8.19	web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/bitcoin/transfers.py web/server/src/moolakata/store/alembic/versions/0009_bitcoin_the_rest.py web/server/src/moolakata/store/tables/taxes.py web/server/src/moolakata/taxes/exports.py web/server/src/moolakata/taxes/panels.py web/server/src/moolakata/ui/taxes.py web/ui/api/openapi.json
+S9	
+S9.1	web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/settings.py web/server/src/moolakata/ui/receipts.py
+S9.2	web/server/src/moolakata/keys/files.py
+S9.3	web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/store/tables/receipts.py web/server/src/moolakata/ui/receipts.py web/ui/api/openapi.json web/ui/components/receipt.js web/ui/screens/transaction-dialog.js
+S9.4	web/server/src/moolakata/ui/linked.py web/server/src/moolakata/ui/receipts.py web/ui/api/openapi.json
+S9.5	web/server/src/moolakata/receipts/__init__.py
+S9.6	web/server/src/moolakata/receipts/__init__.py
+S9.7	web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/receipts/retention.py web/server/src/moolakata/ui/receipts.py
+S9.8	web/server/src/moolakata/store/alembic/versions/0001_the_initial_schema.py web/server/src/moolakata/store/tables/receipts.py
+S9.8.1	web/server/src/moolakata/receipts/reading.py
+S9.8.2	web/server/src/moolakata/receipts/ocr.py
+S9.8.2.1	
+S9.8.2.2	
+S9.8.2.3	
+S9.8.2.4	web/server/src/moolakata/receipts/parser.py
+S9.8.2.5	
+S9.8.2.5.1	
+S9.8.2.5.2	
+S9.8.2.5.3	web/server/src/moolakata/receipts/reading.py web/server/src/moolakata/store/repos/rules.py
+S9.8.2.5.4	
+S9.8.2.6	web/server/src/moolakata/receipts/__init__.py
+S9.8.3	
+S9.8.4	web/server/src/moolakata/app.py web/server/src/moolakata/receipts/reading.py web/server/src/moolakata/receipts/worker.py
+S9.8.4.1	
+S9.8.4.2	web/server/src/moolakata/alerts.py web/server/src/moolakata/connector/files.py web/server/src/moolakata/importers/parsed.py web/server/src/moolakata/parsing.py web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/receipts/reading.py web/server/src/moolakata/receipts/worker.py web/server/src/moolakata/runtime.py web/server/src/moolakata/sandbox.py web/server/src/moolakata/ui/linked.py web/server/src/moolakata/ui/receipts.py web/server/src/moolakata/ui/settings.py
+S9.8.4.2.1	
+S9.8.4.2.2	
+S9.8.4.2.3	
+S9.8.4.2.4	
+S9.8.4.2.5	
+S9.8.4.3	web/server/src/moolakata/receipts/__init__.py web/server/src/moolakata/receipts/ocr.py
+S9.8.4.4	
+S9.8.4.5	
+S9.8.5	web/server/src/moolakata/ui/receipts.py web/ui/api/openapi.json
+S9.8.6	web/server/src/moolakata/receipts/reading.py web/server/src/moolakata/ui/receipts.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S9.8.7	web/server/src/moolakata/ui/settings.py web/ui/screens/settings.js
+S9.8.8	
+S10	
+S10.1	web/server/src/moolakata/auth/__init__.py web/server/src/moolakata/auth/users.py web/server/src/moolakata/mail.py web/server/src/moolakata/ratelimit.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/users.py web/ui/screens/users.js
+S10.1.1	web/ui/screens/signin.js
+S10.1.2	web/server/src/moolakata/auth/users.py web/server/src/moolakata/dev/seed.py web/server/src/moolakata/runtime.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/unlock.py web/server/src/moolakata/ui/welcome.py web/ui/api/openapi.json web/ui/app/main.js web/ui/app/router.js web/ui/screens/new-server.js web/ui/screens/setup.js web/ui/store/session.js
+S10.1.3	web/server/src/moolakata/auth/users.py web/ui/screens/welcome.js
+S10.1.4	web/server/src/moolakata/auth/signup.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/settings.py web/server/src/moolakata/ui/users.py web/ui/api/openapi.json web/ui/screens/signin.js web/ui/screens/signup-confirm.js web/ui/screens/users.js
+S10.1.4.1	web/server/src/moolakata/auth/signup.py
+S10.1.4.2	
+S10.1.5	web/server/src/moolakata/auth/users.py web/server/src/moolakata/ui/session.py web/ui/api/openapi.json web/ui/screens/confirm-email.js web/ui/screens/reset.js web/ui/screens/signin.js
+S10.1.6	web/server/src/moolakata/auth/twostep.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/users.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/profile.js web/ui/screens/signin.js web/ui/screens/users.js
+S10.1.6.1	
+S10.1.6.2	web/server/src/moolakata/auth/twostep.py
+S10.1.6.3	web/server/src/moolakata/ratelimit.py web/server/src/moolakata/ui/session.py web/ui/api/openapi.json
+S10.1.6.4	
+S10.1.7	web/server/src/moolakata/auth/users.py web/server/src/moolakata/ui/session.py web/ui/api/openapi.json web/ui/screens/signin.js
+S10.1.8	web/server/src/moolakata/auth/users.py web/server/src/moolakata/store/tables/users.py
+S10.1.9	web/server/src/moolakata/auth/users.py web/server/src/moolakata/mail.py web/server/src/moolakata/store/alembic/versions/0014_addresses.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/tokens.py web/server/src/moolakata/ui/session.py
+S10.2	web/server/src/moolakata/alerts.py web/server/src/moolakata/ui/settings.py
+S10.3	web/server/src/moolakata/access.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/sharing.py web/server/src/moolakata/store/tables/sharing.py web/server/src/moolakata/ui/activity.py web/server/src/moolakata/ui/budgets.py web/ui/screens/linked.js
+S10.3.1	
+S10.3.2	
+S10.3.3	web/server/src/moolakata/links/manage.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/sharing.py
+S10.3.3.1	web/server/src/moolakata/store/tables/users.py
+S10.3.3.2	
+S10.3.3.3	
+S10.4	web/server/src/moolakata/sharing.py web/server/src/moolakata/ui/sharing.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json web/ui/components/share.js
+S10.5	
+S10.6	web/server/src/moolakata/sharing.py web/ui/screens/accounts.js
+S10.7	web/server/src/moolakata/access.py web/server/src/moolakata/figures.py web/server/src/moolakata/store/tables/sharing.py web/server/src/moolakata/ui/portfolios.py web/server/src/moolakata/ui/sharing.py web/ui/api/openapi.json
+S10.8	web/server/src/moolakata/activity.py web/server/src/moolakata/store/tables/activity.py web/server/src/moolakata/ui/activity.py web/ui/screens/activity.js
+S10.9	web/server/src/moolakata/mcp.py
+S10.9.1	web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/tokens.py web/server/src/moolakata/ui/tokens.py web/ui/components/tokens.js
+S10.9.2	
+S10.9.3	
+S10.9.4	web/server/src/moolakata/tokens.py
+S10.9.5	web/server/src/moolakata/mcp.py
+S10.9.6	
+S10.10	web/server/src/moolakata/dev/seed.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/store/tables/education.py web/server/src/moolakata/store/tables/people.py web/server/src/moolakata/ui/education.py web/server/src/moolakata/ui/gifts.py web/server/src/moolakata/ui/people.py web/server/src/moolakata/ui/profile.py web/server/src/moolakata/ui/projections.py web/ui/api/openapi.json web/ui/screens/profile.js
+S10.10.1	web/server/src/moolakata/links/manage.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/education.py web/server/src/moolakata/ui/gifts.py web/server/src/moolakata/ui/people.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/users.py web/ui/api/openapi.json web/ui/screens/gifts.js
+S10.10.2	web/server/src/moolakata/links/serve.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/store/tables/people.py web/server/src/moolakata/store/tables/sharing.py web/server/src/moolakata/ui/gifts.py web/server/src/moolakata/ui/people.py web/server/src/moolakata/ui/sharing.py web/ui/api/openapi.json
+S10.10.3	web/server/src/moolakata/alerts.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/ui/gifts.py web/server/src/moolakata/ui/people.py web/ui/api/openapi.json web/ui/screens/gifts.js
+S10.10.4	web/server/src/moolakata/dev/seed.py web/server/src/moolakata/people/__init__.py web/server/src/moolakata/store/alembic/versions/0015_access_between_users.py web/server/src/moolakata/store/tables/people.py web/server/src/moolakata/ui/people.py web/server/src/moolakata/washes.py web/ui/api/openapi.json web/ui/screens/profile.js
+S10.10.4.1	web/server/src/moolakata/people/__init__.py
+S10.10.4.2	web/server/src/moolakata/ui/people.py
+S10.10.4.3	web/server/src/moolakata/ui/profile.py web/ui/api/openapi.json web/ui/api/types.js
+S10.10.5	web/server/src/moolakata/people/tree.py web/server/src/moolakata/ui/gifts.py web/server/src/moolakata/ui/people.py web/ui/api/openapi.json
+S10.10.6	web/server/src/moolakata/ui/profile.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/profile.js
+S11	
+S11.1	web/server/src/moolakata/app.py web/server/src/moolakata/links/manage.py web/server/src/moolakata/links/peers.py web/server/src/moolakata/store/tables/links.py web/server/src/moolakata/ui/links.py web/ui/components/links.js
+S11.1.1	
+S11.1.2	
+S11.1.3	web/server/src/moolakata/app.py web/server/src/moolakata/certs.py web/server/src/moolakata/dev/seed_links.py web/server/src/moolakata/links/client.py web/server/src/moolakata/links/keys.py web/server/src/moolakata/links/routes.py web/server/src/moolakata/links/signing.py web/server/src/moolakata/net.py web/server/src/moolakata/store/alembic/versions/0016_transport.py web/server/src/moolakata/store/tables/links.py web/server/src/moolakata/ui/links.py
+S11.2	web/server/src/moolakata/links/client.py web/server/src/moolakata/links/manage.py web/server/src/moolakata/links/routes.py web/server/src/moolakata/settings.py
+S11.2.1	
+S11.2.2	
+S11.2.3	
+S11.3	web/server/src/moolakata/links/manage.py web/server/src/moolakata/links/receive.py web/server/src/moolakata/links/routes.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/ui/links.py web/ui/api/openapi.json web/ui/api/types.js
+S11.3.1	web/server/src/moolakata/links/copydb.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/ui/budgets.py
+S11.4	web/server/src/moolakata/links/changes.py web/server/src/moolakata/links/manage.py web/server/src/moolakata/links/receive.py web/server/src/moolakata/links/routes.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/middleware.py web/server/src/moolakata/runtime.py web/server/src/moolakata/store/tables/links.py
+S11.5	web/server/src/moolakata/links/serve.py
+S11.5.1	web/server/src/moolakata/links/routes.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/sharing.py web/server/src/moolakata/store/tables/sharing.py web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json
+S11.5.2	web/server/src/moolakata/ui/gifts.py
+S11.6	web/server/src/moolakata/alerts.py web/server/src/moolakata/links/manage.py web/server/src/moolakata/links/receive.py web/server/src/moolakata/links/routes.py web/server/src/moolakata/store/alembic/versions/0016_transport.py web/server/src/moolakata/store/tables/links.py web/server/src/moolakata/ui/links.py
+S11.7	web/server/src/moolakata/links/peers.py web/server/src/moolakata/store/alembic/versions/0010_links_the_rest.py web/server/src/moolakata/store/tables/links.py web/server/src/moolakata/ui/links.py web/ui/api/openapi.json web/ui/api/types.js web/ui/components/links.js
+S11.7.1	web/server/src/moolakata/links/receive.py web/server/src/moolakata/store/tables/links.py
+S11.7.2	web/server/src/moolakata/links/manage.py web/server/src/moolakata/store/tables/links.py web/server/src/moolakata/ui/links.py web/ui/api/openapi.json web/ui/components/links.js
+S11.7.3	
+S11.8	web/server/src/moolakata/links/copies.py web/server/src/moolakata/links/receive.py web/server/src/moolakata/ui/linked.py web/server/src/moolakata/ui/links.py web/ui/api/openapi.json
+S11.9	web/server/src/moolakata/links/copies.py web/server/src/moolakata/links/copy.py web/server/src/moolakata/links/receive.py web/server/src/moolakata/store/alembic/versions/0016_transport.py web/ui/components/links.js
+S11.9.1	web/server/src/moolakata/links/copydb.py web/server/src/moolakata/runtime.py web/server/src/moolakata/store/alembic/versions/0013_the_copy_folder.py web/server/src/moolakata/store/tables/links.py
+S11.9.2	web/server/src/moolakata/keys/phrase.py web/server/src/moolakata/links/copy.py web/server/src/moolakata/store/tables/links.py
+S11.9.2.1	web/server/src/moolakata/links/copies.py web/server/src/moolakata/ui/links.py web/ui/api/openapi.json web/ui/components/links.js
+S11.9.2.2	web/server/src/moolakata/store/tables/links.py
+S11.9.2.3	
+S11.9.3	web/server/src/moolakata/app.py web/server/src/moolakata/links/copy.py web/server/src/moolakata/ui/linked.py web/ui/screens/linked.js
+S11.9.3.1	web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json
+S11.9.3.2	web/server/src/moolakata/links/copies.py
+S11.9.3.3	
+S11.9.4	web/server/src/moolakata/links/copy.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/db.py
+S11.9.4.1	
+S11.9.4.2	web/server/src/moolakata/runtime.py
+S11.9.4.3	web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json
+S11.9.4.4	
+S11.9.4.5	
+S11.9.5	web/server/src/moolakata/links/changes.py web/server/src/moolakata/links/copydb.py web/server/src/moolakata/store/tables/links.py
+S11.9.5.1	
+S11.9.5.2	web/server/src/moolakata/links/receive.py
+S11.9.5.3	web/server/src/moolakata/links/changes.py web/server/src/moolakata/links/copies.py
+S11.9.5.4	
+S11.9.5.5	
+S11.9.6	web/server/src/moolakata/keys/files.py web/server/src/moolakata/links/copydb.py web/server/src/moolakata/links/receive.py web/server/src/moolakata/links/sealed.py web/server/src/moolakata/links/serve.py web/server/src/moolakata/ui/linked.py
+S11.9.6.1	
+S11.9.6.2	
+S11.9.6.3	
+S11.9.6.4	web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json
+S11.9.6.5	web/server/src/moolakata/links/changes.py web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json
+S11.9.6.6	web/server/src/moolakata/keys/files.py web/server/src/moolakata/links/changes.py web/server/src/moolakata/links/copies.py web/server/src/moolakata/links/sealed.py
+S11.9.6.7	
+S11.9.7	
+S11.9.8	web/server/src/moolakata/links/copies.py web/server/src/moolakata/ui/links.py web/ui/api/openapi.json
+S11.9.9	web/server/src/moolakata/runtime.py web/server/src/moolakata/store/maintenance.py
+S11.9.10	
+S11.9.11	web/server/src/moolakata/links/copydb.py
+S12	
+S12.1	web/ui/components/frame.js
+S12.1.1	web/server/src/moolakata/app.py
+S12.1.2	web/ui/components/toast.js
+S12.1.3	web/server/src/moolakata/ui/activity.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json web/ui/components/dialog.js web/ui/components/fields.js web/ui/components/help.js web/ui/components/menu.js web/ui/components/pager.js web/ui/components/tooltip.js web/ui/screens/transactions.js
+S12.1.4	web/ui/app/stream.js
+S12.2	web/ui/components/frame.js web/ui/screens/positions.js
+S12.2.1	web/server/src/moolakata/figures.py web/server/src/moolakata/ui/dashboard.py web/ui/api/openapi.json web/ui/api/types.js web/ui/screens/dashboard.js
+S12.2.2	web/server/src/moolakata/ui/accounts.py web/ui/screens/account.js web/ui/screens/accounts.js web/ui/screens/new-account.js
+S12.2.3	web/server/src/moolakata/ui/budgets.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json web/ui/components/txtable.js web/ui/screens/transactions.js
+S12.2.4	web/ui/screens/portfolios.js
+S12.2.5	
+S12.2.6	
+S12.2.7	
+S12.2.8	web/ui/screens/gifts.js
+S12.2.9	web/server/src/moolakata/ui/giving.py web/ui/screens/giving.js
+S12.2.10	web/server/src/moolakata/ui/taxes.py web/ui/screens/taxes.js
+S12.2.11	
+S12.2.12	
+S12.2.13	
+S12.2.14	
+S12.2.15	
+S12.2.16	web/server/src/moolakata/ui/profile.py web/ui/screens/profile.js
+S12.3	web/ui/components/amount.js
+S12.4	web/ui/app/format.js web/ui/components/amount.js
+S12.5	web/server/src/moolakata/prices/refresh.py
+S12.6	web/server/src/moolakata/alerts.py web/server/src/moolakata/events.py web/server/src/moolakata/ui/deps.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/stream.py web/ui/api/openapi.json web/ui/app/stream.js
+S12.7	web/ui/components/help.js
+S12.7.1	
+S12.7.2	
+S12.7.3	web/ui/app/format.js web/ui/components/fields.js web/ui/components/help.js web/ui/components/markdown.js
+S12.7.4	web/ui/components/markdown.js
+S12.7.5	web/ui/mockup/help_shots.py
+S12.7.6	
+S12.7.7	web/ui/components/markdown.js web/ui/components/term.js web/ui/guides/forms.md web/ui/guides/terms.md
+S12.7.8	web/ui/components/markdown.js web/ui/guides/forms.md
+S12.8	web/ui/charts/chart.js
+S12.9	web/server/src/moolakata/clock.py web/ui/app/config.js web/ui/mockup/build.py web/ui/mockup/iso.js web/ui/mockup/menu.js web/ui/mockup/runtime.js
+S12.9.1	
+S12.9.2	
+S12.10	web/server/src/moolakata/ui/linked.py web/ui/api/client.js web/ui/app/main.js web/ui/screens/linked.js
+S12.10.1	web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json web/ui/components/frame.js web/ui/screens/accounts.js
+S12.10.2	
+S12.10.3	
+S12.10.3.1	
+S12.10.3.2	web/server/src/moolakata/store/tables/links.py web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json
+S12.10.3.3	
+S12.10.3.4	web/server/src/moolakata/ui/linked.py web/ui/api/openapi.json web/ui/screens/linked.js
+S12.10.3.5	
+S12.10.4	web/ui/screens/linked.js
+S12.10.5	
+S12.11	web/server/src/moolakata/alerts.py web/server/src/moolakata/dev/seed_accounts.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/tables/alerts.py web/server/src/moolakata/ui/alerts.py web/ui/screens/alerts.js web/ui/screens/settings.js
+S12.11.1	web/server/src/moolakata/alerts.py
+S12.11.1.1	web/server/src/moolakata/links/manage.py
+S12.11.1.2	
+S12.11.1.3	web/server/src/moolakata/alerts.py
+S12.11.2	web/server/src/moolakata/alerts.py
+S12.11.3	
+S12.11.4	web/ui/app/stream.js
+S12.11.5	web/server/src/moolakata/alerts.py web/server/src/moolakata/dev/seed.py web/server/src/moolakata/store/tables/users.py
+S12.11.5.1	
+S12.11.5.2	
+S12.11.5.3	
+S12.12	web/ui/app/dec.js web/ui/app/main.js
+S12.13	web/server/src/moolakata/duration.py web/server/src/moolakata/ui/links.py web/ui/app/duration.js web/ui/components/links.js
+S12.14	
+S12.14.1	web/server/src/moolakata/ui/welcome.py web/ui/screens/new-server.js web/ui/styles/components.css
+S12.14.2	
+S13	
+S13.1	
+S13.2	web/server/src/moolakata/auth/sessions.py web/server/src/moolakata/ui/deps.py
+S13.3	web/server/src/moolakata/certs.py web/server/src/moolakata/config.py web/server/src/moolakata/listener.py web/server/src/moolakata/middleware.py
+S13.4	web/server/src/moolakata/runtime.py web/server/src/moolakata/tasks.py
+S13.5	connector/moolakata_connector/client.py connector/tests/test_core.py web/server/src/moolakata/app.py web/server/src/moolakata/bitcoin/sources.py web/server/src/moolakata/links/manage.py web/server/src/moolakata/links/peers.py web/server/src/moolakata/mail.py web/server/src/moolakata/net.py web/server/src/moolakata/ui/links.py web/server/src/moolakata/ui/prices.py
+S13.6	web/server/src/moolakata/config.py web/server/src/moolakata/events.py web/server/src/moolakata/host.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/listener.py web/server/src/moolakata/main.py web/server/src/moolakata/middleware.py web/server/src/moolakata/ui/unlock.py web/ui/screens/locked.js
+S13.7	web/server/src/moolakata/auth/__init__.py web/server/src/moolakata/middleware.py web/server/src/moolakata/ui/session.py
+S13.7.1	web/server/src/moolakata/auth/sessions.py web/server/src/moolakata/middleware.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/deps.py web/server/src/moolakata/ui/profile.py web/server/src/moolakata/ui/session.py web/ui/api/openapi.json
+S13.7.2	web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/connections.py web/server/src/moolakata/ui/connector.py web/server/src/moolakata/ui/deps.py web/server/src/moolakata/ui/links.py web/server/src/moolakata/ui/prices.py web/server/src/moolakata/ui/session.py web/server/src/moolakata/ui/settings.py web/server/src/moolakata/ui/sharing.py web/server/src/moolakata/ui/tokens.py web/server/src/moolakata/ui/users.py web/ui/api/openapi.json web/ui/components/reauth.js web/ui/components/share.js web/ui/screens/profile.js
+S13.7.3	web/server/src/moolakata/auth/passwords.py
+S13.7.4	web/server/src/moolakata/middleware.py
+S13.7.5	web/server/src/moolakata/ratelimit.py web/ui/mockup/build.py
+S13.7.5.1	web/server/src/moolakata/ratelimit.py web/server/src/moolakata/ui/profile.py web/server/src/moolakata/ui/session.py web/ui/api/openapi.json
+S13.7.5.2	
+S13.7.5.3	web/server/src/moolakata/connector/files.py
+S13.7.5.4	web/server/src/moolakata/app.py web/server/src/moolakata/links/keys.py web/server/src/moolakata/links/routes.py
+S13.7.5.5	
+S13.7.6	web/server/src/moolakata/app.py web/server/src/moolakata/middleware.py web/server/src/moolakata/ui/imports.py
+S13.7.7	web/server/src/moolakata/middleware.py
+S13.7.8	web/server/src/moolakata/errors.py web/server/src/moolakata/ui/receipts.py
+S13.7.9	web/server/src/moolakata/jobs.py web/server/src/moolakata/links/client.py web/server/src/moolakata/middleware.py web/server/src/moolakata/store/db.py web/server/src/moolakata/tasks.py
+S13.7.10	
+S13.7.11	connector/requirements.txt
+S13.8	web/server/src/moolakata/contract.py web/server/src/moolakata/ui/__init__.py web/server/src/moolakata/ui/conventions.py web/ui/api/client.js web/ui/api/openapi.json
+S13.8.1	web/server/src/moolakata/ui/conventions.py web/ui/api/openapi.json web/ui/api/types.js
+S13.8.1.1	
+S13.8.2	web/server/src/moolakata/contract.py web/server/src/moolakata/exactjson.py web/server/src/moolakata/ui/conventions.py web/server/src/moolakata/ui/linked.py web/ui/app/dec.js web/ui/app/format.js web/ui/mockup/runtime.js
+S13.8.2.1	
+S13.8.2.2	
+S13.8.2.3	
+S13.8.2.4	
+S13.8.3	web/server/src/moolakata/contract.py web/server/src/moolakata/errors.py web/ui/api/openapi.json web/ui/api/types.js
+S13.8.4	web/server/src/moolakata/contract.py web/server/src/moolakata/middleware.py web/server/src/moolakata/ui/budgets.py web/server/src/moolakata/ui/people.py web/server/src/moolakata/ui/reimbursements.py web/server/src/moolakata/ui/transactions.py web/server/src/moolakata/ui/users.py web/ui/api/openapi.json
+S13.8.5	web/server/src/moolakata/links/serve.py web/server/src/moolakata/ui/conventions.py web/ui/app/hooks.js web/ui/components/pager.js
+S13.8.6	web/server/src/moolakata/store/entities/__init__.py web/server/src/moolakata/store/tables/_base.py web/server/src/moolakata/ui/budgets.py web/server/src/moolakata/ui/connections.py web/server/src/moolakata/ui/conventions.py web/server/src/moolakata/ui/education.py web/server/src/moolakata/ui/items.py web/server/src/moolakata/ui/loans.py web/server/src/moolakata/ui/projections.py web/server/src/moolakata/ui/receipts.py web/server/src/moolakata/ui/settings.py web/server/src/moolakata/ui/sharing.py web/server/src/moolakata/ui/wallets.py web/ui/api/openapi.json
+S13.8.6.1	
+S13.8.6.2	
+S13.8.6.3	
+S13.8.7	web/server/src/moolakata/jobs.py web/server/src/moolakata/tasks.py web/server/src/moolakata/ui/imports.py web/server/src/moolakata/ui/links.py web/server/src/moolakata/ui/prices.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S13.8.8	web/server/src/moolakata/ui/conventions.py
+S13.8.9	web/server/src/moolakata/contract.py
+S13.8.10	web/server/src/moolakata/access.py
+S14	
+S14.1	web/server/src/moolakata/store/__init__.py
+S14.1.1	web/server/src/moolakata/store/tables/__init__.py
+S14.1.2	web/server/src/moolakata/ledger/__init__.py web/server/src/moolakata/store/entities/__init__.py web/server/src/moolakata/store/mapping.py
+S14.1.3	web/server/src/moolakata/store/copy.py web/server/src/moolakata/store/migrate.py
+S14.1.4	web/server/src/moolakata/store/db.py web/server/src/moolakata/store/repos/__init__.py
+S14.1.5	
+S14.2	
+S14.3	web/server/src/moolakata/assets/__init__.py web/server/src/moolakata/bitcoin/sources.py web/server/src/moolakata/loans/payoff.py web/server/src/moolakata/money.py web/server/src/moolakata/prices/base.py web/server/src/moolakata/store/alembic/versions/0017_figures.py web/server/src/moolakata/store/alembic/versions/0024_changes_in_cents.py web/server/src/moolakata/store/alembic/versions/0026_the_last_money_in_cents.py web/server/src/moolakata/store/types.py web/ui/app/dec.js web/ui/app/format.js
+S14.4	web/server/src/moolakata/auth/tokens.py web/server/src/moolakata/auth/twostep.py web/server/src/moolakata/keys/secrets.py web/server/src/moolakata/links/keys.py web/server/src/moolakata/store/repos/secrets.py web/server/src/moolakata/store/tables/users.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S14.5	
+S14.6	web/server/src/moolakata/host.py web/server/src/moolakata/receipts/retention.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/copies.py web/server/src/moolakata/store/copy.py web/server/src/moolakata/store/maintenance.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S14.7	web/server/src/moolakata/store/cli.py web/server/src/moolakata/store/maintenance.py
+S14.8	
+S14.9	web/server/src/moolakata/store/types.py web/server/src/moolakata/timezones.py web/ui/app/format.js
+S14.9.1	web/ui/app/format.js
+S14.9.2	web/server/src/moolakata/timezones.py
+S14.9.3	web/server/src/moolakata/importers/ofx.py web/server/src/moolakata/store/types.py
+S14.9.4	
+S14.9.5	web/server/src/moolakata/clock.py web/ui/app/format.js
+S14.10	web/server/src/moolakata/receipts/retention.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/alembic/versions/0006_file_retention.py web/server/src/moolakata/ui/settings.py web/ui/components/storage.js
+S14.10.1	
+S14.10.1.1	web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/transactions.py web/ui/api/openapi.json web/ui/components/storage.js
+S14.10.1.2	
+S14.10.1.3	web/server/src/moolakata/store/tables/receipts.py web/server/src/moolakata/ui/receipts.py
+S14.10.2	
+S14.10.3	web/server/src/moolakata/ui/receipts.py
+S14.10.4	web/server/src/moolakata/receipts/retention.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S14.10.5	web/server/src/moolakata/receipts/retention.py web/server/src/moolakata/store/tables/receipts.py web/server/src/moolakata/ui/receipts.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/components/storage.js
+S14.10.6	web/server/src/moolakata/links/serve.py
+S15	
+S15.1	
+S15.1.1	
+S15.1.2	
+S15.1.3	
+S15.1.4	
+S15.1.5	
+S15.1.6	web/server/src/moolakata/auth/tokens.py
+S15.1.7	web/server/src/moolakata/store/alembic/versions/0025_emails_queued_in_the_database.py
+S15.2	
+S15.3	web/server/src/moolakata/keys/master.py
+S15.3.1	
+S15.3.2	web/server/src/moolakata/keys/files.py web/server/src/moolakata/keys/master.py
+S15.3.2.1	
+S15.3.2.2	
+S15.3.2.3	
+S15.3.3	web/server/src/moolakata/keys/secrets.py
+S15.3.4	web/server/src/moolakata/store/maintenance.py
+S15.3.5	web/server/src/moolakata/keys/master.py
+S15.3.6	
+S15.3.7	
+S15.4	web/server/src/moolakata/config.py web/server/src/moolakata/dev/devmode.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/keys/master.py web/server/src/moolakata/middleware.py web/server/src/moolakata/store/cli.py web/ui/store/session.js
+S15.4.1	
+S15.4.2	web/server/src/moolakata/host.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/ui/settings.py web/server/src/moolakata/ui/unlock.py web/ui/api/openapi.json
+S15.4.3	web/server/src/moolakata/app.py web/server/src/moolakata/runtime.py web/server/src/moolakata/ui/unlock.py web/ui/app/main.js web/ui/mockup/runtime.js web/ui/screens/locked.js
+S15.4.4	web/server/src/moolakata/app.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/keys/welcome.py web/server/src/moolakata/runtime.py web/server/src/moolakata/ui/unlock.py web/server/src/moolakata/ui/welcome.py web/ui/api/openapi.json web/ui/app/main.js web/ui/mockup/runtime.js web/ui/screens/locked.js web/ui/screens/new-server.js
+S15.4.5	web/server/src/moolakata/keys/master.py web/server/src/moolakata/runtime.py
+S15.4.6	
+S15.4.7	web/server/src/moolakata/host.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/runtime.py web/server/src/moolakata/store/cli.py
+S15.5	
+S15.5.1	
+S15.5.2	
+S15.5.3	
+S15.6	web/server/src/moolakata/keys/cli.py
+S15.6.1	web/server/src/moolakata/keys/phrase.py
+S15.6.2	
+S15.6.2.1	
+S15.6.2.2	
+S15.6.2.3	
+S15.6.3	
+S15.6.4	
+S15.6.5	web/server/src/moolakata/alerts.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/runtime.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/screens/settings.js
+S15.6.6	
+S15.6.7	
+S15.6.8	web/server/src/moolakata/runtime.py web/server/src/moolakata/store/copies.py web/server/src/moolakata/store/maintenance.py web/server/src/moolakata/store/reencrypt.py web/server/src/moolakata/ui/settings.py
+S15.7	web/server/src/moolakata/keys/cli.py web/server/src/moolakata/store/copies.py web/server/src/moolakata/store/migrate.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/screens/settings.js
+S15.7.1	web/server/src/moolakata/host.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/keys/master.py web/server/src/moolakata/store/copies.py web/server/src/moolakata/store/maintenance.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S15.7.1.1	
+S15.7.1.2	
+S15.7.1.3	
+S15.7.1.4	web/server/src/moolakata/store/copies.py
+S15.7.2	web/server/src/moolakata/app.py web/server/src/moolakata/keys/cli.py web/server/src/moolakata/keys/secrets.py web/server/src/moolakata/runtime.py web/server/src/moolakata/store/copies.py web/server/src/moolakata/store/maintenance.py web/server/src/moolakata/store/reencrypt.py web/server/src/moolakata/ui/settings.py web/server/src/moolakata/ui/unlock.py web/ui/api/openapi.json web/ui/screens/locked.js web/ui/screens/settings.js
+S15.7.3	
+S15.7.3.1	
+S15.7.3.2	
+S15.7.3.3	
+S15.7.4	web/server/src/moolakata/store/maintenance.py
+S15.8	web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json
+S15.8.1	
+S15.8.1.1	
+S15.8.1.2	
+S15.8.1.3	
+S15.8.2	web/server/src/moolakata/settings.py
+S15.8.2.1	
+S15.8.2.2	
+S15.8.2.3	
+S15.8.2.4	
+S15.8.3	
+S15.8.4	web/server/src/moolakata/alerts.py
+S15.8.5	
+S15.8.6	
+S15.8.7	
+S16	
+S16.1	web/server/src/moolakata/dev/seed.py web/server/src/moolakata/mail.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/tables/links.py
+S16.2	web/server/src/moolakata/config.py web/server/src/moolakata/mail.py web/server/src/moolakata/runtime.py web/server/src/moolakata/settings.py web/server/src/moolakata/store/alembic/versions/0025_emails_queued_in_the_database.py web/server/src/moolakata/store/tables/core.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/screens/settings.js
+S16.3	web/server/src/moolakata/settings.py
+S16.4	web/server/src/moolakata/settings.py
+S16.5	web/server/src/moolakata/settings.py
+S16.6	web/server/src/moolakata/settings.py web/server/src/moolakata/ui/prices.py
+S16.7	web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/dev/seed.py web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py web/ui/screens/settings.js
+S16.8	web/server/src/moolakata/settings.py
+S16.9	web/server/src/moolakata/settings.py
+S16.10	web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py
+S16.11	web/server/src/moolakata/projections/taxtables.py web/server/src/moolakata/store/tables/projections.py web/server/src/moolakata/ui/projections.py web/ui/screens/settings.js
+S16.12	web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py
+S16.13	web/server/src/moolakata/store/maintenance.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/screens/settings.js
+S16.14	web/server/src/moolakata/app.py web/server/src/moolakata/middleware.py web/server/src/moolakata/settings.py
+S16.15	
+S16.16	web/server/src/moolakata/alerts.py web/server/src/moolakata/settings.py
+S16.17	web/server/src/moolakata/settings.py web/server/src/moolakata/ui/settings.py web/ui/api/openapi.json web/ui/components/storage.js
+S16.18	web/server/src/moolakata/ui/connector.py web/ui/components/connector.js
+S17	
+S17.1	
+S17.2	web/server/src/moolakata/dev/wheels.py
+S17.2.1	web/server/src/moolakata/dev/audit.py
+S17.3	web/server/src/moolakata/static.py
+S17.3.1	
+S17.3.1.1	
+S17.3.1.2	
+S17.3.2	
+S17.3.3	
+S17.3.4	web/ui/app/router.js
+S17.3.5	web/server/src/moolakata/static.py web/ui/app/config.js
+S17.3.6	web/ui/components/icon.js web/ui/styles/base.css web/ui/styles/tokens.css
+S17.3.7	web/ui/store/prefs.js
+S17.3.8	
+S17.4	web/ui/charts/chart.js
+S17.5	web/server/src/moolakata/contract.py
+S17.6	web/server/src/moolakata/main.py
+S17.7	web/server/src/moolakata/bitcoin/stub.py web/server/src/moolakata/bitcoin/sync.py web/server/src/moolakata/dev/devmode.py web/server/src/moolakata/dev/seed.py web/server/src/moolakata/dev/seed_accounts.py web/server/src/moolakata/dev/seed_assets.py web/server/src/moolakata/dev/seed_budgets.py web/server/src/moolakata/dev/seed_connector.py web/server/src/moolakata/dev/seed_education.py web/server/src/moolakata/dev/seed_gifts.py web/server/src/moolakata/dev/seed_giving.py web/server/src/moolakata/dev/seed_links.py web/server/src/moolakata/dev/seed_loans.py web/server/src/moolakata/dev/seed_options.py web/server/src/moolakata/dev/seed_projections.py web/server/src/moolakata/dev/seed_receipts.py web/server/src/moolakata/dev/seed_sharing.py web/server/src/moolakata/dev/seed_taxes.py web/server/src/moolakata/dev/seed_wallets.py web/server/src/moolakata/main.py web/server/src/moolakata/prices/stub.py web/server/src/moolakata/settings.py web/ui/screens/settings.js
+S17.8	web/server/src/moolakata/config.py
+S17.8.1	web/server/src/moolakata/dev/wheels.py
+S17.8.2	connector/Dockerfile
+S17.8.3	
+S17.8.3.1	
+S17.8.3.2	
+S17.8.3.3	
+S17.8.3.4	
+S17.8.3.5	
+S17.8.4	
+S17.8.5	web/server/src/moolakata/dev/base.py
+S17.9	
+S17.9.1	
+S17.9.1.1	
+S17.9.1.2	
+S17.9.1.3	
+S17.9.1.4	
+S17.9.1.5	
+S17.9.1.6	
+S17.9.1.7	
+S17.9.1.8	
+S17.9.1.9	
+S17.9.2	
+S17.9.2.1	
+S17.9.2.2	
+S17.9.2.3	
+S17.9.2.4	
+S17.9.2.5	
+S17.9.2.6	
+S17.9.2.7	
+S17.9.2.8	
+S17.9.2.9	
+S17.9.3	
+S17.9.3.1	
+S17.9.3.2	
+S17.9.3.3	
+S17.9.3.4	
+S17.9.3.5	
+S17.9.3.6	
+S17.9.3.7	
+S17.9.3.8	
+S17.9.3.9	
+S17.9.4	
+S17.9.4.1	
+S17.9.4.2	
+S17.9.4.3	
+S17.9.4.4	
+S17.9.4.5	
+S17.9.4.6	
+S17.9.4.7	
+S17.9.4.8	
+S17.9.4.9	
+S17.9.5	
+S17.9.5.1	
+S17.9.5.2	
+S17.9.5.3	
+S17.9.5.4	
+S17.9.5.5	
+S17.9.5.6	
+S17.9.5.7	
+S17.9.5.8	
+S17.9.5.9	
+S17.9.6	
+S17.9.6.1	
+S17.9.6.2	
+S17.9.6.3	
+S17.9.6.4	
+S17.9.6.5	
+S17.9.6.6	
+S17.9.6.7	
+S17.9.6.8	
+S17.9.6.9	
+S17.9.7	
+S17.9.7.1	
+S17.9.7.2	
+S17.9.7.3	
+S17.9.7.4	
+S17.9.7.5	
+S17.9.7.6	
+S17.9.7.7	
+S17.9.7.8	web/server/src/moolakata/dev/mocks.py
+S17.9.7.9	
+S17.9.7.10	
+S17.9.8	
+S17.9.8.1	
+S17.9.8.2	
+S17.9.8.3	
+S17.9.8.4	
+S17.9.8.5	
+S17.9.8.6	
+S17.9.8.7	
+S17.9.8.8	
+S17.9.8.9	
+S17.9.9	
+S17.9.9.1	
+S17.9.9.2	
+S17.9.9.3	
+S17.9.9.4	
+S17.9.9.5	
+S17.9.9.6	
+S17.9.9.7	
+S17.9.9.8	
+S17.9.9.9	
+S17.9.10	
+S17.9.11	
+S17.9.12	
+S17.9.12.1	
+S17.9.12.2	
+S17.9.12.3	
+S17.9.12.4	
+S17.9.12.5	
+S17.9.12.6	
+S17.9.12.7	
+S17.9.12.8	
+S17.9.12.9	
+S17.9.12.10	
+S17.10	
+S17.10.1	
+S17.10.2	
+S17.10.2.1	
+S17.10.2.2	web/server/src/moolakata/static.py
+S17.10.3	
+S18	
+S18.1	connector/tests/test_core.py
+S18.1.1	connector/moolakata_connector/client.py connector/moolakata_connector/drivers/__init__.py
+S18.1.2	connector/Dockerfile connector/moolakata_connector/__init__.py connector/moolakata_connector/client.py connector/moolakata_connector/core.py connector/pyproject.toml connector/requirements.txt connector/tests/conftest.py connector/tests/test_core.py
+S18.1.2.1	
+S18.1.2.2	
+S18.2	
+S18.2.1	
+S18.2.2	connector/moolakata_connector/client.py connector/moolakata_connector/sock.py web/server/src/moolakata/dev/seed_connector.py
+S18.2.3	web/server/src/moolakata/store/tables/connector.py
+S18.2.4	
+S18.2.4.1	
+S18.2.4.2	
+S18.2.4.3	
+S18.2.4.4	web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/alembic/versions/0014_addresses.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connector.py web/ui/api/openapi.json
+S18.2.4.5	
+S18.3	connector/moolakata_connector/main.py connector/moolakata_connector/vault.py
+S18.3.1	connector/moolakata_connector/main.py connector/moolakata_connector/words.py connector/tests/test_core.py
+S18.3.2	connector/moolakata_connector/core.py connector/moolakata_connector/sock.py
+S18.3.3	connector/moolakata_connector/page.py
+S18.3.4	connector/moolakata_connector/core.py connector/moolakata_connector/main.py connector/moolakata_connector/page.py connector/moolakata_connector/vault.py connector/tests/test_core.py
+S18.4	connector/moolakata_connector/main.py connector/tests/test_end_to_end.py web/server/src/moolakata/certs.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/net.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connector.py web/ui/components/connector.js
+S18.4.1	web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connector.py web/ui/api/openapi.json
+S18.4.2	connector/moolakata_connector/core.py connector/moolakata_connector/keys.py connector/tests/test_end_to_end.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/tables/connector.py
+S18.4.3	connector/tests/test_end_to_end.py web/server/src/moolakata/app.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/connector/routes.py web/server/src/moolakata/store/alembic/versions/0012_the_pairing_confirmed.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connections.py web/server/src/moolakata/ui/connector.py web/ui/api/openapi.json
+S18.4.4	connector/moolakata_connector/core.py connector/tests/test_core.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/connector/routes.py web/server/src/moolakata/ui/connector.py web/ui/api/openapi.json
+S18.4.5	connector/moolakata_connector/core.py connector/moolakata_connector/keys.py connector/moolakata_connector/main.py connector/moolakata_connector/vault.py connector/tests/test_core.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/alembic/versions/0020_the_connector_trusted.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connections.py web/ui/app/sealed.js
+S18.5	connector/moolakata_connector/core.py connector/tests/test_core.py web/server/src/moolakata/alerts.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/tables/connector.py web/ui/components/connector.js
+S18.5.1	
+S18.5.2	web/server/src/moolakata/connector/manage.py
+S18.5.3	web/server/src/moolakata/alerts.py
+S18.5.4	web/server/src/moolakata/alerts.py web/server/src/moolakata/store/alembic/versions/0020_the_connector_trusted.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connector.py
+S18.6	web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connections.py web/ui/components/connections.js
+S18.6.1	
+S18.6.2	web/server/src/moolakata/dev/seed_connector.py web/server/src/moolakata/store/alembic/versions/0011_the_connector.py web/server/src/moolakata/store/tables/accounts.py web/server/src/moolakata/ui/accounts.py web/ui/components/connections.js
+S18.6.3	
+S18.6.4	web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connections.py web/ui/api/openapi.json
+S18.7	connector/moolakata_connector/core.py web/server/src/moolakata/ui/connections.py web/ui/components/connections.js
+S18.7.1	connector/moolakata_connector/core.py connector/moolakata_connector/drivers/__init__.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/connector/sealed.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connections.py web/server/src/moolakata/ui/connector.py web/ui/api/openapi.json web/ui/app/sealed.js
+S18.7.2	connector/moolakata_connector/core.py connector/moolakata_connector/main.py connector/tests/test_core.py web/server/src/moolakata/ui/connections.py
+S18.7.3	connector/moolakata_connector/core.py connector/moolakata_connector/drivers/__init__.py connector/moolakata_connector/drivers/ofx_direct.py connector/moolakata_connector/vault.py connector/tests/test_core.py
+S18.8	connector/moolakata_connector/core.py connector/moolakata_connector/drivers/__init__.py connector/tests/test_end_to_end.py web/server/src/moolakata/connector/files.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/connector/routes.py
+S18.9	connector/moolakata_connector/drivers/__init__.py connector/tests/test_drivers.py web/server/src/moolakata/ui/connections.py
+S18.9.1	
+S18.9.2	connector/moolakata_connector/drivers/ofx_direct.py connector/moolakata_connector/drivers/schwab.py
+S18.10	connector/Dockerfile
+S18.11	connector/Dockerfile connector/moolakata_connector/main.py connector/moolakata_connector/page.py connector/tests/test_end_to_end.py connector/tests/test_page.py
+S18.11.1	connector/moolakata_connector/core.py connector/moolakata_connector/page.py web/server/src/moolakata/connector/manage.py web/server/src/moolakata/store/alembic/versions/0027_the_connectors_page.py web/server/src/moolakata/store/tables/connector.py web/server/src/moolakata/ui/connector.py
+S18.11.2	connector/moolakata_connector/core.py connector/moolakata_connector/page.py
+S18.11.3	connector/moolakata_connector/page.py web/server/src/moolakata/connector/manage.py
+S18.11.4	connector/moolakata_connector/vault.py
+S18.11.5	connector/moolakata_connector/page.css connector/moolakata_connector/page.py connector/tests/test_page.py
