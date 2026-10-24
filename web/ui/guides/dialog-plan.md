@@ -26,6 +26,17 @@ Carry what is left at the end of a month into the next, or what was overspent ou
 In an envelope budget, what a category overspent at the month's end does: **carried negative** into
 the next month, or covered **from next month's To Budget**.
 
+## Target
+
+Makes the line a reserve: it puts in its amount each month toward this, never more than reaches it,
+and spending in its category takes from it. At the target it reads **Funded** and puts in nothing
+until spending draws it down. Taking the target off asks first, since the balance stops being kept.
+Shown when the budget has reserves.
+
+## Held in
+
+The account a reserve's money is kept in, for **Where the money is**.
+
 ## Projection
 
 For a savings line, an active projection: its monthly contribution shows beside the plan, so you see

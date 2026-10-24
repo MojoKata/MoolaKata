@@ -21,12 +21,19 @@ def seed_budgets(s, people: dict) -> None:
     cat = {c.builtIn: c for c in s.scalars(select(Category).where(Category.builtIn.is_not(None)))}
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
     now = clock.now()
-    b = Budget(id=ids.new_id("Bdgt"), ownerId=alice.id, name="Household")
+    start = add_months(month_of(clock.today()), -11)
+    b = Budget(
+        id=ids.new_id("Bdgt"),
+        ownerId=alice.id,
+        name="Household",
+        reserves=True,
+        moves=True,
+        startMonth=start,
+    )
     s.add(b)
     s.flush()
     for name in ("Everyday checking", "Emergency savings", "Travel Visa"):
         s.add(BudgetAccount(budgetId=b.id, accountId=acct[name].id, createdAt=now))
-    start = add_months(month_of(clock.today()), -11)
     plan = [
         ("income.salary", "5720.00", "month", False),
         ("housing.rent", "2150.00", "month", False),
@@ -48,6 +55,19 @@ def seed_budgets(s, people: dict) -> None:
                 rollover=rollover,
             )
         )
+    # A reserve for car repairs, held in the savings account (S7.10).
+    s.add(
+        BudgetLine(
+            id=ids.new_id("BdgLn"),
+            budgetId=b.id,
+            categoryId=cat["transport.maintenance"].id,
+            fromMonth=start,
+            amount=D("100.00"),
+            rollover=True,
+            target=D("1500.00"),
+            heldInId=acct["Emergency savings"].id,
+        )
+    )
     # Food went up three months ago: the months before keep the old plan.
     s.add(
         BudgetLine(
@@ -62,6 +82,8 @@ def seed_budgets(s, people: dict) -> None:
     for account, days, amount, payee, key, extra in (
         ("Travel Visa", 12, "-389.20", "Hilton Chicago", "travel", {"owedBy": "Acme Corp"}),
         ("Everyday checking", 5, "389.20", "Acme Corp expense report", "income.other", {}),
+        # Interest landed in the savings account reserves are held in, waiting to be given.
+        ("Emergency savings", 0, "6.85", "Interest", "income.interest", {}),
     ):
         s.add(
             Transaction(

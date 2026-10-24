@@ -26,6 +26,7 @@ const TABS = /** @type {[string, string][]} */ ([
   ['recurring', 'Recurring'],
   ['reimbursements', 'Reimbursements'],
 ]);
+TABS.splice(1, 0, ['where', 'Where the money is']);
 
 /** The month shown, kept while moving between tabs and budgets. */
 const shown = signal('');
@@ -112,6 +113,8 @@ export default function Budgets({ id, tab }) {
       ? html`<${Trends} b=${b} month=${shown.value} />`
       : current === 'reimbursements'
       ? html`<${Reimbursements} b=${b} />`
+      : current === 'where'
+      ? html`<${WhereMoneyIs} b=${b} month=${shown.value} />`
       : html`<${Recurring} b=${b} />`}
   `;
 }
@@ -122,7 +125,12 @@ function ThisMonth({ b, month, reloadList }) {
   const v = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} lines=${6} />`;
-  const spend = v.rows.filter((/** @type {any} */ r) => r.kind === 'expense');
+  const spend = v.rows.filter((/** @type {any} */ r) => r.kind === 'expense' && !r.target);
+  const reserveRows = v.rows.filter((/** @type {any} */ r) => r.target);
+  const accts = useList('/accounts');
+  const names = Object.fromEntries(
+    (/** @type {any[]} */ (accts.data) || []).map((a) => [a.id, a.name]),
+  );
   const income = v.rows.filter((/** @type {any} */ r) => r.kind === 'income');
   const saving = v.rows.filter((/** @type {any} */ r) => r.kind === 'savings');
   const left = dec(v.plannedSpending).sub(dec(v.spent));
@@ -203,6 +211,13 @@ function ThisMonth({ b, month, reloadList }) {
             `
             : ''
         }</p>`}
+      ${reserveRows.length
+        ? html`<h4 class="small dim mt">Reserves</h4>${
+          reserveRows.map((/** @type {any} */ r) =>
+            html`<${ReserveRow} r=${r} held=${names[r.heldInId]} />`
+          )
+        }`
+        : null}
       ${v.unplanned.length
         ? html`<h4 class="small dim mt">Not in the plan</h4>${
           v.unplanned.map((/** @type {any} */ u) =>
@@ -314,6 +329,206 @@ function BudgetRow({ r }) {
           }</div>`
           : null}</div>
     </div>
+  `;
+}
+
+/**
+ * A reserve's month (S7.10): its balance against its target, what was put in, spent and moved.
+ * @param {{ r: any, held?: string }} p
+ */
+function ReserveRow({ r, held }) {
+  const p = num(r.target) > 0 ? Math.max(0, num(r.balance)) / num(r.target) : 0;
+  return html`
+    <div class="budget-row">
+      <div>${r.label} <span class="pill">reserve</span></div>
+      <div class="bar" role="meter" aria-valuemin="0" aria-valuemax=${r.target}
+        aria-valuenow=${r.balance}
+        aria-label=${r.label}><i class=${r.state === 'over' ? 'over' : ''} style=${{
+          width: `${Math.min(p, 1) * 100}%`,
+        }}></i></div>
+      <div class="num small amt">${money(r.balance, { cents: false })} <span class="dim">of ${money(
+        r.target,
+        { cents: false },
+      )}</span>${r.state === 'funded'
+        ? html`
+          <span class="pill ok">Funded</span>
+        `
+        : html`
+          <span class="dim">${Math.round(p * 100)}%</span>
+        `}
+        <div class="dim">${dec(r.putIn).gt(0)
+          ? `+${money(r.putIn, { cents: false })} put in`
+          : 'nothing put in'}${dec(r.actual).gt(0)
+          ? ` · −${money(r.actual, { cents: false })}`
+          : ''}${num(
+            r.moved,
+          )
+          ? ` · ${dec(r.moved).gt(0) ? '+' : '−'}${
+            money(dec(r.moved).abs(), { cents: false })
+          } moved`
+          : ''}</div>
+        ${held ? html`<div class="dim">in ${held}</div>` : null}</div>
+    </div>
+  `;
+}
+
+/**
+ * Where the money is (S7.10.4): each account reserves are held in, what is to move there or
+ * back, the money landed there waiting to be given, and each card's payments.
+ * @param {{ b: any, month: string }} p
+ */
+function WhereMoneyIs({ b, month }) {
+  const res = useApi(`/budgets/${b.id}/where`, { month }, ['import']);
+  const w = /** @type {any} */ (res.data);
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!w) return html`<${Loading} lines=${6} />`;
+  if (!w.heldIn.length && !w.cards.length) {
+    return html`<${Empty}>No reserve is held in an account, and no card is among the budget's
+      accounts. Give a reserve an account it's held in with <b>Edit plan</b>.</${Empty}>`;
+  }
+  const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
+    openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
+  return html`
+    <div class="grid g2">${w.heldIn.map((/** @type {any} */ h) =>
+      html`
+        <div class="card"><h3>${h.accountName}<span class="spacer"></span><span class="small dim"
+          style=${{ fontWeight: 400 }}>reserves are held here</span></h3>
+          ${h.reserves.map((/** @type {any} */ r) =>
+            html`<div class="list-item"><span class="grow">${r.label}</span><span
+              class="amt">${money(r.balance)}</span></div>`
+          )}
+          <div class="list-item"><b class="grow">The reserves</b><b class="amt">${money(
+            h.total,
+          )}</b></div>
+          <div class="list-item"><span class="grow dim">Moved in from the budget's accounts</span><span
+            class="amt">${money(h.movedIn)}</span></div>
+          ${dec(h.given).gt(0)
+            ? html`<div class="list-item"><span class="grow dim">Landed money given to them</span><span
+              class="amt">${money(h.given)}</span></div>`
+            : null}
+          ${h.unassigned.map((/** @type {any} */ x) =>
+            html`
+              <div
+                class="list-item"><span class="grow">Unassigned<div class="small dim">${money(
+                  x.free,
+                )} ${x.payee || 'landed'}, ${date(x.date)}</div></span><button type="button"
+                            class="btn sm" data-help="unassigned" onClick=${() =>
+                              assign(h, x)}>Assign</button></div>
+            `
+          )}
+          <div class="list-item"><span class="grow dim">The account's balance${dec(h.balance).lt(
+              dec(h.total),
+            )
+            ? html`<div class="small down">short of its reserves by ${
+              money(
+                dec(h.total).sub(dec(h.balance)),
+              )
+            }</div>`
+            : null}</span><span class="amt">${money(h.balance)}</span></div>
+          ${h.limit
+            ? html`
+              <div
+                class="list-item"><span class="grow dim">Withdrawals this month</span>${h
+                  .withdrawals} of ${h.limit} allowed</div>
+            `
+            : null}
+          ${!w.sayToMove
+            ? html`<p class="small dim">This scenario's own figures; only the active budget says what
+              to move.</p>`
+            : dec(h.toMove).isZero()
+            ? html`
+              <div class="notice mt">
+                <${Icon} name="check" />
+                <div><b>Backed</b>: the reserves'
+                            money is here.</div>
+              </div>
+            `
+            : html`
+              <div class="notice warn mt">
+                <${Icon} name="alert" />
+                <div><b>${money(
+                  dec(h.toMove).abs(),
+                )} to move</b> ${dec(h.toMove).gt(0)
+                  ? `from ${h.movedFromName || 'checking'} to ${h.accountName}`
+                  : `from ${h.accountName} back to ${
+                    h.movedFromName || 'checking'
+                  }`}. It reads backed once
+                            the transfer is imported and paired, whichever of the budget's accounts it involves.${h
+                                .overLimit
+                              ? html`
+                                <b>This would be withdrawal ${h.withdrawals + 1} from ${h
+                                  .accountName} this
+                                              month; it allows ${h.limit}.</b>
+                              `
+                              : null}</div>
+              </div>
+            `}
+        </div>
+      `
+    )}
+    ${w.cards.map((/** @type {any} */ c) =>
+      html`
+        <div class="card"><h3>${c.accountName}<span class="spacer"></span><span class="small dim"
+          style=${{ fontWeight: 400 }}>${c.paidFromName
+            ? `paid from ${c.paidFromName}`
+            : 'no payments yet'}</span></h3>
+          <div class="list-item"><span class="grow dim">Owed</span><span class="amt">${money(
+            c.owed,
+          )}</span></div>
+          <div class="list-item"><span class="grow dim">Paid this month</span><span
+            class="amt">${money(c.paid)}</span></div>
+          ${dec(c.charges).gt(0)
+            ? html`<div class="list-item"><span class="grow dim">Interest and fees</span><span
+              class="amt">${money(c.charges)}</span></div>`
+            : null}
+          <p class="small dim">Spending counts when charged; paying the card moves nothing in a tracking
+            budget.</p>
+        </div>
+      `
+    )}</div>
+  `;
+}
+
+/**
+ * Landed money given to the reserves held where it landed, or kept as the account's own
+ * (S7.10.5).
+ * @param {{ close: (v?: any) => void, b: any, h: any, landed: any, month: string }} p
+ */
+function AssignDialog({ close, b, h, landed, month }) {
+  useDialogGuide('dialog-assign');
+  const [to, setTo] = useState('spread');
+  const [amount, setAmount] = useState(String(landed.free));
+  const save = useSubmit(async () => {
+    await api.post(`/budgets/${b.id}/landed`, {
+      transactionId: landed.transactionId,
+      to,
+      amount: amount.replace(/[$,\s]/g, ''),
+    }, { params: { month } });
+    toast('Assigned');
+    close(true);
+  });
+  return html`
+    <${Dialog} title="Assign landed money" close=${close}
+      onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Assign</button>`}>
+      <p
+        style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
+          .accountName} on ${date(
+            landed.date,
+          )}. In the budget it counts as it always does; this says
+        whose it is.</p>
+      <${Field} label="Give it to" error=${errAt(save.error, 'to')}>
+        <${Select} value=${to} onChange=${setTo} options=${[
+          ['spread', 'Spread among the reserves held here, by balance'],
+          ...h.reserves.map((/** @type {any} */ r) => [r.categoryId, r.label]),
+          ['own', "Keep it as the account's own"],
+        ]} />
+        </${Field}>
+        <${Field} label="Amount to assign" error=${errAt(save.error, 'amount')}>
+          <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
+          </${Field}>
+          <${FormError} error=${save.error} shown=${['to', 'amount']} />
+          </${Dialog}>
   `;
 }
 
@@ -837,8 +1052,17 @@ function PlanDialog({ close, b, month, rows, version }) {
       rollover: r.rollover,
       overspend: r.overspend || 'carry',
       projectionId: r.projectionId || '',
+      target: r.target || '',
+      heldInId: r.heldInId || '',
     })),
   );
+  const accounts = useList('/accounts');
+  const heldOptions = /** @type {[string, string][]} */ ([
+    ['', '—'],
+    ...(/** @type {any[]} */ (accounts.data) || []).filter((a) =>
+      b.accountIds.includes(a.id) && a.type !== 'credit-card'
+    ).map((a) => [a.id, a.name]),
+  ]);
   const kinds = Object.fromEntries(
     (/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.kind]),
   );
@@ -850,18 +1074,30 @@ function PlanDialog({ close, b, month, rows, version }) {
     ]),
   ]);
   const envelope = b.method === 'envelope';
-  const save = useSubmit(async () => {
-    await api.put(`/budgets/${b.id}/plan`, {
-      month: month + '-01',
-      lines: lines.filter((l) => l.categoryId).map((l) => ({
-        ...l,
-        amount: String(l.amount || '0').trim(),
-        projectionId: kinds[l.categoryId] === 'savings' && l.projectionId ? l.projectionId : null,
-      })),
-    }, version);
+  const save = useSubmit(async (/** @type {boolean} */ confirm = false) => {
+    await api.put(
+      `/budgets/${b.id}/plan`,
+      {
+        month: month + '-01',
+        lines: lines.filter((l) => l.categoryId).map((l) => ({
+          categoryId: l.categoryId,
+          amount: String(l.amount || '0').trim(),
+          cadence: l.cadence,
+          rollover: l.rollover,
+          overspend: l.overspend,
+          projectionId: kinds[l.categoryId] === 'savings' && l.projectionId ? l.projectionId : null,
+          target: b.reserves && l.target ? String(l.target).replace(/[$,\s]/g, '') : null,
+          heldInId: b.reserves && l.target && l.heldInId ? l.heldInId : null,
+        })),
+      },
+      version,
+      confirm ? { confirm: true } : undefined,
+    );
     toast('Plan saved');
     close(true);
   });
+  // A reserve's balance stops being kept: asked first (S7.10.3).
+  const asking = save.error?.code === 'reserve-balance';
   const options = /** @type {[string, string][]} */ ([
     ['', 'Choose a category'],
     ...(/** @type {any[]} */ (cats.data) || []).filter((c) => c.kind !== 'transfer').map((
@@ -872,9 +1108,11 @@ function PlanDialog({ close, b, month, rows, version }) {
     setLines(lines.map((l, j) => (i === j ? { ...l, [k]: v } : l)));
   return html`
     <${Dialog} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
+      onSubmit=${() => save.run(asking).catch(() => {})}
       note="Earlier months keep the plan they had."
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
+      footer=${html`<button class="btn primary" disabled=${save.busy}>${
+        asking ? 'Save anyway' : 'Save'
+      }</button>`}>
       <table class="t plan">
         <thead>
           <tr>
@@ -883,6 +1121,12 @@ function PlanDialog({ close, b, month, rows, version }) {
             <th>Every</th>
             <th>Rollover</th>
             ${envelope ? html`<th>Overspent</th>` : null}
+            ${b.reserves
+              ? html`
+                <th class="num">Target</th>
+                <th>Held in</th>
+              `
+              : null}
             <th>Projection</th>
             <th></th>
           </tr>
@@ -923,6 +1167,23 @@ function PlanDialog({ close, b, month, rows, version }) {
                   </td>
                 `
                 : null}
+              ${b.reserves
+                ? html`
+                  <td class="num">
+                    <${Input} value=${l.target} onInput=${set(i, 'target')} inputmode="decimal"
+                      placeholder="none" aria-label="Target" data-help="target" bad=${errAt(
+                        save.error,
+                        `lines.${i}.target`,
+                      )} style=${{ width: '90px', textAlign: 'right' }} />
+                  </td>
+                  <td>${l.target
+                    ? html`
+                      <${Select} value=${l.heldInId} onChange=${set(i, 'heldInId')}
+                        options=${heldOptions} aria-label="Held in" data-help="held-in" />
+                    `
+                    : null}</td>
+                `
+                : null}
               <td>${kinds[l.categoryId] === 'savings'
                 ? html`
                   <${Select} value=${l.projectionId} onChange=${set(i, 'projectionId')}
@@ -943,9 +1204,19 @@ function PlanDialog({ close, b, month, rows, version }) {
           rollover: false,
           overspend: 'carry',
           projectionId: '',
+          target: '',
+          heldInId: '',
         }])}>
         <${Icon} name="plus" /> Add a category</button>
-      <${FormError} error=${save.error} />
+      ${asking
+        ? html`
+          <div class="notice warn" role="alert">
+            <${Icon} name="alert" />
+            <div>${save.error
+              .message} Save anyway to let it go.</div>
+          </div>
+        `
+        : html`<${FormError} error=${save.error} />`}
       </${Dialog}>
   `;
 }

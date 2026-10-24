@@ -23,6 +23,12 @@ overspent) into the next month. A **year** category compares the year so far wit
 **Not in the plan** lists spending in categories without a plan. Transfers between the budget's
 accounts never count.
 
+## Reserves
+
+Money set aside month by month toward a target, for a cost that comes now and then: car repairs, a
+roof. The bar is the balance against the target; spending shows as a withdrawal, not as overspending
+while the balance covers it. **Funded** puts in nothing until spending draws it down.
+
 ## Gifts and Giving
 
 Planned by your gift plans and your giving plan, a year at a time, never typed twice: each shows the

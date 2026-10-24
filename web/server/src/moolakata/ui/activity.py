@@ -158,6 +158,7 @@ TEXT = {
     "budget.updated": "{actor} changed {fields} of the budget {subject}",
     "budget.planned": "{actor} changed the plan of the budget {subject}",
     "budget.deleted": "{actor} deleted the budget {subject}",
+    "budget.landed": "{actor} said where money landed in the budget {subject}'s savings goes",
     "reimbursement.paired": "{actor} paired a payback with reimbursable spending in {subject}",
     "reimbursement.unpaired": "{actor} unpaired a payback in {subject}",
     "share.given": "{actor} shared {subject} with {grantee} ({level})",

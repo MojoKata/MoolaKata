@@ -142,6 +142,7 @@ def map_all() -> None:
     _map(sh.PortfolioAccount, sharing.PortfolioAccounts)
     _versioned(bd.Budget, budgets.Budget)
     _versioned(bd.BudgetLine, budgets.BudgetLine)
+    _versioned(bd.BudgetMove, budgets.BudgetMove)
     _map(bd.BudgetAccount, budgets.BudgetAccounts)
     _versioned(rc.Receipt, receipts.Receipt)
     _map(rc.ReceiptLink, receipts.ReceiptLinks)

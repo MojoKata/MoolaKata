@@ -66,3 +66,27 @@ BudgetLine = record(
     Index("ix_BudgetLine_budgetId", "budgetId"),
 )
 unique_live(BudgetLine, "budgetId", "categoryId", "fromMonth")
+
+# An amount put into a category for one month (S7.11): from another category, a reserve among
+# them; from or to To Budget in an envelope budget (a category left empty); or landed money, a
+# deposit in an account reserves are held in, given to one of them or kept as the account's own
+# (S7.10.5).
+BudgetMove = record(
+    "BudgetMove",
+    "BdgMv",
+    Column("budgetId", Text, ForeignKey("Budget.id", ondelete="CASCADE"), nullable=False),
+    Column("month", Day, nullable=False),
+    Column("fromCategoryId", Text, ForeignKey("Category.id")),
+    Column("toCategoryId", Text, ForeignKey("Category.id")),
+    Column("amount", Cents, nullable=False),
+    Column("note", Text),
+    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE")),
+    Column("createdById", Text, ForeignKey("User.id")),
+    CheckConstraint("amount > 0", name="amount"),
+    CheckConstraint("strftime('%d', month) = '01'", name="month"),
+    CheckConstraint(
+        '"fromCategoryId" IS NOT NULL OR "toCategoryId" IS NOT NULL OR "transactionId" IS NOT NULL',
+        name="somewhere",
+    ),
+    Index("ix_BudgetMove_budgetId", "budgetId"),
+)

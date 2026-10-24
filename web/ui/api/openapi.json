@@ -171,6 +171,17 @@
               }
             ],
             "title": "Syncaccount"
+          },
+          "withdrawalsAMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawalsamonth"
           }
         },
         "title": "AccountChange",
@@ -474,6 +485,17 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "withdrawalsAMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawalsamonth"
           }
         },
         "required": [
@@ -511,6 +533,7 @@
           "statementInterval",
           "statementIntervalDefault",
           "statementIntervalProposal",
+          "withdrawalsAMonth",
           "optionsValue",
           "capitalAtRisk",
           "connectionId",
@@ -2261,6 +2284,76 @@
           "suggestIfStudent"
         ],
         "title": "CandidateOut",
+        "type": "object"
+      },
+      "CardOut": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "charges": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Charges",
+            "type": "number"
+          },
+          "owed": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Owed",
+            "type": "number"
+          },
+          "paid": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Paid",
+            "type": "number"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          },
+          "paidFromName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromname"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "paidFromId",
+          "paidFromName",
+          "owed",
+          "paid",
+          "charges"
+        ],
+        "title": "CardOut",
         "type": "object"
       },
       "Carried": {
@@ -6556,6 +6649,35 @@
         "title": "GiftYearOut",
         "type": "object"
       },
+      "GiveIn": {
+        "additionalProperties": false,
+        "description": "Landed money given to a reserve, spread among those held there, or kept (S7.10.5).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "to",
+          "amount"
+        ],
+        "title": "GiveIn",
+        "type": "object"
+      },
       "GivingOut": {
         "additionalProperties": false,
         "properties": {
@@ -7017,6 +7139,133 @@
           "inNetWorth"
         ],
         "title": "GroupTotal",
+        "type": "object"
+      },
+      "HeldInOut": {
+        "additionalProperties": false,
+        "description": "An account reserves are held in, and what is to move there (S7.10.4).",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "balance": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Balance",
+            "type": "number"
+          },
+          "given": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Given",
+            "type": "number"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "movedFromName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromname"
+          },
+          "movedIn": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Movedin",
+            "type": "number"
+          },
+          "overLimit": {
+            "title": "Overlimit",
+            "type": "boolean"
+          },
+          "reserves": {
+            "items": {
+              "$ref": "#/components/schemas/ReserveHeld"
+            },
+            "title": "Reserves",
+            "type": "array"
+          },
+          "toMove": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Tomove",
+            "type": "number"
+          },
+          "total": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Total",
+            "type": "number"
+          },
+          "unassigned": {
+            "items": {
+              "$ref": "#/components/schemas/LandedOut"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          },
+          "withdrawals": {
+            "title": "Withdrawals",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "movedFromId",
+          "movedFromName",
+          "reserves",
+          "total",
+          "movedIn",
+          "given",
+          "balance",
+          "toMove",
+          "withdrawals",
+          "limit",
+          "overLimit",
+          "unassigned"
+        ],
+        "title": "HeldInOut",
         "type": "object"
       },
       "HoldingCheckRow": {
@@ -9132,6 +9381,56 @@
         "title": "KeyTest",
         "type": "object"
       },
+      "LandedOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "free": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Free",
+            "type": "number"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "transactionId": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "payee",
+          "amount",
+          "free"
+        ],
+        "title": "LandedOut",
+        "type": "object"
+      },
       "LastYear": {
         "additionalProperties": false,
         "properties": {
@@ -10288,6 +10587,21 @@
             "title": "Actual",
             "type": "number"
           },
+          "balance": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
           "cadence": {
             "title": "Cadence",
             "type": "string"
@@ -10315,6 +10629,17 @@
             ],
             "title": "Fromplan"
           },
+          "heldInId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldinid"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -10322,6 +10647,14 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "moved": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Moved",
+            "type": "number"
           },
           "overspend": {
             "title": "Overspend",
@@ -10372,6 +10705,21 @@
             ],
             "title": "Projectionname"
           },
+          "putIn": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Putin"
+          },
           "remaining": {
             "examples": [
               1234.5
@@ -10387,6 +10735,21 @@
           "state": {
             "title": "State",
             "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
           }
         },
         "required": [
@@ -10404,7 +10767,12 @@
           "overspend",
           "projectionId",
           "projectionName",
-          "projectionMonthly"
+          "projectionMonthly",
+          "moved",
+          "target",
+          "heldInId",
+          "balance",
+          "putIn"
         ],
         "title": "MonthRow",
         "type": "object"
@@ -15081,6 +15449,17 @@
             "title": "Categoryid",
             "type": "string"
           },
+          "heldInId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldinid"
+          },
           "overspend": {
             "default": "carry",
             "title": "Overspend",
@@ -15101,6 +15480,21 @@
             "default": false,
             "title": "Rollover",
             "type": "boolean"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
           }
         },
         "required": [
@@ -15825,6 +16219,7 @@
               "legs-differ",
               "legs-twice",
               "level-invalid",
+              "limit-invalid",
               "link-not-active",
               "link-not-valid",
               "locked",
@@ -15945,6 +16340,8 @@
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
+              "reserve-balance",
+              "reserve-unknown",
               "result-invalid",
               "right-invalid",
               "root-invalid",
@@ -16181,6 +16578,7 @@
                   "legs-differ",
                   "legs-twice",
                   "level-invalid",
+                  "limit-invalid",
                   "link-not-active",
                   "link-not-valid",
                   "locked",
@@ -16301,6 +16699,8 @@
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
+                  "reserve-balance",
+                  "reserve-unknown",
                   "result-invalid",
                   "right-invalid",
                   "root-invalid",
@@ -18492,6 +18892,34 @@
           "version"
         ],
         "title": "RelationshipOut",
+        "type": "object"
+      },
+      "ReserveHeld": {
+        "additionalProperties": false,
+        "properties": {
+          "balance": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Balance",
+            "type": "number"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryId",
+          "label",
+          "balance"
+        ],
+        "title": "ReserveHeld",
         "type": "object"
       },
       "Reset": {
@@ -23849,6 +24277,42 @@
         "title": "WashOut",
         "type": "object"
       },
+      "WhereView": {
+        "additionalProperties": false,
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardOut"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "heldIn": {
+            "items": {
+              "$ref": "#/components/schemas/HeldInOut"
+            },
+            "title": "Heldin",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "sayToMove": {
+            "title": "Saytomove",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "month",
+          "sayToMove",
+          "heldIn",
+          "cards"
+        ],
+        "title": "WhereView",
+        "type": "object"
+      },
       "WithdrawalYearOut": {
         "additionalProperties": false,
         "properties": {
@@ -28962,6 +29426,71 @@
         ]
       }
     },
+    "/ui/api/budgets/{budget_id}/landed": {
+      "post": {
+        "description": "Landed money given to a reserve, spread among those held where it landed by balance,\nor kept as the account's own (S7.10.5): moves the budget keeps, recorded in Activity.",
+        "operationId": "give_landed_ui_api_budgets__budget_id__landed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GiveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhereView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Give Landed",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
     "/ui/api/budgets/{budget_id}/month": {
       "get": {
         "operationId": "budget_month_ui_api_budgets__budget_id__month_get",
@@ -29028,6 +29557,16 @@
             "schema": {
               "title": "Budget Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Confirm",
+              "type": "boolean"
             }
           }
         ],
@@ -29289,6 +29828,61 @@
           }
         },
         "summary": "Budget Trends",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/where": {
+      "get": {
+        "description": "Where the money is (S7.10.4): each account reserves are held in, what is to move there\nor back, the money landed there waiting to be given, and each card's payments.",
+        "operationId": "where_ui_api_budgets__budget_id__where_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhereView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Where",
         "tags": [
           "budgets"
         ]

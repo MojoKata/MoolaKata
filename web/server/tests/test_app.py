@@ -559,6 +559,7 @@ def test_every_dialog_has_its_guide(page):
         ("/ui/budgets", "Settings", "dialog-budget-settings"),
         ("/ui/budgets", "Estimate from history…", "dialog-estimate"),
         ("/ui/budgets/x/reimbursements", "Pair a payback", "dialog-pair"),
+        ("/ui/budgets/x/where", "Assign", "dialog-assign"),
         ("/ui/receipts", "Receipt Blue Bottle Coffee", "dialog-receipt"),
         ("/ui/projections", "New projection", "dialog-new-projection"),
         ("/ui/gifts/people", "Add a gift plan", "dialog-person"),

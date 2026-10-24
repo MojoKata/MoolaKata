@@ -40,3 +40,16 @@ class BudgetLine(Record):
     projectionId: str | None = None
     target: Decimal | None = None
     heldInId: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
+class BudgetMove(Record):
+    id: str
+    budgetId: str
+    month: dt.date
+    amount: Decimal
+    fromCategoryId: str | None = None
+    toCategoryId: str | None = None
+    note: str | None = None
+    transactionId: str | None = None
+    createdById: str | None = None

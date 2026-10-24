@@ -145,6 +145,8 @@ Account = record(
     # key is cleared when the Connection goes: its sync turns off (schema.md §6.4).
     Column("connectionId", Text, ForeignKey("Connection.id")),
     Column("syncAccount", Text),
+    # A savings or money-market account's limit on withdrawals a month, the bank's (S1.2).
+    Column("withdrawalsAMonth", Integer),
     _in("type", ACCOUNT_TYPES, "type"),
     _in("lotMethod", LOT_METHODS, "lot_method"),
     CheckConstraint("mask IS NULL OR (length(mask) = 4 AND mask GLOB '[0-9]*')", name="mask"),

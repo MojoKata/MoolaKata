@@ -102,8 +102,8 @@ export const api = {
   get: (path, params) => call('GET', path, { params }),
   /** @param {string} path @param {any} [body] @param {{ idempotent?: boolean, version?: number, params?: Record<string, any> }} [o] */
   post: (path, body, o = {}) => call('POST', path, { body, ...o }),
-  /** @param {string} path @param {any} body @param {number} [version] */
-  put: (path, body, version) => call('PUT', path, { body, version }),
+  /** @param {string} path @param {any} body @param {number} [version] @param {Record<string, any>} [params] */
+  put: (path, body, version, params) => call('PUT', path, { body, version, params }),
   /** @param {string} path @param {any} body @param {number} [version] @param {Record<string, any>} [params] */
   patch: (path, body, version, params) => call('PATCH', path, { body, version, params }),
   /** @param {string} path @param {number} [version] @param {Record<string, any>} [params] @param {any} [body] */

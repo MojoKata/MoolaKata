@@ -14,7 +14,7 @@ from .. import access, activity, budgets, clock, ids
 from ..budgets import plan, recurring
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Category, Transaction
-from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine
+from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine, BudgetMove
 from ..store.entities.users import User
 from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match, stale
 from .deps import Caller, caller, server
@@ -77,6 +77,8 @@ class PlanLine(Model):
     rollover: bool = False
     overspend: str = "carry"  # an envelope budget's: carried negative, or from next month
     projectionId: str | None = None  # a savings line's active projection
+    target: Money | None = None  # a reserve's (S7.10), with reserves on
+    heldInId: str | None = None  # the account its money is kept in
 
 
 class Plan(Model):
@@ -102,6 +104,69 @@ class MonthRow(Model):
     projectionId: str | None
     projectionName: str | None
     projectionMonthly: Money | None
+    moved: Money  # moves in, less moves out, this month (S7.11)
+    target: Money | None  # a reserve's (S7.10)
+    heldInId: str | None
+    balance: Money | None  # a reserve's, at the month's end
+    putIn: Money | None
+
+
+class ReserveHeld(Model):
+    categoryId: str
+    label: str
+    balance: Money
+
+
+class LandedOut(Model):
+    transactionId: str
+    date: dt.date
+    payee: str | None
+    amount: Money
+    free: Money
+
+
+class HeldInOut(Model):
+    """An account reserves are held in, and what is to move there (S7.10.4)."""
+
+    accountId: str
+    accountName: str
+    movedFromId: str | None
+    movedFromName: str | None
+    reserves: list[ReserveHeld]
+    total: Money
+    movedIn: Money
+    given: Money
+    balance: Money
+    toMove: Money  # + to move here from moved from, − back to it
+    withdrawals: int
+    limit: int | None
+    overLimit: bool  # a move back now would go past the withdrawals allowed
+    unassigned: list[LandedOut]
+
+
+class CardOut(Model):
+    accountId: str
+    accountName: str
+    paidFromId: str | None
+    paidFromName: str | None
+    owed: Money
+    paid: Money  # this month
+    charges: Money  # interest and fees this month
+
+
+class WhereView(Model):
+    month: dt.date
+    sayToMove: bool  # only the active budget says what to move (S7.12.2)
+    heldIn: list[HeldInOut]
+    cards: list[CardOut]
+
+
+class GiveIn(Model):
+    """Landed money given to a reserve, spread among those held there, or kept (S7.10.5)."""
+
+    transactionId: str
+    to: str  # a reserve's category id, "spread" or "own"
+    amount: Money
 
 
 class Proposal(Model):
@@ -507,6 +572,7 @@ def set_plan(
     request: Request,
     c: Caller = Depends(caller),
     version: int = Depends(if_match),
+    confirm: bool = False,
 ):
     """From the month given on, the plan is what the body lists; earlier months keep theirs.
     The plan belongs to the budget, so it is made against the budget's version."""
@@ -552,6 +618,22 @@ def set_plan(
                         "Carried negative, or from next month's To Budget.",
                     )
                 )
+            if ln.target is not None and (
+                not b.reserves or ln.cadence != "month" or ln.target <= 0
+            ):
+                errors.append(
+                    FieldError(
+                        f"lines.{i}.target",
+                        "target-invalid",
+                        "A monthly line in a budget with reserves, aiming above zero.",
+                    )
+                )
+            if ln.heldInId and ln.heldInId not in budgets.account_ids(s, b):
+                errors.append(
+                    FieldError(
+                        f"lines.{i}.heldInId", "account-unknown", "One of the budget's accounts."
+                    )
+                )
             if ln.projectionId and not _projection_ok(s, b, ln.projectionId):
                 errors.append(
                     FieldError(
@@ -562,15 +644,52 @@ def set_plan(
         every = budgets.lines(s, b)
         current = budgets.in_force(every, month)
         wanted = {ln.categoryId: ln for ln in body.lines}
+        # A reserve's balance stops being kept when its line or its target goes: asked first
+        # (S7.10.3).
+        if not confirm:
+            from ..budgets import reserves
+
+            tr = budgets.tree(s)
+            accts = budgets.account_ids(s, b)
+            moved = reserves.net_moves(reserves.moves(s, b))
+            for cat_id, old in current.items():
+                new = wanted.get(cat_id)
+                if old.target is None or (new is not None and new.target is not None):
+                    continue
+                r = reserves.reserve(
+                    s, tr, accts, every, moved, cat_id, budgets.add_months(month, -1)
+                )
+                if r is not None and r.balance:
+                    raise Problem(
+                        409,
+                        "reserve-balance",
+                        f"{tr.label(cat_id)} holds {r.balance:,.2f}: it stops being kept.",
+                    )
         for cat_id in set(current) | set(wanted):
             new = wanted.get(cat_id)
             values = (
-                (new.amount, new.cadence, new.rollover, new.overspend, new.projectionId)
+                (
+                    new.amount,
+                    new.cadence,
+                    new.rollover or new.target is not None,  # a reserve always rolls over
+                    new.overspend,
+                    new.projectionId,
+                    new.target,
+                    new.heldInId if new.target is not None else None,
+                )
                 if new
-                else (Decimal(0), "month", False, "carry", None)
+                else (Decimal(0), "month", False, "carry", None, None, None)
             )
             old = current.get(cat_id)
-            fields = ("amount", "cadence", "rollover", "overspend", "projectionId")
+            fields = (
+                "amount",
+                "cadence",
+                "rollover",
+                "overspend",
+                "projectionId",
+                "target",
+                "heldInId",
+            )
             if old is not None and tuple(getattr(old, f) for f in fields) == values:
                 continue
             same_month = next(
@@ -607,6 +726,165 @@ def _projection_ok(s, b: Budget, projection_id: str) -> bool:
 
     p = s.get(Projection, projection_id)
     return p is not None and not p.deleted and p.ownerId == b.ownerId
+
+
+@router.get("/budgets/{budget_id}/where", response_model=WhereView)
+def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None):
+    """Where the money is (S7.10.4): each account reserves are held in, what is to move there
+    or back, the money landed there waiting to be given, and each card's payments."""
+    from ..budgets import reserves
+
+    m = _month(month)
+    today = clock.today()
+    with server(request).db.read() as s:
+        b, _ = access.budget(s, c.id, budget_id)
+        tr = budgets.tree(s)
+        accts = budgets.account_ids(s, b, c.id)
+        rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
+        names = {a.id: a.name for a in rows}
+        roles = {r.accountId: r for r in plan.roles(s, b, rows, today)}
+        held = reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+        out = []
+        for h in held:
+            frm = roles.get(h.accountId)
+            moved_from = frm.movedFromId if frm else None
+            out.append(
+                HeldInOut(
+                    accountId=h.accountId,
+                    accountName=names.get(h.accountId, "an account not shared"),
+                    movedFromId=moved_from,
+                    movedFromName=names.get(moved_from) if moved_from else None,
+                    reserves=[
+                        ReserveHeld(categoryId=k, label=tr.label(k), balance=v)
+                        for k, v in h.reserves
+                    ],
+                    total=h.total,
+                    movedIn=h.movedIn,
+                    given=h.given,
+                    balance=h.balance,
+                    toMove=h.toMove,
+                    withdrawals=h.withdrawals,
+                    limit=h.limit,
+                    overLimit=h.toMove < 0 and h.limit is not None and h.withdrawals + 1 > h.limit,
+                    unassigned=[LandedOut(**x.__dict__) for x in h.unassigned],
+                )
+            )
+        cards = []
+        for a in rows:
+            if a.type != "credit-card":
+                continue
+            r = roles.get(a.id)
+            got = _card_month(s, a, m)
+            cards.append(
+                CardOut(
+                    accountId=a.id,
+                    accountName=a.name,
+                    paidFromId=r.paidFromId if r else None,
+                    paidFromName=names.get(r.paidFromId) if r and r.paidFromId else None,
+                    **got,
+                )
+            )
+        return WhereView(month=m, sayToMove=True, heldIn=out, cards=cards)
+
+
+def _card_month(s, a: Account, month: dt.date) -> dict:
+    """What a card owes at the month's end, what was paid in the month, and its interest and
+    fees."""
+    from ..store.repos import ledger
+
+    end = budgets.month_end(month)
+    txns = s.scalars(
+        select(Transaction).where(
+            Transaction.accountId == a.id,
+            Transaction.deleted == false(),
+            Transaction.date >= month,
+            Transaction.date <= end,
+        )
+    ).all()
+    fees = {c.id for c in s.scalars(select(Category).where(Category.builtIn == "fees"))}
+    return {
+        "owed": -ledger.load(s, a).balance(end),
+        "paid": sum((t.amount for t in txns if t.amount > 0 and t.transferId), Decimal(0)),
+        "charges": -sum(
+            (
+                t.amount
+                for t in txns
+                if t.amount < 0 and (t.kind in ("interest", "fee") or t.categoryId in fees)
+            ),
+            Decimal(0),
+        ),
+    }
+
+
+@router.post("/budgets/{budget_id}/landed", response_model=WhereView)
+def give_landed(
+    budget_id: str,
+    body: GiveIn,
+    request: Request,
+    c: Caller = Depends(caller),
+    month: str | None = None,
+):
+    """Landed money given to a reserve, spread among those held where it landed by balance,
+    or kept as the account's own (S7.10.5): moves the budget keeps, recorded in Activity."""
+    from ..budgets import reserves
+
+    with server(request).db.tx() as s:
+        b, _ = access.budget(s, c.id, budget_id, "write")
+        t = s.get(Transaction, body.transactionId)
+        accts = budgets.account_ids(s, b, c.id)
+        if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
+            raise refuse("transactionId", "not-found", "No such money landed.")
+        m = budgets.month_of(t.date)
+        tr = budgets.tree(s)
+        held = {
+            h.accountId: h
+            for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+        }
+        h = held.get(t.accountId)
+        free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
+        if free is None or body.amount <= 0 or body.amount > free:
+            raise refuse("amount", "amount-invalid", "No more than is unassigned of it.")
+        if body.to == "own":
+            parts = [(None, body.amount)]
+        elif body.to == "spread":
+            weights = [(k, max(v, Decimal(0))) for k, v in h.reserves]
+            total = sum((w for _, w in weights), Decimal(0)) or Decimal(len(weights))
+            parts, left = [], body.amount
+            for i, (k, w) in enumerate(weights):
+                share = (
+                    left
+                    if i == len(weights) - 1
+                    else (body.amount * (w if total else 1) / total).quantize(Decimal("0.01"))
+                )
+                parts.append((k, share))
+                left -= share
+        elif body.to in {k for k, _ in h.reserves}:
+            parts = [(body.to, body.amount)]
+        else:
+            raise refuse("to", "reserve-unknown", "One of the reserves held there.")
+        for cat, amount in parts:
+            if amount > 0:
+                s.add(
+                    BudgetMove(
+                        id=ids.new_id("BdgMv"),
+                        budgetId=b.id,
+                        month=m,
+                        toCategoryId=cat,
+                        amount=amount,
+                        transactionId=t.id,
+                        createdById=c.id,
+                    )
+                )
+        activity.record(
+            s,
+            "budget.landed",
+            actor=c.id,
+            subject_kind="budget",
+            subject_id=b.id,
+            owner=b.ownerId,
+        )
+        s.flush()
+    return where(budget_id, request, c, month or m.isoformat()[:7])
 
 
 @router.get("/budgets/{budget_id}/estimate", response_model=list[Proposal])

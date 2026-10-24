@@ -36,6 +36,7 @@ class Account(Record):
     statementIntervalDismissed: str | None = None
     connectionId: str | None = None
     syncAccount: str | None = None
+    withdrawalsAMonth: int | None = None
 
 
 @dataclass(kw_only=True, eq=False)

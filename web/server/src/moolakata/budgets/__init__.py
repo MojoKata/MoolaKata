@@ -307,6 +307,11 @@ class Row:
     overspend: str = "carry"
     projectionId: str | None = None
     projection: tuple[str, Decimal] | None = None  # an active projection's name and monthly
+    moved: Decimal = ZERO  # moves in, less moves out, this month (S7.11)
+    target: Decimal | None = None  # a reserve's (S7.10)
+    heldInId: str | None = None
+    balance: Decimal | None = None  # a reserve's, at the month's end
+    putIn: Decimal | None = None
 
 
 @dataclass
@@ -345,12 +350,13 @@ def _state(planned: Decimal, actual: Decimal) -> str:
 def month_view(
     s: Session, budget: Budget, month: dt.date, today: dt.date, viewer: str | None = None
 ) -> Month:
-    from . import plan
+    from . import plan, reserves
 
     tr = tree(s)
     accts = account_ids(s, budget, viewer)
     every = lines(s, budget)
     now = in_force(every, month)
+    moved_by = reserves.net_moves(reserves.moves(s, budget))
     moved: list[Moved] = []
     totals = amounts(s, accts, month, month_end(month), moved, tr)
     year_start = month.replace(month=1)
@@ -361,12 +367,36 @@ def month_view(
         if cat_id not in tr.by_id:
             continue
         kind = tr.by_id[cat_id].kind
+        mv = moved_by.get((month, cat_id), ZERO)
+        if ln.target is not None and ln.cadence == "month":
+            r = reserves.reserve(s, tr, accts, every, moved_by, cat_id, month)
+            if r is not None:
+                rows.append(
+                    Row(
+                        categoryId=cat_id,
+                        label=tr.label(cat_id),
+                        kind=kind,
+                        cadence="month",
+                        rollover=True,
+                        planned=r.putIn,
+                        carried=r.start,
+                        actual=r.spent,
+                        remaining=r.balance,
+                        state="funded" if r.funded else "over" if r.balance < 0 else "under",
+                        moved=mv,
+                        target=r.target,
+                        heldInId=r.heldInId,
+                        balance=r.balance,
+                        putIn=r.putIn,
+                    )
+                )
+                continue
         if ln.cadence == "year":
             planned, carried = ln.amount, ZERO
             actual = _actual(tr, ytd, cat_id)
         else:
-            carried = _carry(s, tr, accts, every, cat_id, month) if ln.rollover else ZERO
-            planned = ln.amount + carried
+            carried = _carry(s, tr, accts, every, cat_id, month, moved_by) if ln.rollover else ZERO
+            planned = ln.amount + carried + mv
             actual = _actual(tr, totals, cat_id)
         rows.append(
             Row(
@@ -381,6 +411,7 @@ def month_view(
                 remaining=planned - actual,
                 state=_state(planned, actual) if kind == "expense" else "under",
                 overspend=ln.overspend,
+                moved=mv,
                 projectionId=ln.projectionId,
                 projection=plan.monthly_contribution(s, ln.projectionId)
                 if ln.projectionId
@@ -455,9 +486,11 @@ def _carry(
     every: list[BudgetLine],
     cat_id: str,
     month: dt.date,
+    moved: dict | None = None,
 ) -> Decimal:
-    """What rolls into a month: each earlier month's plan less its actual, carried on while
-    the category's plan rolls over."""
+    """What rolls into a month: each earlier month's plan and moves less its actual, carried on
+    while the category's plan rolls over."""
+    moved = moved or {}
     mine = [ln for ln in every if ln.categoryId == cat_id]
     if not mine:
         return ZERO
@@ -472,7 +505,12 @@ def _carry(
         if ln is None or not ln.rollover or ln.cadence != "month":
             carry = ZERO
         else:
-            carry = ln.amount + carry - _actual(tr, totals.get(m, {}), cat_id)
+            carry = (
+                ln.amount
+                + carry
+                + moved.get((m, cat_id), ZERO)
+                - _actual(tr, totals.get(m, {}), cat_id)
+            )
         m = add_months(m, 1)
     return carry
 
