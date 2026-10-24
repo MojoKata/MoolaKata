@@ -34,7 +34,7 @@
 5. **Dividends and interest**: qualified and ordinary dividends, reinvestment (a dividend plus
    a buy), and capital-gain distributions, with the classification the 1099 will use.
 6. **Bank transactions** have a payee (normalised by **payee rules**), a category (S7.2), an
-   optional split across categories, a memo, tags, and receipts.
+   optional split across categories, a memo, tags, receipts, and a reimbursable mark (S2.9).
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per
    user, in **Transactions › Rules**, first match wins.
    1. **What a rule matches**: the payee as the institution wrote it, by text it contains (case
@@ -77,3 +77,16 @@
       how much the edit moved the year's realized gains, and who made it. The tax book shows
       it until an amended federal return is added or someone chooses *No amendment needed*
       (S8.15).
+9. **Reimbursable** spending: a transaction, or one split of it, can be marked as to be paid
+   back, with how much (all of it unless said otherwise) and optionally by whom (*Acme Corp*,
+   *Sam*). It keeps its category, for taxes and reports.
+   1. **Awaiting**: a mark not yet paid back in full is listed under **Awaiting
+      reimbursement** (S7.4) with its age, and budgets don't count the part awaited (S7.3.4).
+   2. **Paybacks**: a deposit, not a transfer, of the amount awaited or less, within 90 days
+      after the spending, is offered to pair with it; the owner confirms it or picks another.
+      One deposit can pay back several (an expense report). The paired part of a deposit
+      doesn't count as income; the rest counts by its category.
+   3. **Never paid back**: lowering the amount to what was paid back, or taking the mark off,
+      makes the rest count as spending again, in the month it was spent.
+   4. **The transaction's own**: the mark is the same in every budget (S7.12.6). Activity
+      records marking and pairing, never an amount (S10.8).

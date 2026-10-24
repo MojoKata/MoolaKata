@@ -93,6 +93,7 @@ Work planned for after the first release ([later.md](later.md), S17.9.11).
 | **L9** | [More price sources](later.md#l9-more-price-sources) | Alpha Vantage as the last stock fallback, CoinGecko for coins Coinbase doesn't list |
 | **L10** | [Learned column positions for statements](later.md#l10-learned-column-positions-for-statements) | a statement's Debit and Credit columns found, named once and learned per institution; until then a sign comes from the line itself or its words |
 | **L11** | [Miniscript wallet policies](later.md#l11-miniscript-wallet-policies) | timelocked recovery paths and decaying multisig in `wsh()`, and taproot script trees; until then refused |
+| **L12** | [Who paid in a household budget](later.md#l12-who-paid-in-a-household-budget) | each member's share of a group budget's costs, who paid what, and who owes whom |
 
 ## Also here
 
@@ -236,8 +237,11 @@ The rulings the rest of the requirements apply.
 12. **Projection:** how money will grow toward a goal (retirement, education or a savings
     target), from contributions, returns and withdrawals over time. An **active** projection
     is the plan being followed, tracked against its baseline (S6).
-13. **Budget:** a period's planned amounts per category, compared with the actual
-    transactions (S7).
+13. **Budget:** planned amounts per category over chosen accounts, compared month by month
+    with the actual transactions, by its **method**: **tracking** or **envelope**. A user
+    follows one **active** budget; the others are **scenarios**. A **reserve** is a plan
+    line saving toward a **target**; a **move** puts money from one category to another for
+    a month (S7).
 14. **Receipt:** an uploaded file (PDF, JPEG, PNG, HEIC, WebP) with a date, an amount and
     links to what it supports (S9).
 15. **Tax book:** the tax records of one user, or of a married couple filing jointly, for one

@@ -27,7 +27,7 @@
       loaded; a click reloads.
 2. **Navigation** (in this order):
    1. **Dashboard**: net worth and its change (day, month, year), the net-worth chart,
-      allocation, accounts by group with balances, this month's budget, upcoming recurring
+      allocation, accounts by group with balances, the active budget's month (S7.12), upcoming recurring
       transactions, occasions inside their reminder time (S7.7.3), giving against its
       target, the **Plans** card of active projections (S6.8), and stale prices, stale
       valuations, or sources and imports that need attention;
@@ -42,13 +42,20 @@
       *Contributions*, *Withdrawals* and *Goal* (S1.8); a physical-asset account *Items*
       (S1.10);
    3. **Transactions**: every account's transactions together, filtered by account, category,
-      date, amount, payee and tag, with bulk categorise, split, attach receipt, and **Import**;
+      date, amount, payee and tag, with bulk categorise, split, attach receipt, and **Import**.
+      A transaction's dialog marks it reimbursable (S2.9), and its **In budgets** line names
+      each budget counting it, what it counts as there, and that budget's **Leave out**
+      switch (S7.3.5);
    4. **Portfolios**: the user's portfolios and those shared with them; a portfolio page with
       the charts of S5.2, its holdings, and its *Projections*;
    5. **Positions**: open and closed positions across accounts, with stocks, options and
       crypto as filters, and P/L per S3.9. **Record trade** opens the trade dialog, which has
       an option leg builder;
-   6. **Budgets**: the month view, cash flow, trends, recurring transactions and rules;
+   6. **Budgets**: the list of budgets, the active one first and then the scenarios, with
+      **New budget** (its method and options, and **Estimate from history**, S7.1); for one
+      budget, the month view with its reserves and moves, **Where the money is**, the
+      month's review, **Compare**, cash flow, trends, **Awaiting reimbursement**, recurring
+      transactions and rules (S7.4);
    7. **Projections**: active projections first, with their tracking, then the scenarios;
       each with its inputs and the fan chart (S6);
    8. **Gifts**: *Upcoming* occasions, *People*, *Gifts* (ideas to given, and received), and
@@ -223,7 +230,7 @@
        3. **for each user**: a request to share a private person they created, which goes to
           its creator and to the admins (S10.10.3), an occasion entering its lead time
           (S7.7.3), an option expiring within a week, a pledge due (S7.9), an active projection
-          falling behind (S6.7.5), and budget alerts when they come (S7.6).
+          falling behind (S6.7.5), and the active budget's cash before payday (S7.6).
     2. **One alert per cause.** The alerts task looks at every cause every 15 minutes, and at
        once after any other background task ends but the linked copies' sweeper, reading in one
        transaction and writing only what changed. A failing source raises one alert, not one

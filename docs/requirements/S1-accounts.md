@@ -5,6 +5,7 @@
    | Type | Group | Holds | Tax treatment |
    | --- | --- | --- | --- |
    | `checking`, `savings`, `money-market`, `cd` | Banking | cash | taxable (interest) |
+   | `cash` (cash on hand), `payment-app` (Venmo, PayPal, Cash App and the like) | Banking | cash | — |
    | `credit-card` | Liabilities | a negative balance | — |
    | `mortgage`, `heloc`, `auto-loan`, `student-loan`, `personal-loan`, `loan` (any other) | Liabilities | a loan with terms (S1.9) | mortgage and student-loan interest may be deductible |
    | `brokerage` | Investing | cash, stocks, ETFs, funds, bonds, options | taxable |
@@ -23,7 +24,9 @@
 
 2. **Every account has** a name, its type, the institution, an optional masked number (last
    4), its owner, an **active** switch (a closed account stays
-   for history and taxes), notes, and how it is kept current (S1.3).
+   for history and taxes), notes, and how it is kept current (S1.3). A `savings` or
+   `money-market` account also has **Withdrawals allowed a month**, the bank's limit, empty
+   for none, which budgets keep moves back within (S7.10.4).
 3. **How an account is kept current**, one or more of:
    1. **manual**: transactions and balance snapshots typed in;
    2. **file import**: **OFX and QFX** files (the structured downloads most US banks and
@@ -247,7 +250,8 @@
    so they count neither as spending nor as income, nor as a buy or sell of cash. Opposite
    amounts of cash, not trades, in two of the owner's accounts within 4 days of each other
    are linked as a transfer, the closest in date; when two are equally close, neither is,
-   and the owner links one by hand.
+   and the owner links one by hand. Cash taken out of a bank account pairs this way with
+   its deposit in a `cash` account, and money sent to a payment app with its arrival there.
    1. **Bitcoin moved between the owner's accounts** (a wallet and an exchange, or two
       wallets): a transfer out and a transfer in of the same amount less the network fee,
       within 3 days, are **proposed** as a pair, on each account's Overview, and the owner
@@ -255,6 +259,8 @@
       confirmed, the coins arrive with the **lots they left with**: their basis and the day
       each was acquired carry over, the fee aside (S8.19), so nothing is missing a basis and
       nothing is taxed. A transfer in left unmatched stays missing its basis (S8.4).
+   2. **In a budget**, a transfer between one of its accounts and one it doesn't count is
+      money leaving or entering it, and counts by its category (S7.3.2).
 8. **529 plans.** A `529` account holds funds and cash like a brokerage account, plus:
    1. **The plan**: its state and name, the **beneficiary** (a person, S10.10), the
       opening date, and the state tax deduction the owner expects per year (typed: state
@@ -305,6 +311,15 @@
       value; automatically at 78%, when the schedule stops charging it).
    6. **Taxes**: mortgage interest, points and PMI (Form 1098), and student-loan interest
       (Form 1098-E) appear in Taxes (S8.12).
+   7. **In budgets**, a payment counts at the bank account it came from (S7.3.3), as the loan
+      says:
+      1. **Split** (the default): by the schedule's split, interest, escrow, and PMI and fees
+         each in its category, and principal, an overpayment with it, in a savings category
+         (S7.2.1). The loan names the categories; by default they are the shipped *Loan
+         payments › Interest*, *Escrow*, *PMI and fees* and *Principal*, so a plan line on
+         the parent counts the whole payment. When the schedule is worked out again (a rate
+         reset, a recast, a corrected split), the budget's months follow it.
+      2. **Whole**: the full payment in the one category the loan names.
 10. **Physical assets.** A physical-asset account (`precious-metals`, `collectables`,
     `real-estate`, `vehicle`, `other-asset`) holds **items**:
     1. **Every item has** a name, a category, a description, the **date acquired**, how it
@@ -373,7 +388,7 @@
        1. **Monthly, quarterly, yearly or none.** The default follows the account's type:
           monthly for banking, cards, brokerage, crypto exchanges, IRAs, HSAs and loans;
           quarterly for 401(k), 403(b), 457(b) and 529 plans and donor-advised funds; none for
-          accounts kept by hand, watched wallets and physical assets.
+          `cash` accounts and other accounts kept by hand, watched wallets and physical assets.
        2. **Learned**: once an account has three statements or imports, MoolaKata works out
           the interval they arrive at (the typical gap between the ends of what they cover;
           files downloaded more often than every 20 days teach nothing) and, where it differs

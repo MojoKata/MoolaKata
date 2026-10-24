@@ -15,7 +15,8 @@ second review of the requirements against the code found the release still neede
 section 12 says where each finding went, which no review has checked yet, and the choices
 milestone 9 made. What the build couldn't try for real is in
 [`docs/test-plan.md`](docs/test-plan.md); the gaps and the open questions are listed in the
-requirements' README.
+requirements' README. Milestone 10 (S17.9.12), budgets as S7 describes them, is the next to be
+built.
 
 **Release:** 0.1.0, a pre-release for testers. Its images are `ghcr.io/mojokata/moolakata` and
 `ghcr.io/mojokata/moolakata-connector`, for amd64 and arm64, each with a provenance attestation

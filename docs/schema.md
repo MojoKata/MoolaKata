@@ -137,12 +137,15 @@ The prefixes of the tables that exist.
 
 ### 3.2 Reserved
 
-The prefixes of the entities named in requirements R2 (Terminology) whose tables are not
-designed yet. A row moves to §3.1 when its table is.
+The prefixes of the entities the requirements name whose tables are not declared yet. A row
+moves to §3.1 when its table is.
 
-| Prefix | Table         | Description                                                                       |
-|--------|---------------|-----------------------------------------------------------------------------------|
-| Posn   | Position      | An instrument held in an account, followed from open to closed.                   |
+| Prefix | Table          | Description                                                                         |
+|--------|----------------|-------------------------------------------------------------------------------------|
+| BdgMv  | BudgetMove     | An amount put into a category for a month: from another, *To Budget* or landed money. |
+| BdgRv  | BudgetReview   | A budget's month marked reviewed: by whom, when, and the figures it had then.       |
+| Posn   | Position       | An instrument held in an account, followed from open to closed.                     |
+| Rmbrs  | Reimbursement  | A deposit paired with reimbursable spending: how much of it pays that spending back. |
 
 ## 4. Soft deletes
 
@@ -190,8 +193,9 @@ Records are never removed from the database: they are marked deleted. The except
       tasks' last runs, and the live stream's state;
    5. **caches**, rebuilt from the records: thumbnails, computed series kept for speed, and
       wash sales, worked out again from the trades whenever they change, and a bitcoin
-      wallet's addresses, derived again from its keys and its explorer or node, and what a
-      link brings in, replaced from each pull.
+      wallet's addresses, derived again from its keys and its explorer or node, a budget's
+      month figures, worked out again when what they come from changes (requirements
+      S7.3.10), and what a link brings in, replaced from each pull.
 
    Activity entries and alerts are never deleted at all: Activity is kept as it was
    written, and alerts are resolved, then age out of the list
@@ -231,7 +235,7 @@ as they change.
    | its date | `Transaction`, `Anchor`, `Holding` (as of), `HoldingCheck` (as of), `Reconciliation` (the statement's), `Donation`, `QualifiedExpense`; `Receipt` (its own date, or when it was uploaded) |
    | an event | `Account`: deleted, or closed with nothing in it still open; `Lot`: the sale of its last share; `Import`: its latest transaction's end; `BudgetLine`: the month before a later line for its category starts; `Gift`, given or received: the later of its occasion and its purchase; `Occasion` with a year: its date; `GivingPlan`: the end of its year; `Item`: its sale; `AccessToken`: expiry or revoking; `SignupRequest`: decided, or expired unconfirmed; `Link`: unlinked; `Connector`: unpaired or replaced; `Connection`: removed; `Relationship`: its `to` date; `Strategy`: its last option leg closed |
    | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, `Share`, `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
-   | its parent's | `Split`, `LotPicks`, `StrategyLegs`, `TransactionTags`, `WalletKey`, `OptionContract`, `BudgetAccounts`, `PortfolioAccounts`, `CountedAccounts`, `ShownProjections`, `GiftPersons`, `ReceiptLinks`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColours`; a yearly `Occasion` |
+   | its parent's | `BudgetMove`, `BudgetReview`, `BudgetLeaveOuts`, `Reimbursement`, `Split`, `LotPicks`, `StrategyLegs`, `TransactionTags`, `WalletKey`, `OptionContract`, `BudgetAccounts`, `PortfolioAccounts`, `CountedAccounts`, `ShownProjections`, `GiftPersons`, `ReceiptLinks`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColours`; a yearly `Occasion` |
    | `Activity` | when it was written |
 
 3. **What a foreign key does**: each foreign key is declared with one of these, for when
@@ -256,10 +260,10 @@ as they change.
 
    | Ruling | Keys |
    |---|---|
-   | **deleted with** | `accountId` of `Transaction`, `Anchor`, `Holding`, `HoldingCheck`, `Lot`, `Import`, `Reconciliation`, `WalletKey`, `EducationPlan`, `QualifiedExpense`, `Loan`, `PayoffPlan`, `Item`, `Rule`; `Split.transactionId`; `Lot.transactionId` (also keeps ref); `LotPicks.lotId`, `LotPicks.saleId`; `TransactionTags` both keys; `Strategy.accountId`, `StrategyLegs.strategyId`; `TransferMatch.outId`, `TransferMatch.inId`; `OptionContract.instrumentId`; `Price.instrumentId`, `TypedPrice.instrumentId`; `BudgetLine.budgetId`; `BudgetAccounts.budgetId`; `PortfolioAccounts.portfolioId`; `CountedAccounts`, `ShownProjections`, `UserGroups`, `LinkColours` both keys; `GiftPlan.personId`; `Occasion.giftPlanId`; `GiftPersons.giftId`; `ReceiptLinks.receiptId`; `TaxBookFilers.bookId`, `TaxBookAccounts.bookId`, `Filing.bookId`, `EstimatedPayment.filingId`, `TaxDocument.bookId`, `TaxDocument.filingId`, `TaxBookDependent.bookId`; `TaxDependentAccounts` both keys; `Contribution.transactionId`; `ItemValuation.itemId`, `Improvement.itemId`; `Share.itemId`, `Share.userId`, `Share.groupId`; `AccessToken.userId`; `User.linkId`; `Connection.ownerId` (a user's sign-ins go with them) |
+   | **deleted with** | `accountId` of `Transaction`, `Anchor`, `Holding`, `HoldingCheck`, `Lot`, `Import`, `Reconciliation`, `WalletKey`, `EducationPlan`, `QualifiedExpense`, `Loan`, `PayoffPlan`, `Item`, `Rule`; `Split.transactionId`; `Lot.transactionId` (also keeps ref); `LotPicks.lotId`, `LotPicks.saleId`; `TransactionTags` both keys; `Strategy.accountId`, `StrategyLegs.strategyId`; `TransferMatch.outId`, `TransferMatch.inId`; `OptionContract.instrumentId`; `Price.instrumentId`, `TypedPrice.instrumentId`; `BudgetLine.budgetId`; `BudgetAccounts.budgetId`; `BudgetMove.budgetId`, `BudgetMove.transactionId` (the landed money it gives); `BudgetReview.budgetId`; `BudgetLeaveOuts` both keys; `Reimbursement.spendingId`, `splitId` and `paybackId`; `PortfolioAccounts.portfolioId`; `CountedAccounts`, `ShownProjections`, `UserGroups`, `LinkColours` both keys; `GiftPlan.personId`; `Occasion.giftPlanId`; `GiftPersons.giftId`; `ReceiptLinks.receiptId`; `TaxBookFilers.bookId`, `TaxBookAccounts.bookId`, `Filing.bookId`, `EstimatedPayment.filingId`, `TaxDocument.bookId`, `TaxDocument.filingId`, `TaxBookDependent.bookId`; `TaxDependentAccounts` both keys; `Contribution.transactionId`; `ItemValuation.itemId`, `Improvement.itemId`; `Share.itemId`, `Share.userId`, `Share.groupId`; `AccessToken.userId`; `User.linkId`; `Connection.ownerId` (a user's sign-ins go with them) |
    | **keeps ref** | `Transaction.importId`, `instrumentId`, `reconciliationId`; `Transaction.transferId` and `optionTransactionId`, both ways; `Lot.transactionId`, `Lot.instrumentId`; `LotPicks.saleId`; `Holding.instrumentId`; `HoldingCheck.importId`, `HoldingCheck.instrumentId`; `OptionContract.underlyingId`; `Strategy.underlyingId`, `StrategyLegs.instrumentId`; `Gift.transactionId`; `Donation.transactionId`, `Donation.instrumentId`; `ReceiptLinks.itemId` (the receipt ends no earlier than what it is linked to); `TaxDocument.receiptId`; `QualifiedExpense.transactionId`; `Loan.securedById`; `User.personId`; `Connection.connectorId` (a Connection outlives a replaced pairing only as history) |
-   | **keeps name** | `categoryId` of `Transaction`, `Split`, `BudgetLine`, `Rule`; `BudgetAccounts.accountId`, `PortfolioAccounts.accountId`; what a `Projection` is built on (it waits for its owner to choose again before recomputing); `GiftPersons.personId`; `Donation.organisationId`, `fromAccountId`, `dafAccountId`; `TaxBookAccounts.accountId`, `TaxDocument.accountId`, `TaxBookDependent.personId`; `Filing.resultTransactionId`, `EstimatedPayment.transactionId`; `EducationPlan.beneficiaryId`; `Contribution.fromPersonId`; `Relationship.person1Id`, `person2Id`; every key to a user or person not listed elsewhere |
-   | **nullifies** | `Anchor.importId`, `Holding.importId`; an account's `connectionId` (its sync turns off, requirements S18.6.4) |
+   | **keeps name** | `categoryId` of `Transaction`, `Split`, `BudgetLine`, `Rule`; `BudgetMove.fromCategoryId`, `toCategoryId`; a `Loan`'s budget categories; `BudgetAccounts.movedFromId`, `paidFromId`; `BudgetLine.heldInId`, `BudgetLine.projectionId`; `BudgetAccounts.accountId`, `PortfolioAccounts.accountId`; what a `Projection` is built on (it waits for its owner to choose again before recomputing); `GiftPersons.personId`; `Donation.organisationId`, `fromAccountId`, `dafAccountId`; `TaxBookAccounts.accountId`, `TaxDocument.accountId`, `TaxBookDependent.personId`; `Filing.resultTransactionId`, `EstimatedPayment.transactionId`; `EducationPlan.beneficiaryId`; `Contribution.fromPersonId`; `Relationship.person1Id`, `person2Id`; every key to a user or person not listed elsewhere |
+   | **nullifies** | `Anchor.importId`, `Holding.importId`; `User.activeBudgetId` (the user then follows none until they choose); an account's `connectionId` (its sync turns off, requirements S18.6.4) |
    | **prevents delete** | `Category.parentId`; `Filing.amendsId` |
 
    **One exception**: deleting a person deletes the gifts still ideas or planned for that

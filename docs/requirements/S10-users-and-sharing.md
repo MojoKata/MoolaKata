@@ -86,7 +86,7 @@
    |---|---|
    | **Account** | its transactions, holdings, positions and receipts; a loan's payoff plans and a physical-asset account's items |
    | **Portfolio** | its charts and the accounts in it, as S5.1 says |
-   | **Budget** | its categories, plan, actuals and trends (S7.1) |
+   | **Budget** | its categories, plan, moves, leave-outs, actuals, reserves and trends (S7.1) |
    | **Gift plan** | its person's occasions, budget, notes and gifts (S7.8.5) |
    | **Giving plan** | its target, pace, donations and organisations (S7.9.1) |
    | **Tax book** | its panels, filings and documents (S8.14.3) |

@@ -102,3 +102,12 @@ derived from the policy, and only public keys are held. Until then such a descri
 refused, saying so.
 
 **Touches:** S1.6.1.4.
+
+## L12: Who paid in a household budget
+
+**What it is:** in a budget a group shares (S7.1), each member's share of its costs (equal,
+by income, or set per category), who paid what from their own accounts, and who owes whom at
+the month's end, with the settling transfer paired like any other (S1.7). Until then a group
+budget counts every transaction in its accounts, whoever paid.
+
+**Touches:** S7.1, S7.3, S10.3.

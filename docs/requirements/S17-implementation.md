@@ -557,7 +557,49 @@
    10. **The first release** is the nine milestones. The build's branch is committed and pushed
       part by part, and merges into `main` only once all of it is built and the requirements
       have their final approval.
-   11. **After the first release**: the items of [later work](later.md), L1 to L11.
+   11. **After the first release**: the items of [later work](later.md), L1 to L12.
+   12. **Milestone 10**, after the first release: budgets as S7 describes them, in ten parts,
+       each pushed on its own and the whole checked at its end:
+       1. **What a budget counts** (S7.2, S7.3.1–S7.3.3, S7.3.9): savings categories and the
+          shipped *Cash*, *Savings* and *Loan payments*; refunds in the month they land, and
+          pending transactions left out; money leaving or entering the budget, listed to sort
+          when it has no category, and the accounts left out named when a budget is made or
+          edited; and loan payments counted at the bank, split by the schedule or whole as each
+          loan says (S1.9.7), starting with a test of how a matched loan payment counts before
+          the change.
+       2. **Cash and payment apps** (S1.1, S1.7, S1.11.7): the `cash` and `payment-app` types,
+          their icons, forms and statement defaults; cash taken out paired with its deposit in a
+          cash account; and a cash account outside a budget counted as *Cash*.
+       3. **Reimbursable spending** (S2.9, S7.3.4): the mark on a transaction or a split, with
+          its amount and who owes it; **Awaiting reimbursement**; paybacks offered and paired,
+          one deposit paying back several; and what budgets count of each.
+       4. **A budget's method, options and plan** (S7.1.3–S7.1.6, S7.3.6–S7.3.8, S7.2.1): the
+          method and options chosen at creation and the options changed in its settings; each
+          card's *paid from* and each savings account's *moved from*, with the default worked
+          out (S7.1.6); *Gifts* and *Giving* planned by their plans; what overspending
+          does, per line; a savings line naming a projection; and **Estimate from history**.
+       5. **Reserves** (S7.10): targets changing from a month on, balances worked out, Funded,
+          the question before a balance stops being kept, *held in* across several accounts,
+          and **Where the money is** with *to move*, *backed*, a shortfall, landed money left
+          unassigned until given, and **Withdrawals allowed a month** (S1.2) with moves back
+          summed into one transfer and the warning past the limit.
+       6. **Moves and leave-outs** (S7.11, S7.3.5, S12.2.3): moves between categories, reserves among them, and
+          **Cover from…**, the month's moves, their Activity, a move in a past month; and a
+          transaction's **In budgets** line with each budget's **Leave out**.
+       7. **The active budget and scenarios** (S7.12, S12.2.1, S12.2.6): each user's active
+          budget, **Make active**, **Copy as scenario…**, **Compare**, the scenario's banner,
+          the Budgets list, and the Dashboard's card of the active budget's month.
+       8. **Envelope budgets** (S7.13): *To Budget* from the budget's first month, assignments
+          by the plan and by moves, card payment lines, *owed, not backed*, a starting debt,
+          and what an overspent envelope does at the month's end.
+       9. **The review, the cache and the alert** (S7.14, S7.3.10, S7.6, S12.11): a month
+          marked reviewed and flagged when it later changes; month figures kept, worked out
+          again when what they come from changes, and **Refresh**; and the cash before payday on each checking account with
+          recurring payments.
+       10. **The rest**: a golden-file case for every new figure (S17.5): carries and
+           rollover, reserves, moves, *to move*, *To Budget*, card payment lines, a loan's
+           split, reimbursements and money leaving the budget; the generated mockup and help
+           shots for what changed; both images; and `web/check`.
 10. **Continuous integration and releases**, on GitHub Actions, whose standard runners are
     free for a public repository.
     1. **Checks**: `.github/workflows/check.yml` runs `web/check` on every pull request and
