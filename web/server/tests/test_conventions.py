@@ -14,6 +14,10 @@ NO_VERSION = {
     ("PUT", "/ui/api/tax-books/{book_id}/accounts/{account_id}"): "a pair: a book counts it",
     ("PUT", "/ui/api/accounts/{account_id}/counted"): "a pair: counted in the user's totals",
     ("PUT", "/ui/api/projections/{projection_id}/shown"): "a pair: shown on the user's Dashboard",
+    (
+        "PUT",
+        "/ui/api/budgets/{budget_id}/leave-outs/{txn_id}",
+    ): "a pair: a budget leaves a transaction out",
     ("PUT", "/ui/api/settings/email/password"): "a secret, replaced outright",
     ("PUT", "/ui/api/settings/bitcoin/password"): "a secret, replaced outright",
     (
