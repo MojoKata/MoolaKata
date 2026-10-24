@@ -24,7 +24,9 @@
 
 2. **Every account has** a name, its type, the institution, an optional masked number (last
    4), its owner, an **active** switch (a closed account stays
-   for history and taxes), notes, and how it is kept current (S1.3).
+   for history and taxes), notes, and how it is kept current (S1.3). A `savings` or
+   `money-market` account also has **Withdrawals allowed a month**, the bank's limit, empty
+   for none, which budgets keep moves back within (S7.10.4).
 3. **How an account is kept current**, one or more of:
    1. **manual**: transactions and balance snapshots typed in;
    2. **file import**: **OFX and QFX** files (the structured downloads most US banks and

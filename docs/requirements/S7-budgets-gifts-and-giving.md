@@ -25,10 +25,13 @@
       of S7.5 are offered as lines of their own (*Rent $1,850 a month*, *Car insurance $1,140
       a year*), a yearly one as a reserve when reserves are on. Each proposed line is kept,
       changed or dropped before the plan is saved.
-   6. **The day-to-day account**: the banking account the budget's income lands in and its
-      cards are paid from, chosen from its accounts; the one receiving the most income is
-      proposed. Money a reserve no longer needs goes back to it (S7.10.4), and the cash
-      alert watches it (S7.6.1).
+   6. **Where money comes from**, worked out from the budget's accounts, with nothing to set
+      while their history is clear: each card's **paid from** account, learned from its paired
+      payments (S1.7) and changed only where the history is mixed; for each account reserves
+      are held in, its **moved from** account (S7.10.4), proposed from the account that most
+      often transfers into it and changeable; and, until there is history, the budget's
+      account receiving the most income. A household with several checking accounts and a
+      card for each spouse needs no account named as the main one.
 2. **Categories** form a two-level tree (*Housing › Rent*). Each is an **expense**,
    **income**, **savings** or **transfer** category. A default set ships, and each category
    may carry a **tax tag** (charitable, medical, business, childcare, education, …) that
@@ -101,10 +104,12 @@
       (a subscription, rent), since a utility bill varies anyway.
 6. **Budget alerts** come from a user's active budget only (S7.12), raised as alerts to its
    owner (S12.11):
-   1. **Cash before payday**: when the day-to-day account's balance, less the recurring
-      payments expected from it (S7.5) before its next expected income, would fall below
-      zero, an alert names the day (*UMB Checking dips below $0 on the 28th, before payday
-      on the 1st*). It resolves when the figures no longer say so.
+   1. **Cash before payday**, for each checking account in the budget with recurring payments
+      out (S7.5): when its balance, less the recurring payments expected from it before its
+      next expected money in (income landing there, or a regular transfer in), would fall
+      below zero, an alert names the account and the day (*Bob's Checking dips below $0 on the
+      26th, before the transfer from Joint on the 1st*). It resolves when the figures no
+      longer say so.
    2. *(later)*: a category passing a threshold, a large transaction.
 7. **Gift plans and occasions.** People are the household's (S10.10). On the Gifts screen
    each user keeps a **gift plan** for each person they give to or receive from:
@@ -196,30 +201,44 @@
        target off, asks first and names the balance that stops being kept; a balance is never
        carried into a line without a target.
     4. **Held in**: a reserve can name the account its money is kept in (*Ally Savings*), one
-       of the budget's accounts. **Where the money is** shows, for each account reserves are
-       held in, each reserve held there with its balance, their total, the account's
-       balance, and **to move**: what the reserves held there have gained since each began
-       (put in and moved in, less spent and moved out), less what was transferred into the
-       account from the budget's other accounts over that time, net of what was transferred
-       out. Money in the account that isn't the reserves' (its interest, savings of its own)
-       doesn't count. When the reserves are ahead, the difference is to move from the
-       day-to-day account (*$345 to move from UMB Checking to Ally Savings*); when they are
-       behind, after a repair paid from checking or a card, it goes back (*$700 to move from
-       Ally Savings to UMB Checking*); when they agree, the account is **backed**. An account
-       whose balance is below its reserves' total shows the **shortfall**. A difference
-       belongs to the account, never to one reserve, since one transfer covers several.
+       of the budget's accounts, and different reserves can be held in different accounts (an
+       emergency fund and the roof at Ally, the rest elsewhere). **Where the money is** shows,
+       for each account reserves are held in, each reserve held there with its balance, their
+       total, the account's balance, its withdrawals this month against **Withdrawals allowed
+       a month** (S1.2), and **to move**: what the reserves held there have gained since each
+       began (put in and moved in, less spent and moved out), less what was transferred into
+       the account from any of the budget's other accounts over that time, net of what was
+       transferred out, and less the landed money given to them (S7.10.5). Which checking
+       account a transfer came from doesn't matter. When the reserves are ahead, the
+       difference is to move from the account's **moved from** account (S7.1.6; *$345 to move
+       from UMB Checking to Ally Savings*); when they are behind, after a repair paid from
+       checking or a card, it goes back to it, summed into one transfer for the month (*$700
+       to move from Ally Savings to UMB Checking*), with a warning when that transfer would go
+       past the withdrawals allowed (*This would be the 7th withdrawal from Ally this month;
+       it allows 6*); when they agree, the account is **backed**. An account whose balance is
+       below its reserves' total shows the **shortfall**. A difference belongs to the account,
+       never to one reserve, since one transfer covers several.
        MoolaKata moves no money: the transfer made at the bank arrives with an import and
        pairs by S1.7, and the account reads backed. A savings account with sub-accounts can
        give each reserve its own, exact. A reserve held nowhere reads *in the budget's
        accounts*. Only the active budget says what to move (S7.12.2); a scenario shows its
        own figures.
+    5. **Landed money**: money that arrives in an account reserves are held in other than by
+       a transfer from the budget's accounts (its interest, a paycheck split into it, a
+       transfer from an account the budget doesn't count) is listed under **Where the money
+       is** as **unassigned** until the user gives it: to one reserve held there, spread among
+       them by balance, or kept as the account's own, *not set aside*. Money given to a
+       reserve is put into it as a move (S7.11) and counts as moved in, so *to move* never
+       asks for it again. In the budget it counts as it always does: interest as income, a
+       transfer by S7.3.2.
 11. **Moves** (a budget's option, always on in an envelope budget): a **move** puts an
-    amount from one category to another for one month (*$40 from Entertainment to Dining,
+    amount from one category to another, a reserve among them, for one month (*$40 from Entertainment to Dining,
     March*), and each one's available amount that month changes by it. Where the line rolls
     over, or is a reserve, the move carries on with its remainder. In an envelope budget a
     move can also come from or go to *To Budget* (*$50 more to Gifts this December*).
     1. **Made by hand**, never on its own: an overspent row offers **Cover from…**, listing
-       the categories with money left that month, the most first; any row offers **Move**.
+       the categories and reserves with money left that month, the most first, so an
+       emergency fund covers a hospital bill in *Health*; any row offers **Move**.
        A move has its amount, its month and an optional note.
     2. **Listed** in its month (**Moves**) and on both rows (*+$40 from Entertainment*,
        *−$40 to Dining*), and recorded in Activity. Deleting a move undoes it. A move in a
@@ -260,8 +279,8 @@
     2. **Cards**: each card among the budget's accounts has a **payment** line, worked out,
        never stored. A charge to the card from a category with money in it moves that much
        from the category to the payment line, and a payment to the card takes from it. A
-       part payment leaves the rest on the line, its cash still in the day-to-day account
-       and not offered again by *To Budget*. Charges beyond what their category held, and a
+       part payment leaves the rest on the line, its cash still in the account that pays
+       the card (S7.1.6) and not offered again by *To Budget*. Charges beyond what their category held, and a
        balance owed when the budget began, are **owed, not backed**, shown on the card's
        line until a move covers them or a plan line pays them down (a *Card payoff* reserve
        whose target is the amount owed). Interest and fees are spending in their category.
