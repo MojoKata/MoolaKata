@@ -885,3 +885,5 @@ Unverified: nothing here enters the review until the sweep checks it (docs/REVIE
 - **Run:** no; rests on reading.
 - **Remedy:** `_send_problem` takes its title from `errors.TITLES`.
 - **Alternatives:** none.
+
+- **Check:** corrected. **Severity now:** Low. Scope and consequence changed. The two tables differ as the item says (`middleware.py:41-47`; `errors.py:17-31`: 404 "Not found", 429 "Too many requests", 503 "Not available yet"), and the middleware sends 404 (`:173`), 429 (`:264, :303`) and 503 (`:429`) through `_send_problem`. But S13.8.3 (`S13-architecture.md:195-199`) requires a `title`, not a wording, and the browser reads `title` only when `detail` is missing (`web/ui/api/client.js:13`) while every middleware problem carries a `detail`, so nothing on screen shows two wordings. It is a second table for one status, not a fault: kind differs (consistency), not bug.

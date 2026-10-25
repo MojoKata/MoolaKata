@@ -829,25 +829,7 @@ Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u08/` (`t/test_u08.py` and it
 
 Unverified: written by the checker, who read the code but ran nothing for it (REVIEW.md §8).
 
-### U08-F1: a join call from any address is read whole, up to 20 MB, before its signature is looked at
+### U08-F1: withheld
 
-- **Kind:** security. **Severity:** Low. **Req:** S13.7.5.4 (calls not yet signed by a known key,
-  "checked before a body is read"; a body of an unknown key over 1 MB refused on its headers),
-  S13.7.6; review 2's K22.
-- **Code:** `web/server/src/moolakata/links/routes.py:162-165`:
-  ```text
-  async def join(request: Request):
-      ...
-      srv = request.app.state.server
-      body = await request.body()
-  ```
-  every other `/link` route reads its body through `body_of` (`routes.py:55-62`), which refuses
-  an unknown key's body over `UNKNOWN_BODY` (1 MB) on its headers; `join` is the one route a
-  stranger's key may call, and it skips that. `middleware.py:38` `LINK_LIMIT` is 20 MB for
-  every `/link` path, and `join`'s body is a few hundred bytes (`code`, `address`, `t`).
-- **What goes wrong:** anyone who can reach `/link/` posts a 20 MB body to `/link/v1/join`; it
-  is held in memory and hashed before `verify_request` refuses it, as often as the per-address
-  limit allows (60 a minute), and from many addresses as often as they like.
-- **Remedy:** `join` refuses a body over a few KB on its headers (a limit of its own, below
-  `UNKNOWN_BODY`), before it is read.
-
+- **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed. **Severity now:** Med.

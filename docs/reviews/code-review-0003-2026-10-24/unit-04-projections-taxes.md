@@ -1072,3 +1072,5 @@ the job's `tmp/u04/t/` (`test_u04p.py`, `test_u04t.py`), runs in `tmp/u04/run1.t
   beside U04-7's.
 - **Remedy:** `_check` accepts the amount only when `math.isfinite` and within a bound (as
   `_num` bounds `target`); the same for any other amount read as a Decimal.
+
+- **Check:** confirmed. **Severity now:** Low. Read `ui/projections.py:148-154` (`float(...) < 0` is false for NaN and inf) and `projections/__init__.py:85-96` (`Decimal(str(spec.get("amount", 0)))`). Ran a scratch test (`tmp/check/sweep/test_f2.py`): `POST /ui/api/projections` with `builtOn.amount` `"NaN"` and `"inf"` raised `decimal.InvalidOperation` out of the app (a 500 on a running server), `"-inf"` answered 422 `amount-invalid`.

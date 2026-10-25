@@ -848,3 +848,5 @@ Unverified, in the claim format (docs/REVIEW.md §7); the sweep checks them.
 - **Remedy:** S11.9.5.4 says what counts toward the cap and either exempts a snapshot in
   progress (its parts are kept until the cap's own larger limit) or states that a copy locked
   during a large first snapshot restarts it.
+
+- **Check:** confirmed. **Severity now:** Low. Read S11.9.5.4 (`S11-linked-servers.md:202-203`), `link-protocol.md:190-199` (parts of a large first change, "47 MB of 2 GB") and the code: `links/changes.py:31-32` sets `MAX_CHANGES = 1000` and `MAX_BYTES = 500 MB`, and `enqueue` (`:126-133`) sums every waiting part's file, discards the inbox and sets `needsFull` past either. So each part of a snapshot counts, a locked copy cannot take one over 500 MB, and the next pull asks for everything again. Receipts go to `receipts/`, not the inbox (S11.9.5.2), so the 2 GB example is mostly files; a household's records alone rarely reach 500 MB. That makes it Low: the spec's cap and its example disagree, and nothing says parts count.

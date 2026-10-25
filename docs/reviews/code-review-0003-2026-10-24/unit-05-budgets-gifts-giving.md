@@ -1499,3 +1499,5 @@ What the checker noticed that no claim covers, unverified and not added to the c
 - **Remedy:** compare each total on its own (`then.get(k) != now.get(k)`, without `not out`) and
   list each that differs.
 - **Alternatives:** keep the whole month's figures with the review and list every difference.
+
+- **Check:** confirmed. **Severity now:** Low. Read `ui/budgets.py:1422-1440`: `not out` in the totals loop tests the list the rows loop and the loop itself fill, so the first differing total is named and no later one, and none at all when a row changed. S7.14 (`S7-budgets-gifts-and-giving.md:301-303`) flags a month "with what changed". Not a duplicate of U05-5, which is about figures `_figures` doesn't keep (it quotes the same lines); its remedy ("name each change") would not fix this suppression unless the `and not out` goes. Reading alone.

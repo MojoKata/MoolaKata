@@ -882,6 +882,8 @@ not yet judged by anyone else (docs/REVIEW.md §8). Line numbers are those of `6
 - **Remedy:** decide it with D1-5: an L item for the PWA, or "later" dropped from the three
   places that say it.
 
+- **Check:** rejected. Already D2-25 (`docs-2-platform.md`: "A relay and the phone PWA are 'later' and 'not now', linked to out of scope; neither has an L id"), which quotes the same `out-of-scope.md` and README lines and the same missing L id; DC-4 joins it with D1-5. Nothing here that D2-25 does not hold.
+
 ### D1-F2: S9.6 cites S8.16 for the tax book's filers; filers are S8.14.1
 
 - **Kind:** reference. **Severity:** Low.
@@ -894,3 +896,5 @@ not yet judged by anyone else (docs/REVIEW.md §8). Line numbers are those of `6
   book (S8.14.3); a reader following it finds no rule for the sentence's subject.
 - **Remedy:** "by the tax book's filers (S8.14.1)", or, with D1-25's remedy, by whoever can
   read the tax book (S8.14.3, S10.3.1).
+
+- **Check:** corrected. **Severity now:** Low. Scope narrowed. The sentence at `S9-receipts.md:33-34` is about "a tax document's file", and S8.16 (`S8-taxes.md:132`) is the section on tax documents, so its citation is not wrong; what the sentence lacks is a pointer to who the filers are (S8.14.1, `:69`) and who else reads the tax book (S8.14.3). That is D1-25's finding about the same sentence, and D1-25's remedy ("whoever can read the tax book") rewrites it, so this folds into that remedy: cite S8.14.3 there.

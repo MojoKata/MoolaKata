@@ -777,3 +777,5 @@ Scratch runs in the job's `tmp/u02/` (`t/test_u02_wallets.py`, `t/test_u02_loans
   parts are split by the schedule though no money came from a bank: the balance and the
   schedule take a payment that is the draw's mirror.
 - **Remedy:** refuse a `transactionId` in the loan's own account or in any loan account.
+
+- **Check:** confirmed. **Severity now:** Low. Read `ui/loans.py:455-500` (`add_payment`): a `transactionId` is checked for free (`not deleted`, no `transferId`), for write access and for the amount, and `other.accountId` is compared with neither the loan's own account nor any loan account; `candidates` leaves the loan's account out (`x.id != a.id`, `:553`, and `not loans.is_loan(x.type)`), so only a hand-made request gets there. `body.fromAccountId` is not compared with the loan either. The pairing then makes the loan-side row `kind="transfer"` and splits it by the schedule. Reading alone; a user with write on the loan is needed, so Low.

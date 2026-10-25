@@ -841,6 +841,8 @@ the job's `tmp/u03/t/test_u03.py`, runs in `tmp/u03/run*.txt`.
 - **Remedy:** subtract the plan's share of the lot inside the picks loop, as the method's loop
   does, and refuse duplicate lot ids in `picks` at the route.
 
+- **Check:** confirmed. **Severity now:** Low. Read `ledger/lots.py:630-662` and `ui/transactions.py:645-670`: the picks loop plans `min(p.quantity, lot.quantity, left)` against the lot's whole quantity, the route checks each lot's account and instrument only, and nothing refuses a repeated lot or picks that don't add up. Ran a scratch test (`tmp/check/sweep/test_f1.py`, from `test_ledger`'s fixtures): a 10-share lot, a sale of 12 with picks of 6 and 6 of that lot, `lots.replay` answers one open lot of -2 shares with basis -200.00, two disposals of 6 shares at basis 600.00 each, and no problem.
+
 ### U03-F2: an adjusted contract's deliverable is weighted by any user's last trade
 
 - **Kind:** differs. **Severity:** Low. **Req:** S4.10 ("a holding is valued from the viewer's
@@ -861,3 +863,5 @@ the job's `tmp/u03/t/test_u03.py`, runs in `tmp/u03/run*.txt`.
   between that trade's price and the owner's own.
 - **Remedy:** pass the account's owner (`valuation.prices(..., day, owner)`), as `per_share`
   can, and fall back to the shares when the owner has no price.
+
+- **Check:** confirmed. **Severity now:** Low. Read `options/__init__.py:189-206`: `deliverable` calls `valuation.prices(s, ids, day)` with no owner, while `per_share` (`:246`) and the deliverable's other call (`:249`) pass `owner`. With `owner=None`, `valuation.prices` (`valuation.py:72-139`) takes statements and trades from every account (`_owned` adds no filter), so another user's last trade can set the weights `settle` splits the basis and cash by. S4.10 (`S4-prices.md:72-74`) says a holding is valued from the viewer's own trades only. The unit's own notes (`:728`) name the call as the P7 remainder, and no claim holds it (U03-2 is `expire_due`'s call). Reading alone.

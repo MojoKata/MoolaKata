@@ -1001,3 +1001,5 @@ Unverified, in the claim format (docs/REVIEW.md §7); the sweep checks them.
   cut at 20 MB by S13.5 (D2-1).
 - **Remedy:** state the ceiling for a receipt's body in §1.4 and S13.7.6, tied to S16.10's limit
   (see D2-1's remedy).
+
+- **Check:** rejected. Already D2-1: its check's corrected scope says the `deliver` body is `application/octet-stream`, not JSON, "with the `deliver` body undecided", and its remedy adds that S13.7.6 or §1.4 "state the ceiling for a receipt's body", which is this item's remedy. DC-1 and U08-1 carry it on into the code (`middleware.py:243-247`).

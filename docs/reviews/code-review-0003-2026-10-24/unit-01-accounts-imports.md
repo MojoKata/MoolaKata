@@ -705,6 +705,8 @@ built 1, test gap 1, untraced 0, security 0, privacy 0. None withheld; none need
 - **Remedy:** build the tabs, or say in S12.2.2 and the mockup where positions and receipts are
   reached from an account.
 
+- **Check:** confirmed. **Severity now:** Low. Read `web/ui/screens/account.js:41-56`: the tabs are Overview, the loan, item and holdings tabs, the 529 tabs, Transactions, Reconcile, Sharing and Settings, with no Positions and no Receipts. S12.2.2 (`S12-web-ui.md:37-40`) and the mockup (`MoolaKata-mock.html:985`, `'Positions'` for investing accounts that aren't 529 or giving, `'Receipts'` for every account) list both. `web/ui/guides/` has no `account-positions` or `account-receipts` guide, and S17.9's milestones name no later build of those tabs, so nothing schedules them. Whether the move was deliberate is for the user, but the requirement and the mockup say otherwise.
+
 ### U01-F2: the mockup shows a Reconcile tab on `cash` accounts, which S1.11 and the server leave out
 
 - **Kind:** differs. **Severity:** Low. **Req:** S1.11 (no statements for `cash`), S1.11.7.1
@@ -719,6 +721,8 @@ built 1, test gap 1, untraced 0, security 0, privacy 0. None withheld; none need
   U01-9 is fixed, the mockup's rule (which otherwise matches S1.11 for retirement, plan, 529,
   DAF and exchange accounts) needs `cash` excluded in the same change.
 - **Remedy:** exclude `cash` from the mockup's Reconcile tab.
+
+- **Check:** corrected. **Severity now:** Low. Scope narrowed. The mockup's rule at `MoolaKata-mock.html:985` does give a `cash` account a Reconcile tab, against `ledger/types.py:114-125` and `account-types/cash.js` (`reconcilable: false`) and S1.11's "kept from files or statements". But the mockup's sample accounts have no `cash` account (the only `cash` is a picker card, `:1801`), so no screen shows it today; the rule is wrong, the mockup is not. Fix it with U01-9's change to the same rule.
 
 ### U01-F3: every file's positions are saved as holdings snapshots, also for an account that has trades
 
@@ -737,3 +741,5 @@ built 1, test gap 1, untraced 0, security 0, privacy 0. None withheld; none need
   checked.
 - **Remedy:** write a `Holding` only when the account is kept by snapshots, as `save_brokerage`
   does through `snapshot_kept`.
+
+- **Check:** confirmed. **Severity now:** Low. Read `store/repos/ledger.py:396-453`: `checked` (no trades of its own) gates only the `HoldingCheck`; the `Holding` row is added for every position, and the comment above it says it is for "an account kept by snapshots, and otherwise a holdings check". `lots.replay` ignores snapshots unless `kept_by_snapshots` (`ledger/lots.py:144-146, 163-166`), so they sit unused until the trades go, when they become the holdings. The rows also feed `valuation.prices`' statement fallback (`valuation.py:96-107`) and the price refresh's instrument list (`prices/refresh.py:155, 201-204`), which may be wanted; S1.3.2's "for an account kept by snapshots … they are its holdings" says only the first. Reading alone.

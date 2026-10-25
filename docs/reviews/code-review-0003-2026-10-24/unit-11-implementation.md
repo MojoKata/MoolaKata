@@ -646,3 +646,5 @@ Unverified: nothing here enters the review on the word of the context that found
 - **Remedy:** parse the address (`ipaddress.ip_address(host).is_loopback`, resolving a name
   first), and in `_peers()` compare the whole address, not a suffix.
 - **Alternatives:** none needed once U11-1's remedy records attempts another way.
+
+- **Check:** confirmed. **Severity now:** Low. Read `tests/test_no_network.py:19-40`: the connect hook skips any host that starts with `127.`, `::1` or `localhost`, so `localhost.example.net` and `127.0.0.1.nip.io` are not recorded (`socket.connect` takes names); `_peers()` skips any remote address whose hex ends `0100007F` or `00000000`, which in `/proc/net/tcp6` and `udp6` are the last 32 bits, so any IPv6 peer ending in those bits is skipped. The item calls both contrived next to U11-1, and they are (the namespace has no route). Reading alone; Low.

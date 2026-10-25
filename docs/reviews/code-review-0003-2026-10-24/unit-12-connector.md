@@ -816,3 +816,5 @@ U12-12, U12-13, U12-23 Low), wrong figure 1, not built 1, untraced 1. Needing th
 - **Run:** no; rests on reading.
 - **Remedy:** catch the call's failure in `_run` and go on, as the file posts should (U12-6).
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. **Severity now:** Low. Read `connector/moolakata_connector/core.py:303-322, 400-446`: both `sign-in` calls (`:408-412` and `:445`) are outside any `try`, and `tick` runs `_run` for each due Connection inside `self._lock` with no handler, so a `ServerError` or an unsigned answer from either leaves `tick` and `run_forever` logs it and backs off (`:260-269`). The first call sets `c.sign_in` before it, so the next round skips it; the second also sets it first. One difference from the item: in the second place `c.backlog.extend(r.files)` comes after the call, so that run's files are dropped, though a run that reports a sign-in page rarely has files. The same class as U12-6 for another call.

@@ -769,8 +769,8 @@ Unverified: nothing here enters the review on the word of the context that found
 
 ### U10-F1: withheld
 
-- **Kind:** security. **Severity:** Low as found, unverified; withheld until the sweep rates it
-  (`withheld.md`, REVIEW.md §2).
+- **Kind:** security. **Severity:** Low. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed. **Severity now:** Low.
 
 ### U10-F2: the host events queue is removed before its events are recorded, so a failed record loses them
 
@@ -786,3 +786,5 @@ Unverified: nothing here enters the review on the word of the context that found
 - **Remedy:** rename the file to a private name, record, then delete the renamed file (this
   also closes U10-16's window).
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. **Severity now:** Low. Read `store/maintenance.py:148-163` (`take_host_events` reads and `path.unlink()`s, then parses) and `runtime.py:301-322` (the events are recorded afterwards in `with server.db.tx()`); nothing puts the queue back if the record raises (a locked or full database, a failed write), so the batch is gone and Key storage and the yearly alert never count it. A different window from U10-16 (a line appended between read and unlink), which the same remedy (rename, record, then delete) closes too. Reading alone.

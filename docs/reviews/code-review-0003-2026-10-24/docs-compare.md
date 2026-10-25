@@ -716,3 +716,5 @@ Unverified; noticed by the checker, in the claim format (§7).
 - **Remedy:** S17.1's `mockups/` entry lists `MoolaKata-mock.html`, the generated
   `MoolaKata-app.html` (S12.9) and `check.py`; fix it with DC-21.
 - **Units:** 11 implementation (S17.1).
+
+- **Check:** corrected. **Severity now:** Low. Lines: the `mockups/` entry is at `S17-implementation-01-layout.md:13`, not `:12`. The rest holds: the entry names `MoolaKata-mock.html` only, `S12-web-ui.md:159` names the generated `MoolaKata-app.html`, and `git ls-files docs/mockups` lists the two and `check.py`. Fold it into DC-21's change to the same tree.

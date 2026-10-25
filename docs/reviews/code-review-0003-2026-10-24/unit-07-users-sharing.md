@@ -709,6 +709,8 @@ Unverified, in §7's claim format; none is a claim until the sweep checks it.
 - **Remedy:** make `PersonIn.private` `bool | None = None` and write it only when given, and
   only from the creator of a person who isn't a user (U07-15's remedy).
 
+- **Check:** confirmed. **Severity now:** Low. Read `ui/people.py:23-31, 118-142`: `PersonIn.private` defaults to `False` and `change_person` writes `values["private"] = body.private` every time; the `/people` route leaves it as it is when not given (`ui/gifts.py:56, 415-420`). More than the item says: the PATCH is a whole-record replace (`diedOn` is also written from the body, so a PATCH that omits it clears a death), and `PersonRow` (`:33-40`) carries no `private`, so a client cannot read the value to send it back. Only the API reaches it (no screen calls `PATCH /persons/{id}`: `grep` in `web/ui`), and only the creator, the person's own user or an admin can, so Low. Same line as U07-15.
+
 ### U07-F2: sign-in and re-authentication hash the password while holding the database's one write lock
 
 - **Kind:** bug. **Severity:** Low. **Req:** S13.7.5.1, S13.7.3 (argon2id at 64 MiB, 3 passes).
@@ -729,3 +731,5 @@ Unverified, in §7's claim format; none is a claim until the sweep checks it.
   write was not timed.
 - **Remedy:** verify the password in a read (`srv.db.read()`), then open the write
   transaction only to record the failure, a rehash or the session.
+
+- **Check:** confirmed. **Severity now:** Low. Read `ui/session.py:170-205, 412-424` and `store/db.py:98-110`: `Database.tx()` takes the write connection (`BEGIN IMMEDIATE`) and `passwords.verify` runs inside it, in `sign_in` and in `reauth`; the delay for a failing login is a `time.sleep` before the transaction, so it is not held. The lock is held for one argon2id verification per attempt, and sign-in has no per-address limit for attempts that don't fail (`sign_in` calls no `_throttle`, which `reauth` and the reset routes do; only `guard.locked` after failures). One verification is about 0.1 s, so it takes many attempts a second to starve writers, and the per-address lockout on failures limits one address; Low. Not re-run; the item's 12-at-once timing is consistent with the code.
