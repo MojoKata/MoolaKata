@@ -165,6 +165,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Needs the user:** the ceiling is DC-1's decision (stream to S16.10's maximum, cap at 20 MB
   and mark *too large to share*, or lower S16.10); the stall and its silence need fixing
   whichever is chosen.
+- **Check:** confirmed. Read `receive.take`, `fetch_files`, `client.iter_file`, `net._Capped`,
+  `manage.exchange` (success recorded before `take`, `LinkError` suppressed in `exchange_all`) and
+  `serve.change_for` (`sentSeq` committed). Ran the scratch test on my copy: four pulls leave
+  `gotSeq` 0, A takes nothing of Bob's share, no `lastError`, `failingSince` or alert. Receipts to
+  25 MB are allowed (S16.10), so the cap is reachable.
 
 ### U08-2: two servers whose link ended can never link again: the join answers 500 on both sides
 
@@ -192,6 +197,13 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   that ends a link and links the same two servers again.
 - **Alternatives:** the index covers only links not ended (`NOT deleted AND state <>
   'ended'`).
+- **Check:** corrected. Severity unchanged. Reproduced on my copy: A's `/link/v1/join` raises
+  `IntegrityError: UNIQUE constraint failed: Link.peerKey` (`answer_join` sets the invitation's
+  `peerKey` while A's ended row holds it; `unique_live` ignores only `deleted`, and no `Link` is
+  ever soft-deleted). The "500 on both sides" is loose: `join` (`manage.py:296-323`) calls A
+  before adding B's row, so B first gets A's unsigned 500 as a `LinkError` (the 500 shown in the
+  scratch run is the in-process wire re-raising); B's own `IntegrityError` at `:271-284` comes
+  only if A's answer ever succeeded. The remedy stands.
 
 ### U08-3: a peer's exchange or delivery is answered on the server's event loop, so the whole server waits for it
 
@@ -228,6 +240,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   the loop and writes through a thread. A test that a slow `answer_exchange` doesn't hold up
   `/healthz`.
 - **Alternatives:** none simpler.
+- **Check:** confirmed. Read `routes.py`: `exchange`, `deliver`, `join`, `ping`, `certificate` and
+  `file` are `async def` and call `answer_exchange`, `answer_deliver`/`receive.take` (which can
+  call the peer back) and `serve.change_for` directly, with no thread hand-off; the UI routes are
+  plain `def` and `run_in_threadpool`/`to_thread` appear nowhere in `links/`. Not run: it rests on
+  reading, as the claim says.
 
 ### U08-4: the answer to an exchange is worked out whole before a byte goes, and a caller waits 20 seconds
 
@@ -254,10 +271,15 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   grows with the change; or the exchange answers at once with `more` and the change follows
   in `next` calls.
 - **Alternatives:** a longer read timeout for `exchange` and `next` alone.
+- **Check:** confirmed. Read `answer_exchange` and `serve.change_for`: every part is built, signed
+  and sealed before the first goes out, `sentSeq` is committed there and the rest sits in
+  `PENDING`; `net.TIMEOUT` reads 20 s, and the next `have` then differs so the change is rebuilt
+  in full. Reading only; the threshold was not measured and nothing is run, so Low stands.
 
 ### U08-5: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U08-6: a receipt that takes over a minute to cross is refused as a clock problem
 
@@ -284,6 +306,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   arrives, before its body is read, and check only the signature over the digest at the end;
   the signature still covers the time it was made.
 - **Alternatives:** none needed.
+- **Check:** confirmed. Read `signing.verify_request` and `verify_answer`: both take the clock
+  when called, and `_deliver_file` and `iter_file` call them only after the whole body is read,
+  against a time stamped when the headers were sent (`sign_answer` before `StreamingResponse`;
+  `sign_request_digest` before the upload). Past 60 s of transfer it raises `clock-skew`; 25 MB
+  over 3 Mbit/s is about 67 s. Reading only, as the claim says.
 
 ### U08-7: the minute's sweep deletes receipts that arrived while the copy was locked, if it runs while an unlock is opening the inbox
 
@@ -323,10 +350,17 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   of a pull in progress, or runs under a per-link lock that `take` and `apply` also hold.
 - **Alternatives:** receipts are written under `receipts/` only by `apply`, from a staging
   folder the sweeper leaves alone.
+- **Check:** confirmed. Read `copies.orphans`/`sweep` (own task thread, `runtime.py:140-145`),
+  `unlock` and `changes.apply`: `unlock` puts the copy in `open` and `apply` opens the inbox
+  before any `File` row exists, while `orphans` spares only `File` rows and `DELIVERED`. Ran the
+  scratch test on my copy: `orphans` called inside `apply` removed the old receipt (`SWEPT 1`),
+  then it was listed with `ON DISK 0` and fetching it raised `FileNotFoundError`. The window is
+  narrow, so Med is generous but stands.
 
 ### U08-8: withheld
 
 - **Kind:** privacy. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U08-9: a peer's directory is kept unchecked: an avatar that isn't an object breaks Settings › Linked servers and the Linked list
 
@@ -362,6 +396,10 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   as S16.1 shapes it (an object of known keys, an image as a data URL of an image type under a
   size), names cut to §4.2's lengths, the email a string under 254 characters or none, the id
   a string under 64; anything else is dropped, never stored. A test with a malformed directory.
+- **Check:** confirmed. Read `apply_directory` (avatar dumped as given, email unchecked, no length
+  bounds on server or household name) and the two `json.loads(householdAvatar)` into `dict | None`
+  fields (`ui/links.py:214`, `ui/linked.py:83`). Ran the scratch test on my copy: `householdAvatar
+  = '["x"]'` makes `GET /ui/api/settings/links` raise `ValidationError ... valid dictionary`.
 
 ### U08-10: a paused link holds back a share's removal, which S11.4 says still crosses
 
@@ -384,6 +422,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   registry's `removed` (and taking the peer's), no data and no directory; or a `removed` call
   of its own, allowed while paused, as `end` is.
 - **Alternatives:** S11.4 says a removal waits for the pause to end (and R3.4 with it).
+- **Check:** confirmed. Read `exchange` (returns unless active or pending), `exchange_all`,
+  `routes.exchange` (`verified(..., ("active", "pending"))`, refusing `link-paused`) and
+  `serve.change_for` (removals only inside a change); only `end` and `certificate` accept a paused
+  link. S11.4 and `link-protocol.md` §4.3.5 both say a removal still crosses a paused link, and
+  none does.
 
 ### U08-11: a certificate change that a peer missed is never announced to it again
 
@@ -414,6 +457,9 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Run:** no; rests on reading.
 - **Remedy:** keep, per link, the certificate key last told it, and announce to each link that
   hasn't been told, at every run of the task, until it has.
+- **Check:** confirmed. Read `announce_certificate`: each peer's `LinkError` is suppressed, then
+  `linkCertificate` is stored as told for all; nothing at the exchange (`manage.exchange`,
+  `client.call`) carries the key, so a peer missed once is never told again. Reading only.
 
 ### U08-12: one link's malformed change stops the hourly exchange for every link after it, unrecorded
 
@@ -440,6 +486,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Remedy:** `exchange_all` catches every exception per link, records it on that link
   (`lastError`, `failingSince`) and goes on to the next; `exchange` records failures after its
   first call too (U08-1's remedy).
+- **Check:** confirmed. Read `exchange_all` (suppresses only `LinkError`), `changes.verify` and
+  `serve.sealed_receipt` (both raise `ChangeError`, which is not a `LinkError`) and
+  `receive.take`; the task runner (`tasks.py:208-213`) logs the failure and ends the run, so later
+  links wait for the next hour, and no alert covers a failed task. The one trace besides the log
+  is the task's own last error; the link shows nothing, as the claim says.
 
 ### U08-13: a linked server's address is exempt from the loopback refusal when its host is named like the SMTP server or the node
 
@@ -461,6 +512,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   client, the node), and only an admin-named host asked for by its own client is exempt; or
   `join`/`answer_join` refuse a link address whose host resolves to a forbidden range,
   whatever is named.
+- **Check:** confirmed. Read `net.Guard.check` (`named` skips the forbidden-range test) and
+  `ui/prices.apply_egress` (`allowed_by_name` is the SMTP host plus the node's; peers only in
+  dev), and `client.checked_address` (https, host, no query: no range test). A peer host equal to
+  the SMTP host string passes. Low is right: an admin approves a visible address, TLS only, fixed
+  JSON.
 
 ### U08-14: what crosses of documents differs from S11.5.1: a gift's or a donation's receipt files never cross, and a tax book's document list crosses without Include receipts (D2-2)
 
@@ -491,6 +547,12 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   document list crosses without `fileName` and `receiptId`, as a gift's documents are
   stripped; D2-2's decision settles the tax book's files.
 - **Needs the user:** D2-2 (whether a tax book's document files cross now or with L6).
+- **Check:** confirmed. Read `serve.work_out` (`_without_documents` only for a gift plan without
+  the tick; `file:` documents only for an account's receipts), `allowed_file` (accounts only) and
+  `taxes._doc` (`receiptId`, `fileName` sent in the tax book's document, tick or not); the linked
+  window's file list (`/linked/<id>/files`) holds only account receipts. S9.6 and S11.5.1 say
+  receipts cross with the tick, so gift documents' files not crossing differs; the tax book half
+  rests on D2-2, as the claim says.
 
 ### U08-15: S11.8's records: a restart's release isn't recorded, and the copy's and the link's events don't say which link
 
@@ -512,6 +574,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Remedy:** every `link.*` entry carries `subject_kind="link", subject_id=link_id`, and its
   wording names the server; the startup records one `link.copy-locked` (`restart`) for each
   link whose copy has a key.
+- **Check:** corrected. Severity unchanged. Reading `copies.py`, `manage.py`, `ui/activity.py` and
+  `runtime.py`: nothing records a release at restart (no `link.copy-locked` at start), which S11.8
+  lists, so that part holds. The other half does not: S11.8 asks for who, not which link, and the
+  unlock entries have the actor; no requirement says each names its link. Keep the claim to the
+  restart release; naming the link is an improvement, not a difference.
 
 ### U08-16: the guides and a dialog say other than S11.1 and the code in three places
 
@@ -531,6 +598,12 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Remedy:** the join guide says "sends this server's address and key, and its certificate's
   fingerprint when its certificate is its own; nothing else until they approve"; the dialog
   names the secret; S11.9.8 says what Reset copy does (or the code shows the words at once).
+- **Check:** confirmed. Read all three places: `dialog-link-join.md` says the join sends
+  "household name and users" while `manage.join` sends `{code, address, t}` (S11.1.2: nothing
+  else); `links.js:348-349` leaves out the one-time secret that `dialog-link-invite.md` names;
+  S11.9.8 says Reset copy "makes a new copy key with new words" while `copies.reset` and the guide
+  leave the key to be made next. Item 3 differs from S11.9.8 only, not from the code, as the claim
+  says.
 
 ### U08-17: Reset copy asks for no password when the server wants it again, so the click does nothing
 
@@ -545,6 +618,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   asks for nothing, and the button stays armed.
 - **Run:** no; rests on reading.
 - **Remedy:** `copyAct` calls through `withReauth`, and shows its error.
+- **Check:** corrected. Severity unchanged. The click does fail for want of a password: `copies()`
+  gets `copyAct` as its `act` (`links.js:271, 403`), whose `api.post` has no `withReauth`, and
+  `reset_copy` calls `recent_auth`. But the error is not dropped: `links.js:488` renders
+  `<FormError error=${act.error ...} />`, so the admin sees "Enter your password again to do
+  this." with no field to do it in. Remedy stands: `copyAct` through `withReauth`.
 
 ### U08-18: `changes.orphans` is used nowhere
 
@@ -553,6 +631,9 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   a second sweeper, which removes every `*.tmp` under the copy whatever its age; the sweep
   task uses `copies.orphans` (`copies.py:106-132`) and nothing calls this one.
 - **Remedy:** delete it (it would remove a file being written if anyone called it).
+- **Check:** confirmed. No caller of `changes.orphans` anywhere in `src` or `tests` (grep);
+  `copies.orphans` is the one the sweep and the test use. It is also worse than the claim says: it
+  removes every unnamed `*.mkr` whatever its age, as well as every `*.tmp`.
 
 ### U08-19: three refusals differ from the protocol's table
 
@@ -570,6 +651,10 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Run:** no; rests on reading.
 - **Remedy:** the codes §7 names, or §7 lists `file-refused` and says `limit` is sent as
   problem+json.
+- **Check:** confirmed. Read `ratelimit.too_many` (429, `rate-limited`), `routes._deliver_file`
+  (`not-linked` for an existing link that is not active; `file-refused` for a bad id) and
+  link-protocol.md §7 (`limit`, `link-<state>`, no `file-refused`); `client.call` treats any
+  unsigned 429 as `limit`, so peers cope, as the claim says.
 
 ### U08-20: no link test goes through `net.Client`, so the ceiling, the timeouts and a long stream's checks are never run on a link
 
@@ -583,6 +668,10 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Remedy:** the `Wire` applies the same ceiling as `net.Client` (or wraps its answers in
   `net._Capped`), and tests send a receipt over it and one that takes over a minute (a clock
   moved between headers and end).
+- **Check:** confirmed. `linkpair.Wire.client` replaces `net.Client` with a class that hands each
+  call to the peer's `TestClient`; the `_Capped` ceiling and the timeouts are tested only in
+  `test_core.py:313-321` on the client alone. This is why the scratch test for U08-1 had to cut
+  the stream by hand.
 
 ### U08-21: the name a delivered receipt goes by is outside the signature
 
@@ -601,6 +690,11 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Run:** no; rests on reading.
 - **Remedy:** the signed text of a `deliver` carrying a file names it (the path's query,
   `/link/v1/deliver?file=<id>`, which the signature already covers).
+- **Check:** confirmed. `signing.sign_request_digest` signs method, path, body digest, time, nonce
+  and receiver; `client.send_file` puts the receipt's id in `MK-Link-File`, outside it, and
+  `routes._deliver_file` only checks that it looks like an id. A proxy can rename a delivered
+  receipt; as the claim says it spoils and forges nothing (a proxy can already drop a call), so
+  Low stands.
 
 ## Phase 1 items judged against the code
 
@@ -730,3 +824,30 @@ The map gives this unit none. Read for it: `changes.orphans` serves nothing (**U
 
 Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u08/` (`t/test_u08.py` and its outputs
 `run1.txt`–`run4.txt`).
+
+## Found while checking
+
+Unverified: written by the checker, who read the code but ran nothing for it (REVIEW.md §8).
+
+### U08-F1: a join call from any address is read whole, up to 20 MB, before its signature is looked at
+
+- **Kind:** security. **Severity:** Low. **Req:** S13.7.5.4 (calls not yet signed by a known key,
+  "checked before a body is read"; a body of an unknown key over 1 MB refused on its headers),
+  S13.7.6; review 2's K22.
+- **Code:** `web/server/src/moolakata/links/routes.py:162-165`:
+  ```text
+  async def join(request: Request):
+      ...
+      srv = request.app.state.server
+      body = await request.body()
+  ```
+  every other `/link` route reads its body through `body_of` (`routes.py:55-62`), which refuses
+  an unknown key's body over `UNKNOWN_BODY` (1 MB) on its headers; `join` is the one route a
+  stranger's key may call, and it skips that. `middleware.py:38` `LINK_LIMIT` is 20 MB for
+  every `/link` path, and `join`'s body is a few hundred bytes (`code`, `address`, `t`).
+- **What goes wrong:** anyone who can reach `/link/` posts a 20 MB body to `/link/v1/join`; it
+  is held in memory and hashed before `verify_request` refuses it, as often as the per-address
+  limit allows (60 a minute), and from many addresses as often as they like.
+- **Remedy:** `join` refuses a body over a few KB on its headers (a limit of its own, below
+  `UNKNOWN_BODY`), before it is read.
+
