@@ -45,6 +45,14 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   encryption-settings (S16.10).
 - **Needs the user:** which of the three.
 
+- **Check:** corrected. The scope narrows; severity unchanged (Med). The `file` half is firm: S13.5
+  (`S13-architecture.md:51-52`) cuts off every answer past 20 MB and `link-protocol.md:91` answers
+  `file` with the sealed receipt, so a receipt over about 20 MB (S16.10's default is 25) is never
+  fetched. The `deliver` half rests on §1.4's "Bodies are JSON, UTF-8, at most 20 MB" read for an
+  octet-stream body; S13.7.6 names only JSON bodies and "uploads up to the size in Settings", so the
+  documents are ambiguous there: say `file` is certain and `deliver` holds by §1.4's words. Whether
+  an exchange stalls for good is for unit 08, as the claim says.
+
 #### DC-2: joins D2-3 with `DEPLOY.md` and `operations.md`, which disagree on whether a relied-on TrueNAS server runs `tls` mode
 
 - **Kind:** contradiction across blocks (join, extending D2-3). **Severity:** Med. **Conf:** 0.
@@ -72,6 +80,14 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   implementation (S17.8.3, the install files).
 - **Needs the user:** with D2-3.
 
+- **Check:** corrected. Scope and wording change; severity unchanged (Med). DEPLOY's intro and
+  `operations.md` §1 (`:25-26`) agree with S13.3 (`tls` is for trying it on a local network); what
+  contradicts S13.3 is S17.8.3.4 (`S17-implementation-08-packaging.md:82`, "What the templates fix:
+  `tls` mode"), `compose.truenas.yaml:34` (`mode = "tls"`) and the TrueNAS install (DEPLOY §4,
+  `operations.md` §2.2, which carries no proxy path). DEPLOY does not send a relied-on server to §2.2
+  but to `operations.md` §2 (the proxy `compose.yaml`); the gap is that on TrueNAS the only documented
+  install is `tls`. D2-3's decision still has to reach those four places.
+
 #### DC-3: joins D2-4 and D3-6, a link's states and what moves it between them
 
 - **Kind:** behaviour named and never specified, across blocks (join). **Severity:** Low.
@@ -87,6 +103,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** one table of states, the calls each allows and what moves a link between them,
   in `link-protocol.md` §4, with S11.7 listing the same states by name and citing it.
 - **Units:** 08 linked-servers.
+
+- **Check:** confirmed. S11.7 (`S11-linked-servers.md:102-104`) lists active, paused, unreachable and
+  ended; S11.6 (`:98-101`) makes a link *broken* ("end it or link again"); `link-protocol.md:83-93`'s
+  Link states column never names *broken* (the word appears only at `:264-265`, in §7), and
+  nothing says what a broken link answers or whether the same key may link again.
 
 #### DC-4: joins D1-5 and D2-25, "later" that points at out of scope
 
@@ -104,6 +125,12 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Needs the user:** for each of the three (other coins, a relay, the phone PWA), later or
   out of scope.
 
+- **Check:** corrected. Ids and lines change; severity unchanged (Low). "Other coins and chains come
+  later" is S1.6 (`S1-accounts.md:169`), not S1.5 (S1.5, `:166-168`, is the exchange API, also "later"
+  and linked to `out-of-scope.md`). The rest holds: S11.2.3 (`S11-linked-servers.md:37`, "not now",
+  relay) and S12.8 (`S12-web-ui.md:149-150`, a separate PWA) are in `out-of-scope.md` ("comes later"
+  for coins and the PWA, "Running a relay for links"), and `later.md` has L1-L12, none of them.
+
 #### DC-5: joins D2-19 with `schema.md`, which keeps the same unbounded queue rule
 
 - **Kind:** behaviour named and never specified, across blocks (join, extending D2-19).
@@ -120,6 +147,10 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** D2-19's bound (say, a day for an email with no link, as the mail folder keeps
   it), written into S16.2 and both `schema.md` lines.
 - **Units:** 07 users-sharing (the map puts `mail.py` there), 10 encryption-settings (S16.2).
+
+- **Check:** confirmed. S16.2 (`S16-settings.md:21-24`) retries a queued email "until its link
+  expires"; `schema.md:89` and `:191-193` repeat "until it is sent or its link expires"; the mail
+  folder (`S16-settings.md:19-21`) gives an email with no link a day, the queue says nothing.
 
 ### New conflicts between blocks
 
@@ -141,6 +172,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** S14.3 says "except where a rule says otherwise (a tax rule, a loan's interest,
   S1.9.2)", or lists every place that rounds otherwise.
 - **Units:** 02 items-loans-education-bitcoin (S1.9), 06 receipts-storage (S14.3).
+
+- **Check:** confirmed. `S14-storage-and-secrets.md:35-36` ("`HALF_EVEN` except where a tax rule says
+  otherwise") and `S1-accounts.md:292-294` ("Interest is rounded half up to the cent") are as quoted,
+  and a loan's interest is not a tax rule. (The "within 2%" match of S1.9.3 compares a bank
+  transaction with the payment; it is a loose aside, not what the claim rests on.)
 
 #### DC-7: S1.6.2.3 names each Bitcoin Core wallet by the account's id; `schema.md` §2 says nothing visible on disk carries an id
 
@@ -166,6 +202,12 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   exception, with why.
 - **Units:** 02 items-loans-education-bitcoin (S1.6).
 
+- **Check:** plausible. **Question:** does `schema.md` §2's "File names and anything else visible on
+  disk" reach a name MoolaKata gives a wallet on the household's own Bitcoin Core node, or only the
+  files in MoolaKata's own data directory? The quoted lines are as written (`S1-accounts.md:206-208`,
+  `schema.md:53-55`, `test-plan.md:44`), and the rule's examples (receipt files, a linked copy's files)
+  are all MoolaKata's own; the node's disk is another system's, so both texts can stand.
+
 #### DC-8: `operations.md` §3 says an older release refuses a migrated database at start; S13.6 and `operations.md` §5.1 say at the unlock
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -188,6 +230,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** `operations.md` §3 says "it refuses to unlock, with a `refusing to unlock:` line
   (§5.1)".
 - **Units:** 09 web-ui-architecture (S13.6), 06 receipts-storage (S14.1.3's migrations).
+
+- **Check:** confirmed. `operations.md:163-165` says an older release "refuses a database that a newer
+  one has migrated" with a `refusing to start:` line; `:225-227` (§5.1) and `S13-architecture.md:69-71`
+  (also S15, `S15-encryption-and-master-key.md:178`) put it at the unlock, `refusing to unlock:`, the
+  server staying locked. The database is SQLCipher, so S13.6 is the one that can hold.
 
 #### DC-9: `schema.md` keeps sign-in and access-key attempt counters as rows; S13.7.5.5 holds every counter in memory
 
@@ -212,6 +259,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Units:** 09 web-ui-architecture (S13.7.5), 08 linked-servers (S11.9.3.3), 06
   receipts-storage (the store's tables).
 
+- **Check:** confirmed. `S13-architecture.md:122` ("The counters are held in memory: a restart clears
+  them") covers every limit of S13.7.5, the sign-in, unlock and access-key ones among them
+  (`:110-111`, `:116`); `schema.md:191-193` lists "sign-in and access-key attempt counters" as rows
+  removed outright. (Line numbers in the claim run one or two off; the quotes are exact.)
+
 #### DC-10: the link protocol keeps remote usernames up to 64 and display names up to 120; S10.1.1's limits (32, 80) govern the same `User` rows
 
 - **Kind:** limit given differently. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -235,6 +287,13 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   S10.1.1, and §4.2 says a longer value is cut to the limit (or the row skipped, and which).
 - **Units:** 07 users-sharing (S10), 08 linked-servers.
 
+- **Check:** corrected. Severity unchanged (Low); the consequence is overstated. The limits differ as
+  quoted (`S10-users-and-sharing.md:7-10`, 32 and 80; `link-protocol.md:128-130`, 64 and 120), but a
+  peer lists only its own active local users (`link-protocol.md:125`), who obey S10.1.1, so a
+  conforming peer never sends a 33-64 character username and the exchange does not fail on one. What
+  remains is that 64 and 120 are looser than S10.1.1 without saying why, and "keeps ... up to" does
+  not say whether a longer value from a non-conforming peer is cut, refused or the row skipped.
+
 #### DC-11: S11.1.2 says the joining server sends "B's own address and key … and nothing else"; the protocol's `join` also carries its certificate's fingerprint
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -255,6 +314,13 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   the certificate is its own, signed with the key; no user list crosses before A's admin
   approves."
 - **Units:** 08 linked-servers.
+
+- **Check:** corrected. Remedy widens; severity unchanged (Low). `S11-linked-servers.md:13-15` ("and
+  nothing else") against `link-protocol.md:103-104` holds, and S11.1.3 (`:22-23`) needs `t`: a server's
+  own certificate is verified "against the fingerprint its link code carried", which only the invitation
+  has. The join also carries the code and its one-time secret (`link-protocol.md:98-104`; S11.1.3,
+  `:22`: "The code's one-time secret crosses once, in the join"), which "nothing else" forbids too, so
+  the remedy sentence names the code's secret as well as the certificate's fingerprint.
 
 #### DC-12: S9.2 encrypts local receipts in S11.9.6's format, whose key label and associated data are written only for links
 
@@ -282,6 +348,12 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Units:** 06 receipts-storage (S9.2), 10 encryption-settings (S15.3.2), 08 linked-servers
   (S11.9.6).
 
+- **Check:** corrected. Scope narrows; severity unchanged (Low). S15.3.2 item 2
+  (`S15-encryption-and-master-key.md:93-94`) already says receipt files use the S11.9.6 format "with
+  this key in place of a linked copy's key", so the key is specified. What stays unwritten is the
+  HKDF label (S11.9.6's two labels are for links) and the associated data (S9.2: "the file's id"; the
+  chunk number is S11.9.6's), as the claim says.
+
 #### DC-13: a connector's file is limited to "the upload size in Settings", and Settings has two
 
 - **Kind:** limit given differently / unspecified. **Severity:** Low. **Conf:** 0. **Status:**
@@ -303,6 +375,12 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** S13.7.6 names both ("a receipt up to S16.10's size, a statement or other import
   file up to S16.8's"), and `connector-protocol.md` §1.4 and §7's `too-large` cite S16.8.
 - **Units:** 12 connector, 09 web-ui-architecture (S13.7.6), 01 accounts-imports (S1.3).
+
+- **Check:** confirmed. `connector-protocol.md:54-55` and `:337` (`too-large`: "a file over the upload
+  size") name one size; S13.7.6 (`S13-architecture.md:124`) says "the size in Settings (25 MB by
+  default)" with two Settings of that default (`S16-settings.md:36-39` statements 1-200 MB, `:46`
+  receipts 1-100 MB); S18.8 (`S18-connector.md:331-335`) says only "the upload limit ... (S13.7.5.3)",
+  which is a count of files an hour, not a size.
 
 #### DC-14: S8.15 reads the federal due date from Settings › Tax tables; S16.11's list of what the tables hold leaves it out
 
@@ -326,6 +404,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   moves), and says a later year takes the month and day, not the date.
 - **Units:** 04 projections-taxes (S8.15), 10 encryption-settings (S16.11).
 
+- **Check:** confirmed. `S8-taxes.md:110-112` reads the federal due date "from Settings › Tax tables"
+  (the mockup's help says the same, `MoolaKata-mock.html:2423`); `S16-settings.md:50-57`'s list of what
+  the tables hold has no due date, and "A year after the latest shipped uses the latest" (`:55-56`)
+  would carry a date, not a month and day, to a later year.
+
 #### DC-15: `operations.md` says daily emails follow the container's time zone; S12.11.5 sends each user's summary in that user's zone
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -343,6 +426,10 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** `operations.md` §2.3: "which backups follow, and the daily summary for each user
   whose time zone is Auto (S14.9)".
 - **Units:** 09 web-ui-architecture (S12.11).
+
+- **Check:** confirmed. `operations.md:91-92` ("which backups and daily emails follow") against
+  `S12-web-ui.md:250-251` ("in each user's time zone, S14.9") and S14.9 (`S14-storage-and-secrets.md:80-89`:
+  a user's zone is Auto, the server's, or their own). The host's zone applies to Auto users only.
 
 #### DC-16: the README gives the linked copy's release and the alert threshold as fixed figures; S11, S16 make both settings
 
@@ -368,6 +455,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   threshold, 48 hours by default" in R1.25.
 - **Units:** none in practice (documents); S11.9.4 is unit 08, S16 unit 10.
 
+- **Check:** confirmed. `README.md:168`, `:197-198` and `:233-234` give "an hour unused" and "more than
+  48 hours" as fixed; `S16-settings.md:44-45` and `:96-97` make them settings (5 minutes to 24 hours;
+  1 to 336 hours). (S11 repeats "after an hour unused" at `:188` as a sample display and `:249` in
+  prose, which a fix could also touch.)
+
 #### DC-17: R1.7 names the share levels **read** and **read/write**; R2.9 and S10 call the second `write`
 
 - **Kind:** term used other than R2 defines. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -383,6 +475,10 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   enum the units check.
 - **Remedy:** R1.7 and the README's opening: "**read** or **write**".
 - **Units:** none (documents); unit 07 checks the enum.
+
+- **Check:** confirmed. `README.md:132` (R1.7) says "**read** or **read/write**" (and `:8`, `:135`
+  "read/write"); R2.9 (`:227-229`) and S10.3.2 / S10.4 (`S10-users-and-sharing.md:121`) say `read` and
+  `write`, the enum's values.
 
 #### DC-18: S13.8.6 says secrets have no version; `schema.md` gives every table with an `id` one
 
@@ -406,6 +502,12 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   `If-Match`."
 - **Units:** 09 web-ui-architecture (S13.8.6), 10 encryption-settings (S15.3.3's secrets), 06
   receipts-storage (the store's tables).
+
+- **Check:** corrected. Basis changes; severity unchanged (Low). The conflict is between
+  `S13-architecture.md:227-229` ("secrets ... have no version") and `schema.md:50-52`, which gives every
+  table with an `id` a `version` (`Secr` has an `id`, `schema.md:121`). `schema.md` §5 does not test
+  for `version`: its item 4 (`:211-212`) tests the soft-delete fields of §4.1, so the claim's "§5
+  requires a `version`" is wrong, and the table's `version` is stated only by §2.
 
 #### DC-19: the configuration file's keys: DEPLOY and the example set `[server] name`, which no requirement names beside S16.1's server name
 
@@ -433,6 +535,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Units:** 09 web-ui-architecture (S13.3, S13.6, and `config.py`, which the map puts there),
   11 implementation (the install files).
 
+- **Check:** confirmed. `DEPLOY.md:159-169` and `web/install/moolakata.toml:5-8` carry `[server] name`
+  (logs and the certificate); S16.1 (`S16-settings.md:7`) has only the name linked servers see, and
+  S13.3 (`S13-architecture.md:15-28`) names `mode`, `[tls] names` and `[server] host` but not `name`,
+  `port`, `trusted_proxies` or `[paths]`, while S13.6 (`:55-57`) refuses a key it doesn't know.
+
 #### DC-20: S17.2 lists the server's dependencies "each a ruling" without python-multipart, which `dependencies.md` registers
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -454,6 +561,10 @@ cross-block problem seen from two sides; assembly gives a join one review id.
   cryptography's list reads "AES-GCM, HKDF, Ed25519, X25519".
 - **Units:** 11 implementation (S17.2).
 
+- **Check:** confirmed. `S17-implementation-02-server-dependencies.md:3-12` lists no python-multipart
+  (it also lists cryptography for "AES-GCM, Ed25519 for links" only); `dependencies.md:52` registers
+  it and `web/server/pyproject.toml:20` depends on it; S15.3.2 (`:88`) and S11.9.6 use HKDF and X25519.
+
 #### DC-21: S17.1's layout of `docs/` leaves out RELEASE.md, GENESIS.md, REVIEW.md, `reviews/`, `release/` and `external/`
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -471,6 +582,10 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** S17.1's `docs/` line adds RELEASE.md (S17.10), GENESIS.md, REVIEW.md and
   `reviews/`, `release/` and `external/`.
 - **Units:** 11 implementation (S17.1; a test may hold the layout).
+
+- **Check:** confirmed. `S17-implementation-01-layout.md:7-15`'s `docs/` entry stops at the files
+  quoted; `git ls-files docs` also tracks RELEASE.md, GENESIS.md, REVIEW.md, `reviews/`, `release/`
+  (screenshots) and `external/` (the outside copies), none of them listed.
 
 ### Found outside the comparison's scope
 
@@ -494,6 +609,11 @@ cross-block problem seen from two sides; assembly gives a join one review id.
 - **Remedy:** S10.6's filters end at **Shared by me**; linked households are reached as
   S12.10.1 says.
 - **Units:** 07 users-sharing (S10.6), 09 web-ui-architecture (S12.10).
+
+- **Check:** confirmed. `S10-users-and-sharing.md:130-133` ends its filters with "From linked servers";
+  `S12-web-ui.md:202` ("Never mixed") and `rejected-ideas.md:25-27` keep a linked household out of
+  this household's lists; the mockup's account filters (`MoolaKata-mock.html:940`) are All, Mine,
+  Shared with me and Shared by me.
 
 ## Cross-block conflicts the blocks already claimed
 
@@ -571,3 +691,28 @@ is about to change.
 
 Units 01, 02 and 07 have nothing waiting; unit 01 can start once these are walked (or at once,
 since none is a gate).
+
+
+## Found while checking
+
+Unverified; noticed by the checker, in the claim format (§7).
+
+### DC-F1: S17.1's layout of `docs/mockups/` names one file; the folder holds three, and S12.9 names the generated one
+
+- **Kind:** the same thing specified twice, differently. **Severity:** Low.
+- **Req:** S17.1, S12.9.
+- **Where:**
+  - `S17-implementation-01-layout.md:12`:
+
+    ```text
+                             mockups/MoolaKata-mock.html
+    ```
+
+  - `S12-web-ui.md:159`: "**`docs/mockups/MoolaKata-app.html`**, generated: `web/ui/mockup/build.py`
+    inlines the".
+  - `git ls-files docs/mockups`: `MoolaKata-app.html`, `MoolaKata-mock.html`, `check.py`.
+- **What goes wrong:** the layout is where a reader learns what lives where. It leaves out the
+  generated mockup S12.9 describes and CLAUDE.md's `check.py`, beside the six entries DC-21 lists.
+- **Remedy:** S17.1's `mockups/` entry lists `MoolaKata-mock.html`, the generated
+  `MoolaKata-app.html` (S12.9) and `check.py`; fix it with DC-21.
+- **Units:** 11 implementation (S17.1).
