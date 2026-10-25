@@ -767,34 +767,10 @@ Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u10/` (`rewrap_damaged.py`/`.
 
 Unverified: nothing here enters the review on the word of the context that found it (REVIEW.md §8).
 
-### U10-F1: `keys init` run with `docker compose run` shows the recovery sheet on `/dev/tty`, which Docker's log keeps for a container with a tty
+### U10-F1: withheld
 
-- **Kind:** security. **Severity:** Low. **Req:** S15.4.4 ("shows the phrase on the terminal, never on
-  standard output, so that no log keeps it"), S15.1.7 (the logs hold no secrets), review 2's K10;
-  `docs/operations.md:101-103` ("never in Docker's logs").
-- **Code:** `web/server/src/moolakata/keys/cli.py:41-62`:
-  ```text
-  class Terminal:
-      """The controlling terminal, for a recovery sheet and the words typed back: never
-      standard output, which Docker's logs keep (S15.4.4). A command that shows a sheet
-      refuses to run without one."""
-  ```
-  with `say` and `ask` writing to the file `open_tty()` opened.
-- **What goes wrong:** a container started with a tty (`docker compose run --rm moolakata keys
-  init`, the documented way) has one pseudo-terminal, and the daemon's log driver reads
-  everything written to it, `/dev/tty` included. A throwaway container run with `docker run -t`
-  and `echo X > /dev/tty` showed `X` in `docker logs`. So the sheet and the three words typed
-  back go to the container's log, kept past the command where the log driver is journald,
-  syslog or a shipper (with the default driver and `--rm` the log goes with the container).
-  `Terminal` keeps the sheet off standard output, which does not keep it out of the log.
-  `keys rotate` is run with `compose exec` (`operations.md:280`), whose output the daemon does
-  not log (not tested).
-- **Run:** a throwaway container only (`docker run -t`, `/dev/tty` write, `docker logs`); the
-  command itself was not run.
-- **Remedy:** say in S15.4.4 and `operations.md` that `keys init` is run with `docker compose
-  exec` against a started server, or with a log driver that keeps nothing; or write the sheet
-  where no log reads it (the host's terminal, a file only the admin reads).
-- **Alternatives:** none simpler that keeps `run --rm`.
+- **Kind:** security. **Severity:** Low as found, unverified; withheld until the sweep rates it
+  (`withheld.md`, REVIEW.md §2).
 
 ### U10-F2: the host events queue is removed before its events are recorded, so a failed record loses them
 
