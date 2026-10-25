@@ -156,6 +156,8 @@ are in the table at the end.)
 - **Alternatives:** have CBOE's chain answer, which carries the underlying's quote, store the
   underlying's close with the option marks (only when CBOE is the option source).
 
+- **Check:** confirmed. Read `refresh.priced()`/`held()` (an option's own lots only; the underlying is added nowhere), `refresh()` (an option is fetched by its OCC ticker alone) and S4.4 (no watchlist exists anywhere in `prices/`, `ui/prices.py` or the tables); reran the scratch test: after a sell-to-open on XYZ, `priced()` is `['XYZ 20NOV26 50 P']`. It holds where the stock is held in no live account (held elsewhere it is priced); `valuation.intrinsic` and `expire_due` both go through `per_share`, which then has no close.
+
 ### U03-2: an automatic expiry is decided by any trade, any user's, on the expiry day, not by a close
 
 - **Kind:** differs. **Req:** S3.6 ("The close used is the expiry day's; without it, the user
@@ -188,9 +190,13 @@ are in the table at the end.)
 - **Alternatives:** pass the account's owner to `per_share`, and refuse `source` `trade` and
   `statement` for this decision.
 
+- **Check:** confirmed. Read `expire_due` (`per_share` called with no owner, only `close[1] != c.expiry` guards) and `valuation.prices` (owner None: `_owned` adds no filter, so any account's statement value and any user's last trade of the instrument, `source "trade"`, stand in); `Instrument` rows are shared across users (`repo.instrument` looks up by symbol). Contradicts S4.10 and valuation's own docstring ("Another user's ... trades never value an account"). Reading alone.
+
 ### U03-3: withheld
 
 - **Kind:** security. **Severity:** Med. **Withheld** (details in `withheld.md`, §2).
+
+- **Check:** corrected.
 
 ### U03-4: a specific-identification pick of a lot a wash sale split takes the rest from another lot
 
@@ -228,6 +234,8 @@ are in the table at the end.)
   first or by the method's order within the lot.
 - **Alternatives:** key `by_id` to a list of parts and spend the pick across them.
 
+- **Check:** confirmed. Read `_replacement` (the split-off part is appended with `lot.lotId`, so two open lots share one id) and `_consume` (`by_id = {lot.lotId: lot ...}` keeps the later one; the pick's remainder falls to the method's order); reran the scratch test `test_partial_wash_then_pick`: after the pick the open lots are K 4 ($400) and L 6 ($960), as claimed.
+
 ### U03-5: a buy in another account that washes a closed year's loss changes that year unasked
 
 - **Kind:** differs. **Req:** S2.8, S2.8.2 ("When it moves the realized gains of a closed year,
@@ -262,6 +270,8 @@ are in the table at the end.)
 - **Alternatives:** the rerun keeps a closed year's wash sales as they were unless confirmed,
   and lists the change on the tax book.
 
+- **Check:** confirmed. Read `closed.Guard` (before and after `gains` for the edited account only, `closing_books(s, account)`) and `create_transaction` (`washes.recompute(s, a.ownerId)` reruns the household's wash sales before `guard.check()`); the same pair is used by update, delete and settle. S2.8.2 says "moves the realized gains of a closed year" with no limit to the edited account. Reran the scratch test: status 201, the 2025 sale -500.00 to 0.00.
+
 ### U03-6: shares moved in or out count as growth in a portfolio's returns and contributions
 
 - **Kind:** wrong figure. **Req:** S5.2.1 ("contributions shown apart from growth"), S5.2.2
@@ -291,6 +301,8 @@ are in the table at the end.)
   (`valuation.price_points` for the transferred instruments) to `perf.flows`, falling back to
   the transfer's basis when no price is known for the day.
 - **Alternatives:** value a transfer at its own `price` or `costBasis` when it carries one.
+
+- **Check:** confirmed. Read `perf.flows` (a securities transfer counts only with a price from `prices`) and its two callers, `figures.combine` and `ui/portfolios.py`: neither passes `prices`; a share transfer's `amount` is 0 in the scratch tests (kind `transfer-in`, not `EXTERNAL`'s cash kinds), so no cash flow is recorded either. `valuation.series` values the arrived shares, so the series jumps without a flow. `test_figures.py` has no securities transfer. Reading alone.
 
 ### U03-7: any edit of a split transaction loses its paybacks: the paid-back part is awaited again
 
@@ -326,6 +338,8 @@ are in the table at the end.)
 - **Alternatives:** leave the splits alone when the list sent equals the one stored; or move a
   deleted split's pairings to the new split at the same position with the same mark.
 
+- **Check:** confirmed. Read `_set_splits` (marks every old split deleted and adds rows with new ids), the PATCH route (`splits` in `sent` calls it) and the dialog (`body()` always sends `splits`), and `reimbursements.marked` (pairs keyed by `(spendingId, splitId)`, so they stay on the deleted split); reran the scratch test: awaited 0.00 to 50.00, the deposit still paired at 50.00.
+
 ### U03-8: a short sale's loss is taken as a wash sale and adjusted, where S3.8.5.1 flags it
 
 - **Kind:** differs. **Req:** S3.8.5, S3.8.5.1 ("a loss on a **short sale** closed with shares
@@ -353,6 +367,8 @@ are in the table at the end.)
   flag `short` on `Disposal`), leaving it to the S3.8.5.1 issue; `ui/positions._how` names a
   short cover *bought back*.
 - **Alternatives:** none reasonable; the rule is the requirement's.
+
+- **Check:** corrected. The code does take a short cover's loss as a wash sale (reran: one `WashSale` of 100 shares, $900.00), but S3.8.5.1 does not flag the claim's case: its short-sale item is a loss closed with shares bought within 30 days of another short sale of the stock, or of opening one, and a later plain purchase (09-05) is neither. What the requirements rule out is the adjustment: S3.8.1 matches a loss *sale*, and S3.8.5 says short-sale cases are never adjusted. Restate the requirement as S3.8.1 and S3.8.5; the remedy (skip a short cover in `washes._round`) and Low stand; the Closed tab's *buy* wording is a separate small point. Severity unchanged.
 
 ### U03-9: a portfolio's Holdings tab counts a loan's payments as cash, and leaves out items
 
@@ -384,6 +400,8 @@ are in the table at the end.)
 - **Alternatives:** leave loans and physical assets out of the Holdings tab, saying so under
   the table, with the total of what it lists.
 
+- **Check:** confirmed. Read `portfolio_holdings` (`cash += led.balance()` before the `investing` test, for every account) against `valuation.account_value` (loan: `loans.value`, physical asset: `assets.value`) that `value_of` uses; reran the scratch test: holdings cash 7000.00 and total 7000.00, portfolio value 5000.00.
+
 ### U03-10: a corporate action is checked and sized by today's holding, not by the holding on its date
 
 - **Kind:** bug. **Req:** S2.4, S2.4.1 ("the holding, the date, and what the action needs"),
@@ -412,6 +430,8 @@ are in the table at the end.)
   day; the dialog lists what was held on the date chosen.
 - **Alternatives:** none simpler that keeps late entry working.
 
+- **Check:** confirmed. Read `corporate.record` (`replay().quantity(inst.id)` with no date, refusing at 0 and sizing the merger's cash and legs), `adjust.carry` and `open_contracts` (today's quantity), and the dialog (lists only open holdings). A holding sold after the action's date is refused, so late entry fails as claimed; no test dates an action before a later sale. Reading alone.
+
 ### U03-11: a statement value is never marked stale, and Positions shows no price date or staleness
 
 - **Kind:** differs. **Req:** S4.3 ("A statement value older than 90 days is marked stale"),
@@ -437,6 +457,8 @@ are in the table at the end.)
   Holdings tab shows them.
 - **Alternatives:** none.
 
+- **Check:** confirmed. Read `valuation.prices` (the statement `Price` takes `stale` False), `refresh.is_stale` (knows `"statement"` but only `stored_closes` calls it), `OpenRow` (no `priceAsOf` or `stale`) and `positions.js` (shows the source's word only), against `alerts.statement_values`, which does test 90 days. S4.3 and S4.7 as quoted. Reading alone.
+
 ### U03-12: a period's return is shown over less than the period when the history is shorter
 
 - **Kind:** differs. **Req:** S5.2.2 (returns per period); the guide `portfolio-performance.md`
@@ -461,6 +483,8 @@ are in the table at the end.)
   5Y; YTD may keep the partial year if S5.2.2 says so.
 - **Alternatives:** keep the figure and mark it *since <date>*.
 
+- **Check:** corrected. **Lines:** the code is `figures.py:130-136` (`period_returns`) and its docstring `:125-126`, not 280-290/275-276 (the file has 162 lines). The behaviour holds (only 3Y and 5Y return None before `started`; 1M, 3M, YTD and 1Y start at `started`), but S5.2.2 is silent on short histories: the basis is the guide `portfolio-performance.md` ("a dash means the history doesn't go back that far", which can be read as only the sentence's 3 and 5 years) and the docstring. Severity unchanged.
+
 ### U03-13: the Gains tab counts a position with long- and short-term lots as all short-term
 
 - **Kind:** wrong figure. **Req:** S3.9 ("unrealized now", with short- or long-term status per
@@ -483,6 +507,8 @@ are in the table at the end.)
 - **Remedy:** split each position's unrealized gain by lot: each lot's value (its quantity at
   the position's price) less its basis, to the lot's term (by `heldFrom` or `acquiredOn`).
 - **Alternatives:** none.
+
+- **Check:** confirmed. Read `positions.gains` (`g[1 if r.term == "long" else 0] += r.unrealized`) and `_term` ("mixed" when the lots differ): a mixed position's whole gain goes to short-term. S3.9 and S3.1 as quoted. Reading alone.
 
 ### U03-14: the option's end can't be recorded "anyway" in a closed year
 
@@ -508,6 +534,8 @@ are in the table at the end.)
   `params: { confirm: true }`).
 - **Alternatives:** none.
 
+- **Check:** confirmed. Read `Settle` in `optiontrade.js` (posts with no `confirm`, no second button, `FormError` only) and the `settle` route (`closed.Guard` then `guard.check()` raises 409 `closed-year` unless `confirm`); `Trade` and `CorporateAction` handle `closed-year` with *anyway* (`optiontrade.js:63`, `corporate.js:57`). Reading alone.
+
 ### U03-15: an option is shown as it is stored (`AAPL 18DEC26 250 C`), not as S2.1 shows it
 
 - **Kind:** differs. **Req:** S2.1 ("stored as people read it, `AAPL 18DEC26 250 C`, and shown as
@@ -524,6 +552,8 @@ are in the table at the end.)
 - **Remedy:** one formatter in `app/format.js` for an option's symbol (`/^(\S+) (\d\d)([A-Z]{3})(\d\d) /`
   → `$1 $2 ${Mon} $4 `), used wherever an instrument's symbol is shown.
 - **Alternatives:** the server sends a `display` beside `symbol`.
+
+- **Check:** confirmed. Read `options.symbol` (stored form), `positions.js` and the dialogs (print `symbol` as it comes), `app/format.js` (no option formatter), S2.1 line 7 and the mockup (`AAPL 18 Dec 26 250 C`). Reading alone.
 
 ### U03-16: shares transferred in start their holding period on the day they arrive
 
@@ -558,6 +588,8 @@ are in the table at the end.)
 - **Alternatives:** S2.2 says a transfer-in asks for each lot's basis and acquired date, and the
   dialog offers several lots.
 
+- **Check:** plausible. **Question:** should shares moved between the owner's own accounts (not bitcoin) arrive with the days they were acquired, or is a transfer in new shares from its own date until someone can type otherwise? S2.2 asks a transfer in only for a cost basis (the claim's Alternatives misquotes it as also asking an acquired date), S2.4.1 and S3.1 speak of lots that already exist, and S1.7.1's carried lots are bitcoin's alone. The code does what the claim says (`acquiredOn=body.date`; no acquired-date field in `TxnIn`; a linked transfer of shares opens no carried lots, rerun: basis missing); under a reading that holding periods carry over (IRC §1223, S3.1's short- or long-term per lot) it is a wrong figure, otherwise a gap.
+
 ### U03-17: the header calls prices stale for ever when anything is valued from a statement or at intrinsic value
 
 - **Kind:** bug. **Req:** S4.7 (stale past a threshold), S4.3 (a statement value is stale
@@ -587,6 +619,8 @@ are in the table at the end.)
 - **Alternatives:** leave statement-valued and intrinsic-valued instruments out of the header,
   which then speaks for fetched prices only, and say so in its tip.
 
+- **Check:** confirmed. Read `refresh.status` (only `stored_closes` and the viewer's typed prices count, then `len(closes) < len(ids)` marks the whole header stale) and `_held_by`/`priced` (which include a statement-valued or intrinsic-valued holding in `ids`). Holds as claimed; a freshly bought instrument before the evening refresh is a further case. Reading alone.
+
 ### U03-18: no symbol is checked with a source before it is used
 
 - **Kind:** not built. **Req:** S4.2.2 ("where it can, `lookup(symbol)` to check a symbol
@@ -614,6 +648,8 @@ are in the table at the end.)
   knows (*unknown symbol*) where it is shown; take the class from the answer.
 - **Alternatives:** S4.2.2 drops the promise, and the refresh's misses are listed per
   instrument in Settings › Prices.
+
+- **Check:** confirmed. Searched `src/` for callers of `lookup(`: only the declaration in `prices/base.py`, Tiingo's implementation, and unrelated idempotency and invitation lookups; `_instrument` makes `repo.instrument(s, symbol, None, "equity")` at once. S4.2.2 as quoted. Searched, and read the two sources' code.
 
 ## Uncited first-level items
 
@@ -777,3 +813,51 @@ Counts: 18 claims. By severity: High 0, Med 9 (U03-1, U03-2, U03-3, U03-4, U03-5
 U03-7, U03-9, U03-16), Low 9. By kind: differs 8, wrong figure 5, bug 3, security 1 (withheld),
 not built 1. None needs the user; D1-1 and D1-12 stay with the walk-through. Scratch tests in
 the job's `tmp/u03/t/test_u03.py`, runs in `tmp/u03/run*.txt`.
+
+## Found while checking
+
+(Unverified: noticed by the checker, in no claim; the sweep checks each, §8.)
+
+### U03-F1: two picks of one lot can take more than the lot holds
+
+- **Kind:** bug. **Severity:** Low. **Req:** S2.3 (specific identification, "chosen per sale").
+- **Code:** `web/server/src/moolakata/ledger/lots.py:636-643` (`_consume`), the picks loop plans
+  each pick against the lot's whole quantity, where the method's loop after it subtracts what the
+  plan already holds (`room = lot.quantity - sum(...)`):
+  ```text
+  for p in picks:
+      lot = by_id.get(p.lotId)
+      take = min(p.quantity, lot.quantity, left) if lot else ZERO
+      if take > 0:
+          plan.append((lot, take))
+  ```
+  and `ui/transactions.py:645-657` accepts any list of `PickIn`: each lot is checked to be in
+  the account and of the instrument, never that a lot appears once or that the picks add up to
+  the sale.
+- **What goes wrong:** a request (not the dialog) that sends the same lot twice, 6 and 6 of a
+  lot of 10, plans 12 shares from it; `_take` then runs twice and leaves the lot at -2 shares
+  (a short lot out of nothing), with its basis and a gain worked out on shares that were never
+  held. Reading alone.
+- **Remedy:** subtract the plan's share of the lot inside the picks loop, as the method's loop
+  does, and refuse duplicate lot ids in `picks` at the route.
+
+### U03-F2: an adjusted contract's deliverable is weighted by any user's last trade
+
+- **Kind:** differs. **Severity:** Low. **Req:** S4.10 ("a holding is valued from the viewer's
+  own trades in it, never from another user's"), S3.10.5.
+- **Code:** `web/server/src/moolakata/options/__init__.py:189-206` (`deliverable`, the call at `:202`), no owner is
+  passed, so `valuation.prices` falls back to every account's statements and every user's trades:
+  ```text
+  found = valuation.prices(s, [i.id for i, _ in rows], day)
+  if all(i.id in found for i, _ in rows):
+      values = [found[i.id].price * q for i, q in rows]
+  ```
+  `settle` (`:124`) takes its parts' shares of the basis and the cash
+  from these weights. U03-2 raises the same call in `expire_due`; this one is the P7 remainder
+  that "Earlier findings re-checked" names, and no claim holds it.
+- **What goes wrong:** where an adjusted contract's parts (a spin-off's two stocks) have no
+  stored close for the day, another user's trade in either stock sets the weights that split the
+  settlement's basis between the parts in this user's account. The figures differ by the gap
+  between that trade's price and the owner's own.
+- **Remedy:** pass the account's owner (`valuation.prices(..., day, owner)`), as `per_share`
+  can, and fall back to the shares when the owner has no price.
