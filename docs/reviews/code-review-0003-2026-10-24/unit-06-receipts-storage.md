@@ -97,6 +97,7 @@ done. C1 (OCR text crosses a link): documents.
 ### U06-1: withheld
 
 - **Kind:** privacy. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U06-2: an upload holds the database's write lock while the worker draws its thumbnail, so one slow file fails every other write for up to a minute
 
@@ -134,10 +135,16 @@ done. C1 (OCR text crosses a link): documents.
   transaction too, with the orphan check (S14.6) cleaning up a file whose row never commits.
 - **Alternatives:** keep it in the request but outside the transaction, with a short limit
   (5 s) for thumbnails, so a slow one is skipped and drawn later by the queue.
+- **Check:** corrected. Holds, with a wider consequence; severity unchanged (Med). `upload` is
+  `async def` (`ui/receipts.py:314`) and calls `db.tx()` and `receipts.store` with no `await` or
+  thread hand-off, so the worker's draw (up to 60 s, 120 s cold) also stands the event loop still:
+  new requests aren't dispatched until it ends, and only writers already in the threadpool or the
+  reading queue's threads fail on the 10 s busy timeout. The same remedy fixes both.
 
 ### U06-3: withheld
 
 - **Kind:** security. **Severity:** High. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U06-4: one worker reads every user's files in turn, so a file that takes it sees the household's later files and can answer with them
 
@@ -170,6 +177,10 @@ done. C1 (OCR text crosses a link): documents.
   the quick jobs may keep one worker per user.
 - **Alternatives:** restart every worker after N files or M minutes, which narrows the window
   without closing it.
+- **Check:** confirmed. Read `parsing._call` (one global `_worker` for every quick job of every
+  user, replaced only after a failure or `use_data_dir`) and `Reader.start`/`_loop` (one `Worker`
+  per thread for the server's life); nothing restarts a worker between users, and `propose_csv`
+  passes up to 8 rows of 500 cells of 500 characters.
 
 ### U06-5: on an x86_64 kernel with the x32 ABI, the seccomp filter lets a network socket through
 
@@ -196,6 +207,9 @@ done. C1 (OCR text crosses a link): documents.
   `JGE 0x40000000 → ERRNO` line), so only native calls are judged.
 - **Alternatives:** an allow-list filter of the calls the four libraries need, which closes
   this and more besides.
+- **Check:** confirmed. Read `sandbox._filter`: the architecture word is checked, then the number
+  compared with 41 and 425 exactly, so an x32 call (arch x86_64, number `0x40000000 | 41`) reaches
+  the allow at step 7; the usual bit-30 refusal is absent. Low stands: x32 is off in most kernels.
 
 ### U06-6: *Read again* on a pruned receipt leaves it *Reading…* for good
 
@@ -231,6 +245,10 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** refuse *Read again* on a pruned receipt (409 `file-pruned`, as the file route's
   410), hide the button with the file, and have `read_one` mark a pruned one `failed` with "its
   file was pruned" rather than return.
+- **Check:** confirmed. Read the route, `reading.read_again` and `read_one`'s early return;
+  `receipt.js:182-221` shows the button on a pruned receipt (the toolbar sits outside the
+  `filePrunedAt` branch). Ran the claim's scratch test (copy): *Read again* answers 200 `waiting`,
+  and `read_one` leaves it `waiting`.
 
 ### U06-7: deleting an account makes a lot's receipt expire from the buy's date at once, not from the deletion
 
@@ -266,6 +284,10 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** read each record's end through its `Effective` view: the end is the earlier of the
   declared end (none for an open lot) and `effectiveDeletedAt`; an item in a deleted account
   likewise.
+- **Check:** confirmed. Read `retention._transaction`, `_deleted` and `lot_ends`, and `schema.md`
+  §6.2 (an open lot, with no declared end, ends when effectively deleted). Ran the scratch test
+  (copy): `('open', 'Kept while the lot is open')` before the account's deletion, `('expired',
+  'Expired Jan 2022, prunable')` after.
 
 ### U06-8: the test of review 2's C3 (a deleted receipt doesn't keep a file) can't fail: both uploads are one receipt
 
@@ -290,6 +312,10 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** the second upload by another user (or a second receipt row made directly), the
   other's receipt deleted, then the first pruned and the file asserted gone; and a case where
   a live other receipt keeps the file.
+- **Check:** confirmed. `test_retention.py:180-188` uploads the same bytes twice as one user, and
+  `test_receipts.py:73-74` asserts the second upload returns the first receipt, so `a` and `b` are
+  one row; with C3's old fault `prune_files` would still find no row, since the one row has
+  `filePrunedAt` set.
 
 ### U06-9: file pruning removes files before its transaction commits, and prunes the rows it finds again, not the count the admin typed
 
@@ -326,6 +352,10 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** find the rows once inside the transaction and refuse when their count isn't the
   one typed; mark them and commit first, then remove the files whose receipts are all pruned
   (a removal that fails leaves a file the orphan count or a later prune picks up).
+- **Check:** confirmed. Read `ui/settings.py:1126-1153` (the count checked against a `read()`
+  transaction, `prunable` run again inside the write) and `retention.prune_files` (`p.unlink()`
+  before the transaction commits and `activity.record` runs); the file route answers 500 for a
+  missing file of an unpruned row.
 
 ### U06-10: after a prune, an identical file uploaded again by two people is stored twice
 
@@ -351,6 +381,9 @@ done. C1 (OCR text crosses a link): documents.
   `.mkr` files on disk for one content.
 - **Remedy:** look for a row with the hash whose file is not pruned (`filePrunedAt IS NULL`,
   deleted or not) before writing a new file.
+- **Check:** confirmed. Read `receipts.store`: `.first()` takes any row with the hash, pruned or
+  not, and writes a new file when that row's file is gone. Ran the scratch test (copy): three file
+  ids for Alice's, her re-upload and Bob's upload, two `.mkr` files on disk.
 
 ### U06-11: a receipt's merchant is never matched against the payees its owner already has
 
@@ -378,6 +411,9 @@ done. C1 (OCR text crosses a link): documents.
   read name otherwise.
 - **Alternatives:** S9.8.2.5.3 drops "matched against payees they already have", leaving the
   rules to do it.
+- **Check:** confirmed. Read `save_reading`, `Rules.rename` (rules only) and
+  `parser.find_merchant`; nothing compares the merchant with the owner's existing payees, and
+  `_alike` at `receipts/__init__.py:560` ranks a transaction match, it never renames the merchant.
 
 ### U06-12: a receipt can't be kept with a loan, other than as an imported statement
 
@@ -404,6 +440,10 @@ done. C1 (OCR text crosses a link): documents.
   statements' period.
 - **Alternatives:** S9.3 names loans only for their statements, and a closing disclosure goes
   on the house's item.
+- **Check:** confirmed. Read the `kind` CHECK, every caller of `attach_account` (the import and
+  the connector, both statements only) and the attach routes (`to_attach` callers: transactions,
+  gifts, donations, items, expenses, tax documents); none attaches an uploaded receipt to an
+  account or loan, and S9.3 names a closing disclosure.
 
 ### U06-13: *Jobs at a time* changes nothing until a restart, and receipts uploaded while reading was off are never read when it comes back on
 
@@ -428,6 +468,9 @@ done. C1 (OCR text crosses a link): documents.
   ids kept); turning **Read receipts** on queues every `off` receipt not pruned.
 - **Alternatives:** the guide says the number applies from the next start, and turning reading
   on asks whether to read what came in meanwhile.
+- **Check:** confirmed. `Reader.start` reads `receiptReadJobs` once and `runtime.py:390-392` is
+  the only caller (`grep` of `reader`); `store()` stores `off` and only `read_again` and
+  `reread_all` queue it again; `settings-receipts.md` says nothing of either.
 
 ### U06-14: statements go through the receipt reader: *Re-read all* reads a scanned one's first 3 pages and gives it an amount, and one kept by the connector waits *Reading…* until a restart
 
@@ -457,6 +500,10 @@ done. C1 (OCR text crosses a link): documents.
   when it is kept) and reads it as one (`pages=ocr.STATEMENT_PAGES`, `STATEMENT_TIME_LIMIT`),
   filling no amount; a statement kept without reading is stored `read` (or `off`), not
   `waiting`.
+- **Check:** confirmed. Read `reread_all` (every unpruned row `waiting`, statements included),
+  `read_one` (`worker.read(data, media)`, the default 3 pages and 60 s) and `save_reading` (fills
+  an empty `amount`); the connector's `receipts.store` leaves `waiting` with no queueing, while
+  the import path sets `read` when it has lines.
 
 ### U06-15: a PDF with a text layer on one page is never OCR'd on its scanned pages
 
@@ -479,6 +526,11 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** per page: take a page's text layer when it has 20 characters, else render and
   OCR that page (within the page cap), and keep the method as `text`, `ocr` or both.
 - **Alternatives:** S9.8.2.1 says the file is read from its text layer when any page has one.
+- **Check:** plausible. **Question:** for a PDF where only some pages have a text layer (20
+  characters), is the whole file read from the text layer, or is each page judged and the scanned
+  ones OCR'd? The code does the first (`ocr.text_layer`: `any(...)` over the pages); S9.8.2.1 says
+  "a page counts as having a text layer", but S9.8.2.1-2 speak of "a PDF with a text layer" and
+  "scanned PDFs" as whole files and don't address a mixed one.
 
 ### U06-16: Settings › Storage leaves deleted receipts' files out of its groups, and nothing can ever remove them
 
@@ -506,6 +558,10 @@ done. C1 (OCR text crosses a link): documents.
   *File pruned*).
 - **Alternatives:** count them under *Kept for ever* and say in S14.10.2 that a deleted
   receipt's file stays until the receipt is restored or for good.
+- **Check:** confirmed. Read `retention.storage`, `prunable` and `orphan_files` (both loops filter
+  `deleted == false()`, the orphan check names every row's file), `receipts.delete` (marks
+  deleted, never unlinks) and `prune_files`: a file only deleted receipts name is in no group and
+  no prune reaches it, short of a live receipt of the same bytes being pruned.
 
 ### U06-17: comments and docstrings still state rules the requirements changed
 
@@ -531,6 +587,10 @@ done. C1 (OCR text crosses a link): documents.
   review 2's C3 came from exactly such a reading.
 - **Run:** no, reading alone.
 - **Remedy:** correct the six texts (the refusal: "amounts are exact numbers, such as 1234.50").
+- **Check:** confirmed. Read each of the six places: the two docstrings and the test's, the `0007`
+  comment (`ReceiptSearch` is created at `0001_the_initial_schema.py:3018`; 0007 is strategies),
+  the owner/transaction sentence against `level`, and `money.parse` (accepts `Decimal` and `int`,
+  refuses with "decimal strings").
 
 ### U06-18: S14.1.2 says the mapping includes relationships; it maps none
 
@@ -544,6 +604,8 @@ done. C1 (OCR text crosses a link): documents.
 - **Run:** no, reading alone.
 - **Remedy:** S14.1.2 reads "maps each one onto its table (`registry.map_imperatively`); what
   records belong to is read by queries".
+- **Check:** confirmed. `mapping.py` has only `map_imperatively` calls (`_map`, `_versioned`) and
+  no caller passes `properties` or builds a `relationship()` (`grep` over `store/`).
 
 ### U06-19: the receipts guide narrows who sees a receipt and what *All* lists
 
@@ -563,6 +625,9 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** decide whether *All* lists every receipt the user can open (then `visible` adds
   gifts, donations and tax documents) or those of accounts only; the guide says which, and its
   *Sharing* paragraph follows S9.6.
+- **Check:** confirmed. Read the guide's *Show* and *Sharing*, `visible` (own, transaction,
+  statement, item and expense links in readable accounts; no gift, donation or tax document) and
+  `level`, which opens those three; the guide and the list each narrow S9.6 in their own way.
 
 ### U06-20: no test holds S14.2's modes for receipt files and their directory
 
@@ -583,6 +648,9 @@ done. C1 (OCR text crosses a link): documents.
 - **Remedy:** a test that uploads a receipt and asserts 0600 on the file and 0700 on
   `receipts/`; `files.write` sets the directory's mode when it differs, as `host.prepare` does
   for the socket's.
+- **Check:** confirmed. `files.write` makes the directory 0700 (when it makes it) and the file
+  0600; `grep` of the tests for `0o600|0o700|st_mode|S_IMODE` finds only the keyring, the queued
+  host commands, a pre-upgrade copy and the socket.
 
 ### U06-21: a statement imported by a write sharer stays his receipt, seen in full after the share ends
 
@@ -612,6 +680,11 @@ done. C1 (OCR text crosses a link): documents.
   (`connector/files.py:142`).
 - **Alternatives:** keep the importer as owner but have `level` give an `account`-linked
   receipt only the account's level to anyone but the account's owner.
+- **Check:** plausible. **Question:** when a user with write on an account imports its statements,
+  does he own those receipts (and keep them after his share ends), or does the account's owner?
+  S9.6 and S1.3.3 are silent. The code does what the claim says (`_keep_file` stores them under
+  the importer, `level` gives an owner everything, only the owner deletes), and it is the same
+  question as D1-25.
 
 ### U06-22: writing a job to the worker has no deadline, so a worker that stops reading hangs its caller and every quick job behind it
 
@@ -638,6 +711,10 @@ done. C1 (OCR text crosses a link): documents.
 - **Run:** no, reading alone.
 - **Remedy:** write through `select` on the pipe (non-blocking) under the same deadline as the
   answer, killing the worker when it passes.
+- **Check:** confirmed. Read `Worker.call`: `stdin.write` and `flush` run before `_recv`, the only
+  place the deadline and memory watch live, and `parsing._call` holds `_lock` across `call`; a
+  worker that stops reading blocks the writer in the pipe for good (the reading queue's own worker
+  only blocks its thread).
 
 ### U06-23: `parsing.MAPPING_KEYS` is used nowhere
 
@@ -658,6 +735,9 @@ done. C1 (OCR text crosses a link): documents.
 - **Run:** no, reading alone.
 - **Remedy:** check the proposal's keys against it (with the column keys the mapping also
   carries), or remove it.
+- **Check:** confirmed. `grep -rn MAPPING_KEYS` over the repository (outside the review's files)
+  finds only the definition at `parsing.py:141`; `propose_csv` checks the mapping's types and
+  lengths, not its keys.
 
 ## Phase 1 items judged against the code
 
