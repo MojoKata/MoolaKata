@@ -86,9 +86,13 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, docs/REVIEW.md §2).
 
+- **Check:** confirmed.
+
 ### U12-2: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, docs/REVIEW.md §2).
+
+- **Check:** confirmed.
 
 ### U12-3: one option trade in the Schwab window makes the driver's whole OFX file unreadable
 
@@ -119,6 +123,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Alternatives:** leave option trades out of the file, saying so in the Connection's
   message, until they are written whole.
 
+- **Check:** confirmed. Read `schwab.py:93-110` (`_trade` writes `BUYOPT`/`SELLOPT` with no `SHPERCTRCT`) and the server's reader (`importers/ofx.py:78-87`). Ran `schwab_opt.py` and `schwab_ofx.py` from copies: an option bought or sold gives `OFXSpecError ... shperctrct`, `importers.ofx.read` raises `ReadError`, while a stock buy (also with `&` in the name) reads.
+
 ### U12-4: the Schwab driver takes opening or closing from the sign, and writes every position as stock
 
 - **Kind:** wrong figure. **Severity:** Med. **Req:** S18.9.2, S3.2 (the four option trades),
@@ -146,6 +152,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   `POSOPT`, `POSMF`, `POSDEBT` by asset type; map `RECEIVE_AND_DELIVER` expiries and
   assignments to `CLOSUREOPT`, or name what was left out in the Connection's message.
 - **Alternatives:** none reasonable: the import has the four option trades (review 2's B5).
+
+- **Check:** confirmed. Read `schwab.py:100-104` (`BUYTOOPEN` if `qty > 0` else `SELLTOCLOSE`, no `positionEffect` read), `:128-135` (`<POSSTOCK>` for every position), `:176-177` (other transaction types dropped) and the reader's `OPTION_TRADES` and `OPTION_ENDS` (`importers/ofx.py:45-51`, `:233-250`), which take the types as written. Not run, as the claim says; Schwab's `positionEffect` field is taken from the claim, not from a document in the repository.
 
 ### U12-5: a file MoolaKata can't read is answered with an unsigned 500, not a signed refusal
 
@@ -175,6 +183,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   `file-refused` with the reader's message, signed; a server test posting an unreadable OFX.
 - **Alternatives:** the connector routes catch every exception and answer a signed
   `server-error`, so a fault there is never unsigned.
+
+- **Check:** confirmed. Read `connector/files.py:77-97` (the OFX and CSV reads sit outside the `try` at `:100-108`), `routes.py:232-237` (only `Limit` and `Refused` caught), `importers/parsed.py:9` (`ReadError(ValueError)`) and `errors.py:124-130` (the 500 handler). Ran `test_u12_unreadable.py` from a copy: 1 passed, the option-trade file gets `500 application/problem+json` with no `MK-Conn-Signature`.
 
 ### U12-6: an unsigned answer, or a dropped connection, while posting files stops every later post and the after-run report, for good
 
@@ -213,6 +223,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   limit signs too), as D3-11's remedy reads, and the connector drops any other unsigned
   answer per file.
 
+- **Check:** confirmed. Read `core.py:449-466` (only `ServerError` caught), `signing.py:18-22` (`Refused` is a plain `Exception`, raised by `verify_answer` for an answer without `MK-Conn-Time`), `client.py:171-174` and `tick`, which leaves at once with no after-run report. The body limit's 413 and 429 and the 503 `locked` are `_send_problem` answers, unsigned (`middleware.py:251-270`, `:300-310`, `:396-432`). Not run; the unsigned 500 was run for U12-5.
+
 ### U12-7: new credentials for an existing OFX Connection are sealed with no host, so the connector refuses every one
 
 - **Kind:** bug. **Severity:** Med. **Req:** S18.6.4 (**Sign in again**, **Change
@@ -250,6 +262,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   from the settings, so the owner sees and may change it (with the password again, as the
   PATCH already asks).
 
+- **Check:** confirmed. Read `connections.js:163` and `:224`, `ConnectionOut` (`ui/connector.py:35-51`, no `settings`), `hostOf('')` (`:24-30`, returns `null`), `GET /profile/connections` returning `ConnectionOut` and `ofx_direct.binds` (the host name), against `core.py:381-384`, which refuses `null`. The dialog is opened with the listed row (`connections.js:56`). Not run; the chain holds end to end.
+
 ### U12-8: Settings › Connector doesn't show the host each Connection's credentials go to
 
 - **Kind:** not built. **Severity:** Low. **Req:** S16.18 ("every Connection's state, owner,
@@ -265,6 +279,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Remedy:** a Host column: the settings' `url` host for OFX Direct Connect, the driver's
   declared host (`api.schwabapi.com`) for Schwab; with U12-7, the same value the dialog shows.
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. S16.18 (`S16-settings.md:103-107`) and R3.1 (`requirements/README.md:293`) both ask for the host; `connector.js:173-191` has four columns and `ConnectionOut` carries no host or settings.
 
 ### U12-9: `pair` shows the fingerprint MoolaKata's answer names, not the one it works out
 
@@ -287,6 +303,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   the answer names a different one.
 - **Alternatives:** none needed.
 
+- **Check:** confirmed. Read `core.py:138` and `manage.py:204`. The protocol document doesn't name `connectorFingerprint` at all (no hit in `connector-protocol.md`), so the connector also reads a field the protocol never defines.
+
 ### U12-10: the pairing code carries the link address before the public URL
 
 - **Kind:** differs. **Severity:** Low. **Req:** S18.4.1 ("MoolaKata's address"),
@@ -307,6 +325,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   says, and the screen's text says which address the code carries.
 - **Alternatives:** an address of the connector's own in Settings › Connector, defaulting to
   the public URL (D3-14's alternative).
+
+- **Check:** plausible. **Question:** Which address does the pairing code carry: the public URL alone (DEPLOY §8.3, "MoolaKata's address"), or the link address first, then the public URL (operations §8's "the public URL, or the link address")? The code does what the claim says (`manage.py:72-73`, the same function as the links' `own_address`), and S16.9 makes the link address the public URL when it isn't set, so it differs only where an admin set the two apart; whether that is wrong is D3-14's answer, which the claim itself waits for.
 
 ### U12-11: unpairing while the vault is locked forgets the pairing but keeps every credential and the sealing key
 
@@ -335,6 +355,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   the next unlock; `unpair` on the host asks for the words, or says what it kept.
 - **Alternatives:** S18.4.4 says the credentials go at the next unlock.
 
+- **Check:** confirmed. Read `core.py:150-160` (`_forget` deletes only `if not self.vault.locked`; a locked vault can't be read or written, `vault.py:183-189`), `:307-310` (a signed `not-paired` at any report), `main.py:227` and `sock.py:66-68` (`unpair` asks for no words) against `page.py:675`, whose Unpair unlocks first.
+
 ### U12-12: anyone on the network can keep the connector from being unlocked, the host's `unlock` included
 
 - **Kind:** security. **Severity:** Low. **Req:** S18.3.3 ("Five wrong attempts in a row, on
@@ -361,6 +383,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Alternatives:** drop the wait (the key can't be guessed) and keep the logging of wrong
   attempts.
 
+- **Check:** plausible. **Question:** S18.3.3 says five wrong attempts "on its page and at the command line alike" make the next wait 15 minutes; keep that shared wait, or count the page's attempts per address and never make the host's socket wait? The code does what S18.3.3 states and what the claim describes (`vault.py:87-89`, `:102-106`; the page needs no session and takes `Origin` from a client that sets it, `page.py:352-362`; `sock.py:58-59` goes through the same `unlock`), so the fault is in the requirement as written against S18.2.4.5. An availability effect only, so Low stands.
+
 ### U12-13: a mistyped word of the vault's phrase is written to the log
 
 - **Kind:** security. **Severity:** Low. **Req:** S18.3.1 (the words are shown "never on
@@ -381,9 +405,13 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   "another vault's"), never the token; the page may still show it to the person typing.
 - **Alternatives:** none needed.
 
+- **Check:** confirmed. Read `page.py:383-384` and `words.py:46-47`: a token not in the list is quoted in the error the page logs at warning. A valid word with a bad checksum is not quoted.
+
 ### U12-14: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, docs/REVIEW.md §2).
+
+- **Check:** confirmed.
 
 ### U12-15: `status`, the health check and its page wait for a whole round of reports, runs and posts
 
@@ -406,6 +434,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Alternatives:** the health check reads a heartbeat file the loop and the socket update,
   rather than asking the core.
 
+- **Check:** confirmed. Read `core.py:180-181` (`status` takes `self._lock`), `:303-322` (`tick` holds it through the report, `_run` of each due driver, `_post_backlogs` and the second report), `page.py:425` and `:474`, and `Dockerfile:36-37` (`--timeout=5s --retries=3`, interval 60 s). The lock is an `RLock`, so only other threads wait.
+
 ### U12-16: "at most 60 seconds" is per socket operation, so an answer that trickles holds a call without end
 
 - **Kind:** bug. **Severity:** Low. **Req:** S18.2.2 ("A call it makes … waits at most 60
@@ -420,6 +450,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Remedy:** a deadline for the whole call (checked between reads, closing the socket past
   it), as the server's `net.Client` does for its 20 MB ceiling.
 - **Alternatives:** none needed.
+
+- **Check:** corrected. The fault holds (`client.py:119-131`: `timeout=60` on the connection and the socket bounds each `recv`, and `r.read(MAX_ANSWER + 1)` loops over them). The remedy's example doesn't: the server's `net.Client` (`net.py:234-290`) has the same per-operation httpx timeouts and caps the bytes read, but has no deadline for a whole call either, so a deadline would be new on both sides. Severity unchanged. S18.2.2's "waits at most 60 seconds" can also be read per operation, which is the reading the claim argues against.
 
 ### U12-17: a box filed in the vault whose `credential/taken` failed is never acknowledged again, and marks the Connection failing at every report
 
@@ -450,6 +482,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   answer is applied.
 - **Alternatives:** none needed.
 
+- **Check:** confirmed. Read `core.py:344-366` (`_apply` has no `try` around `_collect`), `:385-391` and `vault.py:170-181`: after the `put`, `sealed_at` equals the box's time, so the box handed again fails `at <= sealed_at` and `taken` is never retried; the state stays `failing` until the next run.
+
 ### U12-18: OFX Direct Connect sends the username, password and settings unescaped, in Latin-1 with "?" for the rest
 
 - **Kind:** bug. **Severity:** Low. **Req:** S18.9.1 (OFX 1.0.2 client, signing in with the
@@ -470,6 +504,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Remedy:** escape every value written into the request (`&`, `<`, `>`); refuse a
   credential the request can't carry with a message that says so, rather than altering it.
 - **Alternatives:** none needed.
+
+- **Check:** corrected. The fault holds but the lines are wrong: `ofx_direct.py` has 109 lines. The username and password are taken at `:33` and written unescaped at `:36`; `org`, `fid`, `acct` and `bankId` are written unescaped at `:34`, `:37`, `:41-53`; the Latin-1 `replace` is at `:59`. Severity unchanged. Not run.
 
 ### U12-19: a file over Settings › Imports' size is refused `file-refused`, not `too-large`
 
@@ -493,6 +529,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   rate is spent; the protocol's §7 names S16.8 (DC-13's remedy).
 - **Alternatives:** none needed.
 
+- **Check:** confirmed. Read `files.py:63-69` (rate spent first, then `Refused("file-refused", ...)` for a file over `importMaxMb`), `connector-protocol.md:333`, `:337` and `app.py:111-118`, where the body limit's cap is the larger of the two limits plus 1 MB, so a file between the two limits gets `file-refused` and one above the cap gets the unsigned 413.
+
 ### U12-20: Reset makes new words and forgets the pairing without telling MoolaKata
 
 - **Kind:** differs. **Severity:** Low. **Req:** S18.3.4 ("deletes the vault, makes new
@@ -511,6 +549,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   forgets the pairing, as `unpair` does, and goes on if MoolaKata can't be reached.
 - **Alternatives:** none needed.
 
+- **Check:** corrected. Severity unchanged. One sentence doesn't hold: "The admin must Unpair in MoolaKata by hand before pairing again." Settings › Connector offers **Pair a replacement…** when paired (`connector.js:146-148`) and `answer_pair` ends the paired row as Unpair does (`manage.py:112-130`, `_end`, called at `:183` with reason `replaced`), so no hand Unpair is needed first. The rest holds (`core.py:162-176` makes no call; MoolaKata keeps showing the pairing live, owners can seal to the old sealing key, and *not heard from* follows after 15 minutes). S18.3.4 says Reset "unpairs" without saying MoolaKata is told, and the protocol (`:133`) ties `unpaired` to the `unpair` command, so the *differs* kind rests on reading "unpairs" as Unpair does.
+
 ### U12-21: the page's own certificate is written key first, neither through a temporary file
 
 - **Kind:** bug. **Severity:** Low. **Req:** S18.11.1 (a certificate "made at its first start,
@@ -528,6 +568,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   that the key matches the certificate and make a new pair when it doesn't.
 - **Alternatives:** none needed.
 
+- **Check:** confirmed. Read `page.py:95-127` (key written with `O_TRUNC`, then `cert.write_bytes`; the fit check at `:95-101` looks at names and dates only) and `page.py:705-710` with `main.py:133-141`: `load_cert_chain` failing is an `ssl.SSLError`, an `OSError`, so `serve` exits 78.
+
 ### U12-22: `init` writes the vault before its words are typed back
 
 - **Kind:** differs. **Severity:** Low. **Req:** S18.3.1 ("the vault is made only once three
@@ -542,6 +584,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Run:** no; rests on reading.
 - **Remedy:** make the key in memory, show and check the words, then write the vault.
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. Read `main.py:85-96`: `v.create()` writes `vault.json` before the words are shown, and the file is removed only on the normal failed-confirmation path; an interrupted run leaves it. The page's welcome keeps the key in memory until the words come back (`page.py:601-635`).
 
 ### U12-23: the connector's egress refuses 169.254.169.254 but not the IPv6 metadata address MoolaKata's guard refuses
 
@@ -561,6 +605,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Remedy:** the same `METADATA` set in `vetted`, and a test with each address.
 - **Alternatives:** none needed.
 
+- **Check:** corrected. Severity unchanged. The scope is wider: MoolaKata's `METADATA` (`net.py:25-29`) holds three addresses, `169.254.169.254`, `fd00:ec2::254` and `100.100.100.200` (Alibaba Cloud, inside the shared 100.64/10 range, neither link-local nor loopback). `client.py:32-47` refuses the first only (as link-local), so the claim names two of the three. The test at `test_core.py:477-483` has no case for either.
+
 ### U12-24: `_check_settings`'s list branch serves only the Folder driver, which is gone
 
 - **Kind:** untraced. **Severity:** Low. **Req:** — (rejected idea 21, S18.9).
@@ -576,6 +622,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Run:** no; rests on reading.
 - **Remedy:** remove the branch.
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. Read `ui/connections.py:24-39` (no driver setting is a list) and `:116-122`; nothing else in the module or its callers builds a `list` setting.
 
 ### U12-25: the connection and pairing guides say the account number is sealed and the keys are made only if missing
 
@@ -594,6 +642,8 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Remedy:** correct both lines: the account number is a setting MoolaKata and the
   connector see; each pairing makes new keys.
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. Read `guides/dialog-connection.md:42-45` against `connections.js:136-143` and `:269-271`, `ui/connections.py:29-37` and `manage.py:364` (the settings go back to the connector in every answer; S18's own text, `:352`, calls it "the Connection's account number"), and `dialog-connector-pair.md:8` against `core.py:114-115` and `keys.py:82-85`.
 
 ## Judgements on Phase 1's claims and the earlier findings
 
@@ -741,3 +791,28 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 **Counts:** 25 claims. High 0, Med 8 (U12-1, U12-2, U12-3, U12-4, U12-5, U12-6, U12-7,
 U12-14), Low 17. By kind: bug 9, differs 7, security 6 (U12-1, U12-2, U12-14 Med, withheld;
 U12-12, U12-13, U12-23 Low), wrong figure 1, not built 1, untraced 1. Needing the user: U12-12.
+
+## Found while checking
+
+### U12-F1: a failed `sign-in` call abandons the rest of that round
+
+- **Kind:** bug. **Severity:** Low. **Req:** S18.5 (a report after each run), S18.7.1.
+- **Code:** `connector/moolakata_connector/core.py:408-412` and `:445`, `_run`, call
+  `/connector/v1/connections/<id>/sign-in` outside any `try`:
+  ```text
+                  if address and c.sign_in != address:
+                      c.sign_in, c.sign_in_at = address, time.time()
+                      self.server.call(
+                          f"/connector/v1/connections/{c.id}/sign-in", {"address": address}
+                      )
+  ```
+  and, after a run, `if r.sign_in:` the same call. `tick` (`:303-322`) runs `_run` for each due
+  Connection inside `with self._lock`, and `run_forever` catches whatever comes out.
+- **What goes wrong:** a `ServerError` (the owner's `limit`, a refusal) or an unsigned answer
+  from this call leaves `tick` at once: the Connections after it aren't run, `_post_backlogs`
+  and the after-run report are skipped for that round. The next round goes on, as `c.sign_in`
+  already equals the address, so it is one lost round rather than a stall; the address still
+  reaches MoolaKata in each report's `signInAddress`.
+- **Run:** no; rests on reading.
+- **Remedy:** catch the call's failure in `_run` and go on, as the file posts should (U12-6).
+- **Alternatives:** none needed.
