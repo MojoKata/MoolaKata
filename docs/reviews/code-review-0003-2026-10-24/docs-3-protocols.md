@@ -51,6 +51,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Alternatives:** receipts cross in chunks of a few MB (a `file` with a range, a `deliver`
   with an offset); or a receipt over the ceiling crosses as its record only, marked *too large
   to send*, as `D2-1` suggests.
+- **Check:** corrected. The `file` half holds and is firm: S13.5 (`S13-architecture.md:51`) cuts off every answer past 20 MB, `link-protocol.md:91` answers with the sealed receipt, so a receipt over about 20 MB never arrives (25 MB is S16.10's default). The `deliver` half rests on §1.4's own "Bodies are JSON, UTF-8, at most 20 MB" read literally for an octet-stream body; S13.7.6 names only JSON bodies and uploads "up to the size in Settings", so the requirement side is ambiguous (see D2-1's verdict). Severity unchanged (Med); scope: say the `file` fetch is the certain failure, `deliver` the same by §1.4's words.
 
 ### D3-2: When a received receipt's type is found: "when shown" in the link protocol, "when it arrived" in S11.9.6.5, and the change carries one anyway
 
@@ -71,6 +72,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** S11.9.6.5 says the type is found from the bytes when the copy first opens the
   receipt (and kept in `shared.db`), as the protocol says; `files` drops `type`, or the
   protocol says it is shown only until the bytes are read.
+- **Check:** confirmed. `link-protocol.md:180–181` finds the type "from the bytes then" (when shown), never from the change; `:175` still lists `type` in `files`; `S11-linked-servers.md:220–222` says "when it arrived". Receipts arrive sealed to the copy's key (S11.9.5.2), so the receiver can't read them on arrival: the two moments differ and the third source exists.
 
 ### D3-3: The caller is to check "the hash the change carried" before keeping a fetched receipt, but that hash is sealed where a locked copy can't read it
 
@@ -95,6 +97,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   bytes before keeping them, and the plaintext hash when the copy opens them (S11.9.6.4).
 - **Alternatives:** the registry's `fetch` carries each sealed file's SHA-256, so the check
   before keeping is possible while locked.
+- **Check:** confirmed. `link-protocol.md:91` has the caller check "the hash the change carried" before keeping the file; that hash is in `files`, inside `sealed` (`:175`), and the registry's `fetch` (`:174`) carries ids only; S11.9.6.4 checks the plaintext hash as the file is shown. A locked copy (S11.9.5) can't do the first check where §4 puts it.
 
 ### D3-4: A large change's parts still to send are kept "in memory", with a 2 GB change as the example
 
@@ -116,6 +119,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   (about 4 MB); a restart still answers nothing and the caller asks for everything.
 - **Alternatives:** the parts are written sealed to a spool under the data directory and
   deleted as they are fetched or when the exchange is abandoned.
+- **Check:** confirmed. `link-protocol.md:199–201` says the source "keeps the parts still to send in memory" and gives a 2 GB change as its own example; `DEPLOY.md:18–19` gives the server 2 GB. Read literally the two don't fit; nothing in S11.4 or S11.7.1 says what else is kept.
 
 ### D3-5: Receipts delivered ahead of their part are kept "until the part that names it arrives", with nothing for a part that never comes
 
@@ -137,6 +141,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** the protocol says how long a delivered receipt waits for its part (until the end
   of that exchange, or an hour), and the sweeper's rule leaves files that wait and removes them
   after that.
+- **Check:** confirmed. `link-protocol.md:150–155` keeps a delivered receipt "until the part that names it arrives"; S11.9.5.2 writes receipts straight into `receipts/` and S11.9.6.6's sweeper removes "files that no row names": a waiting receipt has no row, and no rule says how long it waits or who removes it if its part never comes.
 
 ### D3-6: The link protocol's states: *broken* allows no call the table names, nothing moves a link out of it, and linking again with the same key is unspecified
 
@@ -161,6 +166,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** §4 lists every state on each side (invitation, requested, pending, active, paused,
   broken, ended) with the calls each allows; §4.1 says a join from a key whose link here is
   broken replaces that link (its copy and remote users go, as `end` would).
+- **Check:** confirmed. §4's "Link states" column (`link-protocol.md:83–93`) never lists *broken*; the only places that name it are `:264–265`, S11.6 and S12.11; `already-linked` (`:260`) has no definition for a broken link; nothing says whether a broken link answers `ping` or `end`, or how it leaves that state. (The relink case is clearest when the peer that kept the broken link is the inviting side, which is the one that answers `join`.)
 
 ### D3-7: S11.1.2's approval that reaches the joining side "at once" has no call in the protocol, and the test plan expects *active* within a minute
 
@@ -183,6 +189,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   the peer, and the joining side, while pending, calls `ping` (or `exchange`) every minute for
   the first ten minutes, as the connector reports every 15 s while waiting (S18.5).
 - **Alternatives:** T5.2 passes "within an hour, or at once after Pull now on B".
+- **Check:** corrected. The gap holds: S11.1.2 (`:16–17`) has the approval reach the joiner "at once or at its next exchange", `link-protocol.md:107–111` has no call for "at once", and exchanges are hourly or by Pull now (§4.3.1). The T6 example is wrong: T5.2 is step 2 (`test-plan.md:57–59`), run with both servers reachable, before step 4 closes one side; the failure needs no one-way setup, only that nothing makes an exchange at approval. Severity unchanged (Low); drop the T6 sentence.
 
 ### D3-8: The kinds a shared item travels as are never named on the wire
 
@@ -201,6 +208,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   `tax-book`, `TaxBook`) each hide the other's tax books as "a kind this server doesn't know".
 - **Remedy:** §6 lists the eight kinds' wire names (R2.9, S10.3), each with its documents
   (§4.4.1 already lists them, by kind, without the names).
+- **Check:** confirmed. S10.3's table (`S10-users-and-sharing.md:83–94`) names eight kinds in words; `link-protocol.md` §4.4 (`kind`, up to 20 characters), §5.3 and §6 turn compatibility on the kind's string and never give a spelling. §4.4.1 lists the documents per item in prose without wire names.
 
 ### D3-9: The unsigned `hello` of both protocols and `/healthz` tell anyone the exact MoolaKata version, though nothing they serve needs it
 
@@ -226,6 +234,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** `hello` answers `{protocol, fingerprint, key}`, and `/healthz` its status alone;
   the version stays on signed answers and signed-in screens.
 - **Alternatives:** keep it, and say in S13.6 that the version is public by choice.
+- **Check:** confirmed. `link-protocol.md:85` and `connector-protocol.md:127` put `version` in the unsigned `hello`; `operations.md:196–197` has `/healthz` answer `{"status": "ok", "version": …}`, and S16.14 lets `/healthz` answer any address; §1.1 exposes only `/link/`. Each protocol's text uses `hello` only for the fingerprint check, and signed calls carry `MK-Link-Version`. Low, not a security or privacy claim at Med or High.
 
 ### D3-10: The connector protocol disagrees with itself on the pairing call's fields and the report's answer
 
@@ -248,6 +257,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** one field name (`sealingSignature`, as S18.4.2's "the sealing key signed with the
   identity key" and §4.1.2 give); `certificate` and `confirmed` in the example and the glance;
   "keeps with the pairing" for "per server".
+- **Check:** confirmed. `connector-protocol.md:23` has `sealingSig` and `:147` `sealingSignature`; `:48–50` says every report's answer carries `certificate`, which neither §4.2's example (`:197–208`) nor the glance (`:27–28`) shows; the glance also omits `confirmed` and the confirmation `:213–214` requires for `sealed`; `:159` says "per server" against `:160`'s one server.
 
 ### D3-11: Which refusals are unsigned differs between the two protocols, though the connector's "follows the link protocol wherever the two do the same thing"
 
@@ -274,6 +284,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** the connector protocol marks `limit` and `too-large` unsigned, as the link
   protocol marks `limit`, and says the connector acts on an unsigned `locked`, `limit` or
   `too-large` and on nothing else unsigned.
+- **Check:** confirmed. `link-protocol.md:253`, `:255` mark `not-linked` (over 1 MB) and `limit` unsigned; `connector-protocol.md:338` marks only `locked`, `:317–319` signs refusals "when the call carried a nonce", and `:113` has the answer's signature cover the call's body hash, which a `too-large` refusal made on headers can't have. The connector's `answer-unsigned` (`:342`) would drop such an answer.
 
 ### D3-12: A MoolaKata restored from a backup older than the pairing makes the connector delete every credential, where a link in the same case is only marked broken
 
@@ -299,6 +310,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   `unpair` or a new pairing).
 - **Alternatives:** keep one code, and have operations §6 say that restoring a backup older
   than the pairing costs every credential.
+- **Check:** corrected. The case holds: S18.4.4 (`S18-connector.md:222–224`) and `connector-protocol.md:160–162` make a signed `not-paired` delete every credential and the sealing key, and `:327` gives the same code to "the key isn't the paired connector's"; a link's `not-linked` only marks it broken (`link-protocol.md:264–265`, S11.6). The remedy's new code `unpaired` clashes with the connector's own call `POST /connector/v1/unpaired` (`:35`, `:133`): name the code otherwise (`pairing-ended`, say). Severity unchanged (Low).
 
 ### D3-13: OFX Direct Connect's `days` setting, which S18.9.1 names, is missing from the driver's settings
 
@@ -313,6 +325,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   the driver can't honour a Connection's own period, or `days` travels unlisted.
 - **Remedy:** §6 adds `days` (45 by default) to `ofx-direct`'s settings, or S18.9.1 drops "(the
   Connection's `days`)".
+- **Check:** confirmed. `S18-connector.md:350–351` has OFX Direct Connect ask for "the last 45 days (the Connection's `days`)"; no other line of S18 defines a `days` field, and `connector-protocol.md:301` lists the driver's settings without it.
 
 ### D3-14: Which address the pairing code carries: "MoolaKata's address", the public URL, or "the public URL, or the link address"
 
@@ -335,6 +348,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   step 5 drops "or the link address".
 - **Alternatives:** a connector address of its own in Settings › Connector, defaulting to the
   public URL.
+- **Check:** confirmed. S18.4.1 (`S18-connector.md:167`) and `connector-protocol.md:43`, `:137–138` say "MoolaKata's address"; `operations.md:350–351` says "the public URL, or the link address"; `DEPLOY.md:475–477` says the Public URL; S11.2 and S16.9 make the link address a separate setting that may differ from the public URL, and §1.1 proxies only `/link/`.
 
 ### D3-15: "Allowed to connect", the name three documents give Settings › Network's ranges, is not one S16.14 gives
 
@@ -352,6 +366,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   tester following T13 looks for a label the screen may not have.
 - **Remedy:** S16.14 gives the lists a label (*Allowed to connect*, per path), or the documents
   say "Settings › Network, the connector's ranges".
+- **Check:** corrected. S16.14 (`S16-settings.md:81–84`) gives no label for the ranges, as claimed, but the mockup, the reference for the screen, does: `MoolaKata-mock.html:1643` has three fields, *Allowed to use the app (/ui)*, *Allowed to link (/link)* and *Allowed to connect (/connector)* (its guide, `:2548`, a heading *Allowed to connect*). So the screen has the label the three documents use, and the gap is S16.14 naming none of the three. Severity unchanged (Low); remedy: S16.14 names the three labels as the mockup shows them.
 
 ### D3-16: operations.md and DEPLOY.md differ on the VM's memory, what to empty after a stolen welcome, a restore's path, and the health states
 
@@ -379,6 +394,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   either page meets a `starting` neither names.
 - **Remedy:** one memory figure with its reason in both; one list of what to empty (`data` and
   `backups`, with the reason DEPLOY gives); the container path in §3; `starting` in both lists.
+- **Check:** confirmed. Read all four: `DEPLOY.md:18–19` and `:89–90` (2 GB with the reader against 2 GB without it), `operations.md:98–100` against `DEPLOY.md:373–375` (`data/` against `data` and `backups`), `operations.md:162–163` (a host path) against `:239` and `DEPLOY.md:166` (`/var/lib/moolakata`), `operations.md:196–200` and `DEPLOY.md:297–298` against S13.6 (`S13-architecture.md:71–72`, `starting`).
 
 ### D3-17: S17.8.2's "no other tag … and none that moves" against the per-architecture tags the release pushes, keeps and overwrites
 
@@ -398,6 +414,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** S17.8.2 names the per-architecture tags as the build's own, on ghcr.io only, not
   for installs, and moved only before a release is published.
 - **Alternatives:** the joining job deletes them once the joined tag is attested.
+- **Check:** confirmed. S17.8.2 (`S17-implementation-08-packaging.md:33–34`) says one tag, "no other tag … none that moves"; `RELEASE.md:70–71`, `:296–297` and `:463–464` push per-architecture tags and overwrite them on a re-run, and `GENESIS.md:151–152` shows them kept beside `0.1.0`. RELEASE says only that no tag moves "to a newer release", a narrower claim than S17.8.2's.
 
 ### D3-18: dependencies.md puts the attestation in "the release's last job", and RELEASE.md §12's list of what `setup` checks leaves out the `main` ruleset
 
@@ -418,6 +435,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   reads as complete and omits a check `setup` makes.
 - **Remedy:** "in the joining and attesting job only"; RELEASE §12 adds the `main` ruleset, or
   says "everything GENESIS.md §7 lists".
+- **Check:** confirmed. `dependencies.md:119` says the release's "last job only" holds `id-token: write`; `RELEASE.md:294–322` has four jobs and the attesting one second (`.github/workflows/release.yml:70` puts it on `publish`, the second job; `draft` is last). `RELEASE.md:482–485` lists what `setup` checks without the `main` ruleset that `GENESIS.md:296–297` (§7 item 3) has.
 
 ### D3-19: schema.md's description of `Share` is narrower than R2.9's
 
@@ -434,6 +452,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   A reader of the schema takes a share to a link as going to the whole household.
 - **Remedy:** "A grant of one item, of the eight kinds, to a user, a group or named users of a
   linked server, at a level."
+- **Check:** confirmed. `schema.md:123` says "of an account or portfolio to a user, group or linked server"; R2.9 (`requirements/README.md:227–229`) says one item of the eight kinds of S10.3 to a user, a group or named users of a linked server.
 
 ### D3-20: `LotPicks.saleId` is under two rulings, without the note `Lot.transactionId` gets
 
@@ -450,6 +469,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** mark `LotPicks.saleId` "(also keeps ref)" as `Lot.transactionId` is, and have §6.3
   say a key may be both *deleted with* and *keeps ref* (deleted with its parent, and ending no
   earlier than it).
+- **Check:** confirmed. `schema.md:263` lists `LotPicks.saleId` under *deleted with* and `:264` under *keeps ref*, with no note, while `Lot.transactionId` is in both and the first listing says "(also keeps ref)"; §6.3 (`:241–242`) says each key is declared with one ruling.
 
 ### D3-21: schema.md's §3.2 "Reserved" records what is "not declared yet", a build status
 
@@ -470,6 +490,7 @@ wrong, remedy and alternatives. All rest on reading alone.
   code's to say (the §5 check can still fail on a declared table with no row).
 - **Alternatives:** keep §3.2, worded as a rule ("a prefix may be reserved for an entity the
   requirements name before its table is declared").
+- **Check:** plausible. **Question:** is §3.2's *Reserved* (a prefix held for an entity before its table is declared) a standing rule of the naming scheme, or a build-status line that CLAUDE.md keeps out of schema.md? Read `schema.md:70`, `:143–144` and `Posn` (no code declares it): the text is accurate today, but "not declared yet" and "A row moves to §3.1 when its table is" describe progress, while a prefix reserved for a named entity could be worded as a rule.
 
 ### D3-22: S11.9.1 cites "schema.md §2.5", which doesn't exist
 
@@ -486,6 +507,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **What goes wrong:** the reference points at no item; `check_docs.py` checks requirement ids,
   not a document's section numbers, so nothing caught it.
 - **Remedy:** cite "schema.md §2", or number §2's bullets so §2.5 exists.
+- **Check:** confirmed. `S11-linked-servers.md:128` cites "schema.md §2.5"; `schema.md` §2 (`:34–55`) is a list of bullets with no subsection numbers, and its last bullet is the rule about random file names.
 
 ### D3-23: `/mcp`'s tool arguments are snake_case, where schema.md says the API's JSON uses the database's camelCase names with no layer that translates
 
@@ -503,6 +525,7 @@ wrong, remedy and alternatives. All rest on reading alone.
 - **Remedy:** S13.8.2 and schema.md §1 say MCP tool names and arguments follow MCP's
   snake_case (as S10.9.5's tool names do), and its answers' fields stay camelCase.
 - **Alternatives:** camelCase arguments (`accountId`), as everywhere else.
+- **Check:** corrected. The facts hold (`api.md:52–62` snake_case arguments; `schema.md:30–32` "no layer that translates names"), but it is a gap rather than a contradiction: schema.md §1 speaks of "the API's JSON" and "the fields the browser receives", and S13.8 (`S13-architecture.md:161`) applies its conventions to `/mcp` only "where they apply", so no sentence says whether `/mcp`'s arguments or answers follow camelCase. Kind: behaviour named and never specified. Severity unchanged (Low); the remedy stands.
 
 ## doccheck.txt: the "To read" lines in this block
 
@@ -799,3 +822,29 @@ or do what, and what is sent, signed, sealed or stored where.
 ### external/README.md
 
 - Copies kept of outside documents the requirements rest on: `schwab-py-auth.rst` (commit `43c4614`, MIT; S18.9.2: access token ~30 min, refresh token ~7 days, code lifetime unpublished), `irs-f8949-2025.pdf` (S8.1: boxes A to L), `irs-i8949-2025.pdf` (S8.1: G to L for digital assets; C and F not for them); each with its SHA-256; a new tax year's copy is added beside, not over; commercial pages cited by link only.
+
+## Found while checking
+
+Unverified, in the claim format (docs/REVIEW.md §7); the sweep checks them.
+
+### D3-F1: A locked copy's inbox is capped at 500 MB, and the protocol's own example of a large first change is 2 GB
+
+- **Kind:** bug candidate (behaviour specified in a way that can't hold). **Severity:** Low.
+  **Req:** S11.4, S11.9.5.4, S11.7.1.
+- **Where:** `S11-linked-servers.md:202–203`:
+
+  ```text
+  4. If the inbox grows past 1,000 changes or 500 MB, the server discards it and asks the
+     source for a **full snapshot**, sealed the same way.
+  ```
+
+  and `link-protocol.md:199`: "(*Up to July 2022, 47 MB of 2 GB*)", the parts of a large first
+  change each "a change of its own" (§4.4.3).
+- **What goes wrong:** while a copy is locked, each part of a large first snapshot is written
+  to `inbox/` and applied only at the unlock. A source whose snapshot is over 500 MB (the
+  protocol's example is 2 GB) overflows the inbox part-way, the server discards it, and asks
+  for a full snapshot again, so a copy that stays locked through the transfer never fills.
+  Nothing says whether parts count against the cap, or whether a first snapshot is exempt.
+- **Remedy:** S11.9.5.4 says what counts toward the cap and either exempts a snapshot in
+  progress (its parts are kept until the cap's own larger limit) or states that a copy locked
+  during a large first snapshot restarts it.
