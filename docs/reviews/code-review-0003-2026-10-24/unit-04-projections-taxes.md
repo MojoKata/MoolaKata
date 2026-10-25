@@ -143,6 +143,7 @@ are in the table at the end.)
   months away.
 - **Alternatives:** compute the saving for a part-year in closed form (what is missing at the
   date divided by the months left), the bisection only for longer ones.
+- **Check:** confirmed. Read `engine.needed_saving` (`hi = max(target, 1.0)` as a yearly saving, never raised) and `prepare()` (`__init__.py:229-236`: a date under a year gives `target_index = 1`, `last_part = span`, so `_simulate` adds only `contribution * part`). Ran the claim's scratch test: `neededMonthly` 1000.0, chance 0.0 at that saving, median 5,979.
 
 ### U04-2: a projection built on a loan or a physical-asset account counts the loan's payments as cash and leaves the items out
 
@@ -177,6 +178,7 @@ are in the table at the end.)
   chart), a physical-asset account at its items' value in the real-estate or metals class.
 - **Alternatives:** refuse loans and physical-asset accounts in what a projection is built on,
   and leave them out of a portfolio's projection, saying so.
+- **Check:** confirmed. `built_on()` adds `ledger.balance()` for every account and reads positions only for investing ones, while `valuation.account_value` (`valuation.py:207-220`) uses `loans.value` and `assets.value`. Ran the scratch test: portfolio value 5000.00, projection start 7000.00, weights all cash.
 
 ### U04-3: a bitcoin model's growth is applied a year early
 
@@ -208,6 +210,7 @@ are in the table at the end.)
   `_expected_return` and `scenario_paths`; a test that the projection's bitcoin follows the
   model's price for the same year.
 - **Alternatives:** none needed.
+- **Check:** confirmed. `crypto_path[k]` is the growth from year+k to year+k+1 (`prices` begins at `year`), while `_simulate` applies column `t` (`rets[:, t]`) to bring the balance to year+t, so column 0 is unused and each year takes the next year's growth. Ran the scratch test: the expected path jumps ten-fold at index 1 (2027), the model's price at index 2 (2028).
 
 ### U04-4: scenarios can't be compared side by side (S6.6)
 
@@ -230,6 +233,7 @@ are in the table at the end.)
   row and their median paths on one chart.
 - **Alternatives:** S6.6 says the list's headlines are the comparison, and the side-by-side
   goes to `later.md` with an L id.
+- **Check:** corrected. Read `screens/projections.js`: the list shows each projection's headline and one `Detail` is open; nothing sets two side by side. But the claim's "no milestone schedules it" is wrong: S17.9 milestone 8 covers "S6.1–S6.9 ... scenarios", and S6.6 is in that range, so it was due in a milestone marked done. The kind stays (built nowhere); the remedy gains "or amend S6.6, or move it to `later.md`". Severity unchanged (Low).
 
 ### U04-5: the Inputs form can't set several things S6 names: other income, its age, the horizon, a birth year, several accounts, a projection's own assumptions
 
@@ -264,6 +268,7 @@ are in the table at the end.)
 - **Alternatives:** S6.1.2 drops frequency and "until when" (contributions are yearly until
   retirement or the date, as S6.4.2.1 has them), and S6.3 drops per-projection overrides but
   fees and the bitcoin model.
+- **Check:** corrected. The form does lack an add or remove for other income, `fromAge`, the horizon, several accounts, and a contribution frequency or end (`projections.js:351-359, 388-404, 515-527`). But a birth year is a person's, set in Profile (S10.10.1) and shown by the form; S6.2.1 doesn't ask the projection to set it, and a per-projection bitcoin model is offered (`:428`). Drop the birth year from the claim and name the overrides as the per-class figures only. Severity unchanged (Low).
 
 ### U04-6: making an education projection active turns off the other one for the same person without asking
 
@@ -293,6 +298,7 @@ are in the table at the end.)
   preview, or `activate` answering 409 with the name unless `confirm` is passed), and the
   dialog names exactly that plan, for every goal.
 - **Alternatives:** the dialog computes the subject the same way, from the list's inputs.
+- **Check:** confirmed. `MakeActive` (`projections.js:561-583`) names a replaced plan only for retirement and only as "if they are the same", while `activate` (`ui/projections.py:349-371`) replaces by `subject()` (the beneficiary for education) and clears the other's baseline; S6.7.1 says it asks before turning off the one it replaces.
 
 ### U04-7: a projection's unchecked inputs answer 500, and a typed mix may be levered
 
@@ -316,6 +322,7 @@ are in the table at the end.)
   numbers in range, `person` an index of `people`, overrides as `assumptions.check` checks a
   class, and an allocation's shares as numbers of 0 or more summing to more than 0.
 - **Alternatives:** a pydantic model for the inputs, so the OpenAPI document states them too.
+- **Check:** confirmed. `_check_inputs` (`ui/projections.py:200-261`) checks none of `withdrawal.amount`/`percent`, `overrides`, `income[].person` or `builtOn.allocation` (`_check` checks only a typed amount). Ran the scratch test: ValueError, TypeError and ValueError escape for the three, and the allocation `{usStocks: 300, cash: -200}` is accepted as weights 3.0 and -2.0.
 
 ### U04-8: a shared projection names the owner's account a viewer isn't shared, and shows its mix
 
@@ -344,6 +351,7 @@ are in the table at the end.)
   and the weights are left out (or stated as the projection's mix, not the accounts').
 - **Alternatives:** S6.1 says a share of a projection shows what it is built on, by name and
   mix, and the total.
+- **Check:** confirmed. `prepare()` builds on the owner's accounts for every viewer and `compute()` sends `builtOnLabel`, `weights` and `start`; `ui/projections.py:99` sends `builtOn` ids; only `tracking()` narrows to the viewer's accounts (`__init__.py:462-501`). Note the `start` total also includes the unshared accounts' values, which S6.1 ("the values ... of only the accounts shared with them") arguably covers too; Low stands since the owner chose to share the projection.
 
 ### U04-9: an education goal for `{kind: user}` takes any user, a private or remote one's person included
 
@@ -369,6 +377,7 @@ are in the table at the end.)
 - **Remedy:** `kind: user` resolves to the user's person and checks `people.level` as a person
   does, local users only; or the API takes persons only.
 - **Alternatives:** none needed.
+- **Check:** confirmed. `_check_beneficiary` tests only that a `kind: user` id exists, while `education_school` (`__init__.py:334-340`) turns it into that user's person and reads `name` and `birthYear`; `people.level` would refuse a private person. The leak is real only for a private person (a non-private one is read-visible to every local user, `people/__init__.py:153`) or a remote user's person; Low stands.
 
 ### U04-10: a filed year's gains move unasked and unrecorded when the change isn't a hand edit: an import, a deleted account, *both real*, a matched transfer
 
@@ -406,6 +415,7 @@ are in the table at the end.)
 - **Alternatives:** a closed year's gains are snapshotted when the federal return is marked
   filed, and the tax book compares the live figure with the snapshot on every read, listing
   any difference as *changed after filing* whatever made it (this catches U03-5 too).
+- **Check:** confirmed. `closed.Guard` is made only in `ui/transactions.py` (608, 737, 817) and `ui/options.py` (71, 141, 331); grep finds no other use, so imports, sync posting, account deletion and `link_transfer` never ask. Ran the scratch test: deleting the account answers 200, Schedule D goes to 0.00 and Issues stay empty. S2.8.2's "a transaction added, changed or deleted" covers these writes.
 
 ### U04-11: "From last year" reads the first last-year book that shares a filer: a book the filer never accepted, or one of two
 
@@ -449,6 +459,7 @@ are in the table at the end.)
   as dependents are flagged, S8.14.5.2).
 - **Alternatives:** the new-book dialog asks which of last year's books to start from when
   there is more than one.
+- **Check:** confirmed. `books.previous()` takes the first last-year book with any filer row of this book's filers, accepted or not, and the three consumers read it. Ran both scratch tests: Alice's 2026 book shows Bob's AGI 250,000 and carryover 9,000 from a book she gets 404 on; the joint book shows only Alice's 1,200. `expected()` calls `previous()` regardless of `fromLastYear`, as the claim says. A privacy facet too (a named filer who hasn't accepted reads the namer's figures), but only the namer's own naming makes it possible: Low, not withheld.
 
 ### U04-12: saving the amended return again settles edits made after it was filed
 
@@ -478,6 +489,7 @@ are in the table at the end.)
   return was filed (`TaxBookChange.createdAt` ≤ its `filedOn`, or before it was added while
   it is being prepared).
 - **Alternatives:** none needed.
+- **Check:** confirmed. `_amending` runs from both `add_filing` and `change_filing` and `closed.settle` settles every unsettled change whenever made, while S8.15 says an amended return settles "every change made before it" and a later edit is "listed afresh". Ran the scratch test: the issue is listed, then `[]` after a PATCH of the amended return.
 
 ### U04-13: a tax document can't be changed, removed or given its file later in the browser; through the API a co-filer can't change one the other filer attached a file to
 
@@ -507,6 +519,7 @@ are in the table at the end.)
   and file, with *Remove*; `_doc_values` checks `to_attach` only when the receipt changes
   (a new `receiptId` differing from the stored one).
 - **Alternatives:** none needed.
+- **Check:** corrected. Both halves hold in code: the Documents tab has no edit or remove (`taxes.js:481-580`, the dialog only POSTs), and `_doc_values` calls `receipts.to_attach` on every change, so a co-filer with read on the other's file gets 403 (scratch test run). But S8.8 and S8.16 never ask for a browser edit or remove, only S9.3's detach rule; the browser half is a missing capability, the 403 the defect. Split the remedy or call the claim a bug for the 403 and a gap for the browser. Severity unchanged (Med).
 
 ### U04-14: a write helper attaches a tax document but can't open its file, nor any the filers attached (D1-25)
 
@@ -535,6 +548,7 @@ are in the table at the end.)
   write it. If filers only: S8.14.3 and S10.3.1 say a helper attaches files but opens only
   their own, and the Documents tab says so beside a file a helper can't open.
 - **Alternatives:** write helpers open the files, read shares don't (D1-25's alternative).
+- **Check:** plausible. **Question:** D1-25: does a tax document's file go with a tax book's share (S8.14.3, S10.3.1: helpers see documents) or to its accepted filers only (S9.6)? The code does what the claim says (`receipts/__init__.py:248-249, 289-301`; scratch test: Dave 404, Bob 200) and matches S9.6 alone; whichever the user chooses fixes either the code or the two sections.
 
 ### U04-15: a Roth conversion or an IRA-to-IRA transfer counts as a contribution, over the limit; an HSA's employer money and catch-up are left out
 
@@ -566,6 +580,7 @@ are in the table at the end.)
   tax-table figure, S16.11), and asks self-only or family on the account.
 - **Alternatives:** the transfer dialog sets `contributionSource = rollover` on the receiving
   half whenever both accounts are retirement accounts.
+- **Check:** confirmed. `retirement()` sums every positive `deposit` or `transfer` with source `employee` (the default) and never reads a transfer's other half, so a matched IRA-to-IRA move counts; the HSA takes `hsaFamily` with no catch-up. Ran the scratch test: Roth IRA contributed 50,000.00 of 7,500.00, over the limit, with a 50,000 distribution on the traditional IRA.
 
 ### U04-16: Roth eligibility by MAGI and the backdoor-Roth steps are not built
 
@@ -591,6 +606,7 @@ are in the table at the end.)
   and the pro-rata note when other pre-tax IRA money exists.
 - **Alternatives:** S8.6 drops both, the guide's sentence becomes the requirement, and the
   backdoor goes to `later.md`.
+- **Check:** confirmed. grep finds `MAGI` only in the note at `panels.py:518`, the guide and the glossary; no field, no phase-out table, no pairing of a non-deductible contribution with its conversion. S17.9's milestone 3 part 8 names "income, retirement" panels (S8.1–S8.13) without deferring these, so the claim's "no milestone schedules it" reads as: the milestone covers the panel, not this item, and nothing defers it.
 
 ### U04-17: foreign tax paid and crypto income are not on the Income panel
 
@@ -614,6 +630,7 @@ are in the table at the end.)
   day's price, counted on the Income panel and giving the lot that basis.
 - **Alternatives:** S8.5 drops both until L-numbered later work, and the Income guide says the
   1099-DIV's foreign tax and any crypto income are the preparer's to add.
+- **Check:** confirmed. `income()` reads only `interest`, `dividend`, `reinvest`, `capital-gain`; `TXN_KINDS` has no foreign-tax or reward kind and grep finds neither word in the server. Same note as U04-16: milestone 3 part 8 names the Income panel generally, and nothing defers S8.5's two items.
 
 ### U04-18: options with an unresolved expiry, and crypto without a known acquisition, aren't among the Issues
 
@@ -635,6 +652,7 @@ are in the table at the end.)
   unresolved (linking to the position), crypto lots whose acquisition came from a snapshot
   (VARIOUS), and, once D1-9 is decided, a line per possible wash sale for review.
 - **Alternatives:** none needed.
+- **Check:** confirmed. `issues()` (`panels.py:869-957`) reads replay problems only for `sale-without-lot`, open lots without a basis, and rows without a basis; no code reads an option past its expiry or a row whose `standIn` acquisition prints as VARIOUS (`panels.py:167`). S8.4 names both.
 
 ### U04-19: the *Physical assets sold* card picks rows by whether the description starts with a digit
 
@@ -655,6 +673,7 @@ are in the table at the end.)
   plus an `itemId`) and the card filters on that; a residence carries the years lived in (from
   the item, as typed).
 - **Alternatives:** S8.13 drops "and lived in" and says the preparer asks.
+- **Check:** confirmed. `Property` filters rows by `!description.match(/^\d/)`; securities rows are `"{qty} {symbol}"` or `"{symbol} return of capital over basis"` and items are their names (`panels.py:165-166, 328`). The years-lived-in half has no source: no item field holds it, so its remedy needs a new input as well.
 
 ### U04-20: TXF writes a sale with no basis as a basis of $0.00; the PDF summary doesn't say how network fees were read
 
@@ -676,6 +695,7 @@ are in the table at the end.)
   the others (*1 sale with no basis*), or refuse the TXF while any row lacks one; the PDF takes
   `covers(b.bitcoinFees)`.
 - **Alternatives:** none needed.
+- **Check:** confirmed. `exports.py:111` writes `$0.00` for a `None` basis where the CSV writes an empty cell (`_money`), and `ui/taxpanels.py:417` puts the static `exports.COVERS` in the PDF while the CSV and `covers` on the Summary use `exports.covers(b.bitcoinFees)` (`:350, 387`).
 
 ### U04-21: a corrected federal due date is taken as any list of numbers, and a bad one fails every tax book
 
@@ -701,6 +721,7 @@ are in the table at the end.)
 - **Remedy:** `federalDue` takes two whole numbers forming a real date (try
   `dt.date(2001, m, d)`), refused with *a month and a day* otherwise.
 - **Alternatives:** store the due date as a date per year, not a month and day (DC-14).
+- **Check:** confirmed. `taxtables.check` compares `len(value)` with `len(_BTC.get(key, value))`, which is always equal for a non-bitcoin key, so any list of numbers passes; `federal_due` unpacks `month, day = ...` and builds a date on every read (`ui/taxes.py:521, 787`). Ran the scratch test: `[4]`, `[4, 31]`, `[13, 1]`, `[4.5, 15]` are all accepted.
 
 ### U04-22: the Taxes screen offers what the server refuses, and leaves out what S8.15 and S8.17 show
 
@@ -726,6 +747,7 @@ are in the table at the end.)
   from last year's filing; the Summary's KPI shows the carryover under the net.
 - **Alternatives:** S8.17 drops the refund or amount owed from what is carried, as the
   filing's own result already holds it.
+- **Check:** corrected. Holds for the helper's account buttons (`canWrite` is owner or write, `count_account` answers 403 `filers-only`), for payments saved without `transactionId` (the server deletes and recreates every payment, `_set_payments`), and for `CARRIED` and `Carried` lacking a refund or amount owed. Not for the Summary: the Summary tab's *From last year* card lists the capital-loss carryover figures (`taxes.js:233-243`, `CARRIED`), which meets S8.17's "in its Summary"; only the net-gain KPI leaves it out, and S8.17 doesn't ask for that. Drop that part and its remedy. Severity unchanged (Low).
 
 ### U04-23: a projection's percentiles and answers go out as raw floats, not rounded to cents (C40 half done)
 
@@ -748,6 +770,7 @@ are in the table at the end.)
 - **Remedy:** round each percentile, path and money answer to cents as a Decimal in
   `compute()` (`Decimal(repr(x)).quantize(CENTS)`), and the baseline as stored.
 - **Alternatives:** S6.9 says the figures go out as floats, which the client rounds for show.
+- **Check:** confirmed. `engine.run` returns NumPy lists, `compute()` sends them, `expected`, scenario paths and the answers unrounded, and `exactjson.marked` marks Decimals only. Ran the scratch test: the median goes out as `Exact(5979.46611909651)`. S6.9 names the percentiles; rounding the other answers is the remedy's extension, not a stated requirement.
 
 ### U04-24: the guides say other than the screens and sections in four places
 
@@ -769,6 +792,7 @@ are in the table at the end.)
   digital assets from 2025; the retirement and other-income lines follow whichever way U04-16
   and U04-5 are settled.
 - **Alternatives:** none needed.
+- **Check:** confirmed. Read the four guide lines: `projections.md:3-4` says education comes with 529 accounts while the dialog and the guide's own sections offer it; `taxes-gains.md:19-20` lists A–F only, with no G to L; `taxes-retirement.md:15` and `projections.md:78` as quoted (the first is true of the code, which is U04-16's gap, the second describes what the form can't add, U04-5).
 
 ### U04-25: Compare models has no price history behind it, and with no bitcoin price every model starts from an assumed $100,000
 
@@ -794,6 +818,7 @@ are in the table at the end.)
   and the dialog draws it under the paths; with no price, the dialog and the projection say
   *no bitcoin price yet: the models start from $100,000* or ask for one.
 - **Alternatives:** S6.3.1.1 drops "with the price history behind it".
+- **Check:** confirmed. `ModelsView` carries `price` and `rows` but no history, and `BitcoinModels` draws `rows` alone; `bitcoin_models` and `prepare()` fall back to 100,000 with no price, and the dialog prints the price only when there is one. S6.3.1.1 asks for "the price history behind it".
 
 ### U04-26: a filing with an extension filed but no new due date typed is shown past due
 
@@ -821,6 +846,7 @@ are in the table at the end.)
   moved as S8.15.3 says) when none is typed; for others, `overdue` is false while an extension
   is filed and its date unknown, the filing saying *extended, new due date not typed*.
 - **Alternatives:** the filing dialog requires *Extended to* with *Extension filed*.
+- **Check:** confirmed. `due_of` reads `extendedDue or dueDate` and `overdue` never looks at `extensionFiledOn` (grep: stored, echoed and saved, read nowhere else), so an extension filed with no new date leaves the original due date in force. Read as S8.15.3 has it (an extension is a filed date and a new due date), the filing has one.
 
 ## Uncited first-level items
 
@@ -1020,3 +1046,29 @@ U04-14, U04-15, U04-17), Low 17. By kind: differs 12, wrong figure 6, not built 
 privacy 2 (both Low, so not withheld). One needs the user: U04-14 (D1-25). Scratch tests in
 the job's `tmp/u04/t/` (`test_u04p.py`, `test_u04t.py`), runs in `tmp/u04/run1.txt` to
 `run5.txt`, the delta's diff in `tmp/u04/delta.diff`.
+
+## Found while checking
+
+(Unverified by a second context, per docs/REVIEW.md §8; never part of the claims above.)
+
+### U04-F1: a typed amount of `NaN` or `inf` passes the check and answers 500
+
+- **Kind:** bug. **Severity:** Low. **Req:** S13.8.3 (problems as problem+json, a field's
+  error named).
+- **Code:** `web/server/src/moolakata/ui/projections.py:150-154`, the typed amount is tested
+  only as `float(...) < 0`, which is false for NaN and `inf`:
+  ```text
+  try:
+      if float(built.get("amount", -1)) < 0:
+          raise ValueError
+  except TypeError, ValueError:
+      errors.append(FieldError("builtOn.amount", "amount-invalid", "An amount."))
+  ```
+  and `projections/__init__.py:85-96` then reads it as `Decimal(str(spec.get("amount", 0)))`.
+- **What goes wrong:** Case (run, scratch test `tmp/check/unit-04/test_f.py`):
+  `POST /ui/api/projections` with `builtOn: {kind: "typed", amount: "NaN"}` (or `"inf"`)
+  raises `decimal.InvalidOperation` out of the engine, an unhandled 500 with an error id in
+  place of a 422 naming `builtOn.amount`. The transaction rolls back. Another unchecked input
+  beside U04-7's.
+- **Remedy:** `_check` accepts the amount only when `math.isfinite` and within a bound (as
+  `_num` bounds `target`); the same for any other amount read as a Decimal.
