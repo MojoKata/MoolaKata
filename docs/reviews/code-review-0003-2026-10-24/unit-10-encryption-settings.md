@@ -148,6 +148,7 @@ None is decided yet; each is judged against the code (and both readings where op
   and the store has opened.
 - **Alternatives:** record `keyring` as "about to be done" before the rename, and on resume
   decide by comparing the keyring's `dataKeyId` with `next`.
+- **Check:** confirmed. Read `reencrypt.py:218-332` whole: the rename at `:307` comes before the journal write at `:308`; a resume with no `keyring` step and no `keyring.next` takes `new_ring = None` (`:239`) and makes a third data key (`:271-278`), and nothing reads the journal's `next`. Ran a copy of `crash_keyring_step.py`: the keyring's id after the resume differed from the journal's `next`, `open_store` refused, `keyring.old` was gone.
 
 ### U10-2: a receipt file damaged after its first 64 KiB stops a re-encryption at every unlock, the server locked for good (K5's first case, half done)
 
@@ -182,14 +183,17 @@ None is decided yet; each is judged against the code (and both readings where op
   name with any failure of the run.
 - **Alternatives:** decide `opens` by reading the whole file (doubles the read time of a
   re-encryption).
+- **Check:** confirmed. `opens` decides by the first chunk (`reencrypt.py:130-136`); `files.open_stream` raises `FileError` at a later bad chunk (`files.py:91-94`), and neither `rewrap_files` nor `run` catches it; `runtime._complete` (`:362-364`) keeps only the type's name. Ran a copy of `rewrap_damaged.py`: `FileError` raised, `bbbb.tmp` left beside the file. S15.7.2 says such a file is set aside, "never fatal".
 
 ### U10-3: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U10-4: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U10-5: a rotation writes the new keyring before its re-encryption is in the journal, so a stop between them leaves a rotation that only re-wrapped, unrecorded
 
@@ -231,6 +235,7 @@ None is decided yet; each is judged against the code (and both readings where op
   host queue) as soon as the keyring changes, and report the outcome exactly when a later step
   fails.
 - **Alternatives:** none simpler that keeps the old phrase usable until the journal exists.
+- **Check:** confirmed. Read `maintenance.rotate_running:516-531` (the keyring is written before the copies loop and before `reencrypt.schedule`), `keys/cli.py:306-313` (the same order offline) and `host.rotate` (only `RefuseStart` caught; the Activity record comes after a clean return). `test_keys.py:189-199` and `test_store.py:621,735` run only rotations that finish.
 
 ### U10-6: setting SMTP security to *None* needs no password again and keeps the stored password, which then goes to the server in the clear
 
@@ -263,6 +268,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Alternatives:** keep the password but refuse to send it without TLS (`login` only after
   `starttls` or on `SMTP_SSL`), so None works only for a relay that needs no login, as the
   field's hint ("None only for a relay on your own network") suggests.
+- **Check:** corrected. Severity unchanged (Low). The code is as quoted (`REAUTH` and `_clear_moved_secrets` cover the host only; `mail.deliver` logs in whatever the security), but S16.2 asks for the password again only for the host, and the stored password goes only to the host already configured. A session holder alone cannot read it: the "readable" half needs a second party on the network path, and the last sentence of "What goes wrong" (the session gets the password out without seeing it) overstates. Scope it as a hardening gap beside K13: lowering the transport protection is an ordinary save with the secret kept.
 
 ### U10-7: saving Settings › Bitcoin with mempool.space, the suggested choice, never marks it saved, so no wallet is ever read
 
@@ -292,6 +298,7 @@ None is decided yet; each is judged against the code (and both readings where op
   those that differ from the default); a test that saving the defaults makes `chosen` true.
 - **Alternatives:** make "saved" a key of its own (`bitcoinChosenAt`) written by any save of
   the section.
+- **Check:** confirmed. Ran a copy of `test_u10_bitcoin_saved.py`: the PATCH answered 200, `settings.saved(s, "bitcoinSource")` and `sync.chosen` both False. `change_settings` writes only keys that differ from the default (`ui/settings.py:118-120`), and nothing else writes `bitcoinSource` outside dev seeding.
 
 ### U10-8: a failure after the database opens leaves the server neither locked nor serving, and a restore's follow-up is lost with it
 
@@ -323,6 +330,7 @@ None is decided yet; each is judged against the code (and both readings where op
   remove `restored.json` only after `check_restored` has written its report and reset the
   links.
 - **Alternatives:** none needed.
+- **Check:** confirmed. Read `runtime.build` (`server.store` set before `ensure_categories`, the tasks, `check_restored`), `_open` (`ready` last), `ui/unlock.py:87-88`, `state` and `app.py:287` (the `Locked` middleware lets requests through once `store` is set, and `_complete` catches a failure only on the re-encryption path), and `maintenance.after_restore` (`restored.json` unlinked before `check_restored`).
 
 ### U10-9: copies the host keeps that Key storage never lists: a backup cut off part-way, a set-aside `keyring.next`, `keyring.old`
 
@@ -352,6 +360,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** remove any `.part` at the start of each backup (and at start-up); list a set-aside
   keyring in Key storage with **Remove**, as the copies are.
 - **Alternatives:** list a `.part` as a copy ("cut off part-way") with **Remove**.
+- **Check:** confirmed. `maintenance.backup:192-195` removes a `.part` only of the same second's name; `backups` and `copies.copies` skip every `.part`; nothing at start-up or in `prune` removes one, and a set-aside `keyring.next` is listed nowhere (`grep` of `.part` and `set-aside` across `src/`).
 
 ### U10-10: the old copy-rotation and re-encryption code is still there, unused: `copies.apply_rotation` re-wraps without re-encrypting
 
@@ -370,6 +379,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Run:** no; found by search (`grep` for each name across `src/` and `tests/`).
 - **Remedy:** delete them, and move the tests onto `reencrypt.at_once`/`run`.
 - **Alternatives:** none needed.
+- **Check:** corrected. Severity unchanged. The `copies.py` functions are unused as the claim says (`rewrap`, `data_key_of`, `reencrypt`, `can_open`, `apply_rotation`, `apply_reencryption`, `_needs`; no caller in `src/` or `tests/` besides each other), but `maintenance.reencrypt` (`:118-131`) is not old code: it schedules and runs the journaled `reencrypt.run`, the path the server takes, so the tests that drive it do exercise it. Drop it and "move the tests" from the claim and the remedy.
 
 ### U10-11: the rotation reminder's period, which S16.13 makes Key storage's one setting, can't be changed in the browser
 
@@ -388,6 +398,7 @@ None is decided yet; each is judged against the code (and both readings where op
   `keyReminderMonths`; the screen's line and guide say "but for Verify key and the reminder's
   period".
 - **Alternatives:** drop the period from S16.13 and fix it at 12 months.
+- **Check:** confirmed. No `keyReminderMonths` in `settings.js` beyond the read-only text (`:1240-1242`); S16.13 names the period as the section's one setting, and the hand-written mockup has a **Rotation reminder** select (`MoolaKata-mock.html:1656`) with its guide.
 
 ### U10-12: the household's avatar can only be initials and a colour in the browser; S16.1 and the mockup offer an image
 
@@ -402,6 +413,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** an image upload in General (checked from its content as receipts' images are, a
   small fixed size, re-encoded), stored as the `image` kind.
 - **Alternatives:** drop "an image" from S16.1 and the mockup.
+- **Check:** confirmed. `settings.js:110-147` sends only `kind: 'initials'`; `_avatar` accepts `data:image/` with no check beyond the prefix; the mockup has **Change avatar** (`MoolaKata-mock.html:1639`); S16.1 says "an image, or initials".
 
 ### U10-13: Settings lists Linked servers and Connector before Imports; S16 puts Imports first
 
@@ -415,6 +427,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Run:** no; rests on reading.
 - **Remedy:** move `imports` after `bitcoin`.
 - **Alternatives:** change S16's order to the code's.
+- **Check:** corrected. Severity unchanged (Low). The app's order differs from S16 as claimed (Imports after Connector; S16 has it after Bitcoin). But the claim's "the mockup the requirements follow" is wrong: the mockup's `SETTINGS_SECS` (`MoolaKata-mock.html:2823`) lists Imports before Bitcoin, so it follows neither S16 nor the app. The remedy then also moves Imports in the mockup (CLAUDE.md keeps them in step), or S16's order changes to the mockup's.
 
 ### U10-14: Settings › Alerts offers four thresholds; S16.16's 1 to 336 hours can't be chosen (D2-12 in the app)
 
@@ -429,6 +442,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Run:** no; rests on reading.
 - **Remedy:** a number field (hours, 1 to 336) as the other ranged settings have.
 - **Alternatives:** S16.16 names the four choices.
+- **Check:** confirmed. `settings.js:306-315` offers 24, 48, 72 hours and 1 week; `settings.py:268` accepts 1 to 336; S16.16 gives the range. D2-12 is confirmed in its own file.
 
 ### U10-15: `db shell` writes what a query returns to standard output, which Docker's log keeps, as the recovery sheet once did
 
@@ -455,6 +469,7 @@ None is decided yet; each is judged against the code (and both readings where op
   refuse without one, as `keys init` does.
 - **Alternatives:** say in S14.7 and `operations.md` that the shell's output is in Docker's log
   for as long as the daemon keeps it.
+- **Check:** plausible. **Question:** does S15.1.7's "the logs … must never hold amounts, names or secrets" cover what an interactive `db shell` prints (the data itself, by S14.7's design), or only the server's own log? The code prints as quoted (`maintenance.py:486-494`). Remedy note: I ran a throwaway container with a tty and text written to `/dev/tty` reached `docker logs` just as standard output did, so moving the shell to `keys.cli.Terminal` would not keep it out of the log under `docker compose run` (see U10-F1).
 
 ### U10-16: a host command's event written while the server takes the queue is lost
 
@@ -477,6 +492,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** rename the file to a private name first (`os.replace` to `host-events.taking`),
   then read and delete that, so an append after the rename starts a new file.
 - **Alternatives:** none needed.
+- **Check:** confirmed. `take_host_events:153-158` reads then unlinks; `queue_host_event` appends with `O_APPEND`, so a line appended between the two is removed unread.
 
 ### U10-17: the guides say other than the screens and sections in four places
 
@@ -495,6 +511,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Run:** no; rests on reading.
 - **Remedy:** correct each line.
 - **Alternatives:** none needed.
+- **Check:** confirmed. Read all four: `settings-keys.md:47` against `ui/settings.py` Remove and `dialog-remove-copy.md`; `settings-keys.md:13-16` has no row on the screen (only "Last confirmed …" under Recovery phrase); `dialog-written-email.md:5` against S16.2 (invitation a week); `settings-connector.md:58` names a Folder driver, and `connector/moolakata_connector/drivers/` holds only `ofx_direct.py` and `schwab.py`.
 
 ### U10-18: no test interrupts a re-encryption past its secrets, damages a file past its first chunk, or fails a rotation part-way
 
@@ -509,6 +526,7 @@ None is decided yet; each is judged against the code (and both readings where op
   it is recorded, and resumes; a file damaged in its last chunk; `rotate_running` failing
   after the keyring is written; Bitcoin saved at its defaults; a test with each withheld claim's fix.
 - **Alternatives:** none needed.
+- **Check:** corrected. Severity unchanged. "Two withheld claims" in the body is three (U10-3, U10-4, U10-21): none has a test. The rest holds: `test_store.py:297-328` crashes only at `rewrap_files`, `:331-352` sets aside only a file broken at its first chunk, `test_keys.py:189-199` and `test_unlock.py` run rotations that finish, and nothing in `test_wallets.py` saves Bitcoin at its defaults.
 
 ### U10-19: Settings › Network doesn't show how the listener runs (S16.15's one statement, uncited)
 
@@ -527,6 +545,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** `GET /settings` (or a small `GET /settings/network`) adds `mode`, `port` and
   `trustedProxies` from `server.config`, and the section shows them read only.
 - **Alternatives:** drop the sentence from S16.14 and S16.15.
+- **Check:** confirmed. S16.14 says the section shows the mode, port and trusted proxies; `settings.js:220-270` shows none, and no route under `ui/` returns them.
 
 ### U10-20: Key storage shows the last re-encryption only when it set something aside; which copies it left is never shown
 
@@ -549,10 +568,12 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** always show the last re-encryption (when, why) with each copy's outcome, and mark
   the ones left under an old key.
 - **Alternatives:** none needed.
+- **Check:** corrected. Severity unchanged (Low). "Which copies it left is never shown" overstates: the copies list shows how each copy opens (`opensWith`, `settings.js:1125-1135`: "needs a previous phrase", "an earlier data key"), so copies still under an old key are visible. What is missing is as quoted: `lastReencryption`'s time, reason and per-copy outcome are shown only when something was set aside (`:1353-1366`), against S16.13's "the last re-encryption's progress and outcome".
 
 ### U10-21: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U10-22: Verify key counts wrong phrases against fixed figures, not Settings › Sign-in and sessions (D2-17's other half)
 
@@ -573,6 +594,7 @@ None is decided yet; each is judged against the code (and both readings where op
   `guard.failed(LOGIN, address, failures, minutes)` read from the database); S16.3 says the
   unlock uses the defaults (D2-17's remedy).
 - **Alternatives:** none needed.
+- **Check:** confirmed. `ui/settings.py:748,754` call `guard.failed(LOGIN, address)` with the defaults (`ratelimit.py:123-125`), Remove goes through `count_failure` with the settings' figures; S15.4.2 and S15.6.5 name the lockout of S13.7.5.1, whose figures S16.3 sets, and Settings is readable here.
 
 ### U10-23: the generic settings PATCH writes state the server keeps for itself: the Electrum certificate pin unchecked, and the certificate key told to linked servers
 
@@ -593,6 +615,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** keep these three out of `DEFINITIONS` (a table or keys of their own that only
   their routes and tasks write), or mark them internal so `coerce` refuses them in the PATCH.
 - **Alternatives:** none needed.
+- **Check:** confirmed. `bitcoinNodeCert`, `bitcoinNodeCertOffered` and `linkCertificate` are plain `DEFINITIONS` (`settings.py:229-237`), `coerce` has no internal marker, and `change_settings` writes any defined key; the dedicated route's 64-hex check (`ui/settings.py:364-370`) is bypassed, and `announce_certificate` compares against the stored `linkCertificate` (`links/manage.py:174-188`).
 
 ## Earlier findings re-checked
 
@@ -739,3 +762,51 @@ not built 3, untraced 1, test gap 1. None needs the user (DC-2 left to the walk-
 
 Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u10/` (`rewrap_damaged.py`/`.txt`,
 `crash_keyring_step.py`/`.txt`, `t/test_u10_bitcoin_saved.py` with `bitcoin_saved.txt`).
+
+## Found while checking
+
+Unverified: nothing here enters the review on the word of the context that found it (REVIEW.md §8).
+
+### U10-F1: `keys init` run with `docker compose run` shows the recovery sheet on `/dev/tty`, which Docker's log keeps for a container with a tty
+
+- **Kind:** security. **Severity:** Low. **Req:** S15.4.4 ("shows the phrase on the terminal, never on
+  standard output, so that no log keeps it"), S15.1.7 (the logs hold no secrets), review 2's K10;
+  `docs/operations.md:101-103` ("never in Docker's logs").
+- **Code:** `web/server/src/moolakata/keys/cli.py:41-62`:
+  ```text
+  class Terminal:
+      """The controlling terminal, for a recovery sheet and the words typed back: never
+      standard output, which Docker's logs keep (S15.4.4). A command that shows a sheet
+      refuses to run without one."""
+  ```
+  with `say` and `ask` writing to the file `open_tty()` opened.
+- **What goes wrong:** a container started with a tty (`docker compose run --rm moolakata keys
+  init`, the documented way) has one pseudo-terminal, and the daemon's log driver reads
+  everything written to it, `/dev/tty` included. A throwaway container run with `docker run -t`
+  and `echo X > /dev/tty` showed `X` in `docker logs`. So the sheet and the three words typed
+  back go to the container's log, kept past the command where the log driver is journald,
+  syslog or a shipper (with the default driver and `--rm` the log goes with the container).
+  `Terminal` keeps the sheet off standard output, which does not keep it out of the log.
+  `keys rotate` is run with `compose exec` (`operations.md:280`), whose output the daemon does
+  not log (not tested).
+- **Run:** a throwaway container only (`docker run -t`, `/dev/tty` write, `docker logs`); the
+  command itself was not run.
+- **Remedy:** say in S15.4.4 and `operations.md` that `keys init` is run with `docker compose
+  exec` against a started server, or with a log driver that keeps nothing; or write the sheet
+  where no log reads it (the host's terminal, a file only the admin reads).
+- **Alternatives:** none simpler that keeps `run --rm`.
+
+### U10-F2: the host events queue is removed before its events are recorded, so a failed record loses them
+
+- **Kind:** bug. **Severity:** Low. **Req:** S15.4.7 ("What a one-off command did is queued … and
+  reaches Activity within a quarter of an hour").
+- **Code:** `web/server/src/moolakata/store/maintenance.py:151-158` unlinks the file as it
+  reads it; `web/server/src/moolakata/runtime.py:307-322` records the events afterwards in
+  `with server.db.tx() as s:`.
+- **What goes wrong:** an error in the record (a locked or full database, a failed write) after
+  the unlink loses every queued event: a `keys verify` never reaches Activity, so Key storage
+  and the yearly alert do not count it, and nothing says it was lost.
+- **Run:** no; rests on reading.
+- **Remedy:** rename the file to a private name, record, then delete the renamed file (this
+  also closes U10-16's window).
+- **Alternatives:** none needed.
