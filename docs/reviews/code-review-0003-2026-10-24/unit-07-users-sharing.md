@@ -616,4 +616,4 @@ locks the username): now "only slowed, never locked".
 | U07-18 | bug | S10.9.6, S10.9.5 | Low | 0 | open | `/mcp` answers 500 when `params` or `arguments` isn't an object |
 
 Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u07/` (`t/test_u07.py`, `t/test_u07_mcp.py`,
-`s/tree_widow.py`, `s/argon_parallel.py`, and their outputs `run1.txt`–`run4.txt`).
+`s/tree_widow.py`, and their outputs `run1.txt`–`run4.txt`).

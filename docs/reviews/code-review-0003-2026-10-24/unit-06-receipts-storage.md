@@ -815,5 +815,5 @@ done. C1 (OCR text crosses a link): documents.
 | U06-22 | security | S9.8.4.2 | Low | 0 | open | Writing a job to the worker has no deadline, so a worker that stops reading hangs its caller and every quick job behind it |
 | U06-23 | untraced | — | Low | 0 | open | `parsing.MAPPING_KEYS` is used nowhere |
 
-Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u06/` (`t/test_u06.py`, `s/unix_after_seccomp.py`,
+Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u06/` (`t/test_u06.py`,
 `s/prefixes.py`, `s/money_cols.py`, and their outputs `run1.txt`–`run3.txt`).

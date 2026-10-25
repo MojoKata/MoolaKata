@@ -697,7 +697,7 @@ None is decided yet; where a question is open, the code is set against both read
 
 | Id | What the code does | Which reading it matches |
 |---|---|---|
-| DC-1 (D2-1) | Outbound, every answer is cut at 20 MB (`net.py:24, 220-230`; links use the default ceiling, `links/client.py:75-76`), so a peer's `file` answer over 20 MB fails. Inbound, a sealed receipt `deliver`ed as `application/octet-stream` to `/link/` is bounded by `upload_cap` (the larger size limit + 1 MB, up to 201 MiB, `middleware.py:242-250`), a link's JSON by 20 MB. | Neither fully: the receiving side already takes S16.10's sizes (the first remedy's reading), the fetching side keeps 20 MB (the protocol's). Unit 08's U08-1 is what follows. Note U09-4: the 20 MB counts compressed bytes. |
+| DC-1 (D2-1) | Outbound, every answer is cut at 20 MB (`net.py:24, 220-230`; links use the default ceiling, `links/client.py:75-76`), so a peer's `file` answer over 20 MB fails. Inbound, a sealed receipt `deliver`ed as `application/octet-stream` to `/link/` is bounded by `upload_cap` (the larger size limit + 1 MB, up to 201 MiB, `middleware.py:242-250`), a link's JSON by 20 MB. | Neither fully: the receiving side already takes S16.10's sizes (the first remedy's reading), the fetching side keeps 20 MB (the protocol's). Unit 08's U08-1 is what follows. |
 | DC-2 (D2-3) | `tls` mode: a self-signed P-256 certificate for 825 days naming `[tls] names`, `[server] name` and `localhost`, its key plain 0600 in `tls/` (`listener.py:30-68`); TLS 1.2+ (Hypercorn's default context), ALPN h2; HSTS a year (`middleware.py:33, 134-135`); forwarded headers ignored. Nothing marks it as testing-only. | Fit for "a supported mode" but for renewal (U09-6); nothing in the code depends on the "testing" reading. |
 | DC-8 | A newer database raises `RefuseStart` in `store/migrate.py:78-82` during `runtime.build` at the unlock; `ui/unlock.py:117-123` logs `refusing to unlock: …`, answers 503 `cannot-unlock`, and the server stays up, locked. | S13.6 and `operations.md` §5.1 (at the unlock). `store/migrate.py:3`'s docstring ("refuses the start") is stale (unit 06's file). |
 | DC-15 | `daily_summaries` (`alerts.py:1050-1100`) sends at Settings › Alerts' time in each user's zone (`timezones.zone_for(u.timeZone)`), Auto being the server's. | S12.11.5 (each user's zone); `operations.md` §2.3 is true for Auto users only. |
@@ -836,5 +836,5 @@ None is decided yet; where a question is open, the code is set against both read
 | U09-22 | bug | S13.3, S13.6 | Low | 0 | open | The health check asks 127.0.0.1 whatever `[server] host` says |
 | U09-23 | differs | S13.7.6, S16.8, D2-16 | Low | 0 | open | A statement over 100 MB is refused 429 *wait*, which can never succeed |
 
-Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u09/` (`bomb.py`/`bomb.txt`, `upload.py`/
+Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u09/` (`upload.py`/
 `upload.txt`, `mw.py`/`mw.txt`, `codes.py`/`codes.txt`).

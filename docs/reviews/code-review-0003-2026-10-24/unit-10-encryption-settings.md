@@ -542,8 +542,8 @@ None is decided yet; each is judged against the code (and both readings where op
   `ui/settings.py:701-713` (`_last`) sends `finishedAt`, `why` and `copies` (each copy's
   outcome), which the screen never shows.
 - **What goes wrong:** after a rotation's re-encryption the admin sees nothing in Key storage:
-  not when it finished, nor that a copy was "left: needs the phrase of mk-…" or left by
-  default, which is what S15.7.1.4 asks them to act on (keep the previous phrase,
+  not when it finished, nor that a copy was "left: needs the phrase of mk-…" or left,
+  which is what S15.7.1.4 asks them to act on (keep the previous phrase,
   delete the copy). Activity has it, as a count-free detail.
 - **Run:** no; rests on reading.
 - **Remedy:** always show the last re-encryption (when, why) with each copy's outcome, and mark
