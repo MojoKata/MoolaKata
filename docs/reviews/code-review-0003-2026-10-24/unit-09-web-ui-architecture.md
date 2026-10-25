@@ -113,6 +113,7 @@ None is decided yet; each is judged against the code (and both readings where op
 ### U09-1: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U09-2: with an upload limit of 19 MB, uploads are never counted against the 100 MB in flight
 
@@ -143,6 +144,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** keep the kind apart from the limit (`upload = ctype.startswith("multipart/") or
   (to_link and ctype.startswith("application/octet-stream"))`).
 - **Alternatives:** none needed.
+- **Check:** confirmed. Read `middleware.py:242-258` and `app.py:117-119`: `upload_cap()` is `(mb + 1) MiB`, so 19 gives exactly `LINK_LIMIT` (20 MiB), `upload` is then false, and nothing reaches `in_flight`; `importMaxMb` takes 1-200 and `receiptMaxMb` 1-100 (`settings.py:255-259`), so 19 is reachable. No other guard counts uploads.
 
 ### U09-3: a refusal for an address outside Settings › Network carries none of S13.7.7's headers and isn't logged
 
@@ -176,10 +178,12 @@ None is decided yet; each is judged against the code (and both readings where op
   headers.
 - **Alternatives:** `_send_problem` adds the common headers itself, as every early refusal would
   then need.
+- **Check:** confirmed. `app.py:283-296` adds `AddressRanges` after `AccessLog` and `SecurityHeaders`, so it runs outside both, and `_send_problem` writes only content-type and content-length. Ran a copy of `mw.py`: the refused address's 404 had no CSP or nosniff and no access-log line.
 
 ### U09-4: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+- **Check:** confirmed.
 
 ### U09-5: `trusted_proxies` takes whole networks, which S13.3 rules out
 
@@ -207,6 +211,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** accept only single addresses (`ip_address`, or a network whose prefix is the full
   length) and refuse the start otherwise, naming S13.3; a test.
 - **Alternatives:** accept a range but log a warning at every start; weaker than S13.3 says.
+- **Check:** confirmed. `config.py:149-156` takes `ip_network(entry, strict=False)` with no prefix test and `middleware.py:82-87` trusts any address inside it; S13.3 says each entry is the proxy's own address and never a whole private range. The shipped example (`web/install/moolakata.toml`) and `operations.md:83` do say the exact address, so only a misconfiguration is exposed, as the claim says (Low).
 
 ### U09-6: the self-signed certificate is never made again when it expires, and a pair half written is kept for good
 
@@ -239,6 +244,7 @@ None is decided yet; each is judged against the code (and both readings where op
   name and rename both; S13.3 says the certificate is renewed before it expires.
 - **Alternatives:** a much longer validity (browsers ignore it for a self-signed one, and the
   pins are on the key), saying so in S13.3.
+- **Check:** corrected. Severity unchanged (Low). Part (1) holds (`listener.py:33-35`, 825 days, no date test). Part (2) holds only narrowly: the pair is rewritten only when a file is missing or the certificate doesn't cover every name, and an interrupted write then leaves the old certificate, which still fails the `covers` test, so the next start rewrites it. A kept mismatched pair needs the key file gone while the certificate still covers the names, or the `[tls] names` list reverted to what the old certificate covers after a stop between the two writes. Also drop "S13.3 says the certificate is renewed before it expires" from the remedy: S13.3 says nothing of renewal or expiry, so the claim is a bug with no requirement, and the Req line's S13.3 quotes hold only for the first-start and names-change rules.
 
 ### U09-7: this server's own certificate is read over a raw socket, outside the egress guard
 
@@ -267,6 +273,7 @@ None is decided yet; each is judged against the code (and both readings where op
   the same backend; or S13.5 names this one exception.
 - **Alternatives:** in `proxy` mode, take the certificate from the admin (paste the
   fingerprint), as it is the proxy's, not a call to make.
+- **Check:** confirmed. `certs.py:61-91` calls `socket.create_connection` and `wrap_socket` directly, twice, to the host of `own_address` (`linkAddress` or `publicUrl`), outside `net.Guard`; the callers listed (`ui/links.py:253`, `links/manage.py:172, 209, 267`, `connector/routes.py:144`, `connector/manage.py:81`) exist. S13.5 allows only the Email and Bitcoin hosts by name, and this server's own address is neither.
 
 ### U09-8: the middleware's refusals carry an error id that is never logged
 
@@ -295,6 +302,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** `_send_problem` logs `problem <id> <status> <code>` as `problem_response` does
   (or calls a shared helper); a test that a 403 `origin-refused`'s id is in the log.
 - **Alternatives:** none.
+- **Check:** confirmed. `middleware.py:41-53` makes an `errorId` with `new_error_id()` and logs nothing, while `errors.problem_response` (`errors.py:75-83`) logs `problem <id> <status> <code>`; S13.7.8 says refusals included. Ran a copy of `mw.py`: a 403 `origin-refused`'s id was in no log record.
 
 ### U09-9: between the unlock and readiness the API is served, not answered 503
 
@@ -319,6 +327,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** the gate is `not server.ready` for everything but the open paths, with a 503
   `starting` and `Retry-After` while `server.store is not None`.
 - **Alternatives:** set `server.store` last in `build`, after the rest is done on a local.
+- **Check:** confirmed. `runtime.build` sets `server.store` (`runtime.py:186`) long before `_open` sets `server.ready` (`:393`); `Locked` is `store is None and not ready` (`app.py:287`), so in between nothing gates the API. `.ready` is read only in `app.py` (healthz), `ui/unlock.py` and `runtime.py`. S13.8.4 says 503 while starting.
 
 ### U09-10: each price refresh starts its provider's rate limits afresh, so two refreshes in an hour can make twice Tiingo's calls
 
@@ -345,6 +354,7 @@ None is decided yet; each is judged against the code (and both readings where op
   unchanged; only a changed limit replaces them. A test that two runs within the hour share
   one window.
 - **Alternatives:** register each source's limits once at start.
+- **Check:** confirmed. `ProviderLimits.set` (`tasks.py:102-104`) replaces the windows with empty ones, `prices/refresh.py:298` calls it from `build` on each refresh, and a run's `seen` isn't kept between runs. One line is off: the pool's `workers: int = 4` is at `tasks.py:141`, not `:130`.
 
 ### U09-11: the OpenAPI document lists only the codes written as literals; the link, copy, wallet and connector refusals, and any code a peer sends, are left out
 
@@ -388,6 +398,7 @@ None is decided yet; each is judged against the code (and both readings where op
   in the log), never passed through; S13.8.4 lists 502 or the join answers 422.
 - **Alternatives:** a test that walks the routes' refusals by calling them is heavier; the
   AST walk could follow a variable to its class's literal codes instead.
+- **Check:** confirmed. `contract.py:53-74` collects only string literals; `ui/links.py:243-245` passes `e.code` through a variable. Ran the grep on `web/ui/api/openapi.json`: no `not-moolakata`, `unreachable`, `certificate-changed` or `not-linked`, and `already-linked` and `code-invalid` are not among the 320 listed codes either. `links/client.py:143-147` does pass a peer's code through, and `ui/links.py:244` answers 502 for `unreachable`, which S13.8.4's list lacks.
 
 ### U09-12: the Dashboard has no upcoming recurring transactions and no giving against its target
 
@@ -411,6 +422,7 @@ None is decided yet; each is judged against the code (and both readings where op
   as the Giving screen's header); `_attention` adds a holding valued from a statement over 90
   days (as the alert does). Or S12.2.1 drops what the Dashboard won't show, with the mockup.
 - **Alternatives:** schedule them as a later item.
+- **Check:** confirmed. S12.2.1 lists upcoming recurring transactions and giving against its target; `ui/dashboard.py`'s `Dashboard` model and `screens/dashboard.js` have neither, and no milestone, gap or later item names them. A small narrowing: `_attention` does carry overdue statements and reconciliation mismatches, which count as "imports that need attention", so what is missing is the two cards, stale statement valuations and a failing price source.
 
 ### U09-13: one failing check keeps every other check's *source failing* alerts from resolving
 
@@ -442,6 +454,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** hold back by the failed check's key prefixes (`prices:`, `mail`, `bitcoin`,
   `link…:`) rather than by kind, or give each check its own kind.
 - **Alternatives:** none simpler.
+- **Check:** confirmed. `alerts.py:844-858` adds the failed check's whole `_KINDS` set to `failed` and `:908-912` shows `price_sources`, `email`, `bitcoin_source` and `linked_servers` all list `source-failing`, so one failing check holds back the others' alerts of that kind. No guard by `causeKey` exists.
 
 ### U09-14: the reconciliation-mismatch alert is raised for loans and always links to a Reconcile tab
 
@@ -469,6 +482,7 @@ None is decided yet; each is judged against the code (and both readings where op
   Dashboard and the alert apply one rule for which accounts are checked.
 - **Alternatives:** leave loans out of the mismatch alert, as the Dashboard does, if S1.9.4's
   check is meant to be the loan's only one.
+- **Check:** confirmed. `alerts.py:449` works out `where` and uses it only for the overdue statement; the mismatch alert (`:473-486`) links `/reconcile` and runs for every active account with imports, loans included, while `ui/dashboard.py:194` skips `not atypes.reconcilable(a.type)` and `ledger/types.py:114-123` says a loan has no Reconcile tab (S1.11, S1.9.4).
 
 ### U09-15: an admin's alert about a Connection that keeps someone's accounts doesn't name the owner
 
@@ -495,6 +509,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** the admins' `about` names the Connection's owner's display name (`Connection ·
   Alice's · <driver>`).
 - **Alternatives:** none.
+- **Check:** confirmed. `alerts.py:292-324` builds one `title` and `about` for the admins' copy (`Connection · message-or-driver`) with no owner name; S12.11.1.1 and S18.5.3 make admins recipients, and this is the only check whose admin copy concerns another person's accounts.
 
 ### U09-16: a long duration answers 500: `parse` has no ceiling and the overflow isn't a refusal
 
@@ -520,6 +535,7 @@ None is decided yet; each is judged against the code (and both readings where op
   sentence ("A duration is at most 52w."); `parse` turns any arithmetic error into a
   `DurationError`.
 - **Alternatives:** the pause route clamps `until`.
+- **Check:** confirmed. Ran `duration.parse` in `uv run python -I`: `999999999w` and `99999999999999999999m` raise `OverflowError` (not a `ValueError`, so not a `DurationError`), and `1000000w` parses to 7,000,000 days, which overflows `clock.now() + span` in `ui/links.py:342`; the only caller is that route, and the generic handler answers 500.
 
 ### U09-17: the Watchlist is not built, and nothing schedules it
 
@@ -540,6 +556,7 @@ None is decided yet; each is judged against the code (and both readings where op
   close and change), or move it to later work with an L id and say so in S12.2.12 and the
   mockup.
 - **Alternatives:** none.
+- **Check:** confirmed. No Watchlist in `frame.js` NAV, the router, the server's routes or tables (grep of `web/server/src`, `web/ui/screens`, `components`, `app` finds nothing); `docs/requirements` names it only in S12.2.12 and S12.10.3.4, and S4.4's "held or watched" has nothing watched.
 
 ### U09-18: privacy mode blurs only what is marked `.amt`; projections, taxes, giving and rules show amounts in plain text
 
@@ -562,6 +579,7 @@ None is decided yet; each is judged against the code (and both readings where op
   browser smoke that, in privacy mode, no visible text node matches `\$\d`.
 - **Alternatives:** blur by a CSS rule on every `.num` and the KPI values, plus the call sites
   above; easier to miss one.
+- **Check:** confirmed. `base.css:59` blurs only `body.privacy .amt`; read the cited sites (`projections.js:44, 180-237` through `dollars()`, `taxpanels.js:402, 532`, `giving.js:525`, `rules.js:42-45`, `import.js:474, 509`, `transaction-dialog.js:327`): each puts `money(...)` text into a plain element with no `.amt` ancestor. S12.3 says every amount on the page.
 
 ### U09-19: tooltips never reach screen readers, so the collapsed sidebar's links and several marks have no name
 
@@ -583,6 +601,7 @@ None is decided yet; each is judged against the code (and both readings where op
   with text; the collapsed nav keeps `.nav-label` in the accessibility tree (`sr-only`
   instead of `display: none`).
 - **Alternatives:** an `aria-label` written beside every `data-tip` by hand.
+- **Check:** corrected. Severity unchanged (Low). The nav and tooltip points hold (`tooltip.js` sets no `aria-label` or `aria-describedby`; a collapsed sidebar's `<a>` has an `aria-hidden` icon and a `display: none` label), but the count is 13 links for a member and 15 for an admin (`frame.js:37-55`), and on Accounts only the "Shared by me" mark is a bare icon and number: the "Shared with me" mark's icon has `label=level`, so it is named by the level (read or write), not by who shares.
 
 ### U09-20: no test checks a guide's screenshot, and about forty screen guides have none
 
@@ -609,6 +628,7 @@ None is decided yet; each is judged against the code (and both readings where op
   has an image and that its file exists; then `web/dev.sh help-shots` for the missing ones, or
   S12.7.4 says which guides carry none.
 - **Alternatives:** S12.7.4 exempts tabs whose screen guide already has one.
+- **Check:** confirmed. `test_app.py`'s `GUIDE_CHECK` tests headings and order only, `test_guides.py` the terms and forms, and no test or `web/check` step looks at a guide's image (S12.7.6). Ran the claim's loop over `web/ui/guides/*.md`: the screen guides without an image come to 36 (the claim says about forty; the `linked-*` ones are thirteen, not fourteen).
 
 ### U09-21: the Alerts, Settings › Alerts and Dashboard guides say less than the code does
 
@@ -639,6 +659,7 @@ None is decided yet; each is judged against the code (and both readings where op
   example"); settings-alerts names the explorer, node and linked servers; dashboard.md says
   which groups Investments sums.
 - **Alternatives:** none.
+- **Check:** confirmed. `guides/alerts.md:13-18` lists far fewer causes than `alerts.py`'s `CHECKS` raise, `settings-alerts.md:7-9` names only a price source and email though `alertSourceHours` is read at `alerts.py:72, 168, 178, 383`, and `dashboard.md:16-18` says Investments is brokerage and retirement while `ui/dashboard.py:104` uses `atypes.investing` (investing, retirement, education, giving, crypto groups).
 
 ### U09-22: the image's health check asks 127.0.0.1 whatever `[server] host` says
 
@@ -663,6 +684,7 @@ None is decided yet; each is judged against the code (and both readings where op
   address.
 - **Alternatives:** the health check reads the host commands' socket (`/run/moolakata/sock`),
   which is always there and needs no address.
+- **Check:** confirmed. `main.py:107-111` always asks `127.0.0.1:<port>`, while `listener.py` binds `config.host`; with `host` set to a single non-loopback address (or `::1`) the check finds nothing and prints `unhealthy`.
 
 ### U09-23: a statement over 100 MB, which Settings › Imports allows, is refused as "uploads arriving at once: wait"
 
@@ -690,6 +712,7 @@ None is decided yet; each is judged against the code (and both readings where op
   validator with it), or a single upload larger than `IN_FLIGHT` is refused 413 naming the
   100 MB ceiling rather than 429.
 - **Alternatives:** `IN_FLIGHT` is the larger of 100 MB and the largest size limit.
+- **Check:** confirmed. `middleware.py:262-270` counts the declared length against `IN_FLIGHT` before the app runs, so one declared body over 100 MB is refused 429 `uploads-in-flight` whatever `importMaxMb` (1-200) allows; the route's own 413 is never reached, and S16.8's "1 to 200" range is as the claim quotes.
 
 ## Phase 1 claims judged against the code
 
@@ -838,3 +861,27 @@ None is decided yet; where a question is open, the code is set against both read
 
 Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u09/` (`upload.py`/
 `upload.txt`, `mw.py`/`mw.txt`, `codes.py`/`codes.txt`).
+
+## Found while checking
+
+Unverified: nothing here enters the review until the sweep checks it (docs/REVIEW.md §8).
+
+### U09-F1: the middleware's problems carry their own title table, which names 404 and 429 "Error" and 503 differently from the routes
+
+- **Kind:** bug. **Severity:** Low. **Req:** S13.8.3 (every error is a problem document with a
+  `title`).
+- **Code:** `web/server/src/moolakata/middleware.py:41-47`:
+  ```text
+              "title": {403: "Not allowed", 413: "Too large", 503: "Not available"}.get(
+                  status, "Error"
+              ),
+  ```
+  against `errors.py:17-31` (`TITLES`: 404 "Not found", 429 "Too many requests", 503 "Not
+  available yet"), which `problem_response` uses for every route's problem.
+- **What goes wrong:** the middleware's 404 (Settings › Network's refusal), its 429
+  (`uploads-in-flight`) and its 503 `locked` carry titles that differ from the same status
+  answered by a route: "Error" for 404 and 429, "Not available" for 503. A client that shows
+  `title` shows two wordings for one status.
+- **Run:** no; rests on reading.
+- **Remedy:** `_send_problem` takes its title from `errors.TITLES`.
+- **Alternatives:** none.
