@@ -47,6 +47,14 @@ remedy and alternatives. All rest on reading alone.
   changes do over 4 MB). Block 3 compares `link-protocol.md` §1.4 and §4.3.
 - **Alternatives:** cap S16.10 at 20 MB less the sealing overhead; or say that a receipt over
   the link's ceiling crosses as its record only, marked *too large to send*.
+- **Check:** corrected. The fetch direction holds: S13.5 cuts off every answer past 20 MB
+  (`link-protocol.md` §1.4 repeats it) and `file` answers with the sealed receipt, so a receipt
+  over about 20 MB can't be fetched. The other direction is overstated: a receipt's `deliver`
+  body is `application/octet-stream`, not JSON, so S13.7.6's 20 MB for "a linked server's" JSON
+  bodies need not apply (its uploads "up to the size in Settings" could cover it), and §1.4's
+  "Bodies are JSON" is silent on it. Scope is the `file` answer, with the `deliver` body
+  undecided; severity unchanged (Med). Remedy adds that S13.7.6 or §1.4 state the ceiling for a
+  receipt's body.
 
 ### D2-2: Whether a tax book's document files cross a link: S11.4 and milestone 5 say yes, S11.5.1 and L6 say later
 
@@ -73,6 +81,10 @@ remedy and alternatives. All rest on reading alone.
   S17.9.5.8 says "receipts", and the mockup's line drops "(a tax book's documents too)". If
   they cross: L6 loses that clause and S11.5.1 says so. **Needs the user** (which).
 - **Alternatives:** none beyond the two.
+- **Check:** confirmed. S11.5.1 and `later.md` L6 say a tax book's document files come later;
+  S17.9.5.8 (milestone 5, part 8) and the mockup's Share dialog (`MoolaKata-mock.html:1793`) say
+  tax documents cross. S11.4's "receipts and documents" is ambiguous (the link protocol's `docs`
+  are item documents), so the milestone and the mockup carry the contradiction.
 
 ### D2-3: `tls` mode is "for testing" (S13.3, S15.1.7, S16.15), yet the TrueNAS catalog apps fix `tls` mode for real households
 
@@ -104,6 +116,9 @@ remedy and alternatives. All rest on reading alone.
   TrueNAS's own proxy. **Needs the user.**
 - **Alternatives:** keep "testing" and add an S17.8.3.4 sentence that the catalog is the one
   exception, with why.
+- **Check:** confirmed. S13.3, S15.1.7 and S16.15 call `tls` mode testing-only; S17.8.3.4 says
+  the catalog's templates fix `tls` mode and S17.8 makes the catalog the install form. No
+  sentence makes the catalog an exception.
 
 ### D2-4: S11.7's list of a link's states leaves out *broken* and the request waiting for approval
 
@@ -123,6 +138,9 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S11.7 lists every state and what moves it: *requested* (A, with **Approve** and
   **Reject**), *pending* (B), *active*, *syncing* (the progress of S11.7.1), *paused until…*,
   *unreachable since…* (and the certificate-changed case with **Accept**), *broken*, *ended*.
+- **Check:** confirmed. S11.7 lists active, paused, unreachable and ended; S11.6 moves a link to
+  broken and S11.1.2 has B waiting for approval; the mockup (`:1605–1607`) shows syncing,
+  broken, unreachable, paused and *wants to link*.
 
 ### D2-5: The linked copy's database holds five of the eight shareable kinds; portfolios, projections and people have no place
 
@@ -139,6 +157,9 @@ remedy and alternatives. All rest on reading alone.
   them in the main database, which S11.9.1 forbids ("never in the main database").
 - **Remedy:** the list in S11.9.1 adds portfolios (with their computed series), projections
   (inputs, results, tracking) and people (name, birthday, relationships).
+- **Check:** confirmed. S11.9.1's `shared.db` list names accounts, holdings, positions,
+  transactions, series, budgets, gift plans, giving plans, tax books and receipt records;
+  S10.3.3's table has eight kinds, and portfolios, projections and persons have no place in it.
 
 ### D2-6: Link pulls are "hourly by default", and nothing sets another interval
 
@@ -153,6 +174,8 @@ remedy and alternatives. All rest on reading alone.
   `link-protocol.md` §4.3.1 ("hourly and when an admin presses Pull now") has. A unit can't
   say whether a fixed hour is right.
 - **Remedy:** "hourly, and on demand", or a **Pull every** field in S16.9 with its range.
+- **Check:** confirmed. S11.4 says "hourly by default"; S16.9 has no interval, and
+  `link-protocol.md` §4.3.1 and S17.9.5 say "hourly and" on demand with no setting.
 
 ### D2-7: What a link's audit records goes where S12.10.5 says nothing from a linked household goes, and the mockup's Activity names a linked account
 
@@ -176,6 +199,9 @@ remedy and alternatives. All rest on reading alone.
   people the shares name) and that they name kinds, owners and counts, never an item's name;
   S12.10.5 says "Activity, but for S11.8's records"; the mockup's row reads "pulled 2 linked
   shares from griffin-parents" with *a linked account* in the About column.
+- **Check:** confirmed. S11.8 records pulls and views with no home stated; S12.10.5 bars linked
+  data from Activity; the mockup's Activity row (`:1570`) reads "pulled 2 linked shares from
+  griffin-parents" about *Mom's Retirement*, an item name S11.3 keeps inside the encrypted copy.
 
 ### D2-8: The mockup's link invitation says it holds "no secret"; S11.1.1's code holds a one-time secret
 
@@ -190,6 +216,11 @@ remedy and alternatives. All rest on reading alone.
   dialog undersells the code).
 - **Remedy:** the dialog says "It holds this server's link address, its key's fingerprint and
   a one-time secret: pass it only to their admin."
+- **Check:** corrected. The contradiction holds (S11.1.1's code holds a one-time secret; the
+  dialog at `:2085` says "no secret"), but "whoever uses it first joins" overstates it: S11.1.2
+  has A's admin compare fingerprints and approve before anything crosses, which the dialog's own
+  notice says. Severity unchanged (Low); the harm is an admin who handles the code carelessly,
+  not an unapproved join.
 
 ### D2-9: The mockup's linked household window has no Projections
 
@@ -203,6 +234,8 @@ remedy and alternatives. All rest on reading alone.
 - **What goes wrong:** the design reference has no screen for a shared projection in the
   window, so the generated mockup and the app have nothing to match.
 - **Remedy:** the mockup adds Projections to the linked window's navigation and screens.
+- **Check:** confirmed. S12.10.3.4 lists Projections among the screens; `PEER_NAV` (`:2766`) and
+  the keys of `PEER_SCREENS` have no projections.
 
 ### D2-10: The mockup puts Alerts before Users and Groups and Settings, and Imports before Bitcoin
 
@@ -218,6 +251,9 @@ remedy and alternatives. All rest on reading alone.
   app follows one and a unit checks it against the other.
 - **Remedy:** choose the order (the mockup's admin group at the foot is the more usual one) and
   make S12.2 or the mockup match; the same for Imports and Bitcoin.
+- **Check:** confirmed. S12.2 puts Users and Groups and Settings (14) before Alerts (15); the
+  mockup's `NAV` has Alerts above its Admin group. S16 puts Bitcoin (7) before Imports (8);
+  `SETTINGS_SECS` (`:2823`) has `imports` before `crypto`.
 
 ### D2-11: What Profile holds: S12.2.16 leaves out Connections and the bitcoin unit, milestone 1 adds a theme, and the mockup shows the bitcoin unit twice
 
@@ -238,6 +274,10 @@ remedy and alternatives. All rest on reading alone.
   there (it is a per-browser button); the mockup's duplicate field is copied into the app.
 - **Remedy:** S12.2.16 adds Connections (S18.6.4) and the bitcoin unit (S1.6.4); S17.9.1.4 says
   "Profile (time zone)"; the mockup keeps one bitcoin-unit field and one guide heading.
+- **Check:** confirmed. S12.2.16's list omits Connections (S18.6.4) and the bitcoin unit
+  (S1.6.4); S17.9.1.4 says "Profile (time zone, theme)" while S12.1.1 makes the theme the
+  sidebar's button; the mockup's Profile has both **Bitcoin in** and **Bitcoin amounts**
+  (`:1674`) with two guide headings (`:2566`, `:2568`).
 
 ### D2-12: The mockup offers fixed choices where S16 sets ranges
 
@@ -256,6 +296,10 @@ remedy and alternatives. All rest on reading alone.
   have no field to apply to.
 - **Remedy:** the mockup's fields become numbers (or durations in S12.13's grammar) with S16's
   ranges in their hints, or S16 names the choices.
+- **Check:** confirmed. The mockup offers idle 1/8/24 hours, longest 7/30/90 days, lockout
+  5/15/60 minutes, release 15 minutes/1 hour/4 hours, jobs 1/2/4 and alert 24/48/72 hours/1
+  week; S16 sets ranges (1 to 168, 1 to 365, 1 to 1,440, 5 minutes to 24 hours, at most 4 jobs,
+  1 to 336).
 
 ### D2-13: Settings › Key storage's **Test** is never specified, and the section is called read-only beside five buttons
 
@@ -273,6 +317,9 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S16.13 says what **Test** checks (the data key in memory opens a secret and the
   database, nothing written) and drops "read-only but for …", or says "read-only but for the
   controls below".
+- **Check:** confirmed. A search of S15 and S16 finds no sentence on what **Test** does; only
+  the mockup's toast (`:1665`) says. S16.13 says "read-only but for **Verify key** and the
+  rotation reminder's period" and then lists Forget, Remove, Test, Re-encrypt and Cancel.
 
 ### D2-14: S13.7.2, "one place for the rules", leaves out two actions other sections put behind the password again
 
@@ -291,6 +338,10 @@ remedy and alternatives. All rest on reading alone.
   reading. A unit that checks S13.7.2's list route by route passes both without the check.
 - **Remedy:** S13.7.2 adds "accepting the connector's new address" and "resetting a user's
   two-step".
+- **Check:** confirmed. S13.7.2's list has pairing, confirming and unpairing the connector but
+  not accepting its new address, which S18.5.4 puts behind the password again; S10.1.6.4 puts an
+  admin's two-step reset behind it under S13.7.2, which the list names only as "changing …
+  two-step".
 
 ### D2-15: The phrase is "never sent over the network beyond the unlock request itself", yet Verify key and Remove send it from a browser
 
@@ -308,6 +359,9 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S15.3.1 reads "never sent over the network but to the server itself: at the
   unlock, **Verify key** and **Remove**", and rejected idea 20 reads "kept out of logs, and
   out of browsers but for the locked screen and Settings › Key storage".
+- **Check:** confirmed. S15.3.1 says the phrase is never sent "beyond the unlock request
+  itself"; S15.6.5 and S16.13 have the browser send it for **Verify key** and **Remove**;
+  rejected idea 20 says it is kept out of browsers.
 
 ### D2-16: A statement may be up to 200 MB (S16.8), but a user's uploads in flight stop at 100 MB and are held in memory
 
@@ -322,6 +376,8 @@ remedy and alternatives. All rest on reading alone.
   RAM.
 - **Remedy:** S16.8's range stops at 100 (or at S13.7.6's figure), or S13.7.6's ceiling is the
   larger of 100 MB and the statement limit.
+- **Check:** confirmed. S16.8 allows 1 to 200 MB; S13.7.6 caps uploads in flight at 100 MB per
+  user, held in memory; a single 150 MB upload can't pass.
 
 ### D2-17: The lockout of the unlock uses Settings › Sign-in and sessions, which can't be read while the server is locked
 
@@ -339,6 +395,9 @@ remedy and alternatives. All rest on reading alone.
   unsaid. Not withheld: Low, and the phrase's 128 bits make guessing moot.
 - **Remedy:** S16.3 adds "While the server is locked, the unlock uses the defaults: they are in
   the database (S16.14)."
+- **Check:** confirmed. S13.7.5.1 locks the unlock's address after 10 failures; the figures are
+  Settings' (S16.3), which S16.14 says can't be read while the server is locked, and no sentence
+  names what the unlock uses then.
 
 ### D2-18: The welcome holds every phrase it shows until one is confirmed, with no bound; the connector's welcome keeps 20 for an hour
 
@@ -354,6 +413,9 @@ remedy and alternatives. All rest on reading alone.
   connector twin states, so how many and for how long is left to the code; on an uninitialised
   server anyone who reaches it can make it hold any number. Low: only before the key is made.
 - **Remedy:** S15.4.4 says the same as S18.11.2: "an hour each, 20 at most".
+- **Check:** confirmed. S15.4.4 and S12.14.1 bound neither the count nor the age of the phrases
+  on offer; S18.11.2 gives the connector's "an hour each, 20 at most", and no other section has
+  such a limit.
 
 ### D2-19: A queued email is retried "until its link expires"; an email with no link has no end
 
@@ -371,6 +433,9 @@ remedy and alternatives. All rest on reading alone.
   an email a day; the queue says nothing.
 - **Remedy:** S16.2: "until its link expires, or a day for an email with no link", as the mail
   folder has it.
+- **Check:** confirmed. S16.2 retries a queued email "until its link expires"; S16.2's mail
+  folder gives an email with no link a day; S10.1.9's alert, notice and password-changed emails
+  carry no link.
 
 ### D2-20: S14.1.5 cites `schema.md` as "(S1)", and S14.10 says no record is ever removed though sessions and tokens are
 
@@ -388,6 +453,9 @@ remedy and alternatives. All rest on reading alone.
   and caches outright; a unit checking S14.10 literally flags the prune.
 - **Remedy:** "(`schema.md` §4)" in S14.1.5; S14.10 reads "records are never removed, but for
   the exceptions of `schema.md` §4.4".
+- **Check:** confirmed. S14.1.5 cites `schema.md` as "(S1)" (`schema.md` §4 holds the
+  soft-delete rules); S14.10 says records are never removed with no exception, while S13.4's
+  hourly prune removes expired sessions and tokens (`schema.md` §4.4.1).
 
 ### D2-21: Unpair "ends the paired connector, never a pairing code still waiting (which it withdraws as well)"
 
@@ -401,6 +469,9 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** say which: "ends the paired connector, and withdraws a pairing code still
   waiting" (the safer), or "ends the paired connector; a pairing code still waiting stays
   until it expires or is withdrawn".
+- **Check:** confirmed. S18.4.4 reads "ends the paired connector, never a pairing code still
+  waiting (which it withdraws as well)"; the two halves disagree about a waiting code, and
+  S18.4.2 calls such a code a 24-hour bearer secret.
 
 ### D2-22: R1.5 says dev mode keeps every rule as strict as production; S17.7 makes the recovery phrase an exception
 
@@ -415,6 +486,9 @@ remedy and alternatives. All rest on reading alone.
   there is touches the master key, the thing S15.4.6 says is never in a file.
 - **Remedy:** R1.5 adds "but the recovery phrase, which a dev server keeps in a file of its own
   so it unlocks itself (S17.7)".
+- **Check:** confirmed. R1.5 says dev mode "keeps every rule as strict as production"; S17.7
+  names one exception, the phrase kept in `web/.dev/phrase`, while S15.4.6 says the phrase is
+  never in a file.
 
 ### D2-23: S17.4 weighs candidates instead of stating the choice; the turned-down ones belong in rejected ideas
 
@@ -434,6 +508,10 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S17.4 states the choice and its constraints (ECharts, the major version vendored,
   lazily loaded through `app/charts/`); uPlot, Lightweight Charts and Chart.js go to
   `rejected-ideas.md` with their reasons; the price-chart remark cites L5 or goes.
+- **Check:** confirmed. S17.4 reads as the case for a choice ("Three candidates are worth
+  considering", "is the choice if", "ECharts 5/6", "best kept as a possible *addition*"); R1.14
+  has chosen ECharts, and `rejected-ideas.md` has none of uPlot, Lightweight Charts or Chart.js.
+  L5 names the holding's detail price chart.
 
 ### D2-24: Status and history words in S14, S15 and S17
 
@@ -469,6 +547,10 @@ remedy and alternatives. All rest on reading alone.
   go; S17.10.2's one-time step moves to `RELEASE.md` (its GENESIS steps).
 - **Alternatives:** keep S17.9 as a plan (a plan may speak of order) but drop the history
   clauses only.
+- **Check:** confirmed. Each quoted clause is in the file as cited: S15.6.7 "no longer carries
+  the key", S14.1.3 "Until the first release", S17.8.3.1 "until the apps are in it", S17.9's
+  milestone headings and "final approval", S17.10.2's "starts private". Line numbers are within
+  a line or two.
 
 ### D2-25: A relay and the phone PWA are "later" and "not now", linked to out of scope; neither has an L id
 
@@ -487,6 +569,8 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S11.2.3 drops "*(not now)*" (a relay is out of scope); the PWA gets an L id (L13
   or after) cited from R1.2, S12.8 and `out-of-scope.md`, which keeps "Phone support in the
   web app". **Needs the user** (whether the PWA is planned work), decided with D1-5.
+- **Check:** confirmed. S11.2.3 "*(not now)* a relay", R1.2 and S12.8 "later"; `out-of-scope.md`
+  lists both the relay and phone support, and `later.md` has L1 to L12 with no PWA item.
 
 ### D2-26: The mockup's Watchlist prices ^VIX from Stooq, a rejected source
 
@@ -498,6 +582,9 @@ remedy and alternatives. All rest on reading alone.
 - **What goes wrong:** the design reference shows a source the requirements turned down, and
   an index (^VIX) that no source of S4 is said to serve.
 - **Remedy:** the row names a source S4 lists, or the row goes.
+- **Check:** confirmed. `rejected-ideas.md` 13 turns Stooq down; the mockup's Watchlist row
+  (`:1567`) names "Stooq (EOD)" for ^VIX; no S4 text names Stooq or a source for index levels
+  (S4's VIX mention is about option chains).
 
 ## doccheck.txt: the "To read" lines in this block
 
@@ -891,3 +978,26 @@ digested in `docs-1-money.md`; the lines below add only what this block's sectio
 - Rejected 21: a watched folder for the connector.
 - Rejected 22: re-encrypting while serving.
 - Rejected 23: keeping admins out of other users' accounts by app rules.
+
+## Found while checking
+
+Unverified, in the claim format (docs/REVIEW.md §7); the sweep checks them.
+
+### D2-F1: No section states a size ceiling for a receipt's own body on a link
+
+- **Kind:** behaviour named and never specified. **Severity:** Low. **Req:** S13.7.6, S11.9.6.
+- **Where:** `docs/link-protocol.md:22–23`:
+
+  ```text
+  4. Bodies are JSON, UTF-8, at most 20 MB. A caller waits 10 seconds to connect and 20 seconds
+     for each read, and cuts off an answer past 20 MB.
+  ```
+
+  and `docs/link-protocol.md:150–153`, where a receipt's sealed bytes are the body of a
+  `deliver` call, `application/octet-stream`.
+- **What goes wrong:** §1.4 and S13.7.6's "a linked server's up to 20 MB" speak of JSON
+  bodies; a receipt's bytes are neither JSON nor, in S13.7.6's words, an upload by a user, so
+  the request side of a receipt crossing a link has no stated limit, while the answer side is
+  cut at 20 MB by S13.5 (D2-1).
+- **Remedy:** state the ceiling for a receipt's body in §1.4 and S13.7.6, tied to S16.10's limit
+  (see D2-1's remedy).
