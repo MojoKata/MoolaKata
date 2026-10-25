@@ -125,6 +125,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   catcher that logs SYNs and datagrams), and fail on any non-loopback one.
 - **Alternatives:** S17.2.1 and `dependencies.md` say what the run proves: that the server
   works with no network, not that nothing tried.
+- **Check:** confirmed. Read `test_no_network.py` whole and `web/dev.sh:110-116`: the only recorder is the patched `socket.socket.connect` in the test's own process, and `_peers()` reads `/proc/net/*` remotes. Ran a copy of `netns_probe.py` under `unshare -U -n`: TCP connect and UDP `sendto` both fail with errno 101, `/proc/net/tcp` is empty and the UDP socket shows remote `00000000:0000`, which `_peers()` skips. The worker is a separate process and its seccomp filter (`worker.py:_lock_down`, `sandbox.py:90`) refuses `socket()` with EACCES before any connect, so nothing in it can be seen either.
 
 ### U11-2: a rerun of `release.yml` on a published tag rebuilds the images and moves the version's tag on both registries
 
@@ -151,6 +152,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Alternatives:** RELEASE §11 warns never to re-run a release run after the joining job
   succeeded.
 - **Run:** reading alone.
+- **Check:** confirmed. Read `release.yml` whole: the `build` push (`:48-59`), the join (`:84`) and the Docker Hub copy (`:132`) overwrite the version's tags with no existence check, and a rerun of all jobs on a `v*` tag takes the same `push` path. RELEASE §11's own advice is *Re-run failed jobs*, which is safe after a success, so the case needs *Re-run all jobs*, as the claim says. `S17.8.2` ("none that moves") and RELEASE §2 ("A version is never reused") are as quoted.
 
 ### U11-3: `release.yml` builds and smoke-runs on pull requests only when the packaging changes, not the code that goes into the images
 
@@ -179,6 +181,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Alternatives:** S17.10.2 says "that touches the images' packaging", and accepts that a
   code change is first smoke-run at the release's pull request.
 - **Run:** reading alone.
+- **Check:** confirmed. `release.yml:13-19` lists only `.github/workflows/release.yml`, `web/install/**`, `web/server/uv.lock` and the connector's two files, while `web/install/Dockerfile:12-29` copies `web/VERSION`, `web/server/pyproject.toml`, `web/server/src`, `web/ui` and `docs/mockups/MoolaKata-mock.html` into the image. S17.10.2's words are "touches what goes into the images"; RELEASE §3 step 7 ("Because it touches `web/install/`") describes the narrower trigger. One slip in the claim: its *Alternatives* quotes S17.10.2 as saying "the images' packaging", which it does not say.
 
 ### U11-4: `release.sh sign` tags any commit it is given, one that was never on MojoKata's `main` included, and the push publishes it
 
@@ -202,6 +205,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   §5's "that pull request's commit" is on `main`), and show whether `check` passed on it
   (`gh api repos/$REPO/commits/$commit/check-runs`).
 - **Run:** reading alone.
+- **Check:** confirmed. Read `cmd_sign` (`release.sh:115-142`): the commit is any `rev-parse --verify` result and the only guards are `web/VERSION` and a tag already existing; nothing tests that it is on `$up/main`, and `git push "$up" refs/tags/v$version` sends the commit with the tag. RELEASE intro and §5 step 1 say the tag is on `main`.
 
 ### U11-5: `release.sh publish` checks the draft's files by name only, so a changed file is published and locked for good
 
@@ -222,6 +226,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Remedy:** compare each asset's SHA-256 (`gh release view --json assets` gives `digest`)
   with `git show "v$version:web/install/<name>" | sha256sum`, before asking for the typed tag.
 - **Run:** reading alone.
+- **Check:** confirmed. `release.sh:219-221` compares sorted asset names only; `gh release verify-asset` (`:237-242`) afterwards checks the downloaded files against GitHub's attestation of the published release, so a replaced draft file is attested as the release's. RELEASE §8 promises "holds exactly the tag's install files", which the name comparison does not give. Rated Low as written: it needs a write-access account during the draft window; the nearest to Med of the four release-script security claims.
 
 ### U11-6: `release.sh copy` signs in to Docker Hub in the maintainer's own Docker config and leaves the `mojokata` credential there
 
@@ -239,6 +244,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Remedy:** `TMP=$(mktemp -d)` and `DOCKER_CONFIG="$TMP"` for the login and the copy, as
   `token` does.
 - **Run:** reading alone.
+- **Check:** confirmed. `cmd_copy` runs a plain `docker login docker.io -u "$OWNER"` (`release.sh:300-301`), with the default Docker config and no logout, while `cmd_token` (`:318-320`) and `cmd_check` (`:195-199`) use a throwaway `DOCKER_CONFIG`. RELEASE §12's "without touching your own Docker logins" is about `token`, so the requirement is the script's own convention rather than a promise about `copy`.
 
 ### U11-7: `create-pr.sh` pins a digest it resolved apart from the one whose provenance it checked
 
@@ -261,6 +267,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Remedy:** resolve the digest first, then verify `oci://ghcr.io/mojokata/$1@$digest` with the
   same flags, and pin that digest.
 - **Run:** reading alone.
+- **Check:** confirmed. `pinned()` (`create-pr.sh:49-55`) verifies `oci://$image` by tag, throws the digest `gh` resolved away (`>/dev/null`), then resolves the tag again with `imagetools inspect`; the second answer is what `place` writes into `ix_values.yaml`. S17.8.3.5 says it "checks each image's provenance and pins it by its digest", which holds only if both resolve alike. `check.sh:69` also uses the tag.
 
 ### U11-8: `web/dev.sh base-update` writes the move into `web/audit.json`, not the register S17.8.5 names
 
@@ -282,6 +289,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   register's row by hand at the release, RELEASE §3), or `base-update` rewrites the row's
   *Last moved* clause and `web/check` compares it with `audit.json`.
 - **Run:** reading alone.
+- **Check:** confirmed. `base.py`'s `cmd_update` (`:49-67`) rewrites both Dockerfiles and `web/audit.json` only; `dependencies.md:85` ("Last moved: 2026-10-15 …") is untouched and RELEASE §3 step 3 sends the maintainer to it by hand. The register's own row says the digest moves "by `web/dev.sh base-update` (S17.8.5)", so the documents agree with the requirement and the code differs.
 
 ### U11-9: `web/pins` holds no hash for Playwright's Chromium, only a revision checked after the download
 
@@ -302,6 +310,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Alternatives:** S17.6 says the Chromium is pinned by Playwright's version in `uv.lock` and
   its revision, without a hash.
 - **Run:** reading alone.
+- **Check:** plausible. **Question:** does S17.6's "versions and hashes of the dev-only downloads (Deno, Playwright's Chromium)" mean a hash for each download, or the versions of both and the hashes where there is a download to hash? The code does what the claim says (`web/pins:5-7` holds a revision for Chromium, `dev.sh:65-72` checks only the unpacked folder's name); the sentence reads either way, and the claim's own *Alternatives* is the second reading.
 
 ### U11-10: the egress scan counts a URL on GitHub, Google, Cloudflare or PyPI as noise, so a new download or update check there passes unflagged
 
@@ -329,6 +338,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   `*.googleapis.com`, `pypi.org/pypi`, CDNs) as findings, which the register then accepts
   once.
 - **Run:** reading alone.
+- **Check:** confirmed. `NOISE` (`audit.py:30-40`) is matched with `re.search` against the host alone, as `(^|\.)(…)$`, so every subdomain of the listed names is dropped. Ran the extracted pattern: `raw.githubusercontent.com`, `api.github.com`, `pypi.org`, `storage.googleapis.com`, `cdn.jsdelivr.net` and `telemetry.cloudflare.com` all match as noise. The separate `WORDS` pattern flags only files that name telemetry or update-check words, so a download host with neither is not reported.
 
 ### U11-11: the browser component tests S17.5 describes, an in-page runner and a fake API in `web/ui/tests/`, don't exist
 
@@ -348,6 +358,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Remedy:** S17.5 and S17.1 describe what is built (Playwright over a seeded dev server and
   the generated mockup's crawl, no component runner), or the runner and fake API are written.
 - **Run:** reading and a listing.
+- **Check:** confirmed. `git ls-files web/ui` has no `tests/` and no `run.js`; `web/check:35-38` skips the directory when absent. The browser tests are `test_app.py`, `test_browser_smoke.py` and `test_mockup_app.py` (Playwright over a seeded dev server and the mockup crawl); none stubs the API (no `page.route`). S17.5 and S17.1 both name `web/ui/tests/`. `test_static.py:62` mentions `tests/run.js` only as a path the static server refuses.
 
 ### U11-12: nothing holds the first screen's 150 KB budget
 
@@ -365,6 +376,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   Dashboard screens, gzips each file and the three stylesheets, and fails over 150 KB; and
   that `echarts` is reached only through `import()`.
 - **Run:** the scratch walk above, against the working tree (equal to `6916954` for code).
+- **Check:** confirmed. Grepped `web/server/tests`, `web/check` and `web/dev.sh` for a size or gzip measure of the app: none. Ran a copy of `first_screen.py` on the working tree: Dashboard 103.0 KB in 74 files, sign-in 56.7 KB in 35 files, `echarts` not in the static graph, and the largest statically reached files include `screens/projections.js`, `components/loan.js` and `components/edu.js`, as the claim says (`router.js` loads each screen by `import()` but `dashboard.js` imports `new-account.js` and `charts/chart.js` statically).
 
 ### U11-13: the seeded linked server's address is a real host name, which a dev server seeded without `--stubs` calls every hour
 
@@ -381,6 +393,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Remedy:** a reserved name (`https://money.parents.example`), or skip the seeded link's
   exchange in dev mode whatever `--stubs` says.
 - **Run:** reading alone.
+- **Check:** plausible. **Question:** is a linked server's address that the seed names a "real provider" in S17.7's "never calls a real provider unless one is configured", or does that sentence cover price and wallet sources only? The code does what the claim says (`seed_links.py:58` names `money.parents.ts.net`; `runtime.py:133-137` skips the exchange only when `config.stubs`), the seeded link is itself configured by the seed, and S17.7 elsewhere expects links to be exercised in dev mode (`--peer`).
 
 ### U11-14: dev mode is cited as S17.6 (`web/dev.sh`) where it is S17.7
 
@@ -395,6 +408,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   `check_docs.py` counts these as S17.6's.
 - **Remedy:** cite S17.7 in the three places.
 - **Run:** reading alone.
+- **Check:** confirmed. Grepped the repository for `(S17.6`: exactly the three places quoted (`Dockerfile:23`, `main.py:56`, `test_config.py:152`), all about dev mode's code and the image, which S17.7 states; S17.6 (`dev.sh`'s commands and `web/pins`) says nothing of them.
 
 ### U11-15: the release gate's receipt read runs in the smoke container's own Python, not through the reader's worker and its sandbox
 
@@ -421,6 +435,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
   `selftest` (no network, the data directory unreadable) inside the locked-down container on
   each architecture.
 - **Run:** reading alone.
+- **Check:** confirmed. `smoke.sh:101-108` runs `ocr.read` in a `python` entrypoint of the image; `smoke.sh` never mentions the worker or its self-test (grep for `worker` and `selftest` finds nothing), and no step uploads a receipt to the running server. The aarch64 row `(0xC00000B7, 198, 425)` is at `sandbox.py:27-28`; `check.yml` runs on `ubuntu-24.04` only, so no automated run executes that filter. S17.8.1 lists "a receipt read", which the step satisfies literally; the claim is about what it proves.
 
 ## Summary of the claims
 
@@ -603,3 +618,31 @@ By severity: High 0, Med 0, Low 15. By kind: differs 8, security 4, test gap 2, 
 - `test_mocks.py`, `test_mockup_app.py`, `test_static.py`, `test_vendor.py`: by their test names
   and asserts, not run.
 
+
+## Found while checking
+
+Unverified: nothing here enters the review on the word of the context that found it (REVIEW.md §8).
+
+### U11-F1: the no-network test's loopback tests are string prefixes and a suffix, so a name or an address that only looks like loopback is not counted
+
+- **Kind:** bug. **Severity:** Low. **Req:** S17.2.1 ("failing on any socket opened to a
+  non-loopback address").
+- **Code:** `web/server/tests/test_no_network.py:24-27` and `:39-41`:
+  ```text
+  if int(port, 16) == 0 or host.endswith("0100007F") or host.endswith("00000000"):
+      continue
+  ...
+  if not host.startswith(("127.", "::1", "localhost")):
+      attempts.append(f"{host}:{address[1]}")
+  ```
+- **What goes wrong:** `connect()` also takes a host name, so a connect to `localhost.example.net`
+  or `127.0.0.1.nip.io` starts with a loopback prefix and is not recorded. In `_peers()`, the
+  hex form is little-endian, so `endswith("00000000")` skips every IPv6 peer whose last 32 bits
+  are zero, and `endswith("0100007F")` every one whose last 32 bits are `127.0.0.1`, whatever
+  the first 96 bits are. Both are contrived next to U11-1 (in an empty namespace `_peers()` is
+  always empty, and the patched `connect` sees only Python's own), but the checks do not test
+  what their comments say.
+- **Run:** no; rests on reading.
+- **Remedy:** parse the address (`ipaddress.ip_address(host).is_loopback`, resolving a name
+  first), and in `_peers()` compare the whole address, not a suffix.
+- **Alternatives:** none needed once U11-1's remedy records attempts another way.
