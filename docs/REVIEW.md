@@ -126,6 +126,15 @@ These hold in every phase, and keep each session inside its context with room to
 8. **End with the log.** The last act of a session is its line in `log.md`, its commit and
    push (§2), and, when it is the last session of the day, the state of the review in
    `docs/handoff.md`.
+9. **Quote code in ```` ```text ```` fences.** `web/check` runs `ruff format --check` over
+   `docs/reviews`, and ruff formats ```` ```python ```` blocks in Markdown: it would rewrite
+   the quoted lines. Never run `ruff format` without `--check` there.
+10. **A withheld claim is only an id.** Everywhere committed (another claim, an earlier
+   finding's re-check, a log row, a scratch file's name) it appears as its id, kind and
+   severity, never beside words on what it is about (§2).
+11. **Scratch stays out of the repository.** Scratch tests and scripts live in the job's
+   scratch directory, even for a moment; `cd web/server && PYTHONPATH=tests uv run pytest -p
+   conftest <path>` runs one with the server's fixtures.
 
 ## 4. Phase 0: the measures and the map
 
@@ -315,6 +324,11 @@ One session writes the review from the work pad. Its parts, in order:
 6. **Where things stand**: for the next reviewer, what was left unread or read lightly, and
    where to start.
 
+Review 3's work pad has `extract.py` and `render.py`, which build the table and the sections
+from the blocks' and units' files mechanically; the assembly session then writes the parts
+that need judgement (the header, the summary, the openers, *checked and sound*, *where things
+stand*) and reads every committed file for hints at withheld claims (§3.10).
+
 **Ids** are `CR<n>-<m>`: the review's number unpadded and the claim's number, given once at
 assembly in the order of the sections, and never renumbered or reused. A claim confirmed
 after assembly (from a late sweep, or a review checked later) takes the next free number.
@@ -355,14 +369,18 @@ Everything else is the same: the briefs, the work-pad files, the rule that only 
 independent context confirms a claim, and the assembly. Parallel only changes how long it
 takes.
 
-**Rough wall time**, a full checked review of about 100,000 lines of code in about 14 units
-(estimates, to be replaced with what review 3 takes):
+**Wall time.** Review 3 (full, quick, about 102,000 lines of code in 12 units) ran as serial
+sessions, each a subagent started by a coordinating session; parallel and workflow are
+estimates from it:
 
-| | Serial sessions | Parallel (3–4 at once) | Workflow |
+| | Serial (review 3, measured) | Parallel (3–4 at once) | Workflow |
 |---|---|---|---|
-| Phases 0 and 1 | ~2 h | ~1.5 h | ~1 h |
-| Phase 2 with checking | ~13 h | ~5.5 h | ~2 h |
-| Sweep and assembly | ~1 h | ~1 h | ~1 h |
+| Phases 0 and 1 | 1 h 5 min | ~45 min | ~30 min |
+| Phase 2, quick | 3 h 22 min (13–19 min a unit) | ~1 h 15 min | ~45 min |
+| Assembly | 25 min (scripted, §10) | 25 min | 25 min |
+
+Review 3 took about 5.9M tokens: 1.0M for Phase 1, 4.4M for the units (about 370k each), and
+0.4M for the assembly and a sweep for hints at withheld claims.
 
 The walk through the gate and the decisions comes on top, at the user's pace. A quick review
 saves about a third of Phase 2; an incremental one of a small delta, most of it.
@@ -379,3 +397,38 @@ run unit 07 (§7, then §8). Start from log.md and the unit's brief.
 
 The reviewer of the previous piece leaves the next brief written, so the prompt stays this
 short.
+
+## 14. Models and effort
+
+Each piece runs on the model and effort below, passed to the subagent that runs it. Review 3
+measured them on one unit (S7's code, new since review 2) run three ways from the same brief;
+the record is `reviews/code-review-0003-2026-10-24/model-experiment.md`:
+
+| Run of unit 05 | True High and Med found (16 in all) | False | Tokens | Time | Cost at API prices |
+|---|---|---|---|---|---|
+| Opus 5.5, default effort | 13 (81%), the High among them | 0 | 377k | 17 min | ~$1.80 |
+| Sonnet 5.5, high effort | 12 (75%), the High among them | 0 (3 doubtful) | 443k | 23 min | ~$1.05 |
+| Opus 5.5, medium effort | 10 (62%), without the High | 0 (2 doubtful) | 287k | 13 min | ~$1.40 |
+
+No run found more than 81% of what the three found together, and each found defects the others
+missed; two runs together found all 16, or 15. Hence:
+
+1. **Phase 0 and the coordinating session**: Opus 5.5, default effort.
+2. **Phase 1's blocks and comparison**: Sonnet 5.5, high effort. They read prose for
+   contradictions; Sonnet did as well on the unit's guides and requirement text.
+3. **Discovery in a unit**: Opus 5.5 at its default effort, never lowered to medium (that run
+   missed the unit's one High).
+4. **A second discovery run**, Sonnet 5.5 at high effort and blind to the first, for code no
+   review has read (a new milestone) and for units that keys, sign-in, links or secrets
+   depend on. Its claims join the unit's file under their own ids, and the checker judges
+   both runs' claims. It adds about 60% to such a unit's cost.
+5. **Checking (§8) and the sweep**: Sonnet 5.5, high effort: a model other than the
+   discovery run's, and the run that reproduced the most. It rates higher than Opus, so a
+   severity it raises is a correction like any other, and Med or High privacy and security
+   claims it raises go to `withheld.md`.
+6. **Assembly**: the scripts (§10), then Opus 5.5 at default effort for the parts that need
+   judgement and for the withholding.
+
+One unit is one sample, and no Phase 1 block, checker or assembly was compared. Review 4
+measures again on a Phase 1 block and a security unit, and this section changes with what it
+finds.
