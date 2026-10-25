@@ -104,6 +104,8 @@ locks the username): now "only slowed, never locked".
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
 
+- **Check:** confirmed.
+
 ### U07-2: a sign-in from a new address after a month with no sign-ins sends no notice
 
 - **Kind:** security. **Req:** S10.1.9 ("a sign-in from an address the user hasn't signed in
@@ -134,6 +136,12 @@ locks the username): now "only slowed, never locked".
   `lastSignInAt` is set in `_signed_in`; a test of the quiet month.
 - **Alternatives:** keep the last address past the 30 days, so the list is never emptied.
 
+- **Check:** corrected. Holds as written (read `_note_address`; reran `test_new_address_after_a_quiet_month_is_not_emailed`: passes, so no
+  email after 31 days), and S10.1.9's main clause ("an address the user hasn't signed in from in 30 days") reads for the claim. Severity unchanged (Low). The remedy is
+  wrong as written: `invitation_accept` (`ui/session.py:511-512`) sets `lastSignInAt` but records no address, so with `lastSignInAt is not None` the first
+  real sign-in after joining, from the very address the user joined from, would send the notice. Add: record the address at invitation accept (or treat the accept as the first sign-in
+  for `recentAddresses`), as well as the `lastSignInAt` test.
+
 ### U07-3: password-reset requests never lock the address; the throttle allows 30, shared with six other routes
 
 - **Kind:** differs. **Req:** S13.7.5.1 ("10 failures in 15 minutes lock **the address they
@@ -161,9 +169,15 @@ locks the username): now "only slowed, never locked".
 - **Alternatives:** S13.7.5.1 says what the code does (30 a quarter hour per address, shared,
   no lock), if the spam bound is thought enough.
 
+- **Check:** confirmed. Read S13.7.5.1.1 ("... and so do 10 password-reset requests"), `app.py:59-60`, `_throttle` (`ui/session.py:159-162`) and `SignInGuard`
+  (`ratelimit.py:88-140`): only a sliding 30-per-15-minutes window, no lock, and `password_reset` never calls `guard.failed`. Reran
+  `test_ten_reset_requests_do_not_lock_the_address`: passes (12 requests all 204, sign-in then succeeds).
+
 ### U07-4: withheld
 
 - **Kind:** security. **Severity:** Med. Withheld (`withheld.md`, REVIEW.md §2).
+
+- **Check:** corrected. **Severity now:** Low.
 
 ### U07-5: *Share these accounts too* shares to each person of the moment: a group's members keep the accounts after leaving it, and a linked server's user gets them without the password again
 
@@ -203,6 +217,13 @@ locks the username): now "only slowed, never locked".
   holders among the people); name linked people in the warning from `view.links`.
 - **Alternatives:** leave group shares out of the button and say so in the dialog.
 
+- **Check:** corrected. Split in two, severity unchanged (Low) for both; the coordinator numbers them. (a) **A linked user who already holds the
+  portfolio gets the missing accounts with no password asked, and the warning names nobody**: confirmed (`_reaches_a_link` `ui/sharing.py:215-219` looks only at users newly
+  in `body.users`; `_share_accounts_too` `sharing.py:235-255` adds `Share` rows for every holder, linked ones included; `share.js:62-63` names from `view.users`, which holds no linked
+  users). (b) **Group members get direct account shares, and keep them on leaving**: the code does what S5.1.2 says ("names the accounts each of them can't see ... Declining
+  keeps them hidden from those people"), and S10.5's "while they are in the group" is about the group's own share. **Question:** should *Share these accounts too* give the accounts to
+  the group (so they follow its membership) or to each member of the moment, as built?
+
 ### U07-6: the family tree drops in-laws, step-parents and stepchildren when a spouse dies
 
 - **Kind:** differs. **Req:** S10.10.5 (the table: in-laws "through a spouse, or a child's
@@ -230,6 +251,9 @@ locks the username): now "only slowed, never locked".
 - **Alternatives:** if a death is meant to end them too, the table says so beside the divorce
   row.
 
+- **Check:** confirmed. Read `tree.py:60-92, 167-236`: a marriage ended by death goes to `widowed`, and every step and in-law relation and `_joined` read `spouses` only. Reran
+  `tmp/u07/s/tree_widow.py`: Mae and Kid vanish from Ann's relations in 2021. S10.10.5 ends in-laws only "through" a divorce, so a death reads as keeping them.
+
 ### U07-7: an admin's rename in Users leaves the user's person, and so gifts and the family tree, under the old name
 
 - **Kind:** differs. **Req:** S10.10.1 ("a user's display name and birthday are their
@@ -252,6 +276,10 @@ locks the username): now "only slowed, never locked".
 - **Run:** no, reading alone.
 - **Remedy:** rename through `people.change(s, people.of_user(s, user.id), {"name": …})`, with
   the one-person check.
+
+- **Check:** confirmed. `update_user` (`auth/users.py:672-675`) sets `user.displayName` only; `people.change` (`people/__init__.py:193-203`) is what keeps person and user together,
+  and Profile and setup both call it. Note: Profile's rename has no clash check either (`ui/profile.py:190-193`), so the "nor checked against other people" sentence is a gap in both
+  routes, not a difference between them; the remedy's "one-person check" would be new for both.
 
 ### U07-8: an admin, or a person's own user, opens the Share dialog of a private person and is refused at Save
 
@@ -280,6 +308,10 @@ locks the username): now "only slowed, never locked".
 - **Remedy:** one rule in both places; S10.10.2 names the creator, so `_owner_only` asks
   `obj.ownerId == c.id` for a person.
 
+- **Check:** confirmed. `_owner_only` (`ui/sharing.py:190-193`) takes `people.level` (owner for every admin, `people/__init__.py:143`), while `sharing.save` -> `_may_share`
+  (`sharing.py:102-111`) takes only `obj.ownerId == by.id` (a person's `ownerId` is its creator), so Save answers 403 where the dialog opened. Either rule would remove the mismatch;
+  S10.10.2 names the creator, and "Ask to share" goes to the creator and the admins (S10.10.3), so letting admins save is the other reasonable fix.
+
 ### U07-9: re-authentication as the first request after a change of privilege answers 500
 
 - **Kind:** bug. **Req:** S13.7.1 (a new token at every change of privilege), S13.7.2.
@@ -302,6 +334,11 @@ locks the username): now "only slowed, never locked".
   `AttributeError`: a 500, his password right. The next try works.
 - **Run:** no, reading alone.
 - **Remedy:** `row = s.get(Session, c.session.tokenHash)` (the rotated row).
+
+- **Check:** corrected. Severity unchanged (Low). The 500 holds (ran my own test in `tmp/check/unit-07/test_c07.py`: a signed-in user made admin, then `POST /session/reauth`
+  raises `AttributeError: 'NoneType' object has no attribute 'session'`). The consequence is worse than written: "The next try works" is false. The rotation's new cookie is set by
+  the `SessionCookie` middleware, which a 500 from the server-error handler bypasses (the response had no `Set-Cookie`), and the old row is deleted, so the browser keeps a dead
+  token: the second `reauth` answered 401 `not-signed-in`, and the user must sign in again.
 
 ### U07-10: sign-up tells anyone whether a username exists
 
@@ -326,6 +363,10 @@ locks the username): now "only slowed, never locked".
   confirmed before the username is checked.
 - **Alternatives:** S10.1.4.1 says usernames are not hidden.
 
+- **Check:** plausible. **Question:** does S10.1.4.1's "same answer ... whether or not the address already has an account" mean sign-up must also not say that a *username* is taken?
+  The requirement speaks of the address only and S10.1.1 treats usernames as plain names (the Share dialog lists every user's), so telling a person a chosen username is taken
+  is ordinary sign-up behaviour; the code follows the text, and the claim's remedy would change the sign-up form's feedback.
+
 ### U07-11: a sign-up request keeps the person's password hash for good
 
 - **Kind:** security. **Req:** S10.1.4.2 ("The request stays as the record of it"), R1.13 /
@@ -341,6 +382,9 @@ locks the username): now "only slowed, never locked".
 - **Run:** no, reading alone.
 - **Remedy:** make the column nullable (a revision) and clear it when the request is decided
   or its confirmation lapses.
+
+- **Check:** confirmed. Read `signup.py:60-117, 168-236` and `store/tables/users.py:168`: the hash is stored at the request, copied at approval, and never cleared at approval,
+  rejection or when the unconfirmed request lapses (nothing prunes `SignupRequest`; `grep` finds no other writer). A lapsed or never-confirmed request, made with any typed email, keeps it too.
 
 ### U07-12: the sign-in guard keeps every username ever tried, at any length, until a restart
 
@@ -364,6 +408,9 @@ locks the username): now "only slowed, never locked".
 - **Remedy:** cap `login` (254 characters, an email's limit) in `SignIn`, and drop empty deques
   and lapsed entries in `_trim`'s callers (or sweep them with the hourly prune).
 
+- **Check:** confirmed. `SignInGuard` (`ratelimit.py:88-140`) creates `_by_user[username.lower()]` and `_failures[address]` keys by `defaultdict` and removes a key only in
+  `succeeded` (`_by_user`); `_trim` empties deques but leaves the keys; `SignIn.login` (`ui/session.py:54-56`) has no length limit beyond the 1 MB body.
+
 ### U07-13: the password hints say "At least 12 characters" whatever the minimum is set to
 
 - **Kind:** differs. **Req:** S10.1.1, S16.5 (the minimum, 12 by default, 8 to 128).
@@ -380,6 +427,10 @@ locks the username): now "only slowed, never locked".
 - **Run:** no, reading alone.
 - **Remedy:** say "At least the minimum length …" as the guides do, or have `invitations/lookup`,
   `GET /signup` and the reset screen carry `passwordMinLength`.
+
+- **Check:** corrected. Severity unchanged (Low). Lines: the invitation screen's hint is `welcome.js:38` (not 125, which has no hint); add `profile.js:470` (the password
+  change card, a signed-in screen where the minimum could be given); `signin.js:156` (sign-up), `reset.js:30` and `setup.js:63` are as written. The rest holds: no signed-out route
+  carries the minimum, and the check uses Settings' `passwordMinLength` (`auth/users.py`, `passwords.problem`).
 
 ### U07-14: a display name with a line break makes every invitation its holder sends fail with 500
 
@@ -401,6 +452,9 @@ locks the username): now "only slowed, never locked".
 - **Run:** partly: the header refusal was run on its own; the invite route was not.
 - **Remedy:** refuse control characters (`\x00-\x1f\x7f`) in names, users' and people's.
 
+- **Check:** confirmed, and run. In `tmp/check/unit-07/test_c07.py::test_newline_name`: `PATCH /profile` with `"Ada\nAdmin"` answers 200, then `POST /users` (an invitation) answers
+  500, as written. `_name_problems` checks only emptiness and length.
+
 ### U07-15: PATCH `/persons/{id}` lets an admin, or a user their own person, make a person private
 
 - **Kind:** differs. **Req:** S10.10.2 ("Its creator may make it **private**"; people are the
@@ -416,6 +470,9 @@ locks the username): now "only slowed, never locked".
 - **Run:** no, reading alone.
 - **Remedy:** take `private` only from the creator of a person who isn't a user, as `/people`
   does; ignore it otherwise.
+
+- **Check:** confirmed. `change_person` (`ui/people.py:132, 141`) asks `people.get(..., "owner")` (owner for the person's own user and every admin, `people/__init__.py:143-150`)
+  and then sets `values["private"] = body.private`, while the `/people` route (`ui/gifts.py:415-420`) refuses it unless `p.ownerId == c.id`. See U07-F1 for the other side of the same line.
 
 ### U07-16: a marriage an admin confirmed for someone who wasn't a user stays confirmed when that person becomes one
 
@@ -444,6 +501,10 @@ locks the username): now "only slowed, never locked".
   confirmation of that person's side in each of their marriages, so it waits for them; tell
   them in Profile.
 
+- **Check:** plausible. **Question:** when a person who isn't a user becomes one (`for_new_user`, a remote `join`), should a marriage whose side an admin confirmed for them wait
+  for their own confirmation? S10.10.4 lets an admin confirm for "a person who isn't a user" and says a marriage counts once "both people" have confirmed; nothing says what happens when
+  the person later becomes a user. The code does what the text says; the claim reads the admin's confirmation as ending with the person's non-user state.
+
 ### U07-17: the guides say other than the sections and the code in four places
 
 - **Kind:** differs. **Req:** S13.7.5.1, S16.2, S18.9 (rejected idea 21), S10.3.
@@ -461,6 +522,9 @@ locks the username): now "only slowed, never locked".
      can be shared with." Any of the eight kinds can be (S10.3).
 - **Run:** no, reading alone.
 - **Remedy:** correct the four lines.
+
+- **Check:** confirmed. Read all four lines against S13.7.5.1, S16.2 (an invitation's written email kept a week), the Folder driver's rejection (S18, rejected idea 21; `connections.js`
+  offers OFX Direct Connect and Schwab) and S10.3 (any of the eight kinds can be shared with a group).
 
 ### U07-18: `/mcp` answers 500, not a JSON-RPC error, when `params` or `arguments` isn't an object
 
@@ -486,6 +550,8 @@ locks the username): now "only slowed, never locked".
   `AttributeError`, `TypeError`; `run4.txt`).
 - **Remedy:** refuse a non-object `params` with -32602 before the method is read, and test
   `isinstance(args, dict)` before anything else; a test of each.
+
+- **Check:** confirmed. Read `mcp.py:395-425, 321-327` and reran `tmp/u07/t/test_u07_mcp.py`: passes with `AttributeError`, `AttributeError`, `TypeError` as claimed.
 
 ## Phase 1 items judged against the code
 
@@ -617,3 +683,49 @@ locks the username): now "only slowed, never locked".
 
 Scratch runs: `/home/dev/.claude/jobs/b8ac83ff/tmp/u07/` (`t/test_u07.py`, `t/test_u07_mcp.py`,
 `s/tree_widow.py`, and their outputs `run1.txt`–`run4.txt`).
+
+## Found while checking
+
+Unverified, in §7's claim format; none is a claim until the sweep checks it.
+
+### U07-F1: PATCH `/persons/{id}` sets `private` to false whenever the body leaves it out
+
+- **Kind:** privacy. **Severity:** Low. **Req:** S10.10.2 ("Its creator may make it
+  **private**"; "A person is changed by ... an admin").
+- **Code:** `web/server/src/moolakata/ui/people.py:30, 141`:
+  ```text
+      private: bool = False
+  ...
+          values["private"] = body.private
+  ```
+  `PersonIn.private` defaults to `False`, and `change_person` always writes it. The `/people`
+  route's body has `private: bool | None = None  # left as it is when not given`
+  (`ui/gifts.py:56`) and refuses a change by anyone but the creator (`:415-420`).
+- **What goes wrong:** an admin (or the person's own user) PATCHes a private person *Ruth*, made
+  by Alice, to correct a birth year, without a `private` field: Ruth becomes visible to every
+  user in the household, her relationships and gift plans with her. The creator's own PATCH
+  that omits the field does the same. Only the API reaches it (no screen calls this route).
+- **Run:** no, reading alone.
+- **Remedy:** make `PersonIn.private` `bool | None = None` and write it only when given, and
+  only from the creator of a person who isn't a user (U07-15's remedy).
+
+### U07-F2: sign-in and re-authentication hash the password while holding the database's one write lock
+
+- **Kind:** bug. **Severity:** Low. **Req:** S13.7.5.1, S13.7.3 (argon2id at 64 MiB, 3 passes).
+- **Code:** `web/server/src/moolakata/ui/session.py:187-189` (and `reauth`, `:418-420`):
+  ```text
+      with srv.db.tx() as s:
+          user = accounts.by_login(s, login)
+          ok = passwords.verify(user.passwordHash if user else None, body.password)
+  ```
+  `Database.tx()` is `BEGIN IMMEDIATE` (`store/db.py:105-114`), so every other write in the
+  server waits for the hash, about 0.1 s on the development machine, longer on a small host.
+- **What goes wrong:** each sign-in attempt, right or wrong, from any address holds the
+  server's only writer for a whole argon2 verification; twelve at once answered one hash apart
+  (0.21 s to 1.36 s in a scratch run with the real parameters). A client sending sign-in
+  attempts from several addresses keeps the writer busy, and a signed-in user's saves wait
+  behind them (the busy timeout is 10 s, then an error).
+- **Run:** partly: the serialisation was measured with 12 concurrent sign-ins; a competing
+  write was not timed.
+- **Remedy:** verify the password in a read (`srv.db.read()`), then open the write
+  transaction only to record the failure, a rehash or the session.
