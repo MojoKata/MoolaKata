@@ -121,6 +121,8 @@ are in the table at the end.)
   in Reconcile with an undo; or ask on delete of an imported row whether the file should bring it
   back.
 
+- **Check:** confirmed. Read `apply_import` (`ledger.py:270-349`): `existing` filters `deleted == false()` and the repeat-id suffix `#n` is rebuilt from the file, so a deleted `id#2` is not found and is added again. No other guard (no skip list, delete route writes nothing else). Ran the scratch test in my own copy: re-import after `DELETE` gives `added: 1, matched: 4`. S1.3.2's "adds only what is new" is silent on deleted rows, but S1.11.4 tells the owner to remove a duplicate, which this undoes.
+
 ### U01-2: a broker's trade-history CSV makes every security class `other`, which no price source fetches
 
 - **Kind:** wrong figure. **Req:** S1.3.2 ("brokers' and exchanges' trade-history CSVs"), S2.1
@@ -153,6 +155,8 @@ are in the table at the end.)
   take it.
 - **Alternatives:** ask the class once per new symbol in the mapping step.
 
+- **Check:** confirmed. `csvfile.py:280-285` gives every non-option trade symbol class `other`; `instrument()` (`ledger.py:150-168`) finds by symbol and never reclassifies; `prices/refresh.py:135` `for_class` serves a class only from sources listing it (`other`: manual, stub). Ran the scratch test: class `other`, served by `['manual', 'stub']`.
+
 ### U01-3: one cash dividend stops an account being kept by snapshots, and its holdings vanish
 
 - **Kind:** differs. **Req:** S1.3.2 ("For an account kept by snapshots (R3.2), with no trades
@@ -180,6 +184,8 @@ are in the table at the end.)
   don't end keeping by snapshots.
 - **Alternatives:** S1.3.2 says income counts too, and the account's first import offers to
   turn its first positions into opening lots (basis missing) so the check has something to hold.
+
+- **Check:** confirmed. `lots.kept_by_snapshots` (`lots.py:144-146`) tests only `t.instrumentId`; a dividend row from OFX `INCOME` carries its security (`_add_row` sets `instrumentId=inst.id`), so `replay` drops the snapshots (`:163-166`). Ran the scratch `snap.py` against the code: quantity 100 with no transactions, 0 with one dividend. R3.2 and S1.3.2 say "no trades of its own"; a dividend makes no lot.
 
 ### U01-4: correcting a statement line's description teaches MoolaKata to skip every line that starts like it
 
@@ -220,6 +226,8 @@ are in the table at the end.)
   them, so a wrong skip can be ticked back and unlearned; and a way to forget an institution's
   layout (Settings › Imports or the dialog).
 
+- **Check:** confirmed. `_apply` passes the included rows as the dialog sent them (`_checked`, description as edited) to `learn`, which matches them to `st.rows` by (date, description) (`statements.py:384-394`); an edited description is a miss, so its first three words become a skip, and `statements.parse:250` then drops matching lines. Ran `learn.py`: skip `['debit card purchase']`, next parse gives no rows. Only `imports.py:806`/`:1172` write `StatementLayout`, so nothing unlearns it. High is as the claim rates it: silent loss of lines on every later statement from that institution.
+
 ### U01-5: a brokerage statement read beside the account's files teaches its cash lines as skips
 
 - **Kind:** bug (C44 of review 2, still open for brokerage statements). **Req:** S1.3.3.4 ("A
@@ -252,6 +260,8 @@ are in the table at the end.)
   `apply_import` and leave out of `left` every row present there, and teach nothing when the
   account is kept from files.
 
+- **Check:** confirmed. `save_brokerage` (`imports.py:793-802`) builds `have` from `b.activity`, the statement's own lines, so every unticked cash row the dialog sends is in it; the account's present rows (`_present`, used at `:627` for the `present` flag the dialog unticks by) never reach `brokerage.learn`, which skips nothing (`brokerage.py:334-346`) and whose docstring says present lines are excluded. `parse:310` drops lines starting with a learned skip. Read only, as the claim says.
+
 ### U01-6: S1.4's vesting for a 401(k) is built nowhere
 
 - **Kind:** not built. **Req:** S1.4 ("employer match and vesting for a 401(k)").
@@ -266,6 +276,8 @@ are in the table at the end.)
 - **Remedy:** record it as a gap (what vesting holds and where it shows) or as later work with an
   L id; until then S1.4 says the match only.
 - **Alternatives:** a vested percentage typed on the account's settings, shown beside the value.
+
+- **Check:** confirmed. A whole-word search for vest, vesting and vested over `docs/requirements`, `docs/*.md`, the server source and the browser app finds only S1.4's own mention (`S1-accounts.md:162`); no field, table, screen or guide, and no gap, question, later or out-of-scope entry. `contributionSource` (employee, employer, rollover) records the match only.
 
 ### U01-7: an OFX file's end date and ledger balance move to the next day in UTC; positions are dated by their price
 
@@ -294,6 +306,8 @@ are in the table at the end.)
 - **Remedy:** read `DTSTART`, `DTEND`, `LEDGERBAL`'s and `INVSTMTRS`'s `DTASOF` as the
   institution wrote them, as the rows are; date positions by the statement's `DTASOF`.
 
+- **Check:** confirmed. `ofx.py:117, 130, 177, 186` take `_day()` of ofxtools' UTC datetimes, while only row dates go through `_raw_dates`. Ran `ofxdates.py` (an evening EST `DTEND`/`DTASOF` and a Sep 29 `DTPRICEASOF`): coveredTo and the ledger-balance date become Oct 1 against a last row of Sep 30, and the position check is dated Sep 29. S14.9.3 (`:79-84`) says calendar dates are never shifted. Part (2) rests on OFX's meaning of `DTPRICEASOF` (the price's date, units as of `DTASOF`), which is how the claim reads it.
+
 ### U01-8: a newest-first CSV that covers a single day keeps its oldest row's balance as the day's
 
 - **Kind:** bug. **Req:** S1.11.2 ("a newest-first file, told by its dates, is read from the
@@ -311,6 +325,8 @@ are in the table at the end.)
 - **Run:** no; reading alone.
 - **Remedy:** when the dates tie, tell the order by the running balance (each row's balance less
   its amount is the next row's balance in a newest-first file).
+
+- **Check:** confirmed. `csvfile.py:303-304` reverses only when the first row's date is later than the last's, so a one-day newest-first file keeps file order; `balances.points` (`:23-27`) then takes the last-created row of the day, the oldest, as the day's balance. Nothing else breaks the tie. Read only. S1.11.2's wording ("told by its dates") does not promise the one-day case, so the remedy extends it; the false mismatch it causes is still a fault.
 
 ### U01-9: retirement, plan, 529, DAF and exchange accounts still have no Reconcile tab in the browser (B33)
 
@@ -337,6 +353,8 @@ are in the table at the end.)
 - **Remedy:** take the tab from `a.reconcilable` as the server sends it (and drop the flag from
   the type modules), or set the nine modules to `true`; a test that the two agree for every
   type.
+
+- **Check:** corrected. Scope and remedy changed, severity unchanged (Med). The code is as claimed: the nine type modules say `reconcilable: false` while `ledger/types.py:114-125` and the alerts (`alerts.py:449`) use the wider rule, and `account.js:53` reads only the module flag. But S12.2.2 (`S12-web-ui.md:39`) lists the tab for "banking, card, brokerage and loan accounts" only, which names no retirement, plan, 529, DAF or exchange account and wrongly includes loans (S1.11 puts loans on their Overview). So two requirements disagree, and the fix must also change S12.2.2's list (and the mockup, per CLAUDE.md) to S1.11's: add S12.2.2 to the claim's Req and its remedy.
 
 ### U01-10: no account can be set to statement import, so a plan statement's positions are never its holdings
 
@@ -378,6 +396,8 @@ are in the table at the end.)
 - **Alternatives:** make `snapshot_kept` true for an account with no trades of its own whatever
   `keptBy` says.
 
+- **Check:** confirmed. `KEPT_BY` (`new-account.js:24-27`) lists only file and manual and is the only options list used in the New account form and in Settings (`account.js:954, 975`); `ui/accounts.py:37` accepts `statement`; `snapshot_kept` (`imports.py:515`) needs `keptBy == ["statement"]`, so `save_brokerage` writes only HoldingChecks for any account made in the app. The mockup's Method lists offer *Statement import (PDF or photo)* (`MoolaKata-mock.html:1171, 1816`); R3.2 names a 401(k) statement as a snapshot case. `account.js:824, 838` keeps only `keptBy[0]`.
+
 ### U01-11: a trade history's columns can't be named in the mapping dialog, so an exchange's CSV imports as cash
 
 - **Kind:** differs. **Req:** S1.5 ("kept current from their CSV exports … one import mapping
@@ -414,6 +434,8 @@ are in the table at the end.)
   (and *asset*) to the guesses; give a buy's or a sell's cash the sign its action says.
 - **Alternatives:** ship mappings for the exchanges S1.5 names, as the statement layouts ship.
 
+- **Check:** confirmed. `propose` (`csvfile.py:151-153`) blanks action, symbol, quantity, price and fees unless both symbol and quantity were guessed (quantity guesses `:65` have no *quantity transacted*); the dialog renders only the eight `COLUMNS` (`import.js:29-38, 175`), so a person can't set the trade columns; with no `symbol` mapped `kind` is deposit or withdrawal by sign (`:263-267`). `_add_row` (`ledger.py:513-524`) sets `costBasis=-row.amount` with no tie to the action. The Coinbase header names are from memory, as the claim says; the code-side points are read as quoted.
+
 ### U01-12: uploads waiting for a mapping or a check are held in memory for 30 minutes, uncounted
 
 - **Kind:** bug (a resource held). **Req:** S13.7.6 ("at most 100 MB of uploads in flight per
@@ -439,6 +461,8 @@ are in the table at the end.)
 - **Remedy:** count held uploads against the user's 100 MB, refusing a new one past it (or
   dropping their oldest held one), and cap held uploads per user.
 
+- **Check:** corrected. Severity unchanged (Low); the cited requirement changes. Code as claimed: `_hold` (`imports.py:120-129`) keeps data 30 minutes with no per-user cap (only expiry on a later `_hold`), `upload_rate` allows 60 an hour (`:239, 1053`), `importMaxMb` goes to 200 (`settings.py:255`), so the 750 MB and 6 GB figures hold. But the in-flight counter says plainly it counts bodies "arriving at once" (`middleware.py:263-270`), and S13.7.6 says "an upload is held in memory" without bounding the held ones, so the claim's S13.7.6 reading (held files count as in flight) is the claim's own, not the text's. It stands as an unbounded-memory bug with Req S13.7.6 / S16.8 as context, not as a plain violation; the remedy is unchanged.
+
 ### U01-13: no test reruns wash sales when the lot method changes (review 2, §12.5.8, still open)
 
 - **Kind:** test gap. **Req:** S2.3 ("changing it applies to later sales"), B7 of review 2.
@@ -459,6 +483,8 @@ are in the table at the end.)
 - **Remedy:** a test: a loss sale and a replacement within 30 days under FIFO, the method changed
   to LIFO before a later sale that picks the replacement lot, and the wash sale's disallowed
   loss and replacement basis checked after the change.
+
+- **Check:** rejected. A test holds it: `web/server/tests/test_positions.py:136` `test_changing_the_lot_method_works_the_wash_sales_out_again` (in the review's commit, added in 3f5cf8e as the commit's own message says) buys, sells at a loss, replaces within 30 days, deletes the stale `WashSale` rows, PATCHes `lotMethod` to LIFO, and asserts the wash sale is back (`realized() == '0.00'`, one `WashSale` for the sale, sale keeps FIFO). Ran it: passes. The claim's grep was limited to `test_accounts.py`'s neighbours and missed it. What it does not check (a later sale after the change, the replacement lot's basis) is a narrower gap than the claim states.
 
 ### U01-14: the reconcile screen and guides say less, or other, than S1.11 and S1.3.3.8
 
@@ -488,6 +514,8 @@ are in the table at the end.)
   window's rows); say "or two rows the file gave the same id"; add "or $1, whichever is more";
   give the full defaults; say the import flips them when the mapping says so.
 
+- **Check:** confirmed. Read each: `account.js:573-578` shows `firstParting` only as a sentence, no row named or linked; `account.js:536` and the guide say identical rows on one day (`account-reconcile.md:35`); `account.js:1089-1090` and `account-reconcile.md:46` say half a percent while `reconcile.py:147-164` allows `max(1, 0.5%)`; `account-settings.md:77-78` leaves out exchanges, DAFs and cash; the Method guide (`:55`) names no statements; `account-credit-card.md:8` says the import flips signs, which only the mapping's *Spending is positive* does (`csvfile.py:231, 249`; `import.js:187-191`). The *Method* point is the same cause as U01-10.
+
 ### U01-15: an exchange's coin and a listed stock with the same ticker become one instrument
 
 - **Kind:** wrong figure. **Req:** S1.5, S2.1 ("Instruments are kept once per server"), S4.3
@@ -504,6 +532,8 @@ are in the table at the end.)
 - **Remedy:** match by symbol only within a compatible class (a coin with a coin, a listed
   security with a listed security, CUSIP first); keep a coin's symbol in its own namespace (as
   the price source names it, `SOL-USD`) or make the uniqueness (symbol, class).
+
+- **Check:** confirmed. `instrument()` (`ledger.py:150-168`) looks up by CUSIP, then by uppercased symbol whatever the class, and only fills the CUSIP and name of what it finds; `unique_live(Instrument, "symbol")` (`tables/accounts.py:170`) allows one live row per symbol; `apply_import` (`:292-297`) never compares classes. The OFX reader sets `symbol` from the ticker (`ofx.py:149-158`), so a stock OFX naming `SOL` meets the coin. Read only; the SOL example is an illustration of the code path.
 
 ### U01-16: two OFX rows that share a FITID take the later one's date
 
@@ -527,6 +557,8 @@ are in the table at the end.)
 - **Run:** no; reading.
 - **Remedy:** key the raw dates by the element's position (the n-th `STMTTRN`/`INVTRAN`), or
   read each row's date from its own element.
+
+- **Check:** confirmed. `_raw_dates` (`ofx.py:59-71`) assigns `out[fitid]` per element, so the last element with a FITID wins. Ran a variant of `bank.ofx` in my own scratch copy with two rows sharing FITID `1001` (Sep 9 and Sep 3, $40 each, in that order in the file): `ofx.read` gives both rows Sep 3, the last one's date. Rows of an investment statement use the same map (`:221, :229`). Note "the later one's" in the title means the last in the file, not the later date.
 
 ## Uncited first-level items
 
@@ -642,3 +674,66 @@ built 1, test gap 1, untraced 0, security 0, privacy 0. None withheld; none need
 (U01-6 may become a gap or an L item, the user's call at the walk-through).
 
 **Ended:** Oct 24, 07:58 PM.
+
+## Found while checking
+
+(Unverified: noticed by the checker (Oct 25) and in no claim above; each waits for the sweep, §8.)
+
+### U01-F1: the account page has no Positions or Receipts tab, which S12.2.2 and the mockup list
+
+- **Kind:** differs. **Severity:** Low. **Req:** S12.2.2 ("An **account page** has the tabs
+  *Overview*, *Holdings* (investing only), *Transactions*, *Positions* (investing only),
+  *Receipts*, *Reconcile* …").
+- **Code:** `web/ui/screens/account.js:44-56`:
+  ```text
+  ['overview', 'Overview'],
+  ...(type?.loan ? [['schedule', 'Schedule'], ['payoff', 'Payoff']] : []),
+  ...(type?.physical ? [['items', 'Items']] : []),
+  ...(type?.investing ? [['holdings', 'Holdings']] : []),
+  ...
+  ['transactions', 'Transactions'],
+  ...(type?.reconcilable ? [['reconcile', 'Reconcile']] : []),
+  ['sharing', 'Sharing'],
+  ['settings', 'Settings'],
+  ```
+  The mockup's list (`docs/mockups/MoolaKata-mock.html:985`) has `'Positions'` for investing
+  accounts and `'Receipts'` for every account.
+- **What goes wrong:** the app's account page offers neither tab. Positions and receipts exist as
+  their own screens (`web/ui/screens/receipts.js`), so this may be a deliberate move that S12.2.2
+  and the mockup were never changed for. Not checked against the milestones or the other units'
+  claims.
+- **Remedy:** build the tabs, or say in S12.2.2 and the mockup where positions and receipts are
+  reached from an account.
+
+### U01-F2: the mockup shows a Reconcile tab on `cash` accounts, which S1.11 and the server leave out
+
+- **Kind:** differs. **Severity:** Low. **Req:** S1.11 (no statements for `cash`), S1.11.7.1
+  (`cash`: none).
+- **Code:** `docs/mockups/MoolaKata-mock.html:985`:
+  ```text
+  ...(!loan && !phys && a.type !== 'crypto-wallet' && !a.linked ? ['Reconcile'] : [])
+  ```
+  against `web/server/src/moolakata/ledger/types.py:114-125` (`reconcilable` is false for `cash`).
+- **What goes wrong:** the mockup, the reference for every screen (CLAUDE.md), gives a `cash`
+  account a Reconcile tab that the server's rule and `web/ui/account-types/cash.js` don't. When
+  U01-9 is fixed, the mockup's rule (which otherwise matches S1.11 for retirement, plan, 529,
+  DAF and exchange accounts) needs `cash` excluded in the same change.
+- **Remedy:** exclude `cash` from the mockup's Reconcile tab.
+
+### U01-F3: every file's positions are saved as holdings snapshots, also for an account that has trades
+
+- **Kind:** bug. **Severity:** Low. **Req:** S1.3.2 ("A broker's file's positions are a
+  **holdings check** … For an account kept by snapshots, … they are its holdings").
+- **Code:** `web/server/src/moolakata/store/repos/ledger.py:433-451`: the `Holding` row is added
+  for each position whether or not `checked` is true (only the `HoldingCheck` depends on it).
+  ```text
+  if not s.scalars(
+      select(Holding).where(
+  ```
+- **What goes wrong:** an account with trades ends up with a `Holding` row per position per file,
+  which `lots.replay` ignores while the account has trades. If its trades later go (deleted, or
+  the account's only instrument transaction removed), the old snapshots become its holdings again
+  without anyone having kept it by snapshots. Not run, and the effect on the Holdings screen not
+  checked.
+- **Remedy:** write a `Holding` only when the account is kept by snapshots, as `save_brokerage`
+  does through `snapshot_kept`.
