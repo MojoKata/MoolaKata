@@ -78,8 +78,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - Uncited first-level item: **S18.2** (built under other words, or not built).
 - Earlier units' claims near this one, not to be repeated: U06-14 (statements through the
   receipt reader), U09-6 (MoolaKata's own certificate), U09-11 (OpenAPI codes), U09-15 (alert
-  naming the owner), U09-1 and U09-4 (withheld: uploads before sign-in; gzip bombs through
-  `net.Client`), U10-13 (Settings order), U11 (packaging).
+  naming the owner), U09-1 and U09-4 (withheld), U10-13 (Settings order), U11 (packaging).
 
 ## Claims
 
@@ -636,7 +635,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 | C23 | yes: the key itself is hashed at pairing and at every attach (`core.py:83-85`, `:108-113`) | |
 | K12 | half: the box carries the host, `connect` shows and confirms it (`main.py:203-208`, `core.py:247-252`), a changed address needs the password again (`ui/connections.py:228-232`); but an existing OFX Connection's new credentials are sealed with no host and never shown | U12-7 |
 | K20 | Unpair ends the paired row and any code (yes); a new address stays alerted until accepted (yes, `manage.py:305-319`); `not-paired` deletes the credentials only when unlocked (half); `reset` unpairs on the connector's side but doesn't tell MoolaKata (half) | U12-11, U12-20 |
-| K24 | sealing key signed and checked (yes); sign-in addresses (half holds: withheld, U12-1); box time (yes, `core.py:385`); `taken` names its box (yes, `manage.py:429`); allowlist refuses loopback and metadata, 25 MB ceiling (yes, but not the IPv6 metadata address); Schwab `state` (yes) | U12-1, U12-23 |
+| K24 | sealing key signed and checked (yes); box time (yes, `core.py:385`); `taken` names its box (yes, `manage.py:429`); allowlist refuses loopback and metadata, 25 MB ceiling (yes, but not the IPv6 metadata address); Schwab `state` (yes) | U12-23 |
 | B30 | yes: socket and page first (`main.py:136-138`), retry with a growing wait (`core.py:260-270`) | |
 | B31 | yes: the pairing saved only after `pair` succeeds (`core.py:115-130`, `keys.py:82-107`) | |
 | B42 | report after each run (yes, `core.py:320-322`), but skipped when a post fails unsigned | U12-6 |
@@ -650,7 +649,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   socket folder (`connector/Dockerfile:21-24`), `MOOLAKATA_CONNECTOR_DATA` and `_SOCKET`
   (`main.py:20-21`), `pairing.json` at 0600 (`keys.py:92`), one way out with no redirect, 60 s
   (U12-16), 25 MB, a per-run allowlist and the address rules (`client.py`, U12-23), TLS
-  verified; S18.2.4 checked against U12-1, U12-2, U12-14.
+  verified.
 - `connector/moolakata_connector/sealed.py` serves S18.7.1 and protocol §4.3;
   `connector/moolakata_connector/signing.py` serves S18.4.3 and protocol §3;
   `web/server/src/moolakata/connector/__init__.py` serves protocol §5 (the versions spoken).
@@ -687,7 +686,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 9. Reports: never more than a name and last four digits kept (`manage.py:340-348`), messages
    cut to 200 characters; Connections removed are listed in every answer, so a connector
    locked at the time deletes them at its first unlocked report; the page address held to
-   `https://host:port` (but see U12-2).
+   `https://host:port`.
 10. Its page (S18.11.5): CSP `default-src 'none'; style-src 'self'; form-action 'self';
     frame-ancestors 'none'`, `no-store`, `DENY`, `nosniff`; forms only from the same origin
     (`Sec-Fetch-Site`, else `Origin` against `Host`); bodies at most 16 KB; every action takes

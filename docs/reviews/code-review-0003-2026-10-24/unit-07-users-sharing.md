@@ -521,7 +521,7 @@ locks the username): now "only slowed, never locked".
 | K8 (admins trusted; opening a written email in Activity for its addressee) | done, decided | yes for this unit's part: `email.opened` is rendered (`ui/activity.py:122`) and seen by its owner, the addressee (`_visible`, `:268`); the route that records it is unit 10's |
 | K14 (re-auth to make an admin, to share with a linked server, Include receipts) | done | yes: `ui/users.py:130-137, 144, 174, 249, 295-297`, `ui/sharing.py:206-219, 247-248`; a way round it for accounts: U07-5 |
 | K15, A12 (the email queue in the database) | done | yes: `mail.py:253-280, 346-400, 402-431`; a refused email keeps recipient, subject and error (`:415-421`) |
-| K16 (two-step brute force) | done | yes: five wrong codes end the token (`ratelimit.py:155-163`, `ui/session.py:242-244`), one code at a time (`:226-227`), slowed before the check (`:231-233`), /64 (`ratelimit.py:57-68`). New beside it: U07-4 (concurrent attempts at the password step) |
+| K16 (two-step brute force) | done | yes: five wrong codes end the token (`ratelimit.py:155-163`, `ui/session.py:242-244`), one code at a time (`:226-227`), slowed before the check (`:231-233`), /64 (`ratelimit.py:57-68`) |
 | K17 (oracles outside the guard) | done | yes: reactivation answers the same (`ui/session.py:526-537`, `auth/users.py:641-663`); re-auth and the current password behind the guard (`guarded`, `ui/session.py:284-297`, `ui/profile.py:263-273`); sign-up hashes first (`auth/signup.py:94-98`). New beside it: U07-10 (usernames) |
 | K19 (logs) | done | this unit's part: no sign-in path logs a password, token or code; the access log has route, status and user id only (`middleware.py:348-357`) |
 | P1, C42 (a spouse needs both) | done | yes: `people/__init__.py:269-316`, `ui/people.py:373-446`; a hole when a person becomes a user: U07-16 |
@@ -590,8 +590,7 @@ locks the username): now "only slowed, never locked".
 - The tests were read by their names and the parts the claims lean on; none was read whole.
 - `ui/settings.py`'s written-email route (unit 10) and `alerts.py`'s share-asked alert were
   found by search, not read.
-- U07-4 was not run against a live server (it would take this machine's memory); the scaling
-  was measured with 16 threads.
+- U07-4 (withheld) rests on a scratch measurement, not a run against a live server.
 
 ## Work pad: severity, confirmations, status
 

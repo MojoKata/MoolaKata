@@ -684,7 +684,7 @@ are in the table at the end.)
 - **B37** (this unit's part): holds: a transfer-in's lot follows its edit
   (`ui/transactions.py:777-784`); a bad answer fails one source for one instrument
   (`refresh.py:358-367`).
-- **N1** (rules): built; see U03-3 (withheld). **N4** (corporate actions): built; late entry fails (U03-10). **N5** (closed
+- **N1** (rules): built. **N4** (corporate actions): built; late entry fails (U03-10). **N5** (closed
   years): built; a cross-account wash sale escapes it (U03-5). **N7**: holds; its short sale's
   loss is then washed, not flagged (U03-8).
 - **P7** (typed prices): holds for valuing accounts (`valuation._owned`, `TypedPrice` per

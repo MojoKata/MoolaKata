@@ -716,7 +716,7 @@ None is decided yet; where a question is open, the code is set against both read
 |---|---|---|
 | K1 | done | holds: `ClientAddress` believes forwarded headers only from a trusted peer, walking right to left (`middleware.py:89-111`); host commands are on the socket, never the listener (S13.6). Ranges still accepted in `trusted_proxies` (**U09-5**). |
 | K2 (headers) | done | holds: a route's own CSP is kept (`middleware.py:131-133`); unit 08 checked the linked file route. |
-| K3, K18 (net) | done | hold: one guarded client, vetted address connected to with the name for SNI (`net.py:169-177`), pins checked after the handshake (`:151-161`), `verify` refused, no redirects, chunked answers capped; but the cap is on compressed bytes (**U09-4**). |
+| K3, K18 (net) | done | hold: one guarded client, vetted address connected to with the name for SNI (`net.py:169-177`), pins checked after the handshake (`:151-161`), `verify` refused, no redirects, chunked answers capped. |
 | K19 | m9 part 1 | half holds: `hide_parameters=True` (`store/db.py:78`); route problems logged by id, status and code (`errors.py:75-83`, tested); the middleware's refusals are not (**U09-8**). |
 | K23 | m9 part 5 | as A14 says: while locked the ranges can't be read, so every address reaches the locked screen (`app.py:121-124`). |
 | K25 | m9 parts 4–5 | holds: uploads parsed in memory (`app.py:154-158`, `spool_max_size` 128 MiB, above every limit that passes the 100 MB in flight); the alert event carries `{"count": 1}` (`alerts.py:901-903`); dev mode refuses outside a checkout or on `/var/lib/moolakata` (`main.py:53-64`). |
@@ -728,7 +728,7 @@ None is decided yet; where a question is open, the code is set against both read
 | C11 | m9 part 5 | holds: `key.unlocked` counts as a check (`alerts.py:414-420`, `runtime.py` records it at every unlock). |
 | C45 | m9 part 7 | holds as an alert (`alerts.py:489-525`; tested); unit 03's U03-11 (never marked stale on screen) stands beside it. |
 | C52 | done | holds: a share request alerts the creator and the admins (`alerts.py:778-789`). |
-| A7, A9–A11, A14, A16 | confirmed | hold as written (A9's ceiling with U09-4's caveat). |
+| A7, A9–A11, A14, A16 | confirmed | hold as written. |
 
 ## The uncited first-level items and untraced code
 
@@ -805,7 +805,7 @@ None is decided yet; where a question is open, the code is set against both read
   `test_app.py`'s guide walk, `test_guides.py`, `test_conventions.py:162-176`).
 - Help guides: `dashboard.md`, `alerts.md`, `settings-alerts.md` read whole; `terms.md` and
   `forms.md` by their tests; the others only listed for screenshots (U09-20).
-- U09-1's memory figures, U09-6, U09-9, U09-10, U09-13, U09-14, U09-22 and U09-23 rest on
+- U09-1 in part, U09-6, U09-9, U09-10, U09-13, U09-14, U09-22 and U09-23 rest on
   reading.
 
 ## Work pad: severity, confirmations, status

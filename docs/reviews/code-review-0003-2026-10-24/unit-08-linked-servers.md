@@ -636,7 +636,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 | K3 | done | holds: TLS always verified (`net.py:245-246` refuses `verify`), own certificates pinned by key (`net.py:151-161`), answers name caller and request (`signing.py:130-133`), only `link-ended` ends (`manage.py:119-128`), changes and receipts sealed to the copy (`serve.py:406-414, 417-447`). New beside it: U08-11 (announcements not retried), U08-21 (`MK-Link-File` unsigned) |
 | K18 | done | holds but for one case: `https`, no query or fragment (`client.py:56-66`), URLs from the parsed base (`:69-72`), the guard connects to the address it checked (`net.py:174-177`), answers capped however sent (`:180-192`), peers' hosts never named outside dev (`ui/prices.py:154-159`); a peer's host that matches an admin-named host is exempt (**U08-13**) |
 | K19 | done (m9) | holds where it reaches alerts (`client.py:142-147`); `send_file` still copies the peer's `code` and `message` into its `LinkError` (`client.py:218-220`), which today is never recorded (U08-1) |
-| K22 | m9 (12.5.3) | holds: the key looked up in a read transaction, the link key opened only to sign, an unknown key's body over 1 MB refused on headers (`routes.py:44-68`); but the limit is charged before the signature (**U08-5**) |
+| K22 | m9 (12.5.3) | holds: the key looked up in a read transaction, the link key opened only to sign, an unknown key's body over 1 MB refused on headers (`routes.py:44-68`) |
 | K25 | m9 | holds: the database key in a `HeldKey` overwritten and refused after release (`store/db.py:43-59`, `copy.py:180-191`); apply refuses a `seq` at or below the last applied (`changes.py:174-181`; tested) |
 | P5, C20 | done | holds: `join` carries no directory, a pending side sends none (`manage.py:266-269, 455-461`); the join guide says otherwise (U08-16) |
 | P6 | m9 | judged in unit 05 (U05-25); the link sends what the routes give the remote viewer (`serve.py:240-258`) |
@@ -644,7 +644,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 | B25 | done | holds: long lists split into whole records by date (`serve.py:475-498`); U08-4 beside it |
 | B26 | done | holds: shape checked before the transaction, set aside, everything asked for (`changes.py:168-208`; tested) |
 | B41 | m9 | holds: a pull names its link and shares (`receive.py:82-93`), *Pull now* its actor (`ui/links.py:361-363`), words checked when already open (`copy.py:129-145`), the hash before the last piece (`ui/linked.py:379-392`); U08-15 for the copy's other entries |
-| N9 | done | holds (60 a minute, `routes.py:15-30`); U08-5 |
+| N9 | done | holds (60 a minute, `routes.py:15-30`) |
 | N11 | m9 | holds: what flows each way (`ui/links.py:140-199`), the sweeper (`copies.py:106-132`), views recorded (`ui/linked.py:216-231`); U08-7 |
 | C10, C14 | done | holds (random folder; D3-22 above) |
 | C17 | m9 | half holds: unsigned `limit` and `locked` handled; three codes differ (**U08-19**) |

@@ -68,8 +68,8 @@ Review 2 (§12.2; m8/m9 = milestone 8/9):
 
 Review 1's F1 (rotation vs re-encryption), F4 (secrets wrapped under the secrets key), F6 (mail
 folder), F10 (the TLS key), F12 (`keys phrase` unrecorded, Docker secrets) were
-requirements-level and carried into review 2's K/C items above. Unit 06's withheld U06-3 already
-covers the host socket reached from the reader's worker; not repeated here.
+requirements-level and carried into review 2's K/C items above. Unit 06's withheld claims are
+not repeated here.
 
 ### 4. Phase 1 claims and decisions on S14.4/6/7, S15, S16
 
@@ -496,19 +496,18 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Remedy:** correct each line.
 - **Alternatives:** none needed.
 
-### U10-18: no test interrupts a re-encryption past its secrets, damages a file past its first chunk, fails a rotation part-way, or cancels a rotation's re-encryption
+### U10-18: no test interrupts a re-encryption past its secrets, damages a file past its first chunk, or fails a rotation part-way
 
 - **Kind:** test gap. **Severity:** Low. **Req:** S15.7.1, S15.7.2, S16.7; review 2's K5.
 - **Code:** `web/server/tests/test_store.py:297-328` interrupts only at `rewrap_files`;
   `:331-352` sets aside only a file that fails at its first chunk (`b"not sealed at all"`);
   `tests/test_keys.py:183-200` and `test_unlock.py:78-110` run rotations that succeed; nothing
-  tests `DELETE /settings/keys/reencrypt` on a rotation's journal, copies made after the
-  choices, or saving Settings › Bitcoin at its defaults.
-- **What goes wrong:** U10-1, U10-2, U10-3, U10-4, U10-5 and U10-7 all pass the suite.
+  tests saving Settings › Bitcoin at its defaults, and two withheld claims have no test either.
+- **What goes wrong:** U10-1, U10-2, U10-5 and U10-7 all pass the suite, as do two withheld claims.
 - **Run:** no; rests on reading the tests' names and the two journal tests whole.
 - **Remedy:** a test per step of `reencrypt.run` that stops after the step is taken and before
   it is recorded, and resumes; a file damaged in its last chunk; `rotate_running` failing
-  after the keyring is written; cancel refused for a rotation; Bitcoin saved at its defaults.
+  after the keyring is written; Bitcoin saved at its defaults; a test with each withheld claim's fix.
 - **Alternatives:** none needed.
 
 ### U10-19: Settings › Network doesn't show how the listener runs (S16.15's one statement, uncited)
@@ -544,7 +543,7 @@ None is decided yet; each is judged against the code (and both readings where op
   outcome), which the screen never shows.
 - **What goes wrong:** after a rotation's re-encryption the admin sees nothing in Key storage:
   not when it finished, nor that a copy was "left: needs the phrase of mk-…" or left by
-  default (U10-3), which is what S15.7.1.4 asks them to act on (keep the previous phrase,
+  default, which is what S15.7.1.4 asks them to act on (keep the previous phrase,
   delete the copy). Activity has it, as a count-free detail.
 - **Run:** no; rests on reading.
 - **Remedy:** always show the last re-encryption (when, why) with each copy's outcome, and mark
@@ -614,11 +613,11 @@ None is decided yet; each is judged against the code (and both readings where op
 - **K10** (the phrase leaking): holds for the sheet (`/dev/tty`, refused without a terminal) and
   the locked screen's field; **U10-15** is the same leak for `db shell`'s output.
 - **K11**: the requirements now make every rotation re-encrypt and the code schedules it; but a
-  rotation's re-encryption can be cancelled (**U10-4**) or lost (**U10-5**).
+  rotation's re-encryption can be lost (**U10-5**).
 - **K13**: holds for the host (a new SMTP or node host clears the stored password);
   **U10-6** is a new case beside it (security lowered to None).
 - **K23**: holds (Remove asks for the phrase; Network's text says the proxy limits the locked
-  screen); **U10-21** is a new way round it.
+  screen).
 - **K25** (`verify-backup` and the manifest's `made`): holds (`made_of`, shown and compared).
 - **C5**: holds (a restore leaves the receipts in place); `copies.reencrypt_with` still rewrites
   a `before-restore-*/receipts/` that no restore makes any more (harmless).
@@ -685,7 +684,7 @@ None is decided yet; each is judged against the code (and both readings where op
   offline rotate and `keys reencrypt`; files written 0600 in 0700 directories; keyrings written
   atomically and synced.
 - The host socket's directory made 0700 and refused when another account owns it; the socket
-  0600 (`host.py`; reach from the reader's worker is U06-3).
+  0600 (`host.py`).
 - Backups: verified, HMAC-signed manifests under a key derived from the data key, the name
   checked against `made`, a restore under an earlier phrase named and asked, a newer revision
   refused (`store/maintenance.py`).
@@ -727,7 +726,7 @@ None is decided yet; each is judged against the code (and both readings where op
 | U10-15 | security | S15.1.7, S14.7 | Low | 0 | open | `db shell` prints query results to standard output, which Docker's log keeps |
 | U10-16 | bug | S15.4.7 | Low | 0 | open | A host command's event appended while the server takes the queue is lost |
 | U10-17 | differs | S12.7, S16.13, S16.2, S16.18 | Low | 0 | open | Four guide lines say other than the screens and sections (Remove's phrase, Unlocked, a week's invitation, the Folder driver) |
-| U10-18 | test gap | S15.7.1, S15.7.2, S16.7 | Low | 0 | open | No test stops a re-encryption at its keyring step, damages a later chunk, fails a rotation part-way or cancels its re-encryption |
+| U10-18 | test gap | S15.7.1, S15.7.2, S16.7 | Low | 0 | open | No test stops a re-encryption at its keyring step, damages a later chunk or fails a rotation part-way |
 | U10-19 | not built | S16.14, S16.15 | Low | 0 | open | Settings › Network doesn't show the listener's mode, port and trusted proxies |
 | U10-20 | differs | S16.13, S15.7.1 | Low | 0 | open | Key storage shows the last re-encryption only when it set something aside, never which copies it left |
 | U10-21 | security | S16.13, S13.7.2, S14.6 | Med | 0 | open | Withheld (`withheld.md`) |

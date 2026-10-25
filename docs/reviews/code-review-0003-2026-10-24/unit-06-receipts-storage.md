@@ -690,7 +690,7 @@ done. C1 (OCR text crosses a link): documents.
 
 | Finding | State (review 2) | Holds? |
 |---|---|---|
-| K4 (worker no sandbox; parsing in the server; HEIC and thumbnails in the request; PDF pages uncapped) | done | yes: every file is parsed in the worker (`parsing.py`, `worker.py:75-113`), length-prefixed JSON checked field by field (`reading.py:143-163`, `parsing.py:74-178`), seccomp and Landlock applied before reading (`worker.py:59-68`), pages and images capped at 40 Mpx (`ocr.py:167-174, 199-201`, `receipts/__init__.py:75-106`). New holes beside it: U06-3 (withheld), U06-5 (x32), U06-22 (write without deadline), U06-4 (one worker for every user) |
+| K4 (worker no sandbox; parsing in the server; HEIC and thumbnails in the request; PDF pages uncapped) | done | yes: every file is parsed in the worker (`parsing.py`, `worker.py:75-113`), length-prefixed JSON checked field by field (`reading.py:143-163`, `parsing.py:74-178`), seccomp and Landlock applied before reading (`worker.py:59-68`), pages and images capped at 40 Mpx (`ocr.py:167-174, 199-201`, `receipts/__init__.py:75-106`). New holes beside it: U06-5 (x32), U06-22 (write without deadline), U06-4 (one worker for every user) |
 | K19 (a read error's `detail` names a host path) | done | yes: `ui/receipts.py:505-511` logs the reason with an error id; the reader stores only the exception's type (`reading.py:261`, `worker.py:111-112`) |
 | P3 (attaching needs write on the receipt) | done | yes: every attach route calls `receipts.to_attach` (`ui/receipts.py:421`, `gifts.py:737`, `giving.py:690`, `items.py:634`, `education.py:473`, `taxes.py:920`) |
 | N13 (gifts, donations, tax documents through links) | done | yes for gifts and donations (`ReceiptLink` kinds, `_kept_level`, `detach_kept`); tax documents keep `TaxDocument.receiptId` and `level` reads it (U04-14 for who) |
@@ -785,7 +785,7 @@ done. C1 (OCR text crosses a link): documents.
   (headless Chromium has no PDF viewer).
 - The tests were read by their names and the parts the claims cite; `test_store.py` (915 lines)
   not read whole.
-- Landlock never ran (this host's kernel is 4.18); U06-3 rests partly on reading.
+- Landlock never ran (this host's kernel is 4.18).
 
 ## Work pad: severity, confirmations, status
 
