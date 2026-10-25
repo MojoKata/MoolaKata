@@ -48,6 +48,13 @@ remedy and alternatives. All rest on reading alone.
   call's capital is the shares to deliver); or show the two figures under different names
   (*capital at risk* and *capital required*).
 
+- **Check:** confirmed. Read S3.5.5 (`:62–79`), S3.5.6 (`:80–84`) and S3.9.2 (`:131–135`): an
+  ungrouped option counts by S3.9.2 (strike on the shares covered), a grouped one by the S3.5.5
+  row (*unlimited* for a naked call, strike less premium for a cash-secured put), and S3.5.6
+  sums both into one account figure. S3.9.2's last sentence makes a leg in a strategy take the
+  strategy's figure, which is the difference the claim describes, not an answer to it. Lines
+  match.
+
 ### D1-2: Budget alerts go to "its owner", but the active budget can be another user's
 
 - **Kind:** contradiction within the block. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -65,6 +72,11 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S7.6 says the alerts go to each user whose active budget it is.
 - **Alternatives:** alerts go to the owner and to every `write` receiver who has it active.
 
+- **Check:** confirmed. S7.6 (`:106–107`) says "its owner"; S7.12 (`:253–254`, `:269–271`) lets
+  a receiver have a shared budget active. S12.11.1.3 (`S12-web-ui.md`, "for each user: … the
+  active budget's cash before payday (S7.6)") reads as the remedy's reading, so the two sections
+  disagree rather than S7 alone being unclear; severity and remedy unchanged.
+
 ### D1-3: R2.8 defines a portfolio as possibly "a part of" its accounts, which S5 leaves to L5
 
 - **Kind:** term used other than its section defines it. **Severity:** Low. **Conf:** 0.
@@ -78,6 +90,10 @@ remedy and alternatives. All rest on reading alone.
   section specifies and L5 schedules after the first release. A reader of R2 (or a unit
   checking the portfolio code) looks for it in S5 and finds a later item.
 - **Remedy:** R2.8 reads "a named set of accounts (S5)", or adds "(a part of them, later: L5)".
+
+- **Check:** confirmed. README `:225` says "or of a part of them (S5)"; S5.1 (`:3`) and its
+  `:21–23` leave "a portfolio of chosen holdings" to L5 (`later.md:44`). No section specifies a
+  portfolio over part of an account.
 
 ### D1-4: Items marked "later" with no L id: they are in no list
 
@@ -97,6 +113,12 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** each becomes an L item (L13 onwards) cited where it is named, or is moved to
   `out-of-scope.md` or `rejected-ideas.md` if it isn't planned.
 
+- **Check:** confirmed. Read the five lines (S6.4.2 `:69`, S6.4.3 `:85`, S6.5 `:87`, S7.6.2
+  `:114`, S9.8.3 `:86–88`); a search of `later.md`, `README.md`, `gaps.md` and
+  `rejected-ideas.md` for glide path, bootstrap and tax-aware finds none, and `later.md` is
+  L1–L12 only. (`doccheck.txt` lists S6.5 uncited by code, as the claim says; "for that reason"
+  is an inference.)
+
 ### D1-5: "Comes later" points at out-of-scope, not at later work
 
 - **Kind:** reference / the same thing classed twice. **Severity:** Low. **Conf:** 0.
@@ -114,6 +136,11 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** choose one: L items for coins and exchange APIs (with what is known), or drop
   "later" from the three places and keep them out of scope. **Needs the user** (which one).
 
+- **Check:** corrected. Lines: the out-of-scope quote is at `out-of-scope.md:3–4` (the file is
+  15 lines), not `:172–173`; the quoted text, the README (`:204–205`) and S1 (`:167–169`)
+  citations are right. Severity unchanged. The claim holds: no L item covers coins or exchange
+  APIs, and out-of-scope says "(later)". Still needs the user.
+
 ### D1-6: S9.8.8 says "Not in this version"
 
 - **Kind:** CLAUDE.md rule (no versions or status). **Severity:** Low. **Conf:** 0.
@@ -126,6 +153,11 @@ remedy and alternatives. All rest on reading alone.
   them is already out of scope by R1.23 (currencies), and S9.8.3 says the shipped models read
   Chinese, so "non-Latin scripts" is about the parser, not the models.
 - **Remedy:** "**Not read**: …", with each either out of scope or an L item (as D1-4).
+
+- **Check:** confirmed. `S9-receipts.md:137` reads "Not in this version"; R1.23
+  (`README.md:192`) makes other currencies out of scope; S9.8.3 (`:82`) says the shipped
+  recognition models "read Latin script as well as Chinese", against "non-Latin scripts" at
+  `:138`.
 
 ### D1-7: later.md L2 says Massive is "not yet tried with a live key"
 
@@ -140,6 +172,10 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** "**Massive**, Basic plan: the fallback (S4.3), to be tried with a live key: its
   limits, its history for expired contracts."
 
+- **Check:** confirmed. `later.md:20` reads "shipped as the fallback (S4.3) but not yet tried
+  with a live key", a testing status; `S4-prices.md:33` and the same line's "formerly
+  Polygon.io" are the vendor's name, as the claim says.
+
 ### D1-8: S1.4 sends the reader to S8.6 for the contribution limits an admin corrects; they are S16.11
 
 - **Kind:** reference. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -151,6 +187,10 @@ remedy and alternatives. All rest on reading alone.
 - **What goes wrong:** every other mention of the tables in the block cites S16.11 (S1.8.2,
   S4.3, S8.14.5.3, L7); this one points at a panel that uses the limits.
 - **Remedy:** "(Settings › Tax tables, S16.11), shown against contributions in S8.6".
+
+- **Check:** confirmed. `S1-accounts.md:163–165` cites S8.6, a panel (`S8-taxes.md:36–38`) that
+  names no Settings; the correctable table is S16.11 (`S16-settings.md:50`), which S1.8.2
+  (`:270`), S4.3 (`:31`), S8.14.5.3 (`:102`) and `later.md:65` cite.
 
 ### D1-9: Where a possible wash sale is listed: S3.8.5 says S8.3, S8.4 claims it, S8.15 calls S8.4 "Issues"
 
@@ -168,6 +208,11 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S3.8 and S3.8.5 cite S8.4 for the issue, and S8.3 says the flags are listed in
   Issues (S8.4) and counted here.
 
+- **Check:** confirmed. S3.8 (`:94`) and S3.8.5 (`:114–115`) send possible wash sales to S8.3;
+  S8.3 (`:27–28`) lists "the flags left for review" while S8.4 (`:29–32`) lists the same flags
+  under "Missing or doubtful data" and S8.15 (`:124–125`) calls S8.4 the tax book's Issues. The
+  same flags are specified for two panels.
+
 ### D1-10: Two different strings are each "the OCC ticker"
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -183,6 +228,11 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S4.5 shows the OCC form and says Massive is asked with `O:` and the root
   unpadded.
 
+- **Check:** confirmed. `S2-holdings-and-lots.md:6` gives the symbol as `AAPL  261218C00250000`
+  (root padded; the claim's quote has the double space collapsed) and `S4-prices.md:48–49` calls
+  `O:MSFT261120P00480000` "its OCC ticker". S3.10.3 (`:150`) and S3.2.1 (`:12`) name the "OCC
+  ticker" for import without saying which form.
+
 ### D1-11: S4.5's typed mark, intrinsic value and greeks sit inside its item 3, on Massive
 
 - **Kind:** structure (an item's text under the wrong number). **Severity:** Low. **Conf:** 0.
@@ -196,6 +246,11 @@ remedy and alternatives. All rest on reading alone.
   read as part of S4.5.3 (Massive), and code citing them cites S4.5.3.
 - **Remedy:** move lines 57 (from "A typed mark") to 61 to a paragraph after the list, or to
   an item 4.
+
+- **Check:** confirmed. `S4-prices.md:57–61`: lines 58–61 follow item 3's first line with no
+  blank line, so the typed mark, intrinsic value and the Greeks sentence are part of S4.5.3
+  (Massive). Nothing cites S4.5.3 yet (searched requirements, schema and web/), so the
+  code-citing consequence is only potential.
 
 ### D1-12: R3.5 says price sources are off until configured; S4 never says which are on, and loads benchmarks "always"
 
@@ -215,6 +270,11 @@ remedy and alternatives. All rest on reading alone.
   a source that serves them is enabled.
 - **Alternatives:** the keyless sources (CBOE, Coinbase) are enabled at the welcome, which R3.5
   then names as its exception. **Needs the user** (which).
+
+- **Check:** confirmed. R3.5 (`README.md:303–304`) says price sources are off until configured;
+  S4.2.3 (`:15–18`) says only that a keyed source can't be enabled without a key; S4.4 (`:40`)
+  says "always loaded"; no section (S4, S13, S16, README) says which sources a new server
+  enables. Needs the user stands.
 
 ### D1-13: Who owns a category, and who may add or change one, is never said
 
@@ -243,6 +303,12 @@ remedy and alternatives. All rest on reading alone.
 - **Alternatives:** per user with a shared household tree under a group; or per server with
   every user free to edit, recorded in Activity. **Needs the user.**
 
+- **Check:** confirmed. S7.2 (`:36–40`), S10.3.1's Budget row (`S10-users-and-sharing.md:89`),
+  S7.12.6, S2.7 (rules are "per user", `S2:38`) and S14.10.1.1 (`:103`, an admin sets retention)
+  do not settle who owns or edits a category; `schema.md` has only the `Cat` prefix and
+  `Category.parentId`, and gaps.md and questions.md have no item. The mockup's **Add a
+  category** is at `:1971`.
+
 ### D1-14: A quarterly statement's value raises a stale alert every quarter before the next can arrive
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Med. **Conf:** 0.
@@ -263,6 +329,11 @@ remedy and alternatives. All rest on reading alone.
   (S1.11.7.3), and raise no alert of their own: the overdue statement's alert covers them.
 - **Alternatives:** 90 days becomes the interval plus its grace period, per account.
 
+- **Check:** confirmed. S4.3's row (`S4-prices.md:35`) marks a statement value stale at 90 days
+  and S12.11.1.2 raises that as its own alert; S1.11.7.1 (`:390`) makes 401(k) and 529
+  statements quarterly and S1.11.7.3 (`:398–399`) holds the overdue alert 30 days past the
+  quarter. Mar 31 plus 90 days is Jun 29, Jul 30 is the overdue date: the arithmetic holds.
+
 ### D1-15: The benchmark's "60/40 mix" is named and never specified
 
 - **Kind:** behaviour named and never specified (candidate gap). **Severity:** Low. **Conf:** 0.
@@ -274,6 +345,11 @@ remedy and alternatives. All rest on reading alone.
   suggests), and whether the mix is rebalanced (daily, monthly, yearly, never) are not said;
   each choice gives a different line over 5Y.
 - **Remedy:** S5.2.1: "a 60/40 mix of VT and BND, rebalanced monthly" (or the choice made).
+
+- **Check:** corrected. Scope: the funds are not wholly unsaid. The mockup's New portfolio
+  dialog offers "60/40 VT/BND" (`MoolaKata-mock.html:2093`), which settles VT and BND in the
+  design reference though S5.2.1 doesn't say so; what no document says is the rebalancing.
+  Remedy as written, with S5.2.1 naming VT and BND to match the mockup. Severity unchanged.
 
 ### D1-16: S3.9 makes an option trade an entity, which R2.20 says a trade is not
 
@@ -290,6 +366,11 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** R2.20 adds: "an **option trade** (S3.9.1) is a position's run from open to none
   open, a view, not a stored record", or S3.9 uses another word (*a run*).
 
+- **Check:** confirmed. R2.20 (`README.md:266–268`) lists "*Trade* as an entity: a trade is a
+  pair of transactions on a position" among the words not used; S3.9.1 (`:128–130`) defines an
+  option trade as any run from first open to none open, with its own tab, dates and P/L (`:126`,
+  `:158`).
+
 ### D1-17: S8.7 flags charitable gifts "above" the threshold; S8.9 says "$250 or more"
 
 - **Kind:** the same thing specified twice, differently. **Severity:** Low. **Conf:** 0.
@@ -301,6 +382,12 @@ remedy and alternatives. All rest on reading alone.
 - **What goes wrong:** a $250.00 gift is flagged by S8.9 and not by S8.7's "above"; the two
   panels disagree about the same gift. (IRC §170(f)(8) reads "$250 or more".)
 - **Remedy:** S8.7: "Charitable gifts of $250 or more (S8.9)".
+
+- **Check:** corrected. S8.7 (`S8-taxes.md:39–41`) names no figure: "the substantiation
+  threshold" is not defined there, so "above" conflicts with S8.9's "$250 or more" (`:48–49`)
+  only if the two are the same threshold, which the claim assumes and no section says. The
+  remedy (name the figure, $250 or more, in S8.7) holds and is stronger for it. Severity
+  unchanged.
 
 ### D1-18: "One active projection per savings target": what makes two targets the same is not said
 
@@ -316,6 +403,10 @@ remedy and alternatives. All rest on reading alone.
   The code must pick one, and the rule can't be checked.
 - **Remedy:** savings projections have no limit on active ones (each is its own target), or a
   savings projection names its target (*House deposit*) and one per name is active.
+
+- **Check:** confirmed. S6.7.1 (`S6-projections.md:92–94`) gives a savings target no identity:
+  S6.2.3 (`:30–32`) defines one as an amount by a date, and neither `schema.md` nor the mockup
+  (`:1373`, a free-text subject) says what makes two targets the same.
 
 ### D1-19: "The 4% rule" is never defined, and the mockup shows it as 4% of the balance
 
@@ -333,6 +424,11 @@ remedy and alternatives. All rest on reading alone.
   and its guide drops the rule. The two readings give different chances the money lasts.
 - **Remedy:** S6.2.1 defines it ("4% of the balance at retirement, then that amount rising with
   inflation") and the mockup's choice and guide follow.
+
+- **Check:** confirmed. S6.2.1 (`:16–17`) lists "the 4% rule" beside "a percentage of the
+  balance" and never defines it; the mockup's Withdrawal choices are `4% of balance`, a fixed
+  amount and `Fixed % …` (`:1404`), and its guide (`:2396`) describes only a percentage or a
+  fixed amount. No other document defines the rule.
 
 ### D1-20: Allocation is shown and named, never specified, and L5 defers it
 
@@ -352,6 +448,11 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** S5.2 adds a fourth chart, allocation by asset class (classes as S6.4.2.2 assigns
   them), and L5 keeps only the target, drift, rebalancing and the other breakdowns.
 
+- **Check:** confirmed. S5.2 (`S5:14–22`) lists three charts; L5 (`later.md:44–46`) defers
+  allocation by asset class; S12.2.1 (`S12-web-ui.md:29–30`) and the mockup's Dashboard card
+  (`:903`) show allocation; S3.5.6 (`:83`) refers to allocation charts. S6.4.2.2 (`:77–80`) is
+  the only classing rule.
+
 ### D1-21: The Dashboard's net-worth chart in the mockup isn't stacked by account group
 
 - **Kind:** mockup vs section. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -365,6 +466,10 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** the mockup stacks the groups (banking, investing, retirement, crypto, physical
   assets, less liabilities) under the net-worth line, or S5.3 drops the stacking.
 
+- **Check:** confirmed. S5.3 (`S5:24–25`) asks for the composition "stacked by account group";
+  the mockup's Dashboard net-worth card (`:901–902`) is one `lineChart` series, `Net worth`, and
+  the mockup's net-worth guide (`:2151`) says nothing of stacking.
+
 ### D1-22: The mockup's button is **Mark…**; S4.5 names it **Type a mark**
 
 - **Kind:** mockup vs section. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -375,6 +480,10 @@ remedy and alternatives. All rest on reading alone.
 - **What goes wrong:** a bold name in a section is the control's label (R3, S12.7 guides are
   keyed to fields); the code can match one or the other.
 - **Remedy:** one label in both (*Type a mark…* or *Mark…*).
+
+- **Check:** confirmed. `S4-prices.md:57–58` names **Type a mark**; the mockup has **Mark…** at
+  `:1239` and `:2343`. (The built app's button reads "Type a mark…",
+  `web/ui/screens/positions.js:244`, so the mockup is the one out of step.)
 
 ### D1-23: An account's reserve **shortfall** has no state in the mockup
 
@@ -390,6 +499,10 @@ remedy and alternatives. All rest on reading alone.
 - **Remedy:** the mockup's sample data gets an account in shortfall (or a MOCK pill state for
   it), with its guide entry.
 
+- **Check:** confirmed. S7.10.4 (`S7:221–222`) says the account "shows the **shortfall**"; a
+  case-insensitive search of the mockup finds no "shortfall", and *Where the money is*
+  (`:1320–1327`) shows only *to move*, *backed*, unassigned money and the withdrawals allowed.
+
 ### D1-24: The mockup gives a gift the status *received*; S7.8.1's statuses don't include it
 
 - **Kind:** mockup vs section. **Severity:** Low. **Conf:** 0. **Status:** open.
@@ -404,6 +517,11 @@ remedy and alternatives. All rest on reading alone.
   or received") leans to the mockup.
 - **Remedy:** S7.8.1 lists *received* as a status, for a gift to the user, with its giver and
   the thank-you tick.
+
+- **Check:** confirmed. S7.8.1 (`S7:133–134`) lists four statuses; S7.8.3 (`:140–141`) records
+  gifts received separately; the mockup's guide (`:2268`) lists *received* as a status and its
+  sample data has `status: 'received'` (`:585`, row rendering at `:1527`); `schema.md:236` says
+  "`Gift`, given or received".
 
 ### D1-25: S9.6 shows a tax document's file to the filers only; S8.14.3 and S10.3 share documents with helpers, and S9.6 omits several kinds S9.3 links to
 
@@ -431,6 +549,16 @@ remedy and alternatives. All rest on reading alone.
   whoever can read the account.
 - **Alternatives:** keep tax-document files to filers and `write` helpers, not `read` shares,
   and say so in S10.3's row. **Needs the user** if the narrower one is meant.
+
+- **Check:** corrected. Scope narrowed, severity unchanged (Med). The first half holds as
+  written: S9.6 (`S9:31–34`) gives a tax document's file to "the tax book's filers" while
+  S8.14.3 (`S8:76–82`) gives helpers **write** to "attach documents" and S10.3.1's Tax book row
+  (`S10:92`) shares its documents. The second half overstates: S10.3.1's Account row (`:87`)
+  already says an account's share includes "its … receipts" and S9.6 opens "whoever can read a
+  transaction can see its receipts", so a receipt on an item, loan or statement is the
+  account's; what is left unsaid is a 529 qualified expense (a transaction?) and an unattached
+  statement. Remedy: the tax-document sentence, plus saying which of those kinds follow the
+  account.
 
 ## doccheck.txt: the "To read" lines in this block
 
@@ -727,3 +855,42 @@ states, who may do what, what is sent or stored where.
 - Gaps: G23 (real receipt fixtures, Low) open; next free G25 (G24 used).
 - Questions: Q30 (connector's vault: one sealed file with AES-256-GCM under HKDF-SHA256 of the 12 words, or SQLCipher; Low) open; Q1–Q29 answered; next free Q31.
 - gaps.md ranks: High blocks the first release, Med needed before it, Low can follow (REVIEW.md §1 reads "next release").
+
+## Found while checking
+
+Unverified: noticed by the checker while reading the documents, covered by no claim above, and
+not yet judged by anyone else (docs/REVIEW.md §8). Line numbers are those of `6916954`.
+
+### D1-F1: The phone PWA "comes later" with no L id, as D1-4 and D1-5 describe for other items
+
+- **Kind:** CLAUDE.md rule (later work has lasting ids) / the same thing classed twice.
+  **Severity:** Low.
+- **Req:** S12.8, R3 (desktop only); `later.md` (preamble).
+- **Where:**
+  - `out-of-scope.md:10–11`:
+
+    ```text
+    gifts. State 529 deduction rules. Tax filing or tax computation. Running a relay for links. Phone support in the web app: a
+    mobile PWA with a narrower, focused set of features comes later, as its own piece of work.
+    ```
+
+  - `README.md:116`: "Phones will get a separate, focused PWA later, not the whole web app
+    (S12.8, [out of scope](out-of-scope.md))."
+- **What goes wrong:** the PWA is called later work and is listed as out of scope, and no L
+  item holds it (`later.md` is L1–L12), so it has the two-way classing D1-5 raises for coins
+  and exchange APIs, and a unit can't tell whether it is scheduled.
+- **Remedy:** decide it with D1-5: an L item for the PWA, or "later" dropped from the three
+  places that say it.
+
+### D1-F2: S9.6 cites S8.16 for the tax book's filers; filers are S8.14.1
+
+- **Kind:** reference. **Severity:** Low.
+- **Req:** S9.6, S8.14.1, S8.16.
+- **Where:** `S9-receipts.md:33–34`: "a tax document's file by the tax book's filers (S8.16)";
+  `S8-taxes.md:69` (S8.14.1) is "**Filers**: one user, or two who are spouses (S10.10.4)…" and
+  S8.16 (`:132`) is "**Tax documents**".
+- **What goes wrong:** the reference points at the section about the documents, which says who
+  issued them and where they are kept, not who the filers are or who else may see the tax
+  book (S8.14.3); a reader following it finds no rule for the sentence's subject.
+- **Remedy:** "by the tax book's filers (S8.14.1)", or, with D1-25's remedy, by whoever can
+  read the tax book (S8.14.3, S10.3.1).
