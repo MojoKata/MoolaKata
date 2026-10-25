@@ -144,6 +144,8 @@ are in the table at the end.)
   kept or deleted; or mark the removed key's transactions kept (`offChainKeptAt`) when it is
   taken out.
 
+- **Check:** confirmed. Read `wallet.replace` (deletes the removed key's addresses) and `sync.mark_gone` (counts every recorded `btc:` row not in the read as missed) and `alerts.py:119-126` (alerts on any `offChainAt`); reran the scratch test (passes: all three transactions carry `offChainAt` after two syncs). No guard keeps a removed key's transactions out of `mark_gone`; S1.6.2.7's "the explorer or node no longer has" is not what happened.
+
 ### U02-2: an address a key derives, typed as well and then taken out, is never watched again
 
 - **Kind:** bug. **Req:** S1.6.1 ("addresses derived … with a gap limit"), S1.6.1.2, S1.6.1.3.
@@ -174,6 +176,8 @@ are in the table at the end.)
   `last_used` reads the used flag of any row with that address in the account.
 - **Alternatives:** keep one row per key and address (unique on key, address) and dedupe only
   when reading, so each key's chain is whole.
+
+- **Check:** confirmed. Read `wallet.extend` (`range(top + 1, ...)` skips an index held by another row for good) and reran the scratch test: after the typed address is taken out, receive 0 is not watched and `watched` is 39.
 
 ### U02-3: an Electrum read that spans a new block takes the server's header notice for an answer
 
@@ -207,6 +211,8 @@ are in the table at the end.)
   `id`; or read the tip with `blockchain.headers.subscribe` on a connection of its own, or
   before the history and never again on the same one.
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. Read `Electrum.call` (takes the next line, never compares `id`) and `history` (subscribes to headers mid-read, then makes one call per transaction and per input). A pushed header notice has no `result`, so `bytes.fromhex(None)` raises `TypeError`, which `sync_wallet` (catches `SourceError` only) turns into a 500 and `sync_all` into the generic failure. Reading alone; the notification is as the Electrum protocol documents it.
 
 ### U02-4: a HELOC in its draw period shows a payment of $0, and nothing is offered to link
 
@@ -244,6 +250,8 @@ are in the table at the end.)
 - **Alternatives:** take the summary's payment from the schedule's next row (its principal plus
   interest), which already follows the draw period, resets and recasts.
 
+- **Check:** confirmed. Read `_pi_payment`, `scheduled_payment`, `summary` and `candidates` (`if not want: return []`); reran `loans_check.py` case A: `payment 0.00 total 0.00` with the schedule's first row at 200.00. A HELOC with a non-zero opening balance shows the repayment period's P&I instead of the interest, as the claim's last sentence says.
+
 ### U02-5: a plan that rounds the payment up still expects PMI after it has ended (B21's remainder)
 
 - **Kind:** wrong figure. **Req:** S6.10.5 (whether actual overpayments are "ahead of it or
@@ -275,6 +283,8 @@ are in the table at the end.)
 - **Alternatives:** none needed. A test like `test_rounding_up_counts_pmi_only_while_it_is_due`
   for the followed plan.
 
+- **Check:** confirmed. Read `expected_extra` (calls `extras(day, pi)` with no balance, so `_Extras` takes the full `terms.pmi`) against `schedule` (passes `scheduled`), and `_following` at `ui/loans.py:822`; reran case C: `expected_extra 56.75` against the schedule's `6.75`. The lines are 160-166 (the claim's 158-169 holds with its context); severity unchanged.
+
 ### U02-6: after a rate reset or a recast, one extra payment makes every later payment count as an overpayment
 
 - **Kind:** wrong figure. **Req:** S1.9.3 ("Principal beyond the schedule is recorded as an
@@ -305,6 +315,8 @@ are in the table at the end.)
 - **Alternatives:** keep the level payment worked out at each change on the loan (a computed
   list beside `resets` and `recasts`).
 
+- **Check:** confirmed. Read `_pi_payment` (any reset or recast on or before the day re-amortizes over the balance owed then) and `_scheduled_principal`, which every past payment's overpayment uses; reran case D: overpaid 10694.16 with 67-69 a month after the one extra payment, against the 10,000 paid.
+
 ### U02-7: a split loan payment always counts in the shipped categories; the loan can't name its own
 
 - **Kind:** differs. **Req:** S1.9.7.1 ("The loan names the categories; by default they are the
@@ -331,6 +343,8 @@ are in the table at the end.)
 - **Alternatives:** S1.9.7.1 says the split's categories are the shipped ones, which a user
   may rename but not change per loan, and names *PMI* and *Fees* apart; the mockup to match.
 
+- **Check:** confirmed. Read the `Loan` columns, the terms save at `ui/loans.py:403` (`budgetCategoryId` kept only for *whole*), `LOAN_PARTS` and `_count_loan_payment` (a split payment always lands in the shipped keys, *PMI* and *Fees* apart). S1.9.7.1's "The loan names the categories; by default they are the shipped" is read as per-loan naming, and S7.2's *PMI and fees* is one category where `ledger/categories.py:108-109` has two.
+
 ### U02-8: an ARM's caps and a mortgage's points are kept nowhere
 
 - **Kind:** not built. **Req:** S1.9.1 ("an ARM's adjustment dates, caps and the rate after
@@ -356,6 +370,8 @@ are in the table at the end.)
   year paid; the mockup with both.
 - **Alternatives:** drop "caps" from S1.9.1 (the reset's rate is typed anyway) and "points"
   from S1.9.6, or record them as a gap.
+
+- **Check:** confirmed. Searched `loans/`, `ui/loans.py`, `store/tables/loans.py`, `components/loan.js` and `taxes/panels.py` for caps and points: none; `Reset` is a date and a rate, `LoanRow` has `interest`, `pmi` and `propertyTax`. Not in `gaps.md`, `later.md` or the milestones.
 
 ### U02-9: a 529's rollover to a Roth IRA is counted as a distribution not covered by expenses
 
@@ -390,6 +406,8 @@ are in the table at the end.)
 - **Alternatives:** count them in `distributions` (1099-Q reports them) and in a covered column
   of their own, so the year still adds up to the 1099-Q.
 
+- **Check:** confirmed. Read `withdrawals`: any cash row with `amount < 0` whose kind isn't in `NOT_MONEY_IN_OR_OUT` (a transfer's kind, `transfer`, is not) is a distribution, and `rollover` separately recognises transfers to a `roth-ira`; `education_panel` feeds `notCovered` to Taxes. Reading alone.
+
 ### U02-10: what could still roll over to a Roth IRA leaves out the earnings on old contributions
 
 - **Kind:** wrong figure. **Req:** S1.8.4 ("how much could still roll over … under the lifetime
@@ -417,6 +435,8 @@ are in the table at the end.)
 - **Alternatives:** S1.8.4 and the note say the cap is the older contributions alone
   (conservative), and the code stays.
 
+- **Check:** plausible. **Question:** does S1.8.4's "excluding contributions of the last five years" cap what could roll over at the older contributions alone (as built), or at the account's value less the last five years' contributions and their earnings? The code does what the claim says (`eligible = old - used`, the balance never read), so whether it is wrong depends on that reading. The screen's note ("Contributions of the last five years, and their earnings, can't roll over") is not contradicted by the figure, as the claim says: it names only what is excluded. The same figure also overstates where the account is worth less than its old contributions.
+
 ### U02-11: a five-year election above five times the exclusion is spread over five years, not counted in the first
 
 - **Kind:** wrong figure. **Req:** S1.8.2 ("A five-year election … spreads one contribution over
@@ -440,6 +460,8 @@ are in the table at the end.)
 - **Remedy:** spread `min(amount, 5 × the contribution year's exclusion)` over the five years
   and count the rest in the first; put any cent left by rounding in the first year.
 - **Alternatives:** refuse an election above five times the exclusion and say why.
+
+- **Check:** confirmed. Read `gift_years` (`r.amount / 5` in each of five years, no cap) and `taxtables.figures(...)["giftExclusion"]` per year; S1.8.2's "spreads one contribution over five years of exclusions" bounds the spread at five exclusions, so the rest is a first-year gift. The cents claim also holds (an amount like 10,000.01 rounds to 10,000.00 in five fifths).
 
 ### U02-12: an inherited item sold within a year goes on Form 8949 as short-term
 
@@ -470,6 +492,8 @@ are in the table at the end.)
   second date, *held since*, as lots have `heldFrom`). S1.10.1 or S8.13 states both.
 - **Alternatives:** none needed.
 
+- **Check:** confirmed. Read `taxes/panels._items` (`lots.long_term(it.acquiredOn, it.soldOn)`, `acquiredHow` never read) and `ledger/lots.long_term` (the anniversary rule only); the guide's *Date acquired* line says what the claim quotes. IRC section 1223(9) makes property from a decedent long-term; the requirements are silent on it, so the remedy's last sentence (S1.10.1 or S8.13 states it) stands.
+
 ### U02-13: an item's value history is worked out on every read and never shown
 
 - **Kind:** untraced. **Req:** — (S1.10.6, "opens each one with its history, notes and
@@ -493,6 +517,8 @@ are in the table at the end.)
   meant) or drop the field and its loop.
 - **Alternatives:** none needed.
 
+- **Check:** plausible. **Question:** does S1.10.6's "opens each one with its history, notes and documents" mean the item's value over time (then the series is built and the dialog doesn't show it: not built in the UI, not untraced), or its valuations list (then the series is dead)? The code does what the claim says: `ItemDetail.history` is computed per read and no `.js` file reads it (searched `history` in `items.js`, `screens/account.js` and the components); the mockup's item dialog shows valuations only.
+
 ### U02-14: a wallet's descriptor is listed as an "Address"
 
 - **Kind:** bug. **Req:** S1.6.1, S1.6.1.4 (descriptors held), S1.6.1.2 ("The account's
@@ -512,6 +538,8 @@ are in the table at the end.)
 - **Remedy:** a third label, "Descriptor · {script} · {n} addresses" (multisig: "k of n"), and
   the model's comment naming the three kinds.
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. Read `keys.py:343-366` (`Entry` kind is `xpub`, `descriptor` or `address`) and `wallet.js:143-145`, which labels everything but `xpub` an address; `ui/wallets.py:24`'s comment names two kinds.
 
 ### U02-15: a payment recorded on the loan alone, then linked as the guide says, is counted twice
 
@@ -548,6 +576,8 @@ are in the table at the end.)
   its bank half or linked to it), and let the S1.7 transfer matching pair a loan row typed or
   imported on its own.
 
+- **Check:** confirmed. Read `add_payment` (a `transactionId` always makes a new loan-side row and sets `transferId` both ways) and `candidates` (no look at loan rows already recorded); `dialog-loan-payment.md` says what the claim quotes. Reran the scratch test: it passes with two loan rows and the balance down twice.
+
 ### U02-16: the wallet and loan guides say less than, or other than, S1.6.2 and S1.9.3
 
 - **Kind:** differs. **Req:** S1.6.2.6, S1.6.2.7, S1.9.3.
@@ -569,6 +599,8 @@ are in the table at the end.)
   kept"; *Looks like a payment*: "… that aren't a transfer yet or filed under another
   category".
 - **Alternatives:** none needed.
+
+- **Check:** confirmed. Read `account-crypto-wallet.md` (*Check now*: "its network fee included", while the code records the fee out of the transfer's quantity and as a sale beside it; *What is recorded* has no two-read rule or "stays kept"), the six loan guides ("that aren't a transfer yet") and `candidates` (category must be empty or *Loan payments*), against S1.6.2.6, S1.6.2.7 and S1.9.3.
 
 ### U02-17: a bitcoin transaction is dated in the server's zone, not its owner's
 
@@ -592,6 +624,8 @@ are in the table at the end.)
   owner.
 - **Alternatives:** date bitcoin by UTC everywhere and say so in S1.6.2.6 (simpler, but a day
   off for every US owner in the evening).
+
+- **Check:** plausible. **Question:** in which zone does a bitcoin transaction's block time become the calendar date it is recorded under: the server's (as built), the account owner's, or UTC? S14.9.3 says a transaction's date is never shifted but a block time has no date until a zone gives one, and S14.9.5 (cited by the claim) covers only "Today", not recorded dates, so no requirement settles it. The code does what the claim says (`host_zone()` at `sync.py:204`); the two agree for *Auto*.
 
 ## Uncited first-level items
 
@@ -718,3 +752,28 @@ Scratch runs in the job's `tmp/u02/` (`t/test_u02_wallets.py`, `t/test_u02_loans
 `loans_check.py`).
 
 **Ended:** Oct 24, 08:12 PM.
+
+## Found while checking
+
+(Unverified: noticed by the checker, in no claim; the sweep checks each, §8.)
+
+### U02-F1: a loan payment can be linked to a row of the loan's own account
+
+- **Kind:** bug. **Severity:** Low. **Req:** S1.9.3 ("Bank transactions … are offered on the
+  loan's screen to link as its payments").
+- **Code:** `web/server/src/moolakata/ui/loans.py:480-484` (`add_payment`): the `transactionId`
+  is checked for freedom, write access and the amount, never for being in another account:
+  ```text
+  other = s.get(Transaction, body.transactionId)
+  if other is None or other.deleted or other.transferId:
+      raise refuse("transactionId", "not-found", "That bank transaction isn't free.")
+  access.account(s, c.id, other.accountId, "write")
+  if other.amount != -body.amount:
+  ```
+  while `candidates` leaves the loan's own account out (`x.id != a.id`, `:553`), so only a
+  request made by hand reaches it.
+- **What goes wrong:** posting a `transactionId` of a draw (a negative row) in the loan's own
+  account pairs it with the new payment row, both in the same account, and the payment's
+  parts are split by the schedule though no money came from a bank: the balance and the
+  schedule take a payment that is the draw's mirror.
+- **Remedy:** refuse a `transactionId` in the loan's own account or in any loan account.
