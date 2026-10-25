@@ -469,7 +469,7 @@ None is decided yet; each is judged against the code (and both readings where op
   refuse without one, as `keys init` does.
 - **Alternatives:** say in S14.7 and `operations.md` that the shell's output is in Docker's log
   for as long as the daemon keeps it.
-- **Check:** plausible. **Question:** does S15.1.7's "the logs … must never hold amounts, names or secrets" cover what an interactive `db shell` prints (the data itself, by S14.7's design), or only the server's own log? The code prints as quoted (`maintenance.py:486-494`). Remedy note: I ran a throwaway container with a tty and text written to `/dev/tty` reached `docker logs` just as standard output did, so moving the shell to `keys.cli.Terminal` would not keep it out of the log under `docker compose run` (see U10-F1).
+- **Check:** plausible. **Question:** does S15.1.7's "the logs … must never hold amounts, names or secrets" cover what an interactive `db shell` prints (the data itself, by S14.7's design), or only the server's own log? The code prints as quoted (`maintenance.py:486-494`). Remedy note: the remedy's move to `keys.cli.Terminal` may not be enough; see U10-F1 (withheld).
 
 ### U10-16: a host command's event written while the server takes the queue is lost
 
