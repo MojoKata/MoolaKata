@@ -51,7 +51,7 @@ gave is in brackets.
 | D11 | The *uncategorised* count includes every split transaction and every transaction left out of the budget, and sorting never clears it | B U05-1 (Med), C U05-5 (Med) | holds (both ran it) | Med |
 | D12 | *Changed since reviewed* misses unplanned spending, uncategorised transactions and transfers to sort | A U05-5 (Low), B U05-2 (Med), C U05-6 (Low) | holds (all three ran it) | Low |
 | D13 | A review keeps the reviewer's own figures, so it shows a receiver figures they can't otherwise see, and the flag never clears for them | A U05-21.1 (Low, privacy), C U05-6 (second half) | holds, from the code | Low |
-| D14 | Where the money is passes on a held-in account the viewer can't see. Only its name is hidden | A U05-21.2 (Low, privacy), C U05-11 (Low, privacy), B U05-12 (Med, withheld: a privacy claim on Where the money is) | holds (B ran it) | **Med** (see §5) |
+| D14 | withheld (a privacy claim) | A U05-21 (part), B, C | holds | Med, withheld |
 | D15 | Move labels name any credit card on the server | A U05-21.3, C U05-11 (part) | holds, from the code (`ui/budgets.py:888`) | Low |
 | D16 | Envelope card lines name the owner's accounts, and reserve rows give their ids, to a viewer those accounts aren't shared with. P6 again, in new code | A U05-25 (Low, privacy) | holds, from the code. The recurring rows beside them hide the same accounts | Low |
 | D17 | Copy as scenario drops a move's `cardId`: a move from To Budget into a card's line gives a 500, and a move from a category into the card's line becomes a move to To Budget. A tracking copy also drops landed-money moves | A U05-3 (Low), B U05-9 (Med), C U05-14 (Low) | A and B hold (both ran it). C holds **in part**: it says a To Budget→card move is copied "with no side at all", when the copy actually fails with a 500 | Low |
@@ -193,7 +193,7 @@ missed. **No single run found everything; a second, independent run adds real Me
 ## 5. A consequence for the review
 
 D14 is published in the review at Low (A's U05-21, part 2). B rates it Med; I would too, since
-it shows a third person's account balance and payees to someone it was never shared with.
+it is a privacy defect of the kind §2 withholds.
 
 If the review adopts Med, §2's withholding applies, and A's published details of it would need
 to move to `withheld.md`. A decision for the user, before the review's pull request goes

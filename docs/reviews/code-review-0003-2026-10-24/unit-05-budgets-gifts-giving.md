@@ -69,7 +69,7 @@ Review 1 has none in S7. Review 2's, all marked done (§12.2) or built in milest
 | B16 | gift-tax flag missed 529s without a plan and five-year elections | done | holds (`gifts/__init__.py:371-391`); U02-11 already covers an election above five exclusions |
 | B22 | donated shares' term by `acquiredOn`, not `heldFrom` | built in m9 (`6847ba9`) | holds (`ui/giving.py:468`) |
 | B23 | `BudgetLine.amount` decimal text | built in m9 | holds: `Cents` (`store/tables/budgets.py:53`, `giving.py`) |
-| C39 | a budget re-shared a read-shared account | done, decided (S7.1.1) | half holds: the month's figures follow the viewer (`budgets.account_ids`), but a review's stored figures and *Where the money is* pass such an account on (U05-21) |
+| C39 | a budget re-shared a read-shared account | done, decided (S7.1.1) | half holds: the month's figures follow the viewer (`budgets.account_ids`), but a review's stored figures pass such an account on (U05-21) |
 | C48 | donated shares under a year: lesser of value and basis | done | holds in code (`ui/giving.py:522`); the donation guide still says *basis* (U05-23) |
 | N13 | receipts on gifts and donations through `ReceiptLink` | done | holds (`ui/gifts.py:738-747`, `ui/giving.py:691-700`) |
 | N14 | QCD checks | later (L7) | not raised (§3.6) |
@@ -782,7 +782,7 @@ pad table at the end.
   the claim says (`ui/transactions.py:1008-1056`, no route to rename or delete, no screen posts
   `/categories`), and S7.2 says only that a default set ships.
 
-### U05-21: a budget's receiver sees figures of an account shared with its owner but not with them, through the review and *Where the money is*
+### U05-21: a budget's receiver sees figures of an account shared with its owner but not with them, through the review
 
 - **Kind:** privacy. **Req:** S7.1.1 ("Its receivers see the figures from the owner's own
   accounts, and from an account shared with the owner only if that account is shared with them
@@ -792,30 +792,24 @@ pad table at the end.
      sees them (`_figures(budgets.month_view(s, b, m, clock.today(), c.id))`), and `_reviewed`
      (`:1460-1466`) compares them with the viewer's own, writing both into the text:
      `f"{label}: spent {a[1]} then, {b[1]} now"` (`:1434`).
-  2. `budgets/reserves.py:143-148, 157-164, 209` takes the held-in account from the plan line
-     (`ln.heldInId`), whoever views, and reads all its transactions and its balance; `where`
-     (`ui/budgets.py:1104-1137`) returns them, the account named *an account not shared* but its
-     balance, transfers (payees, amounts) and landed money shown.
+  2. Withheld (part 2 of this claim; see its check).
   3. `_moves_out` (`ui/budgets.py:888`) names a card move by any credit card on the server.
 - **What goes wrong:** case: Carol shares her card with Alice (read); Alice's household budget
   counts it and is shared with Bob at write; the card is not shared with Bob. Alice marks
   October reviewed. Bob opens the review: *changed since reviewed: Dining: spent 812.40 then,
   355.10 now*, the $457.30 being Carol's card, which Bob can't see anywhere else; the flag also
-  never clears for him, since his figures never match Alice's. Likewise, a reserve held in an
-  account Carol shared with Alice shows Bob that account's balance and transfers.
+  never clears for him, since his figures never match Alice's.
 - **Run:** no, reading alone. Low: one household's members, a narrow arrangement (an account
   shared to the owner by a third person, inside a shared budget).
 - **Remedy:** keep a review's figures per viewer's reach, or store only the owner-view and
-  compare each viewer against figures worked out from the accounts they share; leave out of
-  *Where the money is* any held-in account the viewer can't see (its reserves listed with
-  *held in an account not shared*); name cards from the viewer's accounts.
+  compare each viewer against figures worked out from the accounts they share; name cards from
+  the viewer's accounts.
 - **Alternatives:** S7.14 says a review compares figures per user, each marking it for
   themselves.
 
 - **Check:** corrected. **Severity now:** Med (part 2 only; parts 1 and 3 stay Low). **Withhold:**
   yes (part 2). Split in two: (a) parts 1 and 3, the review's stored figures and a card's name,
-  Low as written; (b) part 2, the *Where the money is* rows. Read `reserves.held_in` and `where`;
-  my full reasoning for (b) is in `withheld.md`.
+  Low as written; (b) part 2, withheld; my full reasoning for (b) is in `withheld.md`.
 
 ### U05-22: *Cash before payday* counts each recurring payment once before payday, and none that is due today or late
 
@@ -1089,16 +1083,15 @@ the comparison.*
   does not.
 - **What goes wrong:** Bob, who sees only some of Alice's accounts, copies her budget as a
   scenario: a reserve held in an account the copy does not count still names it. The copy's
-  reserves are held in an account that is not one of its accounts, which its *Where the money
-  is* then works out as if it were.
-- **Run:** yes, calibration run B's `test_e12.py` (reran here), the copy case: the copy's
-  *Where the money is* lists the held-in account.
+  reserves are held in an account that is not one of its accounts.
+- **Run:** yes, calibration run B's `test_e12.py` (reran here), the copy case: the copy keeps
+  the held-in account.
 - **Remedy:** clear `heldInId` (keeping the target) for an account not among the copy's.
 - **Alternatives:** refuse the copy while a reserve is held in an account the copier cannot hold.
 
 - **Check:** confirmed. Read `copy_budget` (`ui/budgets.py:1303-1318`) against `set_plan`
-  (`:782`): the lines copy `heldInId` unfiltered. Reran B's `test_e12.py`: the copy's Where lists
-  the account it does not count. Low, as rated.
+  (`:782`): the lines copy `heldInId` unfiltered. Reran B's `test_e12.py`: the copy keeps an
+  account it does not count. Low, as rated.
 
 ### U05-31: landed money is listed as unassigned only in the month it landed
 
@@ -1469,7 +1462,7 @@ U05-14.*
 | U05-18 | differs | Low | S7.1.4 | 0 | open | Turning reserves off leaves the lines working as reserves |
 | U05-19 | differs | Low | S7.12.3 | 0 | open | Compare lacks totals, To Budget, reserve balances; three screen texts differ |
 | U05-20 | not built | Med | S7.2 | 0 | open (needs the user, D1-13) | Categories: any user adds through the API, the browser can't, nobody renames or removes |
-| U05-21 | privacy | Low | S7.1.1 | 0 | open | Review figures and Where the money is pass on an account shared with the owner |
+| U05-21 | privacy | Low | S7.1.1 | 0 | open | Review figures pass on an account shared with the owner |
 | U05-22 | wrong figure | Low | S7.6.1 | 0 | open | Cash before payday counts each series once, none due today or late |
 | U05-23 | wrong figure | Low | S7.9.6 | 0 | open | Projected year end omits this month's unpaid monthly pledges; guide says basis |
 | U05-24 | wrong figure | Low | R3.10 | 0 | open | Deleting an outside account erases past transfers to it from budget months |
