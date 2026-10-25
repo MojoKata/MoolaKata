@@ -114,7 +114,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Code:**
   - `web/server/src/moolakata/links/receive.py:33-35` (`take`), before anything of the change is
     kept:
-    ```python
+    ```text
         names = dict(delivered or {})
         missing = [f for f in change.get("fetch") or [] if f not in names]
         names |= fetch_files(srv, link_id, missing)
@@ -198,7 +198,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Kind:** bug. **Req:** S11.4 (pulls hourly and on demand), S13 (one server answers the
   household's browsers, the API and `/link`); no requirement names the event loop.
 - **Code:** `web/server/src/moolakata/links/routes.py:183-196`:
-  ```python
+  ```text
   @router.post("/exchange")
   async def exchange(request: Request):
       ...
@@ -291,7 +291,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   ("A sweeper removes files that no row names, left behind after a crash"), S11.9.5.3.
 - **Code:** `web/server/src/moolakata/links/copies.py:117-131` (`orphans`, run every minute
   for each open copy by `sweep`, `:135-143`):
-  ```python
+  ```text
       with o.engine.connect() as conn:
           kept = set(conn.execute(select(copydb.File.c.fileName)).scalars())
       waiting = set(DELIVERED.get(link_id, {}).values())
@@ -334,7 +334,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   stable id", "household name and avatar (S16.1)"), `link-protocol.md` §4.2 (the receiver's
   limits on what it keeps); DC-10.
 - **Code:** `web/server/src/moolakata/links/manage.py:327-331, 349-351, 363`:
-  ```python
+  ```text
       h = payload.get("household") or {}
       link.peerName = h.get("serverName") or link.peerName
       link.householdName = h.get("name") or link.householdName
@@ -390,7 +390,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Kind:** bug. **Req:** S11.1.3 ("a server whose certificate's key changes announces the new
   one to its peers … before its next exchange"), `link-protocol.md` §4.5.
 - **Code:** `web/server/src/moolakata/links/manage.py:180-189`:
-  ```python
+  ```text
       if (key or None) == (told or None):
           return 0
       n = 0
@@ -420,7 +420,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
 - **Kind:** bug. **Req:** S11.4 (each link pulled hourly), S11.9.5.3 (a change that fails "is set
   aside and reported").
 - **Code:** `web/server/src/moolakata/links/manage.py:663-667`:
-  ```python
+  ```text
       for link_id in wanted:
           ...
           with contextlib.suppress(LinkError):  # recorded on the link; alerts follow it
@@ -468,7 +468,7 @@ The map gives this unit no untraced file and no uncited first-level item of S11.
   receipts … Without the tick, … a gift's documents (their file names, notes and links) stay
   home too. A tax book's document files come later (L6)"), S11.4; D2-2.
 - **Code:** `web/server/src/moolakata/links/serve.py:256-262`:
-  ```python
+  ```text
                   if it.kind == "gift-plan" and not it.includeReceipts:
                       doc = _without_documents(doc)
   ...

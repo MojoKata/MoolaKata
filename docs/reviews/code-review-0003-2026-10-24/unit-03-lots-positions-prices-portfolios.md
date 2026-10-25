@@ -126,7 +126,7 @@ are in the table at the end.)
   value "the underlying's latest close"), S3.5.4–5 (shares and *now* at today's prices).
 - **Code:** `web/server/src/moolakata/prices/refresh.py:183-199`, `priced()` starts from
   `held()`, the instruments an open lot holds, and nothing adds an open option's underlying:
-  ```python
+  ```text
   def priced(s: Session, benchmarks: bool = True) -> list[tuple[Instrument, dt.date]]:
       """Every instrument held in a live account, or used as a benchmark, ...
       holding = held(s)
@@ -161,7 +161,7 @@ are in the table at the end.)
 - **Kind:** differs. **Req:** S3.6 ("The close used is the expiry day's; without it, the user
   is asked too"), S4.10 ("never from another user's").
 - **Code:** `web/server/src/moolakata/options/__init__.py:227-232`:
-  ```python
+  ```text
   close = per_share(s, c, c.expiry)
   if close is None or close[1] != c.expiry:
       continue  # only the expiry day's close decides (S3.6)
@@ -198,7 +198,7 @@ are in the table at the end.)
   ("Where only some of a lot replaces, that part is split into its own lot").
 - **Code:** `web/server/src/moolakata/ledger/lots.py:252-261`, the replacement part keeps the
   lot's id:
-  ```python
+  ```text
   out.open.append(
       OpenLot(
           lot.lotId,
@@ -206,7 +206,7 @@ are in the table at the end.)
   ```
   and `lots.py:636-643`, the picks find a lot by its id through a dict, which keeps one of the
   two parts:
-  ```python
+  ```text
   if method == "specific" and picks:
       by_id = {lot.lotId: lot for lot in held}
       for p in picks:
@@ -234,14 +234,14 @@ are in the table at the end.)
   it is refused with the years named"), S2.8.3, S3.8.4.
 - **Code:** `web/server/src/moolakata/taxes/closed.py:60-63` (unit 04's file, used here), the
   guard looks at the edited account only:
-  ```python
+  ```text
   def __init__(self, s: Session, account: Account, confirm: bool, by: str | None = None):
       self.s, self.account, self.confirm, self.by = s, account, confirm, by
       self.books = closing_books(s, account)
       self.before = gains(s, account, set(self.books)) if self.books else {}
   ```
   while `ui/transactions.py:683-686` reruns the whole household's wash sales before it checks:
-  ```python
+  ```text
   if inst_id:
       washes.recompute(s, a.ownerId)
   if guard is not None:
@@ -267,12 +267,12 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S5.2.1 ("contributions shown apart from growth"), S5.2.2
   (time- and money-weighted returns).
 - **Code:** `web/server/src/moolakata/figures.py:50` and `ui/portfolios.py:439` call
-  ```python
+  ```text
   flows = perf.flows(led.transactions)
   ```
   without `prices`, and `ledger/performance.py:28-32` counts a securities transfer only with a
   price:
-  ```python
+  ```text
   elif t.kind in ("transfer-in", "transfer-out") and t.instrumentId and t.quantity:
       price = (prices or {}).get(t.instrumentId, {}).get(t.date)
       if price is not None:
@@ -297,7 +297,7 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S2.9 (a split marked to be paid back), S2.9.1, S2.9.2, S2.9.3.
 - **Code:** `web/server/src/moolakata/ui/transactions.py:533-549`, every save replaces the
   splits with new rows and new ids:
-  ```python
+  ```text
   def _set_splits(s: Session, t: Transaction, splits: list[SplitIn], by: str) -> None:
       for old in s.scalars(
           select(Split).where(Split.transactionId == t.id, Split.deleted == false())
@@ -335,7 +335,7 @@ are in the table at the end.)
   the short through `_cover`, whose disposal carries the buy as its `saleId`; and
   `web/server/src/moolakata/washes.py:129-132` takes every losing disposal of a stock as a
   loss sale, short covers included:
-  ```python
+  ```text
   for d in led.replay().disposals:
       raw = d.raw_gain
       if d.instrumentId in classes and raw is not None and raw < 0 and d.saleId:
@@ -360,7 +360,7 @@ are in the table at the end.)
   portfolio's value is the value of what they can see"), S1.9 and S1.10 (a loan counts what is
   owed, an item what it is worth).
 - **Code:** `web/server/src/moolakata/ui/portfolios.py:469-473`:
-  ```python
+  ```text
   for a in accounts:
       led = repo.load(s, a)
       cash += led.balance()
@@ -389,7 +389,7 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S2.4, S2.4.1 ("the holding, the date, and what the action needs"),
   S2.8 (editing history is allowed), S3.10.1.
 - **Code:** `web/server/src/moolakata/corporate.py:42-44`:
-  ```python
+  ```text
   held = repo.load(s, account).replay().quantity(inst.id)
   if held <= 0:
       e.append(FieldError("instrumentId", "nothing-held", "Nothing of it is held here."))
@@ -419,7 +419,7 @@ are in the table at the end.)
   than a threshold … is marked stale").
 - **Code:** `web/server/src/moolakata/valuation.py:108-109`, a statement's price is made with
   `stale` left at its default, `False`:
-  ```python
+  ```text
   if h.quantity:
       out[h.instrumentId] = Price(h.marketValue / h.quantity, h.asOf, "statement")
   ```
@@ -442,7 +442,7 @@ are in the table at the end.)
 - **Kind:** differs. **Req:** S5.2.2 (returns per period); the guide `portfolio-performance.md`
   ("a dash means the history doesn't go back that far").
 - **Code:** `web/server/src/moolakata/figures.py:280-290`:
-  ```python
+  ```text
   started = next((d for d, v in values if v), values[0][0])
   for key in ("1M", "3M", "YTD", "1Y", "3Y", "5Y"):
       first = first_day(key, today, None)
@@ -466,7 +466,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S3.9 ("unrealized now", with short- or long-term status per
   lot, S3.1).
 - **Code:** `web/server/src/moolakata/ui/positions.py:316-323`:
-  ```python
+  ```text
   for r in open_rows:
       if r.unrealized is None:
           continue
@@ -533,7 +533,7 @@ are in the table at the end.)
 - **Code:** `web/server/src/moolakata/ui/transactions.py:645-658`, a transfer-in's lot is
   acquired on the transaction's date, and `TxnIn` (`:126-148`) has no field for when the shares
   were bought:
-  ```python
+  ```text
   if inst_id and body.kind in ("buy", "reinvest", "transfer-in"):
       basis = body.costBasis if body.kind == "transfer-in" else -body.amount
       s.add(
@@ -563,7 +563,7 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S4.7 (stale past a threshold), S4.3 (a statement value is stale
   after 90 days), S12.5 (the header's price status).
 - **Code:** `web/server/src/moolakata/prices/refresh.py:398-406`:
-  ```python
+  ```text
   ids = [i.id for i, _ in priced(s, benchmarks=False)] if viewer is None else _held_by(s, viewer)
   today = clock.today()
   closes = stored_closes(s, ids, today)
@@ -594,7 +594,7 @@ are in the table at the end.)
 - **Code:** `web/server/src/moolakata/prices/base.py:75-77` declares `lookup`, and
   `prices/tiingo.py:49-55` implements it, but nothing calls it (no `.lookup(` outside the
   sources). A typed symbol becomes an instrument at once: `ui/transactions.py:584-590`
-  ```python
+  ```text
   if body.symbol:
       symbol = body.symbol.strip().upper()
       ...

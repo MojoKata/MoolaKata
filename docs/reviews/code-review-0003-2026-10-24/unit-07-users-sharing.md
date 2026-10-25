@@ -110,7 +110,7 @@ locks the username): now "only slowed, never locked".
   from in 30 days (once they have signed in from somewhere; the addresses seen are kept on the
   user for those 30 days …)").
 - **Code:** `web/server/src/moolakata/ui/session.py:352-358` (`_note_address`):
-  ```python
+  ```text
       seen = {
           k: v
           for k, v in seen.items()
@@ -139,7 +139,7 @@ locks the username): now "only slowed, never locked".
 - **Kind:** differs. **Req:** S13.7.5.1 ("10 failures in 15 minutes lock **the address they
   came from** for 15 minutes, whoever they named, and so do 10 password-reset requests").
 - **Code:** `web/server/src/moolakata/app.py:59-60`:
-  ```python
+  ```text
       # Password resets, re-authentications, reactivations: 30 in 15 minutes per address.
       password_asks: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(30, 15 * 60))
   ```
@@ -171,7 +171,7 @@ locks the username): now "only slowed, never locked".
   for accounts the owner may share)"), S10.5 (a member holds a group's shares "while they are in
   the group"), S13.7.2 (sharing with a linked server needs the password again).
 - **Code:** `web/server/src/moolakata/sharing.py:235-243`:
-  ```python
+  ```text
   def _share_accounts_too(s: Session, by: User, p: Portfolio) -> int:
       """Share these accounts too (S5.1.2): at read, only accounts the owner may share."""
       n = 0
@@ -182,7 +182,7 @@ locks the username): now "only slowed, never locked".
   with `userId=uid` (`:244-253`), never with the group. The re-auth check
   (`ui/sharing.py:215-219`) looks only at linked users newly in `body.users` and at Include
   receipts:
-  ```python
+  ```text
       for uid, lvl in body.users.items():
           if uid in linked and lvl != "none" and uid not in current:
               return True
@@ -211,7 +211,7 @@ locks the username): now "only slowed, never locked".
 - **Code:** `web/server/src/moolakata/people/tree.py:83-92` puts a marriage ended by death into
   `widowed`, not `spouses`, and every step and in-law relation reads `spouses` only
   (`:167-190`):
-  ```python
+  ```text
           for sp in self._sp(ego):
               for p in self._p(sp):
                   put(p, 5, "parent-in-law")
@@ -236,7 +236,7 @@ locks the username): now "only slowed, never locked".
   person's").
 - **Code:** `web/server/src/moolakata/auth/users.py:672-675` (`update_user`, for PATCH
   `/users/{id}`):
-  ```python
+  ```text
       if display_name is not None and display_name.strip() != user.displayName:
           _raise(_name_problems(display_name))
           user.displayName = display_name.strip()
@@ -259,7 +259,7 @@ locks the username): now "only slowed, never locked".
   any item").
 - **Code:** `web/server/src/moolakata/ui/sharing.py:190-193` lets whoever may change a person
   open and save its sharing:
-  ```python
+  ```text
       if kind == "person":  # a private person: whoever may change them shares them (S10.10.2)
           from .. import people
 
@@ -268,7 +268,7 @@ locks the username): now "only slowed, never locked".
   (`people.level` is `owner` for every admin and for the person's own user,
   `people/__init__.py:143-150`), while `sharing.save` lets only the creator
   (`sharing.py:105-111`):
-  ```python
+  ```text
       if obj.ownerId == by.id:
           return True
       if kind == "tax-book":
@@ -285,7 +285,7 @@ locks the username): now "only slowed, never locked".
 - **Kind:** bug. **Req:** S13.7.1 (a new token at every change of privilege), S13.7.2.
 - **Code:** `web/server/src/moolakata/ui/session.py:418-423` (`reauth`) reads the session again
   by the cookie the request came with:
-  ```python
+  ```text
       with srv.db.tx() as s:
           user = s.get(User, c.id)
           right = passwords.verify(user.passwordHash, body.password)
@@ -308,7 +308,7 @@ locks the username): now "only slowed, never locked".
 - **Kind:** security. **Req:** S10.1.4.1 (sign-up's answer "is the same … whether or not the
   address already has an account"), S13.7.5.1 (sign-in and reset hide whether a user exists).
 - **Code:** `web/server/src/moolakata/auth/signup.py:75-77`:
-  ```python
+  ```text
       errors = _name_problems(display_name) + _username_problems(s, username)
       if not username_errors(errors) and _waiting_for(s, SignupRequest.username, username):
           errors.append(FieldError("username", "username-taken", "That username is taken."))
@@ -346,7 +346,7 @@ locks the username): now "only slowed, never locked".
 
 - **Kind:** bug. **Req:** S13.7.5.1, S13.7.5.5 (counters in memory).
 - **Code:** `web/server/src/moolakata/ratelimit.py:127-131`:
-  ```python
+  ```text
           with self._lock:
               now = self._clock()
               u = self._by_user[username.lower()]
@@ -386,7 +386,7 @@ locks the username): now "only slowed, never locked".
 - **Kind:** bug. **Req:** S10.1.1 (a display name of at most 80 characters), S10.1.3.
 - **Code:** `web/server/src/moolakata/auth/users.py:268-272` checks only length after
   `strip()`:
-  ```python
+  ```text
   def _name_problems(name: str, field: str = "displayName") -> list[FieldError]:
       name = (name or "").strip()
       if not name or len(name) > 80:
@@ -423,7 +423,7 @@ locks the username): now "only slowed, never locked".
   from their own Profile (an admin confirms for a person who isn't a user)"), S10.10.1 (a new
   user "becomes that person"), S3.8, S8.14.1.
 - **Code:** `web/server/src/moolakata/people/__init__.py:42-50`:
-  ```python
+  ```text
       taken = set(s.scalars(select(User.personId).where(User.deleted == false())))
       free = [p for p in same_name(s, name) if p.id not in taken]
       if len(free) == 1:
@@ -467,7 +467,7 @@ locks the username): now "only slowed, never locked".
 - **Kind:** bug. **Req:** S10.9.6 (JSON-RPC 2.0), S10.9.5 (each tool's input checked against
   its schema, review 2's B32), S13.7.8.
 - **Code:** `web/server/src/moolakata/mcp.py:404` and `:321-327`:
-  ```python
+  ```text
       method, id_, params = msg["method"], msg.get("id"), msg.get("params") or {}
   ...
       name = params.get("name")

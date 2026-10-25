@@ -107,7 +107,7 @@ None is decided yet; each is judged against the code (and both readings where op
   re-encryption carries on from the journal at the next unlock, with the phrase given then,
   redoing nothing").
 - **Code:** `web/server/src/moolakata/store/reencrypt.py:233-239`:
-  ```python
+  ```text
       old_ring_path = config.data_dir / OLD
       if steps.get("keyring"):
           old_ring = master.read_keyring(old_ring_path)
@@ -118,7 +118,7 @@ None is decided yet; each is judged against the code (and both readings where op
   ```
   `:271-278` (`if new_ring is None: new = master.new_data_key() … master.write_keyring(nxt,
   new_ring) … _step(config, j, "next", new_ring.data_key_id)`), and `:303-308`:
-  ```python
+  ```text
       if not steps.get("keyring"):
           if not old_ring_path.exists():
               shutil.copy2(config.keyring_path, old_ring_path)
@@ -155,7 +155,7 @@ None is decided yet; each is judged against the code (and both readings where op
   neither key is set aside and reported in Settings › Key storage, never fatal"); review 2's K5.1.
 - **Code:** `web/server/src/moolakata/store/reencrypt.py:130-136` (whether a file opens is
   decided by its first chunk: `next(files.open_stream(path, key, name))`) and `:151-155`:
-  ```python
+  ```text
           if opens(path, new_key, name):
               continue
           if opens(path, old_key, name):
@@ -198,7 +198,7 @@ None is decided yet; each is judged against the code (and both readings where op
   each step before it is taken, the copies' choices among them"); review 2's K5.3–4.
 - **Code:** `web/server/src/moolakata/store/maintenance.py:516-531` (through the running
   server):
-  ```python
+  ```text
       ring = master.rotated(store.keys.ring, store.keys.data_key, new_master, at)
       master.write_keyring(config.keyring_path, ring)
       new = master.Unlocked(ring.master_id, ring, store.keys.keys, store.keys.data_key)
@@ -239,7 +239,7 @@ None is decided yet; each is judged against the code (and both readings where op
   password"), S13.7.2, S14.4; review 2's K13.
 - **Code:** `web/server/src/moolakata/ui/settings.py:46`: `REAUTH = {"smtpHost", "publicUrl"}`
   and `:57-60` (only `smtpHost` and `bitcoinNodeHost` clear their secret); `mail.py:131-139`:
-  ```python
+  ```text
       else:
           conn = _vetted(smtplib.SMTP, address)(smtp.host, smtp.port, timeout=SMTP_TIMEOUT)
       with conn:
@@ -270,7 +270,7 @@ None is decided yet; each is judged against the code (and both readings where op
   this section (R3.5)"), S1.6.2; review 2's C36.
 - **Code:** `web/server/src/moolakata/bitcoin/sync.py:43-47`
   (`chosen` is `settings.saved(s, "bitcoinSource")`, a row existing); `ui/settings.py:118-120`:
-  ```python
+  ```text
           changed = [k for k, v in clean.items() if settings.get(s, k) != v]
           for k in changed:
               settings.put(s, k, clean[k], c.id)
@@ -303,7 +303,7 @@ None is decided yet; each is judged against the code (and both readings where op
   `after_restore`/`check_restored` and `load_copy_folders` run; `_open` (`:369-393`) sets
   `ready` only after the Activity record, `Reader(server)` and the tasks start.
   `ui/unlock.py:87-88`:
-  ```python
+  ```text
       if srv.store is not None:
           raise Problem(409, "unlocked-already", "MoolaKata is already unlocked.")
   ```
@@ -330,7 +330,7 @@ None is decided yet; each is judged against the code (and both readings where op
   copies on this host are listed in Settings › Key storage, with how each opens"), S16.13,
   S14.6 (backup pruning), S15.8.2.3.
 - **Code:** `web/server/src/moolakata/store/maintenance.py:192-195`:
-  ```python
+  ```text
       part = config.backup_dir / (name + ".part")
       if part.exists():
           shutil.rmtree(part)
@@ -436,7 +436,7 @@ None is decided yet; each is judged against the code (and both readings where op
   amounts, names or secrets"), S15.4.4 (the sheet "on the terminal, never on standard output,
   so that no log keeps it"), S14.7; review 2's K10.2.
 - **Code:** `web/server/src/moolakata/store/maintenance.py:486-494`:
-  ```python
+  ```text
           try:
               cur = conn.execute(buf)
               rows = cur.fetchall()
@@ -461,7 +461,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** bug. **Severity:** Low. **Req:** S15.4.7 ("What a one-off command did is queued in
   the data directory and reaches Activity within a quarter of an hour"), S15.6.5.
 - **Code:** `web/server/src/moolakata/store/maintenance.py:153-158`:
-  ```python
+  ```text
       path = config.data_dir / HOST_EVENTS
       try:
           text = path.read_text()

@@ -113,7 +113,7 @@ are in the table at the end.)
   part-way through a year counts that part of it").
 - **Code:** `web/server/src/moolakata/projections/engine.py:207-222`, the bisection's upper
   bound is one year's saving equal to the target:
-  ```python
+  ```text
   def needed_saving(plan: Plan, target: float, at_index: int, chance: float = 0.9) -> float:
       ...
       lo, hi = 0.0, max(target, 1.0)
@@ -150,7 +150,7 @@ are in the table at the end.)
   S6.4.2.2 (the mix), S1.9, S1.10 (a loan's value is what is owed, an item's what it is
   worth).
 - **Code:** `web/server/src/moolakata/projections/__init__.py:113-119`, `built_on()`:
-  ```python
+  ```text
   for a in accounts:
       ledger = repo.load(s, a)
       investing = atypes.investing(a.type)
@@ -184,7 +184,7 @@ are in the table at the end.)
   price"), S6.4.2.3 ("A bitcoin model sets the median growth of the bitcoin each year").
 - **Code:** `web/server/src/moolakata/projections/__init__.py:243-247` builds `crypto_path`
   as the growth from year *k* to *k+1* at index *k*:
-  ```python
+  ```text
   prices = bitcoin.median_path(
       model, taxtables.figures(s, year), btc_now, list(range(year, year + years + 1))
   )
@@ -194,7 +194,7 @@ are in the table at the end.)
   and `engine.py:90` and `:108` read index *t* for the growth that brings the balance to year
   *t* (`_simulate`, `:125-128`: index *t* is "the balance t years on, after that year's
   growth"), so year *t* gets the growth of year *t* to *t+1*:
-  ```python
+  ```text
   ratios = np.array(plan.crypto_path[: plan.years])
   ```
   The first year's growth (`ratios[0]`) is never used.
@@ -301,7 +301,7 @@ are in the table at the end.)
 - **Code:** `web/server/src/moolakata/ui/projections.py:200-261`, `_check_inputs()` checks
   neither `withdrawal.amount` nor `withdrawal.percent`, `overrides`, `income[].person`, nor a
   typed `builtOn.allocation`; `projections/__init__.py:85-92` takes the mix as given:
-  ```python
+  ```text
   mix = spec.get("allocation") or {"usStocks": 60, "bonds": 40}
   total = sum(mix.values()) or 1
   ```
@@ -324,7 +324,7 @@ are in the table at the end.)
   done for tracking.
 - **Code:** `web/server/src/moolakata/projections/__init__.py:188` builds on the owner's
   accounts for every viewer, and `:106-110` labels a single account by its name:
-  ```python
+  ```text
   base = built_on(s, viewer if viewer == p.ownerId else p.ownerId, json.loads(p.builtOn))
   ...
   label = (
@@ -351,7 +351,7 @@ are in the table at the end.)
   (a remote user's person "is used only for gifts"), S6.2.2.
 - **Code:** `web/server/src/moolakata/ui/projections.py:180-186`, a person is checked for the
   caller's level, a user only for existence:
-  ```python
+  ```text
   if who.get("kind") == "person":
       ...
       return [] if p is not None and people.level(s, user_id, p) is not None else bad
@@ -379,7 +379,7 @@ are in the table at the end.)
 - **Code:** `web/server/src/moolakata/taxes/closed.py:55-63`, the guard is something a route
   makes and checks; only the transaction routes (`ui/transactions.py:608, 737, 817`) and the
   option routes (`ui/options.py:71, 141, 331`) make one:
-  ```python
+  ```text
   class Guard:
       """Made before an edit and checked after it: when the edit moved a closed year's gains
       and isn't confirmed, refused with the years named (409 closed-year), ...
@@ -415,7 +415,7 @@ are in the table at the end.)
   before the tax book ... shows anything from their year before"), S8.14 ("a couple filing
   separately has two").
 - **Code:** `web/server/src/moolakata/taxes/books.py:331-344`:
-  ```python
+  ```text
   mine = {f.userId for f in filers(s, book)}
   for b in s.scalars(
       select(TaxBook)
@@ -457,7 +457,7 @@ are in the table at the end.)
   again (S2.8.1), is listed afresh").
 - **Code:** `web/server/src/moolakata/ui/taxes.py:842-845`, called from both `add_filing`
   (`:837`) and `change_filing` (`:873`):
-  ```python
+  ```text
   def _amending(s, c: Caller, b: TaxBook, f: Filing) -> None:
       """An amended federal return settles the edits made since the return was filed (S8.15)."""
       if f.jurisdiction == "federal" and f.amendsId:
@@ -490,7 +490,7 @@ are in the table at the end.)
   file for a document kept without one, though `PATCH /tax-documents/{id}` and `DELETE` exist
   (`ui/taxes.py:949-976`). And `_doc_values` (`ui/taxes.py:919-920`) re-checks the receipt on
   every change:
-  ```python
+  ```text
   if body.receiptId:
       receipts.to_attach(s, c.id, body.receiptId)
   ```
@@ -516,7 +516,7 @@ are in the table at the end.)
   Phase 1's D1-25, open: **needs the user**.
 - **Code:** `web/server/src/moolakata/receipts/__init__.py:248-249, 289-301`, a tax document
   gives its file to accepted filers only:
-  ```python
+  ```text
   if best is None and _on_tax_document(s, user_id, r.id):
       best = "read"  # a tax document's file, for the book's filers (S8.16)
   ...
@@ -543,7 +543,7 @@ are in the table at the end.)
   ...)"), S1.4.
 - **Code:** `web/server/src/moolakata/taxes/panels.py:491-508`, a contribution is any positive
   `deposit` or `transfer` without an instrument whose source isn't set otherwise:
-  ```python
+  ```text
   Transaction.kind.in_(("deposit", "transfer")),
   ...
   func.coalesce(Transaction.contributionSource, "employee") == "employee",
@@ -572,7 +572,7 @@ are in the table at the end.)
 - **Kind:** not built. **Req:** S8.6 ("Roth eligibility by MAGI as the user enters it,
   backdoor-Roth steps (non-deductible contribution, conversion, Form 8606 figures)").
 - **Code:** `web/server/src/moolakata/taxes/panels.py:517-518`, the only trace of either:
-  ```python
+  ```text
   if a.type == "roth-ira":
       note = (note + "; " if note else "") + "Roth eligibility depends on MAGI"
   ```
@@ -598,7 +598,7 @@ are in the table at the end.)
   at fair value when received").
 - **Code:** `web/server/src/moolakata/taxes/panels.py:395-428`, `income()` reads only
   `interest`, `dividend`, `reinvest` and `capital-gain`:
-  ```python
+  ```text
   Transaction.kind.in_(("interest", "dividend", "reinvest", "capital-gain")),
   ```
   and `store/tables/accounts.py:51-81` (`TXN_KINDS`) has no kind for foreign tax withheld or
@@ -661,7 +661,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S8.2 ("Each export says what it covers and what it does
   not"), S8.19 ("The exports say which was used").
 - **Code:** `web/server/src/moolakata/taxes/exports.py:111`:
-  ```python
+  ```text
   f"${_money(r.basis) or '0.00'}",
   ```
   while the CSV leaves the cell empty (`:65`) and the panels flag the row (`panels.py:901-908`);
@@ -682,13 +682,13 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S16.11 (a corrected figure), S8.15.3 (the federal due date).
 - **Code:** `web/server/src/moolakata/projections/taxtables.py:243-252`, the length check is
   meant for the bitcoin figures and compares a list with itself for any other:
-  ```python
+  ```text
   if len(value) != len(_BTC.get(key, value)):
       raise Invalid(f"{len(_BTC[key])} numbers")
   return value
   ```
   and `taxes/books.py:161-162` unpacks and builds the date on every book read:
-  ```python
+  ```text
   month, day = taxtables.figures(s, year)["federalDue"]
   return next_business_day(dt.date(year + 1, int(month), int(day)))
   ```
@@ -732,7 +732,7 @@ are in the table at the end.)
 - **Kind:** differs. **Req:** S6.9 ("Its percentiles are rounded to cents and sent as exact
   numbers (S13.8.2.1)"), R1.9's exception as review 2's C40 decided it.
 - **Code:** `web/server/src/moolakata/projections/engine.py:176-177` keeps NumPy's floats:
-  ```python
+  ```text
   pct = {p: np.percentile(path, p, axis=0).tolist() for p in PERCENTILES}
   real = {p: (np.array(v) / deflate).tolist() for p, v in pct.items()}
   ```
@@ -776,7 +776,7 @@ are in the table at the end.)
   with the price history behind it"), S6.3.1 ("a median path from today's price").
 - **Code:** `web/server/src/moolakata/ui/projections.py:530-537`, the route sends the paths
   and the price, no history:
-  ```python
+  ```text
   price = projections._btc_price(s)
   ...
   rows = bitcoin.compare(taxtables.figures(s, year), price or 100_000.0, clock.today())
@@ -802,7 +802,7 @@ are in the table at the end.)
   new due date").
 - **Code:** `web/server/src/moolakata/taxes/books.py:175-187`, the extension is read only
   through its new date:
-  ```python
+  ```text
   def due_of(f: Filing) -> dt.date | None:
       return f.extendedDue or f.dueDate
   ...

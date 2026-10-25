@@ -103,7 +103,7 @@ pad table at the end.
   checking or a card, it goes back to it … when they agree, the account is **backed**").
 - **Code:** `web/server/src/moolakata/budgets/reserves.py:124-126`, *to move* is the reserves'
   balance less what was transferred in from the budget's accounts and the landed money given:
-  ```python
+  ```text
   @property
   def toMove(self) -> Decimal:
       return self.total - self.movedIn - self.given
@@ -136,14 +136,14 @@ pad table at the end.
   line without a target").
 - **Code:** `web/server/src/moolakata/ui/budgets.py:821-826` stores every reserve line with
   rollover on:
-  ```python
+  ```text
   new.amount,
   new.cadence,
   new.rollover or new.target is not None,  # a reserve always rolls over
   ```
   and `budgets/__init__.py:599-609` (`_carry`) walks every earlier month from the category's
   first line, carrying any rolling monthly line, a reserve's months included:
-  ```python
+  ```text
   ln = in_force(mine, m).get(cat_id)
   if ln is None or not ln.rollover or ln.cadence != "month":
       carry = ZERO
@@ -171,7 +171,7 @@ pad table at the end.
 - **Kind:** bug. **Req:** S7.12.4 ("with this month's moves when asked"), S7.13.2.
 - **Code:** `web/server/src/moolakata/ui/budgets.py:1330-1342` copies a move without its
   `cardId`:
-  ```python
+  ```text
   s.add(
       BudgetMove(
           id=ids.new_id("BdgMv"),
@@ -206,7 +206,7 @@ pad table at the end.
   what is available, spent and remaining").
 - **Code:** `web/server/src/moolakata/ui/budgets.py:1377-1388` sums each month's *available*,
   which already holds what rolled into it:
-  ```python
+  ```text
   avail = r.balance + r.actual if r.target is not None else r.planned
   got[0] += avail if r.cadence == "month" or m == last else 0
   got[1] += r.actual if r.cadence == "month" or m == last else 0
@@ -232,7 +232,7 @@ pad table at the end.
   transaction, a recategorised one, a move in it) is flagged *changed since reviewed*").
 - **Code:** `web/server/src/moolakata/ui/budgets.py:1413-1440` keeps `spent` but never compares
   it, nor anything of what is to sort:
-  ```python
+  ```text
   for k, name in (("income", "Income"), ("saved", "Saved"), ("toBudget", "To Budget")):
       if then.get(k) != now.get(k) and not out:
           out.append(f"{name}: {then.get(k)} then, {now.get(k)} now")
@@ -259,7 +259,7 @@ pad table at the end.
   category's envelope from `_actual`, which counts a category with its children
   (`budgets/__init__.py:372-379`), so a child's spending comes off the child's envelope and the
   parent's:
-  ```python
+  ```text
   available = start + assigned + mv[cat_id] - _actual(tr, cash_spend, cat_id)
   ...
   spent = _actual(tr, cash_spend, cat_id) + charged
@@ -283,7 +283,7 @@ pad table at the end.
 
 - **Kind:** bug. **Req:** S7.10.5 ("spread among them by balance").
 - **Code:** `web/server/src/moolakata/ui/budgets.py:1225-1235`:
-  ```python
+  ```text
   weights = [(k, max(v, Decimal(0))) for k, v in h.reserves]
   total = sum((w for _, w in weights), Decimal(0)) or Decimal(len(weights))
   ...
@@ -305,7 +305,7 @@ pad table at the end.
   anything they come from changes").
 - **Code:** `web/server/src/moolakata/budgets/__init__.py:396-401` reads the cache, works the
   month out, and stores it under whatever generation holds when it is done:
-  ```python
+  ```text
   key = (budget.id, month, today, viewer)
   hit = cache.get(key)
   if hit is None:
@@ -342,7 +342,7 @@ pad table at the end.
   reserve when reserves are on").
 - **Code:** `web/server/src/moolakata/budgets/plan.py:204-220`, each yearly or quarterly series
   overwrites its category's proposal, the history average and any earlier series alike:
-  ```python
+  ```text
   for x in recurring.detect(txns, today):
       cid = x.categoryId
       ...
@@ -374,7 +374,7 @@ pad table at the end.
   under … **Entered the budget**").
 - **Code:** `web/server/src/moolakata/budgets/__init__.py:202-207` sends every matched transfer
   with a loan account to `_count_loan_payment`, whichever way the money goes:
-  ```python
+  ```text
   if t.transferId:
       if other is None or other[1].id in inside:
           continue  # between two of the budget's accounts: no money moved in or out
@@ -405,7 +405,7 @@ pad table at the end.
   occasion (and its year)").
 - **Code:** `web/server/src/moolakata/ui/gifts.py:314-331`, every save deletes the plan's
   occasions and adds new ones with new ids:
-  ```python
+  ```text
   def _set_occasions(s, gp: GiftPlan, wanted: list[OccasionIn], user_id: str) -> None:
       for o in gifts.occasions_of(s, [gp.id])[gp.id]:
           o.mark_deleted(user_id)
@@ -460,7 +460,7 @@ pad table at the end.
   their budget"), S7.7.1 ("a yearly **gift budget** or one per occasion").
 - **Code:** `web/server/src/moolakata/gifts/__init__.py:393-399` builds *by person* from the
   live plans only, with the plan's yearly budget:
-  ```python
+  ```text
   byPerson=[
       (x.person, by_person.get(pid, ZERO), x.plan.giftBudget)
       for pid, x in plans.items()
@@ -485,7 +485,7 @@ pad table at the end.
   under *Giving* (tax tag *charitable*, S7.2)"), S7.3.1 ("A split transaction counts through
   its splits").
 - **Code:** `web/server/src/moolakata/giving/__init__.py:131-153`:
-  ```python
+  ```text
   cats = [c.id for c in s.scalars(select(Category).where(Category.builtIn == "giving"))]
   ...
           select(Transaction).where(
@@ -514,7 +514,7 @@ pad table at the end.
   resolved by the donation").
 - **Code:** `web/server/src/moolakata/alerts.py:701-722` counts recorded donations only, and
   only while the period is the current one:
-  ```python
+  ```text
   if o.pledgeEvery == "month" and today.day >= 25:
       first, period = today.replace(day=1), f"{today:%B}"
   ...
@@ -542,7 +542,7 @@ pad table at the end.
   donations and organisations"), S7.9.1.
 - **Code:** `web/server/src/moolakata/ui/giving.py:549-551` files a write receiver's donation
   under the plan's owner:
-  ```python
+  ```text
   plan, lvl = giving.plan_for(s, c.id, body.date.year)
   # Recorded in the plan the caller writes to: its owner's giving (S7.9.1).
   owner = plan.ownerId if plan is not None and lvl == "write" else c.id
@@ -719,7 +719,7 @@ pad table at the end.
 - **Kind:** wrong figure. **Req:** S7.6.1 ("when its balance, less the recurring payments
   expected from it before its next expected money in … would fall below zero").
 - **Code:** `web/server/src/moolakata/alerts.py:559-565` takes one date per series, its next:
-  ```python
+  ```text
   ins = sorted(x.next for x in series if x.usual > 0 and x.next > today)
   horizon = ins[0] if ins else today + dt.timedelta(days=31)
   outs = sorted(
@@ -744,7 +744,7 @@ pad table at the end.
   expected donations"), S7.9.3 ("otherwise the lesser of the market value and the basis").
 - **Code:** `web/server/src/moolakata/giving/__init__.py:210-211` counts a monthly pledge for the
   months after this one only, given or not:
-  ```python
+  ```text
   if o.pledgeEvery == "month":
       out += o.pledge * (12 - today.month)
   ```
@@ -766,7 +766,7 @@ pad table at the end.
   after its end, never what came before: past budget months … keep it"), S7.3.2, S7.3.3.
 - **Code:** `web/server/src/moolakata/budgets/__init__.py:245-259` finds a transfer's other half
   only in live accounts, and `:202-204` drops a transfer whose other half isn't found:
-  ```python
+  ```text
   .where(
       Transaction.id.in_(transfer_ids[chunk : chunk + 500]),
       Transaction.deleted == false(),
@@ -816,7 +816,7 @@ pad table at the end.
   balance that stops being kept").
 - **Code:** `web/server/src/moolakata/budgets/__init__.py:321-327` treats any line of 0 as no
   plan, a target or not:
-  ```python
+  ```text
   def in_force(all_lines: list[BudgetLine], month: dt.date) -> dict[str, BudgetLine]:
       """Per category, the line that holds in a month (a line of 0 is no plan)."""
       ...

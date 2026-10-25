@@ -109,7 +109,7 @@ are in the table at the end.)
   addresses"), S1.6.2.7 ("a recorded transaction that the explorer or node no longer has …
   marked *no longer on the chain* and the owner alerted").
 - **Code:** `web/server/src/moolakata/bitcoin/wallet.py:39-42`:
-  ```python
+  ```text
   for value, k in current.items():
       if value not in wanted:
           k.mark_deleted(user_id, now)
@@ -117,7 +117,7 @@ are in the table at the end.)
   ```
   and `bitcoin/sync.py:246-264` (`mark_gone`), which counts as missed every recorded `btc:`
   transaction of the account not in the read:
-  ```python
+  ```text
   seen = {f"btc:{t.txid}" for t in txs}
   ...
       elif r.offChainMissedAt is None:
@@ -148,7 +148,7 @@ are in the table at the end.)
 
 - **Kind:** bug. **Req:** S1.6.1 ("addresses derived … with a gap limit"), S1.6.1.2, S1.6.1.3.
 - **Code:** `web/server/src/moolakata/bitcoin/wallet.py:110-116`:
-  ```python
+  ```text
   last_used = max((r.idx for r in rows if r.used), default=-1)
   top = max((r.idx for r in rows), default=-1)
   for i in range(top + 1, last_used + k.gapLimit + 1):
@@ -180,12 +180,12 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S1.6.2.3 (an Electrum server's history read over TCP), S1.6.2.5.
 - **Code:** `web/server/src/moolakata/bitcoin/sources.py:274` subscribes to headers in the
   middle of a read:
-  ```python
+  ```text
   tip = self.call("blockchain.headers.subscribe")["height"] if txs else 0
   ```
   and `:222-242` takes the next line as the answer to whatever was asked, never checking its
   `id`:
-  ```python
+  ```text
   line, self.buf = self.buf.split(b"\n", 1)
   out = json.loads(line, parse_float=Decimal)
   if out.get("error"):
@@ -215,7 +215,7 @@ are in the table at the end.)
   screen shows the payment).
 - **Code:** `web/server/src/moolakata/loans/__init__.py:284-287` (`_pi_payment`) gives the
   repayment period's level payment on the terms' principal while drawing:
-  ```python
+  ```text
   if t.drawMonths and not _in_draw(t, day):
       left = max(1, _months_between(day, t.end))
       return level_payment(owed, t.rate_on(day), left)
@@ -224,7 +224,7 @@ are in the table at the end.)
   and `scheduled_payment` (`:160-166`) is `level_payment(t.principal, …)`, where a HELOC's
   `principal` is what was owed at the start (usually 0; draws come later). `summary` (`:412`)
   takes it as the payment, and `ui/loans.py:546-549` looks for bank transactions near it:
-  ```python
+  ```text
   sm, _ = loans.summary(loans.terms_of(row), payments, draws, clock.today())
   want = sm.total
   if not want:
@@ -251,13 +251,13 @@ are in the table at the end.)
   add the full PMI after it has ended"), marked done.
 - **Code:** `web/server/src/moolakata/loans/payoff.py:158-169` calls the extras without the
   balance:
-  ```python
+  ```text
   extras = _Extras(dataclasses.replace(plan, lumps=[x for x in plan.lumps if x[0] > since]), t)
   ...
           total += extras(day, pi)
   ```
   so `:81` takes the full PMI:
-  ```python
+  ```text
   pmi = self.terms.pmi if owed is None else self.terms.pmi_due(owed)
   ```
   `ui/loans.py:822` uses it for the plan being followed.
@@ -280,7 +280,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S1.9.3 ("Principal beyond the schedule is recorded as an
   overpayment"), S1.9.5 (the screen), S6.10.5 (actual overpayments since a plan was chosen).
 - **Code:** `web/server/src/moolakata/loans/__init__.py:276-283`:
-  ```python
+  ```text
   recast = [d for d, _ in t.recasts if d <= day]
   reset = [d for d, _ in t.resets if d <= day]
   if recast or reset:
@@ -311,7 +311,7 @@ are in the table at the end.)
   shipped *Loan payments › Interest*, *Escrow*, *PMI and fees* and *Principal*").
 - **Code:** `web/server/src/moolakata/store/tables/loans.py:30-33` keeps one category, for
   *Whole* only:
-  ```python
+  ```text
   Column("budgetCounting", Text, nullable=False, server_default=text("'split'")),
   Column("budgetCategoryId", Text, ForeignKey("Category.id")),
   ```
@@ -337,7 +337,7 @@ are in the table at the end.)
   each reset, typed when known"), S1.9.6 ("mortgage interest, points and PMI (Form 1098) …
   appear in Taxes").
 - **Code:** the terms hold resets as a date and a rate only, `web/server/src/moolakata/ui/loans.py:43-45`:
-  ```python
+  ```text
   class Reset(Model):
       date: dt.date
       rate: ResetRate
@@ -363,7 +363,7 @@ are in the table at the end.)
   against the qualified expenses, and the part not covered, whose earnings may be taxable
   (S8.10)"), S1.8.4.
 - **Code:** `web/server/src/moolakata/education/__init__.py:178-194`:
-  ```python
+  ```text
   for t in s.scalars(
       select(Transaction).where(
           Transaction.accountId == account.id,
@@ -395,7 +395,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S1.8.4 ("how much could still roll over … under the lifetime
   limit …, excluding contributions of the last five years").
 - **Code:** `web/server/src/moolakata/education/__init__.py:237-246`:
-  ```python
+  ```text
   cutoff = _years(today, -ROTH_RECENT_YEARS)
   old = sum((r.amount for r in rows if r.date <= cutoff), ZERO)
   eligible = max(old - used, ZERO)
@@ -422,7 +422,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S1.8.2 ("A five-year election … spreads one contribution over
   five years of exclusions and is shown that way"), S7.8.7, S8.11.
 - **Code:** `web/server/src/moolakata/education/__init__.py:151-156`:
-  ```python
+  ```text
   if r.fiveYear:
       for k in range(5):
           counted[(r.contributor, r.date.year + k)] += (r.amount / 5).quantize(
@@ -448,7 +448,7 @@ are in the table at the end.)
   8949), S8.13.
 - **Code:** `web/server/src/moolakata/taxes/panels.py:318-336` (the Form 8949 rows for items,
   built on this unit's `Item`):
-  ```python
+  ```text
   long_term = lots.long_term(it.acquiredOn, it.soldOn)
   ...
               longTerm=long_term,
@@ -475,7 +475,7 @@ are in the table at the end.)
 - **Kind:** untraced. **Req:** — (S1.10.6, "opens each one with its history, notes and
   documents", is met by the valuations list; the month-end series serves nothing).
 - **Code:** `web/server/src/moolakata/ui/items.py:300-318`:
-  ```python
+  ```text
   # Its value at each month's end since it was acquired, for its history.
   ...
   while month <= end:
@@ -519,7 +519,7 @@ are in the table at the end.)
   "offered on the loan's screen to link as its payments").
 - **Code:** `web/server/src/moolakata/ui/loans.py:478-507`: linking a bank transaction always
   makes a new loan-side row, whether or not the loan already holds that payment:
-  ```python
+  ```text
   if body.transactionId:
       other = s.get(Transaction, body.transactionId)
       ...
@@ -575,7 +575,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S1.6.2.6 (each transaction recorded), S14.9.2, S14.9.5
   ("Today" and dates for a user follow their zone), S8.1 (the fee's sale on Form 8949).
 - **Code:** `web/server/src/moolakata/bitcoin/sync.py:204` and `:222`:
-  ```python
+  ```text
   zone = ZoneInfo(timezones.host_zone())
   ...
           date=t.confirmedAt.astimezone(zone).date(),

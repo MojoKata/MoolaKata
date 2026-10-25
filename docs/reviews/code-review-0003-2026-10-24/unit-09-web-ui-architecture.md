@@ -119,7 +119,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** bug. **Req:** S13.7.6 ("at most 100 MB of uploads in flight per user"), S16.8,
   S16.10.
 - **Code:** `web/server/src/moolakata/middleware.py:242-258`:
-  ```python
+  ```text
           limit = (
               self.upload_limit()
               ...
@@ -150,7 +150,7 @@ None is decided yet; each is judged against the code (and both readings where op
   included"), S13.7.9 (failures logged), S16.14.
 - **Code:** `web/server/src/moolakata/app.py:283-296`, the order of the middleware (the last
   added runs first):
-  ```python
+  ```text
       app.add_middleware(middleware.SecurityHeaders, tls=server.config.mode == "tls")
       app.add_middleware(middleware.AccessLog)
       app.add_middleware(middleware.AddressRanges, ranges=server.network_ranges)
@@ -188,7 +188,7 @@ None is decided yet; each is judged against the code (and both readings where op
   else in it could pose as the proxy"); review 2's K1 remedy ("the example must trust only the
   proxy's exact address").
 - **Code:** `web/server/src/moolakata/config.py:149-156`:
-  ```python
+  ```text
       for entry in server.get("trusted_proxies", []):
           try:
               proxies.append(ipaddress.ip_network(entry, strict=False))
@@ -214,7 +214,7 @@ None is decided yet; each is judged against the code (and both readings where op
   first start … a change to the list makes it again"), S13.6 (a certificate it can't load
   refuses the start), S11.1.3 (peers pin its key).
 - **Code:** `web/server/src/moolakata/listener.py:33-35, 53, 58-67`:
-  ```python
+  ```text
       if cert_path.exists() and key_path.exists() and set(names) <= _covers(cert_path):
           return cert_path, key_path
       ...
@@ -245,7 +245,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** differs. **Req:** S13.5 ("Outbound calls go through one httpx client with an egress
   guard … Each call connects to the address the guard checked").
 - **Code:** `web/server/src/moolakata/certs.py:61-91` (`_probe`):
-  ```python
+  ```text
           with (
               socket.create_connection((host, port), timeout=5) as raw,
               ssl.create_default_context().wrap_socket(raw, server_hostname=host),
@@ -274,7 +274,7 @@ None is decided yet; each is judged against the code (and both readings where op
   its status and code, refusals included"); review 2's K19 ("every problem logged with its id,
   status and code"), marked done in milestone 9 part 1.
 - **Code:** `web/server/src/moolakata/middleware.py:41-53`:
-  ```python
+  ```text
   def _send_problem(status: int, code: str, detail: str, headers=()):
       body = json.dumps(
           {
@@ -301,7 +301,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** differs. **Req:** S13.8.4 ("503 while the server is starting"), S13.6 (`starting`
   between the unlock and readiness).
 - **Code:** `web/server/src/moolakata/app.py:287`:
-  ```python
+  ```text
       app.add_middleware(middleware.Locked, locked=lambda: server.store is None and not server.ready)
   ```
   `runtime.build` sets `server.store = store` (`runtime.py:186`) before it ensures the
@@ -325,7 +325,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** bug. **Req:** S13.4 ("They run in a thread pool with per-provider rate limits"),
   S4.4.
 - **Code:** `web/server/src/moolakata/tasks.py:102-104`:
-  ```python
+  ```text
       def set(self, provider: str, limits: Sequence[tuple[int, float]]) -> None:
           with self._lock:
               self._windows[provider] = [Window(n, s) for n, s in limits]
@@ -353,7 +353,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Code:** `web/server/src/moolakata/contract.py:53-74` (`problem_codes`) collects the second
   argument of `Problem()`, `refuse()`, `FieldError()`, `_send_problem()`,
   `problem_response()` only when it is a string constant:
-  ```python
+  ```text
               if (
                   name in PROBLEM_CALLS
                   and isinstance(arg, ast.Constant)
@@ -368,7 +368,7 @@ None is decided yet; each is judged against the code (and both readings where op
   `unreachable`, and `certificate-changed` from `links/client.py:80-86`) and, through
   `links/client.py:143-147`, *any* code the peer answers with that matches `_CODE`, become
   this server's own API codes:
-  ```python
+  ```text
           code = out.get("code")
           code = code if isinstance(code, str) and _CODE.match(code) else "refused"
           ...
@@ -417,7 +417,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** bug. **Req:** S12.11.2 ("a check that fails leaves its alerts as they were … it is
   resolved by itself when the cause clears").
 - **Code:** `web/server/src/moolakata/alerts.py:844-858` and `:908-912`:
-  ```python
+  ```text
               except Exception:
                   ...
                   failed |= _KINDS[fn.__name__]
@@ -426,7 +426,7 @@ None is decided yet; each is judged against the code (and both readings where op
               if kind not in failed:
                   resolve.append(alert_id)
   ```
-  ```python
+  ```text
   _KINDS = {
       "price_sources": {"source-failing"},
       "email": {"source-failing"},
@@ -451,7 +451,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Code:** `web/server/src/moolakata/alerts.py:446-486`: `where` is worked out for the overdue
   statement (`"/reconcile" if atypes.reconcilable(a.type) else ""`), but the mismatch alert
   ignores it:
-  ```python
+  ```text
           if checks and not checks[-1].ok:
               yield Cause(
                   key=f"mismatch:{a.id}",
@@ -475,7 +475,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** differs. **Req:** S12.11.1.1 ("An admin's alert about someone else's account names
   its owner and source, never the account's name or figures (S10.2)").
 - **Code:** `web/server/src/moolakata/alerts.py:292-324`:
-  ```python
+  ```text
           title = f"{c.label} {'needs a sign-in' if needs else 'is failing'}"
           about = f"Connection · {c.message or c.driver}"
           ...
@@ -502,7 +502,7 @@ None is decided yet; each is judged against the code (and both readings where op
   else and says why"), R3.7 (refusals at the field).
 - **Code:** `web/server/src/moolakata/duration.py:44`: `total += int(m.group(1)) *
   UNITS[unit]`, unbounded; `ui/links.py:337-341`:
-  ```python
+  ```text
       try:
           span = duration.parse(body.for_ if body else "1d")
       except duration.DurationError as e:
@@ -645,7 +645,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** bug. **Req:** S13.3 ("`[server] host` sets the listening address, all interfaces by
   default"), S13.6 ("The image's own health check asks only whether the server answers").
 - **Code:** `web/server/src/moolakata/main.py:107-111`:
-  ```python
+  ```text
       config = configured(args.config)
       scheme = "https" if config.mode == "tls" else "http"
       try:
@@ -669,7 +669,7 @@ None is decided yet; each is judged against the code (and both readings where op
 - **Kind:** differs. **Req:** S13.7.6 (100 MB of uploads in flight), S16.8 (statements up to
   200 MB); D2-16 (Phase 1: the two limits disagree), judged here on the code.
 - **Code:** `web/server/src/moolakata/middleware.py:262-270`:
-  ```python
+  ```text
           declared = int(length) if upload and length and length.isdigit() else 0
           if upload and self.in_flight.get(who, 0) + declared > IN_FLIGHT:
               await _send_problem(

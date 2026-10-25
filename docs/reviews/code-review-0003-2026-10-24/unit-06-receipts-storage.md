@@ -104,12 +104,12 @@ done. C1 (OCR text crosses a link): documents.
   ("a hostile or broken file cannot take down the server"), S14.1.4 (`Database.tx()` is
   `BEGIN IMMEDIATE`, 10-second busy timeout).
 - **Code:** `web/server/src/moolakata/ui/receipts.py:326-327`:
-  ```python
+  ```text
       with srv.db.tx() as s:
           stored = receipts.store(s, srv, c.id, file.filename or "receipt", data)
   ```
   and `receipts/__init__.py:177-188`, inside that transaction:
-  ```python
+  ```text
       r = Receipt(
           ...
           # Drawn in the reader's worker, never here (S9.5, S9.8.4.2).
@@ -144,7 +144,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** privacy. **Req:** S9.8.4.2 (the worker as a sandbox "for a file that exploits the
   libraries that read it"), S10 (a user sees only what is theirs).
 - **Code:** `web/server/src/moolakata/parsing.py:20-27`:
-  ```python
+  ```text
   def _call(op: str, data: bytes, **params) -> dict:
       global _worker
       from .receipts.reading import Worker
@@ -175,7 +175,7 @@ done. C1 (OCR text crosses a link): documents.
 
 - **Kind:** security. **Req:** S9.8.4.2 ("a seccomp filter denies it network sockets").
 - **Code:** `web/server/src/moolakata/sandbox.py:79-86`:
-  ```python
+  ```text
               ins(ld, 0, 0, 4),  # 0: the call's architecture
               ins(jeq, 1, 0, arch),  # 1: ours: on to 3
               ins(ret, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM),  # 2
@@ -203,7 +203,7 @@ done. C1 (OCR text crosses a link): documents.
   is marked *couldn't read it*), S14.10.5 (a pruned record keeps its row).
 - **Code:** `web/server/src/moolakata/ui/receipts.py:392-396` queues any receipt the caller can
   write, pruned or not:
-  ```python
+  ```text
       with srv.db.tx() as s:
           r, lvl = receipts.get(s, c.id, receipt_id, "write")
           if not settings.get(s, "readReceipts"):
@@ -211,7 +211,7 @@ done. C1 (OCR text crosses a link): documents.
           reading.read_again(s, r)
   ```
   and `receipts/reading.py:242-248` skips it without changing its state:
-  ```python
+  ```text
               if (
                   r is None
                   or r.deleted
@@ -238,14 +238,14 @@ done. C1 (OCR text crosses a link): documents.
   to"), `schema.md` §6.2 ("A deleted record's own end is the earlier of its declared end and its
   `effectiveDeletedAt`").
 - **Code:** `web/server/src/moolakata/receipts/retention.py:117-121, 128-132`:
-  ```python
+  ```text
   def _deleted(row, end: dt.date | None) -> dt.date | None:
       if row.deletedAt is None:
           return end
       gone = row.deletedAt.date()
       return gone if end is None else min(end, gone)
   ```
-  ```python
+  ```text
       end: dt.date | None = t.date
       for lot in ctx.s.scalars(select(Lot).where(Lot.transactionId == t.id)):
           lot_end = ctx.lot_ends(t.accountId).get(lot.id, t.date)
@@ -272,7 +272,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** test gap. **Req:** S14.10.5 ("A file several receipts share is removed once no live
   receipt needs it (a deleted one doesn't count)"), S9.7; review 2's C3.
 - **Code:** `web/server/tests/test_retention.py:180-188`:
-  ```python
+  ```text
       first = upload(c, png((9, 8, 7))).json()["id"]
       second = upload(c, png((9, 8, 7))).json()["id"]
       with server.db.tx() as s:
@@ -296,7 +296,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** bug. **Req:** S14.10.5 (asks the admin to type the count; each record keeps its row
   and shows *File pruned*).
 - **Code:** `web/server/src/moolakata/ui/settings.py:1136-1153`:
-  ```python
+  ```text
       with srv.db.read() as s:
           rows = retention.prunable(s, body.categories)
       if not rows:
@@ -309,7 +309,7 @@ done. C1 (OCR text crosses a link): documents.
           activity.record(
   ```
   and `receipts/retention.py:333-336` unlinks each file inside that transaction:
-  ```python
+  ```text
           p = file_path(receipts_dir, file_id)
           try:
               freed += p.stat().st_size
@@ -332,7 +332,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** bug. **Req:** S9.2 ("Identical files are stored once, found by the hash in the
   database").
 - **Code:** `web/server/src/moolakata/receipts/__init__.py:163-170`:
-  ```python
+  ```text
       any_row = s.scalars(select(Receipt).where(Receipt.sha256 == digest)).first()
       path = None
       if any_row is not None:
@@ -357,7 +357,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** not built. **Req:** S9.8.2.5.3 ("**merchant**: from the top lines, normalised by
   the user's payee rules (S2.7) and matched against payees they already have").
 - **Code:** `web/server/src/moolakata/receipts/reading.py:299-303`:
-  ```python
+  ```text
       if values["payee"]:
           # The merchant as the uploader's payee rules show it (S2.7.7, S9.8.2.5.3).
           from ..store.repos.rules import Rules
@@ -384,7 +384,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** not built. **Req:** S9.3 ("a receipt can be attached to … loans (a closing
   disclosure, a statement)").
 - **Code:** `web/server/src/moolakata/store/tables/receipts.py:76-79`:
-  ```python
+  ```text
       CheckConstraint(
           "kind IN ('transaction', 'account', 'item', 'expense', 'gift', 'donation')",
           name="kind",
@@ -411,7 +411,7 @@ done. C1 (OCR text crosses a link): documents.
   number of jobs at a time), S9.8.4.1 (an upload queues the receipt).
 - **Code:** `web/server/src/moolakata/receipts/reading.py:190-209`: the thread count is read
   once, when the reader starts at the unlock:
-  ```python
+  ```text
           with self.server.db.read() as s:
               n = self.count or settings.get(s, "receiptReadJobs")
   ```
@@ -435,7 +435,7 @@ done. C1 (OCR text crosses a link): documents.
   (a statement read to 30 pages within five minutes), S9.8.4.1.
 - **Code:** `web/server/src/moolakata/ui/settings.py:505-510` marks every receipt row
   `waiting`, statements kept on accounts included:
-  ```python
+  ```text
           for r in s.query(Receipt).filter(
               Receipt.deleted.is_(False), Receipt.filePrunedAt.is_(None)
           ):
@@ -463,7 +463,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** differs. **Req:** S9.8.2.1 ("A page counts as having a text layer when it gives at
   least 20 characters"), S9.8.2.2 (scanned PDFs are rendered and OCR'd).
 - **Code:** `web/server/src/moolakata/receipts/ocr.py:159-164`:
-  ```python
+  ```text
           texts = [pdf[i].get_textpage().get_text_range() for i in range(len(pdf))]
       finally:
           pdf.close()
@@ -487,7 +487,7 @@ done. C1 (OCR text crosses a link): documents.
   S9.7 ("a deleted receipt doesn't keep it from file pruning").
 - **Code:** `web/server/src/moolakata/receipts/retention.py:257-260` and `:308`, both
   `select(Receipt).where(Receipt.deleted == false())`:
-  ```python
+  ```text
       out = Storage(_dir_bytes(receipts_dir), Group(), Group(), Group(), 0)
       years: dict[int, dict[str, Group]] = defaultdict(lambda: defaultdict(Group))
       seen_files: set[str] = set()
@@ -569,7 +569,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** test gap. **Req:** S14.2 ("owned by the server's account, mode 0600 in a 0700
   directory").
 - **Code:** `web/server/src/moolakata/keys/files.py:102-104` builds it:
-  ```python
+  ```text
       path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
       tmp = path.with_suffix(".tmp")
       fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -590,12 +590,12 @@ done. C1 (OCR text crosses a link): documents.
   statements, Phase 1's D1-25), S1.3.3 (the statement "kept as a receipt on the account"),
   S10 (removing a share ends what it showed). **Needs the user**, with D1-25.
 - **Code:** `web/server/src/moolakata/ui/imports.py:925` (unit 01's, noted there for this unit):
-  ```python
+  ```text
       stored = receipts.store(s, srv, c.id, held.fileName or "statement.pdf", held.data)
   ```
   makes the importer the receipt's owner, and `receipts/__init__.py:226-227` gives an owner
   everything, whatever the account:
-  ```python
+  ```text
       if r.ownerId == user_id:
           return "owner"
   ```
@@ -618,7 +618,7 @@ done. C1 (OCR text crosses a link): documents.
 - **Kind:** security. **Req:** S9.8.4.2 ("restarted after a crash or a timeout, so a hostile or
   broken file cannot take down the server").
 - **Code:** `web/server/src/moolakata/receipts/reading.py:120-126`:
-  ```python
+  ```text
           head = json.dumps({"op": op, **params, "length": len(data)}).encode()
           try:
               stdin = self.proc.stdin
@@ -643,7 +643,7 @@ done. C1 (OCR text crosses a link): documents.
 
 - **Kind:** untraced. **Req:** —.
 - **Code:** `web/server/src/moolakata/parsing.py:141-146`:
-  ```python
+  ```text
   MAPPING_KEYS = {
       "delimiter",
       "skipRows",

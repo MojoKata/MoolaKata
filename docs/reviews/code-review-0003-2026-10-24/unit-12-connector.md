@@ -97,7 +97,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   posted as OFX"), S18.8, S3 (options).
 - **Code:** `connector/moolakata_connector/drivers/schwab.py:93-110`, `_trade`, writes an
   option trade as `BUYOPT`/`SELLOPT` with no `SHPERCTRCT`:
-  ```python
+  ```text
       tag = f"{side}OPT" if opt else f"{side}STOCK"
       ...
           f"<UNITS>{qty}<UNITPRICE>{_num(item.get('price'))}<COMMISSION>{fees}"
@@ -125,7 +125,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Kind:** wrong figure. **Severity:** Med. **Req:** S18.9.2, S3.2 (the four option trades),
   R3.2 and S1.3.3.8.2 (positions in a file are a check).
 - **Code:** `connector/moolakata_connector/drivers/schwab.py:100-104`:
-  ```python
+  ```text
       typ = (
           f"<OPT{side}TYPE>{'BUYTOOPEN' if qty > 0 else 'SELLTOCLOSE'}"
           if opt
@@ -155,7 +155,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   to a signed call is signed), §7 (`file-refused`).
 - **Code:** `web/server/src/moolakata/connector/files.py:77-97` reads the file outside the
   `try` that turns a `ReadError` into a refusal (`:100-108`):
-  ```python
+  ```text
       if ofx.looks_like_ofx(data):
           parsed = parsing.read_ofx(data)
       elif csvfile.looks_like_csv(data):
@@ -183,7 +183,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   any other refusal drops it), S18.5 (a report after each run), `connector-protocol.md` §7.
   Bears on D3-11.
 - **Code:** `connector/moolakata_connector/core.py:449-463`:
-  ```python
+  ```text
           for f in c.backlog:
               try:
                   out = self._post(c, f)
@@ -230,7 +230,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   no address field for one (`connections.js:224`, `${existing ? null : html`…), so `f.url`
   stays `''` (`:113`) and `hostOf('')` is `null`. The connector then compares the box's host
   with the settings' (`connector/moolakata_connector/core.py:381-384`):
-  ```python
+  ```text
           if host != self._binds(c):
               c.state, c.message = "failing", "the credentials were sealed for another server"
               return
@@ -273,7 +273,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   worked out from its identity key, never one an answer names"), `connector-protocol.md`
   §4.1.3. Review 2's K3 point 3, marked done.
 - **Code:** `connector/moolakata_connector/core.py:138`:
-  ```python
+  ```text
           return keys.short(out.get("connectorFingerprint", pairing.fingerprint))
   ```
   and MoolaKata's answer names one (`web/server/src/moolakata/connector/manage.py:204`,
@@ -293,7 +293,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Kind:** differs. **Severity:** Low. **Req:** S18.4.1 ("MoolaKata's address"),
   `connector-protocol.md` §1.1, §4.1; `operations.md` §8, `DEPLOY.md` §8.3. D3-14.
 - **Code:** `web/server/src/moolakata/connector/manage.py:72-73`:
-  ```python
+  ```text
   def own_address(s) -> str | None:
       return settings.get(s, "linkAddress") or settings.get(s, "publicUrl")
   ```
@@ -315,7 +315,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   credentials it held for that server and its sealing key"), S18.11.4 (**Unpair** "forgets
   the pairing and the credentials"), `connector-protocol.md` §4.1.4.
 - **Code:** `connector/moolakata_connector/core.py:150-160`:
-  ```python
+  ```text
           keys.forget(self.data / "pairing.json")
           ...
           if not self.vault.locked:
@@ -343,7 +343,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   on the network "can't unlock, lock, pair, unpair or reset it"), S18.3.2.
 - **Code:** `connector/moolakata_connector/vault.py:87-89, 102-106`: one counter and one wait
   for the page and the socket, checked before the words:
-  ```python
+  ```text
           if self.waiting():
               raise VaultError(f"wait {int(self.waiting() // 60) + 1} minutes: too many wrong words")
   ```
@@ -368,7 +368,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   standard output, so no log keeps them"), S18.3.3 (each wrong attempt logged with its
   address).
 - **Code:** `connector/moolakata_connector/page.py:383-384`:
-  ```python
+  ```text
           except VaultError as err:
               log.warning("wrong words on its page from %s: %s", self.client_address[0], err)
   ```
@@ -428,7 +428,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
   "confirms which box it took (by its time); MoolaKata then deletes that box"),
   `connector-protocol.md` §4.3.2.
 - **Code:** `connector/moolakata_connector/core.py:385-391`:
-  ```python
+  ```text
           if not isinstance(at, int | float) or at <= self.vault.sealed_at(c.id):
               c.state, c.message = "failing", "a box older than the credentials held was refused"
               return
@@ -456,7 +456,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Kind:** bug. **Severity:** Low. **Req:** S18.9.1 (OFX 1.0.2 client, signing in with the
   username and password), R1.9 is not at stake (no amounts).
 - **Code:** `connector/moolakata_connector/drivers/ofx_direct.py:106-110`:
-  ```python
+  ```text
       user, password = credentials.get("username", ""), credentials.get("password", "")
       ...
           f"<SIGNONMSGSRQV1><SONRQ><DTCLIENT>{_stamp(now)}<USERID>{user}<USERPASS>{password}"
@@ -477,7 +477,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 - **Kind:** differs. **Severity:** Low. **Req:** `connector-protocol.md` §7 (`too-large`,
   413, "a file over the upload size"), S16.8. DC-13.
 - **Code:** `web/server/src/moolakata/connector/files.py:66-69`:
-  ```python
+  ```text
       with srv.db.read() as s:
           limit = settings.get(s, "importMaxMb") * 1024 * 1024
       if len(data) > limit:
@@ -566,7 +566,7 @@ history, `b14b5cb` milestone 8 part 8 (K12 in part, K20, K21, K24, B30, B31, 11b
 
 - **Kind:** untraced. **Severity:** Low. **Req:** — (rejected idea 21, S18.9).
 - **Code:** `web/server/src/moolakata/ui/connections.py:116-122`:
-  ```python
+  ```text
           if kind is list:
               ...
                   errors.append(FieldError(f"settings.{key}", "settings-invalid", "A list of rules."))

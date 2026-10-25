@@ -90,7 +90,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 
 - **Kind:** differs. **Severity:** Low. **Req:** S17.2.1 (dependencies.md, the egress audit rule 1).
 - **Code:** `web/server/tests/test_no_network.py:15–30`, `:39–44`, `:78–79`:
-  ```python
+  ```text
   for table in ("/proc/net/tcp", "/proc/net/tcp6", "/proc/net/udp", "/proc/net/udp6"):
       ...
           remote = line.split()[2]
@@ -267,7 +267,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Kind:** differs. **Severity:** Low. **Req:** S17.8.5 ("writes it into the Dockerfile and
   the register (`docs/dependencies.md`, with the date and what the move picked up)").
 - **Code:** `web/server/src/moolakata/dev/base.py:64–66`:
-  ```python
+  ```text
   rec = record()
   rec["base"] = {"image": image, "digest": new, "movedAt": dt.date.today().isoformat()}
   AUDIT.write_text(json.dumps(rec, indent=2, sort_keys=True) + "\n")
@@ -308,7 +308,7 @@ None decided (the walk-through comes after assembly). Judged here against both r
 - **Kind:** security. **Severity:** Low (not withheld). **Req:** S17.2.1 ("scans the installed
   wheels and the vendored files for URLs … diffs the findings against the register").
 - **Code:** `web/server/src/moolakata/dev/audit.py:30–40`, `:55`:
-  ```python
+  ```text
   NOISE = re.compile(
       r"(^|\.)(w3\.org|github\.com|githubusercontent\.com|readthedocs\.io|python\.org|pypi\.org|"
       ...

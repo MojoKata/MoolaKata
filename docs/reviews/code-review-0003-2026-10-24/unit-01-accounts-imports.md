@@ -94,7 +94,7 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S1.3.2 ("a re-imported file adds only what is new"), S1.11.4 ("remove
   a duplicate"), S1.11.5, S18 (the Connector's daily downloads).
 - **Code:** `web/server/src/moolakata/store/repos/ledger.py:299-307`:
-  ```python
+  ```text
   existing = s.scalars(
       select(Transaction).where(
           Transaction.accountId == account.id, Transaction.deleted == false()
@@ -126,7 +126,7 @@ are in the table at the end.)
 - **Kind:** wrong figure. **Req:** S1.3.2 ("brokers' and exchanges' trade-history CSVs"), S2.1
   (the instrument classes), S4.3 (the sources by class).
 - **Code:** `web/server/src/moolakata/importers/csvfile.py:280-285`:
-  ```python
+  ```text
   out.securities[symbol] = Security(
       key=symbol,
       symbol=symbol,
@@ -159,7 +159,7 @@ are in the table at the end.)
   of its own, they are its holdings"), S1.3.3.8.1 ("An account kept by snapshots is one kept from
   statements only, with no trades of its own"), R3.2.
 - **Code:** `web/server/src/moolakata/ledger/lots.py:144-146`:
-  ```python
+  ```text
   def kept_by_snapshots(transactions: list, lots: list) -> bool:
       """No trades of its own: no transaction in an instrument, and no lot typed on its own."""
       return not any(t.instrumentId for t in transactions) and all(x.transactionId for x in lots)
@@ -186,7 +186,7 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S1.3.3.3 ("each line can be corrected"), S1.3.3.4 ("the first words of
   lines they left out, which are skipped next time").
 - **Code:** `web/server/src/moolakata/importers/statements.py:384-394`:
-  ```python
+  ```text
   kept_keys = {(r.date, r.description) for r in kept}
   ...
   for r in st.rows:
@@ -227,7 +227,7 @@ are in the table at the end.)
   institution as for banks"), S1.3.3.8.3 ("every line does [start left out] when the account is
   kept from files").
 - **Code:** `web/server/src/moolakata/ui/imports.py:793-802`:
-  ```python
+  ```text
   have = {(a.date, a.amount) for a in b.activity}
   left = [
       x.description
@@ -273,7 +273,7 @@ are in the table at the end.)
   balance, compared on its day), S1.3.2 (a broker's file's positions are a check "on that day"),
   S14.9.3 (the reason `_raw_dates` exists).
 - **Code:** `web/server/src/moolakata/importers/ofx.py:117`, `:130`, `:177`, `:186`:
-  ```python
+  ```text
   out.coveredFrom, out.coveredTo = _day(tl.dtstart), _day(tl.dtend)
   ...
   out.balances.append((_day(st.ledgerbal.dtasof), st.ledgerbal.balamt))
@@ -299,7 +299,7 @@ are in the table at the end.)
 - **Kind:** bug. **Req:** S1.11.2 ("a newest-first file, told by its dates, is read from the
   bottom up").
 - **Code:** `web/server/src/moolakata/importers/csvfile.py:303-304`:
-  ```python
+  ```text
   if len(out.rows) > 1 and out.rows[0].date > out.rows[-1].date:
       out.rows.reverse()
   ```
@@ -355,7 +355,7 @@ are in the table at the end.)
   used by the New account form (`:149-153`, sent as `keptBy: [f.keptBy]`) and the account's
   Settings (`screens/account.js:824, 838, 952-954, 972-975`); against
   `web/server/src/moolakata/ui/imports.py:512-526`:
-  ```python
+  ```text
   def snapshot_kept(s, account: Account) -> bool:
       ...
       if json.loads(account.keptBy or "[]") != ["statement"]:
@@ -385,7 +385,7 @@ are in the table at the end.)
   per institution").
 - **Code:** `web/server/src/moolakata/importers/csvfile.py:151-153` drops every trade column
   unless both a symbol and a quantity column were guessed:
-  ```python
+  ```text
   if not (mapping["symbol"] and mapping["quantity"]):
       for f in ("action", "symbol", "quantity", "price", "fees"):
           mapping[f] = None
@@ -420,7 +420,7 @@ are in the table at the end.)
   user … an upload is held in memory"), S13.7.5.3 ("uploads: 60 files an hour per user"), S16.8
   (imports up to 200 MB).
 - **Code:** `web/server/src/moolakata/ui/imports.py:46, 120-129`:
-  ```python
+  ```text
   HELD_MINUTES = 30
   ...
   _held[key] = Held(
@@ -443,7 +443,7 @@ are in the table at the end.)
 
 - **Kind:** test gap. **Req:** S2.3 ("changing it applies to later sales"), B7 of review 2.
 - **Code:** `web/server/src/moolakata/ui/accounts.py:578-582`:
-  ```python
+  ```text
   if "lotMethod" in changed:
       # Sales keep the method recorded on them; the wash sales are worked out again (S2.3).
       from .. import washes
@@ -510,7 +510,7 @@ are in the table at the end.)
 - **Kind:** wrong figure (dates). **Req:** S1.3.2 ("An id a file repeats is another row, kept
   beside the first"), S14.9.3.
 - **Code:** `web/server/src/moolakata/importers/ofx.py:62-71`:
-  ```python
+  ```text
   out: dict[str, dt.date] = {}
   for el in root.iter():
       ...
