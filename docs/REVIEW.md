@@ -378,9 +378,12 @@ estimates from it:
 | Phases 0 and 1 | 1 h 5 min | ~45 min | ~30 min |
 | Phase 2, quick | 3 h 22 min (13–19 min a unit) | ~1 h 15 min | ~45 min |
 | Assembly | 25 min (scripted, §10) | 25 min | 25 min |
+| Checking after assembly, and the sweep | 1 h 48 min (4–14 min a piece) | ~40 min | ~20 min |
 
 Review 3 took about 5.9M tokens: 1.0M for Phase 1, 4.4M for the units (about 370k each), and
-0.4M for the assembly and a sweep for hints at withheld claims.
+0.4M for the assembly and a sweep for hints at withheld claims. Its checking pass, run after
+assembly on Sonnet 5.5 (§14), took about 3.0M more: 125k to 310k a checker, about half a
+discovery unit's.
 
 The walk through the gate and the decisions comes on top, at the user's pace. A quick review
 saves about a third of Phase 2; an incremental one of a small delta, most of it.
