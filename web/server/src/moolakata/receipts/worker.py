@@ -114,12 +114,20 @@ def handle(job: dict, data: bytes) -> dict:
 
 
 def selftest(job: dict) -> dict:
-    """What the sandbox allows, for the tests and Settings › Receipts."""
-    try:
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).close()
-        network = True
-    except OSError:
-        network = False
+    """What the sandbox allows, for the tests and Settings › Receipts: a network socket, a local
+    one, and a signal to the server that started it (S9.8.4.2)."""
+
+    def allowed(fn) -> bool:
+        try:
+            fn()
+        except OSError:
+            return False
+        return True
+
+    network = allowed(lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM).close())
+    local = allowed(lambda: socket.socket(socket.AF_UNIX, socket.SOCK_STREAM).close())
+    pair = allowed(lambda: [x.close() for x in socket.socketpair()])
+    signal = allowed(lambda: os.kill(os.getppid(), 0))
     readable = False
     if job.get("path"):
         try:
@@ -127,7 +135,13 @@ def selftest(job: dict) -> dict:
             readable = True
         except OSError:
             pass
-    return {"network": network, "path": readable, "environment": sorted(os.environ)}
+    return {
+        "network": network,
+        "local": local or pair,
+        "signal": signal,
+        "path": readable,
+        "environment": sorted(os.environ),
+    }
 
 
 def main(argv: list[str]) -> int:

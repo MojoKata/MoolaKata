@@ -1,5 +1,6 @@
 """What a process gives up before it reads a file someone brought (requirements S9.8.4.2):
-network sockets, through a seccomp filter; the data directory and everything else it doesn't
+every socket, local ones included, and signals to any process but itself, through a seccomp
+filter; the data directory and everything else it doesn't
 need to read, through Landlock where the kernel has it (Linux 5.13 or later); and core dumps.
 And the server's own `non-dumpable` mark, so no other process of its account can read its
 memory. Linux only, through the C library: no dependency beyond the standard library."""
@@ -20,14 +21,26 @@ PR_SET_NO_NEW_PRIVS = 38
 SECCOMP_MODE_FILTER = 2
 SECCOMP_RET_ALLOW = 0x7FFF0000
 SECCOMP_RET_ERRNO = 0x00050000
-AF_UNIX = 1
 
-# (audit arch, socket, io_uring_setup) per machine; io_uring could open sockets past the filter.
+# Per machine: its audit arch; the calls refused outright (io_uring could open sockets past the
+# filter; a socket of any family, a socket pair, connecting and binding: the worker talks only
+# over the pipes it inherited); and the calls that send a signal, allowed only to itself, by
+# the process id in their first argument.
 ARCHES = {
-    "x86_64": (0xC000003E, 41, 425),
-    "aarch64": (0xC00000B7, 198, 425),
-    "arm64": (0xC00000B7, 198, 425),
+    "x86_64": {
+        "arch": 0xC000003E,
+        # io_uring_setup, socket, socketpair, connect, bind, tkill, pidfd_send_signal
+        "refused": (425, 41, 53, 42, 49, 200, 424),
+        # kill, tgkill, rt_sigqueueinfo, rt_tgsigqueueinfo
+        "own": (62, 234, 129, 297),
+    },
+    "aarch64": {
+        "arch": 0xC00000B7,
+        "refused": (425, 198, 199, 203, 200, 130, 424),
+        "own": (129, 131, 138, 240),
+    },
 }
+ARCHES["arm64"] = ARCHES["aarch64"]
 LANDLOCK_CREATE_RULESET, LANDLOCK_ADD_RULE, LANDLOCK_RESTRICT_SELF = 444, 445, 446
 LANDLOCK_CREATE_RULESET_VERSION = 1
 LANDLOCK_RULE_PATH_BENEATH = 1
@@ -66,39 +79,47 @@ def not_dumpable() -> bool:
     return True
 
 
-def _filter(arch: int, socket_nr: int, io_uring_nr: int) -> bytes:
-    """A seccomp program: socket() for anything but AF_UNIX, and io_uring, refused; a call
-    made under another architecture refused; everything else allowed."""
+def _filter(arch: int, refused: tuple[int, ...], own: tuple[int, ...], pid: int) -> bytes:
+    """A seccomp program: the `refused` calls refused; the `own` calls, which send a signal,
+    allowed only when their first argument is this process (`pid`); a call made under another
+    architecture refused; everything else allowed."""
 
     def ins(code: int, jt: int, jf: int, k: int) -> bytes:
         return struct.pack("HBBI", code, jt, jf, k)
 
     ld, jeq, ret = 0x20, 0x15, 0x06
-    return b"".join(
-        [
-            ins(ld, 0, 0, 4),  # 0: the call's architecture
-            ins(jeq, 1, 0, arch),  # 1: ours: on to 3
-            ins(ret, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM),  # 2
-            ins(ld, 0, 0, 0),  # 3: the call's number
-            ins(jeq, 0, 1, io_uring_nr),  # 4: io_uring_setup: refused at 5
-            ins(ret, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM),  # 5
-            ins(jeq, 1, 0, socket_nr),  # 6: socket: on to 8
-            ins(ret, 0, 0, SECCOMP_RET_ALLOW),  # 7: anything else
-            ins(ld, 0, 0, 16),  # 8: its first argument, the address family
-            ins(jeq, 0, 1, AF_UNIX),  # 9: a local socket: allowed at 10
-            ins(ret, 0, 0, SECCOMP_RET_ALLOW),  # 10
-            ins(ret, 0, 0, SECCOMP_RET_ERRNO | errno.EACCES),  # 11: a network socket
-        ]
-    )
+    deny = ins(ret, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM)
+    allow = ins(ret, 0, 0, SECCOMP_RET_ALLOW)
+    out = [
+        ins(ld, 0, 0, 4),  # the call's architecture
+        ins(jeq, 1, 0, arch),  # ours: on past the next
+        deny,
+        ins(ld, 0, 0, 0),  # the call's number
+    ]
+    # Each refused call: equal, on to the denial at the end of the list.
+    n_ref, n_own = len(refused), len(own)
+    for i, nr in enumerate(refused):
+        # Skip to `deny_at`: the rest of the refused, the own checks, and the allow before it.
+        out.append(ins(jeq, (n_ref - 1 - i) + n_own + 1 + 3, 0, nr))
+    for i, nr in enumerate(own):
+        out.append(ins(jeq, (n_own - 1 - i) + 1, 0, nr))  # to the pid check
+    out += [
+        allow,  # anything else
+        ins(ld, 0, 0, 16),  # a signal's target: the first argument's low 32 bits
+        ins(jeq, 0, 1, pid & 0xFFFFFFFF),  # this process: allowed
+        allow,
+        deny,
+    ]
+    return b"".join(out)
 
 
 def no_network() -> bool:
-    """A seccomp filter that refuses this process any network socket, for good: it can't be
-    lifted, and it passes to anything the process starts."""
+    """A seccomp filter that refuses this process any socket and any signal to another process,
+    for good: it can't be lifted, and it passes to anything the process starts."""
     found = ARCHES.get(platform.machine())
     if sys.platform != "linux" or found is None:
         return False
-    program = _filter(*found)
+    program = _filter(found["arch"], found["refused"], found["own"], os.getpid())
     buf = ctypes.create_string_buffer(program)
 
     class Fprog(ctypes.Structure):
