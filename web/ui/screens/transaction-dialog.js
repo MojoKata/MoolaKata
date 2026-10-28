@@ -188,7 +188,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               }}>Make a rule</button>`
               : null}
             <span class="spacer" style=${{ flex: 1 }}></span>
-            <button type="button" class="btn" onClick=${() => close()}>Cancel</button>
+            <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
       ${t
         ? html`

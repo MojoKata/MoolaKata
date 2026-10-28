@@ -63,6 +63,7 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | Id | Gap | Rank |
 |---|---|---|
 | **G23** | [Real receipt fixtures for the reader](gaps.md#g23-real-receipt-fixtures-for-the-reader--low) | Low |
+| **G25** | [Shares in the save](gaps.md#g25-shares-in-the-save--low) | Low |
 
 A new gap takes the next id after G24.
 

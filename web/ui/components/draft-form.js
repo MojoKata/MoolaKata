@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { useSubmit } from '../app/hooks.js';
+import { api } from '../api/client.js';
 import { Draft } from '../app/draft.js';
 import { Dialog, openDialog } from './dialog.js';
 import { guardForm } from '../app/guard.js';
@@ -77,9 +78,13 @@ function useSave(draft, o) {
 /**
  * What a save came to, above the buttons: its questions, listed together; a record changed
  * meanwhile; a refusal that belongs to no field (S12.15.4, S12.15.5).
- * @param {{ outcome: any, draft: Draft | null, what: string }} p
+ * `again` saves again once the password is given anew, for a save that needs it (S13.7.2).
+ * @param {{ outcome: any, draft: Draft | null, what: string, again?: () => void }} p
  */
-export function SaveOutcome({ outcome, draft, what }) {
+export function SaveOutcome({ outcome, draft, what, again }) {
+  if (outcome?.status === 'refused' && draft?.reauth && again) {
+    return html`<${Reauth} again=${again} />`;
+  }
   if (outcome?.status === 'asks') {
     return html`
       <div class="notice warn" role="alert">
@@ -109,6 +114,37 @@ export function SaveOutcome({ outcome, draft, what }) {
     `;
   }
   return null;
+}
+
+/**
+ * The password again, above the buttons, for a save that needs it (S13.7.2): given, the save
+ * goes again.
+ * @param {{ again: () => void }} p
+ */
+function Reauth({ again }) {
+  const [password, setPassword] = useState('');
+  const go = useSubmit(async () => {
+    await api.post('/session/reauth', { password });
+    setPassword('');
+    again();
+  });
+  return html`
+    <div class="notice warn" role="alert">
+      <${Icon} name="lock" />
+      <div class="grow">
+        <div>This needs your password again: it was given over 10 minutes ago.</div>
+        <div class="row" style=${{ alignItems: 'end' }}>
+          <${Field} label="Your password" id="reauth-password" error=${go.error?.message}>
+            <${Input} type="password" value=${password} onInput=${setPassword}
+              autocomplete="current-password" />
+            </${Field}>
+            <button type="button" class="btn sm" style=${{ marginBottom: '14px' }}
+              disabled=${go.busy || !password} onClick=${() =>
+                go.run().catch(() => {})}>Go on</button>
+            </div>
+            </div>
+            </div>
+  `;
 }
 
 /**
@@ -176,7 +212,8 @@ export function DraftDialog(p) {
         : !draft
         ? html`<${Loading} lines=${4} />`
         : p.children}
-      <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what} />
+      <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what}
+        again=${() => save.run().catch(() => {})} />
       <${FormError} error=${save.error} />
     </${Dialog}>
   `;
@@ -243,7 +280,8 @@ export function DraftForm(p) {
         : !draft
         ? html`<${Loading} lines=${4} />`
         : p.children}
-      <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what} />
+      <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what}
+        again=${() => save.run().catch(() => {})} />
       <${FormError} error=${save.error} />
       <div class="toolbar mt">
         ${p.extra?.({ save, outcome }) || null}<span class="spacer"></span>

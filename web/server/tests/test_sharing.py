@@ -59,10 +59,7 @@ def test_groups_via_and_the_higher_level(server, admin_client):
     assert carol["level"] == "none" and carol["via"][0]["level"] == "read"
     assert c["carol"].get("/ui/api/accounts").json()["items"][0]["level"] == "read"
     assert c["bob"].get("/ui/api/accounts").json()["items"][0]["level"] == "write"
-    r = admin_client.patch(
-        f"/ui/api/groups/{g['id']}", json={"active": False}, headers={"If-Match": str(g["version"])}
-    )
-    assert r.status_code == 200
+    saved(change(admin_client, "Group", g, active=False))
     assert (
         c["carol"].get("/ui/api/accounts").json()["items"] == []
     )  # an inactive group gives nothing
@@ -88,11 +85,7 @@ def test_inactive_users_cant_be_added(server, admin_client):
     row = next(
         x for x in admin_client.get("/ui/api/users").json()["items"] if x["username"] == "carol"
     )
-    admin_client.patch(
-        f"/ui/api/users/{row['id']}",
-        json={"active": False},
-        headers={"If-Match": str(row["version"])},
-    )
+    saved(change(admin_client, "User", row, active=False))
     r = c["alice"].put(
         f"/ui/api/shares/account/{a['id']}", json={"users": {u["carol"].id: "read"}, "groups": {}}
     )

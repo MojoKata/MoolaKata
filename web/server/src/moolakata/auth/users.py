@@ -332,6 +332,7 @@ def invite(
     email: str,
     groups: list[str],
     sex: str | None = None,
+    user_id: str | None = None,
 ) -> User:
     from .. import people
 
@@ -348,7 +349,7 @@ def invite(
         errors.append(FieldError("groupIds", "group-unknown", "Choose existing groups."))
     _raise(errors)
     u = User(
-        id=ids.new_id("User"),
+        id=user_id or ids.new_id("User"),
         personId=people.for_new_user(s, display_name.strip(), sex, by.id).id,
         username=username,
         displayName=display_name.strip(),
@@ -711,10 +712,12 @@ def members(s: Db, group_id: str) -> list[str]:
     )
 
 
-def create_group(s: Db, by: User, name: str, member_ids: list[str]) -> Group:
+def create_group(
+    s: Db, by: User, name: str, member_ids: list[str], group_id: str | None = None
+) -> Group:
     name = (name or "").strip()
     _raise(_name_problems(name, "name") + _group_name_taken(s, name, None))
-    g = Group(id=ids.new_id("Group"), name=name)
+    g = Group(id=group_id or ids.new_id("Group"), name=name)
     s.add(g)
     s.flush()
     set_members(s, by, g, member_ids, record=False)

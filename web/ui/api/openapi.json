@@ -4523,28 +4523,6 @@
         "title": "Deleted[ReceiptDetail]",
         "type": "object"
       },
-      "Deleted_UserRow_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UserRow"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[UserRow]",
-        "type": "object"
-      },
       "Deleted_WithdrawalsView_": {
         "properties": {
           "deleted": {
@@ -8041,49 +8019,6 @@
         "title": "Gone",
         "type": "object"
       },
-      "GroupChange": {
-        "additionalProperties": false,
-        "properties": {
-          "active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active"
-          },
-          "memberIds": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Memberids"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          }
-        },
-        "title": "GroupChange",
-        "type": "object"
-      },
       "GroupGrant": {
         "additionalProperties": false,
         "properties": {
@@ -8148,6 +8083,37 @@
         ],
         "title": "GroupPoint",
         "type": "object"
+      },
+      "GroupRecord": {
+        "additionalProperties": false,
+        "description": "A group as an admin's draft saves it (S10.2): the built-in admins keep their name.",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "memberIds": {
+            "items": {
+              "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "User"
+            },
+            "title": "Memberids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "GroupRecord",
+        "type": "object",
+        "x-entity": "Group"
       },
       "GroupRow": {
         "additionalProperties": false,
@@ -18872,6 +18838,8 @@
               "fund-missing",
               "gap-invalid",
               "goal-invalid",
+              "group-built-in",
+              "group-delete",
               "group-inactive",
               "group-unknown",
               "holiday-invalid",
@@ -19093,6 +19061,7 @@
               "target-invalid",
               "term-invalid",
               "theme-invalid",
+              "token-fixed",
               "token-refused",
               "too-large",
               "too-long",
@@ -19116,8 +19085,10 @@
               "until-before-from",
               "upload-gone",
               "uploads-in-flight",
+              "user-delete",
               "user-inactive",
               "user-unknown",
+              "username-fixed",
               "username-invalid",
               "username-taken",
               "valuation-fixed",
@@ -19269,6 +19240,8 @@
                   "fund-missing",
                   "gap-invalid",
                   "goal-invalid",
+                  "group-built-in",
+                  "group-delete",
                   "group-inactive",
                   "group-unknown",
                   "holiday-invalid",
@@ -19490,6 +19463,7 @@
                   "target-invalid",
                   "term-invalid",
                   "theme-invalid",
+                  "token-fixed",
                   "token-refused",
                   "too-large",
                   "too-long",
@@ -19513,8 +19487,10 @@
                   "until-before-from",
                   "upload-gone",
                   "uploads-in-flight",
+                  "user-delete",
                   "user-inactive",
                   "user-unknown",
+                  "username-fixed",
                   "username-invalid",
                   "username-taken",
                   "valuation-fixed",
@@ -25203,6 +25179,39 @@
         "title": "TokenPassword",
         "type": "object"
       },
+      "TokenRecord": {
+        "additionalProperties": false,
+        "description": "A token as a draft makes it (S10.9): made once, its secret in the save's answer alone;\nnever changed; revoked by deleting it.",
+        "properties": {
+          "days": {
+            "default": 90,
+            "title": "Days",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TokenItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scope": {
+            "default": "all",
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TokenRecord",
+        "type": "object",
+        "x-entity": "Token"
+      },
       "TransferAnswer": {
         "additionalProperties": false,
         "properties": {
@@ -26525,60 +26534,6 @@
         "title": "UpcomingOut",
         "type": "object"
       },
-      "UserChange": {
-        "additionalProperties": false,
-        "properties": {
-          "active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active"
-          },
-          "displayName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Displayname"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "groupIds": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Groupids"
-          }
-        },
-        "title": "UserChange",
-        "type": "object"
-      },
       "UserGrant": {
         "additionalProperties": false,
         "properties": {
@@ -26622,6 +26577,59 @@
         ],
         "title": "UserGrant",
         "type": "object"
+      },
+      "UserRecord": {
+        "additionalProperties": false,
+        "description": "A user as an admin's draft saves them (S10.1): invited when made; their email changes\nonly while the invitation is pending.",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "groupIds": {
+            "items": {
+              "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Group"
+            },
+            "title": "Groupids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sex"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "username",
+          "email"
+        ],
+        "title": "UserRecord",
+        "type": "object",
+        "x-entity": "User"
       },
       "UserRow": {
         "additionalProperties": false,
@@ -33938,54 +33946,6 @@
         ]
       }
     },
-    "/ui/api/groups/{group_id}": {
-      "patch": {
-        "operationId": "change_group_ui_api_groups__group_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "group_id",
-            "required": true,
-            "schema": {
-              "title": "Group Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GroupChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Group",
-        "tags": [
-          "users"
-        ]
-      }
-    },
     "/ui/api/holidays": {
       "get": {
         "operationId": "list_holidays_ui_api_holidays_get",
@@ -37046,44 +37006,6 @@
           }
         },
         "summary": "Make Token",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/ui/api/profile/tokens/{token_id}": {
-      "delete": {
-        "operationId": "revoke_token_ui_api_profile_tokens__token_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "token_id",
-            "required": true,
-            "schema": {
-              "title": "Token Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Revoke Token",
         "tags": [
           "tokens"
         ]
@@ -42431,54 +42353,6 @@
         ]
       }
     },
-    "/ui/api/users/{user_id}": {
-      "patch": {
-        "operationId": "change_user_ui_api_users__user_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "title": "User Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change User",
-        "tags": [
-          "users"
-        ]
-      }
-    },
     "/ui/api/users/{user_id}/invitation": {
       "post": {
         "operationId": "resend_ui_api_users__user_id__invitation_post",
@@ -42510,10 +42384,10 @@
         ]
       }
     },
-    "/ui/api/users/{user_id}/two-step": {
-      "delete": {
-        "description": "An admin's reset, the last resort when the app and the recovery codes are lost\n(S10.1.6): two-step is off, and the user's sessions end. Made against the user's version.",
-        "operationId": "reset_two_step_ui_api_users__user_id__two_step_delete",
+    "/ui/api/users/{user_id}/two-step/reset": {
+      "post": {
+        "description": "An admin's reset, the last resort when the app and the recovery codes are lost\n(S10.1.6): two-step is off, and the user's sessions end. An action, the password given\nagain.",
+        "operationId": "reset_two_step_ui_api_users__user_id__two_step_reset_post",
         "parameters": [
           {
             "in": "path",
@@ -42530,7 +42404,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted_UserRow_"
+                  "$ref": "#/components/schemas/UserRow"
                 }
               }
             },

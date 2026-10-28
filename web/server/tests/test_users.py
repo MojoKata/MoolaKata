@@ -3,6 +3,7 @@ import email
 import re
 
 from conftest import make_user, new_client, sign_in
+from edits import change, saved
 from sqlalchemy import select
 
 from moolakata import settings
@@ -177,14 +178,8 @@ def test_a_change_of_privilege_gives_a_new_token(server, admin_client):
     with server.db.read() as s:
         admins = accounts.admins_group(s)
     groups = admin_client.get("/ui/api/groups").json()["items"]
-    version = next(g for g in groups if g["id"] == admins.id)["version"]
-    members = next(g for g in groups if g["id"] == admins.id)["memberIds"]
-    r = admin_client.patch(
-        f"/ui/api/groups/{admins.id}",
-        json={"memberIds": [*members, bob.id]},
-        headers={"If-Match": str(version)},
-    )
-    assert r.status_code == 200, r.text
+    g = next(g for g in groups if g["id"] == admins.id)
+    saved(change(admin_client, "Group", g, memberIds={"add": [bob.id], "remove": []}))
     r = c.get("/ui/api/session")
     assert r.json()["user"]["admin"] is True
     assert c.cookies.get("mk_session") != before
@@ -340,10 +335,7 @@ def test_deactivation_ends_sessions_and_reactivation_can_be_asked(admin_client, 
     ivy = make_user(server, "ivy")
     c = sign_in(server, "ivy")
     row = next(u for u in admin_client.get("/ui/api/users").json()["items"] if u["id"] == ivy.id)
-    r = admin_client.patch(
-        f"/ui/api/users/{ivy.id}", json={"active": False}, headers={"If-Match": str(row["version"])}
-    )
-    assert r.status_code == 200 and r.json()["active"] is False
+    assert saved(change(admin_client, "User", row, active=False))["active"] is False
     assert c.get("/ui/api/session").status_code == 401
     with new_client(server) as again:
         r = again.post("/ui/api/session", json={"login": "ivy", "password": PW})
@@ -362,9 +354,7 @@ def test_a_reactivation_request_answers_the_same_whatever_the_account(admin_clie
     ivy = make_user(server, "ivy")
     make_user(server, "jo")
     row = next(u for u in admin_client.get("/ui/api/users").json()["items"] if u["id"] == ivy.id)
-    admin_client.patch(
-        f"/ui/api/users/{ivy.id}", json={"active": False}, headers={"If-Match": str(row["version"])}
-    )
+    saved(change(admin_client, "User", row, active=False))
     asked = "/ui/api/reactivation-requests"
     with new_client(server) as c:
         answers = [
@@ -405,24 +395,14 @@ def test_the_last_admin_stays(admin_client, server):
         admin = s.scalars(select(User).where(User.username == "admin")).one()
         admins = accounts.admins_group(s)
     row = next(u for u in admin_client.get("/ui/api/users").json()["items"] if u["id"] == admin.id)
-    r = admin_client.patch(
-        f"/ui/api/users/{admin.id}",
-        json={"active": False},
-        headers={"If-Match": str(row["version"])},
-    )
-    assert r.status_code == 409 and r.json()["code"] == "last-admin"
+    r = change(admin_client, "User", row, active=False)
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "last-admin"
     g = next(g for g in admin_client.get("/ui/api/groups").json()["items"] if g["id"] == admins.id)
-    r = admin_client.patch(
-        f"/ui/api/groups/{admins.id}",
-        json={"memberIds": []},
-        headers={"If-Match": str(g["version"])},
-    )
+    r = change(admin_client, "Group", g, memberIds={"add": [], "remove": g["memberIds"]})
     assert r.status_code == 409
-    for change in ({"name": "Bosses"}, {"active": False}):
-        r = admin_client.patch(
-            f"/ui/api/groups/{admins.id}", json=change, headers={"If-Match": str(g["version"])}
-        )
-        assert r.status_code == 409 and r.json()["code"] == "built-in"
+    for fields in ({"name": "Bosses"}, {"active": False}):
+        r = change(admin_client, "Group", g, **fields)
+        assert r.status_code == 422 and r.json()["errors"][0]["code"] == "group-built-in"
 
 
 def test_groups(admin_client, server):
@@ -432,17 +412,11 @@ def test_groups(admin_client, server):
     g = r.json()
     r = admin_client.post("/ui/api/groups", json={"name": "household"})
     assert r.json()["errors"][0]["code"] == "name-taken"
-    r = admin_client.patch(
-        f"/ui/api/groups/{g['id']}",
-        json={"name": "Family", "memberIds": [a.id, b.id]},
-        headers={"If-Match": str(g["version"])},
-    )
-    assert r.status_code == 200
-    assert sorted(r.json()["memberIds"]) == sorted([a.id, b.id])
-    r = admin_client.patch(
-        f"/ui/api/groups/{g['id']}", json={"name": "Stale"}, headers={"If-Match": str(g["version"])}
-    )
-    assert r.status_code == 412 and r.json()["current"]["name"] == "Family"
+    out = saved(change(admin_client, "Group", g, name="Family",
+                       memberIds={"add": [b.id], "remove": []}))  # fmt: skip
+    assert sorted(out["memberIds"]) == sorted([a.id, b.id])
+    r = change(admin_client, "Group", g, name="Stale")
+    assert r.status_code == 412 and r.json()["current"][0]["current"]["name"] == "Family"
     rows = {u["username"]: u for u in admin_client.get("/ui/api/users").json()["items"]}
     assert rows["ben"]["groupIds"] == [g["id"]]
 
@@ -544,16 +518,9 @@ def test_making_an_admin_needs_the_password_again(admin_client, server):
     ivy = next(u for u in listed if u["username"] == "ivy")
     stale(server)
     # A change that leaves Admins alone asks nothing.
-    r = admin_client.patch(
-        f"/ui/api/users/{ivy['id']}", json={"displayName": "Ivy L."}, headers={"If-Match": "1"}
-    )
-    assert r.status_code == 200, r.text
-    r = admin_client.patch(
-        f"/ui/api/users/{ivy['id']}",
-        json={"groupIds": [admins]},
-        headers={"If-Match": str(r.json()["version"])},
-    )
-    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    ivy = saved(change(admin_client, "User", ivy, displayName="Ivy L."))
+    r = change(admin_client, "User", ivy, groupIds={"add": [admins], "remove": []})
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
     r = admin_client.post(
         "/ui/api/users",
         json={

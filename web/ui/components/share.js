@@ -24,6 +24,10 @@ export function ShareDialog({ close, kind, id, name }) {
   const [users, setUsers] = useState(/** @type {Record<string, string>} */ ({}));
   const [groups, setGroups] = useState(/** @type {Record<string, string>} */ ({}));
   const [receipts, setReceipts] = useState(/** @type {Record<string, boolean>} */ ({}));
+  // The grants as read: the dialog holds changes while they differ (S12.15.6). A share set is
+  // replaced whole by its own PUT (G25).
+  const [read, setRead] = useState('');
+  const now = JSON.stringify({ users, groups, receipts });
   useEffect(() => {
     api.get(`/shares/${kind}/${id}`).then((v) => {
       setView(v);
@@ -40,6 +44,9 @@ export function ShareDialog({ close, kind, id, name }) {
       setGroups(Object.fromEntries(v.groups.map((/** @type {any} */ g) => [g.id, g.level])));
     });
   }, [kind, id]);
+  useEffect(() => {
+    if (view && !read) setRead(now);
+  }, [view, now]);
   const save = useSubmit(async (/** @type {boolean} */ too = false) => {
     // Sharing with a linked server asks for the password again (S13.7.2).
     const out = await withReauth(() =>
@@ -66,11 +73,11 @@ export function ShareDialog({ close, kind, id, name }) {
     ),
   }));
   return html`
-    <${Dialog} title=${`Share “${name}”`} close=${close}
+    <${Dialog} title=${`Share “${name}”`} close=${close} changed=${() => !!read && now !== read}
       onSubmit=${() => save.run().catch(() => {})}
       note="When someone loses access, it ends on their next request."
       footer=${html`
-        <button type="button" class="btn" onClick=${() => close()}>Cancel</button>
+        <button type="button" class="btn" data-cancel>Cancel</button>
         <button class="btn primary" disabled=${save.busy || !view}>Save</button>
       `}>
         ${!view ? html`<${Loading} />` : html`

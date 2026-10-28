@@ -122,6 +122,11 @@ export const FIELDS = {
     income: {"type": "money", "nullable": true},
     dafCounted: {"type": "text"},
   },
+  GroupRecord: {
+    name: {"type": "text"},
+    active: {"type": "bool"},
+    memberIds: {"type": "list", "items": {"type": "ref", "prefix": "User"}, "set": true},
+  },
   ImprovementRecord: {
     date: {"type": "date"},
     description: {"type": "text"},
@@ -271,6 +276,16 @@ export const FIELDS = {
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
   },
+  TokenItem: {
+    kind: {"type": "text"},
+    id: {"type": "text"},
+  },
+  TokenRecord: {
+    name: {"type": "text"},
+    scope: {"type": "text"},
+    items: {"type": "list", "items": {"type": "json", "schema": "TokenItem"}},
+    days: {"type": "int"},
+  },
   TxnRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
     date: {"type": "date"},
@@ -293,6 +308,14 @@ export const FIELDS = {
     cleared: {"type": "bool"},
     tags: {"type": "list", "items": {"type": "text"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},
+  },
+  UserRecord: {
+    displayName: {"type": "text"},
+    username: {"type": "text"},
+    email: {"type": "text"},
+    sex: {"type": "text", "nullable": true},
+    active: {"type": "bool"},
+    groupIds: {"type": "list", "items": {"type": "ref", "prefix": "Group"}, "set": true},
   },
   ValuationRecord: {
     date: {"type": "date"},

@@ -23,3 +23,20 @@ addresses beyond what the merchant prints, under `web/server/tests/fixtures/rece
 `expected.json` of date, total and merchant each; the floor set from the first run on them and
 recorded in the test; the synthetic test kept beside it for pipeline regressions. Built in
 milestone 7 part 9 (S17.9.7). **Waits on:** the receipts themselves.
+
+## G25: Shares in the save — Low
+
+**What is named:** S12.15 says every form that changes records edits a draft and saves through
+one request (S13.8.11), and S13.8.1 that a kind the save takes has no PUT of its own.
+
+**What is not:** how an item's shares fit that. The share dialog saves the item's grants as a
+whole with `PUT /ui/api/shares/{kind}/{id}`, made against the sum of their versions: a level
+per user and group, a linked server's people grouped under it with **Include receipts**, and,
+for a portfolio, **Share these accounts too**, which shares accounts at read beside it. It asks
+before discarding its changes as a draft's dialog does.
+
+**Proposed:** keep the whole-set PUT, since a share set exists once for its item, as a loan's
+terms or a wallet's keys do (S13.8.1); or move each grant into the save as a `Share` record
+(its level, Include receipts on a linked user's), with Share these accounts too as an action
+after it. **Open:** which, and whether the dialog's draft should then also hold a portfolio's
+accounts shared too.

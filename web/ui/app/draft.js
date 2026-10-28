@@ -581,6 +581,8 @@ export class Draft {
   asks = [];
   /** A refusal that belongs to no record. @type {string | null} */
   formError = null;
+  /** Whether the last save was refused for want of the password again (S13.7.2). */
+  reauth = false;
   #lastBody = '';
   #key = '';
 
@@ -786,6 +788,7 @@ export class Draft {
       [this.#lastBody, this.#key] = [text, crypto.randomUUID()];
     }
     this.formError = null;
+    this.reauth = false;
     try {
       const answer = await this.post(body, this.#key);
       this.asks = [];
@@ -799,6 +802,8 @@ export class Draft {
         return { status: 'asks', asks: this.asks };
       }
       if (!err?.status) throw e;
+      this.reauth = err.code === 'reauth-required' ||
+        (err.errors || []).some((/** @type {any} */ x) => x.code === 'reauth-required');
       for (const x of err.errors || []) {
         const r = x.id ? this.get(x.id) : null;
         if (r) r.refuse(x.field, x.message);

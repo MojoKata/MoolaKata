@@ -244,7 +244,26 @@ def seed(base: str) -> Household:
     h.extra.update(gift_plans(h))
     h.extra.update(tax_book(h))
     h.extra.update(accounts(h))
+    h.extra.update(people(h))
     return h
+
+
+def people(h: Household) -> dict:
+    """Bob, invited into a Household group, and an access token of the admin's."""
+    # Invitations carry links built from the server's public URL (S16.1).
+    v = h.c.get("/ui/api/settings").json()["version"]
+    r = h.c.patch("/ui/api/settings", json={"publicUrl": h.base}, headers={"If-Match": str(v)})
+    made(r)
+    bob = made(
+        h.c.post(
+            "/ui/api/users",
+            json={"displayName": "Bob Griffin", "username": "bob", "email": "bob@home.lan",
+                  "sex": "male"},
+        )
+    )  # fmt: skip
+    group = made(h.c.post("/ui/api/groups", json={"name": "Household", "memberIds": [bob["id"]]}))
+    made(h.c.post("/ui/api/profile/tokens", json={"name": "Claude on my laptop", "days": 30}))
+    return {"bob": bob, "group": group}
 
 
 def accounts(h: Household) -> dict:

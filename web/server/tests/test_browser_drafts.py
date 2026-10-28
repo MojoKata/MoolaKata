@@ -69,6 +69,13 @@ def giving_of(h: Household) -> tuple:
             c.get("/ui/api/gifts").json()["items"])  # fmt: skip
 
 
+def users_of(h: Household) -> tuple:
+    """The users and groups as an admin reads them; the admin's own row moves with each
+    sign-in, so it is left out."""
+    users = [u for u in h.c.get("/ui/api/users").json()["items"] if u["username"] != "admin"]
+    return users, h.c.get("/ui/api/groups").json()["items"]
+
+
 def book_of(h: Household) -> dict:
     """The tax book as read: its dependents and documents with it."""
     return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()
@@ -128,6 +135,20 @@ FORMS = [
         'h3:has-text("Form 1040") button:has-text("Edit")',
         'h3:has-text("Form 1040") button:has-text("Edit")',
         filings,
+    ),
+    Form(
+        "a user invited into a group",
+        lambda h: "/ui/users",
+        'tr:has-text("Bob Griffin") button:has-text("Edit")',
+        'tr:has-text("Bob Griffin") button:has-text("Edit")',
+        users_of,
+    ),
+    Form(
+        "a group with a member",
+        lambda h: "/ui/users",
+        'tr.click:has-text("Household")',
+        'tr.click:has-text("Household")',
+        users_of,
     ),
     Form(
         "a gift planned for an occasion, with its cost",
@@ -585,5 +606,37 @@ def test_a_donations_acknowledgement_is_kept_with_save(browser, household):
     wait(page, ".dialog", problems, state="detached")
     (d,) = giving_of(h)[2]
     assert d["acknowledged"]
+    assert problems == []
+    page.close()
+
+
+def test_cancel_asks_before_discarding_too(browser, household):
+    """S12.15.6: a dialog's Cancel asks as Escape does."""
+    h = household
+    path = f"/ui/accounts/{h.checking['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Grand Hotel")')
+    page.click('button.linklike:has-text("Grand Hotel")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#f-memo", "not kept")
+    page.click('.dialog footer button:has-text("Cancel")')
+    wait(page, "text=Discard your changes?", problems)
+    page.click('button:has-text("Discard")')
+    wait(page, ".dialog", problems, state="detached")
+    assert txn_of(h, "bill")["memo"] != "not kept"
+    assert problems == []
+    page.close()
+
+
+def test_a_new_access_token_shows_its_secret_once(browser, household):
+    h = household
+    page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("New token")')
+    page.click('button:has-text("New token")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#f-token-name", "Reports")
+    page.click(".dialog footer button.primary")
+    wait(page, "text=Your new access token", problems)
+    assert page.locator(".dialog code.mono").inner_text().startswith("mkt_")
+    names = [t["name"] for t in h.c.get("/ui/api/profile/tokens").json()["items"]]
+    assert "Reports" in names
     assert problems == []
     page.close()

@@ -5,6 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import remove
 from test_accounts import new_account
 
 from moolakata import clock, tokens
@@ -67,7 +68,7 @@ def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice
         return alice.post("/ui/api/profile/tokens", json={"name": "t", "days": 30}).json()
 
     one = make()
-    assert alice.delete(f"/ui/api/profile/tokens/{one['token']['id']}").status_code == 200
+    assert remove(alice, "Token", one["token"]).status_code == 200
     assert alice.get("/ui/api/profile/tokens").json()["items"] == []
     two = make()
     with server.db.read() as s:
@@ -93,7 +94,7 @@ def test_someone_elses_token_cant_be_revoked(server, alice):
     t = alice.post("/ui/api/profile/tokens", json={"name": "mine"}).json()["token"]
     make_user(server, "bob")
     bob = sign_in(server, "bob")
-    assert bob.delete(f"/ui/api/profile/tokens/{t['id']}").status_code == 404
+    assert remove(bob, "Token", t).status_code == 404
     assert bob.get("/ui/api/profile/tokens").json()["items"] == []
 
 

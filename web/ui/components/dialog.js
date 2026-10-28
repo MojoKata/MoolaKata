@@ -71,7 +71,8 @@ export function DialogHost() {
 /**
  * The frame every dialog draws in.
  * `changed`, for a dialog that edits a draft (S12.15.6), says whether it holds changes not
- * saved: then Escape, ✕ or the browser's Back ask before closing, a click on the dimmed
+ * saved: then Escape, ✕, Cancel (a footer button marked data-cancel) or the browser's Back ask
+ * before closing, a click on the dimmed
  * content does nothing, and leaving the page brings the browser's own question.
  * @param {{ title: string, wide?: boolean, guide?: string, close: (v?: any) => void,
  *   footer?: any, note?: any, children: any, onSubmit?: () => void,
@@ -170,9 +171,12 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
                 leave()}><${Icon} name="x" /></button></header>
             <div class="body">${children}</div>
             ${footer !== null
-              ? html`<footer>${
-                note ? html`<span class="note">${note}</span>` : null
-              }${footer}</footer>`
+              ? html`<footer onClick=${(/** @type {any} */ e) => {
+                // Cancel (a button marked data-cancel) asks first too, as Escape does.
+                if (!e.target.closest?.('[data-cancel]')) return;
+                e.preventDefault();
+                leave();
+              }}>${note ? html`<span class="note">${note}</span>` : null}${footer}</footer>`
               : null}
           </form>
         ${asking

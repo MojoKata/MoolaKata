@@ -24,12 +24,18 @@ def _hash(secret: str) -> str:
 
 
 def make(
-    s: Session, user_id: str, name: str, scope: str, items: list[dict], days: int
+    s: Session,
+    user_id: str,
+    name: str,
+    scope: str,
+    items: list[dict],
+    days: int,
+    token_id: str | None = None,
 ) -> tuple[AccessToken, str]:
     """A new token and the text shown once."""
     secret = secrets.token_urlsafe(32)
     t = AccessToken(
-        id=ids.new_id("Token"),
+        id=token_id or ids.new_id("Token"),
         userId=user_id,
         name=name,
         scope=scope,
