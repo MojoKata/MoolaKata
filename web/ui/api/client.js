@@ -53,7 +53,7 @@ export function whenSignedOut(fn) {
 /**
  * @param {string} method
  * @param {string} path
- * @param {{ body?: any, version?: number, params?: Record<string, any>, idempotent?: boolean,
+ * @param {{ body?: any, version?: number, params?: Record<string, any>, idempotent?: boolean | string,
  *   form?: FormData }} [opts]
  */
 async function call(method, path, opts = {}) {
@@ -77,7 +77,12 @@ async function call(method, path, opts = {}) {
     url.search = '?' + new URLSearchParams({ path: inner });
   }
   if (opts.version !== undefined) headers['If-Match'] = `"${opts.version}"`;
-  if (opts.idempotent) headers['Idempotency-Key'] = crypto.randomUUID();
+  if (opts.idempotent) {
+    // A key of the caller's (a draft's retry keeps its own, S13.8.8), or a new one.
+    headers['Idempotency-Key'] = typeof opts.idempotent === 'string'
+      ? opts.idempotent
+      : crypto.randomUUID();
+  }
   const r = await fetch(url.pathname + url.search, {
     method,
     headers,
@@ -100,7 +105,7 @@ async function call(method, path, opts = {}) {
 export const api = {
   /** @param {string} path @param {Record<string, any>} [params] */
   get: (path, params) => call('GET', path, { params }),
-  /** @param {string} path @param {any} [body] @param {{ idempotent?: boolean, version?: number, params?: Record<string, any> }} [o] */
+  /** @param {string} path @param {any} [body] @param {{ idempotent?: boolean | string, version?: number, params?: Record<string, any> }} [o] */
   post: (path, body, o = {}) => call('POST', path, { body, ...o }),
   /** @param {string} path @param {any} body @param {number} [version] @param {Record<string, any>} [params] */
   put: (path, body, version, params) => call('PUT', path, { body, version, params }),

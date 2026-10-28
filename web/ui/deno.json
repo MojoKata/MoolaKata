@@ -38,7 +38,8 @@
       "tests/"
     ],
     "exclude": [
-      "api/openapi.json"
+      "api/openapi.json",
+      "api/fields.js"
     ]
   },
   "lint": {

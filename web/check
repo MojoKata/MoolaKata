@@ -39,6 +39,10 @@ done
 step "deno check" deno check --quiet --config "$WEB/ui/deno.json" "${js_dirs[@]}"
 step "deno lint" deno lint --quiet --config "$WEB/ui/deno.json"
 step "deno fmt" deno fmt --check --quiet --config "$WEB/ui/deno.json"
+# The browser modules' unit tests (S17.5): types are checked above, with the vendored
+# libraries' declarations, so the run itself loads their code through the tests' import map.
+step "deno test" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
+  --import-map "$WEB/ui/tests/import_map.json" "$WEB/ui/tests/"
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
 if [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check

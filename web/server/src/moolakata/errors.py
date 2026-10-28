@@ -36,6 +36,7 @@ class FieldError:
     field: str | None
     code: str
     message: str
+    id: str | None = None  # the record, in a save's refusals (S13.8.11.4)
 
 
 @dataclass
@@ -86,11 +87,18 @@ def problem_response(
         "detail": detail,
         "code": code,
         "errorId": error_id,
-        "errors": [{"field": e.field, "code": e.code, "message": e.message} for e in errors],
+        "errors": [_field_error(e) for e in errors],
     }
     if extra:
         body.update(extra)
     return JSONResponse(body, status_code=status, headers=headers or {}, media_type=PROBLEM)
+
+
+def _field_error(e: FieldError) -> dict:
+    out = {"field": e.field, "code": e.code, "message": e.message}
+    if e.id is not None:
+        out["id"] = e.id
+    return out
 
 
 def install(app: FastAPI) -> None:
