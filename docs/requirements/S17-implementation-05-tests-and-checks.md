@@ -27,6 +27,9 @@
       rest goes through, and the failure is recorded and alerted.
    5. **Limits that fit**: every size a setting allows (S16) is checked against every path
       it travels (a request, an answer, a link's file, an upload in flight).
+   6. **A hostile worker**: code run under the reader's worker's sandbox (S9.8.4) tries what
+      it must not do (a socket of any kind, a local listener of its own account, a signal to
+      another process), and each attempt is refused.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it.
