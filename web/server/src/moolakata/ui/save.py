@@ -50,11 +50,18 @@ class Ctx:
     confirmed: frozenset[tuple[str, str]]
     record_id: str = ""
     _after: dict[str, Callable[[], None]] = field(default_factory=dict)
+    _verify: dict[str, tuple[str, Callable[[], None]]] = field(default_factory=dict)
 
     def ask(self, code: str, message: str) -> None:
         """Go on only when the person confirmed this question about this record."""
         if (code, self.record_id) not in self.confirmed:
             raise Asked(code, self.record_id, message)
+
+    def verify(self, key: str, fn: Callable[[], None]) -> None:
+        """Run `fn` once after every op, however many ops ask for the same `key`: a check that
+        spans records (a transaction's splits add up to it), its refusals named by the record
+        that asked first."""
+        self._verify.setdefault(key, (self.record_id, fn))
 
     def after(self, key: str, fn: Callable[[], None]) -> None:
         """Run `fn` once after the commit, however many ops ask for the same `key`: a live
@@ -200,6 +207,43 @@ def _apply(ctx: Ctx, op: Op, kind: Kind) -> None:
         kind.delete(ctx, record)
 
 
+@dataclass
+class _Outcome:
+    """What the ops came to so far: refusals with their statuses, stale records, questions."""
+
+    errors: list[FieldError] = field(default_factory=list)
+    statuses: set[int] = field(default_factory=set)
+    stale: list[dict] = field(default_factory=list)
+    asks: list[dict] = field(default_factory=list)
+
+    def attempt(self, s: Session, record_id: str, entity: str, fn: Callable[[], None]) -> None:
+        """Run `fn` in a savepoint, so one refusal doesn't spoil the checks of the rest."""
+        point = s.begin_nested()
+        try:
+            fn()
+            s.flush()
+            point.commit()
+        except Asked as a:
+            point.rollback()
+            self.asks.append({"code": a.code, "id": a.record_id, "message": a.message})
+        except Problem as p:
+            point.rollback()
+            if p.status == 412:
+                self.stale.append({"entity": entity, "id": record_id, **exactjson.marked(p.extra)})
+                return
+            self.statuses.add(p.status)
+            if p.errors:
+                self.errors += [
+                    FieldError(e.field, e.code, e.message, e.id or record_id) for e in p.errors
+                ]
+            else:
+                self.errors.append(FieldError(None, p.code, p.detail, record_id))
+
+    def refuse(self, field_: str, code: str, message: str, record_id: str) -> None:
+        self.errors.append(FieldError(field_, code, message, record_id))
+        self.statuses.add(422)
+
+
 def apply(s: Session, c: Caller, request: Request, body: SaveIn) -> tuple[list[Saved], Ctx]:
     """Apply the ops in `s`, raising one Problem for everything refused (S13.8.11.4, .5)."""
     if len(body.ops) > MAX_OPS:
@@ -207,42 +251,25 @@ def apply(s: Session, c: Caller, request: Request, body: SaveIn) -> tuple[list[S
     ctx = Ctx(s, c, request, frozenset((x.code, x.id) for x in body.confirm))
     # Foreign keys are checked at the commit, so the order of the ops can't break a reference.
     s.execute(text("PRAGMA defer_foreign_keys = ON"))
-    errors: list[FieldError] = []
-    statuses: set[int] = set()
-    stale: list[dict] = []
-    asks: list[dict] = []
+    out = _Outcome()
     seen: set[str] = set()
     for op in sorted(body.ops, key=lambda o: ORDER[o.op]):
         kind = KINDS.get(op.entity)
         if kind is None:
-            message = "Not a kind of record a dialog saves."
-            errors.append(FieldError("entity", "entity-unknown", message, op.id))
-            statuses.add(422)
+            out.refuse("entity", "entity-unknown", "Not a kind of record a dialog saves.", op.id)
             continue
         if op.id in seen:
-            errors.append(FieldError("id", "id-repeated", "One change per record.", op.id))
-            statuses.add(422)
+            out.refuse("id", "id-repeated", "One change per record.", op.id)
             continue
         seen.add(op.id)
         ctx.record_id = op.id
-        point = s.begin_nested()
-        try:
-            _apply(ctx, op, kind)
-            s.flush()
-            point.commit()
-        except Asked as a:
-            point.rollback()
-            asks.append({"code": a.code, "id": a.record_id, "message": a.message})
-        except Problem as p:
-            point.rollback()
-            if p.status == 412:
-                stale.append({"entity": op.entity, "id": op.id, **exactjson.marked(p.extra)})
-                continue
-            statuses.add(p.status)
-            if p.errors:
-                errors += [FieldError(e.field, e.code, e.message, e.id or op.id) for e in p.errors]
-            else:
-                errors.append(FieldError(None, p.code, p.detail, op.id))
+        out.attempt(s, op.id, op.entity, lambda op=op, kind=kind: _apply(ctx, op, kind))
+    # Checks that span records, once every op has gone in; noise after a refusal or a stale.
+    if not (out.stale or out.errors):
+        for record_id, fn in list(ctx._verify.values()):
+            ctx.record_id = record_id
+            out.attempt(s, record_id, "", fn)
+    errors, statuses, stale, asks = out.errors, out.statuses, out.stale, out.asks
     if stale:
         raise Problem(
             412,

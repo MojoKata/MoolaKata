@@ -303,10 +303,6 @@ class InBudget(Model):
     canWrite: bool
 
 
-class LeaveOutIn(Model):
-    leftOut: bool
-
-
 class CardLine(Model):
     """A card's payment line in an envelope budget (S7.13.2)."""
 
@@ -1172,44 +1168,6 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
                 )
             )
         return out
-
-
-@router.put("/budgets/{budget_id}/leave-outs/{txn_id}", response_model=InBudget)
-def leave_out(
-    budget_id: str, txn_id: str, body: LeaveOutIn, request: Request, c: Caller = Depends(caller)
-):
-    """Leave a transaction out of this budget, or count it again (S7.3.5)."""
-    from ..store.entities.budgets import BudgetLeaveOut
-
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id, "write")
-        t = s.get(Transaction, txn_id)
-        if t is None or t.deleted or t.accountId not in budgets.account_ids(s, b, c.id):
-            raise Problem(404, "not-found", "No such transaction in this budget.")
-        row = s.get(BudgetLeaveOut, (b.id, t.id))
-        if body.leftOut and row is None:
-            s.add(BudgetLeaveOut(budgetId=b.id, transactionId=t.id, createdAt=clock.now()))
-        elif body.leftOut and row.deleted:
-            row.restore()
-        elif not body.leftOut and row is not None and not row.deleted:
-            row.mark_deleted(c.id)
-        activity.record(
-            s,
-            "budget.left-out" if body.leftOut else "budget.counted-again",
-            actor=c.id,
-            subject_kind="budget",
-            subject_id=b.id,
-            owner=b.ownerId,
-        )
-        s.flush()
-        tr = budgets.tree(s)
-        return InBudget(
-            budgetId=b.id,
-            name=b.name,
-            countsAs=tr.label(t.categoryId) if t.categoryId in tr.by_id else None,
-            leftOut=body.leftOut,
-            canWrite=lvl in ("owner", "write"),
-        )
 
 
 def _projection_ok(s, b: Budget, projection_id: str) -> bool:

@@ -7,6 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import remove, saved
 from test_accounts import new_account
 from test_options import opt
 
@@ -54,9 +55,7 @@ def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(alice):
     gains = alice.get("/ui/api/positions").json()["closed"]
     assert gains == [], "nothing was sold"
     split = r.json()
-    alice.delete(
-        f"/ui/api/transactions/{split['id']}", headers={"If-Match": f'"{split["version"]}"'}
-    )
+    saved(remove(alice, "Txn", split))
     assert held(alice) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
 

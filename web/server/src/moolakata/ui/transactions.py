@@ -29,16 +29,16 @@ from ..store.repos import ledger as repo
 from ..store.tables.accounts import TXN_KINDS
 from ..store.types import Cents
 from ..taxes import closed
+from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
+    IdOf,
     Model,
     Money,
     Page,
     Paging,
     Quantity,
     check,
-    gone,
     if_match,
     stale,
 )
@@ -80,6 +80,7 @@ class SplitIn(Model):
 
 class SplitOut(SplitIn):
     id: str
+    version: int
 
 
 class PickIn(Model):
@@ -116,6 +117,8 @@ class TxnOut(Model):
     reimbursable: Money | None  # to be paid back, and by whom (S2.9)
     owedBy: str | None
     paidBack: Money  # what paired deposits have paid back of it and its splits
+    costBasis: Money | None = None  # a transfer-in's, as typed with it (S2.6)
+    leftOutOf: list[str] | None = None  # the budgets it is left out of: on one read alone
     splits: list[SplitOut]
     tags: list[str]
     receipts: int
@@ -146,27 +149,6 @@ class TxnIn(Model):
     splits: list[SplitIn] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     picks: list[PickIn] = Field(default_factory=list)
-
-
-class TxnChange(Model):
-    date: dt.date | None = None
-    kind: str | None = None
-    amount: Money | None = None
-    payee: str | None = None
-    memo: str | None = None
-    categoryId: str | None = None
-    quantity: Quantity | None = None
-    price: Quantity | None = None
-    fees: Money | None = None
-    dividendType: str | None = None
-    contributionYear: int | None = None
-    contributionSource: str | None = None
-    costBasis: Money | None = None
-    cleared: bool | None = None
-    reimbursable: Money | None = None
-    owedBy: str | None = None
-    splits: list[SplitIn] | None = None
-    tags: list[str] | None = None
 
 
 class Categorise(Model):
@@ -273,11 +255,18 @@ def shape(
     splits: dict[str, list[Split]] = {}
     if ids_:
         for sp in s.scalars(
-            select(Split).where(Split.transactionId.in_(ids_), Split.deleted == false())
+            select(Split)
+            .where(Split.transactionId.in_(ids_), Split.deleted == false())
+            .order_by(Split.id)
         ):
             splits.setdefault(sp.transactionId, []).append(sp)
     tags = _tags(s, user_id, ids_)
     paid = reimbursements.paid_back(s, ids_)
+    moved_in = [t.id for t in rows if t.kind == "transfer-in"]
+    bases = {
+        lot.transactionId: lot.costBasis
+        for lot in s.scalars(select(Lot).where(Lot.transactionId.in_(moved_in)))
+    }
     from .. import receipts as receipt_store
 
     attached = receipt_store.receipts_of(s, ids_)
@@ -320,17 +309,8 @@ def shape(
                 reimbursable=t.reimbursable,
                 owedBy=t.owedBy,
                 paidBack=paid.get(t.id, Decimal(0)),
-                splits=[
-                    SplitOut(
-                        id=x.id,
-                        categoryId=x.categoryId,
-                        amount=x.amount,
-                        memo=x.memo,
-                        reimbursable=x.reimbursable,
-                        owedBy=x.owedBy,
-                    )
-                    for x in splits.get(t.id, [])
-                ],
+                costBasis=bases.get(t.id),
+                splits=[_split_read(x) for x in splits.get(t.id, [])],
                 tags=tags.get(t.id, []),
                 receipts=len(attached.get(t.id, [])),
                 level=levels[t.accountId],
@@ -479,7 +459,7 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
                 errors.append(
                     FieldError(f"splits.{i}.categoryId", "category-unknown", "Choose a category.")
                 )
-    if body.splits and body.amount is not None:
+    if getattr(body, "splits", None) and body.amount is not None:
         total = sum((sp.amount for sp in body.splits), Decimal(0))
         if total != body.amount:
             errors.append(
@@ -591,6 +571,96 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
     return None
 
 
+def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
+    """A transaction made, with its lot, picks, splits and tags; the closed-year question
+    (S2.8) refused unless confirmed, or asked through `ask` for a draft's save."""
+    a, level = access.account(s, c.id, body.accountId, "write")
+    investing = atypes.investing(a.type)
+    _raise(_check(s, body, body.kind, investing))
+    guard = closed.Guard(s, a, confirm, c.id, ask=ask) if investing else None
+    inst_id = _instrument(s, body, a)
+    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out") and (
+        not inst_id or not body.quantity
+    ):
+        raise refuse(
+            "symbol" if not inst_id else "quantity",
+            "trade-incomplete",
+            "A trade needs its instrument and quantity.",
+        )
+    t = Transaction(
+        id=txn_id,
+        accountId=a.id,
+        date=body.date,
+        kind=body.kind,
+        amount=body.amount,
+        payee=(body.payee or "").strip() or None,
+        payeeRaw=(body.payee or "").strip() or None,
+        memo=body.memo,
+        categoryId=body.categoryId,
+        instrumentId=inst_id,
+        quantity=body.quantity,
+        price=body.price,
+        fees=body.fees,
+        dividendType=body.dividendType,
+        splitRatio=getattr(body, "splitRatio", None),
+        lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+        contributionYear=body.contributionYear
+        if body.contributionYear
+        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
+        contributionSource=body.contributionSource,
+        reimbursable=body.reimbursable,
+        owedBy=(body.owedBy or "").strip() or None,
+        cleared=bool(getattr(body, "cleared", False)),
+        createdById=c.id,
+    )
+    s.add(t)
+    s.flush()
+    if inst_id and body.kind in ("buy", "reinvest", "transfer-in"):
+        basis = body.costBasis if body.kind == "transfer-in" else -body.amount
+        s.add(
+            Lot(
+                id=ids.new_id("Lot"),
+                accountId=a.id,
+                instrumentId=inst_id,
+                transactionId=t.id,
+                acquiredOn=body.date,
+                quantity=body.quantity,
+                costBasis=basis,
+                basisMissing=basis is None,
+            )
+        )
+    picks = getattr(body, "picks", None) or []
+    if body.kind == "sell" and picks:
+        t.lotMethod = "specific"
+        for p in picks:
+            lot = s.get(Lot, p.lotId)
+            if lot is None or lot.accountId != a.id or lot.instrumentId != inst_id:
+                raise refuse("picks", "lot-unknown", "Choose lots of this holding.")
+            s.add(
+                LotPick(
+                    saleId=t.id,
+                    lotId=lot.id,
+                    quantity=p.quantity,
+                    createdAt=clock.now(),
+                )
+            )
+    _set_splits(s, t, getattr(body, "splits", None) or [], c.id)
+    _set_tags(s, t, c.id, body.tags)
+    repo.match_transfer(s, t, a.ownerId)
+    s.flush()
+    if t.kind == "split" and inst_id:
+        # Its open options follow a whole-number split (S3.10.1).
+        from ..options import adjust
+
+        adjust.with_split(s, c.id, a, t)
+        s.flush()
+    if inst_id:
+        washes.recompute(s, a.ownerId)
+    if guard is not None:
+        guard.check()
+    return t, a, level
+
+
 @router.post("/transactions", response_model=TxnOut, status_code=201)
 def create_transaction(
     body: TxnIn, request: Request, c: Caller = Depends(caller), confirm: bool = False
@@ -602,88 +672,7 @@ def create_transaction(
         status, payload, headers = again
         return JSONResponse(payload, status_code=status, headers=headers)
     with srv.db.tx() as s:
-        a, level = access.account(s, c.id, body.accountId, "write")
-        investing = atypes.investing(a.type)
-        _raise(_check(s, body, body.kind, investing))
-        guard = closed.Guard(s, a, confirm, c.id) if investing else None
-        inst_id = _instrument(s, body, a)
-        if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out") and (
-            not inst_id or not body.quantity
-        ):
-            raise refuse(
-                "symbol" if not inst_id else "quantity",
-                "trade-incomplete",
-                "A trade needs its instrument and quantity.",
-            )
-        t = Transaction(
-            id=ids.new_id("Txn"),
-            accountId=a.id,
-            date=body.date,
-            kind=body.kind,
-            amount=body.amount,
-            payee=(body.payee or "").strip() or None,
-            payeeRaw=(body.payee or "").strip() or None,
-            memo=body.memo,
-            categoryId=body.categoryId,
-            instrumentId=inst_id,
-            quantity=body.quantity,
-            price=body.price,
-            fees=body.fees,
-            dividendType=body.dividendType,
-            splitRatio=body.splitRatio,
-            lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
-            contributionYear=body.contributionYear
-            if body.contributionYear
-            else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
-            contributionSource=body.contributionSource,
-            reimbursable=body.reimbursable,
-            owedBy=(body.owedBy or "").strip() or None,
-            createdById=c.id,
-        )
-        s.add(t)
-        s.flush()
-        if inst_id and body.kind in ("buy", "reinvest", "transfer-in"):
-            basis = body.costBasis if body.kind == "transfer-in" else -body.amount
-            s.add(
-                Lot(
-                    id=ids.new_id("Lot"),
-                    accountId=a.id,
-                    instrumentId=inst_id,
-                    transactionId=t.id,
-                    acquiredOn=body.date,
-                    quantity=body.quantity,
-                    costBasis=basis,
-                    basisMissing=basis is None,
-                )
-            )
-        if body.kind == "sell" and body.picks:
-            t.lotMethod = "specific"
-            for p in body.picks:
-                lot = s.get(Lot, p.lotId)
-                if lot is None or lot.accountId != a.id or lot.instrumentId != inst_id:
-                    raise refuse("picks", "lot-unknown", "Choose lots of this holding.")
-                s.add(
-                    LotPick(
-                        saleId=t.id,
-                        lotId=lot.id,
-                        quantity=p.quantity,
-                        createdAt=clock.now(),
-                    )
-                )
-        _set_splits(s, t, body.splits, c.id)
-        _set_tags(s, t, c.id, body.tags)
-        repo.match_transfer(s, t, a.ownerId)
-        s.flush()
-        if t.kind == "split" and inst_id:
-            # Its open options follow a whole-number split (S3.10.1).
-            from ..options import adjust
-
-            adjust.with_split(s, c.id, a, t)
-            s.flush()
-        if inst_id:
-            washes.recompute(s, a.ownerId)
-        if guard is not None:
-            guard.check()
+        t, a, level = _make(s, c, body, ids.new_id("Txn"), confirm)
         out = shape(s, c.id, [t], {a.id: level})[0]
     payload = out.model_dump(mode="json")
     headers = {"Location": f"/ui/api/transactions/{t.id}"}
@@ -718,145 +707,135 @@ def get_transaction(txn_id: str, request: Request, c: Caller = Depends(caller)):
         t = s.get(Transaction, txn_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "Not found")
-        a, level = access.account(s, c.id, t.accountId)
-        return shape(s, c.id, [t], {a.id: level})[0]
+        return _read_one(s, c, t)
 
 
-@router.patch("/transactions/{txn_id}", response_model=TxnOut)
-def change_transaction(
-    txn_id: str,
-    body: TxnChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-    confirm: bool = False,
-):
-    sent = body.model_fields_set
-    with server(request).db.tx() as s:
-        t, a, level = _editable(s, c, txn_id, version, confirm)
-        guard = closed.Guard(s, a, confirm, c.id)
-        kind = body.kind if "kind" in sent and body.kind else t.kind
-        checked = body.model_copy(update={"amount": body.amount if "amount" in sent else t.amount})
-        _raise(_check(s, checked, kind, atypes.investing(a.type)))
-        changed = []
-        for f in (
-            "date",
-            "kind",
-            "amount",
-            "payee",
-            "memo",
-            "categoryId",
-            "quantity",
-            "price",
-            "fees",
-            "dividendType",
-            "contributionYear",
-            "contributionSource",
-            "cleared",
-            "reimbursable",
-            "owedBy",
-        ):
-            if f in sent:
-                value = getattr(body, f)
-                if f in ("date", "kind", "amount", "cleared") and value is None:
-                    continue
-                if getattr(t, f) != value:
-                    setattr(t, f, value)
-                    changed.append(f)
-        if "kind" in changed:
-            # Made a sale: the account's method now is the one in force for it (S2.3).
-            t.lotMethod = (t.lotMethod or a.lotMethod) if t.kind in lots.DISPOSALS else None
-        if "amount" in changed or "date" in changed:
-            repo.unlink_transfer(s, t)
-            t.amountWas = None
-        if "costBasis" in sent:
-            for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
+def _read_one(s: Session, c: Caller, t: Transaction) -> TxnOut:
+    """A transaction as one read gives it, with the budgets it is left out of: what a dialog's
+    draft starts from (S12.15.1)."""
+    a, level = access.account(s, c.id, t.accountId)
+    out = shape(s, c.id, [t], {a.id: level})[0]
+    out.leftOutOf = _left_out_of(s, c, t)
+    return out
+
+
+# The fields a change sets on the transaction itself.
+CHANGED = (
+    "date",
+    "kind",
+    "amount",
+    "payee",
+    "memo",
+    "categoryId",
+    "quantity",
+    "price",
+    "fees",
+    "dividendType",
+    "contributionYear",
+    "contributionSource",
+    "cleared",
+    "reimbursable",
+    "owedBy",
+)
+
+
+def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[str]) -> list[str]:
+    """The fields `sent` set on a transaction, its lot following its trade; what changed."""
+    kind = body.kind if "kind" in sent and body.kind else t.kind
+    checked = body.model_copy(update={"amount": body.amount if "amount" in sent else t.amount})
+    _raise(_check(s, checked, kind, atypes.investing(a.type)))
+    changed = []
+    for f in CHANGED:
+        if f in sent:
+            value = getattr(body, f)
+            if f in ("date", "kind", "amount", "cleared") and value is None:
+                continue
+            if getattr(t, f) != value:
+                setattr(t, f, value)
+                changed.append(f)
+    if "kind" in changed:
+        # Made a sale: the account's method now is the one in force for it (S2.3).
+        t.lotMethod = (t.lotMethod or a.lotMethod) if t.kind in lots.DISPOSALS else None
+    if "amount" in changed or "date" in changed:
+        repo.unlink_transfer(s, t)
+        t.amountWas = None
+    if "costBasis" in sent:
+        for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
+            if lot.costBasis != body.costBasis:
                 lot.costBasis = body.costBasis
                 lot.basisMissing = body.costBasis is None
-            changed.append("costBasis")
-        if t.kind in ("buy", "reinvest", "transfer-in") and {"quantity", "amount", "date"} & set(
-            changed
-        ):
-            # The lot follows its trade; a transfer-in's basis is the one typed with it.
-            for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
-                lot.quantity, lot.acquiredOn = t.quantity, t.date
-                if t.kind != "transfer-in":
-                    lot.costBasis = -t.amount
-        if body.splits is not None and "splits" in sent:
-            _set_splits(s, t, body.splits, c.id)
-            changed.append("splits")
-        if body.tags is not None and "tags" in sent:
-            _set_tags(s, t, c.id, body.tags)
-        if changed and changed != ["cleared"]:
-            activity.record(
-                s,
-                "transaction.updated",
-                actor=c.id,
-                subject_kind="account",
-                subject_id=a.id,
-                owner=a.ownerId,
-                detail={"fields": changed, "count": 1},
-            )
-        s.flush()
-        if t.instrumentId:
-            washes.recompute(s, a.ownerId)
-        guard.check()
-        return shape(s, c.id, [t], {a.id: level})[0]
+                changed.append("costBasis")
+    if t.kind in ("buy", "reinvest", "transfer-in") and {"quantity", "amount", "date"} & set(
+        changed
+    ):
+        # The lot follows its trade; a transfer-in's basis is the one typed with it.
+        for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
+            lot.quantity, lot.acquiredOn = t.quantity, t.date
+            if t.kind != "transfer-in":
+                lot.costBasis = -t.amount
+    if getattr(body, "splits", None) is not None and "splits" in sent:
+        _set_splits(s, t, body.splits, c.id)
+        changed.append("splits")
+    if body.tags is not None and "tags" in sent:
+        _set_tags(s, t, c.id, body.tags)
+    return changed
 
 
-@router.delete("/transactions/{txn_id}", response_model=Deleted[None])
-def delete_transaction(
-    txn_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-    confirm: bool = False,
-):
-    with server(request).db.tx() as s:
-        t, a, _ = _editable(s, c, txn_id, version, confirm)
-        guard = closed.Guard(s, a, confirm, c.id)
-        if t.kind in ("split", "option-adjust"):
-            from ..options import adjust
-
-            adjust.undo(s, c.id, t)
-        if t.kind in ("symbol-change", "spin-off", "merger"):
-            from .. import corporate
-
-            corporate.undo(s, c.id, t)
-        end = s.get(Transaction, t.optionTransactionId) if t.optionTransactionId else None
-        if end is not None and end.kind in ("assign", "exercise") and not end.deleted:
-            raise refuse(
-                None,
-                "made-by-an-assignment",
-                f"This trade came with the {'assignment' if end.kind == 'assign' else 'exercise'}"
-                f" of {end.payee or 'an option'}: delete that, and this goes with it.",
-            )
-        if t.kind in ("assign", "exercise"):
-            # Its stock trades and the deliverable's cash go with it (S3.4); the dialog asks.
-            for leg in s.scalars(
-                select(Transaction).where(
-                    Transaction.optionTransactionId == t.id, Transaction.deleted == false()
-                )
-            ):
-                repo.unlink_transfer(s, leg)
-                leg.mark_deleted(c.id)
-        repo.unlink_transfer(s, t)
-        t.mark_deleted(c.id)
-        if t.instrumentId:
-            s.flush()
-            washes.recompute(s, a.ownerId)
-        guard.check()
+def _changed(s: Session, c: Caller, a: Account, fields: list[str]) -> None:
+    if fields and fields != ["cleared"]:
         activity.record(
             s,
-            "transaction.deleted",
+            "transaction.updated",
             actor=c.id,
             subject_kind="account",
             subject_id=a.id,
             owner=a.ownerId,
-            detail={"count": 1},
+            detail={"fields": fields, "count": 1},
         )
+
+
+def _remove(s: Session, c: Caller, t: Transaction, a: Account) -> None:
+    """A transaction deleted, with what goes with it: an assignment's stock trades, a split's
+    or a corporate action's adjustments undone."""
+    if t.kind in ("split", "option-adjust"):
+        from ..options import adjust
+
+        adjust.undo(s, c.id, t)
+    if t.kind in ("symbol-change", "spin-off", "merger"):
+        from .. import corporate
+
+        corporate.undo(s, c.id, t)
+    end = s.get(Transaction, t.optionTransactionId) if t.optionTransactionId else None
+    if end is not None and end.kind in ("assign", "exercise") and not end.deleted:
+        raise refuse(
+            None,
+            "made-by-an-assignment",
+            f"This trade came with the {'assignment' if end.kind == 'assign' else 'exercise'}"
+            f" of {end.payee or 'an option'}: delete that, and this goes with it.",
+        )
+    if t.kind in ("assign", "exercise"):
+        # Its stock trades and the deliverable's cash go with it (S3.4); the dialog asks.
+        for leg in s.scalars(
+            select(Transaction).where(
+                Transaction.optionTransactionId == t.id, Transaction.deleted == false()
+            )
+        ):
+            repo.unlink_transfer(s, leg)
+            leg.mark_deleted(c.id)
+    repo.unlink_transfer(s, t)
+    t.mark_deleted(c.id)
+    if t.instrumentId:
         s.flush()
-        return Deleted[None](deleted=gone(t))
+        washes.recompute(s, a.ownerId)
+    activity.record(
+        s,
+        "transaction.deleted",
+        actor=c.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+        detail={"count": 1},
+    )
 
 
 @router.post("/transactions/categorise", response_model=Done)
@@ -1080,3 +1059,300 @@ def keep_off_chain(
         t.offChainAt, t.offChainMissedAt, t.offChainKeptAt = None, None, clock.now()
         s.flush()
         return shape(s, c.id, [t], {a.id: level})[0]
+
+
+# ---------- transactions and their splits in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+def _set_of():
+    """A set held by the record, sent as what to add and take away (S13.8.11.1)."""
+    return Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+
+
+class TxnRecord(Model):
+    """A transaction as a draft saves it: its splits are records of their own (`Split`), so
+    each keeps its id, and with it what pays it back (S2.9). `symbol` names a new trade's
+    instrument; `leftOutOf` lists the budgets it is left out of (S7.3.5)."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    date: dt.date
+    kind: str = "withdrawal"
+    amount: Money
+    payee: str | None = None
+    memo: str | None = None
+    categoryId: IdOf("Cat") | None = None  # type: ignore[valid-type]
+    symbol: str | None = None
+    instrumentId: IdOf("Instr") | None = None  # type: ignore[valid-type]
+    quantity: Quantity | None = None
+    price: Quantity | None = None
+    fees: Money | None = None
+    dividendType: str | None = None
+    contributionYear: int | None = None
+    contributionSource: str | None = None
+    costBasis: Money | None = None
+    reimbursable: Money | None = None
+    owedBy: str | None = None
+    cleared: bool = False
+    tags: list[str] = _set_of()
+    leftOutOf: list[IdOf("Bdgt")] = _set_of()  # type: ignore[valid-type]
+
+
+class SplitRecord(Model):
+    """A part of a transaction's amount with its own category (S2.6), as a draft saves it."""
+
+    transactionId: IdOf("Txn")  # type: ignore[valid-type]
+    categoryId: IdOf("Cat") | None = None  # type: ignore[valid-type]
+    amount: Money
+    memo: str | None = None
+    reimbursable: Money | None = None  # to be paid back (S2.9)
+    owedBy: str | None = None
+
+
+def _left_out_of(s: Session, c: Caller, t: Transaction) -> list[str]:
+    """The budgets the caller sees that leave the transaction out."""
+    from ..store.entities.budgets import BudgetLeaveOut
+
+    seen = {b.id for b, _ in access.visible_budgets(s, c.id)}
+    return sorted(
+        x.budgetId
+        for x in s.scalars(
+            select(BudgetLeaveOut).where(
+                BudgetLeaveOut.transactionId == t.id, BudgetLeaveOut.deleted == false()
+            )
+        )
+        if x.budgetId in seen
+    )
+
+
+def _set_left_out(s: Session, c: Caller, t: Transaction, was: list[str], now: list[str]):
+    """Leave the transaction out of budgets, or count it again: each a budget the caller
+    writes that counts its account (S7.3.5)."""
+    from .. import budgets
+    from ..store.entities.budgets import BudgetLeaveOut
+
+    errors = []
+    for budget_id in sorted(set(was) ^ set(now)):
+        out = budget_id in now
+        try:
+            b, _ = access.budget(s, c.id, budget_id, "write")
+        except Problem:
+            errors.append(FieldError("leftOutOf", "budget-unknown", "Not a budget you can change."))
+            continue
+        if t.accountId not in budgets.account_ids(s, b, c.id):
+            errors.append(FieldError("leftOutOf", "not-in-budget", f"{b.name} doesn't count it."))
+            continue
+        row = s.get(BudgetLeaveOut, (b.id, t.id))
+        if out and row is None:
+            s.add(BudgetLeaveOut(budgetId=b.id, transactionId=t.id, createdAt=clock.now()))
+        elif out and row.deleted:
+            row.restore()
+        elif not out and row is not None and not row.deleted:
+            row.mark_deleted(c.id)
+        activity.record(
+            s,
+            "budget.left-out" if out else "budget.counted-again",
+            actor=c.id,
+            subject_kind="budget",
+            subject_id=b.id,
+            owner=b.ownerId,
+        )
+    _raise(errors)
+
+
+def _reconciled(ctx, t: Transaction) -> None:
+    """A transaction in a reconciled period changes only once that is confirmed (S2.7)."""
+    r = ctx.s.get(Reconciliation, t.reconciliationId) if t.reconciliationId else None
+    if r is not None and r.finishedAt is not None:
+        a = ctx.s.get(Account, t.accountId)
+        when = f"{r.statementDate:%b} {r.statementDate.day}, {r.statementDate.year}"
+        ctx.ask(
+            "reconciled-period",
+            f"It is in a reconciled period of {a.name} (statement of {when}).",
+        )
+
+
+def _parts_add_up(ctx, t: Transaction) -> None:
+    """Once every op is in: a split transaction's parts add up to it, and it has no category
+    of its own (S2.6)."""
+
+    def check() -> None:
+        if t.deleted:
+            return
+        parts = list(
+            ctx.s.scalars(
+                select(Split).where(Split.transactionId == t.id, Split.deleted == false())
+            )
+        )
+        if not parts:
+            return
+        if sum((x.amount for x in parts), Decimal(0)) != t.amount:
+            raise refuse(
+                "splits", "splits-unbalanced", "The parts must add up to the transaction's amount."
+            )
+        t.categoryId = None
+
+    ctx.verify(f"splits:{t.id}", check)
+
+
+def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
+    t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False, ask=ctx.ask)
+    if body.leftOutOf:
+        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+    _parts_add_up(ctx, t)
+
+
+def _txn_editable(ctx, record_id: str) -> Transaction:
+    """Read for a change: one who only sees the account may still leave it out of a budget
+    they write; anything else needs the account's write (checked by the update)."""
+    t = ctx.s.get(Transaction, record_id)
+    if t is None or t.deleted:
+        raise Problem(404, "not-found", "Not found")
+    access.account(ctx.s, ctx.caller.id, t.accountId)
+    return t
+
+
+def _txn_current(ctx, t: Transaction) -> dict:
+    lot = ctx.s.scalars(select(Lot).where(Lot.transactionId == t.id)).first()
+    inst = ctx.s.get(Instrument, t.instrumentId) if t.instrumentId else None
+    return {
+        "accountId": t.accountId,
+        "symbol": inst.symbol if inst else None,
+        "instrumentId": t.instrumentId,
+        "costBasis": lot.costBasis if lot is not None and t.kind == "transfer-in" else None,
+        "tags": _tags(ctx.s, ctx.caller.id, [t.id]).get(t.id, []),
+        "leftOutOf": _left_out_of(ctx.s, ctx.caller, t),
+        **{f: getattr(t, f) for f in CHANGED},
+    }
+
+
+def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
+    current = _txn_current(ctx, t)
+    sent = {f for f in TxnRecord.model_fields if getattr(body, f) != current.get(f)}
+    for fixed in ("accountId", "symbol", "instrumentId"):
+        if fixed in sent:
+            raise refuse(fixed, "transaction-fixed", "A transaction keeps its account and holding.")
+    if sent - {"leftOutOf"}:
+        a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+        _reconciled(ctx, t)
+        guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
+        changed = _change(ctx.s, ctx.caller, t, a, body, sent)
+        _changed(ctx.s, ctx.caller, a, changed)
+        ctx.s.flush()
+        if t.instrumentId:
+            washes.recompute(ctx.s, a.ownerId)
+        guard.check()
+    if "leftOutOf" in sent:
+        _set_left_out(ctx.s, ctx.caller, t, current["leftOutOf"], body.leftOutOf)
+    _parts_add_up(ctx, t)
+
+
+def _txn_delete(ctx, t: Transaction) -> None:
+    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+    _reconciled(ctx, t)
+    guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
+    _remove(ctx.s, ctx.caller, t, a)
+    guard.check()
+
+
+def _split_txn(ctx, txn_id: str) -> tuple[Transaction, Account]:
+    """The split's transaction, written by the caller and not a trade."""
+    t = ctx.s.get(Transaction, txn_id)
+    if t is None or t.deleted:
+        raise refuse("transactionId", "transaction-unknown", "No such transaction.")
+    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+    if t.instrumentId:
+        raise refuse("transactionId", "split-trade", "A trade isn't split across categories.")
+    return t, a
+
+
+def _split_checked(ctx, body: SplitRecord) -> tuple[Transaction, Account]:
+    t, a = _split_txn(ctx, body.transactionId)
+    errors = _check_reimbursable(body, "", body.amount)
+    if body.categoryId:
+        cat = ctx.s.get(Category, body.categoryId)
+        if cat is None or cat.deleted:
+            errors.append(FieldError("categoryId", "category-unknown", "Choose a category."))
+    _raise(errors)
+    return t, a
+
+
+def _split_values(body: SplitRecord) -> dict:
+    return {
+        "categoryId": body.categoryId,
+        "amount": body.amount,
+        "memo": body.memo,
+        "reimbursable": body.reimbursable,
+        "owedBy": (body.owedBy or "").strip() or None,
+    }
+
+
+def _split_create(ctx, record_id: str, body: SplitRecord) -> None:
+    t, _ = _split_checked(ctx, body)
+    _reconciled(ctx, t)
+    ctx.s.add(Split(id=record_id, transactionId=t.id, **_split_values(body)))
+    _parts_add_up(ctx, t)
+
+
+def _split_editable(ctx, record_id: str) -> Split:
+    sp = ctx.s.get(Split, record_id)
+    if sp is None or sp.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _split_txn(ctx, sp.transactionId)
+    return sp
+
+
+SPLIT_FIELDS = ("categoryId", "amount", "memo", "reimbursable", "owedBy")
+
+
+def _split_current(ctx, sp: Split) -> dict:
+    return {"transactionId": sp.transactionId, **{f: getattr(sp, f) for f in SPLIT_FIELDS}}
+
+
+def _split_update(ctx, sp: Split, body: SplitRecord) -> None:
+    """In place, so what pays the part back stays paired with it (S2.9, CR3-29)."""
+    if body.transactionId != sp.transactionId:
+        raise refuse("transactionId", "split-fixed", "A part stays with its transaction.")
+    t, _ = _split_checked(ctx, body)
+    _reconciled(ctx, t)
+    for f, v in _split_values(body).items():
+        setattr(sp, f, v)
+    _parts_add_up(ctx, t)
+
+
+def _split_read(sp: Split) -> SplitOut:
+    return SplitOut(id=sp.id, version=sp.version, **{f: getattr(sp, f) for f in SPLIT_FIELDS})
+
+
+def _split_delete(ctx, sp: Split) -> None:
+    """Its pairings go with it (schema.md §4)."""
+    t, _ = _split_txn(ctx, sp.transactionId)
+    sp.mark_deleted(ctx.caller.id)
+    _parts_add_up(ctx, t)
+
+
+save.register(
+    save.Kind(
+        prefix="Txn",
+        entity=Transaction,
+        fields=TxnRecord,
+        create=_txn_create,
+        editable=_txn_editable,
+        current=_txn_current,
+        update=_txn_update,
+        delete=_txn_delete,
+        read=lambda ctx, record_id: _read_one(ctx.s, ctx.caller, ctx.s.get(Transaction, record_id)),
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Split",
+        entity=Split,
+        fields=SplitRecord,
+        create=_split_create,
+        editable=_split_editable,
+        current=_split_current,
+        update=_split_update,
+        delete=_split_delete,
+        read=lambda ctx, record_id: _split_read(ctx.s.get(Split, record_id)),
+    )
+)

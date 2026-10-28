@@ -34,7 +34,11 @@ export function useDraft(load, deps = [], o = {}) {
     const draft = new Draft(o.newId ? { newId: o.newId } : {});
     setState({ draft: null, error: null });
     Promise.resolve(loadRef.current(draft)).then(
-      () => live && setState({ draft, error: null }),
+      () => {
+        // What the form starts with is unchanged, the new records an Add dialog makes too.
+        draft.settle();
+        if (live) setState({ draft, error: null });
+      },
       (error) => live && setState({ draft: null, error }),
     );
     return () => {
@@ -64,6 +68,7 @@ function useSave(draft, o) {
     const r = await draft.save({ confirmAsks });
     setLast({ outcome: r, at: at() });
     if (r.status === 'saved') o.saved(r);
+    return r;
   });
   return { save, outcome, clear: () => setLast(null) };
 }
@@ -124,11 +129,13 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
  * changes; Save sends them, Save anyway confirms the questions asked, Reload reads the records
  * again after a 412. `f` is what `useDraft` gave. `before` runs ahead of a save (false stops
  * it); `changed` replaces the draft's own answer for a dialog that puts its choices into the
- * draft only when it saves.
+ * draft only when it saves. `extra` draws the footer's other buttons, given the save (a
+ * Delete removes its record and saves); `hideSave` leaves the save's button out.
  * @param {{ f: ReturnType<typeof useDraft>, title: string, close: (v?: any) => void,
  *   what: string, done?: string, label?: string, confirm?: string, wide?: boolean, note?: any,
  *   before?: () => boolean | void, changed?: () => boolean, disabled?: boolean,
- *   saved?: (o: any) => void, extra?: any, children: any }} p
+ *   saved?: (o: any) => void, hideSave?: boolean,
+ *   extra?: (s: { save: any, outcome: any }) => any, children: any }} p
  */
 export function DraftDialog(p) {
   const { f, close } = p;
@@ -145,12 +152,14 @@ export function DraftDialog(p) {
       changed=${p.changed || (() => !!draft?.changed)}
       onSubmit=${() => save.run().catch(() => {})}
       footer=${html`
-        ${p.extra || null}<${SaveButton} outcome=${outcome} busy=${save.busy}
-          ready=${!!draft} disabled=${p.disabled} label=${p.label || 'Save'}
-          confirm=${p.confirm || 'Save anyway'} reload=${() => {
-            clear();
-            f.reload();
-          }} />
+        ${p.extra?.({ save, outcome }) || null}${p.hideSave ? null : html`
+          <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
+            disabled=${p.disabled} label=${p.label || 'Save'}
+            confirm=${p.confirm || 'Save anyway'} reload=${() => {
+              clear();
+              f.reload();
+            }} />
+        `}
       `}>
       ${f.error
         ? html`<${Failed} error=${f.error} />`

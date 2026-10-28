@@ -4,6 +4,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, saved
 from test_accounts import add, new_account
 from test_budgets import month, setup_budget
 
@@ -118,18 +119,15 @@ def test_a_split_part_paid_back_and_the_rest_counted_again(server, frozen):
     assert item["awaited"] == "37.50" and item["splitId"] == half["id"]
     # Sam won't pay the rest: lowered to what was paid back, the rest counts again.
     t = c.get(f"/ui/api/transactions/{bill['id']}").json()
-    parts = [
-        {"amount": x["amount"], "categoryId": x["categoryId"]}
-        | ({"reimbursable": "50.00", "owedBy": "Sam"} if x["reimbursable"] else {})
-        for x in t["splits"]
-    ]
-    r = c.patch(
-        f"/ui/api/transactions/{bill['id']}",
-        json={"splits": parts},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 200, r.text
+    part = next(x for x in t["splits"] if x["reimbursable"])
+    saved(change(c, "Split", part, reimbursable="50.00"))
     assert month(c, b, "2026-10")["spent"] == "125.00"
+    # The part changed in place keeps its payback (CR3-29): nothing more is awaited.
+    assert awaiting(c, b) == []
+    t = c.get(f"/ui/api/transactions/{bill['id']}").json()
+    assert [x["id"] for x in t["splits"]] == [x["id"] for x in bill["splits"]]
+    saved(change(c, "Txn", t, memo="water and power"))
+    assert awaiting(c, b) == [], "an edit of the transaction leaves its parts alone"
 
 
 def test_marks_and_pairings_are_checked(server, frozen):

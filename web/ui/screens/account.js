@@ -670,7 +670,13 @@ function TickOff({ close, a }) {
     );
   });
   const tick = async (/** @type {any} */ t) => {
-    await api.patch(`/transactions/${t.id}`, { cleared: !t.cleared }, t.version);
+    // Each tick saves at once (S1.11.6), through the save every change of a transaction takes.
+    const fields = { cleared: !t.cleared };
+    await api.post('/save', {
+      ops: [{ op: 'update', entity: 'Txn', id: t.id, version: t.version, fields }],
+    }, {
+      idempotent: true,
+    });
     txns.reload();
     const all = await api.get(`/accounts/${a.id}/reconcile`);
     setRec(all.reconciliations.find((/** @type {any} */ r) => r.id === rec.id));

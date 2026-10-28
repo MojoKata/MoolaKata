@@ -3,6 +3,7 @@
 import datetime as dt
 
 import pytest
+from edits import change, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 
@@ -101,10 +102,11 @@ def test_a_transaction_left_out_of_one_budget(server, frozen):
         "Transportation",
         False,
     )
-    r = c.put(f"/ui/api/budgets/{b['id']}/leave-outs/{car['id']}", json={"leftOut": True})
-    assert r.status_code == 200 and r.json()["leftOut"]
+    txn = c.get(f"/ui/api/transactions/{car['id']}").json()
+    txn = saved(change(c, "Txn", txn, leftOutOf={"add": [b["id"]], "remove": []}))
+    assert txn["leftOutOf"] == [b["id"]]
     assert month(c, b, "2026-10")["spent"] == "40.00"
     assert month(c, other, "2026-10")["spent"] == "18040.00"
-    r = c.put(f"/ui/api/budgets/{b['id']}/leave-outs/{car['id']}", json={"leftOut": False})
+    saved(change(c, "Txn", txn, leftOutOf={"add": [], "remove": [b["id"]]}))
     assert month(c, b, "2026-10")["spent"] == "18040.00"
     assert theirs["name"] == "Mine"

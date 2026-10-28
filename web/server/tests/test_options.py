@@ -6,6 +6,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import remove
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -180,7 +181,7 @@ def test_an_assignment_follows_its_opening_trade_and_goes_with_its_stock_trade(s
     with server.db.tx() as s:
         s.get(Transaction, sold["id"]).amount = D("700.00")
     assert _held(alice, brk["id"], "MSFT")["cost"] == "47300.00"
-    r = alice.delete(f"/ui/api/transactions/{end['id']}", headers={"If-Match": str(end["version"])})
+    r = remove(alice, "Txn", end)
     assert r.status_code == 200, r.text
     assert _held(alice, brk["id"], "MSFT") is None
     assert _held(alice, brk["id"], "MSFT 20NOV26 480 P") is not None

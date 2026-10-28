@@ -529,7 +529,14 @@ def open_dialog(page, path: str, button: str, guide: str) -> None:
 
 
 def close_dialog(page) -> None:
+    """Escape; a dialog the sweep changed (a part added to see its guide) asks first."""
     page.keyboard.press("Escape")
+    page.wait_for_function(
+        "!document.querySelector('.dialog') || !!document.querySelector('.dialog-ask')"
+    )
+    asked = page.locator(".dialog-ask")
+    if asked.count():
+        asked.get_by_role("button", name="Discard").click()
     page.wait_for_selector(".dialog", state="detached")
 
 

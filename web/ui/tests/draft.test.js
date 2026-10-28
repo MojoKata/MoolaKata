@@ -271,3 +271,27 @@ Deno.test('a fingerprint tells the same changes from others', () => {
   t.input('amount', '42.0');
   equal(d.fingerprint(), none, '42.0 and 42.00 are the same amount');
 });
+
+Deno.test('a new record a form starts with is unchanged until edited, and still made', () => {
+  const { d } = draft();
+  const t = d.add(Txn, { payee: 'Shop' });
+  t.input('amount', '−12.50');
+  d.settle();
+  equal(d.changed, false, 'an Add dialog left untouched closes without asking');
+  equal(d.ops().map((o) => o.op), ['create'], 'saved, it is made');
+  t.set('payee', 'Market');
+  equal(d.changed, true);
+  d.revertAll();
+  equal(t.get('payee'), 'Shop', 'put back to where the form started, not taken away');
+  equal(d.records.length, 1);
+  equal(String(t.get('amount')), '-12.50', 'the minus sign reads as a minus');
+});
+
+Deno.test('a list of words is typed with commas between', () => {
+  const { d } = draft();
+  const t = d.load(Txn, read());
+  t.input('tags', 'b, a, ');
+  equal(d.changed, false, 'the same set, typed in another order');
+  t.input('tags', 'a, c');
+  equal(t.changes().tags, { add: ['c'], remove: ['b'] });
+});

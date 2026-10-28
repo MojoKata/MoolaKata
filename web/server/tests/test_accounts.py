@@ -3,6 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
+from edits import asked, change, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -231,12 +232,7 @@ def test_reconciled_periods_ask_before_an_edit(server):
     t = add(c, a["id"], "-40.00", "2026-09-02")
     t2 = add(c, a["id"], "100.00", "2026-09-03", kind="deposit")
     for x in (t, t2):
-        r = c.patch(
-            f"/ui/api/transactions/{x['id']}",
-            json={"cleared": True},
-            headers={"If-Match": str(x["version"])},
-        )
-        assert r.status_code == 200
+        saved(change(c, "Txn", x, cleared=True))
     rec = c.post(
         f"/ui/api/accounts/{a['id']}/reconciliations",
         json={"statementDate": "2026-09-30", "statementBalance": "70.00"},
@@ -261,18 +257,8 @@ def test_reconciled_periods_ask_before_an_edit(server):
     current = c.get("/ui/api/transactions").json()["items"]
     t = next(x for x in current if x["id"] == t["id"])
     assert t["reconciled"]
-    r = c.patch(
-        f"/ui/api/transactions/{t['id']}",
-        json={"memo": "x"},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 409 and r.json()["code"] == "reconciled-period"
-    r = c.patch(
-        f"/ui/api/transactions/{t['id']}?confirm=true",
-        json={"memo": "x"},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 200
+    assert asked(change(c, "Txn", t, memo="x")) == ["reconciled-period"]
+    saved(change(c, "Txn", t, confirm=True, memo="x"))
 
 
 # ---------- imports and reconciliation ----------
@@ -497,11 +483,6 @@ def test_an_edited_transfer_in_moves_its_holding(server):
     c = sign_in(server, "alice")
     a = new_account(c, name="Brokerage", type="brokerage")
     t = add(c, a["id"], "0", "2026-03-02", kind="transfer-in", symbol="VTI", quantity="10")
-    r = c.patch(
-        f"/ui/api/transactions/{t['id']}",
-        json={"quantity": "12", "costBasis": "2400.00"},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(change(c, "Txn", t, quantity="12", costBasis="2400.00"))
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]
     assert Decimal(h["quantity"]) == 12 and h["costBasis"] == "2400.00"

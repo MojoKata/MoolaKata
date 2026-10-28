@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import asked, change, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -417,27 +418,12 @@ def test_an_edit_that_moves_a_filed_years_gains_asks_first(server, couple):
         },
     )
     assert r.status_code == 201, r.text
-    r = alice.patch(
-        f"/ui/api/transactions/{sale['id']}",
-        json={"amount": "1600.00"},
-        headers={"If-Match": str(sale["version"])},
-    )
-    assert r.status_code == 409 and r.json()["code"] == "closed-year", r.text
-    assert r.json()["years"] == [2025]
-    r = alice.patch(
-        f"/ui/api/transactions/{sale['id']}",
-        json={"amount": "1600.00"},
-        headers={"If-Match": str(sale["version"])},
-        params={"confirm": "true"},
-    )
-    assert r.status_code == 200, r.text
+    r = change(alice, "Txn", sale, amount="1600.00")
+    assert asked(r) == ["closed-year"]
+    assert "gains of 2025" in r.json()["asks"][0]["message"]
+    sale = saved(change(alice, "Txn", sale, confirm=True, amount="1600.00"))
     # A memo isn't a gain: no question asked.
-    r = alice.patch(
-        f"/ui/api/transactions/{sale['id']}",
-        json={"memo": "sold to rebalance"},
-        headers={"If-Match": str(r.json()["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(change(alice, "Txn", sale, memo="sold to rebalance"))
 
 
 def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, couple):
@@ -471,14 +457,9 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
 
     def edit(amount, confirm):
         nonlocal sale
-        r = alice.patch(
-            f"/ui/api/transactions/{sale['id']}",
-            json={"amount": amount},
-            headers={"If-Match": str(sale["version"])},
-            params={"confirm": "true"} if confirm else {},
-        )
+        r = change(alice, "Txn", sale, confirm=confirm, amount=amount)
         if r.status_code == 200:
-            sale = r.json()
+            sale = saved(r)
         return r
 
     assert issues() == [] and attention() == []
@@ -506,7 +487,7 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
     )
     assert r.status_code == 200, r.text
     r = edit("1690.00", confirm=False)
-    assert r.status_code == 409 and r.json()["code"] == "closed-year", r.text
+    assert asked(r) == ["closed-year"]
     assert edit("1690.00", confirm=True).status_code == 200
     assert issues() == [
         "Realized gains changed by -$10.00 after the federal return was filed: Brokerage, 1 edit"

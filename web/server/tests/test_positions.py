@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
+from edits import remove
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -101,15 +102,9 @@ def test_a_wash_sale_moves_the_loss_into_the_replacement_lot(server, alice):
     assert sale["realized"] == "0.00", "all 500 disallowed: 10 of 10 replaced"
     in_ira = next(r for r in v["open"] if r["symbol"] == "AAPL" and r["accountId"] == ira["id"])
     assert in_ira["cost"] == "930.00", "930 paid, nothing added"
-    alice.delete(
-        f"/ui/api/transactions/{_txns(alice, ira)[0]['id']}",
-        headers={"If-Match": f'"{_txns(alice, ira)[0]["version"]}"'},
-    )
+    remove(alice, "Txn", _txns(alice, ira)[0])
     # The rest of this test replaces in the IRA alone.
-    alice.delete(
-        f"/ui/api/transactions/{_txns(alice, other)[0]['id']}",
-        headers={"If-Match": f'"{_txns(alice, other)[0]["version"]}"'},
-    )
+    remove(alice, "Txn", _txns(alice, other)[0])
     trade(alice, ira["id"], "2026-06-20", "buy", "4", "155", "AAPL")
     v = alice.get("/ui/api/positions").json()
     held = next(r for r in v["open"] if r["symbol"] == "AAPL")
@@ -121,9 +116,7 @@ def test_a_wash_sale_moves_the_loss_into_the_replacement_lot(server, alice):
     # Selling the replacement in the IRA undoes nothing; deleting the buy removes the wash.
     items = alice.get("/ui/api/transactions", params={"account": ira["id"]}).json()["items"]
     buy = items[0]
-    r = alice.delete(
-        f"/ui/api/transactions/{buy['id']}", headers={"If-Match": f'"{buy["version"]}"'}
-    )
+    r = remove(alice, "Txn", buy)
     assert r.status_code == 200
     sale = next(r for r in alice.get("/ui/api/positions").json()["closed"] if r["symbol"] == "AAPL")
     assert sale["realized"] == "-500.00"
@@ -253,7 +246,7 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, alice):
     lots, disposals = _lots(server, a)
     assert "TWTR" not in lots and disposals[0].proceeds == Decimal("2710.00")
     _, new = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
-    r = alice.delete(f"/ui/api/transactions/{new['id']}", headers={"If-Match": str(new["version"])})
+    r = remove(alice, "Txn", new)
     assert r.status_code == 200, r.text
     lots, _ = _lots(server, a)
     assert "FB" in lots and "META" not in lots

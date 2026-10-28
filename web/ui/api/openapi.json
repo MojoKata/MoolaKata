@@ -9818,20 +9818,6 @@
         "title": "LastYear",
         "type": "object"
       },
-      "LeaveOutIn": {
-        "additionalProperties": false,
-        "properties": {
-          "leftOut": {
-            "title": "Leftout",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "leftOut"
-        ],
-        "title": "LeaveOutIn",
-        "type": "object"
-      },
       "LeftOut": {
         "additionalProperties": false,
         "description": "An account the budget doesn't count that often receives transfers from its accounts.",
@@ -16958,6 +16944,7 @@
               "beneficiary-invalid",
               "birthday-incomplete",
               "bitcoin-not-set",
+              "budget-unknown",
               "built-in",
               "built-on-invalid",
               "cadence-invalid",
@@ -17103,6 +17090,7 @@
               "not-balanced",
               "not-creator",
               "not-found",
+              "not-in-budget",
               "not-in-it",
               "not-married",
               "not-physical",
@@ -17217,6 +17205,8 @@
               "source-invalid",
               "source-unknown",
               "split-does-not-add-up",
+              "split-fixed",
+              "split-trade",
               "splits-unbalanced",
               "stale-version",
               "statement-does-not-add-up",
@@ -17240,6 +17230,8 @@
               "too-many-ops",
               "too-many-rules",
               "trade-incomplete",
+              "transaction-fixed",
+              "transaction-unknown",
               "two-step-expired",
               "two-step-not-started",
               "two-step-off",
@@ -17333,6 +17325,7 @@
                   "beneficiary-invalid",
                   "birthday-incomplete",
                   "bitcoin-not-set",
+                  "budget-unknown",
                   "built-in",
                   "built-on-invalid",
                   "cadence-invalid",
@@ -17478,6 +17471,7 @@
                   "not-balanced",
                   "not-creator",
                   "not-found",
+                  "not-in-budget",
                   "not-in-it",
                   "not-married",
                   "not-physical",
@@ -17592,6 +17586,8 @@
                   "source-invalid",
                   "source-unknown",
                   "split-does-not-add-up",
+                  "split-fixed",
+                  "split-trade",
                   "splits-unbalanced",
                   "stale-version",
                   "statement-does-not-add-up",
@@ -17615,6 +17611,8 @@
                   "too-many-ops",
                   "too-many-rules",
                   "trade-incomplete",
+                  "transaction-fixed",
+                  "transaction-unknown",
                   "two-step-expired",
                   "two-step-not-started",
                   "two-step-off",
@@ -21916,6 +21914,87 @@
         "title": "SplitIn",
         "type": "object"
       },
+      "SplitRecord": {
+        "additionalProperties": false,
+        "description": "A part of a transaction's amount with its own category (S2.6), as a draft saves it.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "pattern": "^Cat_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Cat"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Categoryid"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Memo"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Owedby"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reimbursable"
+          },
+          "transactionId": {
+            "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Transactionid",
+            "type": "string",
+            "x-prefix": "Txn"
+          }
+        },
+        "required": [
+          "transactionId",
+          "amount"
+        ],
+        "title": "SplitRecord",
+        "type": "object",
+        "x-entity": "Split"
+      },
       "Spouse": {
         "additionalProperties": false,
         "description": "Who the user is married to today, when they are a user here (S10.10.4.3).",
@@ -23739,242 +23818,6 @@
         "title": "TxfLeftOut",
         "type": "object"
       },
-      "TxnChange": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "categoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Categoryid"
-          },
-          "cleared": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cleared"
-          },
-          "contributionSource": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contributionsource"
-          },
-          "contributionYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contributionyear"
-          },
-          "costBasis": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Costbasis"
-          },
-          "date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Date"
-          },
-          "dividendType": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dividendtype"
-          },
-          "fees": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fees"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
-          },
-          "memo": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Memo"
-          },
-          "owedBy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owedby"
-          },
-          "payee": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payee"
-          },
-          "price": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price"
-          },
-          "quantity": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quantity"
-          },
-          "reimbursable": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reimbursable"
-          },
-          "splits": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SplitIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Splits"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tags"
-          }
-        },
-        "title": "TxnChange",
-        "type": "object"
-      },
       "TxnIn": {
         "additionalProperties": false,
         "properties": {
@@ -24290,6 +24133,21 @@
             ],
             "title": "Contributionyear"
           },
+          "costBasis": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Costbasis"
+          },
           "date": {
             "format": "date",
             "title": "Date",
@@ -24343,6 +24201,20 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "leftOutOf": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leftoutof"
           },
           "level": {
             "title": "Level",
@@ -24554,6 +24426,259 @@
         ],
         "title": "TxnOut",
         "type": "object"
+      },
+      "TxnRecord": {
+        "additionalProperties": false,
+        "description": "A transaction as a draft saves it: its splits are records of their own (`Split`), so\neach keeps its id, and with it what pays it back (S2.9). `symbol` names a new trade's\ninstrument; `leftOutOf` lists the budgets it is left out of (S7.3.5).",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "pattern": "^Cat_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Cat"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Categoryid"
+          },
+          "cleared": {
+            "default": false,
+            "title": "Cleared",
+            "type": "boolean"
+          },
+          "contributionSource": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contributionsource"
+          },
+          "contributionYear": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contributionyear"
+          },
+          "costBasis": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Costbasis"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "dividendType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dividendtype"
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fees"
+          },
+          "instrumentId": {
+            "anyOf": [
+              {
+                "pattern": "^Instr_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Instr"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instrumentid"
+          },
+          "kind": {
+            "default": "withdrawal",
+            "title": "Kind",
+            "type": "string"
+          },
+          "leftOutOf": {
+            "items": {
+              "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Bdgt"
+            },
+            "title": "Leftoutof",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Memo"
+          },
+          "owedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Owedby"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Payee"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Quantity"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reimbursable"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Symbol"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "accountId",
+          "date",
+          "amount"
+        ],
+        "title": "TxnRecord",
+        "type": "object",
+        "x-entity": "Txn"
       },
       "TypedPrice": {
         "additionalProperties": false,
@@ -27813,11 +27938,16 @@
               }
             ],
             "title": "Reimbursable"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
           "amount",
-          "id"
+          "id",
+          "version"
         ],
         "title": "SplitOut",
         "type": "object"
@@ -30854,64 +30984,6 @@
           }
         },
         "summary": "Give Landed",
-        "tags": [
-          "budgets"
-        ]
-      }
-    },
-    "/ui/api/budgets/{budget_id}/leave-outs/{txn_id}": {
-      "put": {
-        "description": "Leave a transaction out of this budget, or count it again (S7.3.5).",
-        "operationId": "leave_out_ui_api_budgets__budget_id__leave_outs__txn_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "txn_id",
-            "required": true,
-            "schema": {
-              "title": "Txn Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LeaveOutIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InBudget"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Leave Out",
         "tags": [
           "budgets"
         ]
@@ -41816,52 +41888,6 @@
       }
     },
     "/ui/api/transactions/{txn_id}": {
-      "delete": {
-        "operationId": "delete_transaction_ui_api_transactions__txn_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "txn_id",
-            "required": true,
-            "schema": {
-              "title": "Txn Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirm",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Transaction",
-        "tags": [
-          "transactions"
-        ]
-      },
       "get": {
         "description": "One transaction the caller can see: where a new one's Location leads (S13.8.4).",
         "operationId": "get_transaction_ui_api_transactions__txn_id__get",
@@ -41895,62 +41921,6 @@
           }
         },
         "summary": "Get Transaction",
-        "tags": [
-          "transactions"
-        ]
-      },
-      "patch": {
-        "operationId": "change_transaction_ui_api_transactions__txn_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "txn_id",
-            "required": true,
-            "schema": {
-              "title": "Txn Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirm",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TxnChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TxnOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Transaction",
         "tags": [
           "transactions"
         ]

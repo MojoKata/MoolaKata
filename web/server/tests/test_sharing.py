@@ -1,6 +1,7 @@
 import re
 
 from conftest import make_user, sign_in
+from edits import change, saved
 from test_accounts import add, new_account
 
 
@@ -76,12 +77,8 @@ def test_removing_a_share_ends_access_and_drops_their_tags(server):
     a = new_account(c["alice"])
     t = add(c["alice"], a["id"], "-5.00", payee="Shop")
     share(c["alice"], "account", a["id"], users={u["bob"].id: "write"})
-    r = c["bob"].patch(
-        f"/ui/api/transactions/{t['id']}",
-        json={"tags": ["bobs"]},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.json()["tags"] == ["bobs"]
+    r = change(c["bob"], "Txn", t, tags={"add": ["bobs"], "remove": []})
+    assert saved(r)["tags"] == ["bobs"]
     assert c["alice"].get("/ui/api/transactions").json()["items"][0]["tags"] == []
     share(c["alice"], "account", a["id"], users={u["bob"].id: "none"})
     assert c["bob"].get(f"/ui/api/accounts/{a['id']}").status_code == 404

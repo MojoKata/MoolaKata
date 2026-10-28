@@ -238,7 +238,50 @@ def seed(base: str) -> Household:
     )
     yearly = [{"categoryId": fun, "amount": "1200.00", "cadence": "year"}]
     made(save_plan(c, env, f"{months_back(0)}-01", yearly))
-    return Household(base, c, cats, acct, b, env)
+    h = Household(base, c, cats, acct, b, env)
+    h.extra.update(transactions(h))
+    return h
+
+
+def transactions(h: Household) -> dict:
+    """A hotel bill split in two, the part to be paid back paired with the payback, and shares
+    moved in from another broker with their basis."""
+    c, travel = h.c, h.cats["Travel"]
+    bill = made(
+        c.post(
+            "/ui/api/transactions",
+            json={"accountId": h.checking["id"], "date": f"{months_back(1)}-12",
+                  "amount": "-300.00", "payee": "Grand Hotel",
+                  "splits": [{"amount": "-200.00", "categoryId": travel},
+                             {"amount": "-100.00", "categoryId": travel,
+                              "reimbursable": "100.00", "owedBy": "Acme"}]},
+        )
+    )  # fmt: skip
+    back = made(
+        c.post(
+            "/ui/api/transactions",
+            json={"accountId": h.checking["id"], "date": f"{months_back(1)}-20",
+                  "amount": "100.00", "kind": "deposit", "payee": "Acme"},
+        )
+    )  # fmt: skip
+    owed = next(x for x in bill["splits"] if x["reimbursable"])
+    made(
+        c.post(
+            "/ui/api/reimbursements",
+            json={"spendingId": bill["id"], "splitId": owed["id"], "paybackId": back["id"],
+                  "amount": "100.00"},
+        )
+    )  # fmt: skip
+    brokerage = made(c.post("/ui/api/accounts", json={"name": "Brokerage", "type": "brokerage"}))
+    moved = made(
+        c.post(
+            "/ui/api/transactions",
+            json={"accountId": brokerage["id"], "date": f"{months_back(2)}-03",
+                  "amount": "0", "kind": "transfer-in", "symbol": "VTI", "quantity": "10",
+                  "costBasis": "2400.00"},
+        )
+    )  # fmt: skip
+    return {"bill": bill, "brokerage": brokerage, "moved": moved}
 
 
 @pytest.fixture(scope="session")

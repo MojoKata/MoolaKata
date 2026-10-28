@@ -42,7 +42,7 @@ function shaped(shape, hint, read = asIs) {
 function decimal(places) {
   return /** @type {FieldType} */ ({
     parse(t) {
-      let s = t.replace(/[$,\s]/g, '');
+      let s = t.replace(/[$,\s]/g, '').replace('\u2212', '-');
       const paren = /^\((.*)\)$/.exec(s);
       if (paren) s = '-' + paren[1];
       const m = /^[+-]?\d+(?:\.(\d*))?$/.exec(s);
@@ -110,7 +110,11 @@ export const TYPES = {
     wire: asIs,
   },
   list: {
-    parse: () => ({ error: 'A list is chosen, not typed.' }),
+    // A list of words is typed with commas between; any other list is chosen, not typed.
+    parse: (t, spec) =>
+      spec.items?.type === 'text'
+        ? { value: t.split(',').map((x) => x.trim()).filter(Boolean) }
+        : { error: 'A list is chosen, not typed.' },
     format: (v) => (v || []).join(', '),
     equal(a, b, spec) {
       const item = typeOf(spec.items || { type: 'json' });
@@ -146,7 +150,7 @@ export function typeOf(spec) {
   const t = TYPES[spec.type] || TYPES.json;
   return /** @type {FieldType} */ ({
     parse(input, s) {
-      if (String(input ?? '').trim() === '' && spec.type !== 'text') {
+      if (String(input ?? '').trim() === '' && (spec.type !== 'text' || s.nullable)) {
         return s.nullable ? { value: null } : { error: 'Required.' };
       }
       return t.parse(String(input), s);
@@ -283,6 +287,8 @@ export class Record {
     this.state = o.state || 'read';
     this.version = o.version ?? data.version ?? 0;
     this.removed = false;
+    /** A new record the form starts with (an Add dialog's): unchanged until edited. */
+    this.settled = false;
     /** The record whose removal removed this one. @type {string | null} */
     this.removedBy = null;
     this.key = ++serial;
@@ -422,6 +428,13 @@ export class Record {
     this.#tick.value++;
   }
 
+  /** Take the record as it stands as where the form starts: a new one counts as unchanged. */
+  settle() {
+    this.settled = true;
+    this.#modified.clear();
+    this.#tick.value++;
+  }
+
   /** Whether a field holds typed text that doesn't read yet. */
   get unread() {
     this.#tick.value;
@@ -438,7 +451,7 @@ export class Record {
    * read yet. */
   get changed() {
     this.#tick.value;
-    if (this.state === 'new') return !this.removed;
+    if (this.state === 'new' && !this.settled) return !this.removed;
     return this.removed || this.#modified.size > 0 || this.#unread.size > 0;
   }
 
@@ -609,10 +622,15 @@ export class Draft {
     return this.records.some((r) => r.changed);
   }
 
-  /** Put every record back as it was read; new ones go. */
+  /** Where the form starts: every record as it stands, new ones the form starts with too. */
+  settle() {
+    for (const r of this.records) r.settle();
+  }
+
+  /** Put every record back as it was read or the form started; new ones made since go. */
   revertAll() {
     for (const r of this.records) {
-      if (r.state === 'new') this.#records.delete(r.id);
+      if (r.state === 'new' && !r.settled) this.#records.delete(r.id);
       else {
         r.revertAll();
         if (r.removed) this.unremove(r);

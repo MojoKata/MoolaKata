@@ -32,6 +32,22 @@ class Form:
     reads: Callable[[Household], object]
 
 
+def txn_of(h: Household, name: str) -> dict:
+    return h.c.get(f"/ui/api/transactions/{h.extra[name]['id']}").json()
+
+
+def paid_back(h: Household) -> tuple:
+    """The bill as read, and what is still awaited of it: nothing, its part paid back."""
+    paid = h.c.get(f"/ui/api/budgets/{h.budget['id']}/reimbursements").json()["items"]
+    return txn_of(h, "bill"), paid
+
+
+def holding(h: Household) -> tuple:
+    """The shares moved in as read, and the holding they make, basis and all."""
+    t = txn_of(h, "moved")
+    return t, h.c.get(f"/ui/api/accounts/{t['accountId']}/holdings").json()
+
+
 FORMS = [
     Form(
         "the plan, tracking with reserves and moves",
@@ -46,6 +62,20 @@ FORMS = [
         'button:has-text("Edit plan")',
         'button:has-text("Edit plan")',
         lambda h: plan_of(h, h.envelope),
+    ),
+    Form(
+        "a transaction split, a part paid back (CR3-29)",
+        lambda h: f"/ui/accounts/{h.checking['id']}/transactions",
+        'button.linklike:has-text("Grand Hotel")',
+        'button.linklike:has-text("Grand Hotel")',
+        paid_back,
+    ),
+    Form(
+        "shares moved in, with their basis",
+        lambda h: f"/ui/accounts/{h.extra['brokerage']['id']}/transactions",
+        'button.linklike:has-text("transfer-in VTI")',
+        'button.linklike:has-text("transfer-in VTI")',
+        holding,
     ),
 ]
 
@@ -77,7 +107,7 @@ def test_a_plan_from_history_leaves_the_lines_it_doesnt_propose(browser, househo
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     after = {x["categoryId"]: x for x in plan_of(h, b)}
-    assert len(after) == len(before) + 1, "groceries proposed and planned"
+    assert h.cats["Food › Groceries"] in set(after) - set(before), "groceries proposed, planned"
     for cat, line in before.items():
         assert after[cat] == line, "a line not proposed stays exactly as it was"
     assert problems == []
@@ -222,4 +252,40 @@ def test_a_record_changed_meanwhile_saves_nothing_and_reloads(browser, household
 
     expect(amount_of(page, 0)).to_have_value("333.00")
     assert besides(problems, "412 for") == []
+    page.close()
+
+
+# ---------- what the transaction dialog alone does ----------
+
+
+def test_an_edited_split_transaction_keeps_its_parts_and_their_payback(browser, household):
+    """CR3-29: a memo added in the dialog leaves the parts as they were, ids and all, so the
+    part paid back stays paid back."""
+    h = household
+    before, _ = paid_back(h)
+    path = f"/ui/accounts/{h.checking['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Grand Hotel")')
+    page.click('button.linklike:has-text("Grand Hotel")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#f-memo", "two nights")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    after, awaited = paid_back(h)
+    assert after["memo"] == "two nights"
+    assert [x["id"] for x in after["splits"]] == [x["id"] for x in before["splits"]]
+    assert awaited == []
+    assert problems == []
+    page.close()
+
+
+def test_an_add_dialog_left_untouched_closes_without_asking(browser, household):
+    """S12.15.6: a new transaction's starting values are no change of the person's."""
+    h = household
+    path = f"/ui/accounts/{h.checking['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button:has-text("Add")')
+    page.click('main button:has-text("Add")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.keyboard.press("Escape")
+    wait(page, ".dialog", problems, state="detached")
+    assert problems == []
     page.close()

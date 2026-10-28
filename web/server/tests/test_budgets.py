@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -414,12 +415,8 @@ def test_money_leaving_or_entering_the_budget(server, frozen):
     v = month(c, b, "2026-10")
     assert v["spent"] == "0.00" and v["saved"] == "0.00" and v["income"] == "150.00"
     assert [(m["otherAccountName"], m["amount"]) for m in v["moved"]] == [("Brokerage", "-500.00")]
-    r = c.patch(
-        f"/ui/api/transactions/{out['id']}",
-        json={"categoryId": cat["Savings › Investing"]},
-        headers={"If-Match": str(c.get(f"/ui/api/transactions/{out['id']}").json()["version"])},
-    )
-    assert r.status_code == 200, r.text
+    current = c.get(f"/ui/api/transactions/{out['id']}").json()
+    saved(change(c, "Txn", current, categoryId=cat["Savings › Investing"]))
     v = month(c, b, "2026-10")
     assert v["saved"] == "500.00" and v["moved"] == []
     # The accounts named when the budget is edited: two or more transfers in a year.
