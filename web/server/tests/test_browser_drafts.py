@@ -48,6 +48,13 @@ def holding(h: Household) -> tuple:
     return t, h.c.get(f"/ui/api/accounts/{t['accountId']}/holdings").json()
 
 
+def gift_plan(h: Household) -> tuple:
+    """Emma's plan as read, and the gifts with their occasions (CR3-43)."""
+    plan = h.c.get(f"/ui/api/people/{h.extra['emma']['id']}").json()
+    gifts = h.c.get("/ui/api/gifts").json()["items"]
+    return plan, [(g["description"], g["occasion"], g["occasionLabel"]) for g in gifts]
+
+
 FORMS = [
     Form(
         "the plan, tracking with reserves and moves",
@@ -76,6 +83,13 @@ FORMS = [
         'button.linklike:has-text("transfer-in VTI")',
         'button.linklike:has-text("transfer-in VTI")',
         holding,
+    ),
+    Form(
+        "a gift plan with a graduation and a gift for it (CR3-43)",
+        lambda h: "/ui/gifts/people",
+        'tr:has-text("Emma Griffin")',
+        'tr:has-text("Emma Griffin")',
+        gift_plan,
     ),
 ]
 
@@ -287,5 +301,48 @@ def test_an_add_dialog_left_untouched_closes_without_asking(browser, household):
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.keyboard.press("Escape")
     wait(page, ".dialog", problems, state="detached")
+    assert problems == []
+    page.close()
+
+
+# ---------- what the gift plan's dialog alone does ----------
+
+
+def test_a_gift_plan_changed_keeps_its_gifts_occasions(browser, household):
+    """CR3-43: a holiday added and the notes changed; the graduation keeps its id, and the
+    watch planned for it keeps the graduation."""
+    h = household
+    before, gifts = gift_plan(h)
+    page, problems = signed_in(browser, h, "/ui/gifts/people", 'tr:has-text("Emma Griffin")')
+    page.click('tr:has-text("Emma Griffin")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.click('.dialog button.chip:has-text("Thanksgiving")')
+    page.fill("#f-notes", "likes paints and puzzles")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    after, gifts_after = gift_plan(h)
+    assert after["notes"] == "likes paints and puzzles"
+    kept = {o["id"] for o in before["occasions"]}
+    assert kept < {o["id"] for o in after["occasions"]}
+    assert "thanksgiving" in {o["holiday"] for o in after["occasions"]}
+    assert gifts_after == gifts
+    assert problems == []
+    page.close()
+
+
+def test_a_new_gift_plan_for_a_new_person(browser, household):
+    h = household
+    page, problems = signed_in(browser, h, "/ui/gifts/people", 'button:has-text("Add a gift plan")')
+    page.click('button:has-text("Add a gift plan")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#f-name", "Leo Griffin")
+    page.select_option("#f-sex", "male")
+    page.fill("#f-birthday", "2021-03-04")
+    page.click('.dialog button.chip:has-text("Christmas")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    leo = next(p for p in h.c.get("/ui/api/people").json()["items"] if p["name"] == "Leo Griffin")
+    assert (leo["birthYear"], leo["birthMonth"], leo["birthDay"]) == (2021, 3, 4)
+    assert [o["holiday"] for o in leo["occasions"]] == ["christmas"]
     assert problems == []
     page.close()

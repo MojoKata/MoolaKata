@@ -270,8 +270,9 @@
           `message` (S13.8.3). A stale version anywhere refuses the whole save with 412
           `stale-version`, listing each stale record as it stands.
        5. **Questions.** A change that asks first (`reconciled-period`, `closed-year`,
-          `reserve-balance`) is gathered with the others; the save rolls back and answers 409
-          `confirm-needed`, listing each question's `code`, record `id` and message. Sent
+          `reserve-balance`, `occasion-gifts`) is gathered with the others; the save rolls
+          back and answers 409 `confirm-needed`, listing each question's `code`, record `id`
+          and message. Sent
           again with `confirm` (a list of `{code, id}`), it goes ahead only when every
           question it raises is in that list.
        6. **After the commit**, the live stream's events (S12.6), alerts and the work that

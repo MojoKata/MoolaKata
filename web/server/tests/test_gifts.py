@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import remove
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -161,9 +162,7 @@ def test_deleting_a_person_keeps_what_was_given_by_name(alice):
         occasion="birthday",
         occasionYear=2026,
     )
-    p = alice.get("/ui/api/persons").json()["items"]
-    v = next(x["version"] for x in p if x["id"] == sam["id"])
-    r = alice.delete(f"/ui/api/persons/{sam['id']}", headers={"If-Match": f'"{v}"'})
+    r = remove(alice, "Persn", alice.get(f"/ui/api/persons/{sam['id']}").json())
     assert r.status_code == 200, r.text
     left = {g["description"]: g for g in alice.get("/ui/api/gifts").json()["items"]}
     assert set(left) == {"Puzzle", "Book"}, "ideas and planned gifts for Sam alone go"

@@ -3037,6 +3037,48 @@
         "title": "CheckRow",
         "type": "object"
       },
+      "Clash": {
+        "additionalProperties": false,
+        "description": "Someone already here by a name (S10.10.3): who, whether the caller sees them, and who\nadded them, to use them or ask them to be shared.",
+        "properties": {
+          "createdBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdby"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "private": {
+            "title": "Private",
+            "type": "boolean"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "visible",
+          "private",
+          "createdBy"
+        ],
+        "title": "Clash",
+        "type": "object"
+      },
       "Close": {
         "additionalProperties": false,
         "properties": {
@@ -12620,6 +12662,10 @@
             ],
             "title": "Next"
           },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
           "year": {
             "anyOf": [
               {
@@ -12636,10 +12682,115 @@
           "kind",
           "id",
           "label",
-          "next"
+          "next",
+          "version"
         ],
         "title": "OccasionOut",
         "type": "object"
+      },
+      "OccasionRecord": {
+        "additionalProperties": false,
+        "description": "An occasion of a gift plan (S7.7.1): a holiday by its key, or an anniversary or other\noccasion on a month and day, with the year it began when known.",
+        "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Day"
+          },
+          "giftPlanId": {
+            "pattern": "^GfPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Giftplanid",
+            "type": "string",
+            "x-prefix": "GfPln"
+          },
+          "holiday": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Holiday"
+          },
+          "kind": {
+            "enum": [
+              "anniversary",
+              "holiday",
+              "custom"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year"
+          }
+        },
+        "required": [
+          "giftPlanId",
+          "kind"
+        ],
+        "title": "OccasionRecord",
+        "type": "object",
+        "x-entity": "Occsn"
       },
       "Offer": {
         "additionalProperties": false,
@@ -15980,6 +16131,93 @@
         "title": "PersonOut",
         "type": "object"
       },
+      "PersonRecord": {
+        "additionalProperties": false,
+        "description": "A person as a draft saves them. `differentPerson`, on a new one, says a name already\nhere is someone else, told apart by birth year (S10.10.3).",
+        "properties": {
+          "birthDay": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthday"
+          },
+          "birthMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthmonth"
+          },
+          "birthYear": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthyear"
+          },
+          "diedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Diedon"
+          },
+          "differentPerson": {
+            "default": false,
+            "title": "Differentperson",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sex"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PersonRecord",
+        "type": "object",
+        "x-entity": "Persn"
+      },
       "PersonRef": {
         "additionalProperties": false,
         "properties": {
@@ -16319,6 +16557,57 @@
         ],
         "title": "Plan",
         "type": "object"
+      },
+      "PlanRecord": {
+        "additionalProperties": false,
+        "description": "A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so\neach keeps its id, and the gifts planned for it stay with it (CR3-43).",
+        "properties": {
+          "giftBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Giftbudget"
+          },
+          "leadDays": {
+            "default": 14,
+            "title": "Leaddays",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "personId": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Personid",
+            "type": "string",
+            "x-prefix": "Persn"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "title": "PlanRecord",
+        "type": "object",
+        "x-entity": "GfPln"
       },
       "PlanView": {
         "additionalProperties": false,
@@ -17107,6 +17396,7 @@
               "nothing-open",
               "nothing-to-close",
               "nothing-to-prune",
+              "occasion-fixed",
               "old-version",
               "on-chain",
               "one-spouse",
@@ -17140,6 +17430,7 @@
               "phrase-wrong",
               "place-missing",
               "plan-exists",
+              "plan-fixed",
               "plan-line-delete",
               "planned-elsewhere",
               "portfolio-unknown",
@@ -17488,6 +17779,7 @@
                   "nothing-open",
                   "nothing-to-close",
                   "nothing-to-prune",
+                  "occasion-fixed",
                   "old-version",
                   "on-chain",
                   "one-spouse",
@@ -17521,6 +17813,7 @@
                   "phrase-wrong",
                   "place-missing",
                   "plan-exists",
+                  "plan-fixed",
                   "plan-line-delete",
                   "planned-elsewhere",
                   "portfolio-unknown",
@@ -35077,9 +35370,9 @@
       }
     },
     "/ui/api/people/{person_id}": {
-      "delete": {
-        "description": "The caller's gift plan for this person; the person stays (S10.10).",
-        "operationId": "delete_plan_ui_api_people__person_id__delete",
+      "get": {
+        "description": "One gift plan the caller sees, with its person: what the plan's dialog starts from.",
+        "operationId": "get_plan_ui_api_people__person_id__get",
         "parameters": [
           {
             "in": "path",
@@ -35091,53 +35384,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Plan",
-        "tags": [
-          "gifts"
-        ]
-      },
-      "patch": {
-        "description": "The gift plan, and the person's own fields when the caller may change them.",
-        "operationId": "change_person_ui_api_people__person_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "person_id",
-            "required": true,
-            "schema": {
-              "title": "Person Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__gifts__PersonIn"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "content": {
@@ -35156,7 +35402,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "summary": "Change Person",
+        "summary": "Get Plan",
         "tags": [
           "gifts"
         ]
@@ -35259,18 +35505,34 @@
         ]
       }
     },
-    "/ui/api/persons/{person_id}": {
-      "delete": {
-        "description": "A person who isn't a user. Gifts bought, given or received keep them by name; ideas and\nplanned gifts for them alone go with them (S7.8.6).",
-        "operationId": "delete_person_ui_api_persons__person_id__delete",
+    "/ui/api/persons/clash": {
+      "get": {
+        "description": "The person a new one by this name would be, when there is one: what a dialog shows when\nits save is refused as `person-exists`.",
+        "operationId": "person_clash_ui_api_persons_clash_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "person_id",
+            "in": "query",
+            "name": "name",
             "required": true,
             "schema": {
-              "title": "Person Id",
+              "title": "Name",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "birthYear",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Birthyear"
             }
           }
         ],
@@ -35279,7 +35541,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Clash"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Person Clash Ui Api Persons Clash Get"
                 }
               }
             },
@@ -35292,11 +35562,13 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "summary": "Delete Person",
+        "summary": "Person Clash",
         "tags": [
           "people"
         ]
-      },
+      }
+    },
+    "/ui/api/persons/{person_id}": {
       "get": {
         "description": "One person the caller can see: where a new one's Location leads (S13.8.4).",
         "operationId": "get_person_ui_api_persons__person_id__get",
@@ -35330,53 +35602,6 @@
           }
         },
         "summary": "Get Person",
-        "tags": [
-          "people"
-        ]
-      },
-      "patch": {
-        "description": "Only the person, whoever added them, or an admin changes them (S10.10.2).",
-        "operationId": "change_person_ui_api_persons__person_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "person_id",
-            "required": true,
-            "schema": {
-              "title": "Person Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__people__PersonIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Person",
         "tags": [
           "people"
         ]

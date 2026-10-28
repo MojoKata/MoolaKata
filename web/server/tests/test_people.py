@@ -7,6 +7,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, remove, saved
 from test_accounts import new_account
 from test_positions import trade
 
@@ -109,18 +110,13 @@ def test_one_person_once_and_asking_to_share_a_private_one(server, two):
 def test_only_the_person_their_creator_or_an_admin_changes_them(server, two):
     alice, bob = two
     emma = add(alice, "Emma Griffin", birthYear=2018)
-    body = {"name": "Emma Griffin", "sex": "female", "birthYear": 2017}
-    r = bob.patch(f"/ui/api/persons/{emma['id']}", json=body, headers={"If-Match": '"1"'})
+    r = change(bob, "Persn", emma, birthYear=2017)
     assert r.status_code == 403
-    r = alice.patch(
-        f"/ui/api/persons/{emma['id']}", json=body, headers={"If-Match": f'"{emma["version"]}"'}
-    )
-    assert r.status_code == 200 and r.json()["birthYear"] == 2017
+    assert saved(change(alice, "Persn", emma, birthYear=2017))["birthYear"] == 2017
     # A user's own person is theirs; it can't be deleted while they are a user.
     mine = alice.get("/ui/api/profile").json()["personId"]
-    v = next(x for x in alice.get("/ui/api/persons").json()["items"] if x["id"] == mine)["version"]
-    r = alice.delete(f"/ui/api/persons/{mine}", headers={"If-Match": f'"{v}"'})
-    assert r.status_code == 422 and r.json()["code"] == "person-is-user"
+    r = remove(alice, "Persn", alice.get(f"/ui/api/persons/{mine}").json())
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "person-is-user"
 
 
 def test_relationships_are_added_by_those_in_them_and_kept_sound(server, two):
@@ -317,22 +313,13 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     assert r.status_code == 201, r.text
     ruth = r.json()
     assert ruth["canMakePrivate"] and not ruth["isUser"] and not ruth["private"]
-    body = {"name": "Ruth Griffin", "sex": "female", "birthYear": 1940}
-    r = alice.patch(
-        f"/ui/api/people/{ruth['id']}",
-        json={**body, "diedOn": "2030-01-01"},
-        headers={"If-Match": str(ruth["version"])},
-    )
-    assert r.json()["code"] == "died-on-invalid"
-    r = alice.patch(
-        f"/ui/api/people/{ruth['id']}",
-        json={**body, "diedOn": "2026-03-02", "private": True},
-        headers={"If-Match": str(ruth["version"])},
-    )
-    assert r.status_code == 200, r.text
-    assert (r.json()["diedOn"], r.json()["private"]) == ("2026-03-02", True)
+    person = {"id": ruth["id"], "version": ruth["personVersion"]}
+    r = change(alice, "Persn", person, diedOn="2030-01-01")
+    assert r.json()["errors"][0]["code"] == "died-on-invalid"
+    r = saved(change(alice, "Persn", person, diedOn="2026-03-02", private=True))
+    assert (r["diedOn"], r["private"]) == ("2026-03-02", True)
     # Shared with Bob, who plans for her too but may not make her public again.
-    pid = r.json()["id"]
+    pid = r["id"]
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
     assert (
         alice.put(f"/ui/api/shares/person/{pid}", json={"users": {bob_id: "read"}}).status_code
@@ -341,13 +328,11 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     r = bob.post("/ui/api/people", json={"personId": pid})
     assert r.status_code == 201, r.text
     assert not r.json()["canMakePrivate"]
-    r = bob.patch(
-        f"/ui/api/people/{pid}",
-        json={"personId": pid, "private": False, "notes": "likes tea"},
-        headers={"If-Match": str(r.json()["version"])},
-    )
-    assert r.status_code == 200, r.text
-    assert r.json()["private"]  # name not given: the person is left as it is
+    plan = {"id": r.json()["planId"], "version": r.json()["version"]}
+    saved(change(bob, "GfPln", plan, notes="likes tea"))
+    r = change(bob, "Persn", r.json() | {"version": r.json()["personVersion"]}, private=False)
+    assert r.status_code == 403, "Bob reads Ruth, so he may not change her"
+    assert bob.get(f"/ui/api/people/{pid}").json()["private"]
 
 
 def test_a_relationship_is_changed_and_removed_with_its_version(two):
@@ -397,9 +382,5 @@ def test_a_person_who_becomes_a_user_is_theirs_to_change(server, two):
         assert dana.personId == person["id"]
     mine = next(p for p in alice.get("/ui/api/persons").json()["items"] if p["id"] == person["id"])
     assert not mine["canChange"]
-    r = alice.patch(
-        f"/ui/api/persons/{person['id']}",
-        json={"name": "Dana Ortiz", "sex": "female", "birthYear": 1990},
-        headers={"If-Match": f'"{mine["version"]}"'},
-    )
+    r = change(alice, "Persn", mine, birthYear=1990)
     assert r.status_code == 403

@@ -160,7 +160,7 @@ Deno.test('deleting a record deletes what it owns, and bringing it back brings t
   });
   d.remove(t);
   truthy(s.removed);
-  equal(d.ops().map((o) => [o.op, o.id]), [['delete', t.id], ['delete', s.id]]);
+  equal(d.ops().map((o) => [o.op, o.id]), [['delete', t.id]], 'its parts go with it there too');
   d.unremove(t);
   equal(s.removed, false);
   equal(d.ops(), []);

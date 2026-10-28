@@ -367,6 +367,39 @@ export class Record {
     return true;
   }
 
+  /**
+   * Set several fields from one typed text (a birthday's month, day and year): `read` gives
+   * their values, or why the text doesn't read; the text stays as typed under `key`.
+   * @param {string} key @param {string} input
+   * @param {(t: string) => { value: { [name: string]: any } } | { error: string }} read
+   */
+  inputAs(key, input, read) {
+    const r = read(input);
+    this.#typed.set(key, input);
+    if ('error' in r) {
+      this.#unread.add(key);
+      this.#errors.set(key, r.error);
+      this.#tick.value++;
+      return false;
+    }
+    this.#unread.delete(key);
+    this.#errors.delete(key);
+    this.#inputting = true;
+    try {
+      for (const [name, v] of Object.entries(r.value)) this.set(name, v);
+    } finally {
+      this.#inputting = false;
+    }
+    this.#tick.value++;
+    return true;
+  }
+
+  /** What was typed under a key, as typed, while it is being edited. @param {string} key */
+  typed(key) {
+    this.#tick.value;
+    return this.#typed.get(key);
+  }
+
   #inputting = false;
   /** Fields whose typed text doesn't read yet: a change too, not to be lost unasked. */
   #unread = new Set();
@@ -676,6 +709,8 @@ export class Draft {
       if (r.state === 'new') {
         if (!r.removed) ops.push({ op: 'create', entity, id: r.id, fields: r.changes() });
       } else if (r.removed) {
+        // What went with its owner goes with the owner's delete on the server too (S13.8.11.3).
+        if (r.removedBy) continue;
         const removal = r.cls.removal?.(r);
         ops.push(
           removal

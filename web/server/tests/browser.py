@@ -240,7 +240,32 @@ def seed(base: str) -> Household:
     made(save_plan(c, env, f"{months_back(0)}-01", yearly))
     h = Household(base, c, cats, acct, b, env)
     h.extra.update(transactions(h))
+    h.extra.update(gift_plans(h))
     return h
+
+
+def gift_plans(h: Household) -> dict:
+    """Emma's gift plan: her birthday, Christmas, a graduation with a budget, a watch planned
+    for the graduation."""
+    emma = made(
+        h.c.post(
+            "/ui/api/people",
+            json={"name": "Emma Griffin", "sex": "female", "birthMonth": 10, "birthDay": 20,
+                  "birthYear": 2018, "giftBudget": "600", "notes": "likes paints",
+                  "occasions": [{"kind": "holiday", "holiday": "christmas"},
+                                {"kind": "custom", "name": "Graduation", "month": 6,
+                                 "day": 12, "budget": "200"}]},
+        )
+    )  # fmt: skip
+    grad = next(o for o in emma["occasions"] if o["kind"] == "custom")
+    made(
+        h.c.post(
+            "/ui/api/gifts",
+            json={"description": "Watch", "people": [emma["id"]], "status": "planned",
+                  "occasion": f"occasion:{grad['id']}", "occasionYear": 2027, "cost": "150"},
+        )
+    )  # fmt: skip
+    return {"emma": emma}
 
 
 def transactions(h: Household) -> dict:

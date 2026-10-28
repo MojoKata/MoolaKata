@@ -140,3 +140,12 @@ def test_left_out_of_a_budget_from_the_transactions_draft(server, frozen):
     other = c.post("/ui/api/budgets", json={"name": "Other", "accountIds": []}).json()
     r = change(c, "Txn", t, leftOutOf={"add": [other["id"]], "remove": []})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-in-budget"
+
+
+def test_a_split_transaction_deleted_takes_its_parts(server, frozen):
+    """The dialog sends the transaction's delete alone; its parts go with it (S13.8.11.3)."""
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [("-60.00", {}), ("-40.00", {})])
+    t = c.get(f"/ui/api/transactions/{txn}").json()
+    assert remove(c, "Txn", t).status_code == 200
+    assert c.get(f"/ui/api/transactions/{txn}").status_code == 404

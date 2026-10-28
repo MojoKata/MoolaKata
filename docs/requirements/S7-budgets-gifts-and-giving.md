@@ -123,7 +123,9 @@
       they already have). The person's **birthday**, their **wedding anniversary** (the start
       of a *spouse* relationship) and their relation to the user (*your granddaughter*,
       S10.10.5) come from the person. Adding a gift plan for someone new adds the person
-      first, as S10.10.3 says.
+      first, as S10.10.3 says. Changing an occasion keeps the gifts planned for it; taking
+      away an anniversary or other occasion that has gifts planned asks first, and they
+      become ideas, with no occasion.
    2. **Holidays** ship as a list with their dates computed per year: fixed dates
       (Christmas, Valentine's Day), rule-based ones (Mother's Day, Father's Day,
       Thanksgiving), and lunar or lunisolar ones (Hanukkah, Diwali, Lunar New Year, Eid

@@ -5,6 +5,7 @@ plan is shared; a gift for the viewer is never shown to them."""
 
 import datetime as dt
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import false, select
@@ -16,7 +17,8 @@ from ..people import tree
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.education import Gift, GiftPerson, GiftPlan, Occasion, Person
 from ..store.entities.users import User
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match
+from . import save
+from .conventions import Deleted, ExactRoute, IdOf, Model, Money, check, gone, if_match
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
 from .receipts import row as receipt_row
@@ -41,6 +43,7 @@ class OccasionOut(OccasionIn):
     id: str
     label: str
     next: dt.date | None
+    version: int
 
 
 class PersonIn(Model):
@@ -58,7 +61,7 @@ class PersonIn(Model):
     giftBudget: Money | None = None
     leadDays: int = 14
     notes: str | None = None
-    occasions: list[OccasionIn] | None = None  # when given, they replace the plan's
+    occasions: list[OccasionIn] | None = None  # a new plan's
 
 
 class NextDate(Model):
@@ -154,6 +157,7 @@ def _occasion_out(o: Occasion, today: dt.date) -> OccasionOut:
         budget=o.budget,
         label=label,
         next=nxt,
+        version=o.version,
     )
 
 
@@ -386,53 +390,12 @@ def add_person(body: PersonIn, request: Request, c: Caller = Depends(caller)):
         return _one(s, c, p.id)
 
 
-@router.patch("/people/{person_id}", response_model=PersonOut)
-def change_person(
-    person_id: str,
-    body: PersonIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """The gift plan, and the person's own fields when the caller may change them."""
-    with server(request).db.tx() as s:
-        x = gifts.plan_for(s, c.id, person_id, "write")
-        gp, p = x.plan, x.person
-        check(gp, version, lambda: _one(s, c, p.id))
-        for k, v in _check_plan(body).items():
-            setattr(gp, k, v)
-        gp.updatedAt = clock.now()
-        if body.occasions is not None:
-            _set_occasions(s, gp, body.occasions, c.id)
-        if body.name:
-            values = check_person_fields(body)
-            changed = {k: v for k, v in values.items() if getattr(p, k) != v}
-            if changed:
-                people.get(s, c.id, p.id, "owner")
-                if "name" in changed or "birthYear" in changed:
-                    refuse_clash(s, c, values["name"], values["birthYear"], exclude=p.id)
-                people.change(s, p, changed)
-            if body.private is not None and body.private != p.private:
-                if p.ownerId != c.id:
-                    raise refuse(
-                        "private", "not-creator", "Only whoever added them makes them private."
-                    )
-                people.change(s, p, {"private": body.private})
-        s.flush()
-        return _one(s, c, p.id)
-
-
-@router.delete("/people/{person_id}", response_model=Deleted[None])
-def delete_plan(
-    person_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    """The caller's gift plan for this person; the person stays (S10.10)."""
-    with server(request).db.tx() as s:
-        x = gifts.plan_for(s, c.id, person_id, "owner")
-        check(x.plan, version, lambda: _one(s, c, person_id))
-        x.plan.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(x.plan))
+@router.get("/people/{person_id}", response_model=PersonOut)
+def get_plan(person_id: str, request: Request, c: Caller = Depends(caller)):
+    """One gift plan the caller sees, with its person: what the plan's dialog starts from."""
+    with server(request).db.read() as s:
+        gifts.plan_for(s, c.id, person_id)
+        return _one(s, c, person_id)
 
 
 # ---- Gifts (S7.8) ----
@@ -878,3 +841,185 @@ def get_spending(request: Request, year: int | None = None, c: Caller = Depends(
                 for p, a, x in sp.flagged
             ],
         )
+
+
+# ---------- gift plans and their occasions in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class PlanRecord(Model):
+    """A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so
+    each keeps its id, and the gifts planned for it stay with it (CR3-43)."""
+
+    personId: IdOf("Persn")  # type: ignore[valid-type]
+    giftBudget: Money | None = None
+    leadDays: int = 14
+    notes: str | None = None
+
+
+class OccasionRecord(Model):
+    """An occasion of a gift plan (S7.7.1): a holiday by its key, or an anniversary or other
+    occasion on a month and day, with the year it began when known."""
+
+    giftPlanId: IdOf("GfPln")  # type: ignore[valid-type]
+    kind: Literal["anniversary", "holiday", "custom"]
+    name: str | None = None
+    holiday: str | None = None
+    month: int | None = None
+    day: int | None = None
+    year: int | None = None
+    budget: Money | None = None
+
+
+def _plan_values(body: PlanRecord) -> dict:
+    e: list[FieldError] = []
+    if body.giftBudget is not None and body.giftBudget < 0:
+        e.append(FieldError("giftBudget", "amount-invalid", "Zero or more."))
+    if not 0 <= body.leadDays <= 120:
+        e.append(FieldError("leadDays", "lead-invalid", "0 to 120 days."))
+    if e:
+        raise Problem(422, e[0].code, e[0].message, e)
+    return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
+
+
+def _plan_create(ctx, record_id: str, body: PlanRecord) -> None:
+    """A gift plan for someone the caller sees: a person already here, or one made in the
+    same save; one plan each (S7.7)."""
+    s, c = ctx.s, ctx.caller
+    values = _plan_values(body)
+    p = people.get(s, c.id, body.personId)
+    have = s.scalars(
+        select(GiftPlan).where(
+            GiftPlan.ownerId == c.id, GiftPlan.personId == p.id, GiftPlan.deleted == false()
+        )
+    ).first()
+    if have is not None:
+        raise refuse("personId", "plan-exists", f"You have a gift plan for {p.name}.", 409)
+    s.add(GiftPlan(id=record_id, ownerId=c.id, personId=p.id, **values))
+
+
+def _plan_editable(ctx, record_id: str) -> GiftPlan:
+    return gifts.plan_by_id(ctx.s, ctx.caller.id, record_id, "write").plan
+
+
+def _plan_current(ctx, gp: GiftPlan) -> dict:
+    return {"personId": gp.personId, "giftBudget": gp.giftBudget, "leadDays": gp.leadDays,
+            "notes": gp.notes}  # fmt: skip
+
+
+def _plan_update(ctx, gp: GiftPlan, body: PlanRecord) -> None:
+    if body.personId != gp.personId:
+        raise refuse("personId", "plan-fixed", "A gift plan stays with its person.")
+    for k, v in _plan_values(body).items():
+        setattr(gp, k, v)
+
+
+def _plan_delete(ctx, gp: GiftPlan) -> None:
+    """The caller's own plan; the person stays (S10.10), its occasions go with it."""
+    gifts.plan_by_id(ctx.s, ctx.caller.id, gp.id, "owner")
+    gp.mark_deleted(ctx.caller.id)
+
+
+def _occasion_values(body: OccasionRecord) -> dict:
+    e: list[FieldError] = []
+    holiday = body.kind == "holiday"
+    if holiday:
+        if body.holiday not in holidays.HOLIDAYS:
+            e.append(FieldError("holiday", "holiday-invalid", "One of the holidays."))
+    else:
+        if not (body.month and body.day and 1 <= body.month <= 12 and 1 <= body.day <= 31):
+            e.append(FieldError("month", "date-invalid", "A month and a day."))
+        if body.kind == "custom" and not (body.name or "").strip():
+            e.append(FieldError("name", "name-missing", "What the occasion is."))
+    if body.budget is not None and body.budget < 0:
+        e.append(FieldError("budget", "amount-invalid", "Zero or more."))
+    if e:
+        raise Problem(422, e[0].code, e[0].message, e)
+    return {
+        "kind": body.kind,
+        "name": None if holiday else ((body.name or "").strip() or None),
+        "holiday": body.holiday if holiday else None,
+        "month": None if holiday else body.month,
+        "day": None if holiday else body.day,
+        "year": None if holiday else body.year,
+        "budget": body.budget,
+    }
+
+
+def _occasion_create(ctx, record_id: str, body: OccasionRecord) -> None:
+    gifts.plan_by_id(ctx.s, ctx.caller.id, body.giftPlanId, "write")
+    ctx.s.add(Occasion(id=record_id, giftPlanId=body.giftPlanId, **_occasion_values(body)))
+
+
+def _occasion_editable(ctx, record_id: str) -> Occasion:
+    o = ctx.s.get(Occasion, record_id)
+    if o is None or o.deleted:
+        raise Problem(404, "not-found", "Not found")
+    gifts.plan_by_id(ctx.s, ctx.caller.id, o.giftPlanId, "write")
+    return o
+
+
+OCCASION_FIELDS = ("kind", "name", "holiday", "month", "day", "year", "budget")
+
+
+def _occasion_current(ctx, o: Occasion) -> dict:
+    return {"giftPlanId": o.giftPlanId, **{f: getattr(o, f) for f in OCCASION_FIELDS}}
+
+
+def _occasion_update(ctx, o: Occasion, body: OccasionRecord) -> None:
+    """In place: the gifts planned for it keep it (S7.8.1, CR3-43)."""
+    if body.giftPlanId != o.giftPlanId:
+        raise refuse("giftPlanId", "occasion-fixed", "An occasion stays with its plan.")
+    for k, v in _occasion_values(body).items():
+        setattr(o, k, v)
+
+
+def _occasion_delete(ctx, o: Occasion) -> None:
+    """Gifts planned for an anniversary or other occasion taken away become ideas again, once
+    that is confirmed; a holiday's keep it by name."""
+    key = f"occasion:{o.id}"
+    planned = list(ctx.s.scalars(select(Gift).where(Gift.occasion == key, Gift.deleted == false())))
+    if planned:
+        label = o.name or "this occasion"
+        n = len(planned)
+        ctx.ask(
+            "occasion-gifts",
+            f"{n} gift{'s are' if n > 1 else ' is'} planned for {label}: "
+            f"{'they become ideas' if n > 1 else 'it becomes an idea'}, with no occasion.",
+        )
+        for g in planned:
+            g.occasion, g.occasionYear = None, None
+    o.mark_deleted(ctx.caller.id)
+
+
+def _occasion_read(ctx, record_id: str) -> OccasionOut:
+    return _occasion_out(ctx.s.get(Occasion, record_id), clock.today())
+
+
+save.register(
+    save.Kind(
+        prefix="GfPln",
+        entity=GiftPlan,
+        fields=PlanRecord,
+        create=_plan_create,
+        editable=_plan_editable,
+        current=_plan_current,
+        update=_plan_update,
+        delete=_plan_delete,
+        read=lambda ctx, record_id: _one(
+            ctx.s, ctx.caller, ctx.s.get(GiftPlan, record_id).personId
+        ),
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Occsn",
+        entity=Occasion,
+        fields=OccasionRecord,
+        create=_occasion_create,
+        editable=_occasion_editable,
+        current=_occasion_current,
+        update=_occasion_update,
+        delete=_occasion_delete,
+        read=_occasion_read,
+    )
+)

@@ -13,6 +13,7 @@ from ..errors import Problem, refuse
 from ..people import tree
 from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
+from . import save
 from .conventions import Deleted, ExactRoute, Model, check, gone, if_match
 from .deps import Caller, caller, server
 from .gifts import check_person_fields, refuse_clash
@@ -87,6 +88,37 @@ def list_persons(request: Request, c: Caller = Depends(caller)):
         return _rows(s, c)
 
 
+class Clash(Model):
+    """Someone already here by a name (S10.10.3): who, whether the caller sees them, and who
+    added them, to use them or ask them to be shared."""
+
+    id: str
+    name: str
+    visible: bool
+    private: bool
+    createdBy: str | None
+
+
+@router.get("/persons/clash", response_model=Clash | None)
+def person_clash(
+    name: str, request: Request, birthYear: int | None = None, c: Caller = Depends(caller)
+):
+    """The person a new one by this name would be, when there is one: what a dialog shows when
+    its save is refused as `person-exists`."""
+    with server(request).db.read() as s:
+        other = people.clash(s, name.strip(), birthYear, None)
+        if other is None:
+            return None
+        creator = s.get(User, other.ownerId) if other.ownerId else None
+        return Clash(
+            id=other.id,
+            name=other.name,
+            visible=people.level(s, c.id, other) is not None,
+            private=other.private,
+            createdBy=creator.displayName if creator else None,
+        )
+
+
 @router.get("/persons/{person_id}", response_model=PersonRow)
 def get_person(person_id: str, request: Request, c: Caller = Depends(caller)):
     """One person the caller can see: where a new one's Location leads (S13.8.4)."""
@@ -117,55 +149,6 @@ def add_person(body: PersonIn, request: Request, c: Caller = Depends(caller)):
         s.add(p)
         s.flush()
         return _row(s, c, p.id)
-
-
-@router.patch("/persons/{person_id}", response_model=PersonRow)
-def change_person(
-    person_id: str,
-    body: PersonIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Only the person, whoever added them, or an admin changes them (S10.10.2)."""
-    with server(request).db.tx() as s:
-        p = people.get(s, c.id, person_id, "owner")
-        check(p, version, lambda: _row(s, c, p.id))
-        values = check_person_fields(body)
-        if (values["name"], values["birthYear"]) != (p.name, p.birthYear):
-            refuse_clash(s, c, values["name"], values["birthYear"], exclude=p.id)
-        if body.diedOn and body.diedOn > clock.today():
-            raise refuse("diedOn", "date-invalid", "A day that has passed.")
-        died = p.diedOn != body.diedOn
-        values["diedOn"] = body.diedOn
-        values["private"] = body.private
-        people.change(s, p, values)
-        s.flush()
-        if died:  # a death ends a marriage on that day (S10.10.4.2)
-            _rewash(
-                s,
-                *[
-                    (r.relation, r.person1Id, r.person2Id)
-                    for r in people.live_relationships(s, [p.id])
-                ],
-            )
-        return _row(s, c, p.id)
-
-
-@router.delete("/persons/{person_id}", response_model=Deleted[None])
-def delete_person(
-    person_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    """A person who isn't a user. Gifts bought, given or received keep them by name; ideas and
-    planned gifts for them alone go with them (S7.8.6)."""
-    with server(request).db.tx() as s:
-        p = people.get(s, c.id, person_id, "owner")
-        check(p, version, lambda: _row(s, c, p.id))
-        if people.user_of(s, p.id) is not None:
-            raise refuse(None, "person-is-user", "A user's person stays; make the user inactive.")
-        gifts.delete_person(s, p, c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(p))
 
 
 class Asked(Model):
@@ -457,3 +440,89 @@ def delete_relationship(
         s.flush()
         _rewash(s, (r.relation, r.person1Id, r.person2Id))
         return Deleted[None](deleted=gone(r))
+
+
+# ---------- a person in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class PersonRecord(Model):
+    """A person as a draft saves them. `differentPerson`, on a new one, says a name already
+    here is someone else, told apart by birth year (S10.10.3)."""
+
+    name: str
+    sex: str | None = None
+    birthMonth: int | None = None
+    birthDay: int | None = None
+    birthYear: int | None = None
+    diedOn: dt.date | None = None
+    private: bool = False
+    differentPerson: bool = False
+
+
+def _person_create(ctx, record_id: str, body: PersonRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    values = check_person_fields(body)
+    if not body.differentPerson:
+        refuse_clash(s, c, values["name"], values["birthYear"])
+    elif people.clash(s, values["name"], values["birthYear"]) is not None:
+        raise refuse(
+            "birthYear",
+            "not-told-apart",
+            "Give both birth years, different ones, to tell them apart.",
+        )
+    s.add(Person(id=record_id, ownerId=c.id, private=body.private, **values))
+
+
+def _person_editable(ctx, record_id: str) -> Person:
+    """Only the person, whoever added them, or an admin changes them (S10.10.2)."""
+    return people.get(ctx.s, ctx.caller.id, record_id, "owner")
+
+
+def _person_current(ctx, p: Person) -> dict:
+    return {
+        **{f: getattr(p, f) for f in ("name", "sex", "birthMonth", "birthDay", "birthYear")},
+        "diedOn": p.diedOn,
+        "private": p.private,
+        "differentPerson": False,
+    }
+
+
+def _person_update(ctx, p: Person, body: PersonRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    values = check_person_fields(body)
+    if (values["name"], values["birthYear"]) != (p.name, p.birthYear):
+        refuse_clash(s, c, values["name"], values["birthYear"], exclude=p.id)
+    if body.private != p.private and p.ownerId != c.id:
+        raise refuse("private", "not-creator", "Only whoever added them makes them private.")
+    died = p.diedOn != body.diedOn
+    values["private"] = body.private
+    people.change(s, p, {k: v for k, v in values.items() if getattr(p, k) != v})
+    if died:  # a death ends a marriage on that day (S10.10.4.2)
+        s.flush()
+        _rewash(
+            s,
+            *[(r.relation, r.person1Id, r.person2Id) for r in people.live_relationships(s, [p.id])],
+        )
+
+
+def _person_delete(ctx, p: Person) -> None:
+    """A person who isn't a user. Gifts bought, given or received keep them by name; ideas and
+    planned gifts for them alone go with them, and so do the gift plans for them (S7.8.6)."""
+    if people.user_of(ctx.s, p.id) is not None:
+        raise refuse(None, "person-is-user", "A user's person stays; make the user inactive.")
+    gifts.delete_person(ctx.s, p, ctx.caller.id)
+
+
+save.register(
+    save.Kind(
+        prefix="Persn",
+        entity=Person,
+        fields=PersonRecord,
+        create=_person_create,
+        editable=_person_editable,
+        current=_person_current,
+        update=_person_update,
+        delete=_person_delete,
+        read=lambda ctx, record_id: _row(ctx.s, ctx.caller, record_id),
+    )
+)

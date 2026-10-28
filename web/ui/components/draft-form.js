@@ -306,7 +306,8 @@ const TYPED = new Set(['money', 'quantity', 'percent', 'int']);
  * for a choice or a reference (`options`, as [value, label]), a switch for yes or no; bound to
  * the record: its value, what was typed, its refusal; hidden while a rule says it doesn't
  * apply. `bare` draws the control alone (a table's cell), named by `label` and `help`.
- * @param {{ rec: import('../app/draft.js').Record, name: string, label: string,
+ * `id` names the control where its label alone wouldn't (`f-` and the id, S12.7.3).
+ * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
  *   type?: string, placeholder?: string, disabled?: boolean, onEdit?: () => void,
  *   style?: any, rows?: number }} p
@@ -341,7 +342,7 @@ export function RecField(p) {
       <${Select} value=${rec.get(name) ?? ''} options=${options}
         disabled=${p.disabled} aria-invalid=${error ? 'true' : undefined} ...${named}
         onChange=${(/** @type {string} */ v) => {
-          rec.set(name, v === '' && spec.nullable ? null : v);
+          rec.input(name, v);
           edited();
         }} />
     `;
@@ -366,7 +367,7 @@ export function RecField(p) {
   }
   if (p.bare) return control;
   return html`
-    <${Field} label=${p.label} hint=${p.hint} error=${error}
+    <${Field} label=${p.label} id=${p.id} hint=${p.hint} error=${error}
       help=${p.help}>${control}</${Field}>
   `;
 }
