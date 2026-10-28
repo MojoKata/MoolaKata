@@ -230,3 +230,30 @@ Deno.test('ids sort by when they were made, and repeat when counted', () => {
   equal(one('Txn'), two('Txn'));
   truthy(one('Txn') !== two('Split'));
 });
+
+Deno.test('what is typed stays in its field while it is edited', () => {
+  const { d } = draft();
+  const t = d.load(Txn, read());
+  equal(t.shown('amount'), '42.00');
+  t.input('amount', '12.');
+  equal(t.shown('amount'), '12.', 'kept as typed, even before it reads');
+  t.input('amount', '12.5');
+  equal([t.shown('amount'), t.get('amount')], ['12.5', Dec.parse('12.5')]);
+  t.revert('amount');
+  equal(t.shown('amount'), '42.00');
+  t.input('amount', '9');
+  t.set('amount', Dec.parse('7.00'));
+  equal(t.shown('amount'), '7.00', 'a value set by code shows as that value');
+});
+
+Deno.test('text that does not read yet is a change, and is never sent', async () => {
+  const { d, sent } = draft();
+  const t = d.load(Txn, read());
+  t.input('amount', '12.3.4');
+  equal(d.changed, true, 'asked about before it is discarded');
+  equal(d.ops(), []);
+  equal((await d.save()).status, 'refused');
+  equal(sent.length, 0);
+  t.revert('amount');
+  equal(d.changed, false);
+});

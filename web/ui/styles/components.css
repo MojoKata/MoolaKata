@@ -1291,6 +1291,37 @@
   .dialog.wide {
     width: 760px;
   }
+  /* "Discard your changes?" over a dialog that holds them (S12.15.6). */
+  .dialog {
+    position: relative;
+  }
+  .dialog-ask {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    border-radius: 14px;
+    z-index: 1;
+  }
+  .dialog-ask-box {
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 18px 22px;
+    width: min(400px, 90%);
+    box-shadow: var(--shadow);
+  }
+  .dialog-ask-box h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .dialog-ask-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  }
   .dialog header {
     padding: 18px 22px 8px;
     display: flex;

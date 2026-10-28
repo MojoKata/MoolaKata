@@ -41,7 +41,21 @@ def openapi_document() -> dict:
     # The release, from web/VERSION (S13.8.9): a version bump changes the document too.
     _problems(doc)
     _created(doc)
+    _saved(doc)
     return doc
+
+
+def _saved(doc: dict) -> None:
+    """The fields of each kind of record the save takes (S13.8.11), as schemas of their own
+    marked with the kind's prefix, so the browser's drafts have their types (S17.3.9.2)."""
+    from .ui import save
+
+    schemas = doc.setdefault("components", {}).setdefault("schemas", {})
+    for prefix, kind in sorted(save.KINDS.items()):
+        schema = kind.fields.model_json_schema(ref_template="#/components/schemas/{model}")
+        for name, sub in schema.pop("$defs", {}).items():
+            schemas.setdefault(name, sub)
+        schemas[kind.fields.__name__] = {**schema, "x-entity": prefix}
 
 
 PROBLEM_CALLS = {"Problem", "refuse", "FieldError", "_send_problem", "problem_response"}

@@ -4,6 +4,7 @@ a household budget is one shared with a group at write (S10.3)."""
 
 import datetime as dt
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
@@ -16,7 +17,18 @@ from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine, BudgetMove
 from ..store.entities.users import User
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match, stale
+from . import save
+from .conventions import (
+    Deleted,
+    ExactRoute,
+    IdOf,
+    Model,
+    Money,
+    check,
+    gone,
+    if_match,
+    stale,
+)
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["budgets"])
@@ -716,6 +728,66 @@ def budget_month(
         )
 
 
+def _line_errors(s, b: Budget, ln, cats: dict, elsewhere: set, at: str = "") -> list[FieldError]:
+    """What a plan line breaks (S7.1.2, S7.10): its category, amount, cadence, overspending,
+    target, held-in account and projection. `at` prefixes each field's name."""
+    errors = []
+    if ln.categoryId not in cats or cats[ln.categoryId].kind == "transfer":
+        errors.append(FieldError(f"{at}categoryId", "category-unknown", "Choose a category."))
+    if ln.amount < 0:
+        errors.append(FieldError(f"{at}amount", "amount-negative", "Plan zero or more."))
+    if ln.cadence not in ("month", "year"):
+        errors.append(FieldError(f"{at}cadence", "cadence-invalid", "Monthly or yearly."))
+    if ln.categoryId in elsewhere:
+        errors.append(
+            FieldError(
+                f"{at}categoryId", "planned-elsewhere", "Planned by your gift or giving plans."
+            )
+        )
+    if ln.overspend not in ("carry", "next"):
+        errors.append(
+            FieldError(
+                f"{at}overspend",
+                "overspend-invalid",
+                "Carried negative, or from next month's To Budget.",
+            )
+        )
+    if ln.target is not None and (not b.reserves or ln.cadence != "month" or ln.target <= 0):
+        errors.append(
+            FieldError(
+                f"{at}target",
+                "target-invalid",
+                "A monthly line in a budget with reserves, aiming above zero.",
+            )
+        )
+    if ln.heldInId and ln.heldInId not in budgets.account_ids(s, b):
+        errors.append(
+            FieldError(f"{at}heldInId", "account-unknown", "One of the budget's accounts.")
+        )
+    if ln.projectionId and not _projection_ok(s, b, ln.projectionId):
+        errors.append(FieldError(f"{at}projectionId", "projection-unknown", "Choose a projection."))
+    return errors
+
+
+def _reserve_held(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
+    """What a category's reserve holds at the start of a month: kept no longer once its line
+    or its target goes, so that is asked first (S7.10.3)."""
+    from ..budgets import reserves
+
+    every = budgets.lines(s, b)
+    moved = reserves.net_moves(reserves.moves(s, b))
+    r = reserves.reserve(
+        s,
+        budgets.tree(s),
+        budgets.account_ids(s, b),
+        every,
+        moved,
+        cat_id,
+        budgets.add_months(month, -1),
+    )
+    return r.balance if r is not None else Decimal(0)
+
+
 @router.put("/budgets/{budget_id}/plan", response_model=MonthView)
 def set_plan(
     budget_id: str,
@@ -736,61 +808,12 @@ def set_plan(
         errors = []
         seen = set()
         for i, ln in enumerate(body.lines):
-            if ln.categoryId not in cats or cats[ln.categoryId].kind == "transfer":
-                errors.append(
-                    FieldError(f"lines.{i}.categoryId", "category-unknown", "Choose a category.")
-                )
-            elif ln.categoryId in seen:
+            if ln.categoryId in seen and ln.categoryId in cats:
                 errors.append(
                     FieldError(f"lines.{i}.categoryId", "category-twice", "Each category once.")
                 )
             seen.add(ln.categoryId)
-            if ln.amount < 0:
-                errors.append(
-                    FieldError(f"lines.{i}.amount", "amount-negative", "Plan zero or more.")
-                )
-            if ln.cadence not in ("month", "year"):
-                errors.append(
-                    FieldError(f"lines.{i}.cadence", "cadence-invalid", "Monthly or yearly.")
-                )
-            if ln.categoryId in elsewhere:
-                errors.append(
-                    FieldError(
-                        f"lines.{i}.categoryId",
-                        "planned-elsewhere",
-                        "Planned by your gift or giving plans.",
-                    )
-                )
-            if ln.overspend not in ("carry", "next"):
-                errors.append(
-                    FieldError(
-                        f"lines.{i}.overspend",
-                        "overspend-invalid",
-                        "Carried negative, or from next month's To Budget.",
-                    )
-                )
-            if ln.target is not None and (
-                not b.reserves or ln.cadence != "month" or ln.target <= 0
-            ):
-                errors.append(
-                    FieldError(
-                        f"lines.{i}.target",
-                        "target-invalid",
-                        "A monthly line in a budget with reserves, aiming above zero.",
-                    )
-                )
-            if ln.heldInId and ln.heldInId not in budgets.account_ids(s, b):
-                errors.append(
-                    FieldError(
-                        f"lines.{i}.heldInId", "account-unknown", "One of the budget's accounts."
-                    )
-                )
-            if ln.projectionId and not _projection_ok(s, b, ln.projectionId):
-                errors.append(
-                    FieldError(
-                        f"lines.{i}.projectionId", "projection-unknown", "Choose a projection."
-                    )
-                )
+            errors += _line_errors(s, b, ln, cats, elsewhere, f"lines.{i}.")
         _raise(errors)
         every = budgets.lines(s, b)
         current = budgets.in_force(every, month)
@@ -870,6 +893,240 @@ def set_plan(
         )
         s.flush()
     return budget_month(budget_id, request, c, month.isoformat()[:7])
+
+
+class LineOut(Model):
+    """A plan line as it is stored (S7.1.2), which a dialog's draft starts from (S12.15.1)."""
+
+    id: str
+    version: int
+    budgetId: str
+    categoryId: str
+    fromMonth: dt.date
+    amount: Money
+    cadence: str
+    rollover: bool
+    overspend: str
+    projectionId: str | None
+    target: Money | None
+    heldInId: str | None
+
+
+class PlanOut(Model):
+    """The lines in force in a month, each as stored; a line of 0 is none."""
+
+    month: dt.date
+    lines: list[LineOut]
+
+
+def _line_out(ln: BudgetLine) -> LineOut:
+    return LineOut(
+        id=ln.id,
+        version=ln.version,
+        budgetId=ln.budgetId,
+        categoryId=ln.categoryId,
+        fromMonth=ln.fromMonth,
+        amount=ln.amount,
+        cadence=ln.cadence,
+        rollover=ln.rollover,
+        overspend=ln.overspend,
+        projectionId=ln.projectionId,
+        target=ln.target,
+        heldInId=ln.heldInId,
+    )
+
+
+@router.get("/budgets/{budget_id}/plan", response_model=PlanOut)
+def get_plan(
+    budget_id: str,
+    request: Request,
+    c: Caller = Depends(caller),
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+):
+    """The plan as it holds in a month, line by line as stored: what the plan dialog edits
+    (S7.1.2), never the month's figures, which add carried amounts and moves to it."""
+    m = dt.date.fromisoformat(month + "-01")
+    with server(request).db.read() as s:
+        b, _ = access.budget(s, c.id, budget_id, "read")
+        lines = budgets.in_force(budgets.lines(s, b), m)
+        tr = budgets.tree(s)
+        ordered = sorted(lines.values(), key=lambda ln: tr.label(ln.categoryId))
+        return PlanOut(month=m, lines=[_line_out(ln) for ln in ordered])
+
+
+# ---------- plan lines in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class LineIn(Model):
+    """A plan line as a draft saves it: the line holds from `fromMonth` on, earlier months
+    keeping the plan they had (S7.1.2)."""
+
+    budgetId: IdOf("Bdgt")  # type: ignore[valid-type]
+    categoryId: IdOf("Cat")  # type: ignore[valid-type]
+    fromMonth: dt.date
+    amount: Money
+    cadence: Literal["month", "year"] = "month"
+    rollover: bool = False
+    overspend: Literal["carry", "next"] = "carry"
+    projectionId: IdOf("Prjct") | None = None  # type: ignore[valid-type]
+    target: Money | None = None
+    heldInId: IdOf("Acct") | None = None  # type: ignore[valid-type]
+
+
+def _line_checked(ctx, body: LineIn) -> tuple[Budget, dt.date]:
+    """The budget, written by the caller, and the month, after the line's own checks."""
+    b, _ = access.budget(ctx.s, ctx.caller.id, body.budgetId, "write")
+    month = budgets.month_of(body.fromMonth)
+    cats = {x.id: x for x in ctx.s.scalars(select(Category).where(Category.deleted == false()))}
+    elsewhere = plan.planned_elsewhere(ctx.s, b, budgets.tree(ctx.s), month.year)
+    _raise(_line_errors(ctx.s, b, body, cats, elsewhere))
+    return b, month
+
+
+LINE_FIELDS = ("amount", "cadence", "rollover", "overspend", "projectionId", "target", "heldInId")
+
+
+def _values(body: LineIn) -> dict:
+    return {
+        "amount": body.amount,
+        "cadence": body.cadence,
+        "rollover": body.rollover or body.target is not None,  # a reserve always rolls over
+        "overspend": body.overspend,
+        "projectionId": body.projectionId,
+        "target": body.target,
+        "heldInId": body.heldInId if body.target is not None else None,
+    }
+
+
+def _planned(ctx, b: Budget) -> None:
+    """The budget changed, and Activity says so once for the whole save."""
+    b.updatedAt = clock.now()
+    srv, by = server(ctx.request), ctx.caller.id
+
+    def record() -> None:
+        with srv.db.tx() as s:
+            activity.record(
+                s,
+                "budget.planned",
+                actor=by,
+                subject_kind="budget",
+                subject_id=b.id,
+                owner=b.ownerId,
+            )
+
+    ctx.after(f"budget.planned:{b.id}", record)
+
+
+def _line_create(ctx, record_id: str, body: LineIn) -> None:
+    """A category planned from a month: not one in force then, which would be planned twice.
+    A line of 0 from the same month (the category taken out then) gives way to it."""
+    b, month = _line_checked(ctx, body)
+    every = budgets.lines(ctx.s, b)
+    if body.categoryId in budgets.in_force(every, month):
+        raise refuse("categoryId", "category-twice", "Each category once.")
+    for ln in every:
+        if ln.categoryId == body.categoryId and ln.fromMonth == month:
+            ln.mark_deleted(ctx.caller.id)
+    ctx.s.flush()
+    ctx.s.add(
+        BudgetLine(
+            id=record_id,
+            budgetId=b.id,
+            categoryId=body.categoryId,
+            fromMonth=month,
+            **_values(body),
+        )
+    )
+    _planned(ctx, b)
+
+
+def _line_editable(ctx, record_id: str) -> BudgetLine:
+    ln = ctx.s.get(BudgetLine, record_id)
+    if ln is None or ln.deleted:
+        raise Problem(404, "not-found", "Not found")
+    access.budget(ctx.s, ctx.caller.id, ln.budgetId, "write")
+    return ln
+
+
+def _line_current(ctx, ln: BudgetLine) -> dict:
+    return {
+        "budgetId": ln.budgetId,
+        "categoryId": ln.categoryId,
+        "fromMonth": ln.fromMonth.isoformat(),
+        **{f: getattr(ln, f) for f in LINE_FIELDS},
+    }
+
+
+def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
+    """A line changed from a month on (`fromMonth`): in place when it already starts then, else
+    a line of its own from then, the earlier months keeping the old one. A reserve that stops
+    being kept while it holds money is asked first (S7.10.3); a line set to 0 is taken out of
+    the plan from that month."""
+    if body.budgetId != ln.budgetId or body.categoryId != ln.categoryId:
+        raise refuse("categoryId", "line-fixed", "A line keeps its budget and category.")
+    b, month = _line_checked(ctx, body)
+    if month < ln.fromMonth:
+        raise refuse("fromMonth", "month-earlier", "A change holds from its own month on.")
+    values = _values(body)
+    stops = ln.target is not None and (values["target"] is None or values["amount"] == 0)
+    if stops:
+        held = _reserve_held(ctx.s, b, ln.categoryId, month)
+        if held:
+            label = budgets.tree(ctx.s).label(ln.categoryId)
+            ctx.ask("reserve-balance", f"{label} holds {held:,.2f}: it stops being kept.")
+    if month == ln.fromMonth:
+        for f, v in values.items():
+            setattr(ln, f, v)
+    else:
+        later = next(
+            (
+                x
+                for x in budgets.lines(ctx.s, b)
+                if x.categoryId == ln.categoryId and x.fromMonth == month
+            ),
+            None,
+        )
+        if later is not None:  # a line of 0 from that month: taken over
+            for f, v in values.items():
+                setattr(later, f, v)
+        else:
+            ctx.s.add(
+                BudgetLine(
+                    id=ids.new_id("BdgLn"),
+                    budgetId=b.id,
+                    categoryId=ln.categoryId,
+                    fromMonth=month,
+                    **values,
+                )
+            )
+    _planned(ctx, b)
+
+
+def _line_delete(ctx, ln: BudgetLine) -> None:
+    raise refuse(
+        None,
+        "plan-line-delete",
+        "A plan line is taken out by setting it to nothing from a month on.",
+    )
+
+
+def _line_read(ctx, record_id: str) -> LineOut:
+    return _line_out(ctx.s.get(BudgetLine, record_id))
+
+
+save.register(
+    save.Kind(
+        prefix="BdgLn",
+        entity=BudgetLine,
+        fields=LineIn,
+        create=_line_create,
+        editable=_line_editable,
+        current=_line_current,
+        update=_line_update,
+        delete=_line_delete,
+        read=_line_read,
+    )
+)
 
 
 def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:

@@ -3,7 +3,7 @@
 // while it is open, and Tab goes round the dialog and the help pane. openDialog() resolves with
 // what the dialog closes with.
 import { signal } from '@preact/signals';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { paneWidth } from './help.js';
 import { Icon } from './icon.js';
@@ -42,6 +42,14 @@ export function openDialog(comp, props = {}) {
   });
 }
 
+/** Whether the open dialog holds changes not saved (S12.15.6); set by the dialog itself. */
+let unsaved = () => false;
+
+/** Whether the open dialog holds changes not saved: they are lost if the session ends now. */
+export function dialogHasChanges() {
+  return !!current.value && unsaved();
+}
+
 /** @param {any} [value] */
 export function closeDialog(value) {
   const d = current.value;
@@ -60,11 +68,53 @@ export function DialogHost() {
 
 /**
  * The frame every dialog draws in.
+ * `changed`, for a dialog that edits a draft (S12.15.6), says whether it holds changes not
+ * saved: then Escape, ✕ or the browser's Back ask before closing, a click on the dimmed
+ * content does nothing, and leaving the page brings the browser's own question.
  * @param {{ title: string, wide?: boolean, guide?: string, close: (v?: any) => void,
- *   footer?: any, note?: any, children: any, onSubmit?: () => void }} p
+ *   footer?: any, note?: any, children: any, onSubmit?: () => void,
+ *   changed?: () => boolean }} p
  */
-export function Dialog({ title, wide, close, footer, note, children, onSubmit }) {
+export function Dialog({ title, wide, close, footer, note, children, onSubmit, changed }) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [asking, setAsking] = useState(false);
+  const askingRef = useRef(false);
+  askingRef.current = asking;
+  const keep = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  useEffect(() => {
+    if (asking) keep.current?.focus();
+  }, [asking]);
+  // The latest `changed`: the dialog's draft may load after the first draw.
+  const changedRef = useRef(changed);
+  changedRef.current = changed;
+  const has = () => !!changedRef.current?.();
+  // Escape, ✕ or Back: closes, or asks first while there are changes.
+  const leave = () => (has() ? setAsking(true) : close());
+  useEffect(() => {
+    if (!changed) return;
+    unsaved = has;
+    // Back goes to the entry the dialog adds, so it can be asked about; the entry goes with it.
+    const mark = { mkDialog: Math.random() };
+    history.pushState(mark, '', location.href);
+    const onPop = () => {
+      if (history.state?.mkDialog === mark.mkDialog) return;
+      if (has()) {
+        history.pushState(mark, '', location.href);
+        setAsking(true);
+      } else close();
+    };
+    const onUnload = (/** @type {BeforeUnloadEvent} */ e) => {
+      if (has()) e.preventDefault();
+    };
+    addEventListener('popstate', onPop);
+    addEventListener('beforeunload', onUnload);
+    return () => {
+      removeEventListener('popstate', onPop);
+      removeEventListener('beforeunload', onUnload);
+      unsaved = () => false;
+      if (history.state?.mkDialog === mark.mkDialog) history.back();
+    };
+  }, []);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -79,7 +129,8 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit })
     const onKey = (/** @type {KeyboardEvent} */ e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        close();
+        if (askingRef.current) setAsking(false);
+        else leave();
       } else if (e.key === 'Tab') {
         // Round the dialog's fields, then the guide's links and terms, and back.
         const [d0, d1] = ends(el);
@@ -105,7 +156,7 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit })
   const beside = paneWidth.value;
   return html`
     <div class="scrim" style=${{ right: beside + 'px' }} onClick=${(/** @type {any} */ e) =>
-      e.target === e.currentTarget && close()}>
+      e.target === e.currentTarget && !has() && close()}>
       <div class=${'dialog' + (wide ? ' wide' : '')} role="dialog"
         aria-modal=${beside ? undefined : 'true'} aria-labelledby="dialog-title" ref=${box}>
         <form onSubmit=${(/** @type {Event} */ e) => {
@@ -114,7 +165,7 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit })
         }} class="dialog-form">
             <header><h2 id="dialog-title">${title}</h2>
               <button type="button" class="icon-btn dialog-x" aria-label="Close" onClick=${() =>
-                close()}><${Icon} name="x" /></button></header>
+                leave()}><${Icon} name="x" /></button></header>
             <div class="body">${children}</div>
             ${footer !== null
               ? html`<footer>${
@@ -122,6 +173,21 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit })
               }${footer}</footer>`
               : null}
           </form>
+        ${asking
+          ? html`
+            <div class="dialog-ask" role="alertdialog" aria-labelledby="dialog-ask-title">
+              <div class="dialog-ask-box">
+                <h3 id="dialog-ask-title">Discard your changes?</h3>
+                <p class="small dim">What you changed in this dialog isn't saved.</p>
+                <div class="dialog-ask-buttons">
+                  <button type="button" class="btn danger" onClick=${() => close()}>Discard</button>
+                  <button type="button" class="btn primary" ref=${keep}
+                    onClick=${() => setAsking(false)}>Keep editing</button>
+                </div>
+              </div>
+            </div>
+          `
+          : null}
       </div>
     </div>
   `;

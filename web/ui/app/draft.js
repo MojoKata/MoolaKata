@@ -256,6 +256,12 @@ export class Record {
   static rules = {};
   /** Reference fields whose record owns this one: deleted with it (`schema.md` §4). */
   static ownedBy = /** @type {string[]} */ ([]);
+  /**
+   * For a kind whose records are taken out by a change rather than deleted (a plan line set to
+   * nothing from a month on): the fields a removed record sends as an update.
+   * @type {((r: any) => { [name: string]: any }) | null}
+   */
+  static removal = null;
 
   /** @type {{ [name: string]: any }} */
   #data;
@@ -264,6 +270,8 @@ export class Record {
   #tick = signal(0);
   /** @type {Map<string | null, string>} */
   #errors = new Map();
+  /** What was typed in a field, kept as typed while it is being edited. @type {Map<string, string>} */
+  #typed = new Map();
 
   /**
    * @param {string} id
@@ -317,6 +325,7 @@ export class Record {
   set(name, value, cause = null) {
     const spec = this.spec(name), t = typeOf(spec);
     if (t.equal(this.#data[name], value, spec)) return;
+    if (cause !== null || !this.#inputting) this.#typed.delete(name);
     const m = this.#modified.get(name);
     if (!m) this.#modified.set(name, { was: this.#data[name], cause });
     this.#data[name] = value;
@@ -333,19 +342,36 @@ export class Record {
   /** Set a field from what was typed; a value that doesn't read is the field's error. @param {string} name @param {string} input */
   input(name, input) {
     const spec = this.spec(name), r = typeOf(spec).parse(input, spec);
+    this.#typed.set(name, input);
     if ('error' in r) {
+      this.#unread.add(name);
       this.#errors.set(name, r.error);
       this.#tick.value++;
       return false;
     }
-    this.set(name, r.value);
+    this.#unread.delete(name);
+    this.#inputting = true;
+    try {
+      this.set(name, r.value);
+    } finally {
+      this.#inputting = false;
+    }
+    this.#errors.delete(name);
+    this.#tick.value++;
     return true;
   }
 
-  /** What a field shows in its input. @param {string} name */
+  #inputting = false;
+  /** Fields whose typed text doesn't read yet: a change too, not to be lost unasked. */
+  #unread = new Set();
+
+  /** What a field shows in its input: what was typed there, else its value. @param {string} name */
   shown(name) {
+    this.#tick.value;
+    const typed = this.#typed.get(name);
+    if (typed !== undefined) return typed;
     const spec = this.spec(name);
-    return typeOf(spec).format(this.get(name), spec);
+    return typeOf(spec).format(this.#data[name], spec);
   }
 
   /**
@@ -378,10 +404,11 @@ export class Record {
   revert(name) {
     for (const [other, m] of [...this.#modified]) if (m.cause === name) this.revert(other);
     const m = this.#modified.get(name);
-    if (!m) return;
-    this.#data[name] = m.was;
+    if (m) this.#data[name] = m.was;
     this.#modified.delete(name);
     this.#errors.delete(name);
+    this.#typed.delete(name);
+    this.#unread.delete(name);
     this.#tick.value++;
   }
 
@@ -390,7 +417,15 @@ export class Record {
     for (const [name, m] of this.#modified) this.#data[name] = m.was;
     this.#modified.clear();
     this.#errors.clear();
+    this.#typed.clear();
+    this.#unread.clear();
     this.#tick.value++;
+  }
+
+  /** Whether a field holds typed text that doesn't read yet. */
+  get unread() {
+    this.#tick.value;
+    return this.#unread.size > 0;
   }
 
   /** @param {string} name */
@@ -399,11 +434,12 @@ export class Record {
     return this.#modified.has(name);
   }
 
-  /** Whether the save would send anything for this record. */
+  /** Whether the record holds changes: what the save would send, or text typed that doesn't
+   * read yet. */
   get changed() {
     this.#tick.value;
     if (this.state === 'new') return !this.removed;
-    return this.removed || this.#modified.size > 0;
+    return this.removed || this.#modified.size > 0 || this.#unread.size > 0;
   }
 
   /** The fields to send: every field for a new record, only those changed otherwise, a set's as what to add and take away. */
@@ -461,6 +497,8 @@ export class Record {
     this.removed = s.removed;
     this.removedBy = s.removedBy;
     this.#errors.clear();
+    this.#typed.clear();
+    this.#unread.clear();
     this.#tick.value++;
   }
 
@@ -613,9 +651,18 @@ export class Draft {
       const entity = r.cls.prefix;
       if (r.state === 'new') {
         if (!r.removed) ops.push({ op: 'create', entity, id: r.id, fields: r.changes() });
-      } else if (r.removed) ops.push({ op: 'delete', entity, id: r.id, version: r.version });
-      else if (r.changed) {
-        ops.push({ op: 'update', entity, id: r.id, version: r.version, fields: r.changes() });
+      } else if (r.removed) {
+        const removal = r.cls.removal?.(r);
+        ops.push(
+          removal
+            ? { op: 'update', entity, id: r.id, version: r.version, fields: removal }
+            : { op: 'delete', entity, id: r.id, version: r.version },
+        );
+      } else {
+        const fields = r.changes();
+        if (Object.keys(fields).length) {
+          ops.push({ op: 'update', entity, id: r.id, version: r.version, fields });
+        }
       }
     }
     return ops;
@@ -627,6 +674,10 @@ export class Draft {
    * @returns {Promise<Outcome>}
    */
   async save(o = {}) {
+    // Nothing is sent while a field holds text that doesn't read: its reason is at the field.
+    if (this.records.some((r) => !r.removed && r.unread)) {
+      return { status: 'refused', message: 'Correct the fields marked first.' };
+    }
     const ops = this.ops();
     if (!ops.length) return { status: 'saved', saved: [] };
     const confirm = o.confirmAsks ? this.asks.map((a) => ({ code: a.code, id: a.id })) : [];

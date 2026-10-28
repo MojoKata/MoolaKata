@@ -7,7 +7,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
-import { loadSession } from '../store/session.js';
+import { loadSession, lostChanges } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { Field, FormError } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
@@ -75,7 +75,8 @@ export default function Locked() {
   }
   return html`
     <${AuthCard} title="MoolaKata is locked" guide="locked"
-      sub="The server started and holds no key. An admin enters the recovery phrase to open it; everyone signs in after that.">
+      sub=${(lostChanges.value ? "Changes you hadn't saved were lost. " : '') +
+        'The server started and holds no key. An admin enters the recovery phrase to open it; everyone signs in after that.'}>
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         unlock.run().catch(() => {});

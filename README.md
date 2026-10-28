@@ -17,7 +17,8 @@ milestone 9 made. What the build couldn't try for real is in
 [`docs/test-plan.md`](docs/test-plan.md); the gaps and the open questions are listed in the
 requirements' README. Milestone 10 (S17.9.12), budgets as S7 describes them, is built. The
 drafts dialogs edit and save through (S12.15, S13.8.11) are built, `web/ui/app/draft.js` and
-`POST /ui/api/save`, but no dialog uses them yet: each still builds its own request.
+`POST /ui/api/save`; the budget's plan and estimate dialogs use them, the other dialogs still
+build their own requests.
 
 **Release:** 0.1.0, a pre-release for testers. Its images are `ghcr.io/mojokata/moolakata` and
 `ghcr.io/mojokata/moolakata-connector`, for amd64 and arm64, each with a provenance attestation
