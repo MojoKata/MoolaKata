@@ -98,9 +98,9 @@ assembly's), the reviewer stops and asks the user whether its fixes will go with
 
 1. **With the fixes**: the push waits until the fixes are committed, and the claim's details
    go into the review in the same push.
-2. **Alone**: the claim keeps its row in the summary table with its id, Req, severity,
-   confirmations and status, and the description *Withheld until fixed*; its section says the
-   same and nothing more. The details are written in when the fix is pushed.
+2. **Alone**: the claim keeps its row in its severity's summary table with its id, Req,
+   severity, confirmations and status, and the description *Withheld until fixed*; its section
+   says the same and nothing more. The details are written in when the fix is pushed.
 
 ## 3. A session's habits
 
@@ -166,8 +166,8 @@ cuts the code into **units** of about 10,000 lines of code each, with their sect
 3. code that cites no section and serves none is listed as **untraced**, with the unit it
    sits beside; that unit's session judges it (§7).
 
-Units are numbered in requirement order, so the review's sections and ids follow the
-requirements. The map records, per unit, its sections, paths, tests and line counts.
+Units are numbered in requirement order, so the units' openers (§10) follow the requirements,
+and claims alike in severity and confirmations take their ids in that order. The map records, per unit, its sections, paths, tests and line counts.
 
 ### 4.3 The delta
 
@@ -291,8 +291,9 @@ an open question); **decided** (the review's decisions say how); **fixed** `<com
 **later** `L<n>`; **rejected** (found not to hold after it had an id, with the reason in its
 section).
 
-Severity, confirmations and status live **only in the review's summary table**. Its sections
-never repeat them, so there is one place to update and nothing to drift.
+Severity, confirmations and status live **only in the review's summary tables**, one per
+severity (§10). The claims' sections never repeat them, so there is one place to update and
+nothing to drift.
 
 ## 10. Assembly
 
@@ -301,9 +302,11 @@ One session writes the review from the work pad. Its parts, in order:
 1. **The header**: the review's number, the commit it read, the last review's commit it is
    measured from, scope, checking, serial or parallel (and, if parallel, that the user asked
    for it for this review), and the paths as review 2's header gives them.
-2. **The summary**: first the verdict in one line (*Ready to release: no. 4 High open:
-   CR3-2, CR3-9, …*), kept current as the table changes; a few lines on what matters most;
-   then **the table**, one row per claim, in id order:
+2. **The summary**: the verdict in one line (*Ready to release: no. 4 High open:
+   CR3-1, CR3-2, …*), kept current as the tables change, and a few lines on what matters most.
+3. **One part per severity**, High, then Med, then Low, headed `## Summary - High Severity`,
+   `## Summary - Medium Severity` and `## Summary - Low Severity`. Each opens with its count of
+   claims by confirmations, then **its table**, one row per claim, in id order:
 
    | Id | Req | Sev | Conf | Status | Description |
    |---|---|---|---|---|---|
@@ -312,27 +315,39 @@ One session writes the review from the work pad. Its parts, in order:
    **Id** links to the claim's section. **Req** is the main requirement it is about (`—` for
    untraced code). The **description** is one sentence of at most three lines; a claim that
    needs more is two claims.
-3. **One section per unit**, in the map's order, after a first section for the documents
-   (Phase 1). Each opens with the unit's sections, paths and what was read, then its claims,
-   each under its id as a heading (`### CR3-14: a transfer kept as the account's own …`):
-   kind, requirements, code with the quoted lines, what goes wrong, remedy, alternatives. Not
-   severity, confirmations or status (§9). Longer working notes stay in the work pad, and the
-   section links them.
-4. **Checked and sound**: what was looked at closely and found right, so the next review
+
+   Then its claims, in id order, each under its id as a heading (`### CR3-14: a transfer kept
+   as the account's own …`), with its work-pad id and file: kind, requirements, code with the
+   quoted lines, what goes wrong, remedy, alternatives. Not severity, confirmations or status
+   (§9). Longer working notes stay in the work pad, and the section links them.
+4. **The documents and units read**: a section for the documents (Phase 1), with one for each
+   block, then one per unit in the map's order: its sections, paths, what was read and run,
+   and a link to its work-pad file.
+5. **Checked and sound**: what was looked at closely and found right, so the next review
    need not repeat it.
-5. **Decisions**: what the user decided on the claims, as they are walked through.
-6. **Where things stand**: for the next reviewer, what was left unread or read lightly, and
+6. **Decisions**: what the user decided on the claims, as they are walked through.
+7. **Where things stand**: for the next reviewer, what was left unread or read lightly, and
    where to start.
+8. **Work-pad ids**: each claim's work-pad id against its review id.
 
 Review 3's work pad has `extract.py` and `render.py`, which build the table and the sections
-from the blocks' and units' files mechanically; the assembly session then writes the parts
-that need judgement (the header, the summary, the openers, *checked and sound*, *where things
-stand*) and reads every committed file for hints at withheld claims (§3.10).
+from the blocks' and units' files mechanically (`render.py` lays them out one section per unit,
+in the map's order, and review 3 was reordered by severity afterwards; the next review's render
+orders them as above); the assembly session then writes the parts that need judgement (the
+header, the summary, the openers, *checked and sound*, *where things stand*) and reads every
+committed file for hints at withheld claims (§3.10).
 
-**Ids** are `CR<n>-<m>`: the review's number unpadded and the claim's number, given once at
-assembly in the order of the sections, and never renumbered or reused. A claim confirmed
-after assembly (from a late sweep, or a review checked later) takes the next free number.
-Other documents cite them as ids (`CR3-14`), as the requirements cite theirs.
+**Ids** are `CR<n>-<m>`: the review's number unpadded and the claim's number, given at
+assembly in the order of the tables: by severity (High, Med, Low), then by confirmations, most
+first, then in the order the claims were found (the documents first, then the units in the
+map's order). So `CR3-1` is the most severe claim with the most confirmations.
+
+A review checked later (§11.4) renumbers once, when its checks and sweep are in, as the checks
+change confirmations and severities: the claims confirmed after assembly join the others, and
+the last part gains a table of the assembly ids against the new ones, for the commits and the
+log that cite them. After that, ids are never renumbered or reused. A claim whose severity
+changes later (§11.3) moves, with its id, to its new severity's part. Other documents cite
+them as ids (`CR3-14`), as the requirements cite theirs.
 
 ## 11. After the review
 
@@ -343,9 +358,10 @@ Other documents cite them as ids (`CR3-14`), as the requirements cite theirs.
 2. **Walk through** the plausible claims and the ones that need a choice, one at a time, with
    options and a recommendation. Answers go into the requirements and the decisions; a
    question left open takes the next Q id.
-3. **Each change updates the table**, and nothing else in the review: a confirmation, a
-   status, a severity changed by a decision. The commit that fixes a claim names its id, and
-   its status becomes fixed with that commit.
+3. **Each change updates the tables**, and nothing else in the review: a confirmation, a
+   status, a severity changed by a decision (the claim's row and section move to its new
+   severity's part, keeping its id). The commit that fixes a claim names its id, and its
+   status becomes fixed with that commit.
 4. **A quick review can be checked later**: a checking pass over its claims (§8) raises their
    confirmations, and its header then reads "quick, checked later".
 5. **What a review recommends but no one takes up** goes to the gaps, the questions or later
