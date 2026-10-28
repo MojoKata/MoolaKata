@@ -297,6 +297,9 @@ nothing to drift.
 
 ## 10. Assembly
 
+The `CR3-…` ids in this section (`CR3-1`, `CR3-14`, …) only illustrate the format: they are not
+claims of review 3, and need no change when its ids do.
+
 One session writes the review from the work pad. Its parts, in order:
 
 1. **The header**: the review's number, the commit it read, the last review's commit it is
