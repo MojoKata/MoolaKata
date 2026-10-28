@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { paneWidth } from './help.js';
 import { Icon } from './icon.js';
+import { formChanges } from '../app/guard.js';
 
 const FOCUSABLE =
   'a[href],button,input:not([type=hidden]),select,textarea,summary,[tabindex],[contenteditable]';
@@ -45,18 +46,10 @@ export function openDialog(comp, props = {}) {
 /** Whether the open dialog holds changes not saved (S12.15.6); set by the dialog itself. */
 let unsaved = () => false;
 
-/** Whether a screen's form holds changes not saved (S12.15.6); set by the form's guard. */
-let formUnsaved = () => false;
-
-/** @param {() => boolean} has */
-export function setFormChanges(has) {
-  formUnsaved = has;
-}
-
 /** Whether the open dialog, or a screen's form, holds changes not saved: they are lost if the
  * session ends now. */
 export function dialogHasChanges() {
-  return (!!current.value && unsaved()) || formUnsaved();
+  return (!!current.value && unsaved()) || formChanges();
 }
 
 /** @param {any} [value] */

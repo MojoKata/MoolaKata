@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
-from edits import asked, change, saved
+from edits import asked, change, remove, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -64,22 +64,11 @@ def test_accounts_are_checked_and_their_owners_own(server):
     assert a["reconcilable"] and not a["investing"]
     assert bob.get(f"/ui/api/accounts/{a['id']}").status_code == 404
     assert bob.get("/ui/api/accounts").json()["items"] == []
-    r = alice.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"name": "Joint checking"},
-        headers={"If-Match": str(a["version"])},
-    )
-    assert r.status_code == 200 and r.json()["name"] == "Joint checking"
-    r = alice.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"name": "Stale"},
-        headers={"If-Match": str(a["version"])},
-    )
+    assert saved(change(alice, "Acct", a, name="Joint checking"))["name"] == "Joint checking"
+    r = change(alice, "Acct", a, name="Stale")
     assert r.status_code == 412
-    v = r.json()["current"]["version"]
-    assert (
-        alice.delete(f"/ui/api/accounts/{a['id']}", headers={"If-Match": str(v)}).status_code == 200
-    )
+    v = r.json()["current"][0]["version"]
+    assert remove(alice, "Acct", {"id": a["id"], "version": v}).status_code == 200
     assert alice.get("/ui/api/accounts").json()["items"] == []
 
 
@@ -399,11 +388,7 @@ def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
     before = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]["costBasis"]
     assert before == "3951.00"  # five of the $250 lot sold first, FIFO
     acct = c.get(f"/ui/api/accounts/{a['id']}").json()
-    r = c.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"lotMethod": "lifo"},
-        headers={"If-Match": str(acct["version"])},
-    )
+    r = change(c, "Acct", acct, lotMethod="lifo")
     assert r.status_code == 200, r.text
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]
     assert h["costBasis"] == before  # the sale before the change is as it was

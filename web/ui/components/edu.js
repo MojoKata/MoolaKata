@@ -15,152 +15,124 @@ import { ACCEPT, uploadAll } from './receipt.js';
 import { FanChart } from '../charts/chart.js';
 import { EducationAnswer } from '../screens/projections.js';
 import { num } from '../app/dec.js';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { RecField } from './draft-form.js';
 
 const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 
-/**
- * The plan form's values.
- * @param {any} p  the plan, or null
- */
-export function planForm(p) {
-  return {
-    planState: p?.planState || '',
-    planName: p?.planName || '',
-    beneficiary: p?.beneficiary ? `${p.beneficiary.kind}:${p.beneficiary.id}` : '',
-    openedOn: p?.openedOn || '',
-    stateDeduction: p?.stateDeduction || '',
-    newName: '',
-    newSex: '',
-    newBirthYear: '',
+/** A 529's plan (S1.8.1), in its account's draft. */
+export class EduPlanRec extends Record {
+  /** @override */
+  static prefix = 'EdPln';
+  /** @override */
+  static fields = FIELDS.EducationPlanRecord;
+  /** @override */
+  static defaults = {
+    planState: null,
+    planName: null,
+    beneficiaryId: null,
+    openedOn: null,
+    stateDeduction: null,
+  };
+}
+
+/** A beneficiary added from the plan (S10.10.3), in the same draft. */
+class Beneficiary extends Record {
+  /** @override */
+  static prefix = 'Persn';
+  /** @override */
+  static fields = FIELDS.PersonRecord;
+  /** @override */
+  static defaults = {
+    sex: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    diedOn: null,
+    private: false,
+    differentPerson: false,
   };
 }
 
 /**
- * The body to save, adding a new person first when one was typed.
- * @param {any} f
+ * The plan's fields, bound to its record; "Add a person…" adds one to the draft.
+ * @param {{ rec: EduPlanRec, draft: import('../app/draft.js').Draft }} p
  */
-export async function planBody(f) {
-  let who = f.beneficiary;
-  if (who === 'new') {
-    const p = await api.post('/persons', {
-      name: f.newName,
-      sex: f.newSex || null,
-      birthYear: f.newBirthYear ? Number(f.newBirthYear) : null,
-    });
-    who = `person:${p.id}`;
-  }
-  const [kind, id] = who ? who.split(':') : [];
-  return {
-    planState: f.planState || null,
-    planName: f.planName || null,
-    beneficiary: who ? { kind, id } : null,
-    openedOn: f.openedOn || null,
-    stateDeduction: clean(f.stateDeduction) || null,
-  };
-}
-
-export const PLAN_FIELDS = [
-  'planState',
-  'planName',
-  'beneficiary',
-  'openedOn',
-  'stateDeduction',
-  'name',
-  'sex',
-  'birthYear',
-];
-
-/**
- * The plan's fields.
- * @param {{ f: any, set: (k: string) => (v: any) => void, e: any }} p
- */
-export function PlanFields({ f, set, e }) {
+export function PlanFields({ rec, draft }) {
   const people = useList('/persons');
   const list = /** @type {any[]} */ (people.data) || [];
+  const added = /** @type {Beneficiary | undefined} */ (
+    draft.records.find((r) => r instanceof Beneficiary && !r.removed)
+  );
+  const who = rec.get('beneficiaryId');
+  const pick = (/** @type {string} */ v) => {
+    if (v === 'new') {
+      const p = added || draft.add(Beneficiary, { name: '' });
+      rec.set('beneficiaryId', p.id);
+      return;
+    }
+    if (added) draft.remove(added);
+    rec.input('beneficiaryId', v);
+  };
   return html`
     <div class="row">
-      <${Field} label="Plan state" id="plan-state" error=${errAt(e, 'planState')}>
-        <${Input} value=${f.planState} onInput=${set('planState')} placeholder="Utah" />
-        </${Field}>
-        <${Field} label="Plan name" id="plan-name" error=${errAt(e, 'planName')}>
-          <${Input} value=${f.planName} onInput=${set('planName')} placeholder="my529" />
-          </${Field}>
-          </div>
-          <${Field} label="Beneficiary" error=${errAt(e, 'beneficiary')}
-            hint="One of the household's people. The 529 counts in your net worth, not theirs.">
-      <${Select} value=${f.beneficiary} onChange=${set('beneficiary')} options=${[
-        ['', 'Choose…'],
-        ...list.map((p) => [`person:${p.id}`, p.name]),
-        ['new', 'Add a person…'],
-      ]} /></${Field}>
-    ${f.beneficiary === 'new'
+      <${RecField} rec=${rec} name="planState" label="Plan state" id="plan-state"
+        placeholder="Utah" />
+      <${RecField} rec=${rec} name="planName" label="Plan name" id="plan-name"
+        placeholder="my529" />
+    </div>
+    <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}
+      hint="One of the household's people. The 529 counts in your net worth, not theirs.">
+      <${Select} value=${added && who === added.id ? 'new' : who || ''} onChange=${pick}
+        options=${[
+          ['', 'Choose…'],
+          ...list.map((p) => [p.id, p.name]),
+          ['new', 'Add a person…'],
+        ]} /></${Field}>
+    ${added && who === added.id
       ? html`
         <div class="row">
-          <${Field} label="Their name" id="new-name" error=${errAt(e, 'name')}>
-            <${Input} value=${f.newName} onInput=${set('newName')} required />
-            </${Field}>
-            <${Field} label="Sex" id="new-sex" error=${errAt(e, 'sex')}>
-              <${Select} value=${f.newSex} onChange=${set('newSex')} options=${[
-                ['', 'Choose…'],
-                ['female', 'Female'],
-                ['male', 'Male'],
-              ]} />
-              </${Field}>
-              <${Field} label="Year of birth" id="new-birth-year" error=${errAt(e, 'birthYear')}
-                hint="When school starts, for the Goal tab.">
-                <${Input} value=${f.newBirthYear} onInput=${set('newBirthYear')}
-                  inputmode="numeric" />
-                </${Field}>
-                </div>
+          <${RecField} rec=${added} name="name" label="Their name" id="new-name" />
+          <${RecField} rec=${added} name="sex" label="Sex" id="new-sex" options=${[
+            ['', 'Choose…'],
+            ['female', 'Female'],
+            ['male', 'Male'],
+          ]} />
+          <${RecField} rec=${added} name="birthYear" label="Year of birth" id="new-birth-year"
+            hint="When school starts, for the Goal tab." />
+        </div>
       `
       : null}
     <div class="row">
-      <${Field} label="Opened" id="opened-on" error=${errAt(e, 'openedOn')}
-        hint="A Roth IRA rollover is possible 15 years on.">
-        <${Input} type="date" value=${f.openedOn} onInput=${set('openedOn')} /></${Field}>
-      <${Field} label="State tax deduction a year" id="state-deduction"
-        error=${errAt(e, 'stateDeduction')} hint="What you expect, typed.">
-        <${Input} value=${f.stateDeduction} onInput=${set('stateDeduction')}
-          inputmode="decimal" /></${Field}>
+      <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date"
+        hint="A Roth IRA rollover is possible 15 years on." />
+      <${RecField} rec=${rec} name="stateDeduction" label="State tax deduction a year"
+        id="state-deduction" hint="What you expect, typed." />
     </div>
   `;
 }
 
-/** The Settings card with the plan. */
-/** @param {{ a: any }} p */
-export function PlanCard({ a }) {
-  const res = useApi(`/accounts/${a.id}/plan529`);
-  const v = /** @type {any} */ (res.data);
-  if (!v) {
-    return html`
-      <div class="card">
-        <${Loading} lines=${4} />
-      </div>
-    `;
-  }
-  return html`<${PlanEditor} a=${a} v=${v} reload=${res.reload} />`;
+/**
+ * The plan's record for a 529's draft: as stored, or a new one made only once it is edited.
+ * @param {import('../app/draft.js').Draft} draft @param {string} accountId
+ */
+export async function loadPlan(draft, accountId) {
+  const v = await api.get(`/accounts/${accountId}/plan529`);
+  if (v.id) return draft.load(EduPlanRec, { ...v, accountId });
+  return draft.add(EduPlanRec, { accountId }, { optional: true });
 }
 
-/** @param {{ a: any, v: any, reload: () => void }} p */
-function PlanEditor({ a, v, reload }) {
-  const [f, setF] = useState(planForm(v));
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const save = useSubmit(async () => {
-    await api.put(`/accounts/${a.id}/plan529`, await planBody(f), v.version);
-    toast('Plan saved');
-    reload();
-  });
+/**
+ * The Settings card with the plan, in the account's Settings draft.
+ * @param {{ rec: EduPlanRec, draft: import('../app/draft.js').Draft }} p
+ */
+export function PlanCard({ rec, draft }) {
   return html`
-    <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <div class="card">
       <h3>The plan</h3>
-      <${PlanFields} f=${f} set=${set} e=${save.error} />
-      <${FormError} error=${save.error} shown=${PLAN_FIELDS} />
-      <div class="toolbar mt"><span class="spacer"></span><button class="btn primary"
-        disabled=${save.busy || !v.canWrite}>Save plan</button></div>
-    </form>
+      <${PlanFields} rec=${rec} draft=${draft} />
+    </div>
   `;
 }
 

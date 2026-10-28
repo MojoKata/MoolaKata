@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from conftest import make_user, sign_in
+from edits import saved, terms
 from test_accounts import add, new_account
 from test_budgets import save_plan
 
@@ -191,10 +192,7 @@ def budget_household(c):
     ]
     assert save_plan(c, b, "2026-09-01", lines).status_code == 200
     loan = new_account(c, name="Car loan", type="auto-loan", mask="2005")
-    c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={"principal": "20000", "startDate": "2026-08-01", "termMonths": 60, "rate": "6"},
-    )
+    saved(terms(c, loan["id"], principal="20000", startDate="2026-08-01", termMonths=60, rate="6"))
     for m in ("09", "10", "11"):
         add(
             c,

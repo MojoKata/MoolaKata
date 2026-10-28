@@ -2,6 +2,7 @@ import datetime as dt
 from decimal import Decimal as D
 
 from conftest import make_user, sign_in
+from edits import remove
 from sqlalchemy import text
 from test_accounts import add, new_account
 
@@ -136,7 +137,7 @@ def test_a_portfolio_keeps_a_deleted_account_up_to_its_deletion(server):
         "/ui/api/portfolios", json={"name": "Both", "accountIds": [x["id"] for x in ids]}
     ).json()
     gone = c.get(f"/ui/api/accounts/{ids[1]['id']}").json()
-    r = c.delete(f"/ui/api/accounts/{gone['id']}", headers={"If-Match": str(gone["version"])})
+    r = remove(c, "Acct", gone)
     assert r.status_code == 200, r.text
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     by_day = {x["date"]: x["value"] for x in s["points"]}
@@ -161,6 +162,6 @@ def test_a_portfolios_returns_count_a_deleted_accounts_gain(server):
     ).json()
     before = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     gone = c.get(f"/ui/api/accounts/{a['id']}").json()
-    c.delete(f"/ui/api/accounts/{a['id']}", headers={"If-Match": str(gone["version"])})
+    remove(c, "Acct", gone)
     after = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     assert before["YTD"] and after["YTD"] == before["YTD"], (before, after)

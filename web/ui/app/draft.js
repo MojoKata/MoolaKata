@@ -289,6 +289,8 @@ export class Record {
     this.removed = false;
     /** A new record the form starts with (an Add dialog's): unchanged until edited. */
     this.settled = false;
+    /** A new record made only if it is edited: a loan's terms not yet set, on its Settings. */
+    this.optional = false;
     /** The record whose removal removed this one. @type {string | null} */
     this.removedBy = null;
     this.key = ++serial;
@@ -603,13 +605,16 @@ export class Draft {
   }
 
   /**
-   * A new record, its id made here so other records of the draft can refer to it.
+   * A new record, its id made here so other records of the draft can refer to it; an
+   * `optional` one is made only if it is edited.
    * @template {Record} T @param {new (...a: any[]) => T} Cls @param {{ [name: string]: any }} [data]
+   * @param {{ optional?: boolean }} [o]
    * @returns {T}
    */
-  add(Cls, data = {}) {
+  add(Cls, data = {}, o = {}) {
     const C = /** @type {typeof Record} */ (/** @type {any} */ (Cls));
     const r = new Cls(this.newId(C.prefix), { ...C.defaults, ...data }, { state: 'new' });
+    r.optional = !!o.optional;
     this.#records.set(r.id, r);
     this.#tick.value++;
     return r;
@@ -700,14 +705,41 @@ export class Draft {
     return false;
   }
 
+  /**
+   * The records in the order they are sent: a new record after the new records it refers to,
+   * since the save makes them in that order and checks each reference as it is made.
+   */
+  #ordered() {
+    const all = this.records;
+    const byId = new Map(all.map((r) => [r.id, r]));
+    /** @type {Record[]} */
+    const out = [];
+    const seen = new Set();
+    /** @param {Record} r */
+    const visit = (r) => {
+      if (seen.has(r.id)) return;
+      seen.add(r.id);
+      if (r.state === 'new') {
+        for (const [name, spec] of Object.entries(r.cls.fields)) {
+          const to = spec.type === 'ref' ? byId.get(r.get(name)) : undefined;
+          if (to && to.state === 'new') visit(to);
+        }
+      }
+      out.push(r);
+    };
+    for (const r of all) visit(r);
+    return out;
+  }
+
   /** The ops the save sends (S13.8.11.1): creates, updates and deletes. */
   ops() {
     /** @type {any[]} */
     const ops = [];
-    for (const r of this.records) {
+    for (const r of this.#ordered()) {
       const entity = r.cls.prefix;
       if (r.state === 'new') {
-        if (!r.removed) ops.push({ op: 'create', entity, id: r.id, fields: r.changes() });
+        if (r.removed || (r.optional && !r.changed)) continue;
+        ops.push({ op: 'create', entity, id: r.id, fields: r.changes() });
       } else if (r.removed) {
         // What went with its owner goes with the owner's delete on the server too (S13.8.11.3).
         if (r.removedBy) continue;

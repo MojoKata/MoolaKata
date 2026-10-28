@@ -13,6 +13,9 @@ import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { TimeChart } from '../charts/chart.js';
 import { num as float } from '../app/dec.js';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { saveNow } from './draft-form.js';
 
 const MONTHS = /** @type {[string, string][]} */ ([
   'January',
@@ -413,6 +416,14 @@ function PlanRows({ rows }) {
   `;
 }
 
+/** A saved overpayment plan (S1.9.6): its name and the planner's inputs. */
+class PayoffRec extends Record {
+  /** @override */
+  static prefix = 'Pyoff';
+  /** @override */
+  static fields = FIELDS.PayoffRecord;
+}
+
 /**
  * @param {{ a: any, canWrite: boolean, f: any, plans: any[], reload: () => void,
  *   load: (inputs: any) => void }} p
@@ -420,22 +431,20 @@ function PlanRows({ rows }) {
 function Saved({ a, canWrite, f, plans, reload, load }) {
   const [name, setName] = useState('');
   const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/loan/plans`, { name, inputs: body(f) }, {
-      idempotent: true,
-    });
+    await saveNow((d) => d.add(PayoffRec, { accountId: a.id, name, inputs: body(f) }));
     toast('Plan saved');
     setName('');
     reload();
   });
   const follow = useSubmit(async (/** @type {any} */ p) => {
-    await api.put(`/accounts/${a.id}/loan/plans/${p.id}/following`, {
+    await api.post(`/accounts/${a.id}/loan/plans/${p.id}/follow`, {
       following: !p.following,
-    }, p.version);
+    });
     toast(p.following ? 'No longer following it' : 'Following it from today');
     reload();
   });
   const remove = useSubmit(async (/** @type {any} */ p) => {
-    await api.del(`/accounts/${a.id}/loan/plans/${p.id}`, p.version);
+    await saveNow((d) => d.remove(d.load(PayoffRec, { ...p, accountId: a.id })));
     toast(`${p.name} deleted`);
     reload();
   });

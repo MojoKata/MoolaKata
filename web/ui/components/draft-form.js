@@ -8,7 +8,8 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { useSubmit } from '../app/hooks.js';
 import { Draft } from '../app/draft.js';
-import { Dialog, openDialog, setFormChanges } from './dialog.js';
+import { Dialog, openDialog } from './dialog.js';
+import { guardForm } from '../app/guard.js';
 import { Field, FormError, Input, Select, Switch } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
@@ -193,9 +194,12 @@ function DiscardDialog({ close, where }) {
  * A screen's form that edits a draft (Settings, Profile; S12.15): its own Save, and while it
  * holds changes, moving elsewhere in the app, Back or leaving the page asks first. `where`
  * names it in the question ("Settings › General").
+ * `extra` draws the buttons beside Save, given the save (a Delete removes its record and saves);
+ * `class` styles the form (a card).
  * @param {{ f: ReturnType<typeof useDraft>, where: string, what: string, done?: string,
  *   label?: string, confirm?: string, before?: () => boolean | void,
- *   saved?: (o: any) => void, children: any }} p
+ *   saved?: (o: any) => void, extra?: (s: { save: any, outcome: any }) => any,
+ *   class?: string, children: any }} p
  */
 export function DraftForm(p) {
   const { f } = p;
@@ -210,9 +214,18 @@ export function DraftForm(p) {
   });
   const changedRef = useRef(/** @type {() => boolean} */ (() => false));
   changedRef.current = () => !!draft?.changed;
-  useEffect(() => guardRoutes(() => changedRef.current(), p.where, route), [p.where]);
+  useEffect(
+    () =>
+      guardForm({
+        has: () => changedRef.current(),
+        where: p.where,
+        ask: (where) => openDialog(DiscardDialog, { where }),
+        route,
+      }),
+    [p.where],
+  );
   return html`
-    <form class="draft-form" onSubmit=${(/** @type {Event} */ e) => {
+    <form class=${p.class || 'draft-form'} onSubmit=${(/** @type {Event} */ e) => {
       e.preventDefault();
       save.run().catch(() => {});
     }}>
@@ -223,79 +236,16 @@ export function DraftForm(p) {
         : p.children}
       <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what} />
       <${FormError} error=${save.error} />
-      <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
-        label=${p.label || 'Save'} confirm=${p.confirm || 'Save anyway'} reload=${() => {
-          clear();
-          f.reload();
-        }} />
+      <div class="toolbar mt">
+        ${p.extra?.({ save, outcome }) || null}<span class="spacer"></span>
+        <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
+          label=${p.label || 'Save'} confirm=${p.confirm || 'Save anyway'} reload=${() => {
+            clear();
+            f.reload();
+          }} />
+      </div>
     </form>
   `;
-}
-
-/**
- * While `has()`, a link followed in the app, Back, or leaving the page asks first. The router
- * listens on the window too, so these listen in its capture phase, ahead of it. Returns what
- * takes the guard off.
- * @param {() => boolean} has @param {string} where @param {(url: string) => void} route
- */
-function guardRoutes(has, where, route) {
-  let asking = false;
-  const here = () => location.pathname + location.search;
-  let at = here();
-  /** @param {string} url */
-  const ask = (url) => {
-    if (asking) return;
-    asking = true;
-    openDialog(DiscardDialog, { where }).then((discard) => {
-      asking = false;
-      if (!discard) return;
-      off();
-      route(url);
-    });
-  };
-  const onClick = (/** @type {MouseEvent} */ e) => {
-    if (!has()) {
-      setTimeout(() => (at = here()));
-      return;
-    }
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-    const a =
-      /** @type {HTMLAnchorElement | undefined} */ (e.composedPath().find((x) =>
-        /** @type {any} */ (x).nodeName === 'A' && /** @type {any} */ (x).href
-      ));
-    if (!a || a.origin !== location.origin || a.target || a.download) return;
-    const url = a.href.replace(location.origin, '');
-    if (url === here() || url.startsWith('#')) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    ask(url);
-  };
-  const onPop = (/** @type {PopStateEvent} */ e) => {
-    // A dialog's own entry coming and going leaves the address where it was.
-    if (!has() || here() === at) {
-      at = here();
-      return;
-    }
-    // Back has moved the address already: put it back, then ask.
-    const wanted = here();
-    e.stopImmediatePropagation();
-    history.pushState(null, '', at);
-    ask(wanted);
-  };
-  const onUnload = (/** @type {BeforeUnloadEvent} */ e) => {
-    if (has()) e.preventDefault();
-  };
-  addEventListener('click', onClick, true);
-  addEventListener('popstate', onPop, true);
-  addEventListener('beforeunload', onUnload);
-  setFormChanges(has);
-  const off = () => {
-    removeEventListener('click', onClick, true);
-    removeEventListener('popstate', onPop, true);
-    removeEventListener('beforeunload', onUnload);
-    setFormChanges(() => false);
-  };
-  return off;
 }
 
 /** What a field's input reads, by type. */
@@ -308,6 +258,7 @@ const TYPED = new Set(['money', 'quantity', 'percent', 'int']);
  * apply. `bare` draws the control alone (a table's cell), named by `label` and `help`.
  * `id` names the control where its label alone wouldn't (`f-` and the id, S12.7.3).
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
+ *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
  *   type?: string, placeholder?: string, disabled?: boolean, onEdit?: () => void,
  *   style?: any, rows?: number }} p
@@ -335,7 +286,18 @@ export function RecField(p) {
       p.hint ? html`<div class="small dim">${p.hint}</div>` : null
     }</span>${control}</div>`;
   }
-  const named = p.bare ? { 'aria-label': p.label, 'data-help': p.help } : {};
+  // Bare, the control takes what a Field around it gives it: its id, its help, its refusal.
+  const named = p.bare
+    ? Object.fromEntries(
+      Object.entries({
+        'aria-label': p.label,
+        'data-help': p.help ?? p['data-help'],
+        id: p.id,
+        'aria-invalid': p['aria-invalid'],
+        'aria-describedby': p['aria-describedby'],
+      }).filter(([, v]) => v !== undefined),
+    )
+    : {};
   if (p.options || spec.type === 'choice' || spec.type === 'ref') {
     const options = p.options || (spec.choices || []).map(String);
     control = html`
@@ -389,4 +351,26 @@ export function RowErrors({ rec, span }) {
       </td>
     </tr>
   `;
+}
+
+/**
+ * A record made or deleted at once, through the save (S13.8.11): a list's own Delete, or a
+ * small form of one field beside it. Anything but a save is thrown, with its reasons.
+ * @param {(draft: Draft) => void} fill @returns {Promise<any[]>}  what was saved
+ */
+export async function saveNow(fill) {
+  const draft = new Draft();
+  fill(draft);
+  const o = await draft.save();
+  if (o.status === 'saved') return o.saved;
+  const reasons = o.status === 'asks'
+    ? o.asks.map((/** @type {any} */ a) => a.message)
+    : o.status === 'stale'
+    ? ['It changed since this page read it: reload and try again.']
+    : draft.records.flatMap((r) => r.errors.map((e) => e.message)).concat(
+      draft.formError ? [draft.formError] : [],
+    );
+  throw Object.assign(new Error(reasons.join(' ') || 'Nothing was saved.'), {
+    errors: draft.records.flatMap((r) => r.errors),
+  });
 }

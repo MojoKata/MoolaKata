@@ -86,7 +86,8 @@ def unlocked(tmp):
     return base, proc
 
 
-@pytest.fixture(scope="session")
+# Per module: Playwright's sync API runs one at a time, and other modules start their own.
+@pytest.fixture(scope="module")
 def browser():
     from playwright.sync_api import sync_playwright
 
@@ -242,7 +243,47 @@ def seed(base: str) -> Household:
     h.extra.update(transactions(h))
     h.extra.update(gift_plans(h))
     h.extra.update(tax_book(h))
+    h.extra.update(accounts(h))
     return h
+
+
+def accounts(h: Household) -> dict:
+    """A savings account limited to six withdrawals a month; a home with a valuation and an
+    improvement; a mortgage secured by it, with a rate reset."""
+    from edits import saved, terms
+
+    c = h.c
+    savings = made(c.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}))
+    op = {"op": "update", "entity": "Acct", "id": savings["id"], "version": savings["version"],
+          "fields": {"withdrawalsAMonth": 6, "statementInterval": "quarterly"}}  # fmt: skip
+    made(c.post("/ui/api/save", json={"ops": [op]}))
+    homes = made(c.post("/ui/api/accounts", json={"name": "Home", "type": "real-estate"}))
+    home = made(
+        c.post(
+            f"/ui/api/accounts/{homes['id']}/items",
+            json={"name": "1428 Elm St", "acquiredOn": "2023-03-15", "costBasis": "560000",
+                  "closingCosts": "8400", "address": "1428 Elm St", "primaryResidence": True},
+        )
+    )  # fmt: skip
+    made(
+        c.post(
+            f"/ui/api/items/{home['id']}/valuations",
+            json={"date": f"{months_back(1)}-20", "value": "640000", "source": "estimate"},
+        )
+    )
+    made(
+        c.post(
+            f"/ui/api/items/{home['id']}/improvements",
+            json={"date": "2025-05-20", "description": "Kitchen remodel", "amount": "38500"},
+        )
+    )
+    mortgage = made(c.post("/ui/api/accounts", json={"name": "Mortgage", "type": "mortgage"}))
+    saved(
+        terms(c, mortgage["id"], principal="448000", startDate="2023-04-01", termMonths=360,
+              rate="6.875", escrowTax="300", securedById=home["id"],
+              resets=[{"date": "2030-04-01", "rate": "7.125"}])
+    )  # fmt: skip
+    return {"savings": savings, "homes": homes, "home": home, "mortgage": mortgage}
 
 
 def tax_book(h: Household) -> dict:

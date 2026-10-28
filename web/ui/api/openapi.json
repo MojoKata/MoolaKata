@@ -13,180 +13,6 @@
       }
     },
     "schemas": {
-      "AccountChange": {
-        "additionalProperties": false,
-        "properties": {
-          "active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active"
-          },
-          "connectionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Connectionid"
-          },
-          "countInNetWorth": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Countinnetworth"
-          },
-          "dismissIntervalProposal": {
-            "default": false,
-            "title": "Dismissintervalproposal",
-            "type": "boolean"
-          },
-          "institution": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Institution"
-          },
-          "keptBy": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Keptby"
-          },
-          "lotMethod": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lotmethod"
-          },
-          "mask": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mask"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "openingBalance": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openingbalance"
-          },
-          "openingDate": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openingdate"
-          },
-          "statementInterval": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Statementinterval"
-          },
-          "syncAccount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Syncaccount"
-          },
-          "withdrawalsAMonth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Withdrawalsamonth"
-          }
-        },
-        "title": "AccountChange",
-        "type": "object"
-      },
       "AccountDetail": {
         "additionalProperties": false,
         "properties": {
@@ -441,6 +267,17 @@
             "title": "Statementintervaldefault",
             "type": "string"
           },
+          "statementIntervalDismissed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statementintervaldismissed"
+          },
           "statementIntervalProposal": {
             "anyOf": [
               {
@@ -533,6 +370,7 @@
           "statementInterval",
           "statementIntervalDefault",
           "statementIntervalProposal",
+          "statementIntervalDismissed",
           "withdrawalsAMonth",
           "optionsValue",
           "capitalAtRisk",
@@ -565,6 +403,183 @@
         ],
         "title": "AccountName",
         "type": "object"
+      },
+      "AccountRecord": {
+        "additionalProperties": false,
+        "description": "An account as a draft saves it (S12.15): its type is chosen when it is made; its\nsettings are its owner's (S10.3).",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "connectionId": {
+            "anyOf": [
+              {
+                "pattern": "^Conn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Conn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Connectionid"
+          },
+          "countInNetWorth": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Countinnetworth"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Institution"
+          },
+          "keptBy": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keptby",
+            "type": "array"
+          },
+          "lotMethod": {
+            "default": "fifo",
+            "title": "Lotmethod",
+            "type": "string"
+          },
+          "mask": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mask"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "openingBalance": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Openingbalance"
+          },
+          "openingDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Openingdate"
+          },
+          "statementInterval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Statementinterval"
+          },
+          "statementIntervalDismissed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Statementintervaldismissed"
+          },
+          "syncAccount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Syncaccount"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "withdrawalsAMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Withdrawalsamonth"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "AccountRecord",
+        "type": "object",
+        "x-entity": "Acct"
       },
       "AccountRef": {
         "additionalProperties": false,
@@ -1565,25 +1580,6 @@
           "birthYear"
         ],
         "title": "BeneficiaryOut",
-        "type": "object"
-      },
-      "BeneficiaryRef": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "id"
-        ],
-        "title": "BeneficiaryRef",
         "type": "object"
       },
       "BitcoinPassword": {
@@ -4463,28 +4459,6 @@
         "title": "Deleted[BookDetail]",
         "type": "object"
       },
-      "Deleted_ItemDetail_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ItemDetail"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[ItemDetail]",
-        "type": "object"
-      },
       "Deleted_NoneType_": {
         "properties": {
           "deleted": {
@@ -5446,6 +5420,91 @@
         ],
         "title": "EducationOut",
         "type": "object"
+      },
+      "EducationPlanRecord": {
+        "additionalProperties": false,
+        "description": "A 529's plan as a draft saves it (S1.8.1): made with the account or on its Settings.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "beneficiaryId": {
+            "anyOf": [
+              {
+                "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Persn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Beneficiaryid"
+          },
+          "openedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Openedon"
+          },
+          "planName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planname"
+          },
+          "planState": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planstate"
+          },
+          "stateDeduction": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Statededuction"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "EducationPlanRecord",
+        "type": "object",
+        "x-entity": "EdPln"
       },
       "EmailChange": {
         "additionalProperties": false,
@@ -8499,6 +8558,43 @@
         "title": "ImprovementOut",
         "type": "object"
       },
+      "ImprovementRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "itemId": {
+            "pattern": "^Item_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Itemid",
+            "type": "string",
+            "x-prefix": "Item"
+          }
+        },
+        "required": [
+          "date",
+          "description",
+          "amount",
+          "itemId"
+        ],
+        "title": "ImprovementRecord",
+        "type": "object",
+        "x-entity": "Imprv"
+      },
       "InBudget": {
         "additionalProperties": false,
         "description": "A budget counting a transaction, what it counts as there, and its leave-out (S7.3.5).",
@@ -9548,6 +9644,333 @@
         ],
         "title": "ItemIn",
         "type": "object"
+      },
+      "ItemRecord": {
+        "additionalProperties": false,
+        "description": "An item as a draft saves it, with its sale (S1.10.5) and the photos and documents kept\nwith it (`receiptIds`, a set of uploaded receipts). Its valuations and improvements are\nrecords of their own.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "acquiredHow": {
+            "default": "bought",
+            "title": "Acquiredhow",
+            "type": "string"
+          },
+          "acquiredOn": {
+            "format": "date",
+            "title": "Acquiredon",
+            "type": "string"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Address"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Category"
+          },
+          "closingCosts": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Closingcosts"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Condition"
+          },
+          "costBasis": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Costbasis",
+            "type": "number"
+          },
+          "depreciationRate": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Depreciationrate"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "insuredValue": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Insuredvalue"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Location"
+          },
+          "metal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metal"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "personalUse": {
+            "default": false,
+            "title": "Personaluse",
+            "type": "boolean"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Policy"
+          },
+          "primaryResidence": {
+            "default": false,
+            "title": "Primaryresidence",
+            "type": "boolean"
+          },
+          "proceeds": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proceeds"
+          },
+          "purity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Purity"
+          },
+          "quantity": {
+            "default": "1",
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          },
+          "receiptIds": {
+            "items": {
+              "pattern": "^Rcpt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Rcpt"
+            },
+            "title": "Receiptids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "saleFees": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Salefees"
+          },
+          "sellPremium": {
+            "default": "0",
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Sellpremium",
+            "type": "number"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Serial"
+          },
+          "soldOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Soldon"
+          },
+          "unitWeight": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unitweight"
+          },
+          "valuation": {
+            "default": "valuations",
+            "title": "Valuation",
+            "type": "string"
+          },
+          "weightUnit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Weightunit"
+          }
+        },
+        "required": [
+          "name",
+          "acquiredOn",
+          "costBasis",
+          "accountId"
+        ],
+        "title": "ItemRecord",
+        "type": "object",
+        "x-entity": "Item"
       },
       "ItemRow": {
         "additionalProperties": false,
@@ -10697,6 +11120,193 @@
         ],
         "title": "LoanOut",
         "type": "object"
+      },
+      "LoanRecord": {
+        "additionalProperties": false,
+        "description": "A loan's terms as a draft saves them: set when the loan is made, corrected later (an\nARM's resets, a recast).",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "budgetCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budgetcategoryid"
+          },
+          "budgetCounting": {
+            "default": "split",
+            "title": "Budgetcounting",
+            "type": "string"
+          },
+          "drawMonths": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Drawmonths"
+          },
+          "escrowInsurance": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Escrowinsurance"
+          },
+          "escrowTax": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Escrowtax"
+          },
+          "method": {
+            "default": "amortized",
+            "title": "Method",
+            "type": "string"
+          },
+          "originalValue": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Originalvalue"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Payment"
+          },
+          "pmi": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pmi"
+          },
+          "principal": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Principal",
+            "type": "number"
+          },
+          "rate": {
+            "examples": [
+              6.875
+            ],
+            "format": "decimal",
+            "title": "Rate",
+            "type": "number"
+          },
+          "recasts": {
+            "items": {
+              "$ref": "#/components/schemas/Recast"
+            },
+            "title": "Recasts",
+            "type": "array"
+          },
+          "resets": {
+            "items": {
+              "$ref": "#/components/schemas/Reset"
+            },
+            "title": "Resets",
+            "type": "array"
+          },
+          "securedById": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Securedbyid"
+          },
+          "startDate": {
+            "format": "date",
+            "title": "Startdate",
+            "type": "string"
+          },
+          "termMonths": {
+            "title": "Termmonths",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "principal",
+          "startDate",
+          "termMonths",
+          "rate",
+          "accountId"
+        ],
+        "title": "LoanRecord",
+        "type": "object",
+        "x-entity": "Loan"
       },
       "LoanView": {
         "additionalProperties": false,
@@ -16139,6 +16749,33 @@
         "title": "PayoffOut",
         "type": "object"
       },
+      "PayoffRecord": {
+        "additionalProperties": false,
+        "description": "A saved overpayment plan as a draft saves it (S1.9.6).",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/PlanIn"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "inputs",
+          "accountId"
+        ],
+        "title": "PayoffRecord",
+        "type": "object",
+        "x-entity": "Pyoff"
+      },
       "PeriodRow": {
         "additionalProperties": false,
         "properties": {
@@ -16842,6 +17479,102 @@
           "builtOn"
         ],
         "title": "Plan",
+        "type": "object"
+      },
+      "PlanIn": {
+        "additionalProperties": false,
+        "properties": {
+          "biweekly": {
+            "default": false,
+            "title": "Biweekly",
+            "type": "boolean"
+          },
+          "investClass": {
+            "default": "usStocks",
+            "title": "Investclass",
+            "type": "string"
+          },
+          "lumps": {
+            "items": {
+              "$ref": "#/components/schemas/Lump"
+            },
+            "title": "Lumps",
+            "type": "array"
+          },
+          "monthly": {
+            "default": "0",
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Monthly",
+            "type": "number"
+          },
+          "monthlyFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Monthlyfrom"
+          },
+          "monthlyUntil": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Monthlyuntil"
+          },
+          "recast": {
+            "default": false,
+            "title": "Recast",
+            "type": "boolean"
+          },
+          "recastFee": {
+            "default": "0",
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Recastfee",
+            "type": "number"
+          },
+          "roundTo": {
+            "default": "0",
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Roundto",
+            "type": "number"
+          },
+          "yearly": {
+            "default": "0",
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Yearly",
+            "type": "number"
+          },
+          "yearlyMonth": {
+            "default": 12,
+            "title": "Yearlymonth",
+            "type": "integer"
+          }
+        },
+        "title": "PlanIn",
         "type": "object"
       },
       "PlanRecord": {
@@ -17597,12 +18330,14 @@
               "id-repeated",
               "id-taken",
               "image-too-large",
+              "improvement-fixed",
               "income-missing",
               "initialised",
               "input-invalid",
               "instrument-unknown",
               "invalid-request",
               "invalid-setting",
+              "item-fixed",
               "items-missing",
               "jurisdiction-invalid",
               "kept-by-invalid",
@@ -17623,6 +18358,9 @@
               "line-fixed",
               "link-not-active",
               "link-not-valid",
+              "loan-delete",
+              "loan-exists",
+              "loan-fixed",
               "locked",
               "locked-out",
               "long-assign",
@@ -17717,6 +18455,7 @@
               "phrase-invalid",
               "phrase-wrong",
               "place-missing",
+              "plan-delete",
               "plan-exists",
               "plan-fixed",
               "plan-line-delete",
@@ -17815,6 +18554,7 @@
               "two-step-not-started",
               "two-step-off",
               "two-step-on",
+              "type-fixed",
               "type-invalid",
               "type-not-allowed",
               "unit-invalid",
@@ -17828,6 +18568,7 @@
               "user-unknown",
               "username-invalid",
               "username-taken",
+              "valuation-fixed",
               "valuation-invalid",
               "value-missing",
               "version-required",
@@ -17982,12 +18723,14 @@
                   "id-repeated",
                   "id-taken",
                   "image-too-large",
+                  "improvement-fixed",
                   "income-missing",
                   "initialised",
                   "input-invalid",
                   "instrument-unknown",
                   "invalid-request",
                   "invalid-setting",
+                  "item-fixed",
                   "items-missing",
                   "jurisdiction-invalid",
                   "kept-by-invalid",
@@ -18008,6 +18751,9 @@
                   "line-fixed",
                   "link-not-active",
                   "link-not-valid",
+                  "loan-delete",
+                  "loan-exists",
+                  "loan-fixed",
                   "locked",
                   "locked-out",
                   "long-assign",
@@ -18102,6 +18848,7 @@
                   "phrase-invalid",
                   "phrase-wrong",
                   "place-missing",
+                  "plan-delete",
                   "plan-exists",
                   "plan-fixed",
                   "plan-line-delete",
@@ -18200,6 +18947,7 @@
                   "two-step-not-started",
                   "two-step-off",
                   "two-step-on",
+                  "type-fixed",
                   "type-invalid",
                   "type-not-allowed",
                   "unit-invalid",
@@ -18213,6 +18961,7 @@
                   "user-unknown",
                   "username-invalid",
                   "username-taken",
+                  "valuation-fixed",
                   "valuation-invalid",
                   "value-missing",
                   "version-required",
@@ -21229,39 +21978,6 @@
         "title": "Sale",
         "type": "object"
       },
-      "SaleIn": {
-        "additionalProperties": false,
-        "properties": {
-          "fees": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Fees",
-            "type": "number"
-          },
-          "proceeds": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Proceeds",
-            "type": "number"
-          },
-          "soldOn": {
-            "format": "date",
-            "title": "Soldon",
-            "type": "string"
-          }
-        },
-        "required": [
-          "soldOn",
-          "proceeds"
-        ],
-        "title": "SaleIn",
-        "type": "object"
-      },
       "SaveIn": {
         "additionalProperties": false,
         "properties": {
@@ -23534,176 +24250,6 @@
         "title": "TaxTables",
         "type": "object"
       },
-      "TermsIn": {
-        "additionalProperties": false,
-        "properties": {
-          "budgetCategoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budgetcategoryid"
-          },
-          "budgetCounting": {
-            "default": "split",
-            "title": "Budgetcounting",
-            "type": "string"
-          },
-          "drawMonths": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Drawmonths"
-          },
-          "escrowInsurance": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Escrowinsurance"
-          },
-          "escrowTax": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Escrowtax"
-          },
-          "method": {
-            "default": "amortized",
-            "title": "Method",
-            "type": "string"
-          },
-          "originalValue": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Originalvalue"
-          },
-          "payment": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payment"
-          },
-          "pmi": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pmi"
-          },
-          "principal": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Principal",
-            "type": "number"
-          },
-          "rate": {
-            "examples": [
-              6.875
-            ],
-            "format": "decimal",
-            "title": "Rate",
-            "type": "number"
-          },
-          "recasts": {
-            "items": {
-              "$ref": "#/components/schemas/Recast"
-            },
-            "title": "Recasts",
-            "type": "array"
-          },
-          "resets": {
-            "items": {
-              "$ref": "#/components/schemas/Reset"
-            },
-            "title": "Resets",
-            "type": "array"
-          },
-          "securedById": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Securedbyid"
-          },
-          "startDate": {
-            "format": "date",
-            "title": "Startdate",
-            "type": "string"
-          },
-          "termMonths": {
-            "title": "Termmonths",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "principal",
-          "startDate",
-          "termMonths",
-          "rate"
-        ],
-        "title": "TermsIn",
-        "type": "object"
-      },
       "TermsOut": {
         "additionalProperties": false,
         "properties": {
@@ -23770,6 +24316,10 @@
               }
             ],
             "title": "Escrowtax"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
           },
           "method": {
             "title": "Method",
@@ -23893,6 +24443,7 @@
           "budgetCounting",
           "budgetCategoryId",
           "computedPayment",
+          "id",
           "version"
         ],
         "title": "TermsOut",
@@ -25720,6 +26271,55 @@
         "title": "ValuationOut",
         "type": "object"
       },
+      "ValuationRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "itemId": {
+            "pattern": "^Item_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Itemid",
+            "type": "string",
+            "x-prefix": "Item"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "source": {
+            "default": "estimate",
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "value",
+          "itemId"
+        ],
+        "title": "ValuationRecord",
+        "type": "object",
+        "x-entity": "Valtn"
+      },
       "ValueCheckRow": {
         "additionalProperties": false,
         "properties": {
@@ -26475,72 +27075,6 @@
         "title": "DocumentIn",
         "type": "object"
       },
-      "moolakata__ui__education__PlanIn": {
-        "additionalProperties": false,
-        "properties": {
-          "beneficiary": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BeneficiaryRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "openedOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openedon"
-          },
-          "planName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Planname"
-          },
-          "planState": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Planstate"
-          },
-          "stateDeduction": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Statededuction"
-          }
-        },
-        "title": "PlanIn",
-        "type": "object"
-      },
       "moolakata__ui__education__PlanOut": {
         "additionalProperties": false,
         "properties": {
@@ -26554,6 +27088,17 @@
               }
             ]
           },
+          "beneficiaryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beneficiaryid"
+          },
           "canWrite": {
             "title": "Canwrite",
             "type": "boolean"
@@ -26565,6 +27110,17 @@
             "format": "money",
             "title": "Contributedthisyear",
             "type": "number"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
           },
           "openedOn": {
             "anyOf": [
@@ -27000,20 +27556,6 @@
           "version"
         ],
         "title": "PlanOut",
-        "type": "object"
-      },
-      "moolakata__ui__items__DocumentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "receiptId": {
-            "title": "Receiptid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "receiptId"
-        ],
-        "title": "DocumentIn",
         "type": "object"
       },
       "moolakata__ui__linked__Household": {
@@ -28640,43 +29182,6 @@
       }
     },
     "/ui/api/accounts/{account_id}": {
-      "delete": {
-        "description": "Soft-deleted with everything that belongs to it (schema.md §4); only by its owner.",
-        "operationId": "delete_account_ui_api_accounts__account_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Account",
-        "tags": [
-          "accounts"
-        ]
-      },
       "get": {
         "operationId": "get_account_ui_api_accounts__account_id__get",
         "parameters": [
@@ -28709,52 +29214,6 @@
           }
         },
         "summary": "Get Account",
-        "tags": [
-          "accounts"
-        ]
-      },
-      "patch": {
-        "operationId": "change_account_ui_api_accounts__account_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AccountChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Account",
         "tags": [
           "accounts"
         ]
@@ -29489,53 +29948,6 @@
         "tags": [
           "loans"
         ]
-      },
-      "put": {
-        "description": "The terms, set when the loan is made and corrected later (an ARM's resets, a recast).",
-        "operationId": "put_terms_ui_api_accounts__account_id__loan_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TermsIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoanView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Put Terms",
-        "tags": [
-          "loans"
-        ]
       }
     },
     "/ui/api/accounts/{account_id}/loan/candidates": {
@@ -29821,112 +30233,10 @@
         ]
       }
     },
-    "/ui/api/accounts/{account_id}/loan/plans/{plan_id}": {
-      "delete": {
-        "operationId": "delete_plan_ui_api_accounts__account_id__loan_plans__plan_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Plan",
-        "tags": [
-          "loans"
-        ]
-      },
-      "patch": {
-        "operationId": "change_plan_ui_api_accounts__account_id__loan_plans__plan_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SavedPlanIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SavedPlan"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Plan",
-        "tags": [
-          "loans"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/loan/plans/{plan_id}/following": {
-      "put": {
-        "description": "Marks the plan being followed, tracked from today; the one followed before stops. Made\nagainst the plan's version.",
-        "operationId": "follow_plan_ui_api_accounts__account_id__loan_plans__plan_id__following_put",
+    "/ui/api/accounts/{account_id}/loan/plans/{plan_id}/follow": {
+      "post": {
+        "description": "Marks the plan being followed, tracked from today, or stops following it; the one\nfollowed before stops. An action: it changes every plan of the loan.",
+        "operationId": "follow_plan_ui_api_accounts__account_id__loan_plans__plan_id__follow_post",
         "parameters": [
           {
             "in": "path",
@@ -30209,52 +30519,6 @@
           }
         },
         "summary": "Get Plan",
-        "tags": [
-          "education"
-        ]
-      },
-      "put": {
-        "operationId": "put_plan_ui_api_accounts__account_id__plan529_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__education__PlanIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/moolakata__ui__education__PlanOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Put Plan",
         "tags": [
           "education"
         ]
@@ -34337,42 +34601,6 @@
       }
     },
     "/ui/api/items/{item_id}": {
-      "delete": {
-        "operationId": "delete_item_ui_api_items__item_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Item",
-        "tags": [
-          "items"
-        ]
-      },
       "get": {
         "operationId": "get_item_ui_api_items__item_id__get",
         "parameters": [
@@ -34405,149 +34633,6 @@
           }
         },
         "summary": "Get Item",
-        "tags": [
-          "items"
-        ]
-      },
-      "patch": {
-        "operationId": "change_item_ui_api_items__item_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ItemIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Item",
-        "tags": [
-          "items"
-        ]
-      }
-    },
-    "/ui/api/items/{item_id}/documents": {
-      "post": {
-        "description": "A photo or document (an uploaded receipt) kept with the item: a purchase receipt, an\nappraisal, a certificate, a title.",
-        "operationId": "attach_document_ui_api_items__item_id__documents_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__items__DocumentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Attach Document",
-        "tags": [
-          "items"
-        ]
-      }
-    },
-    "/ui/api/items/{item_id}/documents/{receipt_id}": {
-      "delete": {
-        "description": "A receipt's link to the item: a pair with no version of its own (S13.8.6).",
-        "operationId": "detach_document_ui_api_items__item_id__documents__receipt_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "receipt_id",
-            "required": true,
-            "schema": {
-              "title": "Receipt Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_ItemDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Detach Document",
         "tags": [
           "items"
         ]
@@ -34609,138 +34694,6 @@
         ]
       }
     },
-    "/ui/api/items/{item_id}/improvements/{improvement_id}": {
-      "delete": {
-        "operationId": "delete_improvement_ui_api_items__item_id__improvements__improvement_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "improvement_id",
-            "required": true,
-            "schema": {
-              "title": "Improvement Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_ItemDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Improvement",
-        "tags": [
-          "items"
-        ]
-      }
-    },
-    "/ui/api/items/{item_id}/sale": {
-      "delete": {
-        "operationId": "unsell_ui_api_items__item_id__sale_delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_ItemDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Unsell",
-        "tags": [
-          "items"
-        ]
-      },
-      "put": {
-        "description": "Records the sale: the gain or loss is realized, and the item leaves the account's value\nfrom that day (S1.10.5). The sale is part of the item, so it is made against its version.",
-        "operationId": "sell_ui_api_items__item_id__sale_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaleIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Sell",
-        "tags": [
-          "items"
-        ]
-      }
-    },
     "/ui/api/items/{item_id}/valuations": {
       "post": {
         "operationId": "add_valuation_ui_api_items__item_id__valuations_post",
@@ -34792,53 +34745,6 @@
           }
         },
         "summary": "Add Valuation",
-        "tags": [
-          "items"
-        ]
-      }
-    },
-    "/ui/api/items/{item_id}/valuations/{valuation_id}": {
-      "delete": {
-        "operationId": "delete_valuation_ui_api_items__item_id__valuations__valuation_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "valuation_id",
-            "required": true,
-            "schema": {
-              "title": "Valuation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_ItemDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Valuation",
         "tags": [
           "items"
         ]

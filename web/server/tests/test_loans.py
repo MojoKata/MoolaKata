@@ -5,6 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import remove, saved, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -54,9 +55,8 @@ def test_a_payment_typed_in_the_loans_account_is_split_by_the_schedule(server, f
     make_user(server, "alice")
     c = sign_in(server, "alice")
     loan = new_account(c, name="Home", type="mortgage")
-    c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"},
+    saved(
+        terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
     )
     add(c, loan["id"], "1798.65", "2026-02-01", kind="deposit")
     v = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
@@ -120,19 +120,8 @@ def test_payments_through_the_api(server, frozen):
     bank = new_account(c, name="Checking")
     add(c, bank["id"], "10000.00", "2026-09-01")
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={
-            "principal": "300000",
-            "startDate": "2026-01-01",
-            "termMonths": 360,
-            "rate": "6",
-            "escrowTax": "300",
-            "escrowInsurance": "100",
-        },
-    )
-    assert r.status_code == 200, r.text
-    v = r.json()
+    v = saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                    rate="6", escrowTax="300", escrowInsurance="100"))  # fmt: skip
     assert v["terms"]["computedPayment"] == "1798.65" and v["balance"] == "300000.00"
     # A payment from the checking account: both halves, split by the schedule.
     r = c.post(
@@ -168,10 +157,7 @@ def test_the_servicers_balance_against_the_computed_one(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     loan = new_account(c, name="Car", type="auto-loan")
-    c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={"principal": "20000", "startDate": "2026-01-01", "termMonths": 60, "rate": "5"},
-    )
+    saved(terms(c, loan["id"], principal="20000", startDate="2026-01-01", termMonths=60, rate="5"))
     r = c.post(
         f"/ui/api/accounts/{loan['id']}/anchors",
         json={"date": "2026-10-01", "balance": "-19950.00"},
@@ -185,10 +171,7 @@ def test_terms_are_checked(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     loan = new_account(c, name="Car", type="auto-loan")
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={"principal": "-1", "startDate": "2026-01-01", "termMonths": 0, "rate": "99"},
-    )
+    r = terms(c, loan["id"], principal="-1", startDate="2026-01-01", termMonths=0, rate="99")
     assert {e["field"] for e in r.json()["errors"]} == {"principal", "termMonths", "rate"}
 
 
@@ -197,19 +180,12 @@ def test_a_rate_as_the_note_states_it(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     loan = new_account(c, name="Home", type="mortgage")
-    terms = {"principal": "300000", "startDate": "2026-01-01", "termMonths": 360}
+    home = {"principal": "300000", "startDate": "2026-01-01", "termMonths": 360}
     reset = [{"date": "2031-01-01", "rate": "7.3125"}]
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan", json=terms | {"rate": "6.875", "resets": reset}
-    )
-    assert r.status_code == 200, r.text
-    v = r.json()
+    v = saved(terms(c, loan["id"], **home, rate="6.875", resets=reset))
     assert v["terms"]["rate"] == "6.875" and v["terms"]["resets"][0]["rate"] == "7.3125"
     assert v["rate"] == "6.875" and v["terms"]["computedPayment"] == "1970.79"
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json=terms | {"rate": "6.8755", "version": v["terms"]["version"]},
-    )
+    r = terms(c, loan["id"], rate="6.8755")
     assert r.status_code == 422 and "rate" in r.text
 
 
@@ -256,9 +232,8 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     loan = new_account(c, name="Home", type="mortgage")
-    c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"},
+    saved(
+        terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
     )
     r = c.post(f"/ui/api/accounts/{loan['id']}/loan/payoff", json={"monthly": "300"})
     assert r.status_code == 200, r.text
@@ -276,8 +251,8 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
     assert r.status_code == 201, r.text
     plan = r.json()
     assert plan["headline"].startswith("Paid off ")
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan/plans/{plan['id']}/following",
+    r = c.post(
+        f"/ui/api/accounts/{loan['id']}/loan/plans/{plan['id']}/follow",
         json={"following": True},
     )
     assert r.json()["following"] and r.json()["followingSince"] == "2026-10-13"
@@ -295,15 +270,15 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
         f"/ui/api/accounts/{loan['id']}/loan/plans",
         json={"name": "Biweekly", "inputs": {"biweekly": True}},
     ).json()
-    c.put(
-        f"/ui/api/accounts/{loan['id']}/loan/plans/{other['id']}/following",
+    c.post(
+        f"/ui/api/accounts/{loan['id']}/loan/plans/{other['id']}/follow",
         json={"following": True},
     )
     rows = {
         p["name"]: p for p in c.get(f"/ui/api/accounts/{loan['id']}/loan/plans").json()["items"]
     }
     assert rows["Biweekly"]["following"] and not rows["Extra $300"]["following"]
-    assert c.delete(f"/ui/api/accounts/{loan['id']}/loan/plans/{other['id']}").status_code == 200
+    assert remove(c, "Pyoff", rows["Biweekly"]).status_code == 200
 
 
 def test_rounding_up_counts_pmi_only_while_it_is_due():

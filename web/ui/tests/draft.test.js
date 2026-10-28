@@ -295,3 +295,11 @@ Deno.test('a list of words is typed with commas between', () => {
   t.input('tags', 'a, c');
   equal(t.changes().tags, { add: ['c'], remove: ['b'] });
 });
+
+Deno.test('a new record is sent after the new records it refers to', () => {
+  const { d } = draft();
+  const s = d.add(Split, { amount: Dec.parse('1.00') });
+  const t = d.add(Txn, { payee: 'Shop' });
+  s.set('transactionId', t.id);
+  equal(d.ops().map((o) => o.id), [t.id, s.id]);
+});

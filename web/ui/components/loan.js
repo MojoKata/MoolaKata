@@ -2,6 +2,9 @@
 // Schedule tab, the payment dialog that splits a payment by the schedule, the servicer's
 // balance against the computed one, and the terms form shared by New account and Settings.
 import { useState } from 'preact/hooks';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { RecField } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -26,201 +29,135 @@ const month = (/** @type {string} */ iso) => date(iso).replace(/ \d+,/, '');
 const clean = (
   /** @type {any} */ s,
 ) => (s ? String(s).replace(/[$,%\s]/g, '').replace('−', '-') : '');
-const orNull = (/** @type {string} */ s) => (clean(s) === '' ? null : clean(s));
 
-/**
- * The form's starting values: blank, or the saved terms.
- * @param {any} t  the terms, or null
- * @param {string} type  the account type
- */
-export function termsForm(t, type) {
-  return {
-    principal: t?.principal ?? '',
-    startDate: t?.startDate ?? '',
-    termMonths: t ? String(t.termMonths) : type === 'auto-loan' ? '60' : '360',
-    rate: t?.rate ?? '',
-    method: t?.method ?? (type === 'auto-loan' ? 'daily' : 'amortized'),
-    payment: t?.payment ?? '',
-    escrowTax: t?.escrowTax ?? '',
-    escrowInsurance: t?.escrowInsurance ?? '',
-    pmi: t?.pmi ?? '',
-    drawMonths: t?.drawMonths != null ? String(t.drawMonths) : type === 'heloc' ? '120' : '',
-    resets: t?.resets || [],
-    recasts: t?.recasts || [],
-    originalValue: t?.originalValue ?? '',
-    securedById: t?.securedById ?? '',
-    budgetCounting: t?.budgetCounting ?? 'split',
-    budgetCategoryId: t?.budgetCategoryId ?? '',
+/** A loan's terms (S1.9), as the draft of New account or of its Settings edits them. */
+export class LoanRec extends Record {
+  /** @override */
+  static prefix = 'Loan';
+  /** @override */
+  static fields = FIELDS.LoanRecord;
+  /** @override */
+  static defaults = {
+    payment: null,
+    escrowTax: null,
+    escrowInsurance: null,
+    pmi: null,
+    drawMonths: null,
+    resets: [],
+    recasts: [],
+    originalValue: null,
+    securedById: null,
+    budgetCounting: 'split',
+    budgetCategoryId: null,
+  };
+  /** @override */
+  static rules = {
+    // A whole payment counts in the category chosen; split, by the schedule (S1.9.7).
+    budgetCategoryId: { when: (/** @type {LoanRec} */ r) => r.get('budgetCounting') === 'whole' },
   };
 }
 
-/** @param {any} f  the form's values */
-export function termsBody(f) {
+/**
+ * A new loan's terms, as its type usually has them: an auto loan over five years, simple
+ * interest; a HELOC drawn for ten.
+ * @param {string} type @param {string} accountId
+ */
+export function newTerms(type, accountId) {
   return {
-    principal: clean(f.principal) || '0',
-    startDate: f.startDate,
-    termMonths: Number(f.termMonths) || 0,
-    rate: clean(f.rate) || '0',
-    method: f.method,
-    payment: orNull(f.payment),
-    escrowTax: orNull(f.escrowTax),
-    escrowInsurance: orNull(f.escrowInsurance),
-    pmi: orNull(f.pmi),
-    drawMonths: f.drawMonths === '' ? null : Number(f.drawMonths),
-    originalValue: orNull(f.originalValue),
-    securedById: f.securedById || null,
-    budgetCounting: f.budgetCounting,
-    budgetCategoryId: f.budgetCounting === 'whole' && f.budgetCategoryId
-      ? f.budgetCategoryId
-      : null,
-    resets: f.resets,
-    recasts: f.recasts,
+    accountId,
+    termMonths: type === 'auto-loan' ? 60 : 360,
+    method: type === 'auto-loan' ? 'daily' : 'amortized',
+    drawMonths: type === 'heloc' ? 120 : null,
   };
 }
 
-export const TERM_FIELDS = [
-  'principal',
-  'startDate',
-  'termMonths',
-  'rate',
-  'method',
-  'payment',
-  'escrowTax',
-  'escrowInsurance',
-  'pmi',
-  'drawMonths',
-  'originalValue',
-  'securedById',
-  'budgetCounting',
-  'budgetCategoryId',
-];
-
 /**
- * The terms' fields.
- * @param {{ f: any, set: (k: string) => (v: any) => void, e: any, type: string }} p
+ * The terms' fields, bound to the loan's record.
+ * @param {{ rec: LoanRec, type: string }} p
  */
-export function TermsFields({ f, set, e, type }) {
+export function TermsFields({ rec, type }) {
   const mortgage = type === 'mortgage';
   return html`
     <div class="row">
-      <${Field} label="Original principal" error=${errAt(e, 'principal')}>
-        <${Input} value=${f.principal} onInput=${set('principal')} inputmode="decimal"
-          placeholder=${type === 'heloc' ? '0' : '360,000'} required />
-        </${Field}>
-        <${Field} label="Start date" error=${errAt(e, 'startDate')}>
-          <${Input} type="date" value=${f.startDate} onInput=${set('startDate')} required />
-          </${Field}>
-          </div>
-          <div class="row">
-            <${Field} label="Term (months)" id="term-months" error=${errAt(e, 'termMonths')}>
-              <${Input} value=${f.termMonths} onInput=${set('termMonths')} inputmode="numeric" />
-              </${Field}>
-              <${Field} label="Interest rate" error=${errAt(e, 'rate')}>
-                <${Input} value=${f.rate} onInput=${set('rate')} inputmode="decimal"
-                  placeholder="5.875%"
-                  required />
-                </${Field}>
-                </div>
-                <div class="row">
-                  <${Field} label="Interest method" error=${errAt(e, 'method')}>
-                    <${Select} value=${f.method} onChange=${set('method')} options=${METHODS} />
-                    </${Field}>
-                    <${Field} label="Scheduled payment" error=${errAt(e, 'payment')}
-                      hint="Blank: computed from the terms.">
-        <${Input} value=${f.payment} onInput=${set('payment')} inputmode="decimal" /></${Field}>
+      <${RecField} rec=${rec} name="principal" label="Original principal"
+        placeholder=${type === 'heloc' ? '0' : '360,000'} />
+      <${RecField} rec=${rec} name="startDate" label="Start date" type="date" />
+    </div>
+    <div class="row">
+      <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months" />
+      <${RecField} rec=${rec} name="rate" label="Interest rate" placeholder="5.875%" />
+    </div>
+    <div class="row">
+      <${RecField} rec=${rec} name="method" label="Interest method" options=${METHODS} />
+      <${RecField} rec=${rec} name="payment" label="Scheduled payment"
+        hint="Blank: computed from the terms." />
     </div>
     ${mortgage
       ? html`
         <div class="row">
-          <${Field} label="Escrow for property tax" id="escrow-tax" error=${errAt(e, 'escrowTax')}>
-            <${Input} value=${f.escrowTax} onInput=${set('escrowTax')} inputmode="decimal"
-              placeholder="per payment" />
-            </${Field}>
-            <${Field} label="Escrow for insurance" id="escrow-insurance" error=${errAt(
-              e,
-              'escrowInsurance',
-            )}>
-              <${Input} value=${f.escrowInsurance} onInput=${set('escrowInsurance')}
-                inputmode="decimal" placeholder="per payment" />
-              </${Field}>
-              </div>
-              <${Field} label="PMI per month" id="pmi" error=${errAt(e, 'pmi')}>
-                <${Input} value=${f.pmi} onInput=${set(
-                  'pmi',
-                )} inputmode="decimal" placeholder="0" />
-                </${Field}>
+          <${RecField} rec=${rec} name="escrowTax" label="Escrow for property tax"
+            id="escrow-tax" placeholder="per payment" />
+          <${RecField} rec=${rec} name="escrowInsurance" label="Escrow for insurance"
+            id="escrow-insurance" placeholder="per payment" />
+        </div>
+        <${RecField} rec=${rec} name="pmi" label="PMI per month" id="pmi" placeholder="0" />
       `
       : null}
     ${['mortgage', 'heloc', 'auto-loan', 'loan'].includes(type)
-      ? html`<${SecuredBy} f=${f} set=${set} e=${e} type=${type} />`
+      ? html`<${SecuredBy} rec=${rec} type=${type} />`
       : null}
     ${type === 'heloc'
       ? html`
-        <${Field} label="Draw period (months)" id="draw-months" error=${errAt(e, 'drawMonths')}
-          hint="Interest only while drawing; then the balance is repaid over the rest of the term.">
-          <${Input} value=${f.drawMonths} onInput=${set('drawMonths')} inputmode="numeric" />
-          </${Field}>
+        <${RecField} rec=${rec} name="drawMonths" label="Draw period (months)" id="draw-months"
+          hint="Interest only while drawing; then the balance is repaid over the rest of the term." />
       `
       : null}
-    <${InBudgets} f=${f} set=${set} e=${e} />
+    <${InBudgets} rec=${rec} />
   `;
 }
 
 /**
  * How the loan's payments count in budgets (S1.9.7): split by the schedule, or whole in one
  * category.
- * @param {{ f: any, set: (k: string) => (v: any) => void, e: any }} p
+ * @param {{ rec: LoanRec }} p
  */
-function InBudgets({ f, set, e }) {
+function InBudgets({ rec }) {
   const cats = useList('/categories');
   const list = /** @type {any[]} */ (cats.data) || [];
   return html`
     <div class="row">
-      <${Field} label="In budgets" id="in-budgets" error=${errAt(e, 'budgetCounting')}
-        hint="Counted at the bank account a payment comes from.">
-        <${Select} value=${f.budgetCounting} onChange=${set('budgetCounting')} options=${[
+      <${RecField} rec=${rec} name="budgetCounting" label="In budgets" id="in-budgets"
+        hint="Counted at the bank account a payment comes from." options=${[
           ['split', 'Split by the schedule'],
           ['whole', 'The whole payment in one category'],
-        ]} /></${Field}>
-      ${f.budgetCounting === 'whole'
-        ? html`
-          <${Field} label="Counts in" id="budget-category" error=${errAt(e, 'budgetCategoryId')}>
-            <${Select} value=${f.budgetCategoryId} onChange=${set('budgetCategoryId')} options=${[
-              ['', 'Loan payments'],
-              ...list.filter((c) => c.kind !== 'transfer').map((c) => [c.id, c.path]),
-            ]} />
-            </${Field}>
-        `
-        : null}
+        ]} />
+      <${RecField} rec=${rec} name="budgetCategoryId" label="Counts in" id="budget-category"
+        options=${[
+          ['', 'Loan payments'],
+          ...list.filter((c) => c.kind !== 'transfer').map((c) => [c.id, c.path]),
+        ]} />
     </div>
   `;
 }
 
 /**
  * The property or vehicle the loan is secured by, and a mortgage's original home value.
- * @param {{ f: any, set: (k: string) => (v: any) => void, e: any, type: string }} p
+ * @param {{ rec: LoanRec, type: string }} p
  */
-function SecuredBy({ f, set, e, type }) {
+function SecuredBy({ rec, type }) {
   const res = useList('/items');
   const items = /** @type {any[]} */ (res.data) || [];
   return html`
     <div class="row">
-      <${Field} label="Secured by" id="secured-by" error=${errAt(e, 'securedById')}
-        hint="A property or vehicle, for the equity and loan-to-value.">
-        <${Select} value=${f.securedById} onChange=${set('securedById')} options=${[
+      <${RecField} rec=${rec} name="securedById" label="Secured by" id="secured-by"
+        hint="A property or vehicle, for the equity and loan-to-value." options=${[
           ['', items.length ? 'Nothing' : 'Nothing yet: add the property or vehicle first'],
           ...items.map((i) => [i.id, `${i.name} · ${i.accountName}`]),
-        ]} /></${Field}>
+        ]} />
       ${type === 'mortgage'
         ? html`
-          <${Field} label="Home's original value" id="original-value"
-            error=${errAt(
-              e,
-              'originalValue',
-            )} hint="The appraisal or price when the loan was made.">
-            <${Input} value=${f.originalValue} onInput=${set('originalValue')}
-              inputmode="decimal" />
-            </${Field}>
+          <${RecField} rec=${rec} name="originalValue" label="Home's original value"
+            id="original-value" hint="The appraisal or price when the loan was made." />
         `
         : null}
     </div>
@@ -543,69 +480,44 @@ function ServicerDialog({ close, a }) {
   `;
 }
 
-/** The Settings card with the terms. */
-/** @param {{ a: any }} p */
-export function TermsCard({ a }) {
+/**
+ * The Settings card with the terms, in the account's Settings draft: the schedule is worked
+ * out again once they are saved.
+ * @param {{ a: any, rec: LoanRec }} p
+ */
+export function TermsCard({ a, rec }) {
   const res = useApi(`/accounts/${a.id}/loan`);
   const v = /** @type {any} */ (res.data);
-  if (!v) {
-    return html`
-      <div class="card">
-        <${Loading} lines=${4} />
-      </div>
-    `;
-  }
-  return html`<${TermsEditor} a=${a} v=${v} reload=${res.reload} />`;
-}
-
-/** @param {{ a: any, v: any, reload: () => void }} p */
-function TermsEditor({ a, v, reload }) {
-  const [f, setF] = useState(termsForm(v.terms, a.type));
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const save = useSubmit(async () => {
-    await api.put(`/accounts/${a.id}/loan`, termsBody(f), v.version);
-    toast('Terms saved; the schedule is recomputed');
-    reload();
-  });
   return html`
-    <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}><h3>Loan terms</h3>
-      <${TermsFields} f=${f} set=${set} e=${save.error} type=${a.type} />
-      <${Dated} label="Rate resets" what="rate" add="Add a reset" rows=${f.resets}
-        onChange=${set(
-          'resets',
-        )} hint="An adjustable rate's new rate from a date, typed when known." />
-      <${Dated} label="Recasts" what="fee" add="Add a recast" rows=${f.recasts}
-        onChange=${set('recasts')}
+    <div class="card"><h3>Loan terms</h3>
+      <${TermsFields} rec=${rec} type=${a.type} />
+      <${Dated} rec=${rec} name="resets" label="Rate resets" what="rate" add="Add a reset"
+        hint="An adjustable rate's new rate from a date, typed when known." />
+      <${Dated} rec=${rec} name="recasts" label="Recasts" what="fee" add="Add a recast"
         hint="The servicer re-amortizes the balance over the rest of the term: a lower payment." />
-      ${v.terms
+      ${v?.terms
         ? html`<p class="small dim">Computed payment <${Amt} v=${v.terms.computedPayment} />.</p>`
         : null}
-      <${FormError} error=${save.error} shown=${TERM_FIELDS} />
-      <div class="toolbar mt"><span class="spacer"></span><button class="btn primary" disabled=${save
-        .busy}>Save terms</button></div>
-    </form>
+    </div>
   `;
 }
 
 /**
- * Dated rows of the terms: an ARM's resets (date, rate) or recasts (date, fee).
- * @param {{ label: string, what: string, add: string, rows: any[], hint: string,
- *   onChange: (rows: any[]) => void }} p
+ * Dated rows of the terms: an ARM's resets (date, rate) or recasts (date, fee), a list field
+ * of the loan's record.
+ * @param {{ rec: LoanRec, name: string, label: string, what: string, add: string,
+ *   hint: string }} p
  */
-function Dated({ label, what, add, rows, hint, onChange }) {
+function Dated({ rec, name, label, what, add, hint }) {
   const key = what === 'rate' ? 'rate-resets' : 'recasts';
+  const rows = /** @type {any[]} */ (rec.get(name) || []);
+  const set = (/** @type {any[]} */ next) => rec.set(name, next);
   const put = (/** @type {number} */ i, /** @type {string} */ k, /** @type {string} */ x) =>
-    onChange(rows.map((r, j) => (j === i ? { ...r, [k]: k === 'date' ? x : clean(x) } : r)));
+    set(rows.map((r, j) => (j === i ? { ...r, [k]: k === 'date' ? x : clean(x) } : r)));
   return html`
     <div class="mt"><div class="toolbar"><b class="small" data-help=${key}>${label}</b><span
       class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
-        onChange([...rows, {
-          date: '',
-          [what]: '0',
-        }])}><${Icon} name="plus" /> ${add}</button></div>
+        set([...rows, { date: '', [what]: '0' }])}><${Icon} name="plus" /> ${add}</button></div>
       ${rows.length ? null : html`<div class="small dim">${hint}</div>`}
       ${rows.map((r, i) =>
         html`
@@ -614,14 +526,13 @@ function Dated({ label, what, add, rows, hint, onChange }) {
               <${Input} type="date" value=${r.date} onInput=${(/** @type {string} */ x) =>
                 put(i, 'date', x)} />
               </${Field}>
-              <${Field} label=${what === 'rate' ? 'Rate' : 'Fee'}
-                help=${key} id=${`${what}-${i}`}><${Input} value=${r[what]} inputmode="decimal"
-                      onInput=${(/** @type {string} */ x) =>
-                        put(i, what, x)} /></${Field}><button type="button"
-                      class="icon-btn" aria-label="Remove" onClick=${() =>
-                        onChange(
-                          rows.filter((_, j) => j !== i),
-                        )}><${Icon} name="x" /></button></div>
+              <${Field} label=${what === 'rate' ? 'Rate' : 'Fee'} help=${key} id=${`${what}-${i}`}>
+                <${Input} value=${r[what] == null ? '' : String(r[what])} inputmode="decimal"
+                  onInput=${(/** @type {string} */ x) => put(i, what, x)} />
+                </${Field}>
+                <button type="button" class="icon-btn" aria-label="Remove"
+                  onClick=${() => set(rows.filter((_, j) => j !== i))}><${Icon} name="x" /></button>
+                </div>
         `
       )}
     </div>

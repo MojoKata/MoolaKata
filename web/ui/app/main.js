@@ -15,6 +15,7 @@ import { dialogHasChanges, DialogHost } from '../components/dialog.js';
 import { MenuHost } from '../components/menu.js';
 import { Toasts } from '../components/toast.js';
 import { installTooltips, TooltipHost } from '../components/tooltip.js';
+import { installGuard } from './guard.js';
 
 // An exact number placed straight in a page shows its digits as they are (S12.12): Preact
 // renders text and elements, so a Dec child becomes its text.
@@ -108,6 +109,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 installTooltips();
+// Before the router, so a screen's form hears Back first (S12.15.6).
+installGuard();
 whenSignedOut((code) => signOutLocally(code === 'account-disabled' ? 'disabled' : 'expired'));
 
 const root = document.getElementById('app');

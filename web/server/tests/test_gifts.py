@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import remove
+from edits import plan529, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -211,10 +211,7 @@ def test_money_given_above_the_exclusion_is_flagged(alice):
         occasionYear=2026,
     )
     acct = new_account(alice, name="Emma's 529", type="529")
-    alice.put(
-        f"/ui/api/accounts/{acct['id']}/plan529",
-        json={"beneficiary": {"kind": "person", "id": emma["id"]}},
-    )
+    saved(plan529(alice, acct["id"], beneficiaryId=emma["id"]))
     alice.post(
         f"/ui/api/accounts/{acct['id']}/contributions",
         json={"date": "2026-03-01", "amount": "6000"},
@@ -234,10 +231,7 @@ def test_a_529_counts_with_no_gift_plan_and_an_election_over_its_five_years(alic
     # is 20,000 in each of 2024-2028, over the 2026 exclusion.
     leo = alice.post("/ui/api/people", json={"name": "Leo Griffin", "sex": "male"}).json()
     acct = new_account(alice, name="Leo's 529", type="529")
-    alice.put(
-        f"/ui/api/accounts/{acct['id']}/plan529",
-        json={"beneficiary": {"kind": "person", "id": leo["id"]}},
-    )
+    saved(plan529(alice, acct["id"], beneficiaryId=leo["id"]))
     r = alice.post(
         f"/ui/api/accounts/{acct['id']}/contributions",
         json={"date": "2024-03-01", "amount": "100000", "fiveYear": True},

@@ -5,6 +5,7 @@ the account's Sync using MoolaKata Connector switch for its owner alone, and Rem
 import pytest
 from conftest import make_user, sign_in
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from edits import change, saved
 from test_connector import FakeConnector, pair_code
 
 from moolakata import ids
@@ -175,25 +176,12 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     a = alice.get(f"/ui/api/accounts/{aid}").json()
     assert a["connectionId"] is None
     # Bob's connection can't be named, nor one without the institution account.
-    r = alice.patch(
-        f"/ui/api/accounts/{aid}",
-        json={"connectionId": bobs, "syncAccount": "x"},
-        headers={"If-Match": f'"{a["version"]}"'},
-    )
+    r = change(alice, "Acct", a, connectionId=bobs, syncAccount="x")
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "connectionId"
-    r = alice.patch(
-        f"/ui/api/accounts/{aid}",
-        json={"connectionId": cid},
-        headers={"If-Match": f'"{a["version"]}"'},
-    )
+    r = change(alice, "Acct", a, connectionId=cid)
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "syncAccount"
-    r = alice.patch(
-        f"/ui/api/accounts/{aid}",
-        json={"connectionId": cid, "syncAccount": "Checking ••4417"},
-        headers={"If-Match": f'"{a["version"]}"'},
-    )
-    assert r.status_code == 200, r.text
-    assert r.json()["connectionId"] == cid and r.json()["syncAccount"] == "Checking ••4417"
+    out = saved(change(alice, "Acct", a, connectionId=cid, syncAccount="Checking ••4417"))
+    assert out["connectionId"] == cid and out["syncAccount"] == "Checking ••4417"
     # The connector's report answer names the account.
     out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     mine = next(x for x in out["connections"] if x["id"] == cid)
@@ -204,12 +192,8 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     assert r.status_code == 200, r.text
     shown = bob.get(f"/ui/api/accounts/{aid}").json()
     assert shown["connectionId"] is None and shown["syncAccount"] is None
-    r = bob.patch(
-        f"/ui/api/accounts/{aid}",
-        json={"connectionId": None},
-        headers={"If-Match": f'"{shown["version"]}"'},
-    )
-    assert r.status_code == 403 and r.json()["code"] == "owner-only"
+    r = change(bob, "Acct", shown, connectionId=None, syncAccount="y")
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "owner-only"
     # Remove turns the sync off and the connector is told.
     v = alice.get("/ui/api/profile/connections").json()["items"][0]["version"]
     r = alice.delete(f"/ui/api/profile/connections/{cid}", headers={"If-Match": f'"{v}"'})

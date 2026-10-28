@@ -23,7 +23,7 @@ def plan_of(h: Household, b: dict) -> list[dict]:
 @dataclass
 class Form:
     """A form in the table: where it is, how it opens (a button's text), and what reads its
-    records back."""
+    records back. A screen's form (`opens` empty) is the one `ready` names, with its own Save."""
 
     name: str
     path: Callable[[Household], str]
@@ -58,6 +58,18 @@ def gift_plan(h: Household) -> tuple:
 def filings(h: Household) -> list:
     """The book's filings as read, payments and carried figures with them (CR3-35)."""
     return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()["filings"]
+
+
+def account(h: Household, name: str) -> tuple:
+    """An account as read, and a loan's terms with it."""
+    a = h.c.get(f"/ui/api/accounts/{h.extra[name]['id']}").json()
+    loan = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json() if a["type"] == "mortgage" else None
+    return a, loan and loan["terms"]
+
+
+def home(h: Household) -> dict:
+    """The home as read, with its valuation, improvement, sale and documents."""
+    return h.c.get(f"/ui/api/items/{h.extra['home']['id']}").json()
 
 
 FORMS = [
@@ -103,6 +115,27 @@ FORMS = [
         'h3:has-text("Form 1040") button:has-text("Edit")',
         filings,
     ),
+    Form(
+        "a savings account's settings, with a withdrawals limit",
+        lambda h: f"/ui/accounts/{h.extra['savings']['id']}/settings",
+        "form.draft-form",
+        "",
+        lambda h: account(h, "savings"),
+    ),
+    Form(
+        "a mortgage's settings and terms, a reset among them",
+        lambda h: f"/ui/accounts/{h.extra['mortgage']['id']}/settings",
+        'form.draft-form:has-text("Loan terms")',
+        "",
+        lambda h: account(h, "mortgage"),
+    ),
+    Form(
+        "a home with its valuation and improvement",
+        lambda h: f"/ui/accounts/{h.extra['homes']['id']}/items",
+        'tr.click:has-text("1428 Elm St")',
+        'tr.click:has-text("1428 Elm St")',
+        home,
+    ),
 ]
 
 
@@ -113,10 +146,14 @@ def test_saved_unchanged_a_form_changes_nothing(browser, household, form):
     h = household
     before = form.reads(h)
     page, problems = signed_in(browser, h, form.path(h), form.ready)
-    page.click(form.opens)
-    wait(page, ".dialog footer button.primary:enabled", problems)
-    page.click(".dialog footer button.primary")
-    wait(page, ".dialog", problems, state="detached")
+    if form.opens:
+        page.click(form.opens)
+        wait(page, ".dialog footer button.primary:enabled", problems)
+        page.click(".dialog footer button.primary")
+        wait(page, ".dialog", problems, state="detached")
+    else:
+        page.click(f"{form.ready} button.primary:enabled")
+        wait(page, ".toast", problems)
     assert form.reads(h) == before
     assert problems == []
     page.close()
@@ -376,5 +413,75 @@ def test_a_filing_changed_keeps_its_payments_match(browser, household):
     assert after["confirmation"] == "IRS-456"
     assert float(after["carried"]["agi"]) == 98100
     assert after["payments"] == before["payments"]
+    assert problems == []
+    page.close()
+
+
+def test_a_screens_form_holding_changes_asks_before_moving_elsewhere(browser, household):
+    """S12.15.6: a link in the app, or Back, asks before a screen's form loses its changes;
+    Keep editing stays, Discard goes."""
+    h = household
+    at = f"/ui/accounts/{h.extra['savings']['id']}"
+    page, problems = signed_in(browser, h, at, 'a.tab:has-text("Settings")')
+    page.click('a.tab:has-text("Settings")')
+    path = at + "/settings"
+    wait(page, "form.draft-form", problems)
+    page.fill("#f-name", "Rainy day")
+    page.click('a.nav-item:has-text("Budgets")')
+    wait(page, "text=Discard your changes?", problems)
+    page.click('button:has-text("Keep editing")')
+    assert page.url.endswith(path) and page.input_value("#f-name") == "Rainy day"
+    page.go_back()
+    wait(page, "text=Discard your changes?", problems)
+    page.click('button:has-text("Discard")')
+    page.wait_for_url(f"**{at}")
+    assert account(h, "savings")[0]["name"] == "Savings"
+    assert problems == []
+    page.close()
+
+
+# ---------- what the accounts' forms alone do ----------
+
+
+def test_a_new_mortgage_is_made_with_its_terms_in_one_save(browser, household):
+    h = household
+    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New account")')
+    page.click('button:has-text("New account")')
+    page.click('button.type-card:has-text("Mortgage")')
+    page.fill("#f-name", "Cabin mortgage")
+    page.fill("#f-original-principal", "200000")
+    page.fill("#f-start-date", "2024-06-01")
+    page.fill("#f-interest-rate", "6.5")
+    page.click(".dialog footer button.primary")
+    page.wait_for_url("**/ui/accounts/Acct_*")
+    a = next(
+        x for x in h.c.get("/ui/api/accounts").json()["items"] if x["name"] == "Cabin mortgage"
+    )
+    t = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["terms"]
+    assert (t["principal"], t["termMonths"], t["rate"]) == (200000, 360, 6.5)
+    assert problems == []
+    page.close()
+
+
+def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
+    h = household
+    coll = h.c.post("/ui/api/accounts", json={"name": "Watches", "type": "collectables"}).json()
+    watch = h.c.post(
+        f"/ui/api/accounts/{coll['id']}/items",
+        json={"name": "Speedmaster", "acquiredOn": "2020-01-10", "costBasis": "5000"},
+    ).json()
+    path = f"/ui/accounts/{coll['id']}/items"
+    page, problems = signed_in(browser, h, path, 'tr.click:has-text("Speedmaster")')
+    page.click('tr.click:has-text("Speedmaster")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#x-valuation-value", "6200")
+    page.click('.dialog button:has-text("Add")')
+    page.click('.dialog button:has-text("Record the sale…")')
+    page.fill("#x-proceeds", "6100")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    it = h.c.get(f"/ui/api/items/{watch['id']}").json()
+    assert [float(v["value"]) for v in it["valuations"]] == [6200]
+    assert float(it["sale"]["proceeds"]) == 6100
     assert problems == []
     page.close()

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, saved
+from edits import change, saved, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -339,18 +339,8 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
     (S1.9.7, S7.3.3)."""
     c, acct, cat, b = setup_budget(server)
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={
-            "principal": "300000",
-            "startDate": "2026-09-01",
-            "termMonths": 360,
-            "rate": "6",
-            "escrowTax": "300",
-            "escrowInsurance": "100",
-        },
-    )
-    assert r.status_code == 200, r.text
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-09-01", termMonths=360,
+                rate="6", escrowTax="300", escrowInsurance="100"))  # fmt: skip
     r = c.post(
         f"/ui/api/accounts/{loan['id']}/loan/payments",
         json={"date": "2026-10-01", "amount": "2198.65", "fromAccountId": acct["id"]},
@@ -366,13 +356,11 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
 def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     c, acct, cat, b = setup_budget(server)
     loan = new_account(c, name="Car", type="auto-loan", institution="Ally")
-    terms = {"principal": "20000", "startDate": "2026-09-01", "termMonths": 60, "rate": "6"}
-    bad = c.put(f"/ui/api/accounts/{loan['id']}/loan", json=terms | {"budgetCounting": "half"})
+    car = {"principal": "20000", "startDate": "2026-09-01", "termMonths": 60, "rate": "6"}
+    bad = terms(c, loan["id"], **car, budgetCounting="half")
     assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "budgetCounting"
-    whole = terms | {"budgetCounting": "whole", "budgetCategoryId": cat["Transportation"]}
-    r = c.put(f"/ui/api/accounts/{loan['id']}/loan", json=whole)
-    assert r.status_code == 200, r.text
-    assert r.json()["terms"]["budgetCounting"] == "whole"
+    whole = car | {"budgetCounting": "whole", "budgetCategoryId": cat["Transportation"]}
+    assert saved(terms(c, loan["id"], **whole))["terms"]["budgetCounting"] == "whole"
     c.post(
         f"/ui/api/accounts/{loan['id']}/loan/payments",
         json={"date": "2026-10-01", "amount": "386.66", "fromAccountId": acct["id"]},

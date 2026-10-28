@@ -340,25 +340,17 @@ function command(c) {
 
 /**
  * Sync using MoolaKata Connector (S18.6.2), on an account's Settings tab, for its owner: which
- * Connection keeps it current and which of its institution accounts this is.
- * @param {{ a: any, reload: () => void }} p
+ * Connection keeps it current and which of its institution accounts this is, fields of the
+ * account's draft.
+ * @param {{ rec: import('../app/draft.js').Record }} p
  */
-export function SyncCard({ a, reload }) {
+export function SyncCard({ rec }) {
   const info = useApi('/connector');
   const res = useList('/profile/connections', {}, ['task']);
   const rows = /** @type {any[]} */ (res.data) || [];
-  const [on, setOn] = useState(!!a.connectionId);
-  const [cid, setCid] = useState(a.connectionId || '');
-  const [which, setWhich] = useState(a.syncAccount || '');
-  const save = useSubmit(async () => {
-    await api.patch(
-      `/accounts/${a.id}`,
-      on ? { connectionId: cid, syncAccount: which } : { connectionId: null },
-      a.version,
-    );
-    toast(on ? 'Synced by the connector' : 'Sync off');
-    reload();
-  });
+  const [on, setOn] = useState(rec.get('connectionId') != null);
+  const cid = rec.get('connectionId') || '';
+  const which = rec.shown('syncAccount');
   const paired = /** @type {any} */ (info.data)?.paired;
   if (!info.data) return null;
   if (!paired) return null;
@@ -373,49 +365,51 @@ export function SyncCard({ a, reload }) {
       openDialog(ConnectionDialog, {}).then((made) => {
         if (made) {
           res.reload();
-          setCid(made.id);
+          rec.set('connectionId', made.id);
         }
       });
       return;
     }
-    setCid(v);
-    setWhich('');
+    rec.input('connectionId', v);
+    rec.set('syncAccount', null);
+  };
+  const turn = (/** @type {boolean} */ v) => {
+    setOn(v);
+    if (!v) {
+      rec.set('connectionId', null);
+      rec.set('syncAccount', null);
+    }
   };
   const found = chosen ? accountsOf(chosen) : [];
   return html`
     <div style=${{ marginTop: '12px' }}>
-      <${SwitchRow} label="Sync using MoolaKata Connector" on=${on}
-        onChange=${(/** @type {boolean} */ v) => setOn(v)}
-        hint=${a.connectionId && chosen
-          ? `${chosen.label}${a.syncAccount ? ` · ${a.syncAccount}` : ''}`
+      <${SwitchRow} label="Sync using MoolaKata Connector" on=${on} onChange=${turn}
+        hint=${chosen
+          ? `${chosen.label}${which ? ` · ${which}` : ''}`
           : 'Fetched from the institution by the connector; you keep the sign-in.'} />
       ${on
         ? html`
           <div class="row">
-            <${Field} label="Connection" id="connection" error=${errAt(save.error, 'connectionId')}>
+            <${Field} label="Connection" id="connection" error=${rec.error('connectionId')}>
               <${Select} value=${cid} onChange=${pick} options=${options} />
               </${Field}>
-              <${Field} label="Institution account" id="institution-account" error=${errAt(
-                save.error,
-                'syncAccount',
-              )}
+              <${Field} label="Institution account" id="institution-account"
+                error=${rec.error('syncAccount')}
                 hint=${found.length ? '' : 'What the driver found on its first run, or type it.'}>
-                ${found.length
-                  ? html`
-                    <${Select} value=${which} onChange=${setWhich}
-                      options=${[['', 'Choose…'], ...found.map((x) => [x, x])]} />
-                  `
-                  : html`
-                    <${Input} value=${which} onInput=${setWhich}
-                      placeholder="Individual ••4417" />
-                  `}
-                </${Field}>
-                </div>
+              ${found.length
+                ? html`
+                  <${Select} value=${which} onChange=${(/** @type {string} */ v) =>
+                    rec.input('syncAccount', v)}
+                    options=${[['', 'Choose…'], ...found.map((x) => [x, x])]} />
+                `
+                : html`
+                  <${Input} value=${which} onInput=${(/** @type {string} */ v) =>
+                    rec.input('syncAccount', v)} placeholder="Individual ••4417" />
+                `}
+            </${Field}>
+          </div>
         `
         : null}
-      <div class="toolbar"><button type="button" class="btn sm" disabled=${save.busy ||
-        (on && (!cid || !which))} onClick=${() =>
-        save.run().catch(() => {})}>Save sync</button></div>
     </div>
   `;
 }

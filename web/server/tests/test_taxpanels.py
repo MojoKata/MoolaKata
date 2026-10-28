@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import saved, sell, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -94,8 +95,8 @@ def test_collectables_and_personal_use_losses(alice):
         f"/ui/api/accounts/{cars['id']}/items",
         json={"name": "Car", "acquiredOn": "2022-01-01", "costBasis": "30000", "personalUse": True},
     ).json()
-    alice.put(f"/ui/api/items/{coin['id']}/sale", json={"soldOn": "2026-05-01", "proceeds": "3000"})
-    alice.put(f"/ui/api/items/{car['id']}/sale", json={"soldOn": "2026-05-01", "proceeds": "18000"})
+    saved(sell(alice, coin["id"], "2026-05-01", "3000"))
+    saved(sell(alice, car["id"], "2026-05-01", "18000"))
     book_id = book(alice)
     p = panels(alice, book_id)
     rows = {r["description"]: r for r in p["rows"]}
@@ -173,10 +174,8 @@ def test_deductions_loans_and_issues(alice):
     cats = {x["name"]: x["id"] for x in alice.get("/ui/api/categories").json()["items"]}
     add(alice, card["id"], "-240.00", "2026-04-02", payee="Clinic", categoryId=cats["Doctor"])
     home = new_account(alice, name="Mortgage", type="mortgage")
-    alice.put(
-        f"/ui/api/accounts/{home['id']}/loan",
-        json={"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"},
-    )
+    saved(terms(alice, home["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
     alice.post(
         f"/ui/api/accounts/{home['id']}/loan/payments",
         json={"date": "2026-02-01", "amount": "1798.65"},

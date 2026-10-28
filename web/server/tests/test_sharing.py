@@ -1,7 +1,7 @@
 import re
 
 from conftest import make_user, sign_in
-from edits import change, saved
+from edits import change, remove, saved
 from test_accounts import add, new_account
 
 
@@ -38,14 +38,10 @@ def test_read_and_write_shares(server):
     share(c["alice"], "account", a["id"], users={u["bob"].id: "write"})
     add(c["bob"], a["id"], "-2.00", payee="Bob's coffee")
     acct = c["bob"].get(f"/ui/api/accounts/{a['id']}").json()
-    r = c["bob"].patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"lotMethod": "lifo"},
-        headers={"If-Match": str(acct["version"])},
-    )
+    r = change(c["bob"], "Acct", acct, lotMethod="lifo")
     assert r.status_code == 403  # a write share doesn't change the account's settings
-    r = c["bob"].delete(f"/ui/api/accounts/{a['id']}", headers={"If-Match": str(acct["version"])})
-    assert r.status_code == 403 and r.json()["code"] == "owner-only"
+    r = remove(c["bob"], "Acct", acct)
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "owner-only"
 
 
 def test_groups_via_and_the_higher_level(server, admin_client):

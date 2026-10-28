@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import remove
+from edits import change, remove
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -148,11 +148,7 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, alice):
         s.execute(delete(WashSale))
     assert realized() == "-200.00"
     acct = alice.get(f"/ui/api/accounts/{brk['id']}").json()
-    r = alice.patch(
-        f"/ui/api/accounts/{brk['id']}",
-        json={"lotMethod": "lifo"},
-        headers={"If-Match": str(acct["version"])},
-    )
+    r = change(alice, "Acct", acct, lotMethod="lifo")
     assert r.status_code == 200, r.text
     # By LIFO the sale would take the $50 lot, a 300 gain with nothing to disallow.
     assert realized() == "0.00", "worked out again, by the FIFO recorded on the sale"

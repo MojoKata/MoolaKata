@@ -3,6 +3,7 @@
 import datetime as dt
 
 import pytest
+from edits import change, edit, saved
 from test_accounts import add, new_account
 from test_budgets import month, row, setup_budget
 
@@ -154,21 +155,12 @@ def test_where_the_money_is(server, frozen):
     # A repair paid from checking: money goes back, and with one withdrawal already this
     # month, a second would go past the account's limit of one.
     v = c.get(f"/ui/api/accounts/{savings['id']}").json()
-    r = c.patch(
-        f"/ui/api/accounts/{savings['id']}",
-        json={"withdrawalsAMonth": 1},
-        headers={"If-Match": str(v["version"])},
-    )
-    assert r.status_code == 200 and r.json()["withdrawalsAMonth"] == 1
+    assert saved(change(c, "Acct", v, withdrawalsAMonth=1))["withdrawalsAMonth"] == 1
     add(c, acct["id"], "-300.00", "2026-12-12", payee="Roofer", categoryId=roof)
     (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert h["toMove"] == "-130.00" and h["withdrawals"] == 0 and not h["overLimit"]
     add(c, savings["id"], "-20.00", "2026-12-14", payee="Wire fee", kind="fee")
     (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert h["withdrawals"] == 1 and h["overLimit"]
-    bad = c.patch(
-        f"/ui/api/accounts/{acct['id']}",
-        json={"withdrawalsAMonth": 3},
-        headers={"If-Match": str(c.get(f"/ui/api/accounts/{acct['id']}").json()["version"])},
-    )
+    bad = edit(c, "Acct", f"/ui/api/accounts/{acct['id']}", withdrawalsAMonth=3)
     assert bad.status_code == 422

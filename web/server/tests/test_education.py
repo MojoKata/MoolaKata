@@ -5,6 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import plan529, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -37,18 +38,9 @@ def plan(c, **kw):
         },
     ).json()
     acct = new_account(c, name="Emma's 529", type="529", institution="my529")
-    r = c.put(
-        f"/ui/api/accounts/{acct['id']}/plan529",
-        json={
-            "planState": "Utah",
-            "planName": "my529",
-            "beneficiary": {"kind": "person", "id": emma["id"]},
-            "openedOn": kw.get("opened", "2018-05-02"),
-            "stateDeduction": "2410",
-        },
-    )
-    assert r.status_code == 200, r.text
-    return acct, emma, r.json()
+    r = plan529(c, acct["id"], planState="Utah", planName="my529", beneficiaryId=emma["id"],
+                openedOn=kw.get("opened", "2018-05-02"), stateDeduction="2410")  # fmt: skip
+    return acct, emma, saved(r)
 
 
 def test_gift_plans_are_their_owners_alone(server, alice):

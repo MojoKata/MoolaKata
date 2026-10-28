@@ -29,7 +29,16 @@ from ..store.entities.accounts import (
 from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from ..store.tables.accounts import ACCOUNT_TYPES, LOT_METHODS
-from .conventions import Deleted, ExactRoute, Model, Money, Quantity, check, gone, if_match, stale
+from . import save
+from .conventions import (
+    ExactRoute,
+    IdOf,
+    Model,
+    Money,
+    Quantity,
+    if_match,
+    stale,
+)
 from .deps import Caller, caller, server
 from .sharing import counted_for
 
@@ -76,6 +85,7 @@ class AccountDetail(AccountRow):
     statementInterval: str | None  # set; none set follows the type (S1.11.7)
     statementIntervalDefault: str  # the type's
     statementIntervalProposal: str | None  # learned from what arrives, not yet accepted
+    statementIntervalDismissed: str | None  # a proposal set aside
     withdrawalsAMonth: int | None  # a savings account's limit, the bank's (S1.2)
     optionsValue: Money | None  # an investing account's options' market value
     capitalAtRisk: Money | None  # beside it (S3.5.6)
@@ -100,23 +110,28 @@ class NewAccount(Model):
     countInNetWorth: bool | None = None
 
 
-class AccountChange(Model):
-    name: str | None = None
+class AccountRecord(Model):
+    """An account as a draft saves it (S12.15): its type is chosen when it is made; its
+    settings are its owner's (S10.3)."""
+
+    name: str
+    type: str
     institution: str | None = None
     mask: str | None = None
     notes: str | None = None
-    keptBy: list[str] | None = None
-    lotMethod: str | None = None
+    keptBy: list[str] = Field(default_factory=lambda: ["manual"])
+    lotMethod: str = "fifo"
     openingBalance: Money | None = None
     openingDate: dt.date | None = None
-    countInNetWorth: bool | None = None
-    active: bool | None = None
-    statementInterval: str | None = None  # null: back to the type's default
-    dismissIntervalProposal: bool = False
+    countInNetWorth: bool | None = None  # a donor-advised fund counts in no one's unless said
+    active: bool = True
+    statementInterval: str | None = None  # null: the type's default (S1.11.7)
+    # The interval learned from what arrives, set aside until another is learned.
+    statementIntervalDismissed: str | None = None
     withdrawalsAMonth: int | None = None  # a savings account's limit, the bank's (S1.2)
     # Sync using MoolaKata Connector (S18.6.2), the owner's alone: a Connection of theirs and
     # the institution account; null turns it off.
-    connectionId: str | None = None
+    connectionId: IdOf("Conn") | None = None  # type: ignore[valid-type]
     syncAccount: str | None = None
 
 
@@ -254,13 +269,14 @@ class ReconciliationChange(Model):
 # ---------- shaping ----------
 
 
-def _check(body: NewAccount | AccountChange) -> list[FieldError]:
+def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[FieldError]:
     errors = []
     sent = body.model_fields_set
-    named = isinstance(body, NewAccount) or "name" in sent
+    new = isinstance(body, NewAccount) if new is None else new
+    named = new or "name" in sent
     if named and (not (body.name or "").strip() or len(body.name or "") > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
-    if isinstance(body, NewAccount) and body.type not in ACCOUNT_TYPES:
+    if new and body.type not in ACCOUNT_TYPES:
         errors.append(FieldError("type", "type-invalid", "Choose an account type."))
     if body.mask and not (len(body.mask) == 4 and body.mask.isdigit()):
         errors.append(FieldError("mask", "mask-invalid", "The last four digits, such as 4821."))
@@ -290,7 +306,7 @@ def _check(body: NewAccount | AccountChange) -> list[FieldError]:
     if body.notes and len(body.notes) > 20000:
         errors.append(FieldError("notes", "notes-too-long", "Notes are up to 20,000 characters."))
     if (body.openingBalance is None) != (body.openingDate is None) and (
-        isinstance(body, NewAccount) or {"openingBalance", "openingDate"} & sent
+        new or {"openingBalance", "openingDate"} & sent
     ):
         errors.append(
             FieldError(
@@ -386,6 +402,7 @@ def row(
         syncAccount=a.syncAccount if level == "owner" else None,
         statementIntervalDefault=expected.default_interval(a.type, json.loads(a.keptBy)),
         statementIntervalProposal=expected.proposal(a, imports_of(s, a.id)),
+        statementIntervalDismissed=a.statementIntervalDismissed,
         withdrawalsAMonth=a.withdrawalsAMonth,
         **_options_risk(s, a, ledger),
     )
@@ -420,31 +437,36 @@ def list_accounts(request: Request, c: Caller = Depends(caller)):
         return [row(s, a, level, ctx) for a, level in visible]
 
 
+def _make(s, c: Caller, body, account_id: str) -> Account:
+    a = Account(
+        id=account_id,
+        ownerId=c.id,
+        name=body.name.strip(),
+        type=body.type,
+        institution=(body.institution or "").strip() or None,
+        mask=body.mask or None,
+        notes=body.notes,
+        keptBy=exactjson.dumps(body.keptBy),
+        lotMethod=body.lotMethod,
+        openingBalance=body.openingBalance,
+        openingDate=body.openingDate,
+        countInNetWorth=(
+            body.countInNetWorth if body.countInNetWorth is not None else body.type != "daf"
+        ),
+    )
+    s.add(a)
+    s.flush()
+    activity.record(
+        s, "account.created", actor=c.id, subject_kind="account", subject_id=a.id, owner=c.id
+    )
+    return a
+
+
 @router.post("/accounts", response_model=AccountDetail, status_code=201)
 def create_account(body: NewAccount, request: Request, c: Caller = Depends(caller)):
     _raise(_check(body))
     with server(request).db.tx() as s:
-        a = Account(
-            id=ids.new_id("Acct"),
-            ownerId=c.id,
-            name=body.name.strip(),
-            type=body.type,
-            institution=(body.institution or "").strip() or None,
-            mask=body.mask or None,
-            notes=body.notes,
-            keptBy=exactjson.dumps(body.keptBy),
-            lotMethod=body.lotMethod,
-            openingBalance=body.openingBalance,
-            openingDate=body.openingDate,
-            countInNetWorth=(
-                body.countInNetWorth if body.countInNetWorth is not None else body.type != "daf"
-            ),
-        )
-        s.add(a)
-        s.flush()
-        activity.record(
-            s, "account.created", actor=c.id, subject_kind="account", subject_id=a.id, owner=c.id
-        )
+        a = _make(s, c, body, ids.new_id("Acct"))
         out = row(s, a, "owner", context(s, c.id, [a.id]), detail=True)
     return JSONResponse(
         out.model_dump(mode="json"),
@@ -460,148 +482,117 @@ def get_account(account_id: str, request: Request, c: Caller = Depends(caller)):
         return row(s, a, level, context(s, c.id, [a.id]), detail=True)
 
 
-@router.patch("/accounts/{account_id}", response_model=AccountDetail)
-def change_account(
-    account_id: str,
-    body: AccountChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    _raise(_check(body))
-    sent = body.model_fields_set
-    with server(request).db.tx() as s:
-        a, level = access.account(s, c.id, account_id, "write")
-        if a.version != version:
-            raise stale(row(s, a, level, context(s, c.id, [a.id]), detail=True))
-        settings_fields = {
-            "lotMethod",
-            "keptBy",
-            "active",
-            "countInNetWorth",
-            "name",
-            "institution",
-            "mask",
-            "statementInterval",
-            "dismissIntervalProposal",
-            "connectionId",
-            "syncAccount",
-            "withdrawalsAMonth",
-        }
-        if level != "owner" and sent & settings_fields:
-            raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
-        changed = []
-        for f in (
-            "name",
-            "institution",
-            "mask",
-            "notes",
-            "lotMethod",
-            "openingBalance",
-            "openingDate",
-            "countInNetWorth",
-            "active",
+ACCOUNT_FIELDS = (
+    "name",
+    "institution",
+    "mask",
+    "notes",
+    "lotMethod",
+    "openingBalance",
+    "openingDate",
+    "countInNetWorth",
+    "active",
+)
+
+
+def _change(s, c: Caller, a: Account, level: str, body, sent: set[str]) -> None:
+    """The fields `sent` set on an account: its settings by its owner alone (S10.3)."""
+    settings_fields = {
+        "lotMethod",
+        "keptBy",
+        "active",
+        "countInNetWorth",
+        "name",
+        "institution",
+        "mask",
+        "statementInterval",
+        "statementIntervalDismissed",
+        "connectionId",
+        "syncAccount",
+        "withdrawalsAMonth",
+    }
+    if level != "owner" and sent & settings_fields:
+        raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
+    changed = []
+    for f in ACCOUNT_FIELDS:
+        if f in sent:
+            value = getattr(body, f)
+            if isinstance(value, str):
+                value = value.strip() or None
+            if f in ("name",) and value is None:
+                continue
+            if getattr(a, f) != value:
+                setattr(a, f, value)
+                changed.append(f)
+    if "keptBy" in sent and body.keptBy is not None:
+        a.keptBy = exactjson.dumps(body.keptBy)
+        changed.append("keptBy")
+    if "withdrawalsAMonth" in sent and a.withdrawalsAMonth != body.withdrawalsAMonth:
+        if body.withdrawalsAMonth is not None and (
+            a.type not in ("savings", "money-market") or not 1 <= body.withdrawalsAMonth <= 99
         ):
-            if f in sent:
-                value = getattr(body, f)
-                if isinstance(value, str):
-                    value = value.strip() or None
-                if f in ("name",) and value is None:
-                    continue
-                if getattr(a, f) != value:
-                    setattr(a, f, value)
-                    changed.append(f)
-        if "keptBy" in sent and body.keptBy is not None:
-            a.keptBy = exactjson.dumps(body.keptBy)
-            changed.append("keptBy")
-        if "withdrawalsAMonth" in sent and a.withdrawalsAMonth != body.withdrawalsAMonth:
-            if body.withdrawalsAMonth is not None and (
-                a.type not in ("savings", "money-market") or not 1 <= body.withdrawalsAMonth <= 99
-            ):
-                raise Problem(
-                    422,
-                    "limit-invalid",
-                    "A savings account's limit: 1 to 99, or empty.",
-                    [
-                        FieldError(
-                            "withdrawalsAMonth",
-                            "limit-invalid",
-                            "A savings account's limit: 1 to 99, or empty.",
-                        )
-                    ],
-                )
-            a.withdrawalsAMonth = body.withdrawalsAMonth
-            changed.append("withdrawalsAMonth")
-        if "statementInterval" in sent and a.statementInterval != body.statementInterval:
-            a.statementInterval = body.statementInterval
-            changed.append("statementInterval")
-        if "connectionId" in sent or "syncAccount" in sent:
-            from ..store.entities.connector import Connection
-
-            cid = body.connectionId if "connectionId" in sent else a.connectionId
-            if cid is not None:
-                conn = s.get(Connection, cid)
-                if conn is None or conn.deleted or conn.ownerId != c.id or conn.state == "removed":
-                    raise refuse("connectionId", "not-found", "One of your own connections.")
-                which = (body.syncAccount or "").strip() if "syncAccount" in sent else a.syncAccount
-                if not which:
-                    raise refuse(
-                        "syncAccount", "sync-account-missing", "Which institution account this is."
+            raise Problem(
+                422,
+                "limit-invalid",
+                "A savings account's limit: 1 to 99, or empty.",
+                [
+                    FieldError(
+                        "withdrawalsAMonth",
+                        "limit-invalid",
+                        "A savings account's limit: 1 to 99, or empty.",
                     )
-                if (a.connectionId, a.syncAccount) != (cid, which):
-                    a.connectionId, a.syncAccount = cid, which
-                    changed.append("sync")
-            elif a.connectionId is not None:
-                a.connectionId, a.syncAccount = None, None
+                ],
+            )
+        a.withdrawalsAMonth = body.withdrawalsAMonth
+        changed.append("withdrawalsAMonth")
+    if "statementInterval" in sent and a.statementInterval != body.statementInterval:
+        a.statementInterval = body.statementInterval
+        changed.append("statementInterval")
+    dismissed = getattr(body, "statementIntervalDismissed", None)
+    if "statementIntervalDismissed" in sent and a.statementIntervalDismissed != dismissed:
+        if dismissed is not None and dismissed not in expected.INTERVALS:
+            raise refuse("statementIntervalDismissed", "statement-interval-invalid", "An interval.")
+        a.statementIntervalDismissed = dismissed
+    if "connectionId" in sent or "syncAccount" in sent:
+        from ..store.entities.connector import Connection
+
+        cid = body.connectionId if "connectionId" in sent else a.connectionId
+        if cid is not None:
+            conn = s.get(Connection, cid)
+            if conn is None or conn.deleted or conn.ownerId != c.id or conn.state == "removed":
+                raise refuse("connectionId", "not-found", "One of your own connections.")
+            which = (body.syncAccount or "").strip() if "syncAccount" in sent else a.syncAccount
+            if not which:
+                raise refuse(
+                    "syncAccount", "sync-account-missing", "Which institution account this is."
+                )
+            if (a.connectionId, a.syncAccount) != (cid, which):
+                a.connectionId, a.syncAccount = cid, which
                 changed.append("sync")
-        if body.dismissIntervalProposal:
-            seen = expected.proposal(a, imports_of(s, a.id))
-            if seen is not None:
-                a.statementIntervalDismissed = seen
-                changed.append("statementIntervalDismissed")
-        if changed:
-            kind = (
-                "account.closed"
-                if "active" in changed and not a.active
-                else ("account.reopened" if "active" in changed else "account.updated")
-            )
-            activity.record(
-                s,
-                kind,
-                actor=c.id,
-                subject_kind="account",
-                subject_id=a.id,
-                owner=a.ownerId,
-                detail={"fields": changed},
-            )
-        s.flush()
-        if "lotMethod" in changed:
-            # Sales keep the method recorded on them; the wash sales are worked out again (S2.3).
-            from .. import washes
-
-            washes.recompute(s, a.ownerId)
-        return row(s, a, level, context(s, c.id, [a.id]), detail=True)
-
-
-@router.delete("/accounts/{account_id}", response_model=Deleted[None])
-def delete_account(
-    account_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    """Soft-deleted with everything that belongs to it (schema.md §4); only by its owner."""
-    with server(request).db.tx() as s:
-        a, _ = access.account(s, c.id, account_id, "owner")
-        check(a, version, {"id": a.id, "version": a.version})
-        a.mark_deleted(c.id)
+        elif a.connectionId is not None:
+            a.connectionId, a.syncAccount = None, None
+            changed.append("sync")
+    if changed:
+        kind = (
+            "account.closed"
+            if "active" in changed and not a.active
+            else ("account.reopened" if "active" in changed else "account.updated")
+        )
         activity.record(
             s,
-            "account.deleted",
+            kind,
             actor=c.id,
             subject_kind="account",
             subject_id=a.id,
             owner=a.ownerId,
+            detail={"fields": changed},
         )
-        s.flush()
-        return Deleted[None](deleted=gone(a))
+    s.flush()
+    if "lotMethod" in changed:
+        # Sales keep the method recorded on them; the wash sales are worked out again (S2.3).
+        from .. import washes
+
+        washes.recompute(s, a.ownerId)
 
 
 @router.get("/accounts/{account_id}/series", response_model=Series)
@@ -934,3 +925,79 @@ def finish_reconciliation(
             )
         s.flush()
         return _reconciliation_row(s, r)
+
+
+# ---------- an account in a dialog's or a screen's draft (S12.15, S13.8.11) ----------
+
+
+def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
+    _raise(_check(body, new=True))
+    a = _make(ctx.s, ctx.caller, body, record_id)
+    later = {
+        f
+        for f in ("active", "statementInterval", "withdrawalsAMonth", "connectionId", "syncAccount")
+        if getattr(body, f) != AccountRecord.model_fields[f].default
+    }
+    if later:
+        _change(ctx.s, ctx.caller, a, "owner", body, later)
+
+
+def _account_editable(ctx, record_id: str) -> Account:
+    return access.account(ctx.s, ctx.caller.id, record_id, "write")[0]
+
+
+def _account_current(ctx, a: Account) -> dict:
+    return {
+        "type": a.type,
+        "keptBy": json.loads(a.keptBy or "[]"),
+        "statementInterval": a.statementInterval,
+        "statementIntervalDismissed": a.statementIntervalDismissed,
+        "withdrawalsAMonth": a.withdrawalsAMonth,
+        "connectionId": a.connectionId,
+        "syncAccount": a.syncAccount,
+        **{f: getattr(a, f) for f in ACCOUNT_FIELDS},
+    }
+
+
+def _account_update(ctx, a: Account, body: AccountRecord) -> None:
+    current = _account_current(ctx, a)
+    sent = {f for f in AccountRecord.model_fields if getattr(body, f) != current[f]}
+    if "type" in sent:
+        raise refuse("type", "type-fixed", "An account keeps its type.")
+    _raise(_check(body, new=False))
+    level = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
+    _change(ctx.s, ctx.caller, a, level, body, sent)
+
+
+def _account_delete(ctx, a: Account) -> None:
+    """Soft-deleted with everything that belongs to it (schema.md §4); only by its owner."""
+    access.account(ctx.s, ctx.caller.id, a.id, "owner")
+    a.mark_deleted(ctx.caller.id)
+    activity.record(
+        ctx.s,
+        "account.deleted",
+        actor=ctx.caller.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+    )
+
+
+def _account_read(ctx, record_id: str) -> AccountDetail:
+    a, level = access.account(ctx.s, ctx.caller.id, record_id)
+    return row(ctx.s, a, level, context(ctx.s, ctx.caller.id, [a.id]), detail=True)
+
+
+save.register(
+    save.Kind(
+        prefix="Acct",
+        entity=Account,
+        fields=AccountRecord,
+        create=_account_create,
+        editable=_account_editable,
+        current=_account_current,
+        update=_account_update,
+        delete=_account_delete,
+        read=_account_read,
+    )
+)

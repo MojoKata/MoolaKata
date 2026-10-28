@@ -16,7 +16,8 @@ from ..store.entities.accounts import Account, Transaction
 from ..store.entities.education import Contribution, EducationPlan, Person, QualifiedExpense
 from ..store.entities.projections import Projection
 from ..store.entities.users import User
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match
+from . import save
+from .conventions import Deleted, ExactRoute, IdOf, Model, Money, check, gone, if_match
 from .deps import Caller, caller, server
 from .projections import ProjectionDetail
 from .projections import detail as projection_detail
@@ -65,6 +66,8 @@ class PlanOut(Model):
     contributedThisYear: Money
     rollover: RolloverOut
     canWrite: bool
+    id: str | None = None  # the plan's, once it is set
+    beneficiaryId: str | None = None  # their person
     version: int = 0  # the plan's: 0 until it is set (S13.8.6)
 
 
@@ -97,6 +100,8 @@ def plan_view(s, a: Account, lvl: str) -> PlanOut:
         contributedThisYear=sum((x.amount for x in rows if x.date.year == today.year), Decimal(0)),
         rollover=RolloverOut(**r.__dict__),
         canWrite=lvl in ("owner", "write"),
+        id=plan.id if plan else None,
+        beneficiaryId=plan.beneficiaryId if plan else None,
         version=plan.version if plan else 0,
     )
 
@@ -128,46 +133,100 @@ def get_plan(account_id: str, request: Request, c: Caller = Depends(caller)):
         return plan_view(s, a, lvl)
 
 
-@router.put("/accounts/{account_id}/plan529", response_model=PlanOut)
-def put_plan(
-    account_id: str,
-    body: PlanIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
+class EducationPlanRecord(Model):
+    """A 529's plan as a draft saves it (S1.8.1): made with the account or on its Settings."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    planState: str | None = None
+    planName: str | None = None
+    beneficiaryId: IdOf("Persn") | None = None  # type: ignore[valid-type]
+    openedOn: dt.date | None = None
+    stateDeduction: Money | None = None
+
+
+def _plan_values(ctx, body: EducationPlanRecord) -> dict:
     if body.stateDeduction is not None and body.stateDeduction < 0:
         raise refuse("stateDeduction", "amount-invalid", "Zero or more.")
     if body.openedOn is not None and body.openedOn > clock.today():
         raise refuse("openedOn", "date-ahead", "Not after today.")
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        check(education.plan_of(s, a), version, lambda: plan_view(s, a, lvl))
-        values = {
-            "planState": (body.planState or "").strip() or None,
-            "planName": (body.planName or "").strip() or None,
-            "openedOn": body.openedOn,
-            "stateDeduction": body.stateDeduction,
-            **_check_beneficiary(s, c, body.beneficiary, a.ownerId),
-        }
-        plan = education.plan_of(s, a)
-        if plan is None:
-            s.add(EducationPlan(id=ids.new_id("EdPln"), accountId=a.id, **values))
-        else:
-            for k, v in values.items():
-                setattr(plan, k, v)
-            plan.updatedAt = clock.now()
-        s.flush()
-        activity.record(
-            s,
-            "account.updated",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-            detail={"fields": ["plan"]},
-        )
-        return plan_view(s, a, lvl)
+    if body.beneficiaryId and _person_of(ctx.s, ctx.caller, "person", body.beneficiaryId) is None:
+        raise refuse("beneficiaryId", "beneficiary-invalid", "One of the household's people.")
+    return {
+        "planState": (body.planState or "").strip() or None,
+        "planName": (body.planName or "").strip() or None,
+        "openedOn": body.openedOn,
+        "stateDeduction": body.stateDeduction,
+        "beneficiaryId": body.beneficiaryId,
+    }
+
+
+def _plan_changed(ctx, a: Account) -> None:
+    activity.record(
+        ctx.s,
+        "account.updated",
+        actor=ctx.caller.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+        detail={"fields": ["plan"]},
+    )
+
+
+def _plan_create(ctx, record_id: str, body: EducationPlanRecord) -> None:
+    a, _ = _account(ctx.s, ctx.caller, body.accountId, "write")
+    if education.plan_of(ctx.s, a) is not None:
+        raise refuse("accountId", "plan-exists", "This 529 has its plan; change it.", 409)
+    ctx.s.add(EducationPlan(id=record_id, accountId=a.id, **_plan_values(ctx, body)))
+    _plan_changed(ctx, a)
+
+
+def _plan_editable(ctx, record_id: str) -> EducationPlan:
+    plan = ctx.s.get(EducationPlan, record_id)
+    if plan is None or plan.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _account(ctx.s, ctx.caller, plan.accountId, "write")
+    return plan
+
+
+PLAN_FIELDS = ("planState", "planName", "beneficiaryId", "openedOn", "stateDeduction")
+
+
+def _plan_update(ctx, plan: EducationPlan, body: EducationPlanRecord) -> None:
+    if body.accountId != plan.accountId:
+        raise refuse("accountId", "plan-fixed", "A plan stays with its account.")
+    a, _ = _account(ctx.s, ctx.caller, plan.accountId, "write")
+    for k, v in _plan_values(ctx, body).items():
+        setattr(plan, k, v)
+    plan.updatedAt = clock.now()
+    _plan_changed(ctx, a)
+
+
+def _plan_delete(ctx, plan: EducationPlan) -> None:
+    raise refuse(None, "plan-delete", "A 529 keeps its plan; delete the account instead.")
+
+
+def _plan_read(ctx, record_id: str) -> PlanOut:
+    plan = ctx.s.get(EducationPlan, record_id)
+    a, lvl = _account(ctx.s, ctx.caller, plan.accountId)
+    return plan_view(ctx.s, a, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="EdPln",
+        entity=EducationPlan,
+        fields=EducationPlanRecord,
+        create=_plan_create,
+        editable=_plan_editable,
+        current=lambda ctx, plan: {
+            "accountId": plan.accountId,
+            **{f: getattr(plan, f) for f in PLAN_FIELDS},
+        },
+        update=_plan_update,
+        delete=_plan_delete,
+        read=_plan_read,
+    )
+)
 
 
 # ---- Contributions (S1.8.2) ----

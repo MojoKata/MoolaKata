@@ -4,6 +4,8 @@ and when the next statement is overdue."""
 import datetime as dt
 from types import SimpleNamespace as NS
 
+from edits import edit, saved
+
 from moolakata.ledger import expected
 
 
@@ -92,28 +94,11 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
             )
     d = c.get(f"/ui/api/accounts/{a['id']}").json()
     assert d["statementIntervalProposal"] == "quarterly"
-    r = c.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"dismissIntervalProposal": True},
-        headers={"If-Match": str(d["version"])},
-    )
-    assert r.json()["statementIntervalProposal"] is None
-    r = c.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"statementInterval": "weekly"},
-        headers={"If-Match": str(r.json()["version"])},
-    )
-    assert r.json()["code"] == "statement-interval-invalid"
-    v = c.get(f"/ui/api/accounts/{a['id']}").json()["version"]
-    r = c.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"statementInterval": "yearly"},
-        headers={"If-Match": str(v)},
-    )
-    assert r.json()["statementInterval"] == "yearly"
-    r = c.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"statementInterval": None},
-        headers={"If-Match": str(r.json()["version"])},
-    )
-    assert r.json()["statementInterval"] is None, "back to the type's"
+    path = f"/ui/api/accounts/{a['id']}"
+    r = edit(c, "Acct", path, statementIntervalDismissed="quarterly")
+    assert saved(r)["statementIntervalProposal"] is None
+    r = edit(c, "Acct", path, statementInterval="weekly")
+    assert r.json()["errors"][0]["code"] == "statement-interval-invalid"
+    assert saved(edit(c, "Acct", path, statementInterval="yearly"))["statementInterval"] == "yearly"
+    out = saved(edit(c, "Acct", path, statementInterval=None))
+    assert out["statementInterval"] is None, "back to the type's"
