@@ -9,8 +9,8 @@ import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Seg, Select, SwitchRow } from '../components/fields.js';
+import { openDialog } from '../components/dialog.js';
+import { Field, Input, Seg, Select, SwitchRow } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -318,107 +318,118 @@ function Dependents({ b, done }) {
   `;
 }
 
-/** @param {{ close: (out?: any) => void, b: any, d: any }} p */
+/** A dependent of a book (S8.14.5), with the accounts in their name it counts. */
+class DependentRec extends Rec {
+  /** @override */
+  static prefix = 'TxDep';
+  /** @override */
+  static fields = FIELDS.DependentRecord;
+  /** @override */
+  static defaults = { claimedAs: 'qualifying child', months: 12, student: false, accountIds: [] };
+}
+
+/** @param {{ close: (v?: any) => void, b: any, d: any }} p */
 function DependentDialog({ close, b, d }) {
   useDialogGuide('dialog-dependent');
   const cands = useList(`/tax-books/${b.id}/dependent-candidates`);
   const list = /** @type {any[] | null} */ (cands.data);
-  const [f, setF] = useState({
-    personId: d?.personId || '',
-    claimedAs: d?.claimedAs || '',
-    months: String(d?.months ?? 12),
-    student: !!d?.student,
-    accountIds: /** @type {string[]} */ (d?.accountIds || []),
-  });
+  const f = useDraft((draft) => {
+    if (d) draft.load(DependentRec, { ...d, bookId: b.id });
+    else draft.add(DependentRec, { bookId: b.id, personId: '' });
+  }, [d?.id]);
+  const rec = /** @type {DependentRec | undefined} */ (f.draft?.records[0]);
+  // How they are claimed follows the family tree's suggestion until it is chosen.
+  const [picked, setPicked] = useState(!!d);
   const taken = new Set(b.dependents.map((/** @type {any} */ x) => x.personId));
   const choices = (list || []).filter((c) => !taken.has(c.personId) || c.personId === d?.personId);
-  const chosen = choices.find((c) => c.personId === f.personId);
-  const suggested = chosen ? (f.student ? chosen.suggestIfStudent : chosen.suggest) : '';
-  const claimedAs = f.claimedAs || suggested || 'qualifying child';
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const save = useSubmit(async () => {
-    const body = {
-      personId: f.personId,
-      claimedAs,
-      months: Number(f.months),
-      student: f.student,
-      accountIds: f.accountIds,
-    };
-    const out = d
-      ? await api.patch(`/tax-dependents/${d.id}`, body, d.version)
-      : await api.post(`/tax-books/${b.id}/dependents`, body);
-    toast(d ? 'Dependent saved' : 'Dependent added');
-    close(out);
-  });
-  const remove = useSubmit(async () => {
-    const out = await api.del(`/tax-dependents/${d.id}`, d.version);
-    toast('Dependent removed');
-    close(out.parent);
-  });
-  const e = save.error || remove.error;
+  /** @param {string} who @param {boolean} student */
+  const suggest = (who, student) => {
+    const c = choices.find((x) => x.personId === who);
+    if (!rec || picked || !c) return;
+    rec.set('claimedAs', (student ? c.suggestIfStudent : c.suggest) || 'qualifying child', who);
+  };
+  const ids = /** @type {string[]} */ (rec?.get('accountIds') || []);
   // Accounts a child's money is kept in: banking, brokerage and crypto, not retirement or loans.
   const theirs = b.accounts.filter((/** @type {any} */ a) =>
-    CHILD_TYPES.includes(a.type) || f.accountIds.includes(a.id)
+    CHILD_TYPES.includes(a.type) || ids.includes(a.id)
   );
   const toggle = (/** @type {string} */ id) => (/** @type {boolean} */ on) =>
-    set('accountIds')(on ? [...f.accountIds, id] : f.accountIds.filter((x) => x !== id));
+    rec?.set('accountIds', on ? [...ids, id] : ids.filter((x) => x !== id));
   return html`
-    <${Dialog} title=${d ? d.name : 'Add a dependent'} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`${
+    <${DraftDialog} f=${f} close=${close} what="This dependent" title=${d
+      ? d.name
+      : 'Add a dependent'}
+      label=${d ? 'Save' : 'Add'} done=${rec?.removed
+        ? 'Dependent removed'
+        : d
+        ? 'Dependent saved'
+        : 'Dependent added'} disabled=${!rec?.get('personId')}
+      extra=${({ save }) =>
         d
           ? html`
-            <button type="button" class="btn danger" disabled=${remove.busy}
-              onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
-            ></span>
+            <button type="button" class="btn danger" disabled=${save.busy}
+              onClick=${async () => {
+                if (!rec || !f.draft) return;
+                f.draft.remove(rec);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'saved') f.draft.unremove(rec);
+              }}>Remove</button><span class="spacer"></span>
           `
-          : null
-      }<button class="btn primary" disabled=${save.busy || !f.personId}>${
-        d ? 'Save' : 'Add'
-      }</button>`}>
-      <div class="row">
-        <${Field} label="Person" id="person" error=${errAt(e, 'personId')}
-          hint="From the household's people. Add someone new on the Gifts screen.">
-          <${Select} value=${f.personId} onChange=${(/** @type {string} */ x) =>
-            setF({ ...f, personId: x, claimedAs: '' })} options=${[
-            ['', list ? 'Choose…' : 'Loading…'],
-            ...choices.map((c) => [
-              c.personId,
-              c.name + (c.relation ? ` · ${c.relation}` : ''),
-            ]),
-          ]} />
-          </${Field}>
-          <${Field} label="Claimed as" id="claimed-as" error=${errAt(e, 'claimedAs')}
-            hint="Suggested from the family tree. As you file it.">
-            <${Select} value=${claimedAs} onChange=${set('claimedAs')} options=${[
-              ['qualifying child', 'Qualifying child'],
-              ['qualifying relative', 'Qualifying relative'],
-            ]} />
+          : null}>
+      ${rec
+        ? html`
+          <div class="row">
+            <${Field} label="Person" id="person" error=${rec.error('personId')}
+              hint="From the household's people. Add someone new on the Gifts screen.">
+              <${Select} value=${rec.get('personId') || ''} onChange=${(
+                /** @type {string} */ x,
+              ) => {
+                rec.input('personId', x);
+                suggest(x, rec.get('student'));
+              }} options=${[
+                ['', list ? 'Choose…' : 'Loading…'],
+                ...choices.map((c) => [
+                  c.personId,
+                  c.name + (c.relation ? ` · ${c.relation}` : ''),
+                ]),
+              ]} />
+              </${Field}>
+              <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}
+                hint="Suggested from the family tree. As you file it.">
+              <${Select} value=${rec.get('claimedAs')} onChange=${(/** @type {string} */ x) => {
+                setPicked(true);
+                rec.input('claimedAs', x);
+              }} options=${[
+                ['qualifying child', 'Qualifying child'],
+                ['qualifying relative', 'Qualifying relative'],
+              ]} />
             </${Field}>
-            </div>
-            <div class="row">
-              <${Field} label="Months lived with you" id="months" error=${errAt(e, 'months')}>
-          <${Input} value=${f.months} onInput=${set('months')} inputmode="numeric" />
-        </${Field}>
-        <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
-          on=${f.student} onChange=${set('student')} />
-      </div>
-      ${theirs.length
-        ? html`<div class="field" data-help="accounts-in-their-name" id="x-accounts"><label
-            >Accounts in their name</label>${
-          theirs.map((/** @type {any} */ a) =>
-            html`
-              <${SwitchRow} label=${a.name} hint=${a.ownerName}
-                on=${f.accountIds.includes(a.id)} onChange=${toggle(a.id)} />
-            `
-          )
-        }<div class="hint">Such as a custodial account: its unearned income is checked
-              against the Form 8615 threshold.</div></div>`
+          </div>
+          <div class="row">
+            <${RecField} rec=${rec} name="months" label="Months lived with you" id="months" />
+            <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
+              on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
+                rec.set('student', on);
+                suggest(rec.get('personId'), on);
+              }} />
+          </div>
+          ${theirs.length
+            ? html`<div class="field" data-help="accounts-in-their-name" id="x-accounts"><label
+                >Accounts in their name</label>${
+              theirs.map((/** @type {any} */ a) =>
+                html`
+                  <${SwitchRow} label=${a.name} hint=${a.ownerName}
+                    on=${ids.includes(a.id)} onChange=${toggle(a.id)} />
+                `
+              )
+            }<div class="hint">Such as a custodial account: its unearned income is checked
+                  against the Form 8615 threshold.</div></div>`
+            : null}
+          <p class="small dim">Each dependent's age on Dec 31 shows in the panels: under 17, under
+            13, and who ages out this year. MoolaKata doesn't decide who qualifies.</p>
+        `
         : null}
-      <p class="small dim">Each dependent's age on Dec 31 shows in the panels: under 17, under 13,
-        and who ages out this year. MoolaKata doesn't decide who qualifies.</p>
-      <${FormError} error=${e} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 
@@ -483,6 +494,9 @@ function Filings({ b, done }) {
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Documents({ b, done }) {
   const add = (/** @type {any} */ start) => openDialog(DocumentDialog, { b, start }).then(done);
+  // A document kept opens to change or remove it (CR3-36).
+  const open = (/** @type {any} */ doc) =>
+    b.canWrite && openDialog(DocumentDialog, { b, doc }).then(done);
   const filed = b.filings.flatMap((/** @type {any} */ f) =>
     f.documents.map((/** @type {any} */ d) => ({ ...d, filing: f.label }))
   );
@@ -508,7 +522,8 @@ function Documents({ b, done }) {
           <tbody>
         ${b.expected.map((/** @type {any} */ e) =>
           html`
-            <tr>
+            <tr class=${e.document && b.canWrite ? 'click' : ''} onClick=${() =>
+              e.document && open(e.document)}>
               <td>${e.form}</td>
               <td class="dim">${e.issuer || '—'}</td>
               <td class="small dim">${e
@@ -523,19 +538,21 @@ function Documents({ b, done }) {
                     : null
                 }`
                 : b.canWrite
-                ? html`<button class="btn sm" onClick=${() =>
+                ? html`<button class="btn sm" onClick=${(/** @type {Event} */ ev) => {
+                  ev.stopPropagation();
                   add({
                     form: e.form,
                     issuer: e.issuer,
                     accountId: e.accountId,
-                  })}><${Icon} name="upload" /> Attach</button>`
+                  });
+                }}><${Icon} name="upload" /> Attach</button>`
                 : html`<span class="pill warn">missing</span>`}</td>
             </tr>
           `
         )}
         ${b.received.map((/** @type {any} */ d) =>
           html`
-            <tr>
+            <tr class=${b.canWrite ? 'click' : ''} onClick=${() => open(d)}>
               <td>${d.form}</td>
               <td class="dim">${d.issuer || '—'}</td>
               <td
@@ -567,8 +584,8 @@ function Documents({ b, done }) {
       ? html`<div class="card" style=${{ padding: '4px 8px' }}>${
         filed.map((/** @type {any} */ d) =>
           html`
-            <div
-              class="list-item"><div class="grow">${d.form}<div class="small dim">${d
+            <div class=${'list-item' + (b.canWrite ? ' click' : '')}
+              onClick=${() => open(d)}><div class="grow">${d.form}<div class="small dim">${d
                 .filing}${d.issuer ? ` · ${d.issuer}` : ''}${d.notes
                 ? ` · ${d.notes}`
                 : ''}</div></div>${d
@@ -583,66 +600,68 @@ function Documents({ b, done }) {
   `;
 }
 
+/** A tax book (S8.14), as New tax book's draft makes it. */
+class BookRec extends Rec {
+  /** @override */
+  static prefix = 'TaxBk';
+  /** @override */
+  static fields = FIELDS.BookRecord;
+}
+
 /** @param {{ close: (v?: any) => void, rows: any[] }} p */
 function NewBook({ close, rows }) {
   useDialogGuide('dialog-tax-book');
   const me = useApi('/profile');
   const p = /** @type {any} */ (me.data);
   const year = thisYear();
-  const [f, setF] = useState({
-    year: String(year - 1),
-    joint: false,
-    fromLastYear: true,
-    bitcoinFees: 'sale',
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const spouse = p?.spouse || null;
-  const save = useSubmit(async () => {
-    const out = await api.post('/tax-books', {
-      year: Number(f.year),
-      filers: [p.id, ...(f.joint && spouse ? [spouse.id] : [])],
-      fromLastYear: f.fromLastYear,
-      bitcoinFees: f.bitcoinFees,
+  const f = useDraft(async (draft) => {
+    const who = await api.get('/profile');
+    draft.add(BookRec, {
+      year: year - 1,
+      filers: [who.id],
+      fromLastYear: true,
+      bitcoinFees: 'sale',
     });
-    toast(
-      out.dependentsLeftOut.length
-        ? `Tax book made. Left out, past a qualifying child's age: ${
-          out.dependentsLeftOut.join(', ')
-        }`
-        : 'Tax book made',
-    );
-    close(out);
-  });
-  const e = save.error;
-  const has = rows.some((r) => String(r.year) === String(Number(f.year) - 1));
+  }, []);
+  const rec = /** @type {BookRec | undefined} */ (f.draft?.records[0]);
+  const spouse = p?.spouse || null;
+  const joint = !!spouse && (rec?.get('filers') || []).includes(spouse.id);
+  const has = rows.some((r) => r.year === (rec?.get('year') ?? 0) - 1);
   return html`
-    <${Dialog} title="New tax book" close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy || !p}>Create</button>`}>
-      <${Field} label="Year" error=${errAt(e, 'year')}>
-        <${Select} value=${f.year}
-          onChange=${set('year')} options=${[year, year - 1, year - 2].map((y) => [
-            String(y),
-            String(y),
-          ])} />
-        </${Field}>
-        <${SwitchRow} label="Filing jointly" hint=${spouse
-          ? `With ${spouse.displayName}, who is asked to accept before their accounts count.`
-          : 'Add your spouse among your relationships in Profile to file jointly.'} on=${f.joint &&
-          !!spouse}
-          disabled=${!spouse} onChange=${set('joint')} />
-        <${SwitchRow} label="Start from last year" hint=${has
-          ? "Copies last year's accounts left out or added and its dependents; its received documents become this year's expected ones."
-          : 'No book for the year before.'} on=${f.fromLastYear}
-          onChange=${set('fromLastYear')} />
-        <${Field} label="Bitcoin network fees" id="bitcoin-fees" error=${errAt(e, 'bitcoinFees')}
-          hint="On transfers between your own accounts. A sale of the fee's sats is the common reading.">
-          <${Select} value=${f.bitcoinFees} onChange=${set('bitcoinFees')} options=${[
-            ['sale', 'A sale, in Form 8949'],
-            ['not-taxed', 'Not taxed, as my preparer reads them'],
-          ]} />
-          </${Field}>
-          <${FormError} error=${e} />
-          </${Dialog}>
+    <${DraftDialog} f=${f} title="New tax book" close=${close} what="This tax book"
+      label="Create" saved=${(/** @type {any} */ o) => {
+        const out = o.saved[0].record;
+        toast(
+          out.dependentsLeftOut.length
+            ? `Tax book made. Left out, past a qualifying child's age: ${
+              out.dependentsLeftOut.join(', ')
+            }`
+            : 'Tax book made',
+        );
+        close(out);
+      }}>
+      ${rec && p
+        ? html`
+          <${RecField} rec=${rec} name="year" label="Year"
+            options=${[year, year - 1, year - 2].map((y) => [String(y), String(y)])} />
+          <${SwitchRow} label="Filing jointly" hint=${spouse
+            ? `With ${spouse.displayName}, who is asked to accept before their accounts count.`
+            : 'Add your spouse among your relationships in Profile to file jointly.'}
+            on=${joint} disabled=${!spouse} onChange=${(/** @type {boolean} */ on) =>
+              rec.set('filers', on ? [p.id, spouse.id] : [p.id])} />
+          <${RecField} rec=${rec} name="fromLastYear" label="Start from last year" hint=${has
+            ? "Copies last year's accounts left out or added and its dependents; its received documents become this year's expected ones."
+            : 'No book for the year before.'} />
+          <${RecField} rec=${rec} name="bitcoinFees" label="Bitcoin network fees"
+            id="bitcoin-fees"
+            hint="On transfers between your own accounts. A sale of the fee's sats is the common reading."
+            options=${[
+              ['sale', 'A sale, in Form 8949'],
+              ['not-taxed', 'Not taxed, as my preparer reads them'],
+            ]} />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -869,84 +888,118 @@ function FilingDialog({ close, b, f: filing }) {
   `;
 }
 
-/** @param {{ close: (v?: any) => void, b: any, start: any }} p */
-function DocumentDialog({ close, b, start }) {
+/** A tax document (S8.16), received or filed, with its file. */
+class DocumentRec extends Rec {
+  /** @override */
+  static prefix = 'TxDoc';
+  /** @override */
+  static fields = FIELDS.DocumentRecord;
+  /** @override */
+  static defaults = {
+    direction: 'received',
+    issuer: null,
+    accountId: null,
+    filingId: null,
+    receiptId: null,
+    notes: null,
+  };
+  /** @override */
+  static rules = {
+    // A filed document belongs to a filing; a received one may report on an account.
+    filingId: { when: (/** @type {DocumentRec} */ r) => r.get('direction') === 'filed' },
+    accountId: { when: (/** @type {DocumentRec} */ r) => r.get('direction') !== 'filed' },
+  };
+}
+
+/**
+ * A tax document kept, or one to keep: `doc` opens a kept one to change its form, issuer,
+ * account, notes or file, or to remove it (CR3-36); `start` fills a new one.
+ * @param {{ close: (v?: any) => void, b: any, start?: any, doc?: any }} p
+ */
+function DocumentDialog({ close, b, start, doc }) {
   useDialogGuide('dialog-tax-document');
   const meta = useApi('/tax-forms');
   const forms = /** @type {any} */ (meta.data) || { received: [], filed: [] };
-  const [f, setF] = useState({
-    direction: start?.direction || 'received',
-    form: start?.form || (start?.direction === 'filed' ? 'Return as filed' : 'W-2'),
-    issuer: start?.issuer || '',
-    accountId: start?.accountId || '',
-    filingId: start?.filingId || '',
-    notes: '',
-  });
-  const [file, setFile] = useState(/** @type {File | null} */ (null));
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const filed = f.direction === 'filed';
-  const save = useSubmit(async () => {
-    let receiptId = null;
-    if (file) receiptId = (await uploadAll([file]))[0]?.id || null;
-    const out = await api.post(`/tax-books/${b.id}/documents`, {
-      direction: f.direction,
-      form: f.form,
-      issuer: f.issuer || null,
-      accountId: filed ? null : f.accountId || null,
-      filingId: filed ? f.filingId || null : null,
-      receiptId,
-      notes: f.notes || null,
+  const f = useDraft((draft) => {
+    if (doc) {
+      draft.load(DocumentRec, { ...doc, bookId: b.id });
+      return;
+    }
+    const filed = start?.direction === 'filed';
+    draft.add(DocumentRec, {
+      bookId: b.id,
+      direction: start?.direction || 'received',
+      form: start?.form || (filed ? 'Return as filed' : 'W-2'),
+      issuer: start?.issuer || null,
+      accountId: start?.accountId || null,
+      filingId: start?.filingId || null,
     });
-    toast('Document kept');
-    close(out);
-  });
-  const e = save.error;
+  }, [doc?.id]);
+  const rec = /** @type {DocumentRec | undefined} */ (f.draft?.records[0]);
+  const [file, setFile] = useState(
+    /** @type {any} */ (doc?.fileName ? { name: doc.fileName } : null),
+  );
+  const filed = rec?.get('direction') === 'filed';
   return html`
-    <${Dialog} title=${filed ? 'Add a filed document' : 'Add a tax document'} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Add</button>`}>
-      <div class="field" data-help="direction" id="x-direction"><label>Kind</label>
-        <${Seg} label="Kind" value=${f.direction} onChange=${(/** @type {string} */ x) =>
-          setF({ ...f, direction: x, form: x === 'filed' ? 'Return as filed' : 'W-2' })}
-          options=${[['received', 'Received'], ['filed', 'Filed']]} /></div>
-      <div class="row">
-        <${Field} label="Document" id="form" error=${errAt(e, 'form')}>
-          <${Select} value=${f.form}
-            onChange=${set('form')} options=${filed ? forms.filed : forms.received} />
-          </${Field}>
-          <${Field} label="Issued by" id="issuer" error=${errAt(e, 'issuer')}><${Input}
-          value=${f.issuer} onInput=${set('issuer')} placeholder=${filed
-            ? 'IRS'
-            : 'Acme Corp'} /></${Field}>
-      </div>
-      ${filed
+    <${DraftDialog} f=${f} close=${close} what="This document"
+      title=${doc ? doc.form : filed ? 'Add a filed document' : 'Add a tax document'}
+      label=${doc ? 'Save' : 'Add'}
+      done=${rec?.removed ? 'Document removed' : doc ? 'Document saved' : 'Document kept'}
+      extra=${({ save }) =>
+        doc
+          ? html`
+            <button type="button" class="btn danger" disabled=${save.busy}
+              onClick=${async () => {
+                if (!rec || !f.draft) return;
+                f.draft.remove(rec);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'saved') f.draft.unremove(rec);
+              }}>Remove</button><span class="spacer"></span>
+          `
+          : null}>
+      ${rec
         ? html`
-          <${Field} label="Filing" id="filing" error=${errAt(e, 'filingId')}>
-            <${Select}
-              value=${f.filingId} onChange=${set('filingId')} options=${[
-                ['', 'Choose…'],
-                ...b.filings.map((/** @type {any} */ x) => [x.id, x.label]),
-              ]} />
-            </${Field}>
+          <div class="field" data-help="direction" id="x-direction"><label>Kind</label>
+            <${Seg} label="Kind" value=${rec.get('direction')} onChange=${(
+              /** @type {string} */ x,
+            ) => {
+              rec.set('direction', x);
+              rec.set('form', x === 'filed' ? 'Return as filed' : 'W-2', 'direction');
+            }} options=${[['received', 'Received'], ['filed', 'Filed']]} /></div>
+          <div class="row">
+            <${RecField} rec=${rec} name="form" label="Document" id="form"
+              options=${filed ? forms.filed : forms.received} />
+            <${RecField} rec=${rec} name="issuer" label="Issued by" id="issuer"
+              placeholder=${filed ? 'IRS' : 'Acme Corp'} />
+          </div>
+          <${RecField} rec=${rec} name="filingId" label="Filing" id="filing" options=${[
+            ['', 'Choose…'],
+            ...b.filings.map((/** @type {any} */ x) => [x.id, x.label]),
+          ]} />
+          <${RecField} rec=${rec} name="accountId" label="Account" id="account"
+            hint="The account it reports on, if any." options=${[
+              ['', 'None'],
+              ...b.accounts.map((/** @type {any} */ a) => [a.id, a.name]),
+            ]} />
+          <${Field} label="File" id="file" error=${rec.error('receiptId')}
+            hint=${file
+              ? `${file.name}, kept with your receipts.`
+              : 'The PDF or a photo, kept with your receipts.'}>
+            <input class="in" type="file" accept=${ACCEPT} onChange=${async (
+              /** @type {any} */ ev,
+            ) => {
+              const picked = ev.currentTarget.files[0];
+              if (!picked) return;
+              // Uploaded at once, as a receipt of its own (S12.15.7); kept with it on Save.
+              const made = (await uploadAll([picked]))[0];
+              if (made) {
+                setFile({ name: made.fileName || picked.name });
+                rec.set('receiptId', made.id);
+              }
+            }} /></${Field}>
+          <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
         `
-        : html`
-          <${Field} label="Account" id="account" error=${errAt(e, 'accountId')}
-            hint="The account it reports on, if any.">
-            <${Select} value=${f.accountId}
-              onChange=${set('accountId')} options=${[
-                ['', 'None'],
-                ...b.accounts.map((/** @type {any} */ a) => [a.id, a.name]),
-              ]} />
-            </${Field}>
-        `}
-      <${Field} label="File" id="file" hint="The PDF or a photo, kept with your receipts.">
-        <input class="in" type="file" accept=${ACCEPT} onChange=${(/** @type {any} */ ev) =>
-          setFile(ev.currentTarget.files[0] || null)} /></${Field}>
-      <${Field} label="Notes" error=${errAt(e, 'notes')}><textarea class="in" rows="2"
-        value=${f.notes} placeholder=${filed ? 'what it says, what you did about it' : ''}
-        onInput=${(/** @type {any} */ ev) =>
-          set('notes')(ev.currentTarget.value)}></textarea></${Field}>
-      <${FormError} error=${e} />
-    </${Dialog}>
+        : null}
+    </${DraftDialog}>
   `;
 }

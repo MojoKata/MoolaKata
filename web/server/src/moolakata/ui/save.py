@@ -49,6 +49,8 @@ class Ctx:
     request: Request
     confirmed: frozenset[tuple[str, str]]
     record_id: str = ""
+    # What a kind's create learned for its read: a new tax book's dependents left out.
+    notes: dict[str, Any] = field(default_factory=dict)
     _after: dict[str, Callable[[], None]] = field(default_factory=dict)
     _verify: dict[str, tuple[str, Callable[[], None]]] = field(default_factory=dict)
 

@@ -60,6 +60,11 @@ def filings(h: Household) -> list:
     return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()["filings"]
 
 
+def book_of(h: Household) -> dict:
+    """The tax book as read: its dependents and documents with it."""
+    return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()
+
+
 def account(h: Household, name: str) -> tuple:
     """An account as read, and a loan's terms with it."""
     a = h.c.get(f"/ui/api/accounts/{h.extra[name]['id']}").json()
@@ -114,6 +119,20 @@ FORMS = [
         'h3:has-text("Form 1040") button:has-text("Edit")',
         'h3:has-text("Form 1040") button:has-text("Edit")',
         filings,
+    ),
+    Form(
+        "a dependent with the months they lived with the filers",
+        lambda h: "/ui/taxes/summary",
+        '.list-item.click:has-text("Emma Griffin")',
+        '.list-item.click:has-text("Emma Griffin")',
+        book_of,
+    ),
+    Form(
+        "a W-2 kept with its file and notes (CR3-36)",
+        lambda h: "/ui/taxes/documents",
+        'tr.click:has-text("Acme Corp")',
+        'tr.click:has-text("Acme Corp")',
+        book_of,
     ),
     Form(
         "a savings account's settings, with a withdrawals limit",
@@ -483,5 +502,30 @@ def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     it = h.c.get(f"/ui/api/items/{watch['id']}").json()
     assert [float(v["value"]) for v in it["valuations"]] == [6200]
     assert float(it["sale"]["proceeds"]) == 6100
+    assert problems == []
+    page.close()
+
+
+# ---------- what the taxes' dialogs alone do ----------
+
+
+def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household):
+    """CR3-36: a document kept is changed, then removed, from its row."""
+    h = household
+    b = h.extra["book"]["id"]
+    h.c.post(f"/ui/api/tax-books/{b}/documents", json={"form": "1098", "issuer": "Rocket"})
+    page, problems = signed_in(browser, h, "/ui/taxes/documents", 'tr.click:has-text("Rocket")')
+    page.click('tr.click:has-text("Rocket")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#f-notes", "for the home in Utah")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    got = next(x for x in book_of(h)["received"] if x["issuer"] == "Rocket")
+    assert got["notes"] == "for the home in Utah"
+    page.click('tr.click:has-text("Rocket")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.click('.dialog footer button:has-text("Remove")')
+    wait(page, ".dialog", problems, state="detached")
+    assert "Rocket" not in {x["issuer"] for x in book_of(h)["received"]}
     assert problems == []
     page.close()

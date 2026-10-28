@@ -130,7 +130,9 @@ produces worksheets and exports. It never files, and says so (R1.16).
     settles them with their name and the day. A later edit made anyway, once the year is
     closed again (S2.8.1), is listed afresh.
 16. **Tax documents**: each has its form, who issued it, the account it is for, notes, and
-    its file, which is kept as a receipt (S9) with the same storage and protection.
+    its file, which is kept as a receipt (S9) with the same storage and protection. One kept
+    opens to change any of these, its file given later among them, or to remove it; a filer
+    or a helper with write changes one another filer attached a file to.
     1. **Received**, kept in the tax book: W-2s, 1099s, 1098s, 1095s, K-1s, 5498s and
        property-tax bills. They make up the checklist of S8.8, expected from the accounts
        held and last year's documents, each received or missing.

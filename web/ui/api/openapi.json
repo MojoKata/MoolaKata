@@ -1733,20 +1733,6 @@
         "title": "Body_upload_ui_api_receipts_post",
         "type": "object"
       },
-      "BookChange": {
-        "additionalProperties": false,
-        "properties": {
-          "bitcoinFees": {
-            "title": "Bitcoinfees",
-            "type": "string"
-          }
-        },
-        "required": [
-          "bitcoinFees"
-        ],
-        "title": "BookChange",
-        "type": "object"
-      },
       "BookDetail": {
         "additionalProperties": false,
         "properties": {
@@ -1884,6 +1870,46 @@
         ],
         "title": "BookDetail",
         "type": "object"
+      },
+      "BookRecord": {
+        "additionalProperties": false,
+        "description": "A tax book as a draft saves it (S8.14): its year and filers are chosen when it is made;\nhow it reads bitcoin network fees may change (S8.19).",
+        "properties": {
+          "bitcoinFees": {
+            "default": "sale",
+            "enum": [
+              "sale",
+              "not-taxed"
+            ],
+            "title": "Bitcoinfees",
+            "type": "string"
+          },
+          "filers": {
+            "items": {
+              "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "User"
+            },
+            "title": "Filers",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "fromLastYear": {
+            "default": true,
+            "title": "Fromlastyear",
+            "type": "boolean"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "BookRecord",
+        "type": "object",
+        "x-entity": "TaxBk"
       },
       "BookRow": {
         "additionalProperties": false,
@@ -4437,28 +4463,6 @@
         "title": "Deleted",
         "type": "object"
       },
-      "Deleted_BookDetail_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BookDetail"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[BookDetail]",
-        "type": "object"
-      },
       "Deleted_NoneType_": {
         "properties": {
           "deleted": {
@@ -4777,6 +4781,52 @@
         "title": "DependentOut",
         "type": "object"
       },
+      "DependentRecord": {
+        "additionalProperties": false,
+        "description": "A dependent of a book (S8.14.5), with the accounts in their name it counts.",
+        "properties": {
+          "accountIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accountids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "bookId": {
+            "pattern": "^TaxBk_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Bookid",
+            "type": "string",
+            "x-prefix": "TaxBk"
+          },
+          "claimedAs": {
+            "default": "qualifying child",
+            "title": "Claimedas",
+            "type": "string"
+          },
+          "months": {
+            "default": 12,
+            "title": "Months",
+            "type": "integer"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "student": {
+            "default": false,
+            "title": "Student",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "personId",
+          "bookId"
+        ],
+        "title": "DependentRecord",
+        "type": "object",
+        "x-entity": "TxDep"
+      },
       "DocumentOut": {
         "additionalProperties": false,
         "properties": {
@@ -4889,6 +4939,94 @@
         ],
         "title": "DocumentOut",
         "type": "object"
+      },
+      "DocumentRecord": {
+        "additionalProperties": false,
+        "description": "A tax document of a book (S8.16), received or filed, with its file.",
+        "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Accountid"
+          },
+          "bookId": {
+            "pattern": "^TaxBk_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Bookid",
+            "type": "string",
+            "x-prefix": "TaxBk"
+          },
+          "direction": {
+            "default": "received",
+            "title": "Direction",
+            "type": "string"
+          },
+          "filingId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Filingid"
+          },
+          "form": {
+            "title": "Form",
+            "type": "string"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Issuer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "receiptId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Receiptid"
+          }
+        },
+        "required": [
+          "form",
+          "bookId"
+        ],
+        "title": "DocumentRecord",
+        "type": "object",
+        "x-entity": "TxDoc"
       },
       "DonationChange": {
         "additionalProperties": false,
@@ -18252,6 +18390,7 @@
               "beneficiary-invalid",
               "birthday-incomplete",
               "bitcoin-not-set",
+              "book-fixed",
               "budget-unknown",
               "built-in",
               "built-on-invalid",
@@ -18289,10 +18428,12 @@
               "deliverable-invalid",
               "deliverable-missing",
               "dependent-filer",
+              "dependent-fixed",
               "dependent-twice",
               "description-missing",
               "died-on-invalid",
               "direction-invalid",
+              "document-fixed",
               "draw-invalid",
               "driver-invalid",
               "duration-invalid",
@@ -18645,6 +18786,7 @@
                   "beneficiary-invalid",
                   "birthday-incomplete",
                   "bitcoin-not-set",
+                  "book-fixed",
                   "budget-unknown",
                   "built-in",
                   "built-on-invalid",
@@ -18682,10 +18824,12 @@
                   "deliverable-invalid",
                   "deliverable-missing",
                   "dependent-filer",
+                  "dependent-fixed",
                   "dependent-twice",
                   "description-missing",
                   "died-on-invalid",
                   "direction-invalid",
+                  "document-fixed",
                   "draw-invalid",
                   "driver-invalid",
                   "duration-invalid",
@@ -40960,7 +41104,6 @@
         ]
       },
       "post": {
-        "description": "A book for a year and its filers: the caller, alone or with their spouse. With\n*from last year*, it copies last year's accounts left out or added, and its dependents a\nyear older, leaving out and naming those past a qualifying child's age (S8.14.4).",
         "operationId": "create_book_ui_api_tax_books_post",
         "requestBody": {
           "content": {
@@ -41005,42 +41148,6 @@
       }
     },
     "/ui/api/tax-books/{book_id}": {
-      "delete": {
-        "operationId": "delete_book_ui_api_tax_books__book_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "book_id",
-            "required": true,
-            "schema": {
-              "title": "Book Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Book",
-        "tags": [
-          "taxes"
-        ]
-      },
       "get": {
         "operationId": "get_book_ui_api_tax_books__book_id__get",
         "parameters": [
@@ -41073,53 +41180,6 @@
           }
         },
         "summary": "Get Book",
-        "tags": [
-          "taxes"
-        ]
-      },
-      "patch": {
-        "description": "How the book reads bitcoin network fees on transfers between the owner's accounts\n(S8.19): a sale, the default, or not taxed, as a preparer may read them.",
-        "operationId": "change_book_ui_api_tax_books__book_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "book_id",
-            "required": true,
-            "schema": {
-              "title": "Book Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BookChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Book",
         "tags": [
           "taxes"
         ]
@@ -41618,174 +41678,6 @@
           }
         },
         "summary": "Get Panels",
-        "tags": [
-          "taxes"
-        ]
-      }
-    },
-    "/ui/api/tax-dependents/{dep_id}": {
-      "delete": {
-        "operationId": "delete_dependent_ui_api_tax_dependents__dep_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "dep_id",
-            "required": true,
-            "schema": {
-              "title": "Dep Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_BookDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Dependent",
-        "tags": [
-          "taxes"
-        ]
-      },
-      "patch": {
-        "operationId": "change_dependent_ui_api_tax_dependents__dep_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "dep_id",
-            "required": true,
-            "schema": {
-              "title": "Dep Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DependentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Dependent",
-        "tags": [
-          "taxes"
-        ]
-      }
-    },
-    "/ui/api/tax-documents/{doc_id}": {
-      "delete": {
-        "operationId": "delete_document_ui_api_tax_documents__doc_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "doc_id",
-            "required": true,
-            "schema": {
-              "title": "Doc Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_BookDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Document",
-        "tags": [
-          "taxes"
-        ]
-      },
-      "patch": {
-        "operationId": "change_document_ui_api_tax_documents__doc_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "doc_id",
-            "required": true,
-            "schema": {
-              "title": "Doc Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__taxes__DocumentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Document",
         "tags": [
           "taxes"
         ]

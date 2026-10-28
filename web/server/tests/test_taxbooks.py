@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import asked, change, saved
+from edits import asked, change, remove, saved
 from test_accounts import add, new_account
 from test_save import made_at
 
@@ -177,7 +177,7 @@ def test_a_preparer_helps_but_cannot_delete(server, couple):
     r = alice.put(f"/ui/api/shares/tax-book/{b['id']}", json={"users": {d_id: "write"}})
     assert r.status_code == 200, r.text
     assert dave.post(f"/ui/api/tax-books/{b['id']}/filings", json={}).status_code == 201
-    assert dave.delete(f"/ui/api/tax-books/{b['id']}").status_code == 403
+    assert remove(dave, "TaxBk", b).status_code == 403
 
 
 # ---- Dependents (S8.14.5) ----
@@ -251,19 +251,11 @@ def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server
 
     # Changing and removing one.
     dep = next(x for x in detail["dependents"] if x["name"] == "Emma Griffin")
-    r = alice.patch(
-        f"/ui/api/tax-dependents/{dep['id']}",
-        json={"personId": emma, "claimedAs": "qualifying child", "months": 6},
-        headers={"If-Match": str(dep["version"])},
-    )
-    assert r.status_code == 200, r.text
-    dep = next(x for x in r.json()["dependents"] if x["name"] == "Emma Griffin")
+    dep = saved(change(alice, "TxDep", dep, months=6))
     assert dep["months"] == 6
-    r = alice.delete(
-        f"/ui/api/tax-dependents/{dep['id']}", headers={"If-Match": str(dep["version"])}
-    )
-    assert r.status_code == 200, r.text
-    assert "Emma Griffin" not in {x["name"] for x in r.json()["parent"]["dependents"]}
+    assert remove(alice, "TxDep", dep).status_code == 200
+    after = alice.get(f"/ui/api/tax-books/{b['id']}").json()["dependents"]
+    assert "Emma Griffin" not in {x["name"] for x in after}
 
 
 def test_a_person_claimed_on_two_books_is_flagged_on_both(server, couple):
@@ -527,3 +519,34 @@ def test_a_tax_documents_file_opens_for_the_books_filers(server, couple):
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
     r = alice.delete(f"/ui/api/receipts/{up['id']}", headers={"If-Match": str(got["version"])})
     assert r.status_code == 409
+
+
+def test_a_document_changed_removed_and_given_its_file_by_a_co_filer(couple):
+    """CR3-36: a document's form, notes and file change, and it goes, through the save; a
+    co-filer changes one the other filer attached a file to, the file left as it was."""
+    alice, bob, a_id, b_id = couple
+    b = book(alice, 2026, [a_id, b_id])
+    assert bob.post(f"/ui/api/tax-books/{b['id']}/accept").status_code == 200
+    up = alice.post(
+        "/ui/api/receipts", files={"file": ("w2.pdf", b"%PDF-1.4 w2", "application/pdf")}
+    ).json()
+    d = alice.post(
+        f"/ui/api/tax-books/{b['id']}/documents",
+        json={"form": "1099-INT", "issuer": "Acme Corp", "receiptId": up["id"]},
+    ).json()
+    (doc,) = d["received"]
+    doc = saved(change(alice, "TxDoc", doc, form="W-2"))
+    assert doc["form"] == "W-2" and doc["receiptId"] == up["id"]
+    doc = saved(change(bob, "TxDoc", doc, notes="corrected copy expected"))
+    assert doc["notes"] == "corrected copy expected"
+    kept = alice.post(
+        f"/ui/api/tax-books/{b['id']}/documents", json={"form": "1098", "issuer": "Rocket"}
+    ).json()
+    later = next(x for x in kept["received"] if x["form"] == "1098")
+    pdf = alice.post(
+        "/ui/api/receipts", files={"file": ("1098.pdf", b"%PDF-1.4 1098", "application/pdf")}
+    ).json()
+    assert saved(change(alice, "TxDoc", later, receiptId=pdf["id"]))["fileName"] == "1098.pdf"
+    assert remove(alice, "TxDoc", doc).status_code == 200
+    left = alice.get(f"/ui/api/tax-books/{b['id']}").json()["received"]
+    assert [x["form"] for x in left] == ["1098"]

@@ -21,6 +21,12 @@ export const FIELDS = {
     connectionId: {"type": "ref", "prefix": "Conn", "nullable": true},
     syncAccount: {"type": "text", "nullable": true},
   },
+  BookRecord: {
+    year: {"type": "int"},
+    filers: {"type": "list", "items": {"type": "ref", "prefix": "User"}, "set": true},
+    fromLastYear: {"type": "bool"},
+    bitcoinFees: {"type": "choice", "choices": ["sale", "not-taxed"]},
+  },
   Carried: {
     agi: {"type": "money", "nullable": true},
     totalTax: {"type": "money", "nullable": true},
@@ -29,6 +35,24 @@ export const FIELDS = {
     capitalLossLong: {"type": "money", "nullable": true},
     basis8606: {"type": "money", "nullable": true},
     charitableCarryover: {"type": "money", "nullable": true},
+  },
+  DependentRecord: {
+    personId: {"type": "text"},
+    claimedAs: {"type": "text"},
+    months: {"type": "int"},
+    student: {"type": "bool"},
+    accountIds: {"type": "list", "items": {"type": "text"}, "set": true},
+    bookId: {"type": "ref", "prefix": "TaxBk"},
+  },
+  DocumentRecord: {
+    direction: {"type": "text"},
+    form: {"type": "text"},
+    issuer: {"type": "text", "nullable": true},
+    accountId: {"type": "text", "nullable": true},
+    filingId: {"type": "text", "nullable": true},
+    receiptId: {"type": "text", "nullable": true},
+    notes: {"type": "text", "nullable": true},
+    bookId: {"type": "ref", "prefix": "TaxBk"},
   },
   EducationPlanRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},

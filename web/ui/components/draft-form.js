@@ -141,6 +141,15 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
 export function DraftDialog(p) {
   const { f, close } = p;
   const draft = f.draft;
+  // The fields come once the records are read: the first takes the focus then (S12.1.3).
+  useEffect(() => {
+    if (!draft) return;
+    const box = document.querySelector('.dialog .body');
+    if (!box || box.contains(document.activeElement)) return;
+    /** @type {HTMLElement | null} */ (box.querySelector(
+      'input:not([type=hidden]):not(:disabled),select:not(:disabled),textarea:not(:disabled)',
+    ))?.focus();
+  }, [draft]);
   const { save, outcome, clear } = useSave(draft, {
     before: p.before,
     saved: p.saved || ((o) => {

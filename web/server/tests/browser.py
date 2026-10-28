@@ -309,6 +309,26 @@ def tax_book(h: Household) -> dict:
                   "carried": {"agi": "98000", "capitalLossLong": "1200"}},
         )
     )  # fmt: skip
+    emma = h.extra["emma"]["id"]
+    made(
+        h.c.post(
+            f"/ui/api/tax-books/{b['id']}/dependents",
+            json={"personId": emma, "claimedAs": "qualifying child", "months": 12},
+        )
+    )
+    w2 = made(
+        h.c.post(
+            "/ui/api/receipts",
+            files={"file": ("w2.pdf", b"%PDF-1.4 w2", "application/pdf")},
+        )
+    )
+    made(
+        h.c.post(
+            f"/ui/api/tax-books/{b['id']}/documents",
+            json={"form": "W-2", "issuer": "Acme Corp", "receiptId": w2["id"],
+                  "notes": "the corrected copy"},
+        )
+    )  # fmt: skip
     return {"book": b}
 
 
