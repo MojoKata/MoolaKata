@@ -18,14 +18,10 @@ def frozen():
     clock.fix(None)
 
 
-def put_plan(c, b, month_, lines, **params):
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    return c.put(
-        f"/ui/api/budgets/{b['id']}/plan",
-        json={"month": month_, "lines": lines},
-        headers={"If-Match": str(v)},
-        params=params,
-    )
+def put_plan(c, b, month_, lines, confirm=False):
+    from test_budgets import save_plan
+
+    return save_plan(c, b, month_, lines, confirm=confirm)
 
 
 def reserves_on(c, b):
@@ -62,7 +58,7 @@ def test_a_reserves_balance_is_kept_until_asked(server, frozen):
     c, _, cat, b = setup_budget(server)
     repair = cat["Transportation › Car maintenance"]
     bad = put_plan(c, b, "2026-10-01", [{"categoryId": repair, "amount": "100", "target": "500"}])
-    assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "lines.0.target"
+    assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "target"
     reserves_on(c, b)
     savings = new_account(c, name="Ally", type="savings", mask="2222")
     bad = put_plan(
@@ -71,7 +67,7 @@ def test_a_reserves_balance_is_kept_until_asked(server, frozen):
         "2026-10-01",
         [{"categoryId": repair, "amount": "100", "target": "500", "heldInId": savings["id"]}],
     )
-    assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "lines.0.heldInId"
+    assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "heldInId"
     assert (
         put_plan(
             c, b, "2026-10-01", [{"categoryId": repair, "amount": "100", "target": "500"}]
@@ -79,9 +75,9 @@ def test_a_reserves_balance_is_kept_until_asked(server, frozen):
         == 200
     )
     r = put_plan(c, b, "2026-12-01", [{"categoryId": repair, "amount": "100"}])
-    assert r.status_code == 409 and r.json()["code"] == "reserve-balance"
-    assert "200.00" in r.json()["detail"]
-    r = put_plan(c, b, "2026-12-01", [{"categoryId": repair, "amount": "100"}], confirm="true")
+    assert r.status_code == 409 and r.json()["asks"][0]["code"] == "reserve-balance"
+    assert "200.00" in r.json()["asks"][0]["message"]
+    r = put_plan(c, b, "2026-12-01", [{"categoryId": repair, "amount": "100"}], confirm=True)
     assert r.status_code == 200
     assert row(month(c, b, "2026-12"), "Transportation › Car maintenance")["target"] is None
 

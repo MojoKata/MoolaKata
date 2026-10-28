@@ -6,6 +6,7 @@ import datetime as dt
 import httpx
 import pytest
 from test_browser_smoke import browser, open_page, running  # noqa: F401 - fixtures
+from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
 
@@ -61,15 +62,10 @@ def household(running):  # noqa: F811
         headers={"If-Match": str(v)},
     )
     assert r.status_code == 200, r.text
-    v = r.json()["version"]
-    r = c.put(
-        f"/ui/api/budgets/{b['id']}/plan",
-        json={"month": f"{months_back(0)}-01",
-              "lines": [{"categoryId": dining, "amount": "300.00", "rollover": True},
-                        {"categoryId": fun, "amount": "200.00"},
-                        {"categoryId": repair, "amount": "100.00", "target": "1000.00"}]},
-        headers={"If-Match": str(v)},
-    )  # fmt: skip
+    lines = [{"categoryId": dining, "amount": "300.00", "rollover": True},
+             {"categoryId": fun, "amount": "200.00"},
+             {"categoryId": repair, "amount": "100.00", "target": "1000.00"}]  # fmt: skip
+    r = save_plan(c, b, f"{months_back(0)}-01", lines)
     assert r.status_code == 200, r.text
     r = c.post(
         f"/ui/api/budgets/{b['id']}/moves",
@@ -81,12 +77,8 @@ def household(running):  # noqa: F811
         "/ui/api/budgets",
         json={"name": "Envelopes", "method": "envelope", "accountIds": [acct["id"]]},
     ).json()
-    r = c.put(
-        f"/ui/api/budgets/{env['id']}/plan",
-        json={"month": f"{months_back(0)}-01",
-              "lines": [{"categoryId": fun, "amount": "1200.00", "cadence": "year"}]},
-        headers={"If-Match": str(env["version"])},
-    )  # fmt: skip
+    yearly = [{"categoryId": fun, "amount": "1200.00", "cadence": "year"}]
+    r = save_plan(c, env, f"{months_back(0)}-01", yearly)
     assert r.status_code == 200, r.text
     yield c, b, env
     c.close()

@@ -83,24 +83,6 @@ class BudgetChange(Model):
     roles: list[RoleIn] | None = None
 
 
-class PlanLine(Model):
-    categoryId: str
-    amount: Money
-    cadence: str = "month"
-    rollover: bool = False
-    overspend: str = "carry"  # an envelope budget's: carried negative, or from next month
-    projectionId: str | None = None  # a savings line's active projection
-    target: Money | None = None  # a reserve's (S7.10), with reserves on
-    heldInId: str | None = None  # the account its money is kept in
-
-
-class Plan(Model):
-    """The plan from a month on: the categories listed, and none other."""
-
-    month: dt.date
-    lines: list[PlanLine]
-
-
 class MonthRow(Model):
     categoryId: str
     label: str
@@ -786,113 +768,6 @@ def _reserve_held(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
         budgets.add_months(month, -1),
     )
     return r.balance if r is not None else Decimal(0)
-
-
-@router.put("/budgets/{budget_id}/plan", response_model=MonthView)
-def set_plan(
-    budget_id: str,
-    body: Plan,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-    confirm: bool = False,
-):
-    """From the month given on, the plan is what the body lists; earlier months keep theirs.
-    The plan belongs to the budget, so it is made against the budget's version."""
-    month = budgets.month_of(body.month)
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id, "write")
-        check(b, version, lambda: shape(s, b, lvl, c.id))
-        cats = {x.id: x for x in s.scalars(select(Category).where(Category.deleted == false()))}
-        elsewhere = plan.planned_elsewhere(s, b, budgets.tree(s), month.year)
-        errors = []
-        seen = set()
-        for i, ln in enumerate(body.lines):
-            if ln.categoryId in seen and ln.categoryId in cats:
-                errors.append(
-                    FieldError(f"lines.{i}.categoryId", "category-twice", "Each category once.")
-                )
-            seen.add(ln.categoryId)
-            errors += _line_errors(s, b, ln, cats, elsewhere, f"lines.{i}.")
-        _raise(errors)
-        every = budgets.lines(s, b)
-        current = budgets.in_force(every, month)
-        wanted = {ln.categoryId: ln for ln in body.lines}
-        # A reserve's balance stops being kept when its line or its target goes: asked first
-        # (S7.10.3).
-        if not confirm:
-            from ..budgets import reserves
-
-            tr = budgets.tree(s)
-            accts = budgets.account_ids(s, b)
-            moved = reserves.net_moves(reserves.moves(s, b))
-            for cat_id, old in current.items():
-                new = wanted.get(cat_id)
-                if old.target is None or (new is not None and new.target is not None):
-                    continue
-                r = reserves.reserve(
-                    s, tr, accts, every, moved, cat_id, budgets.add_months(month, -1)
-                )
-                if r is not None and r.balance:
-                    raise Problem(
-                        409,
-                        "reserve-balance",
-                        f"{tr.label(cat_id)} holds {r.balance:,.2f}: it stops being kept.",
-                    )
-        for cat_id in set(current) | set(wanted):
-            new = wanted.get(cat_id)
-            values = (
-                (
-                    new.amount,
-                    new.cadence,
-                    new.rollover or new.target is not None,  # a reserve always rolls over
-                    new.overspend,
-                    new.projectionId,
-                    new.target,
-                    new.heldInId if new.target is not None else None,
-                )
-                if new
-                else (Decimal(0), "month", False, "carry", None, None, None)
-            )
-            old = current.get(cat_id)
-            fields = (
-                "amount",
-                "cadence",
-                "rollover",
-                "overspend",
-                "projectionId",
-                "target",
-                "heldInId",
-            )
-            if old is not None and tuple(getattr(old, f) for f in fields) == values:
-                continue
-            same_month = next(
-                (x for x in every if x.categoryId == cat_id and x.fromMonth == month), None
-            )
-            if same_month is not None:
-                for f, v in zip(fields, values, strict=True):
-                    setattr(same_month, f, v)
-            else:
-                s.add(
-                    BudgetLine(
-                        id=ids.new_id("BdgLn"),
-                        budgetId=b.id,
-                        categoryId=cat_id,
-                        fromMonth=month,
-                        **dict(zip(fields, values, strict=True)),
-                    )
-                )
-        b.updatedAt = clock.now()
-        activity.record(
-            s,
-            "budget.planned",
-            actor=c.id,
-            subject_kind="budget",
-            subject_id=b.id,
-            owner=b.ownerId,
-        )
-        s.flush()
-    return budget_month(budget_id, request, c, month.isoformat()[:7])
 
 
 class LineOut(Model):

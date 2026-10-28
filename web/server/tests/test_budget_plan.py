@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 from test_accounts import add, new_account
-from test_budgets import month, plan, row, setup_budget
+from test_budgets import month, plan, row, save_plan, setup_budget
 
 from moolakata import clock
 
@@ -89,11 +89,7 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
         "gifts",
     )
     assert giving["planned"] == "1200.00" and giving["fromPlan"] == "giving"
-    r = c.put(
-        f"/ui/api/budgets/{b['id']}/plan",
-        json={"month": "2026-10-01", "lines": [{"categoryId": cat["Gifts"], "amount": "50"}]},
-        headers={"If-Match": str(c.get(f"/ui/api/budgets/{b['id']}").json()["version"])},
-    )
+    r = save_plan(c, b, "2026-10-01", [{"categoryId": cat["Gifts"], "amount": "50"}])
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "planned-elsewhere"
 
 

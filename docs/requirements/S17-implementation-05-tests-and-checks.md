@@ -17,9 +17,14 @@
    **Kinds of test** that each change in their area adds to:
    1. **Browser modules** without a page (`app/draft.js`, `app/dec.js`, `app/duration.js`)
       are unit-tested by `deno test`, with the draft's id maker passed in so ids repeat.
-   2. **Saved unchanged changes nothing**: every dialog that edits through a draft is opened
-      in Chromium on fixture data and saved untouched, and the records read back are what
-      they were.
+   2. **Saved unchanged changes nothing**: every form that edits through a draft is opened in
+      Chromium and saved untouched, and the records read back are what they were: one
+      table-driven test, a row per form (where to open it, how, and what reads its records),
+      over one household seeded once through the API (`tests/browser.py`, which also holds the
+      server, the browser and signing in). What every draft form does (the question before
+      discarding, Back, a click outside, typed text, questions, a reload after a 412) is
+      tested once, on the shared form pieces; a form has a test of its own only for what it
+      alone does.
    3. **Workflows** that carry what one use learned or saved into the next (import, correct,
       import the next statement) run end to end through the API.
    4. **Faults one at a time**: a link's or the connector's exchange is made to fail at one

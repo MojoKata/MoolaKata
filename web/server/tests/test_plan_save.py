@@ -114,14 +114,7 @@ def test_a_reserve_that_stops_while_it_holds_money_is_asked_by_name(server, froz
     c, _, cat, b = setup_budget(server)
     repair = cat["Transportation › Car maintenance"]
     reserves_on(c, b)
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    r = c.put(
-        f"/ui/api/budgets/{b['id']}/plan",
-        json={"month": "2026-10-01",
-              "lines": [{"categoryId": repair, "amount": "100", "target": "500"}]},
-        headers={"If-Match": str(v)},
-    )  # fmt: skip
-    assert r.status_code == 200, r.text
+    plan(c, b, "2026-10-01", [{"categoryId": repair, "amount": "100", "target": "500"}])
     line = lines(c, b, "2026-12")[repair]
     ops = [update(line, target=None, fromMonth="2026-12-01")]
     r = save(c, ops)

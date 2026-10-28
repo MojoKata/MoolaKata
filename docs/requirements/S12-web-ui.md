@@ -292,14 +292,15 @@
        the admin account** while there are no users (S10.1.2). A page open when the server
        restarts lands on it at its next request, as it lands on sign-in when a session ends
        (S12.6).
-15. **Editing and saving.** A dialog that changes records edits a **draft** of them
-    (`app/draft.js`, S17.3.9), and nothing reaches the server until **Save**.
-    1. **The draft** holds each record the dialog loaded, read from the route that saves it,
+15. **Editing and saving.** A form that changes records, in a dialog or on a screen
+    (Settings, Profile), edits a **draft** of them (`app/draft.js`, S17.3.9), and nothing
+    reaches the server until **Save**.
+    1. **The draft** holds each record the form loaded, read from the route that reads it,
        never from a screen's figures, with the version it was read at (S13.8.6): its values as
        they stand and, for each field changed, the value it had. A field set back to that value
-       is unchanged again, and a field, or the whole dialog, can be put back. An edit a rule
+       is unchanged again, and a field, or the whole form, can be put back. An edit a rule
        makes because of another (a field cleared when it stops applying) is put back with
-       the edit that caused it. Only what changed is sent, so a dialog saved without changes
+       the edit that caused it. Only what changed is sent, so a form saved without changes
        sends nothing.
     2. **Fields** take their type from the API's own description (S13.8.2): text, money, a
        quantity, a percentage, a whole number, yes or no, a date, a month, a choice from a list,
@@ -324,8 +325,10 @@
        they stand and loses the changes made in it, and **Cancel**.
     6. **Changes not saved.** While a draft holds changes, Escape, ✕, **Cancel** or the
        browser's Back asks **Discard your changes?**, with **Keep editing**, focused, and
-       **Discard**; a click on the dimmed content does nothing. Leaving or reloading the page
-       brings the browser's own question. A dialog without changes closes as S12.1.3 says. A
+       **Discard**; a click on the dimmed content does nothing; and on a screen's form, so does
+       moving elsewhere in the app. Typed text that doesn't read yet counts as a change.
+       Leaving or reloading the page brings the browser's own question. A dialog without
+       changes closes as S12.1.3 says. A
        session that ends, or a server that locks, while a dialog holds changes loses them, and
        the sign-in or locked screen says so.
     7. **A dialog opened from a dialog.** One that makes a record the first only refers to (a

@@ -30,6 +30,8 @@ web/dev.sh <command>
                no-network run; --accept records it (docs/dependencies.md)
   base-update [--packages]
                move the base image's digest to the current one
+  codegen      regenerate the generated code: the OpenAPI document, the browser's
+               types and its drafts' fields (web/ui/api/), from the routes
   mockup       rebuild docs/mockups/MoolaKata-app.html from the app
   help-shots   rebuild the help guides' screenshots from the mockup
   deno [args]  run the pinned Deno
@@ -123,6 +125,12 @@ case "$cmd" in
     ;;
   mail)
     ls -1t "$WEB/.dev/mail" 2>/dev/null || echo "no mail yet"
+    ;;
+  codegen)
+    # The generated code (S17.6): the OpenAPI document, the browser's types and its drafts'
+    # fields, from the routes and the kinds the save takes. A few seconds; web/check fails
+    # when any is out of date. The generated mockup and help shots have their own commands.
+    cd "$SERVER" && exec uv run --frozen python -m moolakata.contract write
     ;;
   mockup)
     cd "$SERVER" && exec uv run --frozen python "$WEB/ui/mockup/build.py"

@@ -14394,7 +14394,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Plan-Output"
+              "$ref": "#/components/schemas/Plan"
             },
             "title": "Items",
             "type": "array"
@@ -16231,31 +16231,7 @@
         "title": "PickIn",
         "type": "object"
       },
-      "Plan-Input": {
-        "additionalProperties": false,
-        "description": "The plan from a month on: the categories listed, and none other.",
-        "properties": {
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/PlanLine"
-            },
-            "title": "Lines",
-            "type": "array"
-          },
-          "month": {
-            "format": "date",
-            "title": "Month",
-            "type": "string"
-          }
-        },
-        "required": [
-          "month",
-          "lines"
-        ],
-        "title": "Plan",
-        "type": "object"
-      },
-      "Plan-Output": {
+      "Plan": {
         "additionalProperties": false,
         "properties": {
           "actual": {
@@ -16356,81 +16332,6 @@
           "builtOn"
         ],
         "title": "Plan",
-        "type": "object"
-      },
-      "PlanLine": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "cadence": {
-            "default": "month",
-            "title": "Cadence",
-            "type": "string"
-          },
-          "categoryId": {
-            "title": "Categoryid",
-            "type": "string"
-          },
-          "heldInId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Heldinid"
-          },
-          "overspend": {
-            "default": "carry",
-            "title": "Overspend",
-            "type": "string"
-          },
-          "projectionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Projectionid"
-          },
-          "rollover": {
-            "default": false,
-            "title": "Rollover",
-            "type": "boolean"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target"
-          }
-        },
-        "required": [
-          "categoryId",
-          "amount"
-        ],
-        "title": "PlanLine",
         "type": "object"
       },
       "PlanView": {
@@ -17284,7 +17185,6 @@
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
-              "reserve-balance",
               "reserve-unknown",
               "result-invalid",
               "right-invalid",
@@ -17660,7 +17560,6 @@
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
-                  "reserve-balance",
                   "reserve-unknown",
                   "result-invalid",
                   "right-invalid",
@@ -31221,63 +31120,6 @@
           }
         },
         "summary": "Get Plan",
-        "tags": [
-          "budgets"
-        ]
-      },
-      "put": {
-        "description": "From the month given on, the plan is what the body lists; earlier months keep theirs.\nThe plan belongs to the budget, so it is made against the budget's version.",
-        "operationId": "set_plan_ui_api_budgets__budget_id__plan_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirm",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Plan-Input"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MonthView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Set Plan",
         "tags": [
           "budgets"
         ]

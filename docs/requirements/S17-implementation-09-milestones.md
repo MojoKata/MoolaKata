@@ -320,3 +320,20 @@
            rollover, reserves, moves, *to move*, *To Budget*, card payment lines, a loan's
            split, reimbursements and money leaving the budget; the generated mockup and help
            shots for what changed; both images; and `web/check`.
+   13. **Milestone 11**, after milestone 10: every form that changes records edits a draft
+       (S12.15), dialogs and screen forms alike, in parts, each moving its forms with their
+       server kinds (S13.8.11), retiring the routes a kind no longer needs (S13.8.1) and adding
+       its row to the browser tests (S17.5.2):
+       1. **The shared form pieces** (S17.3.9.6) and the browser tests' shared module
+          (S17.5.2), with the budget's plan and estimate dialogs moved onto them.
+       2. **The transaction dialog with its splits**, which keep their paybacks (CR3-29).
+       3. **A gift plan** with its occasions (CR3-43).
+       4. **A tax book's filings**, the amended return among them (CR3-35).
+       5. **Accounts**: new account, the account's settings, a loan, a payoff plan, an item.
+       6. **Taxes** beyond the filings: tax books, documents, dependents, estimated payments.
+       7. **Gifts and giving**: people, gifts, organisations, donations, the giving plan.
+       8. **Users and sharing**: users, groups, shares, access tokens, links.
+       9. **The rest of the dialogs**: rules, strategies, education plans, connections,
+          wallets, receipts, storage.
+       10. **Settings and Profile**, the screen forms (S12.15.6's in-app navigation), and
+           `web/check`.

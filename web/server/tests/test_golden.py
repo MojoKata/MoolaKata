@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from conftest import make_user, sign_in
 from test_accounts import add, new_account
+from test_budgets import save_plan
 
 from moolakata import clock
 
@@ -188,12 +189,7 @@ def budget_household(c):
         {"categoryId": cat["Loan payments"], "amount": "1100.00"},
         {"categoryId": cat["Savings › Investing"], "amount": "300.00"},
     ]
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    c.put(
-        f"/ui/api/budgets/{b['id']}/plan",
-        json={"month": "2026-09-01", "lines": lines},
-        headers={"If-Match": str(v)},
-    )
+    assert save_plan(c, b, "2026-09-01", lines).status_code == 200
     loan = new_account(c, name="Car loan", type="auto-loan", mask="2005")
     c.put(
         f"/ui/api/accounts/{loan['id']}/loan",
