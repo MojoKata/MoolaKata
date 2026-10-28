@@ -241,7 +241,34 @@ def seed(base: str) -> Household:
     h = Household(base, c, cats, acct, b, env)
     h.extra.update(transactions(h))
     h.extra.update(gift_plans(h))
+    h.extra.update(tax_book(h))
     return h
+
+
+def tax_book(h: Household) -> dict:
+    """Last year's tax book: the federal return filed, with an estimated payment matched to
+    its transaction and figures carried to this year."""
+    me = h.c.get("/ui/api/session").json()["user"]["id"]
+    year = int(months_back(0)[:4]) - 1
+    paid = made(
+        h.c.post(
+            "/ui/api/transactions",
+            json={"accountId": h.checking["id"], "date": f"{year}-04-14", "amount": "-1500.00",
+                  "payee": "IRS USATAXPYMT"},
+        )
+    )  # fmt: skip
+    b = made(h.c.post("/ui/api/tax-books", json={"year": year, "filers": [me]}))
+    b = made(
+        h.c.post(
+            f"/ui/api/tax-books/{b['id']}/filings",
+            json={"form": "Form 1040", "progress": "filed", "filedOn": f"{year + 1}-03-02",
+                  "filingStatus": "Single", "confirmation": "IRS-123",
+                  "payments": [{"quarter": 1, "dueDate": f"{year}-04-15", "amount": "1500",
+                                "paidOn": f"{year}-04-14", "transactionId": paid["id"]}],
+                  "carried": {"agi": "98000", "capitalLossLong": "1200"}},
+        )
+    )  # fmt: skip
+    return {"book": b}
 
 
 def gift_plans(h: Household) -> dict:

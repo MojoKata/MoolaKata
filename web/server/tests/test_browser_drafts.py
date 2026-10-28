@@ -55,6 +55,11 @@ def gift_plan(h: Household) -> tuple:
     return plan, [(g["description"], g["occasion"], g["occasionLabel"]) for g in gifts]
 
 
+def filings(h: Household) -> list:
+    """The book's filings as read, payments and carried figures with them (CR3-35)."""
+    return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()["filings"]
+
+
 FORMS = [
     Form(
         "the plan, tracking with reserves and moves",
@@ -90,6 +95,13 @@ FORMS = [
         'tr:has-text("Emma Griffin")',
         'tr:has-text("Emma Griffin")',
         gift_plan,
+    ),
+    Form(
+        "a filed return with a matched payment and carried figures",
+        lambda h: "/ui/taxes/filings",
+        'h3:has-text("Form 1040") button:has-text("Edit")',
+        'h3:has-text("Form 1040") button:has-text("Edit")',
+        filings,
     ),
 ]
 
@@ -344,5 +356,25 @@ def test_a_new_gift_plan_for_a_new_person(browser, household):
     leo = next(p for p in h.c.get("/ui/api/people").json()["items"] if p["name"] == "Leo Griffin")
     assert (leo["birthYear"], leo["birthMonth"], leo["birthDay"]) == (2021, 3, 4)
     assert [o["holiday"] for o in leo["occasions"]] == ["christmas"]
+    assert problems == []
+    page.close()
+
+
+def test_a_filing_changed_keeps_its_payments_match(browser, household):
+    """A confirmation and a carried figure changed: the estimated payment keeps its id and the
+    transaction it was matched to, which the dialog once dropped on every save."""
+    h = household
+    (before,) = filings(h)
+    page, problems = signed_in(browser, h, "/ui/taxes/filings", 'h3:has-text("Form 1040")')
+    page.click('h3:has-text("Form 1040") button:has-text("Edit")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#f-confirmation", "IRS-456")
+    page.fill("#x-carried-agi", "98,100")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    (after,) = filings(h)
+    assert after["confirmation"] == "IRS-456"
+    assert float(after["carried"]["agi"]) == 98100
+    assert after["payments"] == before["payments"]
     assert problems == []
     page.close()

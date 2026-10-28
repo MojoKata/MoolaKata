@@ -3,6 +3,35 @@
 
 /** @type {Record<string, Record<string, import('../app/draft.js').FieldSpec>>} */
 export const FIELDS = {
+  Carried: {
+    agi: {"type": "money", "nullable": true},
+    totalTax: {"type": "money", "nullable": true},
+    overpaymentApplied: {"type": "money", "nullable": true},
+    capitalLossShort: {"type": "money", "nullable": true},
+    capitalLossLong: {"type": "money", "nullable": true},
+    basis8606: {"type": "money", "nullable": true},
+    charitableCarryover: {"type": "money", "nullable": true},
+  },
+  FilingRecord: {
+    bookId: {"type": "ref", "prefix": "TaxBk"},
+    jurisdiction: {"type": "choice", "choices": ["federal", "state", "local"]},
+    place: {"type": "text", "nullable": true},
+    form: {"type": "text"},
+    amendsId: {"type": "ref", "prefix": "Filng", "nullable": true},
+    filingStatus: {"type": "text", "nullable": true},
+    preparedBy: {"type": "text", "nullable": true},
+    sentBy: {"type": "text", "nullable": true},
+    progress: {"type": "text"},
+    dueDate: {"type": "date", "nullable": true},
+    extensionFiledOn: {"type": "date", "nullable": true},
+    extendedDue: {"type": "date", "nullable": true},
+    filedOn: {"type": "date", "nullable": true},
+    confirmation: {"type": "text", "nullable": true},
+    resultKind: {"type": "text", "nullable": true},
+    resultAmount: {"type": "money", "nullable": true},
+    resultTransactionId: {"type": "ref", "prefix": "Txn", "nullable": true},
+    carried: {"type": "json", "schema": "Carried"},
+  },
   LineIn: {
     budgetId: {"type": "ref", "prefix": "Bdgt"},
     categoryId: {"type": "ref", "prefix": "Cat"},
@@ -24,6 +53,14 @@ export const FIELDS = {
     day: {"type": "int", "nullable": true},
     year: {"type": "int", "nullable": true},
     budget: {"type": "money", "nullable": true},
+  },
+  PaymentRecord: {
+    filingId: {"type": "ref", "prefix": "Filng"},
+    quarter: {"type": "int"},
+    dueDate: {"type": "date", "nullable": true},
+    amount: {"type": "money"},
+    paidOn: {"type": "date", "nullable": true},
+    transactionId: {"type": "ref", "prefix": "Txn", "nullable": true},
   },
   PersonRecord: {
     name: {"type": "text"},

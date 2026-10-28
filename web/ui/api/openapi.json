@@ -6276,6 +6276,215 @@
         "title": "FilingOut",
         "type": "object"
       },
+      "FilingRecord": {
+        "additionalProperties": false,
+        "description": "A filing as a draft saves it: its estimated payments are records of their own\n(`EstPy`), so each keeps its matched transaction.",
+        "properties": {
+          "amendsId": {
+            "anyOf": [
+              {
+                "pattern": "^Filng_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Filng"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amendsid"
+          },
+          "bookId": {
+            "pattern": "^TaxBk_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Bookid",
+            "type": "string",
+            "x-prefix": "TaxBk"
+          },
+          "carried": {
+            "$ref": "#/components/schemas/Carried"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Confirmation"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duedate"
+          },
+          "extendedDue": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Extendeddue"
+          },
+          "extensionFiledOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Extensionfiledon"
+          },
+          "filedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Filedon"
+          },
+          "filingStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Filingstatus"
+          },
+          "form": {
+            "default": "Form 1040",
+            "title": "Form",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "default": "federal",
+            "enum": [
+              "federal",
+              "state",
+              "local"
+            ],
+            "title": "Jurisdiction",
+            "type": "string"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Place"
+          },
+          "preparedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Preparedby"
+          },
+          "progress": {
+            "default": "not started",
+            "title": "Progress",
+            "type": "string"
+          },
+          "resultAmount": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resultamount"
+          },
+          "resultKind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resultkind"
+          },
+          "resultTransactionId": {
+            "anyOf": [
+              {
+                "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Txn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resulttransactionid"
+          },
+          "sentBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sentby"
+          }
+        },
+        "required": [
+          "bookId"
+        ],
+        "title": "FilingRecord",
+        "type": "object",
+        "x-entity": "Filng"
+      },
       "FirstAdmin": {
         "additionalProperties": false,
         "properties": {
@@ -15723,6 +15932,78 @@
         "title": "PaymentIn",
         "type": "object"
       },
+      "PaymentRecord": {
+        "additionalProperties": false,
+        "description": "An estimated tax payment of a filing (S8.15), matched to its transaction.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duedate"
+          },
+          "filingId": {
+            "pattern": "^Filng_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Filingid",
+            "type": "string",
+            "x-prefix": "Filng"
+          },
+          "paidOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paidon"
+          },
+          "quarter": {
+            "title": "Quarter",
+            "type": "integer"
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Txn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transactionid"
+          }
+        },
+        "required": [
+          "filingId",
+          "quarter",
+          "amount"
+        ],
+        "title": "PaymentRecord",
+        "type": "object",
+        "x-entity": "EstPy"
+      },
       "PaymentView": {
         "additionalProperties": false,
         "description": "A payment as shown; its own model, so the contract has one schema each way.",
@@ -15784,10 +16065,15 @@
               }
             ],
             "title": "Transactionid"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
           "id",
+          "version",
           "quarter",
           "dueDate",
           "amount",
@@ -17293,6 +17579,7 @@
               "filed-on-missing",
               "filers-invalid",
               "filers-only",
+              "filing-fixed",
               "filing-missing",
               "filing-unknown",
               "fingerprint-invalid",
@@ -17417,6 +17704,7 @@
               "password-wrong",
               "pattern-invalid",
               "payee-too-long",
+              "payment-fixed",
               "people-missing",
               "percent-invalid",
               "period-backwards",
@@ -17676,6 +17964,7 @@
                   "filed-on-missing",
                   "filers-invalid",
                   "filers-only",
+                  "filing-fixed",
                   "filing-missing",
                   "filing-unknown",
                   "fingerprint-invalid",
@@ -17800,6 +18089,7 @@
                   "password-wrong",
                   "pattern-invalid",
                   "payee-too-long",
+                  "payment-fixed",
                   "people-missing",
                   "percent-invalid",
                   "period-backwards",
@@ -32399,90 +32689,6 @@
         "summary": "Attach Receipt",
         "tags": [
           "education"
-        ]
-      }
-    },
-    "/ui/api/filings/{filing_id}": {
-      "delete": {
-        "operationId": "delete_filing_ui_api_filings__filing_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "filing_id",
-            "required": true,
-            "schema": {
-              "title": "Filing Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_BookDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Filing",
-        "tags": [
-          "taxes"
-        ]
-      },
-      "patch": {
-        "operationId": "change_filing_ui_api_filings__filing_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "filing_id",
-            "required": true,
-            "schema": {
-              "title": "Filing Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FilingIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Filing",
-        "tags": [
-          "taxes"
         ]
       }
     },

@@ -3,6 +3,7 @@ filers and the accounts they count, filings with their estimated payments and th
 carry forward, and tax documents received and filed, against the documents expected."""
 
 import datetime as dt
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
@@ -22,7 +23,8 @@ from ..store.entities.taxes import (
 )
 from ..store.entities.users import User
 from ..taxes import books, closed, dependents
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match
+from . import save
+from .conventions import Deleted, ExactRoute, IdOf, Model, Money, check, gone, if_match
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["taxes"])
@@ -243,6 +245,7 @@ class PaymentView(Model):
     """A payment as shown; its own model, so the contract has one schema each way."""
 
     id: str | None
+    version: int
     quarter: int
     dueDate: dt.date | None
     amount: Money
@@ -452,6 +455,7 @@ def _filing(s, f: Filing, docs: list[TaxDocument], today: dt.date) -> FilingOut:
         payments=[
             PaymentView(
                 id=p.id,
+                version=p.version,
                 quarter=p.quarter,
                 dueDate=p.dueDate,
                 amount=p.amount,
@@ -765,7 +769,7 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         e.append(FieldError("resultKind", "result-invalid", "A refund, an amount owed, nothing."))
     if body.progress in ("filed", "accepted") and not body.filedOn:
         e.append(FieldError("filedOn", "filed-on-missing", "The day it was filed."))
-    for i, p in enumerate(body.payments):
+    for i, p in enumerate(getattr(body, "payments", [])):
         if not 1 <= p.quarter <= 4:
             e.append(FieldError(f"payments.{i}.quarter", "quarter-invalid", "1 to 4."))
         if p.amount < 0:
@@ -776,7 +780,10 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         amended = s.get(Filing, body.amendsId)
         if amended is None or amended.deleted or amended.bookId != b.id:
             raise refuse("amendsId", "filing-unknown", "One of this book's filings.")
-    for t_id in [body.resultTransactionId, *[p.transactionId for p in body.payments]]:
+    for t_id in [
+        body.resultTransactionId,
+        *[p.transactionId for p in getattr(body, "payments", [])],
+    ]:
         if t_id:
             t = s.get(Transaction, t_id)
             if t is None or t.deleted:
@@ -840,7 +847,8 @@ def add_filing(book_id: str, body: FilingIn, request: Request, c: Caller = Depen
 
 
 def _amending(s, c: Caller, b: TaxBook, f: Filing) -> None:
-    """An amended federal return settles the edits made since the return was filed (S8.15)."""
+    """A filing made an amended federal return settles the edits made anyway before it
+    (S8.15); one changed afterwards settles nothing more (CR3-35)."""
     if f.jurisdiction == "federal" and f.amendsId:
         closed.settle(s, b, c.id, "amended")
 
@@ -851,40 +859,6 @@ def _own_filing(s, c: Caller, filing_id: str) -> tuple[Filing, TaxBook, str]:
         raise Problem(404, "not-found", "Not found")
     b, lvl = books.get(s, c.id, f.bookId, "write")
     return f, b, lvl
-
-
-@router.patch("/filings/{filing_id}", response_model=BookDetail)
-def change_filing(
-    filing_id: str,
-    body: FilingIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        f, b, lvl = _own_filing(s, c, filing_id)
-        check(f, version, lambda: detail(s, c, b, lvl))
-        if body.amendsId == f.id:
-            raise refuse("amendsId", "amends-itself", "A filing can't amend itself.")
-        for k, v in _filing_values(s, c, b, body).items():
-            setattr(f, k, v)
-        f.updatedAt = clock.now()
-        _set_payments(s, f, body.payments, c.id)
-        _amending(s, c, b, f)
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
-@router.delete("/filings/{filing_id}", response_model=Deleted[BookDetail])
-def delete_filing(
-    filing_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        f, b, lvl = _own_filing(s, c, filing_id)
-        check(f, version, lambda: detail(s, c, b, lvl))
-        f.mark_deleted(c.id)
-        s.flush()
-        return Deleted[BookDetail](deleted=gone(f), parent=detail(s, c, b, lvl))
 
 
 # ---- Tax documents (S8.16) ----
@@ -985,3 +959,166 @@ class Forms(Model):
 @router.get("/tax-forms", response_model=Forms)
 def forms(request: Request, c: Caller = Depends(caller)):
     return Forms(received=list(RECEIVED_FORMS), filed=list(FILED_FORMS), statuses=list(STATUSES))
+
+
+# ---------- filings and their estimated payments in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class FilingRecord(Model):
+    """A filing as a draft saves it: its estimated payments are records of their own
+    (`EstPy`), so each keeps its matched transaction."""
+
+    bookId: IdOf("TaxBk")  # type: ignore[valid-type]
+    jurisdiction: Literal["federal", "state", "local"] = "federal"
+    place: str | None = None
+    form: str = "Form 1040"
+    amendsId: IdOf("Filng") | None = None  # type: ignore[valid-type]
+    filingStatus: str | None = None
+    preparedBy: str | None = None
+    sentBy: str | None = None
+    progress: str = "not started"
+    dueDate: dt.date | None = None
+    extensionFiledOn: dt.date | None = None
+    extendedDue: dt.date | None = None
+    filedOn: dt.date | None = None
+    confirmation: str | None = None
+    resultKind: str | None = None
+    resultAmount: Money | None = None
+    resultTransactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
+    carried: Carried = Field(default_factory=Carried)
+
+
+class PaymentRecord(Model):
+    """An estimated tax payment of a filing (S8.15), matched to its transaction."""
+
+    filingId: IdOf("Filng")  # type: ignore[valid-type]
+    quarter: int
+    dueDate: dt.date | None = None
+    amount: Money
+    paidOn: dt.date | None = None
+    transactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
+
+
+FILING_FIELDS = tuple(f for f in FilingRecord.model_fields if f not in ("bookId", "carried"))
+
+
+def _filing_create(ctx, record_id: str, body: FilingRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    b, _ = books.get(s, c.id, body.bookId, "write")
+    f = Filing(id=record_id, bookId=b.id, **_filing_values(s, c, b, body))
+    s.add(f)
+    s.flush()
+    _amending(s, c, b, f)
+
+
+def _filing_editable(ctx, record_id: str) -> Filing:
+    return _own_filing(ctx.s, ctx.caller, record_id)[0]
+
+
+def _filing_current(ctx, f: Filing) -> dict:
+    carried = {
+        k: v for k, v in exactjson.loads(f.carried or "{}").items() if k in Carried.model_fields
+    }
+    return {"bookId": f.bookId, "carried": carried, **{k: getattr(f, k) for k in FILING_FIELDS}}
+
+
+def _filing_update(ctx, f: Filing, body: FilingRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if body.bookId != f.bookId:
+        raise refuse("bookId", "filing-fixed", "A filing stays in its book.")
+    if body.amendsId == f.id:
+        raise refuse("amendsId", "amends-itself", "A filing can't amend itself.")
+    b, _ = books.get(s, c.id, f.bookId, "write")
+    was = f.jurisdiction == "federal" and f.amendsId is not None
+    for k, v in _filing_values(s, c, b, body).items():
+        setattr(f, k, v)
+    f.updatedAt = clock.now()
+    if not was:
+        _amending(s, c, b, f)
+
+
+def _filing_delete(ctx, f: Filing) -> None:
+    """Its estimated payments go with it (schema.md §4)."""
+    f.mark_deleted(ctx.caller.id)
+
+
+def _filing_read(ctx, record_id: str) -> FilingOut:
+    s = ctx.s
+    f = s.get(Filing, record_id)
+    docs = list(s.scalars(select(TaxDocument).where(TaxDocument.bookId == f.bookId)))
+    return _filing(s, f, [d for d in docs if not d.deleted], clock.today())
+
+
+def _payment_values(ctx, body: PaymentRecord) -> dict:
+    e: list[FieldError] = []
+    if not 1 <= body.quarter <= 4:
+        e.append(FieldError("quarter", "quarter-invalid", "1 to 4."))
+    if body.amount < 0:
+        e.append(FieldError("amount", "amount-invalid", "Zero or more."))
+    if e:
+        raise Problem(422, e[0].code, e[0].message, e)
+    if body.transactionId:
+        t = ctx.s.get(Transaction, body.transactionId)
+        if t is None or t.deleted:
+            raise refuse("transactionId", "not-found", "No such transaction.")
+        access.account(ctx.s, ctx.caller.id, t.accountId)
+    return body.model_dump(exclude={"filingId"})
+
+
+def _payment_create(ctx, record_id: str, body: PaymentRecord) -> None:
+    _own_filing(ctx.s, ctx.caller, body.filingId)
+    ctx.s.add(EstimatedPayment(id=record_id, filingId=body.filingId, **_payment_values(ctx, body)))
+
+
+def _payment_editable(ctx, record_id: str) -> EstimatedPayment:
+    p = ctx.s.get(EstimatedPayment, record_id)
+    if p is None or p.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _own_filing(ctx.s, ctx.caller, p.filingId)
+    return p
+
+
+PAYMENT_FIELDS = ("quarter", "dueDate", "amount", "paidOn", "transactionId")
+
+
+def _payment_update(ctx, p: EstimatedPayment, body: PaymentRecord) -> None:
+    if body.filingId != p.filingId:
+        raise refuse("filingId", "payment-fixed", "A payment stays with its filing.")
+    for k, v in _payment_values(ctx, body).items():
+        setattr(p, k, v)
+
+
+def _payment_read(ctx, record_id: str) -> PaymentView:
+    p = ctx.s.get(EstimatedPayment, record_id)
+    return PaymentView(id=p.id, version=p.version, **{k: getattr(p, k) for k in PAYMENT_FIELDS})
+
+
+save.register(
+    save.Kind(
+        prefix="Filng",
+        entity=Filing,
+        fields=FilingRecord,
+        create=_filing_create,
+        editable=_filing_editable,
+        current=_filing_current,
+        update=_filing_update,
+        delete=_filing_delete,
+        read=_filing_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="EstPy",
+        entity=EstimatedPayment,
+        fields=PaymentRecord,
+        create=_payment_create,
+        editable=_payment_editable,
+        current=lambda ctx, p: {
+            "filingId": p.filingId,
+            **{k: getattr(p, k) for k in PAYMENT_FIELDS},
+        },
+        update=_payment_update,
+        delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
+        read=_payment_read,
+    )
+)

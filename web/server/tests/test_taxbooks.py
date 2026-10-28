@@ -8,6 +8,7 @@ import pytest
 from conftest import make_user, sign_in
 from edits import asked, change, saved
 from test_accounts import add, new_account
+from test_save import made_at
 
 from moolakata import clock
 
@@ -92,23 +93,26 @@ def test_filings_due_dates_overdue_and_results(couple):
     assert f["dueDate"] == "2026-04-15" and f["overdue"]
     dash = alice.get("/ui/api/dashboard").json()["attention"]
     assert any(a["text"] == "Federal return for 2025 is past its due date" for a in dash)
-    bad = alice.patch(f"/ui/api/filings/{f['id']}", json={"form": "Form 1040", "progress": "filed"})
+    bad = change(alice, "Filng", f, progress="filed")
     assert bad.json()["errors"][0]["field"] == "filedOn"
-    r = alice.patch(
-        f"/ui/api/filings/{f['id']}",
-        json={
-            "form": "Form 1040",
-            "progress": "accepted",
-            "filedOn": "2026-03-02",
-            "filingStatus": "Single",
-            "sentBy": "e-file",
-            "resultKind": "refund",
-            "resultAmount": "1240",
-            "resultTransactionId": refund["id"],
-            "payments": [{"quarter": 1, "dueDate": "2025-04-15", "amount": "1500"}],
-            "carried": {"agi": "214380", "totalTax": "31920", "capitalLossLong": "2100"},
-        },
-    )
+    fields = {
+        "progress": "accepted",
+        "filedOn": "2026-03-02",
+        "filingStatus": "Single",
+        "sentBy": "e-file",
+        "resultKind": "refund",
+        "resultAmount": "1240",
+        "resultTransactionId": refund["id"],
+        "carried": {"agi": "214380", "totalTax": "31920", "capitalLossLong": "2100"},
+    }
+    pay = {"filingId": f["id"], "quarter": 1, "dueDate": "2025-04-15", "amount": "1500"}
+    r = alice.post("/ui/api/save", json={"ops": [
+        {"op": "update", "entity": "Filng", "id": f["id"], "version": f["version"],
+         "fields": fields},
+        {"op": "create", "entity": "EstPy", "id": made_at("EstPy", clock.now()), "fields": pay},
+    ]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    r = alice.get(f"/ui/api/tax-books/{last['id']}")
     f = r.json()["filings"][0]
     assert not f["overdue"] and f["resultPaid"].startswith("Checking · Mar 18")
     assert f["payments"][0]["amount"] == "1500.00"
@@ -480,18 +484,18 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
     assert edit("1700.00", confirm=False).status_code == 200
     assert issues() == []
     # Filed: the year is closed again, and an edit made anyway is listed afresh.
-    r = alice.patch(
-        f"/ui/api/filings/{amended['id']}",
-        json={**federal, "form": "1040-X", "amendsId": original["id"], "filedOn": "2026-06-20"},
-        headers={"If-Match": str(amended["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(change(alice, "Filng", amended, progress="filed", filedOn="2026-06-20"))
     r = edit("1690.00", confirm=False)
     assert asked(r) == ["closed-year"]
     assert edit("1690.00", confirm=True).status_code == 200
     assert issues() == [
         "Realized gains changed by -$10.00 after the federal return was filed: Brokerage, 1 edit"
     ]
+    # The amended return accepted later settles nothing it never had in (CR3-35).
+    filings = alice.get(f"/ui/api/tax-books/{b['id']}").json()["filings"]
+    amended = next(f for f in filings if f["form"] == "1040-X")
+    saved(change(alice, "Filng", amended, progress="accepted", confirmation="X-2026-0611"))
+    assert len(issues()) == 1, "the edit made after the 1040-X was filed is still listed"
     # No amendment needed settles it, for those who may write.
     r = couple[1].post(f"/ui/api/tax-books/{b['id']}/no-amendment")
     assert r.status_code in (403, 404), r.text
