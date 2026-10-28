@@ -87,7 +87,9 @@ review describes the commit it read. Fixes come after assembly (§11).
 review's commit. Each session ends by committing its work-pad files and pushing the branch,
 so nothing lives only on this machine; `withheld.md` (below) is never committed. The pull
 request opens at assembly. The fixes are usually made on the same branch after it, each
-commit naming the claims it fixes, and the branch merges after the walk-through.
+commit naming the claims it fixes, and the branch merges when the user says: after the
+walk-through, or before it, the walk-through's answers then coming in later changes, each
+updating the review's tables and decisions.
 
 **Withheld claims.** The repository is public, and households run its releases. A
 **security** or **privacy** claim rated High or Med, written down, tells anyone how to attack
@@ -101,6 +103,10 @@ assembly's), the reviewer stops and asks the user whether its fixes will go with
 2. **Alone**: the claim keeps its row in its severity's summary table with its id, Req,
    severity, confirmations and status, and the description *Withheld until fixed*; its section
    says the same and nothing more. The details are written in when the fix is pushed.
+
+**While no household relies on a server**, the user may set withholding aside, as they did
+for review 3: every claim is then published as it is written, `withheld.md` isn't used, and a
+review's header says so. A review asks the user at Phase 0 which holds.
 
 ## 3. A session's habits
 
