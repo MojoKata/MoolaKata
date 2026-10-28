@@ -98,9 +98,9 @@ assembly's), the reviewer stops and asks the user whether its fixes will go with
 
 1. **With the fixes**: the push waits until the fixes are committed, and the claim's details
    go into the review in the same push.
-2. **Alone**: the claim keeps its row in the summary table with its id, Req, severity,
-   confirmations and status, and the description *Withheld until fixed*; its section says the
-   same and nothing more. The details are written in when the fix is pushed.
+2. **Alone**: the claim keeps its row in its severity's summary table with its id, Req,
+   severity, confirmations and status, and the description *Withheld until fixed*; its section
+   says the same and nothing more. The details are written in when the fix is pushed.
 
 ## 3. A session's habits
 
@@ -126,6 +126,15 @@ These hold in every phase, and keep each session inside its context with room to
 8. **End with the log.** The last act of a session is its line in `log.md`, its commit and
    push (§2), and, when it is the last session of the day, the state of the review in
    `docs/handoff.md`.
+9. **Quote code in ```` ```text ```` fences.** `web/check` runs `ruff format --check` over
+   `docs/reviews`, and ruff formats ```` ```python ```` blocks in Markdown: it would rewrite
+   the quoted lines. Never run `ruff format` without `--check` there.
+10. **A withheld claim is only an id.** Everywhere committed (another claim, an earlier
+   finding's re-check, a log row, a scratch file's name) it appears as its id, kind and
+   severity, never beside words on what it is about (§2).
+11. **Scratch stays out of the repository.** Scratch tests and scripts live in the job's
+   scratch directory, even for a moment; `cd web/server && PYTHONPATH=tests uv run pytest -p
+   conftest <path>` runs one with the server's fixtures.
 
 ## 4. Phase 0: the measures and the map
 
@@ -157,8 +166,8 @@ cuts the code into **units** of about 10,000 lines of code each, with their sect
 3. code that cites no section and serves none is listed as **untraced**, with the unit it
    sits beside; that unit's session judges it (§7).
 
-Units are numbered in requirement order, so the review's sections and ids follow the
-requirements. The map records, per unit, its sections, paths, tests and line counts.
+Units are numbered in requirement order, so the units' openers (§10) follow the requirements,
+and claims alike in severity and confirmations take their ids in that order. The map records, per unit, its sections, paths, tests and line counts.
 
 ### 4.3 The delta
 
@@ -282,8 +291,9 @@ an open question); **decided** (the review's decisions say how); **fixed** `<com
 **later** `L<n>`; **rejected** (found not to hold after it had an id, with the reason in its
 section).
 
-Severity, confirmations and status live **only in the review's summary table**. Its sections
-never repeat them, so there is one place to update and nothing to drift.
+Severity, confirmations and status live **only in the review's summary tables**, one per
+severity (§10). The claims' sections never repeat them, so there is one place to update and
+nothing to drift.
 
 ## 10. Assembly
 
@@ -292,9 +302,11 @@ One session writes the review from the work pad. Its parts, in order:
 1. **The header**: the review's number, the commit it read, the last review's commit it is
    measured from, scope, checking, serial or parallel (and, if parallel, that the user asked
    for it for this review), and the paths as review 2's header gives them.
-2. **The summary**: first the verdict in one line (*Ready to release: no. 4 High open:
-   CR3-2, CR3-9, …*), kept current as the table changes; a few lines on what matters most;
-   then **the table**, one row per claim, in id order:
+2. **The summary**: the verdict in one line (*Ready to release: no. 4 High open:
+   CR3-1, CR3-2, …*), kept current as the tables change, and a few lines on what matters most.
+3. **One part per severity**, High, then Med, then Low, headed `## Summary - High Severity`,
+   `## Summary - Medium Severity` and `## Summary - Low Severity`. Each opens with its count of
+   claims by confirmations, then **its table**, one row per claim, in id order:
 
    | Id | Req | Sev | Conf | Status | Description |
    |---|---|---|---|---|---|
@@ -303,22 +315,39 @@ One session writes the review from the work pad. Its parts, in order:
    **Id** links to the claim's section. **Req** is the main requirement it is about (`—` for
    untraced code). The **description** is one sentence of at most three lines; a claim that
    needs more is two claims.
-3. **One section per unit**, in the map's order, after a first section for the documents
-   (Phase 1). Each opens with the unit's sections, paths and what was read, then its claims,
-   each under its id as a heading (`### CR3-14: a transfer kept as the account's own …`):
-   kind, requirements, code with the quoted lines, what goes wrong, remedy, alternatives. Not
-   severity, confirmations or status (§9). Longer working notes stay in the work pad, and the
-   section links them.
-4. **Checked and sound**: what was looked at closely and found right, so the next review
-   need not repeat it.
-5. **Decisions**: what the user decided on the claims, as they are walked through.
-6. **Where things stand**: for the next reviewer, what was left unread or read lightly, and
-   where to start.
 
-**Ids** are `CR<n>-<m>`: the review's number unpadded and the claim's number, given once at
-assembly in the order of the sections, and never renumbered or reused. A claim confirmed
-after assembly (from a late sweep, or a review checked later) takes the next free number.
-Other documents cite them as ids (`CR3-14`), as the requirements cite theirs.
+   Then its claims, in id order, each under its id as a heading (`### CR3-14: a transfer kept
+   as the account's own …`), with its work-pad id and file: kind, requirements, code with the
+   quoted lines, what goes wrong, remedy, alternatives. Not severity, confirmations or status
+   (§9). Longer working notes stay in the work pad, and the section links them.
+4. **The documents and units read**: a section for the documents (Phase 1), with one for each
+   block, then one per unit in the map's order: its sections, paths, what was read and run,
+   and a link to its work-pad file.
+5. **Checked and sound**: what was looked at closely and found right, so the next review
+   need not repeat it.
+6. **Decisions**: what the user decided on the claims, as they are walked through.
+7. **Where things stand**: for the next reviewer, what was left unread or read lightly, and
+   where to start.
+8. **Work-pad ids**: each claim's work-pad id against its review id.
+
+Review 3's work pad has `extract.py` and `render.py`, which build the table and the sections
+from the blocks' and units' files mechanically (`render.py` lays them out one section per unit,
+in the map's order, and review 3 was reordered by severity afterwards; the next review's render
+orders them as above); the assembly session then writes the parts that need judgement (the
+header, the summary, the openers, *checked and sound*, *where things stand*) and reads every
+committed file for hints at withheld claims (§3.10).
+
+**Ids** are `CR<n>-<m>`: the review's number unpadded and the claim's number, given at
+assembly in the order of the tables: by severity (High, Med, Low), then by confirmations, most
+first, then in the order the claims were found (the documents first, then the units in the
+map's order). So `CR3-1` is the most severe claim with the most confirmations.
+
+A review checked later (§11.4) renumbers once, when its checks and sweep are in, as the checks
+change confirmations and severities: the claims confirmed after assembly join the others, and
+the last part gains a table of the assembly ids against the new ones, for the commits and the
+log that cite them. After that, ids are never renumbered or reused. A claim whose severity
+changes later (§11.3) moves, with its id, to its new severity's part. Other documents cite
+them as ids (`CR3-14`), as the requirements cite theirs.
 
 ## 11. After the review
 
@@ -329,9 +358,10 @@ Other documents cite them as ids (`CR3-14`), as the requirements cite theirs.
 2. **Walk through** the plausible claims and the ones that need a choice, one at a time, with
    options and a recommendation. Answers go into the requirements and the decisions; a
    question left open takes the next Q id.
-3. **Each change updates the table**, and nothing else in the review: a confirmation, a
-   status, a severity changed by a decision. The commit that fixes a claim names its id, and
-   its status becomes fixed with that commit.
+3. **Each change updates the tables**, and nothing else in the review: a confirmation, a
+   status, a severity changed by a decision (the claim's row and section move to its new
+   severity's part, keeping its id). The commit that fixes a claim names its id, and its
+   status becomes fixed with that commit.
 4. **A quick review can be checked later**: a checking pass over its claims (§8) raises their
    confirmations, and its header then reads "quick, checked later".
 5. **What a review recommends but no one takes up** goes to the gaps, the questions or later
@@ -355,14 +385,21 @@ Everything else is the same: the briefs, the work-pad files, the rule that only 
 independent context confirms a claim, and the assembly. Parallel only changes how long it
 takes.
 
-**Rough wall time**, a full checked review of about 100,000 lines of code in about 14 units
-(estimates, to be replaced with what review 3 takes):
+**Wall time.** Review 3 (full, quick, about 102,000 lines of code in 12 units) ran as serial
+sessions, each a subagent started by a coordinating session; parallel and workflow are
+estimates from it:
 
-| | Serial sessions | Parallel (3–4 at once) | Workflow |
+| | Serial (review 3, measured) | Parallel (3–4 at once) | Workflow |
 |---|---|---|---|
-| Phases 0 and 1 | ~2 h | ~1.5 h | ~1 h |
-| Phase 2 with checking | ~13 h | ~5.5 h | ~2 h |
-| Sweep and assembly | ~1 h | ~1 h | ~1 h |
+| Phases 0 and 1 | 1 h 5 min | ~45 min | ~30 min |
+| Phase 2, quick | 3 h 22 min (13–19 min a unit) | ~1 h 15 min | ~45 min |
+| Assembly | 25 min (scripted, §10) | 25 min | 25 min |
+| Checking after assembly, and the sweep | 1 h 48 min (4–14 min a piece) | ~40 min | ~20 min |
+
+Review 3 took about 5.9M tokens: 1.0M for Phase 1, 4.4M for the units (about 370k each), and
+0.4M for the assembly and a sweep for hints at withheld claims. Its checking pass, run after
+assembly on Sonnet 5.5 (§14), took about 3.0M more: 125k to 310k a checker, about half a
+discovery unit's.
 
 The walk through the gate and the decisions comes on top, at the user's pace. A quick review
 saves about a third of Phase 2; an incremental one of a small delta, most of it.
@@ -379,3 +416,38 @@ run unit 07 (§7, then §8). Start from log.md and the unit's brief.
 
 The reviewer of the previous piece leaves the next brief written, so the prompt stays this
 short.
+
+## 14. Models and effort
+
+Each piece runs on the model and effort below, passed to the subagent that runs it. Review 3
+measured them on one unit (S7's code, new since review 2) run three ways from the same brief;
+the record is `reviews/code-review-0003-2026-10-24/model-experiment.md`:
+
+| Run of unit 05 | True High and Med found (16 in all) | False | Tokens | Time | Cost at API prices |
+|---|---|---|---|---|---|
+| Opus 5.5, default effort | 13 (81%), the High among them | 0 | 377k | 17 min | ~$1.80 |
+| Sonnet 5.5, high effort | 12 (75%), the High among them | 0 (3 doubtful) | 443k | 23 min | ~$1.05 |
+| Opus 5.5, medium effort | 10 (62%), without the High | 0 (2 doubtful) | 287k | 13 min | ~$1.40 |
+
+No run found more than 81% of what the three found together, and each found defects the others
+missed; two runs together found all 16, or 15. Hence:
+
+1. **Phase 0 and the coordinating session**: Opus 5.5, default effort.
+2. **Phase 1's blocks and comparison**: Sonnet 5.5, high effort. They read prose for
+   contradictions; Sonnet did as well on the unit's guides and requirement text.
+3. **Discovery in a unit**: Opus 5.5 at its default effort, never lowered to medium (that run
+   missed the unit's one High).
+4. **A second discovery run**, Sonnet 5.5 at high effort and blind to the first, for code no
+   review has read (a new milestone) and for units that keys, sign-in, links or secrets
+   depend on. Its claims join the unit's file under their own ids, and the checker judges
+   both runs' claims. It adds about 60% to such a unit's cost.
+5. **Checking (§8) and the sweep**: Sonnet 5.5, high effort: a model other than the
+   discovery run's, and the run that reproduced the most. It rates higher than Opus, so a
+   severity it raises is a correction like any other, and Med or High privacy and security
+   claims it raises go to `withheld.md`.
+6. **Assembly**: the scripts (§10), then Opus 5.5 at default effort for the parts that need
+   judgement and for the withholding.
+
+One unit is one sample, and no Phase 1 block, checker or assembly was compared. Review 4
+measures again on a Phase 1 block and a security unit, and this section changes with what it
+finds.
