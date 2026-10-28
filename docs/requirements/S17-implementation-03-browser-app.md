@@ -68,3 +68,18 @@
          changes a draft. It is dropped after a save that succeeds or a **Cancel**, and kept
          after a question, a refusal or a lost connection. In the generated mockup's build
          (S12.9) the ids it makes repeat from run to run, counted apart from the server's.
+      6. **The shared form pieces** (`components/draft-form.js`) make a form its fields and
+         nothing more: `useDraft` reads its records into a draft and reads them again after
+         a 412; `<DraftDialog>` and `<DraftForm>` bring the question before discarding (with a
+         guard on the router for a screen's form), the button that saves, then saves anyway
+         or reloads, and what a save came to above it; `<RecField>` draws a field by its type
+         (text for money and quantities, a list for a choice or a reference, a switch for yes
+         or no) bound to its record: its value, what was typed, its refusal, and hidden while a
+         rule says it doesn't apply.
+      7. **A record that holds from a date on** (a budget's plan line, from a month on: a
+         change adds a row from then, earlier months keeping theirs): its entity class says
+         which month the form changes it from and sends it with every change (a `changes()`
+         that adds it), is taken out by a change rather than deleted (`removal`), and its
+         kind on the server makes a row from that month or changes the one that starts then;
+         the save's answer names the record as it was sent. One kind is built this way; a
+         second would make it a declaration of the draft and the save.

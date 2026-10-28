@@ -10,7 +10,10 @@
       shared with them too, so a budget never passes on an account someone else shared (R3.4).
    2. **The plan holds from a month on.** A change applies from the month it is made in,
       so past months keep the plan they had; a category taken out of the plan stops from
-      that month. A plan line on a parent category counts its children with it.
+      that month. A plan line on a parent category counts its children with it. **Edit plan**
+      and **Estimate from history** show the plan as it holds that month, each line as stored,
+      never the month's figures (which add what carried over and the month's moves), so saved
+      unchanged they change nothing; a line is taken out by its ✕, from that month (S12.15).
    3. **A method**, chosen when the budget is made: **tracking**, a plan per category
       compared with what is spent, received and saved (S7.3), or **envelope**, where the money
       in the budget's accounts is handed out to categories until none is left to hand out

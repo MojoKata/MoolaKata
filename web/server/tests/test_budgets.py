@@ -35,10 +35,55 @@ def setup_budget(server):
     return c, acct, cat, r.json()
 
 
-def plan(c, budget, month, lines):
-    r = c.put(f"/ui/api/budgets/{budget['id']}/plan", json={"month": month, "lines": lines})
+LINE = {"cadence": "month", "rollover": False, "overspend": "carry", "projectionId": None,
+        "target": None, "heldInId": None}  # fmt: skip
+
+
+def save_plan(c, budget, start, lines, confirm=False):
+    """The plan from a month on is what `lines` lists, saved as the plan dialog saves it
+    (S13.8.11): each line in force changed or taken out from that month, each new one made.
+    `confirm` answers its questions (a reserve that stops holding money) and saves again."""
+    have = c.get(f"/ui/api/budgets/{budget['id']}/plan", params={"month": start[:7]}).json()
+    have = {x["categoryId"]: x for x in have["lines"]}
+    ops, wanted = [], set()
+    for ln in lines:
+        fields = {**LINE, **{k: v for k, v in ln.items() if k != "categoryId"},
+                  "fromMonth": start}  # fmt: skip
+        wanted.add(ln["categoryId"])
+        old = have.get(ln["categoryId"])
+        if old is not None:
+            ops.append({"op": "update", "entity": "BdgLn", "id": old["id"],
+                        "version": old["version"], "fields": fields})  # fmt: skip
+        else:
+            new_id = _made_now()
+            fields |= {"budgetId": budget["id"], "categoryId": ln["categoryId"]}
+            ops.append({"op": "create", "entity": "BdgLn", "id": new_id, "fields": fields})
+    for cat, old in have.items():
+        if cat not in wanted:
+            fields = {"amount": "0.00", "target": None, "heldInId": None, "fromMonth": start}
+            ops.append({"op": "update", "entity": "BdgLn", "id": old["id"],
+                        "version": old["version"], "fields": fields})  # fmt: skip
+    r = c.post("/ui/api/save", json={"ops": ops})
+    if confirm and r.status_code == 409 and r.json()["code"] == "confirm-needed":
+        asks = [{"code": a["code"], "id": a["id"]} for a in r.json()["asks"]]
+        r = c.post("/ui/api/save", json={"ops": ops, "confirm": asks})
+    return r
+
+
+def _made_now() -> str:
+    """A plan line's id as the browser makes one, from the server's clock (schema.md §2)."""
+    from test_save import made_at
+
+    from moolakata import clock
+
+    return made_at("BdgLn", clock.now())
+
+
+def plan(c, budget, start, lines):
+    """The plan from `start` on, saved; the month's view as it then stands."""
+    r = save_plan(c, budget, start, lines)
     assert r.status_code == 200, r.text
-    return r.json()
+    return month(c, budget, start[:7])
 
 
 def month(c, budget, m):
@@ -161,18 +206,17 @@ def test_matched_transfers_and_splits(server, frozen):
 
 def test_plan_checks_its_lines(server, frozen):
     c, _, cat, b = setup_budget(server)
-    r = c.put(
-        f"/ui/api/budgets/{b['id']}/plan",
-        json={
-            "month": "2026-10-01",
-            "lines": [
-                {"categoryId": cat["Food"], "amount": "-5.00"},
-                {"categoryId": "Cat_nope", "amount": "5.00"},
-            ],
-        },
+    r = save_plan(
+        c,
+        b,
+        "2026-10-01",
+        [
+            {"categoryId": cat["Food"], "amount": "-5.00"},
+            {"categoryId": "Cat_nope", "amount": "5.00"},
+        ],
     )
     assert r.status_code == 422
-    assert {e["field"] for e in r.json()["errors"]} == {"lines.0.amount", "lines.1.categoryId"}
+    assert {e["field"] for e in r.json()["errors"]} == {"amount", "categoryId"}
 
 
 def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client):

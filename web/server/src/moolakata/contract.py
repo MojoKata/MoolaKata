@@ -2,7 +2,7 @@
 routes, and the browser app's JSDoc types and its drafts' fields (S17.3.9.2) come from it.
 `web/check` fails when any of the files is out of date.
 
-    python -m moolakata.contract write    regenerate the files
+    python -m moolakata.contract write    regenerate the files (web/dev.sh codegen)
     python -m moolakata.contract check    fail if any differs from what the routes give
 """
 
@@ -41,7 +41,21 @@ def openapi_document() -> dict:
     # The release, from web/VERSION (S13.8.9): a version bump changes the document too.
     _problems(doc)
     _created(doc)
+    _saved(doc)
     return doc
+
+
+def _saved(doc: dict) -> None:
+    """The fields of each kind of record the save takes (S13.8.11), as schemas of their own
+    marked with the kind's prefix, so the browser's drafts have their types (S17.3.9.2)."""
+    from .ui import save
+
+    schemas = doc.setdefault("components", {}).setdefault("schemas", {})
+    for prefix, kind in sorted(save.KINDS.items()):
+        schema = kind.fields.model_json_schema(ref_template="#/components/schemas/{model}")
+        for name, sub in schema.pop("$defs", {}).items():
+            schemas.setdefault(name, sub)
+        schemas[kind.fields.__name__] = {**schema, "x-entity": prefix}
 
 
 PROBLEM_CALLS = {"Problem", "refuse", "FieldError", "_send_problem", "problem_response"}
@@ -197,7 +211,7 @@ def _ident(name: str) -> str:
 def types_js(doc: dict | None = None) -> str:
     doc = doc or openapi_document()
     lines = [
-        "// Generated from the API's OpenAPI document by `python -m moolakata.contract write`.",
+        "// Generated from the API's OpenAPI document by `web/dev.sh codegen`.",
         "// Do not edit: web/check fails when this file differs from what the routes give.",
         "",
     ]
@@ -259,17 +273,39 @@ def _field(schema: dict, schemas: dict) -> dict:
     return {"type": "json"}
 
 
+def _refs(schema, found: set[str]) -> None:
+    """The names of the schemas a schema refers to, however deep."""
+    if isinstance(schema, dict):
+        ref = schema.get("$ref")
+        if isinstance(ref, str):
+            found.add(ref.rsplit("/", 1)[-1])
+        for v in schema.values():
+            _refs(v, found)
+    elif isinstance(schema, list):
+        for v in schema:
+            _refs(v, found)
+
+
 def fields_js(doc: dict | None = None) -> str:
-    """Every schema's fields as the browser's drafts type them (S17.3.9.2)."""
+    """The fields of each kind of record the save takes (`x-entity`), and of the schemas they
+    refer to, as the browser's drafts type them (S17.3.9.2): what the drafts use, no more."""
     doc = doc or openapi_document()
     schemas = doc.get("components", {}).get("schemas", {})
+    wanted = {n for n, sc in schemas.items() if "x-entity" in sc}
+    todo = list(wanted)
+    while todo:
+        found: set[str] = set()
+        _refs(schemas.get(todo.pop(), {}), found)
+        for n in found - wanted:
+            wanted.add(n)
+            todo.append(n)
     out = {}
-    for name in sorted(schemas):
-        props = schemas[name].get("properties")
+    for name in sorted(wanted):
+        props = schemas.get(name, {}).get("properties")
         if props:
             out[name] = {p: _field(ps, schemas) for p, ps in props.items()}
     lines = [
-        "// Generated from the API's OpenAPI document by `python -m moolakata.contract write`.",
+        "// Generated from the API's OpenAPI document by `web/dev.sh codegen`.",
         "// Do not edit: web/check fails when this file differs from what the routes give.",
         "",
         "/** @type {Record<string, Record<string, import('../app/draft.js').FieldSpec>>} */",
@@ -302,8 +338,7 @@ def main(argv: list[str]) -> int:
         stale = [p for p, text in wanted.items() if not p.exists() or p.read_text() != text]
         for p in stale:
             print(
-                f"{p.relative_to(paths.ROOT)} is out of date: run "
-                "`python -m moolakata.contract write`",
+                f"{p.relative_to(paths.ROOT)} is out of date: run `web/dev.sh codegen`",
                 file=sys.stderr,
             )
         return 1 if stale else 0

@@ -10008,6 +10008,213 @@
         "title": "LegOut",
         "type": "object"
       },
+      "LineIn": {
+        "additionalProperties": false,
+        "description": "A plan line as a draft saves it: the line holds from `fromMonth` on, earlier months\nkeeping the plan they had (S7.1.2).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "budgetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Budgetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "cadence": {
+            "default": "month",
+            "enum": [
+              "month",
+              "year"
+            ],
+            "title": "Cadence",
+            "type": "string"
+          },
+          "categoryId": {
+            "pattern": "^Cat_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Categoryid",
+            "type": "string",
+            "x-prefix": "Cat"
+          },
+          "fromMonth": {
+            "format": "date",
+            "title": "Frommonth",
+            "type": "string"
+          },
+          "heldInId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Heldinid"
+          },
+          "overspend": {
+            "default": "carry",
+            "enum": [
+              "carry",
+              "next"
+            ],
+            "title": "Overspend",
+            "type": "string"
+          },
+          "projectionId": {
+            "anyOf": [
+              {
+                "pattern": "^Prjct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Prjct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectionid"
+          },
+          "rollover": {
+            "default": false,
+            "title": "Rollover",
+            "type": "boolean"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target"
+          }
+        },
+        "required": [
+          "budgetId",
+          "categoryId",
+          "fromMonth",
+          "amount"
+        ],
+        "title": "LineIn",
+        "type": "object",
+        "x-entity": "BdgLn"
+      },
+      "LineOut": {
+        "additionalProperties": false,
+        "description": "A plan line as it is stored (S7.1.2), which a dialog's draft starts from (S12.15.1).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "budgetId": {
+            "title": "Budgetid",
+            "type": "string"
+          },
+          "cadence": {
+            "title": "Cadence",
+            "type": "string"
+          },
+          "categoryId": {
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "fromMonth": {
+            "format": "date",
+            "title": "Frommonth",
+            "type": "string"
+          },
+          "heldInId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldinid"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "overspend": {
+            "title": "Overspend",
+            "type": "string"
+          },
+          "projectionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectionid"
+          },
+          "rollover": {
+            "title": "Rollover",
+            "type": "boolean"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "budgetId",
+          "categoryId",
+          "fromMonth",
+          "amount",
+          "cadence",
+          "rollover",
+          "overspend",
+          "projectionId",
+          "target",
+          "heldInId"
+        ],
+        "title": "LineOut",
+        "type": "object"
+      },
       "LinkedFile": {
         "additionalProperties": false,
         "properties": {
@@ -14187,7 +14394,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Plan-Output"
+              "$ref": "#/components/schemas/Plan"
             },
             "title": "Items",
             "type": "array"
@@ -16024,31 +16231,7 @@
         "title": "PickIn",
         "type": "object"
       },
-      "Plan-Input": {
-        "additionalProperties": false,
-        "description": "The plan from a month on: the categories listed, and none other.",
-        "properties": {
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/PlanLine"
-            },
-            "title": "Lines",
-            "type": "array"
-          },
-          "month": {
-            "format": "date",
-            "title": "Month",
-            "type": "string"
-          }
-        },
-        "required": [
-          "month",
-          "lines"
-        ],
-        "title": "Plan",
-        "type": "object"
-      },
-      "Plan-Output": {
+      "Plan": {
         "additionalProperties": false,
         "properties": {
           "actual": {
@@ -16149,81 +16332,6 @@
           "builtOn"
         ],
         "title": "Plan",
-        "type": "object"
-      },
-      "PlanLine": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "cadence": {
-            "default": "month",
-            "title": "Cadence",
-            "type": "string"
-          },
-          "categoryId": {
-            "title": "Categoryid",
-            "type": "string"
-          },
-          "heldInId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Heldinid"
-          },
-          "overspend": {
-            "default": "carry",
-            "title": "Overspend",
-            "type": "string"
-          },
-          "projectionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Projectionid"
-          },
-          "rollover": {
-            "default": false,
-            "title": "Rollover",
-            "type": "boolean"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target"
-          }
-        },
-        "required": [
-          "categoryId",
-          "amount"
-        ],
-        "title": "PlanLine",
         "type": "object"
       },
       "PlanView": {
@@ -16949,6 +17057,7 @@
               "legs-twice",
               "level-invalid",
               "limit-invalid",
+              "line-fixed",
               "link-not-active",
               "link-not-valid",
               "locked",
@@ -16964,6 +17073,7 @@
               "metal-invalid",
               "method-invalid",
               "method-not-allowed",
+              "month-earlier",
               "month-invalid",
               "months-invalid",
               "move-invalid",
@@ -17042,6 +17152,7 @@
               "phrase-wrong",
               "place-missing",
               "plan-exists",
+              "plan-line-delete",
               "planned-elsewhere",
               "portfolio-unknown",
               "premium-invalid",
@@ -17074,7 +17185,6 @@
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
-              "reserve-balance",
               "reserve-unknown",
               "result-invalid",
               "right-invalid",
@@ -17322,6 +17432,7 @@
                   "legs-twice",
                   "level-invalid",
                   "limit-invalid",
+                  "line-fixed",
                   "link-not-active",
                   "link-not-valid",
                   "locked",
@@ -17337,6 +17448,7 @@
                   "metal-invalid",
                   "method-invalid",
                   "method-not-allowed",
+                  "month-earlier",
                   "month-invalid",
                   "months-invalid",
                   "move-invalid",
@@ -17415,6 +17527,7 @@
                   "phrase-wrong",
                   "place-missing",
                   "plan-exists",
+                  "plan-line-delete",
                   "planned-elsewhere",
                   "portfolio-unknown",
                   "premium-invalid",
@@ -17447,7 +17560,6 @@
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
-                  "reserve-balance",
                   "reserve-unknown",
                   "result-invalid",
                   "right-invalid",
@@ -25556,6 +25668,30 @@
         "title": "Point",
         "type": "object"
       },
+      "moolakata__ui__budgets__PlanOut": {
+        "additionalProperties": false,
+        "description": "The lines in force in a month, each as stored; a line of 0 is none.",
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "lines"
+        ],
+        "title": "PlanOut",
+        "type": "object"
+      },
       "moolakata__ui__education__ContributionOut": {
         "additionalProperties": false,
         "properties": {
@@ -30941,9 +31077,9 @@
       }
     },
     "/ui/api/budgets/{budget_id}/plan": {
-      "put": {
-        "description": "From the month given on, the plan is what the body lists; earlier months keep theirs.\nThe plan belongs to the budget, so it is made against the budget's version.",
-        "operationId": "set_plan_ui_api_budgets__budget_id__plan_put",
+      "get": {
+        "description": "The plan as it holds in a month, line by line as stored: what the plan dialog edits\n(S7.1.2), never the month's figures, which add carried amounts and moves to it.",
+        "operationId": "get_plan_ui_api_budgets__budget_id__plan_get",
         "parameters": [
           {
             "in": "path",
@@ -30956,31 +31092,21 @@
           },
           {
             "in": "query",
-            "name": "confirm",
-            "required": false,
+            "name": "month",
+            "required": true,
             "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
+              "pattern": "^\\d{4}-\\d{2}$",
+              "title": "Month",
+              "type": "string"
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Plan-Input"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MonthView"
+                  "$ref": "#/components/schemas/moolakata__ui__budgets__PlanOut"
                 }
               }
             },
@@ -30993,7 +31119,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "summary": "Set Plan",
+        "summary": "Get Plan",
         "tags": [
           "budgets"
         ]

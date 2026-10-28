@@ -7,11 +7,11 @@ import { html } from './html.js';
 import { Dec } from './dec.js';
 import { api, readLinked, whenSignedOut } from '../api/client.js';
 import { applyTheme, helpOpen, theme } from '../store/prefs.js';
-import { ended, loadSession, session } from '../store/session.js';
+import { ended, loadSession, lostChanges, session } from '../store/session.js';
 import { connect, disconnect } from './stream.js';
 import { PUBLIC_PATHS, PublicScreens, Screens, SetupScreen } from './router.js';
 import { Frame } from '../components/frame.js';
-import { DialogHost } from '../components/dialog.js';
+import { dialogHasChanges, DialogHost } from '../components/dialog.js';
 import { MenuHost } from '../components/menu.js';
 import { Toasts } from '../components/toast.js';
 import { installTooltips, TooltipHost } from '../components/tooltip.js';
@@ -39,6 +39,7 @@ const LinkedWindow = lazy(() => import('../screens/linked.js'));
 const LockedScreen = lazy(() => import('../screens/locked.js'));
 
 function signOutLocally(/** @type {string} */ why) {
+  lostChanges.value = dialogHasChanges();
   disconnect();
   session.value = null;
   ended.value = why || 'signed-out';

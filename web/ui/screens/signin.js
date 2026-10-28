@@ -6,7 +6,7 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
-import { ended, setSession } from '../store/session.js';
+import { ended, lostChanges, setSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
 
@@ -255,9 +255,10 @@ export default function SignIn() {
 
   return html`
     <${AuthCard} title="Sign in" guide="signin"
-      sub=${ended.value === 'expired'
-        ? 'Your session ended. Sign in again.'
-        : "Your household's finances, on your own server."}>
+      sub=${(lostChanges.value ? "Changes you hadn't saved were lost. " : '') +
+        (ended.value === 'expired'
+          ? 'Your session ended. Sign in again.'
+          : "Your household's finances, on your own server.")}>
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         signIn.run().catch(() => {});

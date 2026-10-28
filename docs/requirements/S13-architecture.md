@@ -165,11 +165,13 @@
    `/ui/api` and `/mcp`.
    1. **Resources and methods**: plural nouns (`/ui/api/accounts`, `/ui/api/accounts/{id}`).
       `GET` reads, `POST` creates, `PATCH` changes the fields it sends. `PUT` replaces
-      something that exists once for its parent (a loan's terms, a budget's plan, a
-      wallet's keys, an item's sale), creating it when it doesn't exist yet. An action that is
+      something that exists once for its parent (a loan's terms, a wallet's keys, an item's
+      sale), creating it when it doesn't exist yet. An action that is
       not a change of fields is a `POST` to a verb under the resource
-      (`/ui/api/links/{id}/pull`). The browser's dialogs save through one route instead
-      (S13.8.11), whose checks are the same as each record's own route.
+      (`/ui/api/links/{id}/pull`). Forms save through one route instead (S13.8.11): a kind
+      of record the save takes has no `PATCH`, `PUT` or `DELETE` of its own, only its reads
+      and its actions (a `POST` to a verb). The app is the API's only caller, so a kind's
+      own routes go when it moves to the save.
       1. **`DELETE`** soft-deletes (`schema.md` §4) and answers 200 with
          `{deleted, parent}`: `deleted` is what went (its id, or a pair's two keys joined by
          a slash, its `deletedAt` and its version), and `parent` is what it belonged to as it
@@ -244,7 +246,7 @@
       the protocol version the client and server agree on.
    10. **Visibility**: every read goes through the caller's shares (S10.3) and the soft-delete
        views (`schema.md` §4.2). A list never counts or hints at what the caller can't see.
-   11. **The save** (`POST /ui/api/save`): a browser dialog's draft (S12.15) in one request,
+   11. **The save** (`POST /ui/api/save`): a form's draft (S12.15) in one request,
        applied in one database transaction or not at all.
        1. **The request** is `{ops, confirm}`. Each op is `{op, entity, id, version, fields}`:
           `op` is `create`, `update` or `delete`; `entity` the record's prefix (`schema.md`
@@ -261,7 +263,7 @@
           prefix of what it refers to, refused the same way.
        3. **Applying.** Creates come first, then updates, then deletes, with foreign keys
           checked at the commit, so the order of the ops can't break a reference. Each op is
-          checked as its record's own route checks it: shares (S10.3), rules, versions.
+          checked by its kind: shares (S10.3), rules, versions.
           Deleting a record deletes what is deleted with it (`schema.md` §4).
        4. **Refusals.** Every op is checked and every refusal gathered before the transaction
           rolls back, each error naming its record's `id` beside its `field`, `code` and
@@ -273,7 +275,6 @@
           again with `confirm` (a list of `{code, id}`), it goes ahead only when every
           question it raises is in that list.
        6. **After the commit**, the live stream's events (S12.6), alerts and the work that
-          follows a change run once for the whole save, and Activity records each change as
-          its record's own route does.
+          follows a change run once for the whole save, and Activity records each change.
        7. **The answer** is 200 with each record the save touched: its id, its new version
           and the record as read, or, for a delete, what went (S13.8.1.1).

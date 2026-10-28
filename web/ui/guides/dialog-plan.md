@@ -41,3 +41,10 @@ The account a reserve's money is kept in, for **Where the money is**.
 
 For a savings line, an active projection: its monthly contribution shows beside the plan, so you see
 whether you put away what your plan assumes.
+
+## Saving
+
+Each line shows the plan as stored, never the month's figures with what carried over and the
+month's moves, so saving without a change changes nothing. A line changed holds from this month;
+**✕** takes it out from this month. If a reserve would stop while it holds money, saving asks
+first. Closing with changes asks before discarding them.

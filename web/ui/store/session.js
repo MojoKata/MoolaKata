@@ -10,6 +10,9 @@ export const session = signal(null);
  * for its recovery phrase, or a new one for its welcome, S15.4), 'needs-admin' (unlocked with
  * no users: the welcome's last step, S10.1.2), or '' while loading.
  */
+/** A session that ended, or a server that locked, while a dialog held changes: they were lost,
+ * and the sign-in or locked screen says so (S12.15.6). */
+export const lostChanges = signal(false);
 export const ended = signal('');
 
 export async function loadSession() {
