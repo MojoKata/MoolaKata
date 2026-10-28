@@ -79,3 +79,14 @@ def plan529(c, account_id: str, **values):
               "fields": {"accountId": account_id, **values}}  # fmt: skip
         return _save(c, op, False)
     return change(c, "EdPln", have, **values)
+
+
+def giving_plan(c, year: int, **values):
+    """A year's giving plan set as its dialog sets it (S7.9.1): made when there is none, else
+    changed."""
+    have = c.get("/ui/api/giving", params={"year": year}).json()["plan"]
+    if have is None:
+        op = {"op": "create", "entity": "GvPln", "id": new_id("GvPln"),
+              "fields": {"year": year, **values}}  # fmt: skip
+        return _save(c, op, False)
+    return change(c, "GvPln", have, **values)

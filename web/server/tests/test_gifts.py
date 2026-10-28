@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import plan529, remove, saved
+from edits import change, plan529, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -98,17 +98,8 @@ def test_upcoming_with_the_reminder_on_the_dashboard_and_as_an_alert(server, ali
         alice.get("/ui/api/gifts/upcoming").json()["items"][0]["missing"]
         == "1 idea, nothing bought"
     )
-    alice.patch(
-        f"/ui/api/gifts/{g['id']}",
-        json={
-            "people": [emma["id"]],
-            "occasion": "birthday",
-            "occasionYear": 2026,
-            "description": "Watercolour set",
-            "status": "bought",
-            "cost": "35",
-        },
-    )
+    saved(change(alice, "Gift", g, occasion="birthday", occasionYear=2026, status="bought",
+                 cost="35"))  # fmt: skip
     assert alice.get("/ui/api/gifts/upcoming").json()["items"][0]["planned"] == "35.00"
     alerts.evaluate(server)
     with server.db.read() as s:
@@ -257,8 +248,7 @@ def test_a_gifts_receipt_is_kept_with_it_and_can_be_taken_back(alice):
     up = alice.post(
         "/ui/api/receipts", files={"file": ("r.pdf", b"%PDF-1.4 r", "application/pdf")}
     ).json()
-    r = alice.post(f"/ui/api/gifts/{g['id']}/documents", json={"receiptId": up["id"]})
-    assert r.status_code == 200, r.text
+    saved(change(alice, "Gift", g, receiptIds={"add": [up["id"]], "remove": []}))
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
     [link] = alice.get(f"/ui/api/receipts/{up['id']}").json()["links"]
     assert link["kind"] == "gift" and link["label"] == "The gift Watercolour set"

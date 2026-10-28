@@ -353,7 +353,25 @@ def gift_plans(h: Household) -> dict:
                   "occasion": f"occasion:{grad['id']}", "occasionYear": 2027, "cost": "150"},
         )
     )  # fmt: skip
-    return {"emma": emma}
+    church = made(
+        h.c.post(
+            "/ui/api/giving/organisations",
+            json={"name": "St. Mark's Parish", "ein": "36-2167053", "causes": ["Faith"],
+                  "pledge": "200", "pledgeEvery": "month"},
+        )
+    )  # fmt: skip
+    made(
+        h.c.post(
+            "/ui/api/giving/donations",
+            json={"date": f"{months_back(1)}-02", "kind": "cash", "organisationId": church["id"],
+                  "amount": "300", "notes": "the harvest appeal"},
+        )
+    )  # fmt: skip
+    from edits import giving_plan, saved
+
+    saved(giving_plan(h.c, int(months_back(0)[:4]), percent="10", incomeBasis="gross",
+                      income="185000", dafCounted="granted"))  # fmt: skip
+    return {"emma": emma, "church": church}
 
 
 def transactions(h: Household) -> dict:

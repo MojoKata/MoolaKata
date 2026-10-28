@@ -60,6 +60,15 @@ def filings(h: Household) -> list:
     return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()["filings"]
 
 
+def giving_of(h: Household) -> tuple:
+    """The year's giving as read: the plan, the organisations, the donations."""
+    c = h.c
+    return (c.get("/ui/api/giving").json()["plan"],
+            c.get("/ui/api/giving/organisations").json()["items"],
+            c.get("/ui/api/giving/donations").json()["items"],
+            c.get("/ui/api/gifts").json()["items"])  # fmt: skip
+
+
 def book_of(h: Household) -> dict:
     """The tax book as read: its dependents and documents with it."""
     return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()
@@ -119,6 +128,34 @@ FORMS = [
         'h3:has-text("Form 1040") button:has-text("Edit")',
         'h3:has-text("Form 1040") button:has-text("Edit")',
         filings,
+    ),
+    Form(
+        "a gift planned for an occasion, with its cost",
+        lambda h: "/ui/gifts/gifts",
+        'tr.click:has-text("Watch")',
+        'tr.click:has-text("Watch")',
+        giving_of,
+    ),
+    Form(
+        "an organisation with causes and a monthly pledge",
+        lambda h: "/ui/giving/organisations",
+        'tr.click:has-text("St. Mark")',
+        'tr.click:has-text("St. Mark")',
+        giving_of,
+    ),
+    Form(
+        "a donation recorded, with its notes",
+        lambda h: "/ui/giving/donations",
+        'tr.click:has-text("St. Mark")',
+        'tr.click:has-text("St. Mark")',
+        giving_of,
+    ),
+    Form(
+        "the year's giving plan on gross income",
+        lambda h: "/ui/giving",
+        '.card a:has-text("Edit")',
+        '.card a:has-text("Edit")',
+        giving_of,
     ),
     Form(
         "a dependent with the months they lived with the filers",
@@ -527,5 +564,26 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
     page.click('.dialog footer button:has-text("Remove")')
     wait(page, ".dialog", problems, state="detached")
     assert "Rocket" not in {x["issuer"] for x in book_of(h)["received"]}
+    assert problems == []
+    page.close()
+
+
+# ---------- what the gifts' and giving's dialogs alone do ----------
+
+
+def test_a_donations_acknowledgement_is_kept_with_save(browser, household):
+    """Its file uploaded, the acknowledgement counts as received once the dialog saves."""
+    h = household
+    page, problems = signed_in(browser, h, "/ui/giving/donations", 'tr.click:has-text("St. Mark")')
+    page.click('tr.click:has-text("St. Mark")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.set_input_files("#f-ack-files", files=[
+        {"name": "ack.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 thank you"}
+    ])  # fmt: skip
+    wait(page, "text=1 acknowledgement to keep on Save", problems)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    (d,) = giving_of(h)[2]
+    assert d["acknowledged"]
     assert problems == []
     page.close()

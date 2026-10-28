@@ -9,8 +9,8 @@ import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Seg, Select, SwitchRow } from '../components/fields.js';
+import { openDialog } from '../components/dialog.js';
+import { Field, Input, Seg, Select } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -40,7 +40,6 @@ const TONE = /** @type {Record<string, string>} */ ({
   given: 'ok',
   received: '',
 });
-const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 
 /** @param {{ status: string }} p */
 function StatusPill({ status }) {
@@ -704,24 +703,33 @@ function History({ p }) {
   }`;
 }
 
-/** @param {any} g @param {any} start */
-function giftForm(g, start) {
-  return {
-    people: g ? g.people.map((/** @type {any} */ p) => p.id) : start?.people || [],
-    occasion: g
-      ? (g.occasion ? `${g.occasion}|${g.occasionYear}` : '')
-      : start?.occasion
-      ? `${start.occasion}|${start.occasionYear}`
-      : '',
-    description: g?.description || '',
-    status: g?.status || (start ? 'planned' : 'idea'),
-    cost: g?.cost || '',
-    transactionId: g?.paid?.transactionId || '',
-    store: g?.store || '',
-    link: g?.link || '',
-    notes: g?.notes || '',
-    cash: g?.cash || false,
-    thankYou: g?.thankYou || false,
+/** A gift (S7.8), as its dialog's draft edits it, its receipts kept with it. */
+class GiftRec extends Rec {
+  /** @override */
+  static prefix = 'Gift';
+  /** @override */
+  static fields = FIELDS.GiftRecord;
+  /** @override */
+  static defaults = {
+    occasion: null,
+    occasionYear: null,
+    status: 'idea',
+    cost: null,
+    transactionId: null,
+    store: null,
+    link: null,
+    notes: null,
+    cash: false,
+    thankYou: false,
+    receiptIds: [],
+  };
+  /** @override */
+  static rules = {
+    // A thank-you is for a gift received.
+    thankYou: {
+      when: (/** @type {GiftRec} */ r) => r.get('status') === 'received',
+      otherwise: false,
+    },
   };
 }
 
@@ -730,13 +738,31 @@ function GiftDialog({ close, gift, start }) {
   useDialogGuide('dialog-gift');
   const people = useList('/people');
   const buys = useList('/gifts/purchases');
-  const [f, setF] = useState(giftForm(gift, start));
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
+  const f = useDraft((draft) => {
+    if (gift) {
+      draft.load(GiftRec, {
+        ...gift,
+        people: gift.people.map((/** @type {any} */ p) => p.id),
+        transactionId: gift.paid?.transactionId ?? null,
+        receiptIds: gift.documents.map((/** @type {any} */ d) => d.id),
+      });
+      return;
+    }
+    draft.add(GiftRec, {
+      description: '',
+      people: start?.people || [],
+      occasion: start?.occasion || null,
+      occasionYear: start?.occasionYear || null,
+      status: start ? 'planned' : 'idea',
+    });
+  }, [gift?.id]);
+  const rec = /** @type {GiftRec | undefined} */ (f.draft?.records[0]);
   const list = /** @type {any[]} */ (people.data) || [];
   const canWrite = !gift || gift.canWrite;
   const year = thisYear();
+  const who = /** @type {string[]} */ (rec?.get('people') || []);
   // The occasions of the chosen people, this year and next.
-  const chosen = list.filter((p) => f.people.includes(p.id));
+  const chosen = list.filter((p) => who.includes(p.id));
   /** @type {[string, string][]} */
   const occasions = [['', 'No date (an idea)']];
   for (const y of [year, year + 1]) {
@@ -750,161 +776,125 @@ function GiftDialog({ close, gift, start }) {
     }
     for (const [k, l] of keys) occasions.push([`${k}|${y}`, `${l} ${y}`]);
   }
-  if (f.occasion && !occasions.some(([k]) => k === f.occasion)) {
-    occasions.push([
-      f.occasion,
-      `${gift?.occasionLabel || 'Occasion'} ${f.occasion.split('|')[1]}`,
-    ]);
+  const occasion = rec?.get('occasion') ? `${rec.get('occasion')}|${rec.get('occasionYear')}` : '';
+  if (occasion && !occasions.some(([k]) => k === occasion)) {
+    occasions.push([occasion, `${gift?.occasionLabel || 'Occasion'} ${rec?.get('occasionYear')}`]);
   }
-  const save = useSubmit(async () => {
-    const [occ, y] = f.occasion ? f.occasion.split('|') : [null, null];
-    const body = {
-      people: f.people,
-      occasion: occ,
-      occasionYear: y ? Number(y) : null,
-      description: f.description,
-      status: f.status,
-      cost: clean(f.cost) || null,
-      transactionId: f.transactionId || null,
-      store: f.store || null,
-      link: f.link || null,
-      notes: f.notes || null,
-      cash: f.cash,
-      thankYou: f.thankYou,
-    };
-    const out = gift
-      ? await api.patch(`/gifts/${gift.id}`, body, gift.version)
-      : await api.post('/gifts', body);
-    toast('Gift saved');
-    close(out);
-  });
-  const remove = useSubmit(async () => {
-    await api.del(`/gifts/${gift.id}`, gift.version);
-    toast('Gift deleted');
-    close(true);
-  });
   const [busy, setBusy] = useState(false);
+  const ids = /** @type {string[]} */ (rec?.get('receiptIds') || []);
   const send = async (/** @type {FileList} */ files) => {
     setBusy(true);
-    for (const r of await uploadAll(files)) {
-      await api.post(`/gifts/${gift.id}/documents`, { receiptId: r.id });
+    try {
+      const made = await uploadAll(files);
+      rec?.set('receiptIds', [...ids, ...made.map((r) => r.id)]);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    toast('Receipt kept with the gift');
   };
-  const e = save.error;
-  const received = f.status === 'received';
+  const received = rec?.get('status') === 'received';
   return html`
-    <${Dialog} title=${gift ? gift.description : 'Add a gift'} close=${close} onSubmit=${() =>
-      canWrite && save.run().catch(() => {})}
-      footer=${html`${
+    <${DraftDialog} f=${f} close=${close} what="This gift" hideSave=${!canWrite}
+      title=${gift ? gift.description : 'Add a gift'}
+      done=${rec?.removed ? 'Gift deleted' : 'Gift saved'}
+      extra=${({ save }) =>
         gift && canWrite
           ? html`
-            <button type="button" class="btn danger" onClick=${() =>
-              remove.run().catch(() => {})}>Delete</button><span
-              class="spacer"></span>
+            <button type="button" class="btn danger" disabled=${save.busy}
+              onClick=${async () => {
+                if (!rec || !f.draft) return;
+                f.draft.remove(rec);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'saved') f.draft.unremove(rec);
+              }}>Delete</button><span class="spacer"></span>
           `
-          : null
-      }${canWrite ? html`<button class="btn primary" disabled=${save.busy}>Save</button>` : null}`}>
-      <fieldset disabled=${!canWrite} style=${{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <div class="field" data-help="status" id="x-status"><label>Status</label>
-          <${Seg} label="Status" value=${f.status} onChange=${set(
-            'status',
-          )} options=${STATUS} /></div>
-        <${Field} label=${received ? 'From' : 'For'} id="people" error=${errAt(e, 'people')}
-          hint=${received ? '' : 'One or more people.'}>
-          <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))} value=${f
-            .people}
-            onChange=${(/** @type {any} */ ev) =>
-              set('people')([...ev.currentTarget.selectedOptions].map((o) => o.value))}>
-            ${list.map((p) =>
-              html`<option value=${p.id} selected=${f.people.includes(p.id)}>${p.name}</option>`
-            )}</select></${Field}>
-        <${Field} label="Occasion" error=${errAt(e, 'occasionYear')}>
-          <${Select} value=${f.occasion} onChange=${set(
-            'occasion',
-          )} options=${occasions} /></${Field}>
-        <${Field} label="Description" error=${errAt(e, 'description')}><${Input}
-          value=${f.description} onInput=${set('description')} required
-          placeholder="Watercolour set" /></${Field}>
-        ${received
-          ? html`
-            <${SwitchRow} label="Thank-you sent" on=${f.thankYou}
-              onChange=${set('thankYou')} />
-          `
-          : html`
-            <div class="row">
-              <${Field} label="Cost" error=${errAt(e, 'cost')}>
-                <${Input} value=${f.cost}
-                  onInput=${set('cost')} inputmode="decimal" />
-                </${Field}>
-                <${Field} label="Paid with" id="paid-with" error=${errAt(e, 'transactionId')}
-                  hint="Its transaction; one purchase can pay for several gifts.">
-                  <${Select} value=${f.transactionId} onChange=${(/** @type {string} */ x) => {
-                    const t = (/** @type {any[]} */ (buys.data) || []).find((b) =>
-                      b.transactionId === x
-                    );
-                    setF({
-                      ...f,
-                      transactionId: x,
-                      cost: f.cost || (t ? String(dec(t.amount).neg()) : ''),
-                    });
-                  }} options=${[
-                    ['', 'Typed, or not bought yet'],
-                    ...(gift?.paid &&
-                        !(/** @type {any[]} */ (buys.data) || []).some((b) =>
-                          b.transactionId === gift.paid.transactionId
-                        )
-                      ? [[
-                        gift.paid.transactionId,
-                        `${gift.paid.payee || 'Purchase'} · ${
-                          date(
-                            gift.paid.date,
-                          )
-                        }`,
-                      ]]
-                      : []),
-                    ...(/** @type {any[]} */ (buys.data) || []).map((b) => [
-                      b.transactionId,
-                      `${b.payee || 'Purchase'} · ${date(b.date)} · ${b.accountName} ${b.amount}`,
-                    ]),
-                  ]} />
-                  </${Field}>
-                  </div>
-                  <${SwitchRow} label="Given in money"
-                    hint="Cash or a cheque: counted against the annual gift exclusion."
-                    on=${f.cash} onChange=${set('cash')} />
-                  <div class="row">
-                    <${Field} label="Where bought" id="store" error=${errAt(e, 'store')}>
-                      <${Input}
-                        value=${f.store} onInput=${set('store')} />
-                      </${Field}>
-                      <${Field} label="Link" error=${errAt(e, 'link')}>
-                        <${Input} value=${f.link}
-                          onInput=${set('link')} placeholder="https://" />
-                        </${Field}>
-                        </div>
-          `}
-        <${Field} label="Notes" error=${errAt(e, 'notes')}><textarea class="in" rows="2"
-          value=${f.notes} onInput=${(/** @type {any} */ ev) =>
-            set('notes')(ev.currentTarget.value)}></textarea></${Field}>
-        <${FormError} error=${e} />
-      </fieldset>
-      ${gift && canWrite
+          : null}>
+      ${rec
         ? html`
-          <div
-            class="toolbar"><label class="btn sm" for="f-gift-files"><${Icon} name="clip" /> ${busy
-              ? 'Uploading…'
-              : `Attach a receipt${
-                gift.documents.length ? ` (${gift.documents.length})` : ''
-              }`}</label><input
-                    id="f-gift-files" class="sr-only" type="file" multiple accept=${ACCEPT} data-help="receipts"
-                    onChange=${(/** @type {any} */ ev) => {
-                      send(ev.currentTarget.files);
-                      ev.currentTarget.value = '';
-                    }} /></div>
+          <fieldset disabled=${!canWrite} style=${{
+            border: 0,
+            padding: 0,
+            margin: 0,
+            minWidth: 0,
+          }}>
+            <div class="field" data-help="status" id="x-status"><label>Status</label>
+              <${Seg} label="Status" value=${rec.get('status')} onChange=${(
+                /** @type {string} */ v,
+              ) => rec.set('status', v)} options=${STATUS} /></div>
+            <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
+              hint=${received ? '' : 'One or more people.'}>
+              <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))}
+                onChange=${(/** @type {any} */ ev) =>
+                  rec.set('people', [...ev.currentTarget.selectedOptions].map((o) => o.value))}>
+                ${list.map((p) =>
+                  html`<option value=${p.id} selected=${who.includes(p.id)}>${p.name}</option>`
+                )}</select></${Field}>
+            <${Field} label="Occasion" error=${rec.error('occasionYear')}>
+              <${Select} value=${occasion} onChange=${(/** @type {string} */ v) => {
+                const [occ, y] = v ? v.split('|') : [null, null];
+                rec.set('occasion', occ);
+                rec.set('occasionYear', y ? Number(y) : null);
+              }} options=${occasions} /></${Field}>
+            <${RecField} rec=${rec} name="description" label="Description"
+              placeholder="Watercolour set" />
+            ${received
+              ? html`<${RecField} rec=${rec} name="thankYou" label="Thank-you sent" />`
+              : html`
+                <div class="row">
+                  <${RecField} rec=${rec} name="cost" label="Cost" />
+                  <${Field} label="Paid with" id="paid-with" error=${rec.error('transactionId')}
+                    hint="Its transaction; one purchase can pay for several gifts.">
+                    <${Select} value=${rec.get('transactionId') || ''} onChange=${(
+                      /** @type {string} */ x,
+                    ) => {
+                      const t = (/** @type {any[]} */ (buys.data) || []).find((b) =>
+                        b.transactionId === x
+                      );
+                      rec.set('transactionId', x || null);
+                      if (rec.get('cost') == null && t) {
+                        rec.set('cost', dec(t.amount).neg(), 'transactionId');
+                      }
+                    }} options=${[
+                      ['', 'Typed, or not bought yet'],
+                      ...(gift?.paid &&
+                          !(/** @type {any[]} */ (buys.data) || []).some((b) =>
+                            b.transactionId === gift.paid.transactionId
+                          )
+                        ? [[
+                          gift.paid.transactionId,
+                          `${gift.paid.payee || 'Purchase'} · ${date(gift.paid.date)}`,
+                        ]]
+                        : []),
+                      ...(/** @type {any[]} */ (buys.data) || []).map((b) => [
+                        b.transactionId,
+                        `${b.payee || 'Purchase'} · ${date(b.date)} · ${b.accountName} ${b.amount}`,
+                      ]),
+                    ]} />
+                    </${Field}>
+                    </div>
+                    <${RecField} rec=${rec} name="cash" label="Given in money"
+                      hint="Cash or a cheque: counted against the annual gift exclusion." />
+                    <div class="row">
+                      <${RecField} rec=${rec} name="store" label="Where bought" id="store" />
+                      <${RecField} rec=${rec} name="link" label="Link" placeholder="https://" />
+                    </div>
+              `}
+            <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
+          </fieldset>
+          ${gift && canWrite
+            ? html`
+              <div class="toolbar"><label class="btn sm" for="f-gift-files"><${Icon}
+                name="clip" /> ${busy
+                  ? 'Uploading…'
+                  : `Attach a receipt${ids.length ? ` (${ids.length})` : ''}`}</label><input
+                  id="f-gift-files" class="sr-only" type="file" multiple accept=${ACCEPT}
+                  data-help="receipts" onChange=${(/** @type {any} */ ev) => {
+                    send(ev.currentTarget.files);
+                    ev.currentTarget.value = '';
+                  }} /></div>
+            `
+            : null}
         `
         : null}
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }

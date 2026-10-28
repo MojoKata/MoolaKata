@@ -481,6 +481,29 @@ def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -
     row.mark_deleted(user_id, clock.now())
 
 
+def keep_set(s: Session, user_id: str, kind: str, item_id: str, was, now) -> None:
+    """The receipts kept with a gift or a donation, as its draft's set (S9.6): those added are
+    attached, those taken away detached."""
+    for receipt_id in sorted(set(now) - set(was)):
+        r = to_attach(s, user_id, receipt_id, "receiptIds")
+        row = s.get(ReceiptLink, (r.id, kind, item_id))
+        if row is None:
+            s.add(
+                ReceiptLink(
+                    receiptId=r.id,
+                    kind=kind,
+                    itemId=item_id,
+                    createdAt=clock.now(),
+                    linkedById=user_id,
+                )
+            )
+        elif row.deleted:
+            row.restore()
+    for receipt_id in sorted(set(was) - set(now)):
+        r, _ = get(s, user_id, receipt_id)
+        detach_kept(s, user_id, r, kind, item_id)
+
+
 def detach(s: Session, user_id: str, r: Receipt, transaction_id: str) -> None:
     t = s.get(Transaction, transaction_id)
     if t is not None:

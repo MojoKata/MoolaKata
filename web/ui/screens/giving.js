@@ -2,21 +2,22 @@
 // organisations, and the donor-advised fund.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { api } from '../api/client.js';
-import { useApi, useList, useSubmit } from '../app/hooks.js';
+import { useApi, useList } from '../app/hooks.js';
 import { date, money, quantity, thisYear, today } from '../app/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Seg, Select, SwitchRow } from '../components/fields.js';
+import { openDialog } from '../components/dialog.js';
+import { Field, Seg, Select } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
-import { toast } from '../components/toast.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
-import { dec, num } from '../app/dec.js';
+import { Dec, dec, num } from '../app/dec.js';
+import { Record as Rec } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
@@ -32,7 +33,6 @@ const KINDS = /** @type {[string, string][]} */ ([
   ['daf-contribution', 'Into a donor-advised fund'],
   ['daf-grant', 'Grant from a donor-advised fund'],
 ]);
-const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 
 /** @param {{ tab?: string }} p */
 export default function Giving({ tab }) {
@@ -411,81 +411,116 @@ function Fund({ v, year }) {
   `;
 }
 
+/** A year's giving plan (S7.9.1). */
+class GivingPlanRec extends Rec {
+  /** @override */
+  static prefix = 'GvPln';
+  /** @override */
+  static fields = FIELDS.GivingPlanRecord;
+  /** @override */
+  static defaults = {
+    targetKind: 'percent',
+    percent: Dec.parse('10'),
+    amount: null,
+    incomeBasis: 'take-home',
+    income: null,
+    dafCounted: 'funded',
+  };
+  /** @override */
+  static rules = {
+    percent: { when: (/** @type {GivingPlanRec} */ r) => r.get('targetKind') === 'percent' },
+    amount: { when: (/** @type {GivingPlanRec} */ r) => r.get('targetKind') === 'amount' },
+    income: { when: (/** @type {GivingPlanRec} */ r) => r.get('incomeBasis') !== 'take-home' },
+  };
+}
+
 /** @param {{ close: (v?: any) => void, v: any }} p */
 function PlanDialog({ close, v }) {
   useDialogGuide('dialog-giving-plan');
-  const p = v.plan;
-  const [f, setF] = useState({
-    targetKind: p?.targetKind || 'percent',
-    percent: p?.percent ? String(p.percent) : '10',
-    amount: p?.amount || '',
-    incomeBasis: p?.incomeBasis || 'take-home',
-    income: p?.income || '',
-    dafCounted: p?.dafCounted || 'funded',
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const save = useSubmit(async () => {
-    await api.put('/giving/plan', {
-      year: v.year,
-      targetKind: f.targetKind,
-      percent: f.targetKind === 'percent' ? clean(f.percent) : null,
-      amount: f.targetKind === 'amount' ? clean(f.amount) : null,
-      incomeBasis: f.incomeBasis,
-      income: f.incomeBasis === 'take-home' ? null : clean(f.income),
-      dafCounted: f.dafCounted,
-    }, p?.version ?? 0);
-    toast('Giving plan saved');
-    close(true);
-  });
-  const e = save.error;
+  const f = useDraft((draft) => {
+    if (v.plan) draft.load(GivingPlanRec, v.plan);
+    else draft.add(GivingPlanRec, { year: v.year });
+  }, [v.plan?.id]);
+  const rec = /** @type {GivingPlanRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title=${`Giving plan ${v.year}`} close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <div class="field" data-help="target-kind" id="x-target-kind"><label>Target</label>
-        <${Seg} label="Target" value=${f.targetKind} onChange=${set('targetKind')} options=${[
-          ['percent', 'Percent of income'],
-          ['amount', 'A fixed amount'],
-        ]} /></div>
-      ${f.targetKind === 'percent'
+    <${DraftDialog} f=${f} title=${`Giving plan ${v.year}`} close=${close} what="This plan"
+      done="Giving plan saved">
+      ${rec
         ? html`
-          <div class="row">
-            <${Field} label="Percent of income" id="percent" error=${errAt(e, 'percent')}>
-              <${Input} value=${f.percent} onInput=${set('percent')} inputmode="decimal" />
-              </${Field}>
-              <${Field} label="Income" id="income-basis" error=${errAt(e, 'incomeBasis')}>
-                      <${Select} value=${f.incomeBasis} onChange=${set('incomeBasis')} options=${[
-                        ['take-home', 'Income transactions (take-home)'],
-                        ['gross', 'Gross income, typed'],
-                        ['agi', 'AGI estimate, typed'],
-                      ]} /></${Field}>
-                  </div>
-                  ${f.incomeBasis === 'take-home' ? null : html`
-                    <${Field} label=${f.incomeBasis === 'gross' ? 'Gross income' : 'AGI estimate'}
-                      id="income" error=${errAt(
-                        e,
-                        'income',
-                      )} hint="From your W-2, pay stubs or last return.">
-                      <${Input} value=${f.income} onInput=${set('income')} inputmode="decimal" />
-                      </${Field}>
-                  `}
+          <div class="field" data-help="target-kind" id="x-target-kind"><label>Target</label>
+            <${Seg} label="Target" value=${rec.get('targetKind')} onChange=${(
+              /** @type {string} */ x,
+            ) => rec.set('targetKind', x)} options=${[
+              ['percent', 'Percent of income'],
+              ['amount', 'A fixed amount'],
+            ]} /></div>
+          ${rec.get('targetKind') === 'percent'
+            ? html`
+              <div class="row">
+                <${RecField} rec=${rec} name="percent" label="Percent of income" id="percent" />
+                <${RecField} rec=${rec} name="incomeBasis" label="Income" id="income-basis"
+                  options=${[
+                    ['take-home', 'Income transactions (take-home)'],
+                    ['gross', 'Gross income, typed'],
+                    ['agi', 'AGI estimate, typed'],
+                  ]} />
+              </div>
+              <${RecField} rec=${rec} name="income" id="income"
+                label=${rec.get('incomeBasis') === 'gross' ? 'Gross income' : 'AGI estimate'}
+                hint="From your W-2, pay stubs or last return." />
+            `
+            : html`<${RecField} rec=${rec} name="amount" label="Target amount" id="amount" />`}
+          <${RecField} rec=${rec} name="dafCounted" label="Count the donor-advised fund"
+            id="daf-counted" hint="Either way, a dollar through the fund counts once."
+            options=${[
+              ['funded', 'When it is funded'],
+              ['granted', 'When it grants'],
+            ]} />
         `
-        : html`
-          <${Field} label="Target amount" id="amount" error=${errAt(e, 'amount')}>
-            <${Input} value=${f.amount} onInput=${set('amount')} inputmode="decimal" />
-            </${Field}>
-        `}
-      <${Field} label="Count the donor-advised fund" id="daf-counted" error=${errAt(
-        e,
-        'dafCounted',
-      )} hint="Either way, a dollar through the fund counts once.">
-        <${Select} value=${f.dafCounted} onChange=${set('dafCounted')} options=${[
-          ['funded', 'When it is funded'],
-          ['granted', 'When it grants'],
-        ]} /></${Field}>
-      <${FormError} error=${e} />
-    </${Dialog}>
+        : null}
+    </${DraftDialog}>
   `;
+}
+
+/** A donation (S7.9.2): recorded whole, then changed after the fact. */
+class DonationRec extends Rec {
+  /** @override */
+  static prefix = 'Dnatn';
+  /** @override */
+  static fields = FIELDS.DonationRecord;
+  /** @override */
+  static defaults = {
+    organisationId: null,
+    amount: null,
+    description: null,
+    transactionId: null,
+    fromAccountId: null,
+    dafAccountId: null,
+    lotId: null,
+    quantity: null,
+    acknowledged: false,
+    granted: null,
+    notes: null,
+    receiptIds: [],
+  };
+  /** @override */
+  static rules = {
+    organisationId: {
+      when: (/** @type {DonationRec} */ r) => r.get('kind') !== 'daf-contribution',
+    },
+    dafAccountId: {
+      when: (/** @type {DonationRec} */ r) =>
+        ['daf-contribution', 'daf-grant'].includes(r.get('kind')),
+    },
+    description: { when: (/** @type {DonationRec} */ r) => r.get('kind') === 'goods' },
+    // A grant recorded is a grant made.
+    granted: {
+      when: (/** @type {DonationRec} */ r) => r.get('kind') === 'daf-grant',
+      setWhen: (/** @type {DonationRec} */ r) =>
+        r.state === 'new' && r.get('kind') === 'daf-grant' && r.get('granted') == null,
+      value: true,
+    },
+  };
 }
 
 /** @param {{ close: (v?: any) => void, from?: any }} p */
@@ -493,27 +528,25 @@ function DonationDialog({ close, from }) {
   useDialogGuide('dialog-donation');
   const orgs = useList('/giving/organisations');
   const accounts = useList('/accounts');
-  const [f, setF] = useState({
-    kind: 'cash',
-    organisationId: '',
-    date: from?.date || today(),
-    amount: from?.amount || '',
-    description: '',
-    fromAccountId: '',
-    dafAccountId: '',
-    lotId: '',
-    quantity: '',
-    acknowledged: false,
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
+  const f = useDraft((draft) => {
+    const d = draft.add(DonationRec, {
+      kind: 'cash',
+      date: from?.date || today(),
+      transactionId: from?.transactionId || null,
+    });
+    if (from?.amount) d.input('amount', String(from.amount));
+  }, []);
+  const rec = /** @type {DonationRec | undefined} */ (f.draft?.records[0]);
+  // The lot chosen, with its price for the shares' market value.
+  const [lot, setLot] = useState('');
+  const kind = rec?.get('kind') || 'cash';
+  const fromId = rec?.get('fromAccountId') || '';
   const all = /** @type {any[]} */ (accounts.data) || [];
   const writable = all.filter((a) => a.active && ['owner', 'write'].includes(a.level));
   const funds = writable.filter((a) => a.type === 'daf');
-  const shares = f.kind === 'securities' ||
-    (f.kind === 'daf-contribution' && writable.find((a) => a.id === f.fromAccountId)?.investing);
-  const holdings = useApi(
-    shares && f.fromAccountId ? `/accounts/${f.fromAccountId}/holdings` : null,
-  );
+  const shares = kind === 'securities' ||
+    (kind === 'daf-contribution' && writable.find((a) => a.id === fromId)?.investing);
+  const holdings = useApi(shares && fromId ? `/accounts/${fromId}/holdings` : null);
   /** @type {[string, string][]} */
   const lots = [];
   for (const h of /** @type {any} */ (holdings.data)?.holdings || []) {
@@ -527,167 +560,128 @@ function DonationDialog({ close, from }) {
       ]);
     }
   }
-  const [lotId, price] = f.lotId.split('|');
-  const sources = f.kind === 'securities'
+  const price = lot.split('|')[1];
+  const sources = kind === 'securities'
     ? writable.filter((a) => a.investing && a.type !== 'daf')
-    : f.kind === 'qcd'
+    : kind === 'qcd'
     ? writable.filter((a) => ['ira', '401k', '403b', '457b'].includes(a.type))
     : writable.filter((a) => a.type !== 'daf' && (a.group === 'banking' || a.investing));
-  const save = useSubmit(async () => {
-    const body = {
-      date: f.date,
-      kind: f.kind,
-      organisationId: f.kind === 'daf-contribution' ? null : f.organisationId || null,
-      amount: clean(f.amount) || null,
-      description: f.description || null,
-      transactionId: from?.transactionId || null,
-      fromAccountId: from ? null : f.fromAccountId || null,
-      dafAccountId: ['daf-contribution', 'daf-grant'].includes(f.kind)
-        ? f.dafAccountId || null
-        : null,
-      lotId: shares ? lotId || null : null,
-      quantity: shares ? clean(f.quantity) || null : null,
-      acknowledged: f.acknowledged,
-      granted: f.kind === 'daf-grant' ? true : null,
-    };
-    const out = await api.post('/giving/donations', body, { idempotent: true });
-    toast('Donation recorded');
-    close(out);
-  });
-  const e = save.error;
   return html`
-    <${Dialog} title=${from ? `Record ${from.name}` : 'Record a donation'} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Type" id="kind" error=${errAt(e, 'kind')}>
-        <${Select} value=${f.kind} onChange=${set('kind')} options=${from
-          ? KINDS.filter(([k]) => k === 'cash')
-          : KINDS} />
-        </${Field}>
-        <div class="row">
-        ${f.kind === 'daf-contribution' ? null : html`
-          <${Field} label="Organisation" id="organisation" error=${errAt(
-            e,
-            'organisationId',
-          )}>
-            <${Select} value=${f.organisationId} onChange=${set('organisationId')} options=${[
-              ['', 'Choose…'],
-              ...(/** @type {any[]} */ (orgs.data) || []).map((o) => [o.id, o.name]),
-            ]} />
-            </${Field}>
-        `}
-        <${Field} label="Date" error=${errAt(e, 'date')}><${Input} type="date" value=${f.date}
-          onInput=${set('date')} /></${Field}>
-      </div>
-      ${['daf-contribution', 'daf-grant'].includes(f.kind)
+    <${DraftDialog} f=${f} title=${from ? `Record ${from.name}` : 'Record a donation'}
+      close=${close} what="This donation" done="Donation recorded" before=${() => {
+        // Shares come from a lot; money and goods from no lot.
+        if (!shares && rec) rec.set('lotId', null);
+        if (!shares && rec) rec.set('quantity', null);
+      }}>
+      ${rec
         ? html`
-          <${Field} label="Donor-advised fund" id="fund" error=${errAt(e, 'dafAccountId')}>
-            <${Select} value=${f.dafAccountId} onChange=${set('dafAccountId')} options=${[
+          <${RecField} rec=${rec} name="kind" label="Type" id="kind"
+            options=${from ? KINDS.filter(([k]) => k === 'cash') : KINDS} />
+          <div class="row">
+            <${RecField} rec=${rec} name="organisationId" label="Organisation"
+              id="organisation" options=${[
+                ['', 'Choose…'],
+                ...(/** @type {any[]} */ (orgs.data) || []).map((o) => [o.id, o.name]),
+              ]} />
+            <${RecField} rec=${rec} name="date" label="Date" type="date" />
+          </div>
+          <${RecField} rec=${rec} name="dafAccountId" label="Donor-advised fund" id="fund"
+            options=${[
               ['', funds.length ? 'Choose…' : 'Add one as an account first'],
               ...funds.map((a) => [a.id, a.name]),
             ]} />
-            </${Field}>
-        `
-        : null}
-      ${from || f.kind === 'goods' || f.kind === 'daf-grant' ? null : html`
-        <${Field} label="From account" id="from-account" error=${errAt(e, 'fromAccountId')}
-          hint=${f.kind === 'cash'
-            ? 'Its withdrawal is recorded, categorised Giving. Leave it for one already imported.'
-            : ''}>
-          <${Select} value=${f.fromAccountId} onChange=${set('fromAccountId')} options=${[
-            ['', f.kind === 'cash' ? 'Not recorded here' : 'Choose…'],
-            ...sources.map((a) => [a.id, a.name]),
-          ]} />
-          </${Field}>
-      `}
-      ${shares
-        ? html`
-          <${Field} label="From lot" id="lot" error=${errAt(e, 'lotId')}>
-            <${Select} value=${f.lotId} onChange=${set('lotId')} options=${[
-              ['', lots.length ? 'Choose…' : 'No lots in that account'],
-              ...lots,
-            ]} />
-            </${Field}>
-            <div class="row">
-              <${Field} label="Shares" id="quantity" error=${errAt(e, 'quantity')}>
-                <${Input}
-                  value=${f.quantity} onInput=${(/** @type {string} */ x) =>
-                    setF({
-                      ...f,
-                      quantity: x,
-                      amount: price && /^\d+(\.\d+)?$/.test(x.trim()) && Number(x)
-                        ? String(dec(price).mul(x.trim()).round(2))
-                        : f.amount,
-                    })} inputmode="decimal" />
+          ${from || kind === 'goods' || kind === 'daf-grant' ? null : html`
+            <${RecField} rec=${rec} name="fromAccountId" label="From account" id="from-account"
+              hint=${kind === 'cash'
+                ? 'Its withdrawal is recorded, categorised Giving. Leave it for one already imported.'
+                : ''} options=${[
+                ['', kind === 'cash' ? 'Not recorded here' : 'Choose…'],
+                ...sources.map((a) => [a.id, a.name]),
+              ]} />
+          `}
+          ${shares
+            ? html`
+              <${Field} label="From lot" id="lot" error=${rec.error('lotId')}>
+                <${Select} value=${lot} onChange=${(/** @type {string} */ x) => {
+                  setLot(x);
+                  rec.set('lotId', x.split('|')[0] || null);
+                }} options=${[
+                  ['', lots.length ? 'Choose…' : 'No lots in that account'],
+                  ...lots,
+                ]} />
                 </${Field}>
-                <${Field} label="Market value" id="amount" error=${errAt(e, 'amount')}
-                  hint="On the day given.">
-                  <${Input} value=${f.amount} onInput=${set('amount')}
-                    inputmode="decimal" />
-                  </${Field}>
-                  </div>
-                  <div class="notice" style=${{ marginBottom: '12px' }}>
-                    <${Icon} name="info" />
-                    <div>No gain
-                      is realized on donated shares. Held over a year, the deduction is the market value;
-                      otherwise it is the basis.</div>
-                  </div>
-        `
-        : html`
-          <${Field} label=${f.kind === 'goods' ? 'Fair market value' : 'Amount'} id="amount"
-            error=${errAt(e, 'amount')}>
-            <${Input} value=${f.amount} onInput=${set('amount')}
-              inputmode="decimal" />
-            </${Field}>
-        `}
-      ${f.kind === 'goods'
-        ? html`
-          <${Field} label="What was given" id="description" error=${errAt(
-            e,
-            'description',
-          )}>
-            <${Input} value=${f.description} onInput=${set('description')}
-              placeholder="Two bags of clothes" />
-            </${Field}>
+                <div class="row">
+                  <${RecField} rec=${rec} name="quantity" label="Shares" id="quantity"
+                    onEdit=${() => {
+                      const q = rec.get('quantity');
+                      if (price && q != null) {
+                        rec.set('amount', dec(price).mul(Dec.of(q)).round(2), 'quantity');
+                      }
+                    }} />
+                  <${RecField} rec=${rec} name="amount" label="Market value" id="amount"
+                    hint="On the day given." />
+                </div>
+                <div class="notice" style=${{ marginBottom: '12px' }}>
+                  <${Icon} name="info" />
+                  <div>No gain is realized on donated shares. Held over a year, the deduction is
+                  the market value; otherwise it is the basis.</div>
+                </div>
+            `
+            : html`
+              <${RecField} rec=${rec} name="amount" id="amount"
+                label=${kind === 'goods' ? 'Fair market value' : 'Amount'} />
+            `}
+          <${RecField} rec=${rec} name="description" label="What was given" id="description"
+            placeholder="Two bags of clothes" />
+          <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received"
+            hint="A written acknowledgement is needed for any single gift of $250 or more." />
         `
         : null}
-      <${SwitchRow} label="Acknowledgement received"
-        hint="A written acknowledgement is needed for any single gift of $250 or more."
-        on=${f.acknowledged} onChange=${set('acknowledged')} />
-      <${FormError} error=${e} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 
-/** A recorded donation: its acknowledgement, a grant paid. */
-/** @param {{ close: (v?: any) => void, d: any }} p */
+/**
+ * A recorded donation: what changes after the fact, its acknowledgement and a grant paid,
+ * edited in a draft and saved with Save.
+ * @param {{ close: (v?: any) => void, d: any }} p
+ */
 function DonationView({ close, d }) {
   useDialogGuide('dialog-donation');
+  const f = useDraft((draft) => {
+    draft.load(DonationRec, { ...d, receiptIds: [] });
+  }, [d.id]);
+  const rec = /** @type {DonationRec | undefined} */ (f.draft?.records[0]);
   const [busy, setBusy] = useState(false);
+  const [kept, setKept] = useState(0);
   const send = async (/** @type {FileList} */ files) => {
+    if (!rec) return;
     setBusy(true);
-    for (const r of await uploadAll(files)) {
-      await api.post(`/giving/donations/${d.id}/acknowledgement`, { receiptId: r.id });
+    try {
+      const made = await uploadAll(files);
+      rec.set('receiptIds', [...(rec.get('receiptIds') || []), ...made.map((r) => r.id)]);
+      if (made.length) rec.set('acknowledged', true, 'receiptIds');
+      setKept(kept + made.length);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    toast('Acknowledgement kept');
-    close(true);
   };
-  const flip = useSubmit(async (/** @type {any} */ change) => {
-    await api.patch(`/giving/donations/${d.id}`, change, d.version);
-    toast('Saved');
-    close(true);
-  });
-  const remove = useSubmit(async () => {
-    await api.del(`/giving/donations/${d.id}`, d.version);
-    toast('Donation deleted');
-    close(true);
-  });
   return html`
-    <${Dialog} title=${`${d.kindLabel} · ${d.name}`} close=${close} footer=${d.canWrite
-      ? html`<button type="button" class="btn danger" onClick=${() =>
-        remove.run().catch(() => {})}>Delete</button>`
-      : null}>
+    <${DraftDialog} f=${f} title=${`${d.kindLabel} · ${d.name}`} close=${close}
+      what="This donation" hideSave=${!d.canWrite}
+      done=${rec?.removed ? 'Donation deleted' : 'Saved'}
+      extra=${({ save }) =>
+        d.canWrite
+          ? html`
+            <button type="button" class="btn danger" disabled=${save.busy}
+              onClick=${async () => {
+                if (!rec || !f.draft) return;
+                f.draft.remove(rec);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'saved') f.draft.unremove(rec);
+              }}>Delete</button><span class="spacer"></span>
+          `
+          : null}>
       <div class="list-item"><span class="grow dim">Date</span>${date(d.date)}</div>
       <div class="list-item"><span class="grow dim">Amount</span><${Amt} v=${d.amount} /></div>
       ${d.symbol
@@ -703,107 +697,88 @@ function DonationView({ close, d }) {
       <div class="list-item"><span class="grow dim">Deductible</span>${d.deductible
         ? 'yes'
         : 'no'}</div>
-      ${d.kind === 'daf-grant' && d.canWrite
-        ? html`<${SwitchRow} label="Paid by the fund" on=${!!d.granted} onChange=${(
-          /** @type {boolean} */ x,
-        ) => flip.run({ granted: x }).catch(() => {})} />`
+      ${rec && d.kind === 'daf-grant' && d.canWrite
+        ? html`<${RecField} rec=${rec} name="granted" label="Paid by the fund" />`
         : null}
-      ${d.canWrite
+      ${rec && d.canWrite
         ? html`
-          <${SwitchRow} label="Acknowledgement received" on=${d.acknowledged}
-            onChange=${(/** @type {boolean} */ x) =>
-              flip.run({ acknowledged: x }).catch(() => {})} />
+          <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />
           <div
             class="toolbar"><label class="btn sm" for="f-ack-files"><${Icon} name="clip" /> ${busy
               ? 'Uploading…'
+              : kept
+              ? `${kept} acknowledgement${kept === 1 ? '' : 's'} to keep on Save`
               : 'Attach the acknowledgement'}</label><input id="f-ack-files" class="sr-only"
-                      type="file" accept=${ACCEPT} data-help="acknowledgement" onChange=${(
-                        /** @type {any} */ ev,
-                      ) => {
-                        send(ev.currentTarget.files);
-                        ev.currentTarget.value = '';
-                      }} /></div>
+              type="file" accept=${ACCEPT} data-help="acknowledgement" onChange=${(
+                /** @type {any} */ ev,
+              ) => {
+                send(ev.currentTarget.files);
+                ev.currentTarget.value = '';
+              }} /></div>
         `
         : null}
-    </${Dialog}>
+    </${DraftDialog}>
   `;
+}
+
+/** An organisation given to (S7.9.5). */
+class OrganisationRec extends Rec {
+  /** @override */
+  static prefix = 'Orgzn';
+  /** @override */
+  static fields = FIELDS.OrganisationRecord;
+  /** @override */
+  static defaults = {
+    ein: null,
+    deductible: true,
+    causes: [],
+    pledge: null,
+    pledgeEvery: 'month',
+    notes: null,
+  };
+  /** @override */
+  static rules = {
+    pledgeEvery: { when: (/** @type {OrganisationRec} */ r) => r.get('pledge') != null },
+  };
 }
 
 /** @param {{ close: (v?: any) => void, o: any }} p */
 function OrganisationDialog({ close, o }) {
   useDialogGuide('dialog-organisation');
-  const [f, setF] = useState({
-    name: o?.name || '',
-    ein: o?.ein || '',
-    deductible: o ? o.deductible : true,
-    causes: (o?.causes || []).join(', '),
-    pledge: o?.pledge || '',
-    pledgeEvery: o?.pledgeEvery || 'month',
-    notes: o?.notes || '',
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
+  const f = useDraft((draft) => {
+    if (o) draft.load(OrganisationRec, o);
+    else draft.add(OrganisationRec, { name: '' });
+  }, [o?.id]);
+  const rec = /** @type {OrganisationRec | undefined} */ (f.draft?.records[0]);
   const canWrite = !o || o.canWrite;
-  const save = useSubmit(async () => {
-    const body = {
-      name: f.name,
-      ein: f.ein || null,
-      deductible: f.deductible,
-      causes: f.causes.split(',').map((/** @type {string} */ x) => x.trim()).filter(Boolean),
-      pledge: clean(f.pledge) || null,
-      pledgeEvery: clean(f.pledge) ? f.pledgeEvery : null,
-      notes: f.notes || null,
-    };
-    const out = o
-      ? await api.patch(`/giving/organisations/${o.id}`, body, o.version)
-      : await api.post('/giving/organisations', body);
-    toast('Saved');
-    close(out);
-  });
-  const e = save.error;
   return html`
-    <${Dialog} title=${o ? o.name : 'Add an organisation'} close=${close} onSubmit=${() =>
-      canWrite && save.run().catch(() => {})}
-      footer=${canWrite
-        ? html`<button class="btn primary" disabled=${save.busy}>Save</button>`
-        : null}>
-      <fieldset disabled=${!canWrite} style=${{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <${Field} label="Name" error=${errAt(e, 'name')}>
-          <${Input} value=${f.name}
-            onInput=${set('name')} required placeholder="Greater Chicago Food Depository" />
-          </${Field}>
-          <${Field} label="EIN" error=${errAt(e, 'ein')} hint="Optional: 36-3136294.">
-            <${Input} value=${f.ein} onInput=${set('ein')} />
-            </${Field}>
-            <${SwitchRow} label="Deductible"
-              hint="A 501(c)(3) charity. Not a political campaign or a person." on=${f.deductible}
-              onChange=${set('deductible')} />
-            <${Field} label="Causes" error=${errAt(
-              e,
-              'causes',
-            )} hint="Separated by commas: Hunger, Local.">
-              <${Input} value=${f.causes} onInput=${set('causes')} />
-              </${Field}>
-              <div class="row">
-                <${Field} label="Pledge" error=${errAt(
-                  e,
-                  'pledge',
-                )} hint="Shown as expected donations.">
-                  <${Input} value=${f.pledge} onInput=${set('pledge')} inputmode="decimal" />
-                  </${Field}>
-                  <${Field} label="Every" id="pledge-every" error=${errAt(e, 'pledgeEvery')}>
-                    <${Select} value=${f.pledgeEvery} onChange=${set('pledgeEvery')} options=${[
-                      ['month', 'Month'],
-                      ['year', 'Year'],
-                    ]} />
-                    </${Field}>
-                    </div>
-                    <${Field} label="Notes" error=${errAt(e, 'notes')}>
-                      <textarea class="in" rows="2"
-                        value=${f.notes} onInput=${(/** @type {any} */ ev) =>
-                          set('notes')(ev.currentTarget.value)}></textarea>
-                      </${Field}>
-                      <${FormError} error=${e} />
-                      </fieldset>
-                      </${Dialog}>
+    <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
+      what="This organisation" done="Saved" hideSave=${!canWrite}>
+      ${rec
+        ? html`
+          <fieldset disabled=${!canWrite} style=${{
+            border: 0,
+            padding: 0,
+            margin: 0,
+            minWidth: 0,
+          }}>
+            <${RecField} rec=${rec} name="name" label="Name"
+              placeholder="Greater Chicago Food Depository" />
+            <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
+            <${RecField} rec=${rec} name="deductible" label="Deductible"
+              hint="A 501(c)(3) charity. Not a political campaign or a person." />
+            <${RecField} rec=${rec} name="causes" label="Causes"
+              hint="Separated by commas: Hunger, Local." />
+            <div class="row">
+              <${RecField} rec=${rec} name="pledge" label="Pledge"
+                hint="Shown as expected donations." />
+              <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
+                options=${[['month', 'Month'], ['year', 'Year']]} />
+            </div>
+            <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
+          </fieldset>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }

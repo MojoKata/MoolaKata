@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, gifts, ids, people, receipts
@@ -18,7 +19,7 @@ from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.education import Gift, GiftPerson, GiftPlan, Occasion, Person
 from ..store.entities.users import User
 from . import save
-from .conventions import Deleted, ExactRoute, IdOf, Model, Money, check, gone, if_match
+from .conventions import ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
 from .receipts import row as receipt_row
@@ -650,68 +651,6 @@ def _editable(s, c: Caller, gift_id: str) -> Gift:
     return g
 
 
-@router.patch("/gifts/{gift_id}", response_model=GiftOut)
-def change_gift(
-    gift_id: str,
-    body: GiftIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        g = _editable(s, c, gift_id)
-        check(g, version, lambda: _gift_for(s, c, g.id))
-        before = g.transactionId
-        values = _check_gift(s, c, body, before)
-        hidden = _paid(s, before, c.id)
-        if not values["transactionId"] and hidden is not None and hidden.transactionId is None:
-            values["transactionId"] = before  # a purchase they can't see stays linked
-        for k, v in values.items():
-            setattr(g, k, v)
-        g.updatedAt = clock.now()
-        _set_people(s, g, body.people, c.id)
-        _linked(s, c, before, g.transactionId)
-        s.flush()
-        return _gift_for(s, c, g.id)
-
-
-@router.delete("/gifts/{gift_id}", response_model=Deleted[None])
-def delete_gift(
-    gift_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        g = _editable(s, c, gift_id)
-        check(g, version, lambda: _gift_for(s, c, g.id))
-        g.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(g))
-
-
-class DocumentIn(Model):
-    receiptId: str
-
-
-@router.post("/gifts/{gift_id}/documents", response_model=GiftOut)
-def attach_receipt(gift_id: str, body: DocumentIn, request: Request, c: Caller = Depends(caller)):
-    from ..store.entities.receipts import ReceiptLink
-
-    with server(request).db.tx() as s:
-        g = _editable(s, c, gift_id)
-        r = receipts.to_attach(s, c.id, body.receiptId)
-        if s.get(ReceiptLink, (r.id, "gift", g.id)) is None:
-            s.add(
-                ReceiptLink(
-                    receiptId=r.id,
-                    kind="gift",
-                    itemId=g.id,
-                    createdAt=clock.now(),
-                    linkedById=c.id,
-                )
-            )
-        s.flush()
-        return _gift_for(s, c, g.id)
-
-
 class Purchase(Model):
     transactionId: str
     date: dt.date
@@ -1021,5 +960,72 @@ save.register(
         update=_occasion_update,
         delete=_occasion_delete,
         read=_occasion_read,
+    )
+)
+
+
+# ---------- gifts in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class GiftRecord(GiftIn):
+    """A gift as a draft saves it (S7.8), with its people as a set and the receipts kept with
+    it (`receiptIds`)."""
+
+    people: list[IdOf("Persn")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+    receiptIds: list[IdOf("Rcpt")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+
+
+GIFT_FIELDS = ("occasion", "occasionYear", "description", "status", "cost", "transactionId",
+               "store", "link", "notes", "cash", "thankYou")  # fmt: skip
+
+
+def _gift_create(ctx, record_id: str, body: GiftRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    values = _check_gift(s, c, body)
+    g = Gift(id=record_id, ownerId=_owner_for(s, c, body.people), **values)
+    s.add(g)
+    s.flush()
+    _set_people(s, g, body.people, c.id)
+    receipts.keep_set(s, c.id, "gift", g.id, [], body.receiptIds)
+    _linked(s, c, None, g.transactionId)
+    activity.record(s, "gift.saved", actor=c.id, owner=c.id)
+
+
+def _gift_current(ctx, g: Gift) -> dict:
+    s = ctx.s
+    return {
+        "people": gifts.people_of_gifts(s, [g.id])[g.id],
+        "receiptIds": [r.id for r in receipts.of_item(s, g.id, "gift")],
+        **{f: getattr(g, f) for f in GIFT_FIELDS},
+    }
+
+
+def _gift_update(ctx, g: Gift, body: GiftRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    before = g.transactionId
+    current = _gift_current(ctx, g)
+    for k, v in _check_gift(s, c, body, before).items():
+        setattr(g, k, v)
+    g.updatedAt = clock.now()
+    _set_people(s, g, body.people, c.id)
+    receipts.keep_set(s, c.id, "gift", g.id, current["receiptIds"], body.receiptIds)
+    _linked(s, c, before, g.transactionId)
+
+
+save.register(
+    save.Kind(
+        prefix="Gift",
+        entity=Gift,
+        fields=GiftRecord,
+        create=_gift_create,
+        editable=lambda ctx, record_id: _editable(ctx.s, ctx.caller, record_id),
+        current=_gift_current,
+        update=_gift_update,
+        delete=lambda ctx, g: g.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: _gift_for(ctx.s, ctx.caller, record_id),
     )
 )

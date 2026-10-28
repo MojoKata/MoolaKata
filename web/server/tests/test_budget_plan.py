@@ -3,6 +3,7 @@
 import datetime as dt
 
 import pytest
+from edits import giving_plan
 from test_accounts import add, new_account
 from test_budgets import month, plan, row, save_plan, setup_budget
 
@@ -77,7 +78,7 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
         "/ui/api/people", json={"name": "Emma Griffin", "sex": "female", "giftBudget": "600"}
     )
     assert r.status_code == 201, r.text
-    r = c.put("/ui/api/giving/plan", json={"year": 2026, "targetKind": "amount", "amount": "1200"})
+    r = giving_plan(c, 2026, targetKind="amount", amount="1200")
     assert r.status_code == 200, r.text
     add(c, acct["id"], "-80.00", "2026-03-04", payee="Toy store", categoryId=cat["Gifts"])
     v = month(c, b, "2026-10")

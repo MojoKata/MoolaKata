@@ -5028,57 +5028,6 @@
         "type": "object",
         "x-entity": "TxDoc"
       },
-      "DonationChange": {
-        "additionalProperties": false,
-        "properties": {
-          "acknowledged": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Acknowledged"
-          },
-          "granted": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Granted"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "organisationId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Organisationid"
-          }
-        },
-        "title": "DonationChange",
-        "type": "object"
-      },
       "DonationIn": {
         "additionalProperties": false,
         "properties": {
@@ -5425,6 +5374,171 @@
         ],
         "title": "DonationOut",
         "type": "object"
+      },
+      "DonationRecord": {
+        "additionalProperties": false,
+        "description": "A donation as a draft saves it (S7.9.2): recorded whole; afterwards only what changes\nafter the fact does, the acknowledgement arriving (its file among `receiptIds`), a grant\npaid, the organisation, notes.",
+        "properties": {
+          "acknowledged": {
+            "default": false,
+            "title": "Acknowledged",
+            "type": "boolean"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amount"
+          },
+          "dafAccountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dafaccountid"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "fromAccountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fromaccountid"
+          },
+          "granted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Granted"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lotId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lotid"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "organisationId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Organisationid"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Quantity"
+          },
+          "receiptIds": {
+            "items": {
+              "pattern": "^Rcpt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Rcpt"
+            },
+            "title": "Receiptids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transactionid"
+          }
+        },
+        "required": [
+          "date",
+          "kind"
+        ],
+        "title": "DonationRecord",
+        "type": "object",
+        "x-entity": "Dnatn"
       },
       "DonationRow": {
         "additionalProperties": false,
@@ -7320,6 +7434,145 @@
         "title": "GiftOut",
         "type": "object"
       },
+      "GiftRecord": {
+        "additionalProperties": false,
+        "description": "A gift as a draft saves it (S7.8), with its people as a set and the receipts kept with\nit (`receiptIds`).",
+        "properties": {
+          "cash": {
+            "default": false,
+            "title": "Cash",
+            "type": "boolean"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cost"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Link"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "occasion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occasion"
+          },
+          "occasionYear": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occasionyear"
+          },
+          "people": {
+            "items": {
+              "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Persn"
+            },
+            "title": "People",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "receiptIds": {
+            "items": {
+              "pattern": "^Rcpt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Rcpt"
+            },
+            "title": "Receiptids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "status": {
+            "default": "idea",
+            "title": "Status",
+            "type": "string"
+          },
+          "store": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Store"
+          },
+          "thankYou": {
+            "default": false,
+            "title": "Thankyou",
+            "type": "boolean"
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transactionid"
+          }
+        },
+        "required": [
+          "description"
+        ],
+        "title": "GiftRecord",
+        "type": "object",
+        "x-entity": "Gift"
+      },
       "GiftTaxOut": {
         "additionalProperties": false,
         "properties": {
@@ -7491,6 +7744,85 @@
         ],
         "title": "GivingOut",
         "type": "object"
+      },
+      "GivingPlanRecord": {
+        "additionalProperties": false,
+        "description": "A year's giving plan as a draft saves it (S7.9.1).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amount"
+          },
+          "dafCounted": {
+            "default": "funded",
+            "title": "Dafcounted",
+            "type": "string"
+          },
+          "income": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Income"
+          },
+          "incomeBasis": {
+            "default": "take-home",
+            "title": "Incomebasis",
+            "type": "string"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "10",
+            "title": "Percent"
+          },
+          "targetKind": {
+            "default": "percent",
+            "title": "Targetkind",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "GivingPlanRecord",
+        "type": "object",
+        "x-entity": "GvPln"
       },
       "GivingView": {
         "additionalProperties": false,
@@ -14556,6 +14888,86 @@
         "title": "OrganisationOut",
         "type": "object"
       },
+      "OrganisationRecord": {
+        "additionalProperties": false,
+        "description": "An organisation as a draft saves it (S7.9.5).",
+        "properties": {
+          "causes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Causes",
+            "type": "array"
+          },
+          "deductible": {
+            "default": true,
+            "title": "Deductible",
+            "type": "boolean"
+          },
+          "ein": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ein"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "pledge": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pledge"
+          },
+          "pledgeEvery": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pledgeevery"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "OrganisationRecord",
+        "type": "object",
+        "x-entity": "Orgzn"
+      },
       "OutcomeOut": {
         "additionalProperties": false,
         "properties": {
@@ -17658,7 +18070,6 @@
                 "type": "null"
               }
             ],
-            "default": null,
             "title": "Monthlyfrom"
           },
           "monthlyUntil": {
@@ -17671,7 +18082,6 @@
                 "type": "null"
               }
             ],
-            "default": null,
             "title": "Monthlyuntil"
           },
           "recast": {
@@ -18434,6 +18844,7 @@
               "died-on-invalid",
               "direction-invalid",
               "document-fixed",
+              "donation-fixed",
               "draw-invalid",
               "driver-invalid",
               "duration-invalid",
@@ -18830,6 +19241,7 @@
                   "died-on-invalid",
                   "direction-invalid",
                   "document-fixed",
+                  "donation-fixed",
                   "draw-invalid",
                   "driver-invalid",
                   "duration-invalid",
@@ -22224,7 +22636,7 @@
         "additionalProperties": false,
         "properties": {
           "inputs": {
-            "$ref": "#/components/schemas/moolakata__ui__loans__PlanIn"
+            "$ref": "#/components/schemas/PlanIn"
           },
           "name": {
             "title": "Name",
@@ -27337,20 +27749,6 @@
         "title": "PlanOut",
         "type": "object"
       },
-      "moolakata__ui__gifts__DocumentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "receiptId": {
-            "title": "Receiptid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "receiptId"
-        ],
-        "title": "DocumentIn",
-        "type": "object"
-      },
       "moolakata__ui__gifts__PersonIn": {
         "additionalProperties": false,
         "description": "A gift plan, and the person it is for: an existing one (`personId`) or a new one.",
@@ -27514,95 +27912,6 @@
           "server"
         ],
         "title": "RemoteUser",
-        "type": "object"
-      },
-      "moolakata__ui__giving__DocumentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "receiptId": {
-            "title": "Receiptid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "receiptId"
-        ],
-        "title": "DocumentIn",
-        "type": "object"
-      },
-      "moolakata__ui__giving__PlanIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "dafCounted": {
-            "default": "funded",
-            "title": "Dafcounted",
-            "type": "string"
-          },
-          "income": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Income"
-          },
-          "incomeBasis": {
-            "default": "take-home",
-            "title": "Incomebasis",
-            "type": "string"
-          },
-          "percent": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "10",
-            "title": "Percent"
-          },
-          "targetKind": {
-            "default": "percent",
-            "title": "Targetkind",
-            "type": "string"
-          },
-          "year": {
-            "title": "Year",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "year"
-        ],
-        "title": "PlanIn",
         "type": "object"
       },
       "moolakata__ui__giving__PlanOut": {
@@ -28209,100 +28518,6 @@
           "email"
         ],
         "title": "RemoteUser",
-        "type": "object"
-      },
-      "moolakata__ui__loans__PlanIn": {
-        "additionalProperties": false,
-        "properties": {
-          "biweekly": {
-            "default": false,
-            "title": "Biweekly",
-            "type": "boolean"
-          },
-          "investClass": {
-            "default": "usStocks",
-            "title": "Investclass",
-            "type": "string"
-          },
-          "lumps": {
-            "items": {
-              "$ref": "#/components/schemas/Lump"
-            },
-            "title": "Lumps",
-            "type": "array"
-          },
-          "monthly": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Monthly",
-            "type": "number"
-          },
-          "monthlyFrom": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Monthlyfrom"
-          },
-          "monthlyUntil": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Monthlyuntil"
-          },
-          "recast": {
-            "default": false,
-            "title": "Recast",
-            "type": "boolean"
-          },
-          "recastFee": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Recastfee",
-            "type": "number"
-          },
-          "roundTo": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Roundto",
-            "type": "number"
-          },
-          "yearly": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Yearly",
-            "type": "number"
-          },
-          "yearlyMonth": {
-            "default": 12,
-            "title": "Yearlymonth",
-            "type": "integer"
-          }
-        },
-        "title": "PlanIn",
         "type": "object"
       },
       "moolakata__ui__loans__Point": {
@@ -30232,7 +30447,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__loans__PlanIn"
+                "$ref": "#/components/schemas/PlanIn"
               }
             }
           },
@@ -33377,138 +33592,6 @@
         ]
       }
     },
-    "/ui/api/gifts/{gift_id}": {
-      "delete": {
-        "operationId": "delete_gift_ui_api_gifts__gift_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "gift_id",
-            "required": true,
-            "schema": {
-              "title": "Gift Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Gift",
-        "tags": [
-          "gifts"
-        ]
-      },
-      "patch": {
-        "operationId": "change_gift_ui_api_gifts__gift_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "gift_id",
-            "required": true,
-            "schema": {
-              "title": "Gift Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GiftIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GiftOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Gift",
-        "tags": [
-          "gifts"
-        ]
-      }
-    },
-    "/ui/api/gifts/{gift_id}/documents": {
-      "post": {
-        "operationId": "attach_receipt_ui_api_gifts__gift_id__documents_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "gift_id",
-            "required": true,
-            "schema": {
-              "title": "Gift Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__gifts__DocumentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GiftOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Attach Receipt",
-        "tags": [
-          "gifts"
-        ]
-      }
-    },
     "/ui/api/giving": {
       "get": {
         "operationId": "get_giving_ui_api_giving_get",
@@ -33665,141 +33748,6 @@
         ]
       }
     },
-    "/ui/api/giving/donations/{donation_id}": {
-      "delete": {
-        "description": "Deletes the record; the transactions it made stay, to be changed or deleted there.",
-        "operationId": "delete_donation_ui_api_giving_donations__donation_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "donation_id",
-            "required": true,
-            "schema": {
-              "title": "Donation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Donation",
-        "tags": [
-          "giving"
-        ]
-      },
-      "patch": {
-        "description": "What changes after the fact: the acknowledgement arriving, a grant paid, notes.",
-        "operationId": "change_donation_ui_api_giving_donations__donation_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "donation_id",
-            "required": true,
-            "schema": {
-              "title": "Donation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DonationChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DonationOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Donation",
-        "tags": [
-          "giving"
-        ]
-      }
-    },
-    "/ui/api/giving/donations/{donation_id}/acknowledgement": {
-      "post": {
-        "description": "The organisation's written acknowledgement, kept as a receipt: it is then received.",
-        "operationId": "attach_acknowledgement_ui_api_giving_donations__donation_id__acknowledgement_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "donation_id",
-            "required": true,
-            "schema": {
-              "title": "Donation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__giving__DocumentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DonationOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Attach Acknowledgement",
-        "tags": [
-          "giving"
-        ]
-      }
-    },
     "/ui/api/giving/organisations": {
       "get": {
         "operationId": "list_organisations_ui_api_giving_organisations_get",
@@ -33890,127 +33838,6 @@
           }
         },
         "summary": "Add Organisation",
-        "tags": [
-          "giving"
-        ]
-      }
-    },
-    "/ui/api/giving/organisations/{org_id}": {
-      "delete": {
-        "operationId": "delete_organisation_ui_api_giving_organisations__org_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "org_id",
-            "required": true,
-            "schema": {
-              "title": "Org Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Organisation",
-        "tags": [
-          "giving"
-        ]
-      },
-      "patch": {
-        "operationId": "change_organisation_ui_api_giving_organisations__org_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "org_id",
-            "required": true,
-            "schema": {
-              "title": "Org Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrganisationIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganisationOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Organisation",
-        "tags": [
-          "giving"
-        ]
-      }
-    },
-    "/ui/api/giving/plan": {
-      "put": {
-        "operationId": "put_plan_ui_api_giving_plan_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__giving__PlanIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/moolakata__ui__giving__PlanOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Put Plan",
         "tags": [
           "giving"
         ]

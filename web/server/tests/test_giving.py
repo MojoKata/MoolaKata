@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, giving_plan, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -39,11 +40,7 @@ def donate(c, **kw):
 
 
 def test_the_target_pace_and_pledges(alice):
-    r = alice.put(
-        "/ui/api/giving/plan",
-        json={"year": 2026, "percent": "10", "incomeBasis": "gross", "income": "185000"},
-    )
-    assert r.status_code == 200, r.text
+    saved(giving_plan(alice, 2026, percent="10", incomeBasis="gross", income="185000"))
     church = org(
         alice,
         "St. Mark's Parish",
@@ -59,12 +56,12 @@ def test_the_target_pace_and_pledges(alice):
     assert v["pledged"] == "400.00", "November and December"
     assert v["projected"] == "2400.00"
     assert v["byCause"] == [{"label": "Faith", "amount": "2000.00"}]
-    bad = alice.put("/ui/api/giving/plan", json={"year": 2026, "incomeBasis": "gross"})
+    bad = giving_plan(alice, 2026, incomeBasis="gross", income=None)
     assert bad.json()["errors"][0]["field"] == "income"
 
 
 def test_giving_transactions_count_and_acknowledgements_are_flagged(alice):
-    alice.put("/ui/api/giving/plan", json={"year": 2026, "percent": "10"})
+    saved(giving_plan(alice, 2026, percent="10"))
     org(alice, "Red Cross")
     bank = new_account(alice, name="Checking")
     add(alice, bank["id"], "9000.00", "2026-01-02", categoryId=_cat(alice, "Salary"))
@@ -95,10 +92,8 @@ def test_giving_transactions_count_and_acknowledgements_are_flagged(alice):
     up = alice.post(
         "/ui/api/receipts", files={"file": ("ack.pdf", b"%PDF-1.4 thank you", "application/pdf")}
     )
-    r = alice.post(
-        f"/ui/api/giving/donations/{d['id']}/acknowledgement", json={"receiptId": up.json()["id"]}
-    )
-    assert r.json()["acknowledged"]
+    r = change(alice, "Dnatn", d, receiptIds={"add": [up.json()["id"]], "remove": []})
+    assert saved(r)["acknowledged"]
     assert alice.get("/ui/api/giving").json()["missingAcks"] == 0
     assert len(alice.get("/ui/api/giving/donations").json()["items"]) == 1, "counted once"
 
@@ -174,7 +169,7 @@ def test_shares_from_a_lot_without_a_gain(alice):
 
 
 def test_a_donor_advised_fund_counts_once(alice):
-    alice.put("/ui/api/giving/plan", json={"year": 2026, "targetKind": "amount", "amount": "5000"})
+    saved(giving_plan(alice, 2026, targetKind="amount", amount="5000"))
     fund = new_account(alice, name="Giving fund", type="daf", institution="Fidelity Charitable")
     assert alice.get(f"/ui/api/accounts/{fund['id']}").json()["countInNetWorth"] is False
     bank = new_account(alice, name="Checking")
@@ -201,10 +196,7 @@ def test_a_donor_advised_fund_counts_once(alice):
     v = alice.get("/ui/api/giving").json()
     assert v["given"] == "4000.00"
     assert v["funds"][0]["balance"] == "3000.00" and v["funds"][0]["granted"] == "1000.00"
-    alice.put(
-        "/ui/api/giving/plan",
-        json={"year": 2026, "targetKind": "amount", "amount": "5000", "dafCounted": "granted"},
-    )
+    saved(giving_plan(alice, 2026, targetKind="amount", amount="5000", dafCounted="granted"))
     assert alice.get("/ui/api/giving").json()["given"] == "1000.00"
 
 
@@ -233,7 +225,7 @@ def test_a_shared_plan_counts_its_owners_accounts_only(server, alice):
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     b_id = bob.get("/ui/api/session").json()["user"]["id"]
-    plan = alice.put("/ui/api/giving/plan", json={"year": 2026, "percent": "10"}).json()
+    plan = saved(giving_plan(alice, 2026, percent="10"))
     alice.put(f"/ui/api/shares/giving-plan/{plan['id']}", json={"users": {b_id: "read"}})
     mine = new_account(alice, name="Alice's checking")
     his = new_account(bob, name="Bob's checking")
