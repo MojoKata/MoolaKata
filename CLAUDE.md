@@ -70,3 +70,11 @@ pass `--young` without the user's reason, and read the diff it writes before com
 
 `docs/schema.md` sets the database's naming and ID rules. A new table with an `id` gets a row
 in its prefix table, kept sorted by prefix, in the same change.
+
+## Reviews
+
+Code reviews follow `docs/REVIEW.md`: its phases, work pad, claim format and `CR<n>-<m>`
+ids. Scope (full or incremental) and checking (checked or quick) are recommended from the
+measured delta and confirmed with the user. A review runs in serial sessions unless the
+user asks, for that review, for parallel agents or a workflow; that is never assumed or
+carried over from an earlier one.

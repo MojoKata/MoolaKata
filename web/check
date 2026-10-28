@@ -29,8 +29,9 @@ step "every dependency has amd64 and arm64 wheels" py python -m moolakata.dev.wh
 step "the dependency register is audited (S17.2.1)" py python -m moolakata.dev.audit check
 step "the base image's age (a warning only)" py python -m moolakata.dev.base check
 step "vendored browser libraries" python3 "$WEB/ui/vendor/vendor.py" extract
-step "ruff" py ruff check src tests ../ui/mockup ../../docs/mockups ../../connector
-step "ruff format" py ruff format --check --quiet src tests ../ui/mockup ../../docs/mockups ../../connector
+step "ruff" py ruff check src tests ../ui/mockup ../../docs/mockups ../../docs/reviews ../../connector
+step "ruff format" py ruff format --check --quiet src tests ../ui/mockup ../../docs/mockups ../../docs/reviews ../../connector
+step "the requirements' ids, tables and sizes" python3 "$ROOT/docs/reviews/check_docs.py" --quiet
 js_dirs=()
 for d in app api store screens components charts account-types mockup tests; do
   [[ -d "$WEB/ui/$d" ]] && js_dirs+=("$WEB/ui/$d/")
