@@ -3009,6 +3009,7 @@ export const FIELDS = {
     description: {"type": "text"},
     amount: {"type": "money"},
     include: {"type": "bool"},
+    line: {"type": "int", "nullable": true},
   },
   StorageOut: {
     databaseBytes: {"type": "int"},

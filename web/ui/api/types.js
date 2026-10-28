@@ -3802,6 +3802,7 @@
  * @property {string} description
  * @property {import('../app/dec.js').Dec} amount
  * @property {boolean} [include]
+ * @property {(number | null)} [line]
  */
 
 /**

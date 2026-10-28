@@ -840,6 +840,9 @@ class StatementRowIn(Model):
     description: str
     amount: Money
     include: bool = True
+    # The line it was read as: its place in the rows the read gave, so what the person
+    # corrected is told from what was read (S1.3.3.4).
+    line: int | None = None
 
 
 class StatementIn(Model):
@@ -914,7 +917,7 @@ def _apply(s, c: Caller, held: Held, account: Account, st, body: StatementIn, ke
         held.fileName or "statement",
         hashlib.sha256(held.data).hexdigest(),
     )
-    _learn(s, account, st, kept, have)
+    _learn(s, account, st, body.rows, have)
     return applied
 
 
@@ -1150,22 +1153,30 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
     )
 
 
-def _learn(s, account: Account, st, kept: list[StatementRowIn], have: set = frozenset()) -> None:
+def _learn(s, account: Account, st, rows: list[StatementRowIn], have: set = frozenset()) -> None:
+    """The layout learned from what the person kept and left out, each line as it was read:
+    found by its `line`, or, for a dialog that sends none, by its date and description."""
     by_key = {(x.date, x.description): x for x in st.rows}
-    rows = [
-        statements.StatementRow(
-            r.date,
-            r.description,
-            r.amount,
-            section=getattr(by_key.get((r.date, r.description)), "section", None),
-        )
-        for r in kept
-    ]
+
+    def read_as(r: StatementRowIn):
+        if r.line is not None and 0 <= r.line < len(st.rows):
+            return st.rows[r.line]
+        return by_key.get((r.date, r.description))
+
+    kept, left = [], []
+    for r in rows:
+        was = read_as(r)
+        if r.include:
+            description = was.description if was is not None else r.description
+            section = getattr(was, "section", None)
+            kept.append(statements.StatementRow(r.date, description, r.amount, section=section))
+        elif was is not None:
+            left.append(was)
     key = _institution_key(account, st)
     if not key:
         return
     row = _layout(s, account.ownerId, key)
-    learned = statements.learn(json.loads(row.layout) if row else None, st, rows, have)
+    learned = statements.learn(json.loads(row.layout) if row else None, kept, left, have)
     text = exactjson.dumps(learned, sort_keys=True)
     if row is None:
         s.add(

@@ -157,15 +157,30 @@ Fee Detail
         for r in first.rows
         if not r.description.startswith("SERVICE")
     ]
-    layout = statements.learn(None, first, kept)
+    left = [r for r in first.rows if r.description.startswith("SERVICE")]
+    layout = statements.learn(None, kept, left)
     again = parse(text, layout=layout)
     assert [r.amount for r in again.rows] == [Decimal("-10.00"), Decimal("-20.00")]
     assert again.difference == 0
     # C44, S1.3.3.4: a line left out because it was already in the account teaches nothing.
     rent = next(r for r in first.rows if r.description == "RENT")
     only_coffee = [r for r in kept if r.description == "COFFEE"]
-    layout = statements.learn(None, first, only_coffee, {(rent.date, rent.amount)})
+    layout = statements.learn(None, only_coffee, [rent, *left], {(rent.date, rent.amount)})
     assert layout["skip"] == ["service charge waived"]
+
+
+def test_a_skip_is_never_learned_from_a_line_kept_or_one_starting_like_a_kept_line():
+    """CR3-1: only lines left out by choice teach a skip, and not when their first words start
+    a line the person kept, which the skip would drop from the next statement."""
+    row = statements.StatementRow
+    day = dt.date(2026, 9, 3)
+    kept = [row(day, "DEBIT CARD PURCHASE KROGER 123", Decimal("-40.00"))]
+    left = [
+        row(day, "DEBIT CARD PURCHASE AMAZN MKTP", Decimal("-60.00")),
+        row(day, "SERVICE CHARGE WAIVED", Decimal("-5.00")),
+    ]
+    assert statements.learn(None, kept, left)["skip"] == ["service charge waived"]
+    assert statements.learn(None, kept, [])["skip"] == []
 
 
 # ---------- through the server ----------
@@ -228,6 +243,53 @@ def test_a_statement_is_checked_then_saved_once(server):
         json={**body, "rows": rows},
     )
     assert r.json()["result"]["added"] == 0
+
+
+CARDS = """UMB Bank, n.a.
+Free Checking
+Statement Period: {start} - {end}
+Beginning Balance on {start} $1,000.00
+Ending Balance on {end} $895.00
+Withdrawals and Other Debits
+{m}/03 DEBIT CARD PURCHASE {first} 60.00
+{m}/04 DEBIT CARD PURCHASE KROGER 123 40.00
+{m}/05 SERVICE CHARGE WAIVED 5.00
+"""
+
+
+def test_correcting_a_line_then_importing_the_next_statement_keeps_its_lines(server):
+    """CR3-1 (S1.3.3.3, S1.3.3.4), end to end: the person renames one line and leaves the
+    waived fee out; the next statement from the bank keeps every card purchase and drops only
+    the fee."""
+    from conftest import make_user, sign_in
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    acct = new_account(c, institution="UMB Bank")
+    sep = CARDS.format(start="09/01/26", end="09/30/26", m="09", first="AMAZN MKTP")
+    review = _import(c, acct["id"], text_pdf(sep.splitlines()))["result"]
+    assert [x["description"] for x in review["rows"]] == [
+        "DEBIT CARD PURCHASE AMAZN MKTP",
+        "DEBIT CARD PURCHASE KROGER 123",
+        "SERVICE CHARGE WAIVED",
+    ]
+    rows = [
+        {"date": x["date"], "description": x["description"], "amount": x["amount"], "line": i}
+        for i, x in enumerate(review["rows"])
+    ]
+    rows[0]["description"] = "Amazon"
+    rows[2]["include"] = False
+    body = {**_body(review), "rows": rows, "acceptDifference": True}
+    r = c.post(f"/ui/api/imports/{review['uploadId']}/statement", json=body)
+    assert r.status_code == 200, r.text
+    oct_ = CARDS.format(start="10/01/26", end="10/31/26", m="10", first="TARGET 0042")
+    nxt = _import(c, acct["id"], text_pdf(oct_.splitlines()))["result"]
+    assert [x["description"] for x in nxt["rows"]] == [
+        "DEBIT CARD PURCHASE TARGET 0042",
+        "DEBIT CARD PURCHASE KROGER 123",
+    ]
 
 
 def test_statement_reading_can_be_off(server, admin_client):
