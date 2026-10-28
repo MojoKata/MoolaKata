@@ -1,6 +1,7 @@
 """Record ids (schema.md §2): a prefix, an underscore, and a UUIDv7 in 26 lowercase Crockford
 base-32 digits, most significant first, so ids sort by creation time."""
 
+import datetime as dt
 import hashlib
 import os
 import re
@@ -93,3 +94,9 @@ def is_id(value: str, prefix: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def time_of(record_id: str) -> dt.datetime:
+    """When an id was made: its UUIDv7's millisecond time (schema.md §2)."""
+    ms = decode(record_id.partition("_")[2]).int >> 80
+    return dt.datetime.fromtimestamp(ms / 1000, dt.UTC)

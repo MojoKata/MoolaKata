@@ -78,7 +78,11 @@ preparer.
    each part, is **signed by the source's link key**, so the receiver can check it again when
    it applies it later. The receiver keeps its last copy in the link's encrypted **linked
    copy** (S11.9) and shows its age (*as of 2 hours ago*). Pulls run whether or not anyone has
-   unlocked the copy. When the source is unreachable, the copy stays, marked stale. When the
+   unlocked the copy. A receipt that doesn't come with its change never holds the change back:
+   the change is applied without it, the receipt shows as *not arrived*, and it is asked for
+   again at each exchange (`docs/link-protocol.md` §4.3.5). Whatever fails in an exchange is
+   recorded on the link, and alerts as unreachable pulls do (S12.11.1). When the source is
+   unreachable, the copy stays, marked stale. When the
    share or the link is removed, the other side learns at its next exchange and deletes the
    copy, or the receiving admin does at once. A Pause (S11.7.2) stops data, never a removal or
    an end, which still cross.
@@ -192,7 +196,8 @@ preparer.
          written to `inbox/` as it came, as the next numbered file. Sealing needs only the
          public key, so the receiving server never holds a change in the clear.
       2. Receipts arrive sealed the same way and are written straight into `receipts/`. They
-         never wait in the inbox.
+         never wait in the inbox; one that arrives after its change (S11.4) reaches the copy
+         as soon as it is open.
       3. The inbox is **applied** in order, in one transaction, as soon as the copy is
          unlocked. Each change's signature is checked first, and its sequence number, sealed
          inside it, must follow the last one applied, so an older change put back is refused; a

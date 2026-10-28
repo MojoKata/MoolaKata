@@ -222,6 +222,9 @@ def apply(srv, link_id: str) -> int:
         p.with_suffix(".json").unlink(missing_ok=True)
     with srv.db.tx() as s:
         s.get(Link, link_id).inboxAsOf = None
+    from .receive import place_arrived
+
+    place_arrived(srv, link_id)
     return len(changes)
 
 
@@ -273,6 +276,16 @@ def _type_of(private, way: str, file_id: str, path) -> str:
     except OSError, sealed.SealError:
         return "application/octet-stream"
     return sniff(first[:16]) or "application/octet-stream"
+
+
+def received_type(srv, o, link_id: str, file_id: str, path) -> str:
+    """`_type_of` for a receipt that arrived after its change, the copy `o` open."""
+    from .keys import direction, fingerprint, public_of
+
+    with srv.db.read() as s:
+        peer = unb64(s.get(Link, link_id).peerKey)
+        way = direction(fingerprint(peer), fingerprint(public_of(s, srv.keys.secrets)))
+    return _type_of(private_key(bytes(o.key)), way, file_id, path)
 
 
 def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> list[str]:
@@ -337,7 +350,24 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
         conn.execute(delete(copydb.File).where(copydb.File.c.id == fid))
     for f in c.get("files") or []:
         if f["id"] not in names:
-            continue  # not fetched (the copy had no key yet): it comes with everything later
+            # Not arrived (S11.4): its row waits for the file, which is asked for again at each
+            # exchange; one already here stays as it is.
+            had = conn.execute(select(copydb.File.c.id).where(copydb.File.c.id == f["id"]))
+            if had.first() is None:
+                conn.execute(
+                    copydb.File.insert(),
+                    {
+                        "id": f["id"],
+                        "itemId": f["itemId"],
+                        "fileName": "",
+                        "contentType": "application/octet-stream",
+                        "length": int(f.get("length") or 0),
+                        "sha256": f["sha256"],
+                        "thumbnail": _thumbnail(f.get("thumbnail")),
+                        "meta": json.dumps(f.get("meta") or {}),
+                    },
+                )
+            continue
         gone += list(
             conn.execute(
                 select(copydb.File.c.fileName).where(copydb.File.c.id == f["id"])
@@ -357,7 +387,8 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
                 "meta": json.dumps(f.get("meta") or {}),
             },
         )
-    return [g for g in gone if g not in names.values()]
+    # A row whose file never arrived ("") has none to delete.
+    return [g for g in gone if g and g not in names.values()]
 
 
 THUMBNAIL = re.compile(r"data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*")

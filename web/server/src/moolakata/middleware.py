@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 
 from .errors import new_error_id
+from .links.sealed import max_receipt
 
 log = logging.getLogger("moolakata.access")
 
@@ -200,7 +201,9 @@ class OriginCheck:
         await self.app(scope, receive, send)
 
 
-IN_FLIGHT = 100 * 1024 * 1024  # uploads arriving at once, per user (S13.7.6)
+# Uploads arriving at once, per user (S13.7.6): 100 MB, and never less than one receipt of the
+# largest size a linked server may deliver, sealed.
+IN_FLIGHT = max(100 * 1024 * 1024, max_receipt())
 
 
 class BodyLimit:
@@ -212,6 +215,17 @@ class BodyLimit:
         self.app = app
         self.upload_limit = upload_limit
         self.in_flight: dict[str, int] = {}
+
+    def limit_for(self, path: str, ctype: str) -> int:
+        """The most a request's body may hold, by where it goes and what it carries."""
+        to_link = path.startswith("/link/")
+        if to_link and ctype.startswith("application/octet-stream"):
+            # A receipt a linked server delivers, sealed (link-protocol.md §1.4, §4.3): up to
+            # the largest receipt Settings allows, whatever this server's own setting.
+            return max_receipt()
+        if ctype.startswith("multipart/"):
+            return self.upload_limit()
+        return LINK_LIMIT if to_link else JSON_LIMIT
 
     @staticmethod
     def _caller(scope, headers: dict) -> str:
@@ -238,16 +252,7 @@ class BodyLimit:
             return
         headers = {k.lower(): v.decode("latin-1") for k, v in scope["headers"]}
         ctype = headers.get(b"content-type", "")
-        to_link = scope["path"].startswith("/link/")
-        limit = (
-            self.upload_limit()
-            # A receipt a linked server delivers, sealed (link-protocol.md §4.3).
-            if ctype.startswith("multipart/")
-            or (to_link and ctype.startswith("application/octet-stream"))
-            else LINK_LIMIT
-            if to_link
-            else JSON_LIMIT
-        )
+        limit = self.limit_for(scope["path"], ctype)
         too_large = _send_problem(
             413, "too-large", f"The request is larger than {limit // (1024 * 1024)} MB."
         )

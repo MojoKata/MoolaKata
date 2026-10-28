@@ -121,8 +121,10 @@
          above.
       5. The counters are held in memory: a restart clears them.
    6. **Request limits**: JSON bodies up to 1 MB (a linked server's up to 20 MB,
-      `docs/link-protocol.md` §1.4), uploads up to the size in Settings (25 MB by default), at
-      most 100 MB of uploads in flight per user, and request headers up to 16 KB. Each upload's
+      `docs/link-protocol.md` §1.4), uploads up to the size in Settings (25 MB by default), a
+      receipt a linked server delivers up to the largest receipt Settings allows, sealed (link
+      protocol §1.4), at most 100 MB of uploads in flight per user (never less than that
+      largest sealed receipt), and request headers up to 16 KB. Each upload's
       type is checked from its content, never its name (S9.1), and an upload is held in memory,
       never spooled to a temporary file.
    7. **Response headers** on every response, refusals included: the CSP of S17.3.3,
@@ -166,7 +168,8 @@
       something that exists once for its parent (a loan's terms, a budget's plan, a
       wallet's keys, an item's sale), creating it when it doesn't exist yet. An action that is
       not a change of fields is a `POST` to a verb under the resource
-      (`/ui/api/links/{id}/pull`).
+      (`/ui/api/links/{id}/pull`). The browser's dialogs save through one route instead
+      (S13.8.11), whose checks are the same as each record's own route.
       1. **`DELETE`** soft-deletes (`schema.md` §4) and answers 200 with
          `{deleted, parent}`: `deleted` is what went (its id, or a pair's two keys joined by
          a slash, its `deletedAt` and its version), and `parent` is what it belonged to as it
@@ -194,7 +197,8 @@
          field gives it, is accepted too; more places than a field allows is refused.
    3. **Errors** are `application/problem+json` (RFC 9457): `type`, `title`, `status`,
       `detail`, the error id of S13.7.8, and `errors`, a list of `{field, code, message}` so
-      the UI shows each refusal at its field (R3.7). Codes are stable strings
+      the UI shows each refusal at its field (R3.7); a save's errors also name the record
+      (`id`, S13.8.11). Codes are stable strings
       (`key-too-short`, `share-not-allowed`), listed in the OpenAPI document.
    4. **Status codes**: 200, 201 with `Location` (where the record made is read: its own path
       where it has one, otherwise the list or the record that holds it; a 201 whose record
@@ -218,8 +222,8 @@
       `If-Match`:
       1. without it, the change is refused with 428 `version-required`;
       2. with a stale one, it is refused with 412 `stale-version`, carrying the record as it is
-         now (`current`) and its `version`, so the screen shows what changed and the person
-         can make the change again on top;
+         now (`current`) and its `version`, for a caller that starts again from it; the
+         browser's dialogs reload (S12.15.5);
       3. with the current one, it is applied and the version goes up.
 
       A `PUT` that creates what doesn't exist yet sends `0`. What is made of many records
@@ -231,8 +235,8 @@
    7. **Long work** (an import, a statement read, a projection run, a reset copy) answers
       202 with a job resource (`/ui/api/jobs/{id}`: state, progress, result), and the live
       stream announces its end (S12.6).
-   8. **Idempotency**: `POST /ui/api/transactions` may carry `Idempotency-Key`; a repeat within
-      24 hours returns the first answer. Every other create comes later ([later
+   8. **Idempotency**: `POST /ui/api/transactions` and the save (S13.8.11) may carry
+      `Idempotency-Key`; a repeat within 24 hours returns the first answer. Every other create comes later ([later
       work](later.md), L8). Imports are idempotent by their content (S1.3).
    9. **Versioning**: `/ui/api` is served with the app and changes with it, so it carries no
       version; the OpenAPI document states the release. `/link` is versioned in its protocol
@@ -240,3 +244,36 @@
       the protocol version the client and server agree on.
    10. **Visibility**: every read goes through the caller's shares (S10.3) and the soft-delete
        views (`schema.md` §4.2). A list never counts or hints at what the caller can't see.
+   11. **The save** (`POST /ui/api/save`): a browser dialog's draft (S12.15) in one request,
+       applied in one database transaction or not at all.
+       1. **The request** is `{ops, confirm}`. Each op is `{op, entity, id, version, fields}`:
+          `op` is `create`, `update` or `delete`; `entity` the record's prefix (`schema.md`
+          §3); `version` the one the record was read at, for an update or a delete (S13.8.6);
+          `fields`, for a create, every field, and for an update only those changed, put onto
+          the record as it is before the whole record is checked. A set of pairs (a gift's
+          people, a transaction's tags) is sent on the record that holds it as
+          `{add, remove}`. A save holds at most 1000 ops, within the request limit of
+          S13.7.6.
+       2. **Ids.** A create names its record's id, made in the browser (`schema.md` §2). An
+          id of the wrong prefix or form, one whose time is more than a day from the server's
+          clock ("this computer's clock is off by more than a day"), or one already taken is
+          refused at its field with 422. Every other id a save names is checked against the
+          prefix of what it refers to, refused the same way.
+       3. **Applying.** Creates come first, then updates, then deletes, with foreign keys
+          checked at the commit, so the order of the ops can't break a reference. Each op is
+          checked as its record's own route checks it: shares (S10.3), rules, versions.
+          Deleting a record deletes what is deleted with it (`schema.md` §4).
+       4. **Refusals.** Every op is checked and every refusal gathered before the transaction
+          rolls back, each error naming its record's `id` beside its `field`, `code` and
+          `message` (S13.8.3). A stale version anywhere refuses the whole save with 412
+          `stale-version`, listing each stale record as it stands.
+       5. **Questions.** A change that asks first (`reconciled-period`, `closed-year`,
+          `reserve-balance`) is gathered with the others; the save rolls back and answers 409
+          `confirm-needed`, listing each question's `code`, record `id` and message. Sent
+          again with `confirm` (a list of `{code, id}`), it goes ahead only when every
+          question it raises is in that list.
+       6. **After the commit**, the live stream's events (S12.6), alerts and the work that
+          follows a change run once for the whole save, and Activity records each change as
+          its record's own route does.
+       7. **The answer** is 200 with each record the save touched: its id, its new version
+          and the record as read, or, for a delete, what went (S13.8.1.1).

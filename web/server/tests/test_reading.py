@@ -283,8 +283,8 @@ def test_fixture_receipts_stay_above_the_accuracy_floor():
 
 
 def test_the_worker_gives_up_the_network_and_its_environment(tmp_path):
-    """S9.8.4.2: no network socket (seccomp), no environment, and the data directory closed
-    where the kernel has Landlock; it says which it holds."""
+    """S9.8.4.2: no socket of any kind and no signal but to itself (seccomp), no environment,
+    and the data directory closed where the kernel has Landlock; it says which it holds."""
     from moolakata import sandbox
 
     (tmp_path / "secret").write_text("x")
@@ -292,6 +292,9 @@ def test_the_worker_gives_up_the_network_and_its_environment(tmp_path):
     try:
         out = w.call("selftest", b"", path=str(tmp_path))
         assert out["network"] is False, "a network socket is refused"
+        # Nor a local one, nor a signal to the server: the server's own socket and process
+        # are out of its reach (S9.8.4.2).
+        assert out["local"] is False and out["signal"] is False
         # Its own thread count, and the locale Python itself sets: nothing of the server's.
         assert set(out["environment"]) <= {"OMP_NUM_THREADS", "LC_CTYPE"}
         assert w.state["seccomp"] and w.state["core"]
@@ -365,3 +368,53 @@ def test_an_upload_is_held_in_memory(bare_client):
     from starlette.formparsers import MultiPartParser
 
     assert MultiPartParser.spool_max_size >= 100 * 1024 * 1024
+
+
+def test_a_hostile_worker_reaches_no_socket_and_no_other_process(tmp_path):
+    """S17.5: code run under the worker's filter, as a file that took the worker would run it,
+    tries to reach a local listener of its own account, to signal its parent and every
+    process, and to make a socket of each family; each is refused, and the process itself goes
+    on working."""
+    import socket
+    import subprocess
+    import sys
+
+    from moolakata import sandbox
+
+    if not sandbox.ARCHES.get(__import__("platform").machine()):
+        pytest.skip("no seccomp filter for this machine")
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    path = tmp_path / "sock"
+    listener.bind(str(path))
+    listener.listen()
+    code = f"""
+import os, socket, threading
+from moolakata import sandbox
+assert sandbox.no_network()
+def refused(fn):
+    try:
+        fn()
+    except OSError:
+        return True
+    return False
+assert refused(lambda: socket.socket(socket.AF_UNIX).connect({str(path)!r})), "local listener"
+assert refused(lambda: socket.socket(socket.AF_INET)), "inet"
+assert refused(lambda: socket.socket(socket.AF_INET6)), "inet6"
+assert refused(lambda: socket.socket(socket.AF_NETLINK, socket.SOCK_RAW)), "netlink"
+assert refused(lambda: socket.socketpair()), "a socket pair"
+assert refused(lambda: os.kill(os.getppid(), 0)), "the parent"
+assert refused(lambda: os.kill(-1, 0)), "every process"
+assert refused(lambda: os.kill(0, 0)), "its process group"
+os.kill(os.getpid(), 0)
+t = threading.Thread(target=lambda: None)
+t.start()
+t.join()
+print("held")
+"""
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=60, check=False
+        )
+    finally:
+        listener.close()
+    assert r.returncode == 0 and r.stdout.strip() == "held", r.stderr

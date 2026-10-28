@@ -32,11 +32,15 @@ def make_server(tmp_path, name: str) -> Server:
 
 
 class Wire:
-    """Routes https://<name>.test/... to that server's app, as the network would."""
+    """Routes https://<name>.test/... to that server's app, as the network would, with the
+    real transport's ceiling on an answer (`net.Client`'s `max_bytes`), so a test meets the
+    limits a link meets (S13.5). `fail` breaks one call at a time: given the method and the
+    URL, it gives an exception to raise in place of the call, or None."""
 
     def __init__(self):
         self.apps: dict[str, TestClient] = {}
         self.down: set[str] = set()
+        self.fail = None
 
     def add(self, name: str, srv: Server) -> str:
         self.apps[f"{name}.test"] = TestClient(
@@ -44,17 +48,52 @@ class Wire:
         )
         return f"https://{name}.test"
 
-    def client(self, guard=None, **kw):
+    def client(self, guard=None, max_bytes: int = net.MAX_RESPONSE, **kw):
         wire = self
+
+        def reach(method, url, kw):
+            host = urlsplit(url).hostname
+            if guard is not None:
+                guard.check(host, 443)  # as the real transport does
+            if host in wire.down or host not in wire.apps:
+                raise httpx.ConnectError("unreachable")
+            broken = wire.fail(method, url, kw) if wire.fail else None
+            if broken is not None:
+                raise broken
+            return wire.apps[host]
+
+        def capped(r, url):
+            if len(r.content) > max_bytes:
+                raise net.ResponseTooLarge(f"the response from {url} is larger than allowed")
+            return r
+
+        class Capped:
+            """A streamed answer read only up to the ceiling, as `net._Capped` reads it."""
+
+            def __init__(self, inner):
+                self._inner = inner
+
+            def __enter__(self):
+                r = self._inner.__enter__()
+                raw = r.iter_bytes
+
+                def iter_bytes(*a, **k):
+                    size = 0
+                    for chunk in raw(*a, **k):
+                        size += len(chunk)
+                        if size > max_bytes:
+                            raise net.ResponseTooLarge("the response is larger than allowed")
+                        yield chunk
+
+                r.iter_bytes = iter_bytes
+                return r
+
+            def __exit__(self, *exc):
+                return self._inner.__exit__(*exc)
 
         class C:
             def _go(self, method, url, **kw):
-                host = urlsplit(url).hostname
-                if guard is not None:
-                    guard.check(host, 443)  # as the real transport does
-                if host in wire.down or host not in wire.apps:
-                    raise httpx.ConnectError("unreachable")
-                return wire.apps[host].request(method, url, **kw)
+                return capped(reach(method, url, kw).request(method, url, **kw), url)
 
             def get(self, url, **kw):
                 return self._go("GET", url, **kw)
@@ -63,12 +102,7 @@ class Wire:
                 return self._go("POST", url, **kw)
 
             def stream(self, method, url, **kw):
-                host = urlsplit(url).hostname
-                if guard is not None:
-                    guard.check(host, 443)
-                if host in wire.down or host not in wire.apps:
-                    raise httpx.ConnectError("unreachable")
-                return wire.apps[host].stream(method, url, **kw)
+                return Capped(reach(method, url, kw).stream(method, url, **kw))
 
         return C()
 

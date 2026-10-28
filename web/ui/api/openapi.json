@@ -3418,6 +3418,25 @@
         "title": "Confirmation",
         "type": "object"
       },
+      "Confirmed": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "id"
+        ],
+        "title": "Confirmed",
+        "type": "object"
+      },
       "ConnectionChange": {
         "additionalProperties": false,
         "properties": {
@@ -9992,6 +10011,11 @@
       "LinkedFile": {
         "additionalProperties": false,
         "properties": {
+          "arrived": {
+            "default": true,
+            "title": "Arrived",
+            "type": "boolean"
+          },
           "contentType": {
             "title": "Contenttype",
             "type": "string"
@@ -12514,6 +12538,51 @@
           "check"
         ],
         "title": "Offered",
+        "type": "object"
+      },
+      "Op": {
+        "additionalProperties": false,
+        "properties": {
+          "entity": {
+            "title": "Entity",
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "title": "Fields",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "create",
+              "update",
+              "delete"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "op",
+          "entity",
+          "id"
+        ],
+        "title": "Op",
         "type": "object"
       },
       "OpenContract": {
@@ -16798,6 +16867,7 @@
               "closed-year",
               "code-wrong",
               "colour-invalid",
+              "confirm-needed",
               "contracts-invalid",
               "contracts-missing",
               "contributor-invalid",
@@ -16828,6 +16898,7 @@
               "email-domain",
               "email-invalid",
               "email-taken",
+              "entity-unknown",
               "every-invalid",
               "expired",
               "fees-invalid",
@@ -16850,6 +16921,10 @@
               "holiday-invalid",
               "how-invalid",
               "http-error",
+              "id-clock",
+              "id-invalid",
+              "id-repeated",
+              "id-taken",
               "image-too-large",
               "income-missing",
               "initialised",
@@ -16913,6 +16988,7 @@
               "not-a-transfer",
               "not-a-wallet",
               "not-an-option",
+              "not-arrived",
               "not-available",
               "not-balanced",
               "not-creator",
@@ -16994,6 +17070,7 @@
               "reconciled-period",
               "reencrypt-pending",
               "reencrypt-running",
+              "reference-missing",
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
@@ -17005,6 +17082,7 @@
               "row-not-cash",
               "rule-sets-nothing",
               "same-person",
+              "save-refused",
               "scope-invalid",
               "sealed-invalid",
               "secret-refused",
@@ -17049,6 +17127,7 @@
               "too-large",
               "too-long",
               "too-many",
+              "too-many-ops",
               "too-many-rules",
               "trade-incomplete",
               "two-step-expired",
@@ -17161,6 +17240,7 @@
                   "closed-year",
                   "code-wrong",
                   "colour-invalid",
+                  "confirm-needed",
                   "contracts-invalid",
                   "contracts-missing",
                   "contributor-invalid",
@@ -17191,6 +17271,7 @@
                   "email-domain",
                   "email-invalid",
                   "email-taken",
+                  "entity-unknown",
                   "every-invalid",
                   "expired",
                   "fees-invalid",
@@ -17213,6 +17294,10 @@
                   "holiday-invalid",
                   "how-invalid",
                   "http-error",
+                  "id-clock",
+                  "id-invalid",
+                  "id-repeated",
+                  "id-taken",
                   "image-too-large",
                   "income-missing",
                   "initialised",
@@ -17276,6 +17361,7 @@
                   "not-a-transfer",
                   "not-a-wallet",
                   "not-an-option",
+                  "not-arrived",
                   "not-available",
                   "not-balanced",
                   "not-creator",
@@ -17357,6 +17443,7 @@
                   "reconciled-period",
                   "reencrypt-pending",
                   "reencrypt-running",
+                  "reference-missing",
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
@@ -17368,6 +17455,7 @@
                   "row-not-cash",
                   "rule-sets-nothing",
                   "same-person",
+                  "save-refused",
                   "scope-invalid",
                   "sealed-invalid",
                   "secret-refused",
@@ -17412,6 +17500,7 @@
                   "too-large",
                   "too-long",
                   "too-many",
+                  "too-many-ops",
                   "too-many-rules",
                   "trade-incomplete",
                   "two-step-expired",
@@ -17456,6 +17545,9 @@
               "string",
               "null"
             ]
+          },
+          "id": {
+            "type": "string"
           },
           "message": {
             "type": "string"
@@ -20477,22 +20569,45 @@
         "title": "SaleIn",
         "type": "object"
       },
-      "Saved": {
+      "SaveIn": {
         "additionalProperties": false,
         "properties": {
-          "alsoShared": {
-            "title": "Alsoshared",
-            "type": "integer"
+          "confirm": {
+            "items": {
+              "$ref": "#/components/schemas/Confirmed"
+            },
+            "title": "Confirm",
+            "type": "array"
           },
-          "view": {
-            "$ref": "#/components/schemas/ShareView"
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/Op"
+            },
+            "title": "Ops",
+            "type": "array"
           }
         },
         "required": [
-          "view",
-          "alsoShared"
+          "ops"
         ],
-        "title": "Saved",
+        "title": "SaveIn",
+        "type": "object"
+      },
+      "SaveOut": {
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "items": {
+              "$ref": "#/components/schemas/moolakata__ui__save__Saved"
+            },
+            "title": "Saved",
+            "type": "array"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "title": "SaveOut",
         "type": "object"
       },
       "SavedPlan": {
@@ -21824,6 +21939,17 @@
             "default": true,
             "title": "Include",
             "type": "boolean"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
           }
         },
         "required": [
@@ -27056,6 +27182,59 @@
         "title": "LinkOut",
         "type": "object"
       },
+      "moolakata__ui__save__Saved": {
+        "additionalProperties": false,
+        "description": "A record the save touched: its new version and the record as read, or what went.",
+        "properties": {
+          "deleted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Gone"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity": {
+            "title": "Entity",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "entity",
+          "id"
+        ],
+        "title": "Saved",
+        "type": "object"
+      },
       "moolakata__ui__session__Household": {
         "additionalProperties": false,
         "properties": {
@@ -27154,6 +27333,24 @@
           "setBy"
         ],
         "title": "SecretSet",
+        "type": "object"
+      },
+      "moolakata__ui__sharing__Saved": {
+        "additionalProperties": false,
+        "properties": {
+          "alsoShared": {
+            "title": "Alsoshared",
+            "type": "integer"
+          },
+          "view": {
+            "$ref": "#/components/schemas/ShareView"
+          }
+        },
+        "required": [
+          "view",
+          "alsoShared"
+        ],
+        "title": "Saved",
         "type": "object"
       },
       "moolakata__ui__taxes__DocumentIn": {
@@ -37957,6 +38154,44 @@
         ]
       }
     },
+    "/ui/api/save": {
+      "post": {
+        "description": "A dialog's draft, saved all or nothing (S13.8.11).",
+        "operationId": "save_ui_api_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Save",
+        "tags": [
+          "save"
+        ]
+      }
+    },
     "/ui/api/session": {
       "delete": {
         "description": "Signing out ends every session of the user at once (S13.7.1).",
@@ -39760,7 +39995,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Saved"
+                  "$ref": "#/components/schemas/moolakata__ui__sharing__Saved"
                 }
               }
             },

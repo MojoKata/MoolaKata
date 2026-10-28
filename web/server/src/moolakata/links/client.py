@@ -72,8 +72,8 @@ def _url(address: str, path: str) -> str:
     return urlunsplit((u.scheme, u.netloc, u.path + path, "", ""))
 
 
-def _client(srv, pins) -> net.Client:
-    return net.Client(srv.guard, pins=pins)
+def _client(srv, pins, max_bytes: int = net.MAX_RESPONSE) -> net.Client:
+    return net.Client(srv.guard, max_bytes=max_bytes, pins=pins)
 
 
 def _unreachable(address: str, e: Exception) -> LinkError:
@@ -151,8 +151,12 @@ def call(
 def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list, pins=None):
     """One receipt's sealed bytes from the peer, piece by piece as they arrive. When the stream
     ends, the peer's signature over their SHA-256 is checked, and the digest appended to
-    `digest_out`; a bad one raises before the last piece is taken as good."""
+    `digest_out`; a bad one raises before the last piece is taken as good. The answer is read
+    up to the longest a receipt crosses as, not the 20 MB of a JSON answer (link-protocol.md
+    §1.4)."""
     import hashlib
+
+    from .sealed import max_receipt
 
     own, own_fp = _own(srv)
     path = "/link/v1/file"
@@ -166,7 +170,7 @@ def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list
     }
     h = hashlib.sha256()
     try:
-        c = _client(srv, pins)
+        c = _client(srv, pins, max_receipt())
         with c.stream("POST", _url(address, path), content=body, headers=headers) as r:
             if r.status_code != 200:
                 r.read()

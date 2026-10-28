@@ -945,3 +945,146 @@ def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatc
         with pytest.raises(client.LinkError) as e:
             client.call(a, url_b, public(b), "/link/v1/ping")
         assert e.value.code == code
+
+
+# ---------- one receipt never holds a change back (S11.4, CR3-4)
+
+
+def _shared_receipt(a, ca, cb):
+    """Alice on A shares an account with Carol on B, its receipts included; Carol's copy has
+    its access key. Returns Alice, Carol, B's link id and the receipt's bytes."""
+    from test_receipts import png
+
+    make_user(a, "alice")
+    alice = sign_in(a, "alice")
+    a_id, b_id = linked(ca, cb)
+    acct = alice.post("/ui/api/accounts", json={"name": "Checking", "type": "checking"}).json()
+    t = add(alice, acct["id"], amount="-12.50", payee="Blue Bottle")
+    image = png()
+    rid = alice.post(
+        "/ui/api/receipts", files={"file": ("r.png", image, "application/octet-stream")}
+    ).json()["id"]
+    alice.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": t["id"]})
+    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
+    alice.put(
+        f"/ui/api/shares/account/{acct['id']}",
+        json={"users": {carol_here["id"]: "read"}, "receipts": {a_id: True}},
+    )
+    return alice, words, b_id, image
+
+
+def test_a_receipt_that_cant_be_fetched_holds_nothing_back_and_comes_later(admins):
+    import httpx
+
+    from moolakata.store.entities.links import LinkFile
+
+    a, b, ca, cb, wire = admins
+    make_user(b, "carol")
+    _alice, words, b_id, image = _shared_receipt(a, ca, cb)
+    # Every receipt file the source sends is cut off, as one past a ceiling would be.
+    wire.fail = lambda m, url, kw: httpx.ReadError("cut off") if url.endswith("/file") else None
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    carol = sign_in(b, "carol")
+    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    # The change arrived without it: the account is there, the receipt marked not arrived.
+    assert carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    (f,) = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert f["arrived"] is False
+    got = carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
+    assert got.status_code == 404 and got.json()["code"] == "not-arrived"
+    link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
+    assert link["lastError"] is None and link["failingSince"] is None, "the link is fine"
+    with b.db.read() as s:
+        (row,) = s.query(LinkFile).all()
+        assert row.fileName is None and row.tries == 1 and row.error
+    # The next exchange asks for it again, and it reaches the open copy.
+    wire.fail = None
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    (f,) = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert f["arrived"] is True
+    got = carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
+    assert got.status_code == 200 and got.content == image
+    with b.db.read() as s:
+        assert s.query(LinkFile).count() == 0
+
+
+def test_a_receipt_fetched_while_the_copy_is_locked_reaches_it_at_the_unlock(admins):
+    import httpx
+
+    a, b, ca, cb, wire = admins
+    make_user(b, "carol")
+    _alice, words, b_id, image = _shared_receipt(a, ca, cb)
+    wire.fail = lambda m, url, kw: httpx.ReadError("cut off") if url.endswith("/file") else None
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    wire.fail = None
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")  # fetched now, the copy still locked
+    carol = sign_in(b, "carol")
+    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    (f,) = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert f["arrived"] is True
+    assert carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}").content == image
+
+
+def test_a_failure_after_the_exchange_call_is_recorded_on_the_link(admins):
+    import httpx
+
+    a, b, ca, cb, wire = admins
+    make_user(a, "alice")
+    _a_id, b_id = linked(ca, cb)
+    make_user(b, "bob")
+    bob = sign_in(b, "bob")
+    acct = bob.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}).json()
+    alice_there = next(u for u in links_of(cb)["links"][0]["users"] if u["username"] == "alice")
+    share = f"/ui/api/shares/account/{acct['id']}"
+    assert bob.put(share, json={"users": {alice_there["id"]: "read"}}).status_code == 200
+    # This side's change can't be delivered after the exchange call went through.
+    wire.fail = lambda m, url, kw: (
+        httpx.ConnectError("dropped") if url.endswith("/link/v1/deliver") else None
+    )
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
+    assert link["lastError"] and link["failingSince"], "recorded, so the alert follows"
+    wire.fail = None
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
+    assert link["lastError"] is None and link["failingSince"] is None
+
+
+def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
+    """S17.5: the largest receipt Settings allows fits every path it takes across a link: a
+    `deliver` body and a `file` answer are bounded by it sealed, and the uploads in flight hold
+    one. (Statements against uploads in flight are CR3-121, not covered here yet.)"""
+    from moolakata import middleware, net, settings
+    from moolakata.links import sealed
+
+    biggest = settings.RECEIPT_MAX_MB * 1024 * 1024
+    assert sealed.max_receipt() == sealed.sealed_size(biggest) > biggest > net.MAX_RESPONSE
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    key = X25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    for n in (0, 1, sealed.CHUNK - 1, sealed.CHUNK, sealed.CHUNK + 1, 3 * sealed.CHUNK + 7):
+        out = b"".join(sealed.seal(key, sealed.RECEIPT, "l", "f", [b"x" * n]))
+        assert len(out) == sealed.sealed_size(n), n
+    assert sealed.max_receipt() <= middleware.IN_FLIGHT
+    # A linked server's receipt body may be the largest, whatever this server's own setting.
+    mw = middleware.BodyLimit(None, lambda: 1024 * 1024)
+    assert mw.limit_for("/link/v1/deliver", "application/octet-stream") == sealed.max_receipt()
+    assert mw.limit_for("/link/v1/deliver", "application/json") == middleware.LINK_LIMIT
+    assert mw.limit_for("/ui/api/receipts", "multipart/form-data") == 1024 * 1024
+    # A receipt's file answer is read up to it; every other answer up to 20 MB.
+    seen = []
+
+    def fake_client(srv, pins, max_bytes=net.MAX_RESPONSE):
+        seen.append(max_bytes)
+        raise net.httpx.ConnectError("not here")
+
+    monkeypatch.setattr(client, "_client", fake_client)
+    with pytest.raises(client.LinkError):
+        list(client.iter_file(pair[0], "https://b.test", bytes(32), "Rcpt_x", []))
+    assert seen == [sealed.max_receipt()]
+    check = settings.DEFINITIONS["receiptMaxMb"].check
+    assert check(settings.RECEIPT_MAX_MB) == settings.RECEIPT_MAX_MB
+    with pytest.raises(settings.Invalid):
+        check(settings.RECEIPT_MAX_MB + 1)

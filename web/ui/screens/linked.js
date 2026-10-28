@@ -1008,22 +1008,33 @@ function Receipts({ id }) {
   if (!v.length) return html`<${Empty}>No receipts came with what is shared with you.</${Empty}>`;
   return html`<div class="card">${
     v.map((f) =>
-      html`
-        <a class="list-item" href=${`/ui/api/linked/${id}/files/${f.id}`} target="_blank"
-          rel="noopener" style=${{ color: 'inherit' }}>${f.thumbnail
-            ? html`<img src=${f.thumbnail} alt="" style=${{
-              width: '40px',
-              height: '40px',
-              objectFit: 'cover',
-              borderRadius: '6px',
-            }} />`
-            : html`<${Icon} name="receipt" />`}<span class="grow">${f.meta.payee || 'A receipt'}<div
-                class="small dim">${f.meta.date
-                  ? date(f.meta.date)
-                  : ''}</div></span>${f.meta.amount
-                  ? html`<${Amt} v=${f.meta.amount} />`
-                  : null}</a>
-      `
+      // A receipt still on its way (S11.4): listed with what came with it, opened once it has.
+      f.arrived === false
+        ? html`
+          <div
+            class="list-item"><${Icon} name="receipt" /><span class="grow">${f.meta.payee ||
+              'A receipt'}<div class="small dim">${f.meta.date
+              ? date(f.meta.date)
+              : ''}</div></span>${f.meta.amount ? html`<${Amt} v=${f.meta.amount} />` : null}<span
+              class="pill warn" title="Asked for again at the next exchange">not arrived</span></div>
+        `
+        : html`
+          <a class="list-item" href=${`/ui/api/linked/${id}/files/${f.id}`} target="_blank"
+            rel="noopener" style=${{ color: 'inherit' }}>${f.thumbnail
+              ? html`<img src=${f.thumbnail} alt="" style=${{
+                width: '40px',
+                height: '40px',
+                objectFit: 'cover',
+                borderRadius: '6px',
+              }} />`
+              : html`<${Icon} name="receipt" />`}<span class="grow">${f.meta.payee ||
+              'A receipt'}<div
+                  class="small dim">${f.meta.date
+                    ? date(f.meta.date)
+                    : ''}</div></span>${f.meta.amount
+                    ? html`<${Amt} v=${f.meta.amount} />`
+                    : null}</a>
+        `
     )
   }</div>`;
 }

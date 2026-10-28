@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from fastapi import Depends, Query, Request, Response
 from fastapi.routing import APIRoute
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -21,7 +22,7 @@ from pydantic import (
     WithJsonSchema,
 )
 
-from .. import exactjson, money
+from .. import exactjson, ids, money
 from ..errors import Problem
 
 
@@ -172,6 +173,21 @@ class ExactRoute(APIRoute):
             return response
 
         return exact
+
+
+def IdOf(prefix: str) -> Any:
+    """An id of one table (schema.md §2): its prefix and its one spelling, refused at its field
+    otherwise. The OpenAPI document carries the prefix (`x-prefix`), from which the browser's
+    fields know what a reference refers to (S17.3.9.2)."""
+
+    def check(v: str) -> str:
+        if not ids.is_id(v, prefix):
+            raise ValueError(f"not an id of {prefix}")
+        return v
+
+    pattern = f"^{prefix}_[0-7][{ids.ALPHABET}]{{25}}$"
+    schema = {"type": "string", "pattern": pattern, "x-prefix": prefix}
+    return Annotated[str, AfterValidator(check), WithJsonSchema(schema)]
 
 
 class Model(BaseModel):

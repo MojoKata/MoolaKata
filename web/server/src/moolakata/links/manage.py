@@ -9,6 +9,7 @@ import contextlib
 import datetime as dt
 import hashlib
 import json
+import logging
 import re
 import secrets
 
@@ -19,7 +20,10 @@ from ..store.entities.education import Person
 from ..store.entities.links import Link
 from ..store.entities.users import User
 from . import client, keys
+from .changes import ChangeError
 from .client import LinkError
+
+log = logging.getLogger("moolakata.links")
 
 CODE_HOURS = 24
 
@@ -440,7 +444,6 @@ def exchange(srv, link_id: str) -> None:
     answer, and then this side's change for the peer, its receipts sent ahead of it. Only a
     signed `link-ended` ends the link here (S11.6)."""
     from ..ui.prices import apply_egress
-    from . import receive, serve
 
     with srv.db.read() as s:
         link = _get(s, link_id)
@@ -494,8 +497,29 @@ def exchange(srv, link_id: str) -> None:
     if pending:
         # Approved there: this side's directory goes now, with the first exchange proper.
         return exchange(srv, link_id)
+    try:
+        _rest_of_exchange(srv, link_id, out)
+    except (LinkError, ChangeError) as e:
+        # What fails after the first call is recorded on the link like a failed call, so a
+        # link that keeps failing is alerted (S12.11.1), never left showing a good exchange.
+        message = e.message if isinstance(e, LinkError) else f"A change failed: {e}"
+        with srv.db.tx() as s:
+            link = _get(s, link_id)
+            link.lastError = message
+            link.failingSince = link.failingSince or clock.now()
+        if isinstance(e, LinkError):
+            raise
+        raise LinkError("change-failed", message) from e
+
+
+def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
+    """After the exchange call: the peer's change taken, the receipts not yet arrived asked
+    for again, then this side's change sent, each of its receipts ahead of it."""
+    from . import receive, serve
+
+    tried: set[str] = set()
     if out.get("change"):
-        receive.take(srv, link_id, out["change"])
+        tried |= receive.take(srv, link_id, out["change"])
         # The rest of a large change, part by part, oldest first (S11.4).
         more = int(out.get("more") or 0)
         while more > 0:
@@ -504,12 +528,18 @@ def exchange(srv, link_id: str) -> None:
             nxt = call(srv, link_id, "/link/v1/next", {"have": got})
             if not nxt.get("change"):
                 break
-            receive.take(srv, link_id, nxt["change"])
+            tried |= receive.take(srv, link_id, nxt["change"])
             more = int(nxt.get("more") or 0)
+    receive.fetch_missing(srv, link_id, tried)
     mine = serve.change_for(srv, link_id, int(out.get("have") or 0), bool(out.get("wantFull")))
     for part in mine:
         for fid in part.get("fetch") or []:
-            _deliver_file(srv, link_id, fid)
+            try:
+                _deliver_file(srv, link_id, fid)
+            except LinkError as e:
+                # The peer fetches what it lacks, and keeps any it can't as not arrived: one
+                # receipt never holds the change back (S11.4).
+                log.info("delivering a receipt to link %s failed: %s", link_id, e.code)
         answer = call(srv, link_id, "/link/v1/deliver", {"change": part})
         if answer.get("have") != part.get("seq"):
             break  # the peer missed one: its next exchange asks again

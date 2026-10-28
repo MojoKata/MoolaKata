@@ -166,6 +166,7 @@ def map_all() -> None:
     _versioned(cn.Connection, connector.Connection)
     _map(lk.LinkedItem, links.LinkedItem)
     _map(lk.LinkSent, links.LinkSent)
+    _map(lk.LinkFile, links.LinkFile)
     _map(lk.LinkColour, links.LinkColours)
     _map(Secret, core.Secret)
     _map(TaskRun, core.TaskRun)

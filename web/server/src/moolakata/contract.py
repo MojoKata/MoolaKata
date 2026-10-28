@@ -1,9 +1,9 @@
 """The generated contract (requirements R3.9, S17.5): the OpenAPI document comes from the
-routes, and the browser app's JSDoc types come from it. `web/check` fails when either file is
-out of date.
+routes, and the browser app's JSDoc types and its drafts' fields (S17.3.9.2) come from it.
+`web/check` fails when any of the files is out of date.
 
-    python -m moolakata.contract write    regenerate both files
-    python -m moolakata.contract check    fail if either differs from what the routes give
+    python -m moolakata.contract write    regenerate the files
+    python -m moolakata.contract check    fail if any differs from what the routes give
 """
 
 import json
@@ -15,6 +15,7 @@ from . import paths
 
 OPENAPI_FILE = paths.UI / "api" / "openapi.json"
 TYPES_FILE = paths.UI / "api" / "types.js"
+FIELDS_FILE = paths.UI / "api" / "fields.js"
 
 
 def openapi_document() -> dict:
@@ -84,6 +85,8 @@ def _problems(doc: dict) -> None:
         "required": ["field", "code", "message"],
         "properties": {
             "field": {"type": ["string", "null"]},
+            # The record a save's refusal is about (S13.8.11.4); other refusals leave it out.
+            "id": {"type": "string"},
             # One of the codes, or a field refused by its validation type (`invalid-<type>`).
             "code": {
                 "anyOf": [
@@ -220,10 +223,76 @@ def types_js(doc: dict | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _field(schema: dict, schemas: dict) -> dict:
+    """A field's type for the browser's drafts (S12.15.2), from its schema: what it is, whether
+    it may be empty, its choices, what a reference refers to, a list's items."""
+    for key in ("anyOf", "oneOf"):
+        if key in schema:
+            parts = [s for s in schema[key] if s.get("type") != "null"]
+            nullable = len(parts) < len(schema[key])
+            out = _field(parts[0], schemas) if len(parts) == 1 else {"type": "json"}
+            return {**out, "nullable": True} if nullable else out
+    if "allOf" in schema and len(schema["allOf"]) == 1:
+        return _field(schema["allOf"][0], schemas)
+    if "$ref" in schema:
+        name = schema["$ref"].rsplit("/", 1)[-1]
+        target = schemas.get(name, {})
+        return _field(target, schemas) if "enum" in target else {"type": "json", "schema": name}
+    if "enum" in schema or "const" in schema:
+        return {"type": "choice", "choices": schema.get("enum", [schema.get("const")])}
+    if "x-kind" in schema:
+        return {"type": schema["x-kind"]}
+    t, fmt = schema.get("type"), schema.get("format")
+    if t == "string":
+        if "x-prefix" in schema:
+            return {"type": "ref", "prefix": schema["x-prefix"]}
+        return {"type": {"date": "date", "date-time": "timestamp"}.get(fmt, "text")}
+    if t == "number":
+        return {"type": "money" if fmt == "money" else "quantity"}
+    if t == "integer":
+        return {"type": "int"}
+    if t == "boolean":
+        return {"type": "bool"}
+    if t == "array":
+        out = {"type": "list", "items": _field(schema.get("items", {}), schemas)}
+        return {**out, "set": True} if schema.get("uniqueItems") else out
+    return {"type": "json"}
+
+
+def fields_js(doc: dict | None = None) -> str:
+    """Every schema's fields as the browser's drafts type them (S17.3.9.2)."""
+    doc = doc or openapi_document()
+    schemas = doc.get("components", {}).get("schemas", {})
+    out = {}
+    for name in sorted(schemas):
+        props = schemas[name].get("properties")
+        if props:
+            out[name] = {p: _field(ps, schemas) for p, ps in props.items()}
+    lines = [
+        "// Generated from the API's OpenAPI document by `python -m moolakata.contract write`.",
+        "// Do not edit: web/check fails when this file differs from what the routes give.",
+        "",
+        "/** @type {Record<string, Record<string, import('../app/draft.js').FieldSpec>>} */",
+        "export const FIELDS = {",
+    ]
+    for name, fields in out.items():
+        lines.append(f"  {_ident(name)}: {{")
+        for prop, spec in fields.items():
+            key = prop if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", prop) else json.dumps(prop)
+            lines.append(f"    {key}: {json.dumps(spec, ensure_ascii=False)},")
+        lines.append("  },")
+    lines.append("};")
+    return "\n".join(lines) + "\n"
+
+
 def main(argv: list[str]) -> int:
     command = argv[1] if len(argv) > 1 else ""
     doc = openapi_document()
-    wanted = {OPENAPI_FILE: openapi_json(doc), TYPES_FILE: types_js(doc)}
+    wanted = {
+        OPENAPI_FILE: openapi_json(doc),
+        TYPES_FILE: types_js(doc),
+        FIELDS_FILE: fields_js(doc),
+    }
     if command == "write":
         for path, text in wanted.items():
             path.parent.mkdir(parents=True, exist_ok=True)

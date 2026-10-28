@@ -213,6 +213,7 @@ def create_app(server: Server) -> FastAPI:
         receipts,
         reimbursements,
         rules,
+        save,
         session,
         sharing,
         strategies,
@@ -268,6 +269,7 @@ def create_app(server: Server) -> FastAPI:
         taxes,
         taxpanels,
         dashboard,
+        save,
     ):
         app.include_router(module.router)
     from . import mcp

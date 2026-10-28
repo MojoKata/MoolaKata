@@ -1,0 +1,50 @@
+## Problems: 0
+
+- none
+
+## To read (words and dates): 31
+
+- docs/requirements/README.md:216: "2026-12-18": 4. **Instrument:** a thing with a price, such as `AAPL`, `VTI`, `BTC`, or `AAPL 2026-12-18
+- docs/requirements/S1-accounts.md:162: "2027-03-01": contribution made 2027-03-01 may be for 2026), employer match and vesting for a 401(k), an
+- docs/requirements/S1-accounts.md:233: "no longer": 7. **A reorganised chain**: a recorded transaction that the explorer or node no longer
+- docs/requirements/S1-accounts.md:258: "proposed": confirms or rejects it; a rejected pair isn't proposed again. Once
+- docs/requirements/S11-linked-servers.md:53: "approved": from the first one after the link is approved. The receiving server keeps each remote user
+- docs/requirements/S11-linked-servers.md:55: "no longer": active flag is updated in place, and a user no longer on the list is soft-deleted, and
+- docs/requirements/S11-linked-servers.md:113: "now": the access key* (S11.9.2), *Lock now* and *Reset copy* (S11.9.8). The section also
+- docs/requirements/S11-linked-servers.md:117: "now": linked data, and every unlock (who), failed unlock, release (unused, Lock now or restart),
+- docs/requirements/S12-web-ui.md:188: "now": Alice at 14:05 · Lock now*;
+- docs/requirements/S13-architecture.md:173: "now": now stands (an item, when one of its valuations goes), or `null` for a record that
+- docs/requirements/S13-architecture.md:221: "now": now (`current`) and its `version`, so the screen shows what changed and the person
+- docs/requirements/S15-encryption-and-master-key.md:254: "no longer": encryption on the host is a good habit but no longer carries the key: nothing on the
+- docs/requirements/S15-encryption-and-master-key.md:273: "no longer": says the current phrase will no longer unlock the server, and asks before going on. At
+- docs/requirements/S15-encryption-and-master-key.md:371: "now": phrase, so the leaked phrase opens nothing made from now on, and no longer unlocks the
+- docs/requirements/S15-encryption-and-master-key.md:371: "no longer": phrase, so the leaked phrase opens nothing made from now on, and no longer unlocks the
+- docs/requirements/S15-encryption-and-master-key.md:380: "no longer": copies no longer need.
+- docs/requirements/S17-implementation-02-server-dependencies.md:27: "no longer": `web/audit.json`, and `web/check` fails when they no longer match, which costs nothing on
+- docs/requirements/S17-implementation-09-milestones.md:112: "now": unlocking with its limits, the sweeper that locks an unused copy, Lock now and
+- docs/requirements/S17-implementation-09-milestones.md:119: "now": hourly and on Pull now by whichever side can reach the other, copies deleted when a
+- docs/requirements/S17-implementation-09-milestones.md:144: "proposed": 5. **Strategies** (S3.5): grouping proposed and by hand, rolls, the shapes, max profit
+- docs/requirements/S17-implementation-09-milestones.md:145: "now": and loss, breakevens, and capital at risk now and at open on Positions, the account
+- docs/requirements/S17-implementation-09-milestones.md:156: "now": duration with Resume now (S12.13).
+- docs/requirements/S18-connector.md:319: "now": settings name now: if they differ, it sends nothing, drops the credential, and reports
+- docs/requirements/S3-positions-and-options.md:112: "no longer": deleted one that no longer does, takes effect at once.
+- docs/requirements/S3-positions-and-options.md:126: "now": unrealized now; and **per trade** for options (open date, close date, premium in and out,
+- docs/requirements/S4-prices.md:33: "formerly": | Options, fallback | **Massive** (formerly Polygon.io), Basic plan | free | end-of-day pr
+- docs/requirements/S7-budgets-gifts-and-giving.md:27: "proposed": a year*), a yearly one as a reserve when reserves are on. Each proposed line is kept,
+- docs/requirements/S7-budgets-gifts-and-giving.md:32: "proposed": are held in, its **moved from** account (S7.10.4), proposed from the account that most
+- docs/requirements/S7-budgets-gifts-and-giving.md:189: "now": toward a **target**, for a cost that comes now and then (car repairs, a roof, a
+- docs/requirements/later.md:20: "formerly": - **Massive** (formerly Polygon.io), Basic plan: shipped as the fallback (S4.3) but not ye
+- docs/schema.md:139: "proposed": | XfrMt  | TransferMatch    | A bitcoin transfer out of one of the owner's accounts and in
+
+## Next free ids, at least
+
+G25, Q31, L13
+
+A question asked while building takes a Q number without reaching the files, so
+take the higher of this and the last one the handoff or the commits name.
+
+## First-level items no code cites: 25
+
+S1.4, S1.5, S2.1, S4.1, S4.8, S4.9, S6.2, S6.5, S6.6, S7.6, S8.10, S10.5, S12.14, S13.1, S14.2, S14.5, S14.8, S15.1, S15.2, S15.5, S16.15, S17.1, S17.9, S17.10, S18.2
+
+Citations by item written to docs/reviews/code-review-0003-2026-10-24/cites.tsv

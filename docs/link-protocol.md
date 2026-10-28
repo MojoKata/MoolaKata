@@ -20,7 +20,11 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 3. Everything but `hello` is signed, and every answer to a signed call is signed back, but for
    the refusals §7 marks unsigned, which come before the answering server can sign to the call.
 4. Bodies are JSON, UTF-8, at most 20 MB. A caller waits 10 seconds to connect and 20 seconds
-   for each read, and cuts off an answer past 20 MB.
+   for each read, and cuts off an answer past 20 MB. A receipt's sealed bytes (a `deliver`
+   body with `MK-Link-File`, a `file` answer) are read as they arrive, never whole in memory,
+   and are bounded instead by the largest receipt Settings allows (S16.10, 100 MB) sealed: its
+   header and a 16-byte tag for each 64 KiB chunk (section 4.4). Each side bounds them so,
+   whatever its own receipt setting, so a receipt either side may keep can cross.
 
 ## 2. Keys and fingerprints
 
@@ -153,7 +157,12 @@ S10.10.1), used only for gifts.
    it arrives, never whole in memory; the answering side keeps each as it came until the part
    that names it arrives, so it never has to call back to fetch them. The caller fetches the
    answering side's receipts with `file`.
-5. A side whose link is paused refuses data with `link-paused`, its message saying until when;
+5. **A receipt never holds a change back.** One that can't be delivered or fetched (a
+   connection dropped, its file gone at the source) is left out: the change is taken without
+   it, the receiver keeps the receipt as not arrived, and asks for it with `file` at each
+   exchange until it comes. Whatever fails after the `exchange` call is recorded on the link as
+   a failed call is, so a link that keeps failing is alerted (S12.11.1).
+6. A side whose link is paused refuses data with `link-paused`, its message saying until when;
    the caller waits and doesn't count it as a failure, so no one is alerted. A removal and an
    end still cross a paused link (S11.4).
 

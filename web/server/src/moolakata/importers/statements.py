@@ -371,25 +371,33 @@ def name(institution: str | None, start: dt.date | None, end: dt.date | None) ->
 
 
 def learn(
-    layout: dict | None, st: Statement, kept: list[StatementRow], present: set = frozenset()
+    layout: dict | None,
+    kept: list[StatementRow],
+    left: list[StatementRow],
+    present: set = frozenset(),
 ) -> dict:
-    """What a checked statement teaches about its institution's layout: the sign each section
-    heading gave the rows the person kept, and the descriptions they took out by choice. A
-    line left out because it was already in the account (`present`, by date and amount)
-    teaches nothing (S1.3.3.4)."""
+    """What a checked statement teaches about its institution's layout (S1.3.3.4): the sign
+    each section heading gave the rows the person kept, and the first words of the lines they
+    took out by choice. `kept` and `left` are the lines as they were read (a kept line with the
+    sign the person gave it), so a corrected description teaches nothing. A line left out
+    because it was already in the account (`present`, by date and amount) teaches nothing, and
+    neither does one whose first words start a line the person kept, which the skip would drop
+    next time."""
     out = {
         "signs": dict((layout or {}).get("signs", {})),
         "skip": list((layout or {}).get("skip", [])),
     }
-    kept_keys = {(r.date, r.description) for r in kept}
     for r in kept:
         if r.section:
             out["signs"][r.section] = 1 if r.amount > 0 else -1
-    for r in st.rows:
-        if (r.date, r.amount) in present:
+    kept_text = [r.description.lower() for r in kept]
+    for r in left:
+        if (r.date, r.amount) in present or not r.description:
             continue
-        if (r.date, r.description) not in kept_keys and r.description:
-            words = " ".join(r.description.lower().split()[:3])
-            if words and words not in out["skip"]:
-                out["skip"].append(words)
+        words = " ".join(r.description.lower().split()[:3])
+        if not words or words in out["skip"]:
+            continue
+        if any(k.startswith(words) for k in kept_text):
+            continue
+        out["skip"].append(words)
     return out

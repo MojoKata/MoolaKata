@@ -102,8 +102,9 @@
             field, never pickled objects, so a worker an exploit has taken can't run code in
             the server;
          2. before it reads anything it gives up what it doesn't need: a seccomp filter denies
-            it network sockets; on a kernel with Landlock (Linux 5.13 or later) it can't open
-            the data directory; it inherits no file descriptor but its pipe and no environment,
+            it every socket, local ones included (so it can't reach the host commands' socket,
+            S13.6), and any signal but to itself (so it can't stop the server); on a kernel
+            with Landlock (Linux 5.13 or later) it can't open the data directory; it inherits no file descriptor but its pipe and no environment,
             and writes no core dump;
          3. the server marks itself non-dumpable, so no other process of its account can read
             its memory;

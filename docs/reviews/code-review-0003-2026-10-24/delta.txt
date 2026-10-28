@@ -1,0 +1,726 @@
+# git diff -M --numstat 294792b..6916954, per unit (added, deleted, path; R = moved)
+
+## 01 accounts-imports
+0	0	R web/server/src/moolakata/importers/__init__.py
+0	0	R web/server/src/moolakata/importers/brokerage.py
+33	2	R web/server/src/moolakata/importers/csvfile.py
+53	5	R web/server/src/moolakata/importers/ofx.py
+246	0	web/server/src/moolakata/importers/parsed.py
+14	3	R web/server/src/moolakata/importers/statements.py
+0	0	R web/server/src/moolakata/ledger/__init__.py
+0	0	R web/server/src/moolakata/ledger/balances.py
+25	7	R web/server/src/moolakata/ledger/categories.py
+3	3	R web/server/src/moolakata/ledger/expected.py
+4	2	R web/server/src/moolakata/ledger/holdingcheck.py
+17	11	R web/server/src/moolakata/ledger/reconcile.py
+0	0	R web/server/src/moolakata/ledger/transfers.py
+12	4	R web/server/src/moolakata/ledger/types.py
+1	1	R web/server/src/moolakata/store/alembic/versions/0004_statement_intervals_and_kept_statements.py
+10	10	R web/server/src/moolakata/store/alembic/versions/0005_holding_checks_and_statement_values.py
+53	0	web/server/src/moolakata/store/alembic/versions/0029_cash_and_payment_apps.py
+34	0	R web/server/src/moolakata/store/entities/accounts.py
+0	0	R web/server/src/moolakata/store/repos/__init__.py
+219	53	R web/server/src/moolakata/store/repos/ledger.py
+60	6	R web/server/src/moolakata/store/tables/accounts.py
+41	11	R web/server/src/moolakata/ui/accounts.py
+33	24	R web/server/src/moolakata/ui/imports.py
+134	0	web/server/tests/test_accounts.py
+2	2	web/server/tests/test_brokerage.py
+323	0	web/server/tests/test_created.py
+3	3	web/server/tests/test_expected.py
+67	2	web/server/tests/test_importers.py
+43	10	web/server/tests/test_ledger.py
+19	1	web/server/tests/test_statements.py
+13	0	web/ui/account-types/cash.js
+4	0	web/ui/account-types/index.js
+13	0	web/ui/account-types/payment-app.js
+39	11	web/ui/screens/account.js
+3	3	web/ui/screens/import.js
+
+## 02 items-loans-education-bitcoin
+3	2	R web/server/src/moolakata/assets/__init__.py
+0	0	R web/server/src/moolakata/bitcoin/__init__.py
+6	6	R web/server/src/moolakata/bitcoin/descriptor.py
+32	11	R web/server/src/moolakata/bitcoin/keys.py
+13	8	R web/server/src/moolakata/bitcoin/sources.py
+0	0	R web/server/src/moolakata/bitcoin/stub.py
+44	15	R web/server/src/moolakata/bitcoin/sync.py
+0	0	R web/server/src/moolakata/bitcoin/transfers.py
+10	2	R web/server/src/moolakata/bitcoin/wallet.py
+0	0	R web/server/src/moolakata/education/__init__.py
+26	7	R web/server/src/moolakata/loans/__init__.py
+15	17	R web/server/src/moolakata/loans/payoff.py
+5	5	R web/server/src/moolakata/store/alembic/versions/0009_bitcoin_the_rest.py
+62	0	web/server/src/moolakata/store/alembic/versions/0021_wallets_kept.py
+0	0	R web/server/src/moolakata/store/entities/assets.py
+2	0	R web/server/src/moolakata/store/entities/education.py
+8	8	R web/server/src/moolakata/store/tables/assets.py
+3	3	R web/server/src/moolakata/store/tables/education.py
+12	7	R web/server/src/moolakata/store/tables/loans.py
+0	0	R web/server/src/moolakata/store/tables/wallets.py
+2	2	R web/server/src/moolakata/ui/education.py
+2	2	R web/server/src/moolakata/ui/items.py
+34	6	R web/server/src/moolakata/ui/loans.py
+15	0	R web/server/src/moolakata/ui/wallets.py
+4	4	web/server/tests/test_assets.py
+2	2	web/server/tests/test_descriptors.py
+1	1	web/server/tests/test_education.py
+60	3	web/server/tests/test_loans.py
+126	16	web/server/tests/test_wallets.py
+2	3	web/ui/components/edu.js
+1	2	web/ui/components/items.js
+43	4	web/ui/components/loan.js
+12	4	web/ui/components/wallet.js
+
+## 03 lots-positions-prices-portfolios
+132	0	web/server/src/moolakata/corporate.py
+13	2	R web/server/src/moolakata/figures.py
+301	31	R web/server/src/moolakata/ledger/lots.py
+0	0	R web/server/src/moolakata/ledger/performance.py
+81	0	web/server/src/moolakata/ledger/rules.py
+16	31	R web/server/src/moolakata/options/__init__.py
+8	2	R web/server/src/moolakata/options/adjust.py
+52	12	R web/server/src/moolakata/options/strategies.py
+0	0	R web/server/src/moolakata/prices/__init__.py
+2	1	R web/server/src/moolakata/prices/base.py
+1	1	R web/server/src/moolakata/prices/cboe.py
+0	0	R web/server/src/moolakata/prices/coinbase.py
+2	1	R web/server/src/moolakata/prices/manual.py
+0	0	R web/server/src/moolakata/prices/massive.py
+75	14	R web/server/src/moolakata/prices/refresh.py
+0	0	R web/server/src/moolakata/prices/stub.py
+0	0	R web/server/src/moolakata/prices/tiingo.py
+143	0	web/server/src/moolakata/reimbursements.py
+11	11	R web/server/src/moolakata/store/alembic/versions/0007_strategies.py
+1	1	R web/server/src/moolakata/store/alembic/versions/0008_adjusted_contracts.py
+190	0	web/server/src/moolakata/store/alembic/versions/0017_figures.py
+78	0	web/server/src/moolakata/store/alembic/versions/0018_rules.py
+58	0	web/server/src/moolakata/store/alembic/versions/0019_corporate_actions.py
+69	0	web/server/src/moolakata/store/alembic/versions/0022_typed_prices_are_their_typers.py
+117	0	web/server/src/moolakata/store/alembic/versions/0030_reimbursable_spending.py
+12	0	R web/server/src/moolakata/store/entities/prices.py
+108	0	web/server/src/moolakata/store/repos/rules.py
+2	2	R web/server/src/moolakata/store/tables/options.py
+14	2	R web/server/src/moolakata/store/tables/prices.py
+83	2	R web/server/src/moolakata/ui/options.py
+35	7	R web/server/src/moolakata/ui/portfolios.py
+14	12	R web/server/src/moolakata/ui/positions.py
+32	27	R web/server/src/moolakata/ui/prices.py
+206	0	web/server/src/moolakata/ui/reimbursements.py
+287	0	web/server/src/moolakata/ui/rules.py
+1	1	R web/server/src/moolakata/ui/strategies.py
+128	19	R web/server/src/moolakata/ui/transactions.py
+69	18	R web/server/src/moolakata/valuation.py
+59	19	R web/server/src/moolakata/washes.py
+2	2	web/server/tests/test_adjusted.py
+47	3	web/server/tests/test_figures.py
+99	6	web/server/tests/test_options.py
+168	3	web/server/tests/test_positions.py
+84	15	web/server/tests/test_prices.py
+184	0	web/server/tests/test_reimbursements.py
+143	0	web/server/tests/test_rules.py
+36	4	web/server/tests/test_strategies.py
+137	0	web/ui/components/corporate.js
+11	8	web/ui/components/optiontrade.js
+247	0	web/ui/components/rules.js
+7	12	web/ui/components/strategies.js
+3	2	web/ui/screens/portfolio.js
+9	4	web/ui/screens/positions.js
+105	10	web/ui/screens/transaction-dialog.js
+2	0	web/ui/screens/transactions.js
+
+## 04 projections-taxes
+57	18	R web/server/src/moolakata/projections/__init__.py
+0	0	R web/server/src/moolakata/projections/assumptions.py
+1	1	R web/server/src/moolakata/projections/bitcoin.py
+10	3	R web/server/src/moolakata/projections/engine.py
+47	3	R web/server/src/moolakata/projections/taxtables.py
+7	7	R web/server/src/moolakata/store/alembic/versions/0003_tax_book_dependents.py
+86	0	web/server/src/moolakata/store/alembic/versions/0023_edits_after_filing.py
+0	0	R web/server/src/moolakata/store/entities/projections.py
+14	0	R web/server/src/moolakata/store/entities/taxes.py
+0	0	R web/server/src/moolakata/store/tables/projections.py
+27	5	R web/server/src/moolakata/store/tables/taxes.py
+0	0	R web/server/src/moolakata/taxes/__init__.py
+39	8	R web/server/src/moolakata/taxes/books.py
+119	0	web/server/src/moolakata/taxes/closed.py
+51	0	web/server/src/moolakata/taxes/dates.py
+1	1	R web/server/src/moolakata/taxes/dependents.py
+27	4	R web/server/src/moolakata/taxes/exports.py
+129	20	R web/server/src/moolakata/taxes/panels.py
+44	6	R web/server/src/moolakata/ui/projections.py
+55	13	R web/server/src/moolakata/ui/taxes.py
+43	6	R web/server/src/moolakata/ui/taxpanels.py
+307	0	web/server/tests/test_golden.py
+109	4	web/server/tests/test_projections.py
+232	1	web/server/tests/test_taxbooks.py
+99	3	web/server/tests/test_taxpanels.py
+2	2	web/ui/components/plans.js
+45	6	web/ui/components/taxpanels.js
+20	9	web/ui/screens/projections.js
+5	5	web/ui/screens/taxes.js
+
+## 05 budgets-gifts-giving
+691	0	web/server/src/moolakata/budgets/__init__.py
+88	0	web/server/src/moolakata/budgets/cache.py
+190	0	web/server/src/moolakata/budgets/envelope.py
+228	0	web/server/src/moolakata/budgets/plan.py
+2	0	R web/server/src/moolakata/budgets/recurring.py
+226	0	web/server/src/moolakata/budgets/reserves.py
+15	5	R web/server/src/moolakata/gifts/__init__.py
+0	0	R web/server/src/moolakata/gifts/holidays.py
+3	3	R web/server/src/moolakata/giving/__init__.py
+84	0	web/server/src/moolakata/store/alembic/versions/0028_what_a_budget_counts.py
+103	0	web/server/src/moolakata/store/alembic/versions/0031_a_budgets_method_and_reserves.py
+117	0	web/server/src/moolakata/store/alembic/versions/0032_reserves_and_moves.py
+57	0	web/server/src/moolakata/store/alembic/versions/0033_leave_outs.py
+57	0	web/server/src/moolakata/store/alembic/versions/0034_the_active_budget.py
+66	0	web/server/src/moolakata/store/alembic/versions/0035_card_payment_lines.py
+71	0	web/server/src/moolakata/store/alembic/versions/0036_month_reviews.py
+74	0	web/server/src/moolakata/store/entities/budgets.py
+0	0	R web/server/src/moolakata/store/entities/giving.py
+116	0	web/server/src/moolakata/store/tables/budgets.py
+6	6	R web/server/src/moolakata/store/tables/giving.py
+1665	0	web/server/src/moolakata/ui/budgets.py
+66	13	R web/server/src/moolakata/ui/gifts.py
+11	6	R web/server/src/moolakata/ui/giving.py
+152	0	web/server/tests/test_budget_plan.py
+164	2	web/server/tests/test_budgets.py
+129	0	web/server/tests/test_envelope.py
+41	3	web/server/tests/test_gifts.py
+44	1	web/server/tests/test_giving.py
+110	0	web/server/tests/test_moves.py
+178	0	web/server/tests/test_reserves.py
+73	0	web/server/tests/test_review.py
+62	0	web/server/tests/test_scenarios.py
+1407	79	web/ui/screens/budgets.js
+21	4	web/ui/screens/gifts.js
+3	6	web/ui/screens/giving.js
+
+## 06 receipts-storage
+0	0	R web/server/src/moolakata/clock.py
+0	0	R web/server/src/moolakata/exactjson.py
+0	0	R web/server/src/moolakata/ids.py
+2	2	R web/server/src/moolakata/money.py
+178	0	web/server/src/moolakata/parsing.py
+2	2	R web/server/src/moolakata/paths.py
+95	6	R web/server/src/moolakata/receipts/__init__.py
+23	9	R web/server/src/moolakata/receipts/ocr.py
+0	0	R web/server/src/moolakata/receipts/parser.py
+125	66	R web/server/src/moolakata/receipts/reading.py
+6	1	R web/server/src/moolakata/receipts/retention.py
+155	0	web/server/src/moolakata/receipts/worker.py
+179	0	web/server/src/moolakata/sandbox.py
+0	0	R web/server/src/moolakata/store/__init__.py
+2	2	R web/server/src/moolakata/store/alembic/env.py
+2	2	R web/server/src/moolakata/store/alembic/script.py.mako
+308	308	R web/server/src/moolakata/store/alembic/versions/0001_the_initial_schema.py
+1	1	R web/server/src/moolakata/store/alembic/versions/0002_deleted_generated.py
+1	1	R web/server/src/moolakata/store/alembic/versions/0006_file_retention.py
+1	1	R web/server/src/moolakata/store/alembic/versions/0010_links_the_rest.py
+3	3	R web/server/src/moolakata/store/alembic/versions/0011_the_connector.py
+0	0	R web/server/src/moolakata/store/alembic/versions/0012_the_pairing_confirmed.py
+0	0	R web/server/src/moolakata/store/alembic/versions/0013_the_copy_folder.py
+0	0	R web/server/src/moolakata/store/alembic/versions/0014_addresses.py
+95	0	web/server/src/moolakata/store/alembic/versions/0015_access_between_users.py
+61	0	web/server/src/moolakata/store/alembic/versions/0016_transport.py
+68	0	web/server/src/moolakata/store/alembic/versions/0020_the_connector_trusted.py
+62	0	web/server/src/moolakata/store/alembic/versions/0024_changes_in_cents.py
+45	0	web/server/src/moolakata/store/alembic/versions/0025_emails_queued_in_the_database.py
+64	0	web/server/src/moolakata/store/alembic/versions/0026_the_last_money_in_cents.py
+56	0	web/server/src/moolakata/store/alembic/versions/0027_the_connectors_page.py
+0	0	R web/server/src/moolakata/store/copy.py
+24	2	R web/server/src/moolakata/store/db.py
+0	0	R web/server/src/moolakata/store/entities/__init__.py
+12	0	R web/server/src/moolakata/store/entities/core.py
+0	0	R web/server/src/moolakata/store/entities/receipts.py
+9	1	R web/server/src/moolakata/store/mapping.py
+6	6	R web/server/src/moolakata/store/migrate.py
+0	0	R web/server/src/moolakata/store/repos/secrets.py
+0	0	R web/server/src/moolakata/store/schema_check.py
+0	0	R web/server/src/moolakata/store/tables/__init__.py
+0	0	R web/server/src/moolakata/store/tables/_base.py
+19	2	R web/server/src/moolakata/store/tables/core.py
+2	2	R web/server/src/moolakata/store/tables/receipts.py
+0	0	R web/server/src/moolakata/store/types.py
+0	0	R web/server/src/moolakata/store/views.py
+138	0	web/server/src/moolakata/timezones.py
+109	16	R web/server/src/moolakata/ui/receipts.py
+1	1	web/server/tests/test_ids_money.py
+88	3	web/server/tests/test_reading.py
+6	2	web/server/tests/test_receipts.py
+24	5	web/server/tests/test_retention.py
+349	62	web/server/tests/test_store.py
+48	0	web/server/tests/test_timezones.py
+13	5	web/ui/components/receipt.js
+
+## 07 users-sharing
+0	0	R web/server/src/moolakata/access.py
+0	0	R web/server/src/moolakata/activity.py
+0	0	R web/server/src/moolakata/auth/__init__.py
+1	1	R web/server/src/moolakata/auth/passwords.py
+0	0	R web/server/src/moolakata/auth/sessions.py
+9	6	R web/server/src/moolakata/auth/signup.py
+0	0	R web/server/src/moolakata/auth/tokens.py
+1	1	R web/server/src/moolakata/auth/twostep.py
+84	51	R web/server/src/moolakata/auth/users.py
+192	34	R web/server/src/moolakata/mail.py
+33	6	R web/server/src/moolakata/mcp.py
+108	15	R web/server/src/moolakata/people/__init__.py
+0	0	R web/server/src/moolakata/people/tree.py
+53	5	R web/server/src/moolakata/ratelimit.py
+13	1	R web/server/src/moolakata/sharing.py
+0	0	R web/server/src/moolakata/store/entities/sharing.py
+1	0	R web/server/src/moolakata/store/entities/users.py
+0	0	R web/server/src/moolakata/store/tables/activity.py
+8	4	R web/server/src/moolakata/store/tables/people.py
+0	0	R web/server/src/moolakata/store/tables/sharing.py
+11	0	R web/server/src/moolakata/store/tables/users.py
+38	2	R web/server/src/moolakata/tokens.py
+84	8	R web/server/src/moolakata/ui/activity.py
+72	0	R web/server/src/moolakata/ui/people.py
+18	9	R web/server/src/moolakata/ui/profile.py
+109	36	R web/server/src/moolakata/ui/session.py
+23	1	R web/server/src/moolakata/ui/sharing.py
+4	2	R web/server/src/moolakata/ui/tokens.py
+17	6	R web/server/src/moolakata/ui/users.py
+122	0	web/server/src/moolakata/ui/welcome.py
+152	25	web/server/tests/test_mail.py
+8	4	web/server/tests/test_mcp.py
+46	6	web/server/tests/test_people.py
+27	0	web/server/tests/test_sharing.py
+37	3	web/server/tests/test_tokens.py
+50	13	web/server/tests/test_twostep.py
+117	17	web/server/tests/test_users.py
+220	0	web/server/tests/test_welcome.py
+2	2	web/ui/components/auth.js
+10	6	web/ui/components/share.js
+11	8	web/ui/components/tokens.js
+1	1	web/ui/screens/activity.js
+107	0	web/ui/screens/new-server.js
+48	6	web/ui/screens/profile.js
+26	12	web/ui/screens/setup.js
+3	2	web/ui/screens/signin.js
+9	5	web/ui/screens/users.js
+1	1	web/ui/screens/welcome.js
+16	2	web/ui/store/session.js
+
+## 08 linked-servers
+1	1	R web/server/src/moolakata/links/__init__.py
+390	0	web/server/src/moolakata/links/changes.py
+220	0	web/server/src/moolakata/links/client.py
+40	0	R web/server/src/moolakata/links/copies.py
+14	11	R web/server/src/moolakata/links/copy.py
+0	0	R web/server/src/moolakata/links/copydb.py
+28	0	R web/server/src/moolakata/links/keys.py
+222	48	R web/server/src/moolakata/links/manage.py
+4	2	R web/server/src/moolakata/links/peers.py
+68	22	R web/server/src/moolakata/links/receive.py
+349	0	web/server/src/moolakata/links/routes.py
+2	2	R web/server/src/moolakata/links/sealed.py
+121	7	R web/server/src/moolakata/links/serve.py
+56	10	R web/server/src/moolakata/links/signing.py
+5	0	R web/server/src/moolakata/store/entities/links.py
+13	1	R web/server/src/moolakata/store/tables/links.py
+76	7	R web/server/src/moolakata/ui/linked.py
+108	11	R web/server/src/moolakata/ui/links.py
+21	16	web/server/tests/linkpair.py
+54	5	web/server/tests/test_copies.py
+433	17	web/server/tests/test_links.py
+46	17	web/server/tests/test_sealed.py
+69	31	web/ui/components/links.js
+39	9	web/ui/screens/linked.js
+
+## 09 web-ui-architecture
+1	0	web/server/src/moolakata/__init__.py
+398	43	R web/server/src/moolakata/alerts.py
+47	10	R web/server/src/moolakata/app.py
+112	0	web/server/src/moolakata/certs.py
+49	8	R web/server/src/moolakata/config.py
+107	8	R web/server/src/moolakata/contract.py
+0	0	R web/server/src/moolakata/duration.py
+13	5	R web/server/src/moolakata/errors.py
+1	1	R web/server/src/moolakata/events.py
+34	0	R web/server/src/moolakata/jobs.py
+14	4	R web/server/src/moolakata/listener.py
+31	14	R web/server/src/moolakata/main.py
+164	11	R web/server/src/moolakata/middleware.py
+267	0	web/server/src/moolakata/net.py
+0	0	R web/server/src/moolakata/store/entities/alerts.py
+0	0	R web/server/src/moolakata/store/tables/alerts.py
+13	3	R web/server/src/moolakata/tasks.py
+0	0	R web/server/src/moolakata/ui/__init__.py
+0	0	R web/server/src/moolakata/ui/alerts.py
+26	0	R web/server/src/moolakata/ui/conventions.py
+43	5	R web/server/src/moolakata/ui/dashboard.py
+0	0	R web/server/src/moolakata/ui/deps.py
+0	0	R web/server/src/moolakata/ui/stream.py
+137	14	web/server/tests/test_alerts.py
+254	11	web/server/tests/test_app.py
+59	12	web/server/tests/test_browser_smoke.py
+67	14	web/server/tests/test_config.py
+132	10	web/server/tests/test_conventions.py
+102	7	web/server/tests/test_core.py
+1	1	web/server/tests/test_duration.py
+127	0	web/server/tests/test_guides.py
+44	10	web/server/tests/test_middleware.py
+6	6	web/server/tests/test_no_network.py
+6	6	web/ui/api/client.js
+1	1	web/ui/app/config.js
+1	1	web/ui/app/duration.js
+21	0	web/ui/app/format.js
+6	3	web/ui/app/main.js
+2	1	web/ui/app/router.js
+34	4	web/ui/app/sealed.js
+7	4	web/ui/app/stream.js
+3	0	web/ui/assets/icons.svg
+41	16	web/ui/components/dialog.js
+3	3	web/ui/components/frame.js
+29	5	web/ui/components/help.js
+100	13	web/ui/components/markdown.js
+95	0	web/ui/components/term.js
+2	2	web/ui/index.html
+32	5	web/ui/screens/dashboard.js
+93	0	web/ui/styles/components.css
+
+## 10 encryption-settings
+191	0	web/server/src/moolakata/host.py
+0	0	R web/server/src/moolakata/keys/__init__.py
+567	0	web/server/src/moolakata/keys/cli.py
+2	2	R web/server/src/moolakata/keys/files.py
+22	12	R web/server/src/moolakata/keys/master.py
+0	0	R web/server/src/moolakata/keys/phrase.py
+1	1	R web/server/src/moolakata/keys/secrets.py
+55	0	web/server/src/moolakata/keys/welcome.py
+206	57	R web/server/src/moolakata/runtime.py
+22	5	R web/server/src/moolakata/settings.py
+104	0	web/server/src/moolakata/store/cli.py
+32	18	R web/server/src/moolakata/store/copies.py
+240	152	R web/server/src/moolakata/store/maintenance.py
+379	0	web/server/src/moolakata/store/reencrypt.py
+280	46	R web/server/src/moolakata/ui/settings.py
+125	0	web/server/src/moolakata/ui/unlock.py
+98	15	web/server/tests/test_keys.py
+3	3	web/server/tests/test_runtime.py
+141	21	web/server/tests/test_unlock.py
+72	13	web/ui/screens/locked.js
+212	61	web/ui/screens/settings.js
+
+## 11 implementation
+63	0	.github/workflows/check.yml
+162	0	.github/workflows/release.yml
+152	0	publish/truenas/check.sh
+256	0	publish/truenas/create-pr.sh
+0	0	publish/truenas/media/moolakata-1.png
+0	0	publish/truenas/media/moolakata-2.png
+0	0	publish/truenas/media/moolakata-3.png
+0	0	publish/truenas/media/moolakata-4.png
+0	0	publish/truenas/media/moolakata-connector-1.png
+0	0	publish/truenas/media/moolakata-connector-2.png
+11	0	publish/truenas/media/moolakata-connector-icon.svg
+6	0	publish/truenas/moolakata-connector/README.md
+35	0	publish/truenas/moolakata-connector/app.yaml
+7	0	publish/truenas/moolakata-connector/item.yaml
+16	0	publish/truenas/moolakata-connector/ix_values.yaml
+367	0	publish/truenas/moolakata-connector/questions.yaml
+48	0	publish/truenas/moolakata-connector/templates/docker-compose.yaml
+28	0	publish/truenas/moolakata-connector/templates/test_values/basic-values.yaml
+26	0	publish/truenas/moolakata-connector/templates/test_values/hostnet-values.yaml
+50	0	publish/truenas/moolakata-connector/templates/test_values/https-values.yaml
+7	0	publish/truenas/moolakata/README.md
+38	0	publish/truenas/moolakata/app.yaml
+10	0	publish/truenas/moolakata/item.yaml
+17	0	publish/truenas/moolakata/ix_values.yaml
+461	0	publish/truenas/moolakata/questions.yaml
+62	0	publish/truenas/moolakata/templates/docker-compose.yaml
+34	0	publish/truenas/moolakata/templates/test_values/basic-values.yaml
+32	0	publish/truenas/moolakata/templates/test_values/hostnet-values.yaml
+56	0	publish/truenas/moolakata/templates/test_values/https-values.yaml
+1	1	web/VERSION
+7	6	web/check
+19	19	web/dev.md
+8	8	web/dev.sh
+19	15	web/install/Dockerfile
+42	0	web/install/compose.connector-truenas.yaml
+24	17	web/install/compose.tls.yaml
+56	0	web/install/compose.truenas.yaml
+45	20	web/install/compose.yaml
+28	0	web/install/moolakata.toml
+3	3	web/install/proxy/Caddyfile
+4	4	web/install/proxy/haproxy.cfg
+2	2	web/install/proxy/nginx.conf
+114	62	web/install/smoke.sh
+418	0	web/release.sh
+4	4	web/server/pyproject.toml
+0	0	R web/server/src/moolakata/dev/__init__.py
+4	4	R web/server/src/moolakata/dev/audit.py
+2	2	R web/server/src/moolakata/dev/base.py
+1	1	R web/server/src/moolakata/dev/devmode.py
+4	4	R web/server/src/moolakata/dev/mocks.py
+20	8	R web/server/src/moolakata/dev/seed.py
+30	0	R web/server/src/moolakata/dev/seed_accounts.py
+0	0	R web/server/src/moolakata/dev/seed_assets.py
+146	0	web/server/src/moolakata/dev/seed_budgets.py
+17	11	R web/server/src/moolakata/dev/seed_connector.py
+0	0	R web/server/src/moolakata/dev/seed_education.py
+0	0	R web/server/src/moolakata/dev/seed_gifts.py
+0	0	R web/server/src/moolakata/dev/seed_giving.py
+17	11	R web/server/src/moolakata/dev/seed_links.py
+0	0	R web/server/src/moolakata/dev/seed_loans.py
+0	0	R web/server/src/moolakata/dev/seed_options.py
+0	0	R web/server/src/moolakata/dev/seed_projections.py
+0	0	R web/server/src/moolakata/dev/seed_receipts.py
+0	0	R web/server/src/moolakata/dev/seed_sharing.py
+0	0	R web/server/src/moolakata/dev/seed_taxes.py
+0	0	R web/server/src/moolakata/dev/seed_wallets.py
+1	1	R web/server/src/moolakata/dev/wheels.py
+9	5	R web/server/src/moolakata/static.py
+40	22	web/server/tests/conftest.py
+311	30	web/server/tests/test_install.py
+9	9	web/server/tests/test_mocks.py
+13	3	web/server/tests/test_mockup_app.py
+15	3	web/server/tests/test_static.py
+140	18	web/ui/mockup/build.py
+11	19	web/ui/mockup/help_shots.py
+1	1	web/ui/mockup/iso.js
+8	1	web/ui/mockup/menu.js
+112	41	web/ui/mockup/runtime.js
+
+## 12 connector
+15	10	connector/Dockerfile
+7	0	connector/moolakata_connector/__init__.py
+205	0	connector/moolakata_connector/client.py
+220	76	R connector/moolakata_connector/core.py
+6	12	R connector/moolakata_connector/drivers/__init__.py
+1	1	R connector/moolakata_connector/drivers/ofx_direct.py
+16	4	R connector/moolakata_connector/drivers/schwab.py
+29	10	R connector/moolakata_connector/keys.py
+251	0	connector/moolakata_connector/main.py
+244	0	connector/moolakata_connector/page.css
+719	0	connector/moolakata_connector/page.py
+1	1	R connector/moolakata_connector/sealed.py
+16	5	R connector/moolakata_connector/signing.py
+8	5	R connector/moolakata_connector/sock.py
+29	13	R connector/moolakata_connector/vault.py
+2	2	R connector/moolakata_connector/words.py
+5	5	connector/pyproject.toml
+3	3	connector/tests/conftest.py
+339	28	connector/tests/test_core.py
+24	62	connector/tests/test_drivers.py
+121	34	connector/tests/test_end_to_end.py
+288	0	connector/tests/test_page.py
+2	2	R web/server/src/moolakata/connector/__init__.py
+7	9	R web/server/src/moolakata/connector/files.py
+101	16	R web/server/src/moolakata/connector/manage.py
+40	21	R web/server/src/moolakata/connector/routes.py
+3	3	R web/server/src/moolakata/connector/sealed.py
+3	0	R web/server/src/moolakata/store/entities/connector.py
+11	3	R web/server/src/moolakata/store/tables/connector.py
+22	19	R web/server/src/moolakata/ui/connections.py
+16	2	R web/server/src/moolakata/ui/connector.py
+60	40	web/server/tests/test_connections.py
+160	28	web/server/tests/test_connector.py
+41	52	web/ui/components/connections.js
+32	19	web/ui/components/connector.js
+
+## gen generated
+0	0	R connector/moolakata_connector/bip39-english.txt
+2	2	web/audit.json
+0	0	R web/server/src/moolakata/auth/common-passwords.txt.gz
+0	0	R web/server/src/moolakata/keys/bip39-english.txt
+31	0	web/server/tests/fixtures/options.ofx
+23	0	web/server/tests/fixtures/reinvest.ofx
+44	0	web/server/tests/golden/budgets-2026.txt
+8	0	web/server/tests/golden/form-8949-2026.csv
+8	0	web/server/tests/golden/form-8949-review-2026.csv
+35	0	web/server/tests/golden/moolakata-2026.txf
+1	1	web/server/uv.lock
+7620	2542	web/ui/api/openapi.json
+644	87	web/ui/api/types.js
+
+## prose guides
+12	1	web/ui/guides/account-auto-loan.md
+8	0	web/ui/guides/account-cash.md
+1	1	web/ui/guides/account-contributions.md
+2	2	web/ui/guides/account-crypto-wallet.md
+1	1	web/ui/guides/account-goal.md
+12	1	web/ui/guides/account-heloc.md
+2	2	web/ui/guides/account-holdings.md
+1	1	web/ui/guides/account-items.md
+12	1	web/ui/guides/account-loan.md
+12	1	web/ui/guides/account-mortgage.md
+1	1	web/ui/guides/account-overview.md
+8	0	web/ui/guides/account-payment-app.md
+1	1	web/ui/guides/account-payoff.md
+12	1	web/ui/guides/account-personal-loan.md
+8	8	web/ui/guides/account-reconcile.md
+1	1	web/ui/guides/account-schedule.md
+9	3	web/ui/guides/account-settings.md
+1	1	web/ui/guides/account-sharing.md
+12	1	web/ui/guides/account-student-loan.md
+1	1	web/ui/guides/account-transactions.md
+1	1	web/ui/guides/account-withdrawals.md
+4	4	web/ui/guides/accounts.md
+2	2	web/ui/guides/activity.md
+7	5	web/ui/guides/alerts.md
+5	0	web/ui/guides/budgets-cash-flow.md
+25	0	web/ui/guides/budgets-compare.md
+24	0	web/ui/guides/budgets-list.md
+61	3	web/ui/guides/budgets-month.md
+5	0	web/ui/guides/budgets-recurring.md
+23	0	web/ui/guides/budgets-reimbursements.md
+27	0	web/ui/guides/budgets-review.md
+5	0	web/ui/guides/budgets-trends.md
+39	0	web/ui/guides/budgets-where.md
+8	2	web/ui/guides/dashboard.md
+15	3	web/ui/guides/dialog-account-form.md
+1	1	web/ui/guides/dialog-add-source.md
+13	0	web/ui/guides/dialog-assign.md
+2	2	web/ui/guides/dialog-bitcoin-models.md
+1	1	web/ui/guides/dialog-brokerage-statement.md
+33	0	web/ui/guides/dialog-budget-settings.md
+26	3	web/ui/guides/dialog-budget.md
+9	21	web/ui/guides/dialog-connection.md
+3	2	web/ui/guides/dialog-connector-pair.md
+1	1	web/ui/guides/dialog-copy-key.md
+17	0	web/ui/guides/dialog-copy.md
+44	0	web/ui/guides/dialog-corporate-action.md
+1	1	web/ui/guides/dialog-dependent.md
+19	0	web/ui/guides/dialog-estimate.md
+3	2	web/ui/guides/dialog-filing.md
+1	1	web/ui/guides/dialog-import.md
+1	1	web/ui/guides/dialog-link-join.md
+3	3	web/ui/guides/dialog-make-active.md
+23	0	web/ui/guides/dialog-move.md
+3	1	web/ui/guides/dialog-new-account.md
+2	1	web/ui/guides/dialog-new-token.md
+14	0	web/ui/guides/dialog-pair.md
+6	3	web/ui/guides/dialog-person.md
+21	0	web/ui/guides/dialog-plan.md
+1	1	web/ui/guides/dialog-receipt.md
+1	1	web/ui/guides/dialog-recovery-codes.md
+4	1	web/ui/guides/dialog-relationship.md
+10	0	web/ui/guides/dialog-remove-copy.md
+42	0	web/ui/guides/dialog-rule.md
+16	0	web/ui/guides/dialog-rules.md
+1	1	web/ui/guides/dialog-statement-split.md
+1	1	web/ui/guides/dialog-token-shown.md
+29	1	web/ui/guides/dialog-transaction.md
+10	0	web/ui/guides/dialog-verify-key.md
+137	0	web/ui/guides/forms.md
+1	1	web/ui/guides/gifts-gifts.md
+1	1	web/ui/guides/gifts-people.md
+1	1	web/ui/guides/gifts-spending.md
+1	1	web/ui/guides/gifts-upcoming.md
+1	1	web/ui/guides/giving-donations.md
+1	1	web/ui/guides/giving-fund.md
+1	1	web/ui/guides/giving-organisations.md
+1	1	web/ui/guides/giving-overview.md
+8	2	web/ui/guides/linked-gifts.md
+12	4	web/ui/guides/locked.md
+28	0	web/ui/guides/new-server.md
+1	1	web/ui/guides/portfolio-holdings.md
+1	1	web/ui/guides/portfolio-performance.md
+1	1	web/ui/guides/portfolios.md
+1	1	web/ui/guides/positions-closed.md
+1	1	web/ui/guides/positions-gains.md
+1	1	web/ui/guides/positions-open.md
+5	3	web/ui/guides/positions-strategies.md
+1	1	web/ui/guides/positions-trades.md
+2	1	web/ui/guides/prices-manual.md
+6	5	web/ui/guides/profile.md
+4	2	web/ui/guides/projections.md
+1	1	web/ui/guides/receipts.md
+4	4	web/ui/guides/settings-backups.md
+5	4	web/ui/guides/settings-bitcoin.md
+23	13	web/ui/guides/settings-connector.md
+10	6	web/ui/guides/settings-email.md
+2	2	web/ui/guides/settings-general.md
+1	1	web/ui/guides/settings-imports.md
+35	16	web/ui/guides/settings-keys.md
+28	7	web/ui/guides/settings-links.md
+6	2	web/ui/guides/settings-network.md
+1	1	web/ui/guides/settings-passwords.md
+2	2	web/ui/guides/settings-prices.md
+13	3	web/ui/guides/settings-receipts.md
+2	2	web/ui/guides/settings-sessions.md
+1	1	web/ui/guides/settings-storage.md
+2	2	web/ui/guides/settings-tax-tables.md
+3	2	web/ui/guides/setup.md
+0	0	web/ui/guides/shots/account-contributions.png
+0	0	web/ui/guides/shots/account-goal.png
+0	0	web/ui/guides/shots/account-holdings.png
+0	0	web/ui/guides/shots/account-items.png
+0	0	web/ui/guides/shots/account-overview.png
+0	0	web/ui/guides/shots/account-payoff.png
+0	0	web/ui/guides/shots/account-reconcile.png
+0	0	web/ui/guides/shots/account-schedule.png
+0	0	web/ui/guides/shots/account-settings.png
+0	0	web/ui/guides/shots/account-sharing.png
+0	0	web/ui/guides/shots/account-transactions.png
+0	0	web/ui/guides/shots/account-withdrawals.png
+0	0	web/ui/guides/shots/accounts.png
+0	0	web/ui/guides/shots/activity.png
+0	0	web/ui/guides/shots/alerts.png
+0	0	web/ui/guides/shots/budgets-month.png
+0	0	web/ui/guides/shots/dashboard.png
+0	0	web/ui/guides/shots/gifts-gifts.png
+0	0	web/ui/guides/shots/gifts-people.png
+0	0	web/ui/guides/shots/gifts-spending.png
+0	0	web/ui/guides/shots/gifts-upcoming.png
+0	0	web/ui/guides/shots/giving-donations.png
+0	0	web/ui/guides/shots/giving-fund.png
+0	0	web/ui/guides/shots/giving-organisations.png
+0	0	web/ui/guides/shots/giving-overview.png
+0	0	web/ui/guides/shots/portfolio-holdings.png
+0	0	web/ui/guides/shots/portfolio-performance.png
+0	0	web/ui/guides/shots/portfolios.png
+0	0	web/ui/guides/shots/positions-closed.png
+0	0	web/ui/guides/shots/positions-gains.png
+0	0	web/ui/guides/shots/positions-open.png
+0	0	web/ui/guides/shots/positions-strategies.png
+0	0	web/ui/guides/shots/positions-trades.png
+0	0	web/ui/guides/shots/profile.png
+0	0	web/ui/guides/shots/projections.png
+0	0	web/ui/guides/shots/receipts.png
+0	0	web/ui/guides/shots/settings-backups.png
+0	0	web/ui/guides/shots/settings-bitcoin.png
+0	0	web/ui/guides/shots/settings-connector.png
+0	0	web/ui/guides/shots/settings-email.png
+0	0	web/ui/guides/shots/settings-general.png
+0	0	web/ui/guides/shots/settings-imports.png
+0	0	web/ui/guides/shots/settings-keys.png
+0	0	web/ui/guides/shots/settings-links.png
+0	0	web/ui/guides/shots/settings-network.png
+0	0	web/ui/guides/shots/settings-passwords.png
+0	0	web/ui/guides/shots/settings-prices.png
+0	0	web/ui/guides/shots/settings-sessions.png
+0	0	web/ui/guides/shots/settings-storage.png
+0	0	web/ui/guides/shots/taxes-deductions.png
+0	0	web/ui/guides/shots/taxes-documents.png
+0	0	web/ui/guides/shots/taxes-education.png
+0	0	web/ui/guides/shots/taxes-filings.png
+0	0	web/ui/guides/shots/taxes-gains.png
+0	0	web/ui/guides/shots/taxes-giving.png
+0	0	web/ui/guides/shots/taxes-income.png
+0	0	web/ui/guides/shots/taxes-issues.png
+0	0	web/ui/guides/shots/taxes-property.png
+0	0	web/ui/guides/shots/taxes-retirement.png
+0	0	web/ui/guides/shots/taxes-summary.png
+0	0	web/ui/guides/shots/transactions.png
+0	0	web/ui/guides/shots/users.png
+6	3	web/ui/guides/signin.md
+1	1	web/ui/guides/taxes-deductions.md
+2	2	web/ui/guides/taxes-documents.md
+1	1	web/ui/guides/taxes-education.md
+1	1	web/ui/guides/taxes-filings.md
+1	1	web/ui/guides/taxes-gains.md
+1	1	web/ui/guides/taxes-giving.md
+1	1	web/ui/guides/taxes-income.md
+6	1	web/ui/guides/taxes-issues.md
+2	2	web/ui/guides/taxes-property.md
+1	1	web/ui/guides/taxes-retirement.md
+5	3	web/ui/guides/taxes-summary.md
+295	0	web/ui/guides/terms.md
+7	1	web/ui/guides/transactions.md
+1	1	web/ui/guides/users.md

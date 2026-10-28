@@ -387,11 +387,14 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         opening: review.opening,
         closing: review.closing,
         acceptDifference: review.accept,
-        rows: review.rows.map((/** @type {any} */ r) => ({
+        // Each row names the line it was read as, so a corrected description is told from
+        // what was read and teaches no skip (S1.3.3.4).
+        rows: review.rows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
           date: r.date,
           description: r.description,
           amount: r.amount,
           include: r.include,
+          line: i,
         })),
       });
       done(job.result);

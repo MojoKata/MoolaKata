@@ -10,16 +10,18 @@ import json
 from sqlalchemy import delete, select
 
 from .. import activity, clock, ids
-from ..store.entities.links import Link, LinkedItem
+from ..store.entities.links import Link, LinkedItem, LinkFile
 from ..store.entities.users import User
 from . import changes
 from .keys import unb64
 
 
-def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = None) -> None:
+def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = None) -> set[str]:
     """Take a change from the peer. Out of sequence, the next exchange asks for everything.
     `delivered`: the receipts the peer sent with it (their ids and the names they were kept
-    under); any other it names is fetched."""
+    under); any other it names is fetched. A receipt that can't be fetched never holds the
+    change back: it is kept as not arrived, and asked for again at each exchange. Returns the
+    receipts that weren't fetched."""
     with srv.db.read() as s:
         link = s.get(Link, link_id)
         peer, got = unb64(link.peerKey), link.gotSeq
@@ -29,12 +31,24 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
     if not full and seq != got + 1:
         with srv.db.tx() as s:
             s.get(Link, link_id).needsFull = True
-        return
+        return set()
     names = dict(delivered or {})
     missing = [f for f in change.get("fetch") or [] if f not in names]
-    names |= fetch_files(srv, link_id, missing)
+    fetched, failed = fetch_files(srv, link_id, missing)
+    names |= fetched
     with srv.db.tx() as s:
         link = s.get(Link, link_id)
+        now = clock.now()
+        for fid in names:
+            row = s.get(LinkFile, (link_id, fid))
+            if row is not None:
+                s.delete(row)
+        for fid, why in failed.items():
+            row = s.get(LinkFile, (link_id, fid)) or LinkFile(
+                linkId=link_id, fileId=fid, missedAt=now
+            )
+            row.fileName, row.tries, row.error = None, row.tries + 1, why
+            s.add(row)
         local = set(s.scalars(select(User.id).where(User.linkId.is_(None))))
         if full:
             s.execute(delete(LinkedItem).where(LinkedItem.linkId == link_id))
@@ -42,7 +56,6 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
             s.execute(
                 delete(LinkedItem).where(LinkedItem.linkId == link_id, LinkedItem.remoteId == rid)
             )
-        now = clock.now()
         for it in change.get("items") or []:
             s.execute(
                 delete(LinkedItem).where(
@@ -92,6 +105,7 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
             },
         )
     changes.enqueue(srv, link_id, change, {"fileNames": names})
+    return set(failed)
 
 
 def shares_of(s, link_id: str, change: dict, here: bool) -> list[str]:
@@ -130,12 +144,13 @@ def forget(srv, link_id: str) -> None:
             link.copyPublicKey = link.copyKeyAt = link.copyKeyById = None
 
 
-def fetch_files(srv, link_id: str, file_ids: list[str]) -> dict[str, str]:
+def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str], dict[str, str]]:
     """The receipts a change names, fetched from the source sealed to this side's copy key and
     kept as they came, under random names (S11.9.5.2, S11.9.6), each checked against the
     source's signature over the sealed bytes; what they hold is checked against the change's
     hash when they are shown. Nothing is fetched for a copy without its access key: it asks
-    for everything once it has one. Returns each file's name."""
+    for everything once it has one. Returns each fetched file's name, and why each of the rest
+    wasn't fetched: one that fails stops none of the others (S11.4)."""
     import secrets
 
     from . import client, manage, sealed
@@ -146,25 +161,106 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> dict[str, str]:
         has_key = bool(link.copyPublicKey)
         address, peer, pins = link.address, unb64(link.peerKey), manage.pins(link)
     if not file_ids or not has_key:
-        return {}
+        return {}, {}
     d = folder(srv.config.data_dir, link_id) / "receipts"
     d.mkdir(parents=True, exist_ok=True)
     names: dict[str, str] = {}
+    failed: dict[str, str] = {}
     for fid in file_ids:
         name = secrets.token_hex(12) + ".mkr"
         digest: list[str] = []
-        stream = client.iter_file(srv, address, peer, fid, digest, pins)
         try:
-            sealed.write(d / name, stream)
+            sealed.write(d / name, client.iter_file(srv, address, peer, fid, digest, pins))
+            if not digest:
+                raise changes.ChangeError(f"receipt {fid} came unsigned")
+        except (client.LinkError, changes.ChangeError, OSError) as e:
+            (d / name).unlink(missing_ok=True)
+            (d / (name + ".tmp")).unlink(missing_ok=True)
+            failed[fid] = getattr(e, "message", None) or str(e) or type(e).__name__
+            continue
         except BaseException:
             (d / name).unlink(missing_ok=True)
             (d / (name + ".tmp")).unlink(missing_ok=True)
             raise
-        if not digest:
-            (d / name).unlink(missing_ok=True)
-            raise changes.ChangeError(f"receipt {fid} came unsigned")
         names[fid] = name
-    return names
+    return names, failed
+
+
+MISSING_PER_EXCHANGE = 20  # the receipts not yet arrived asked for again at one exchange
+
+
+def fetch_missing(srv, link_id: str, tried: set[str] = frozenset()) -> int:
+    """The receipts not yet arrived, asked for again (S11.4), the longest waiting first, but
+    those `tried` already in this exchange; then each fetched one placed in the copy if it is
+    open. Returns how many arrived."""
+    with srv.db.read() as s:
+        rows = list(
+            s.scalars(
+                select(LinkFile)
+                .where(
+                    LinkFile.linkId == link_id,
+                    LinkFile.fileName.is_(None),
+                    LinkFile.fileId.not_in(tried),
+                )
+                .order_by(LinkFile.missedAt)
+                .limit(MISSING_PER_EXCHANGE)
+            )
+        )
+    if not rows:
+        place_arrived(srv, link_id)
+        return 0
+    fetched, failed = fetch_files(srv, link_id, [r.fileId for r in rows])
+    with srv.db.tx() as s:
+        for fid, name in fetched.items():
+            s.get(LinkFile, (link_id, fid)).fileName = name
+        for fid, why in failed.items():
+            row = s.get(LinkFile, (link_id, fid))
+            row.tries, row.error = row.tries + 1, why
+    place_arrived(srv, link_id)
+    return len(fetched)
+
+
+def place_arrived(srv, link_id: str) -> int:
+    """Receipts fetched after their change: put into the open copy, where its rows wait for
+    them as not arrived. A copy that is locked gets them when it is next unlocked."""
+    from sqlalchemy import update
+
+    from . import copydb
+    from .copy import folder
+
+    o = srv.copies.get(link_id, for_person=False)
+    if o is None:
+        return 0
+    with srv.db.read() as s:
+        rows = list(
+            s.scalars(
+                select(LinkFile).where(LinkFile.linkId == link_id, LinkFile.fileName.is_not(None))
+            )
+        )
+    if not rows:
+        return 0
+    from .changes import received_type
+
+    d = folder(srv.config.data_dir, link_id) / "receipts"
+    placed = []
+    with o.engine.begin() as conn:
+        for r in rows:
+            done = conn.execute(
+                update(copydb.File)
+                .where(copydb.File.c.id == r.fileId, copydb.File.c.fileName == "")
+                .values(
+                    fileName=r.fileName,
+                    contentType=received_type(srv, o, link_id, r.fileId, d / r.fileName),
+                )
+            ).rowcount
+            if done:
+                placed.append(r.fileId)
+    with srv.db.tx() as s:
+        for fid in placed:
+            row = s.get(LinkFile, (link_id, fid))
+            if row is not None:
+                s.delete(row)
+    return len(placed)
 
 
 def keep_delivered(srv, link_id: str, chunks) -> str:

@@ -72,7 +72,9 @@
          balance on the last day (S1.11).
       4. **What is learned per institution** (per owner): the sign of each section heading the
          person kept, and the first words of lines they left out, which are skipped next time.
-         A line left out because it was already in the account (S1.3.3.3) teaches nothing.
+         A line left out because it was already in the account (S1.3.3.3) teaches nothing, nor
+         does one whose first words start a line the person kept. A line kept with its
+         description corrected is told by the line it was read as, and teaches no skip.
       5. **Several accounts in one statement** (a Schwab combined statement, a UMB statement
          with checking and savings): the statement is split where each account's part
          begins, at a header naming the account (*Account Number*, *Account ending*, an
