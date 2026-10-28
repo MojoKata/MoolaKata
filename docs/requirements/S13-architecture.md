@@ -121,8 +121,10 @@
          above.
       5. The counters are held in memory: a restart clears them.
    6. **Request limits**: JSON bodies up to 1 MB (a linked server's up to 20 MB,
-      `docs/link-protocol.md` §1.4), uploads up to the size in Settings (25 MB by default), at
-      most 100 MB of uploads in flight per user, and request headers up to 16 KB. Each upload's
+      `docs/link-protocol.md` §1.4), uploads up to the size in Settings (25 MB by default), a
+      receipt a linked server delivers up to the largest receipt Settings allows, sealed (link
+      protocol §1.4), at most 100 MB of uploads in flight per user (never less than that
+      largest sealed receipt), and request headers up to 16 KB. Each upload's
       type is checked from its content, never its name (S9.1), and an upload is held in memory,
       never spooled to a temporary file.
    7. **Response headers** on every response, refusals included: the CSP of S17.3.3,

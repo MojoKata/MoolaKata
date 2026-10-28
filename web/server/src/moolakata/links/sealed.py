@@ -30,6 +30,20 @@ RECEIPT = b"moolakata link receipt"
 CHANGE = b"moolakata link change"
 
 
+def sealed_size(plain: int) -> int:
+    """How long a sealed file of `plain` bytes is: the header, and a tag for each chunk, the
+    last of which is never full (an empty one follows a whole last chunk)."""
+    return HEADER + (plain // CHUNK + 1) * TAG + plain
+
+
+def max_receipt() -> int:
+    """The longest a receipt crosses a link as (link-protocol.md §1.4): the largest receipt
+    Settings allows, sealed. A `deliver` body and a `file` answer are bounded by it."""
+    from ..settings import RECEIPT_MAX_MB
+
+    return sealed_size(RECEIPT_MAX_MB * 1024 * 1024)
+
+
 class SealError(Exception):
     """A sealed file that doesn't open: tampered with, cut off, or not this copy's."""
 

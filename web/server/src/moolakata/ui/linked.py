@@ -290,6 +290,8 @@ class LinkedFile(Model):
     length: int
     thumbnail: str | None
     meta: dict  # date, amount, payee, the text read, the transaction
+    # False while its file hasn't arrived: asked for again at each exchange (S11.4).
+    arrived: bool = True
 
 
 def _mine_items(conn, user_id: str) -> set[str]:
@@ -320,6 +322,7 @@ def files(link_id: str, request: Request, c: Caller = Depends(caller)):
                 length=r.length,
                 thumbnail=r.thumbnail,
                 meta=json.loads(r.meta or "{}"),
+                arrived=bool(r.fileName),
             )
             for r in conn.execute(select(copydb.File))
             if r.itemId in mine
@@ -344,6 +347,12 @@ def file(link_id: str, file_id: str, request: Request, c: Caller = Depends(calle
         row = conn.execute(select(copydb.File).where(copydb.File.c.id == file_id)).first()
         if row is None or row.itemId not in _mine_items(conn, c.id):
             raise Problem(404, "not-shared", "That receipt isn't shared with you.")
+        if not row.fileName:
+            raise Problem(
+                404,
+                "not-arrived",
+                "This receipt hasn't arrived yet: it is asked for again at the next exchange.",
+            )
     from .. import receipts
     from ..links.keys import direction, fingerprint, public_of, unb64
     from .receipts import _disposition

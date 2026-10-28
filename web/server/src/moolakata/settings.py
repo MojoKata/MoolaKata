@@ -189,7 +189,10 @@ def _d(key: str, section: str, default: Any, check: Callable[[Any], Any]) -> Non
     DEFINITIONS[key] = Definition(key, section, default, check)
 
 
+RECEIPT_MAX_MB = 100  # the largest receipt Settings › Receipts allows (S16.10)
+
 # General (S16.1)
+
 _d("serverName", "general", "moolakata", _text(60))
 _d("householdName", "general", "Our household", _text(60))
 _d(
@@ -255,8 +258,9 @@ _d("networkConnectorRanges", "network", LAN_AND_OVERLAY, _ranges)
 _d("importMaxMb", "imports", 25, _int(1, 200))
 # Statements (PDFs and photos) read on the server, in the receipt reader's worker (S1.3.3)
 _d("readStatements", "imports", True, _bool)
-# Receipts (S16.10, S9.1)
-_d("receiptMaxMb", "receipts", 25, _int(1, 100))
+# Receipts (S16.10, S9.1); the largest a receipt may be set to, which a linked server's
+# receipt files are bounded by too (S13.7.6)
+_d("receiptMaxMb", "receipts", 25, _int(1, RECEIPT_MAX_MB))
 _d("readReceipts", "receipts", True, _bool)
 _d("receiptReadJobs", "receipts", 1, _int(1, 4))
 # Storage (S16.17, S14.10): how long statements' files are kept; none: for ever

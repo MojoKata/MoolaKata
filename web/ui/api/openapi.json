@@ -10011,6 +10011,11 @@
       "LinkedFile": {
         "additionalProperties": false,
         "properties": {
+          "arrived": {
+            "default": true,
+            "title": "Arrived",
+            "type": "boolean"
+          },
           "contentType": {
             "title": "Contenttype",
             "type": "string"
@@ -16983,6 +16988,7 @@
               "not-a-transfer",
               "not-a-wallet",
               "not-an-option",
+              "not-arrived",
               "not-available",
               "not-balanced",
               "not-creator",
@@ -17355,6 +17361,7 @@
                   "not-a-transfer",
                   "not-a-wallet",
                   "not-an-option",
+                  "not-arrived",
                   "not-available",
                   "not-balanced",
                   "not-creator",

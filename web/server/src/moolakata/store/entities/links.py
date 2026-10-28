@@ -67,6 +67,16 @@ class LinkSent:
 
 
 @dataclass(kw_only=True, eq=False)
+class LinkFile:
+    linkId: str
+    fileId: str
+    missedAt: dt.datetime
+    fileName: str | None = None
+    tries: int = 0
+    error: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
 class LinkColour(SoftDeleted):
     userId: str
     linkId: str

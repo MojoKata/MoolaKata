@@ -121,6 +121,17 @@ def orphans(srv, link_id: str) -> int:
     with o.engine.connect() as conn:
         kept = set(conn.execute(select(copydb.File.c.fileName)).scalars())
     waiting = set(DELIVERED.get(link_id, {}).values())
+    # Receipts fetched after their change, waiting to be placed in the copy (S11.4).
+    from ..store.entities.links import LinkFile
+
+    with srv.db.read() as s:
+        waiting |= set(
+            s.scalars(
+                select(LinkFile.fileName).where(
+                    LinkFile.linkId == link_id, LinkFile.fileName.is_not(None)
+                )
+            )
+        )
     old = time.time() - ORPHAN_MINUTES * 60
     gone = 0
     for f in d.iterdir():

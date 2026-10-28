@@ -192,7 +192,8 @@ Records are never removed from the database: they are marked deleted. The except
    2. **a secret's old ciphertext** when the secret is replaced or removed, so an old API key
       or token can't be recovered from the database or a later backup;
    3. **linked copies**: another household's data, removed with the share or link it came
-      by, at **Reset copy**, and an inbox change once it is applied (requirements S11.9);
+      by, at **Reset copy**, an inbox change once it is applied (requirements S11.9), and a
+      receipt waiting to reach the copy once it has (`LinkFile`, S11.4);
    4. **work queues and counters**: receipt-reading jobs, emails waiting to go out (when sent
       or when their link expires), sign-in and access-key attempt counters, the background
       tasks' last runs, and the live stream's state;

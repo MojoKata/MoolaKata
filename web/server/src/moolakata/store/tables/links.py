@@ -112,6 +112,21 @@ LinkSent = exception(
     PrimaryKeyConstraint("linkId", "itemId", "path", "viewer"),
 )
 
+# A receipt a change named that hasn't reached the copy yet (S11.4): asked for again at each
+# exchange until it is fetched, then its file name kept until the copy has it. Removed once it
+# has: part of the linked copy (schema.md §4.4.3).
+LinkFile = exception(
+    "LinkFile",
+    "linked copies: a receipt not yet in the copy, until it is (§4.4.3)",
+    Column("linkId", Text, ForeignKey("Link.id", ondelete="CASCADE"), nullable=False),
+    Column("fileId", Text, nullable=False),  # its id at the source
+    Column("fileName", Text),  # random, under the copy's receipts/, once fetched
+    Column("tries", Integer, nullable=False, server_default=text("0")),
+    Column("missedAt", UtcTimestamp, nullable=False),
+    Column("error", Text),  # why the last try failed, in this server's words
+    PrimaryKeyConstraint("linkId", "fileId"),
+)
+
 # The colour each user chose for a linked household's window (S12.10.3.2), from a fixed palette.
 LinkColours = pairs(
     "LinkColours",
