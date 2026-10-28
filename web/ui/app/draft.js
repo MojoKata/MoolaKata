@@ -474,6 +474,12 @@ export class Record {
     return this.#errors.get(name) || null;
   }
 
+  /** Every refusal on the record, each with its field (`null` for the record as a whole). */
+  get errors() {
+    this.#tick.value;
+    return [...this.#errors].map(([field, message]) => ({ field, message }));
+  }
+
   /** @param {string | null} name @param {string} message */
   refuse(name, message) {
     this.#errors.set(name, message);
@@ -668,6 +674,11 @@ export class Draft {
     return ops;
   }
 
+  /** What the save would send, as one string: two that match send the same changes. */
+  fingerprint() {
+    return canonical(this.ops());
+  }
+
   /**
    * Save the draft. `confirmAsks` confirms the questions the last save asked, by name.
    * @param {{ confirmAsks?: boolean }} [o]
@@ -676,7 +687,9 @@ export class Draft {
   async save(o = {}) {
     // Nothing is sent while a field holds text that doesn't read: its reason is at the field.
     if (this.records.some((r) => !r.removed && r.unread)) {
-      return { status: 'refused', message: 'Correct the fields marked first.' };
+      this.formError = 'Correct the fields marked first.';
+      this.#tick.value++;
+      return { status: 'refused', message: this.formError };
     }
     const ops = this.ops();
     if (!ops.length) return { status: 'saved', saved: [] };

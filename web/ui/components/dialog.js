@@ -45,9 +45,18 @@ export function openDialog(comp, props = {}) {
 /** Whether the open dialog holds changes not saved (S12.15.6); set by the dialog itself. */
 let unsaved = () => false;
 
-/** Whether the open dialog holds changes not saved: they are lost if the session ends now. */
+/** Whether a screen's form holds changes not saved (S12.15.6); set by the form's guard. */
+let formUnsaved = () => false;
+
+/** @param {() => boolean} has */
+export function setFormChanges(has) {
+  formUnsaved = has;
+}
+
+/** Whether the open dialog, or a screen's form, holds changes not saved: they are lost if the
+ * session ends now. */
 export function dialogHasChanges() {
-  return !!current.value && unsaved();
+  return (!!current.value && unsaved()) || formUnsaved();
 }
 
 /** @param {any} [value] */

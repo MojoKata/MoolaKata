@@ -253,7 +253,21 @@ Deno.test('text that does not read yet is a change, and is never sent', async ()
   equal(d.changed, true, 'asked about before it is discarded');
   equal(d.ops(), []);
   equal((await d.save()).status, 'refused');
+  equal(d.formError, 'Correct the fields marked first.', 'said above the buttons');
   equal(sent.length, 0);
   t.revert('amount');
   equal(d.changed, false);
+});
+
+Deno.test('a fingerprint tells the same changes from others', () => {
+  const { d } = draft();
+  const t = d.load(Txn, read());
+  const none = d.fingerprint();
+  t.set('payee', 'Bank');
+  const one = d.fingerprint();
+  truthy(one !== none);
+  t.set('payee', 'Broker');
+  equal(d.fingerprint(), none, 'set back, the same as untouched');
+  t.input('amount', '42.0');
+  equal(d.fingerprint(), none, '42.0 and 42.00 are the same amount');
 });

@@ -2,7 +2,7 @@
 // spending, cash flow, a category's trend, and the recurring transactions, for one budget at a
 // time. A household budget is one shared with a group at write.
 import { signal } from '@preact/signals';
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -12,12 +12,13 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Draft, Record } from '../app/draft.js';
+import { Record } from '../app/draft.js';
+import { DraftDialog, RecField, RowErrors, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
@@ -1565,13 +1566,10 @@ class PlanLine extends Record {
  * @param {any} b @param {string} month
  */
 function usePlanDraft(b, month) {
-  const [state, setState] = useState(
-    /** @type {{ draft: Draft | null, error: any, tick: number }} */ ({
-      draft: null,
-      error: null,
-      tick: 0,
-    }),
-  );
+  const f = useDraft(async (draft) => {
+    const p = await api.get(`/budgets/${b.id}/plan`, { month });
+    for (const ln of p.lines) draft.load(PlanLine, ln);
+  }, [b.id, month]);
   const cats = useList('/categories');
   const kinds = Object.fromEntries(
     (/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.kind]),
@@ -1579,19 +1577,7 @@ function usePlanDraft(b, month) {
   const paths = Object.fromEntries(
     (/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.path]),
   );
-  useEffect(() => {
-    let live = true;
-    api.get(`/budgets/${b.id}/plan`, { month }).then((p) => {
-      if (!live) return;
-      const draft = new Draft();
-      for (const ln of p.lines) draft.load(PlanLine, ln);
-      setState({ draft, error: null, tick: state.tick });
-    }, (error) => live && setState({ draft: null, error, tick: state.tick }));
-    return () => {
-      live = false;
-    };
-  }, [b.id, month, state.tick]);
-  const draft = state.draft;
+  const draft = f.draft;
   if (draft) {
     for (const r of /** @type {PlanLine[]} */ (draft.records)) {
       r.asOf = month + '-01';
@@ -1599,8 +1585,6 @@ function usePlanDraft(b, month) {
       r.kinds = kinds;
     }
   }
-  /** Read the plan again, the changes made here dropped (S12.15.5). */
-  const reload = () => setState({ draft: null, error: null, tick: state.tick + 1 });
   /** A new line, from the month planned. @param {any} [data] */
   const add = (data = {}) => {
     const r = /** @type {PlanLine} */ (
@@ -1611,63 +1595,7 @@ function usePlanDraft(b, month) {
     r.kinds = kinds;
     return r;
   };
-  return { draft, error: state.error, reload, add, kinds, paths, cats };
-}
-
-/**
- * What a draft's save came to, above the buttons: its questions, listed together; a record
- * changed meanwhile; a refusal that belongs to no field (S12.15.4, S12.15.5).
- * @param {{ outcome: any, draft: Draft | null }} p
- */
-function SaveOutcome({ outcome, draft }) {
-  if (outcome?.status === 'asks') {
-    return html`
-      <div class="notice warn" role="alert">
-        <${Icon} name="alert" />
-        <div>Saving this asks ${outcome.asks.length === 1 ? 'one thing' : 'these'} first:<ol
-            class="asks">${outcome.asks.map((/** @type {any} */ a) =>
-              html`<li>${a.message}</li>`
-            )}</ol></div>
-      </div>
-    `;
-  }
-  if (outcome?.status === 'stale') {
-    return html`
-      <div class="notice warn" role="alert">
-        <${Icon} name="alert" />
-        <div>The plan changed since you opened it, so nothing was saved. <b>Reload</b> opens it as
-          it stands; what you changed here is lost.</div>
-      </div>
-    `;
-  }
-  if (draft?.formError) {
-    return html`
-      <div class="notice warn" role="alert">
-        <${Icon} name="alert" />
-        <div>${draft
-          .formError}</div>
-      </div>
-    `;
-  }
-  return null;
-}
-
-/**
- * A draft's Save, with the questions its last save asked confirmed by name (S12.15.4).
- * @param {Draft | null} draft @param {(v?: any) => void} close
- */
-function useDraftSave(draft, close) {
-  const [outcome, setOutcome] = useState(/** @type {any} */ (null));
-  const save = useSubmit(async () => {
-    if (!draft) return;
-    const o = await draft.save({ confirmAsks: outcome?.status === 'asks' });
-    setOutcome(o);
-    if (o.status === 'saved') {
-      toast('Plan saved');
-      close(true);
-    }
-  });
-  return { save, outcome, setOutcome };
+  return { f, draft, add, kinds, paths, cats };
 }
 
 /**
@@ -1683,12 +1611,11 @@ function EstimateDialog({ close, b, month, months }) {
   const [drop, setDrop] = useState(/** @type {Set<string>} */ (new Set()));
   const [amounts, setAmounts] = useState(/** @type {{ [id: string]: string }} */ ({}));
   const p = usePlanDraft(b, month);
-  const { save, outcome, setOutcome } = useDraftSave(p.draft, close);
-  // The proposals chosen, put into the plan's draft: an existing line takes the amount and
-  // cadence, and keeps the rest of what it has (its target, where it is held).
+  // The proposals chosen, put into the plan's draft as it saves: an existing line takes the
+  // amount and cadence, and keeps the rest of what it has (its target, where it is held).
   const apply = () => {
     const draft = p.draft;
-    if (!draft) return;
+    if (!draft) return false;
     draft.revertAll();
     const byCat = new Map(
       /** @type {PlanLine[]} */ (draft.records).map((r) => [r.get('categoryId'), r]),
@@ -1706,26 +1633,18 @@ function EstimateDialog({ close, b, month, months }) {
   };
   const changed = () => drop.size > 0 || Object.keys(amounts).length > 0;
   return html`
-    <${Dialog} title="Plan from history" wide close=${close} changed=${changed}
-      onSubmit=${() => {
-        if (apply()) save.run().catch(() => {});
-      }} note="Nothing is saved until you save."
-      footer=${html`<button class="btn primary" disabled=${
-        save.busy || !found.length ||
-        !p.draft
-      }>${outcome?.status === 'asks' ? 'Save anyway' : 'Save the plan'}</button>`}>
+    <${DraftDialog} f=${p.f} title="Plan from history" wide close=${close} changed=${changed}
+      before=${apply} what="The plan" done="Plan saved" label="Save the plan"
+      disabled=${!found.length} note="Nothing is saved until you save.">
       <${Field} label="Months to average" id="months">
-        <${Select} value=${span} onChange=${(/** @type {string} */ v) => {
-          setSpan(v);
-          setOutcome(null);
-        }} options=${[
+        <${Select} value=${span} onChange=${(/** @type {string} */ v) => setSpan(v)} options=${[
           ['3', 'The last 3 months'],
           ['6', 'The last 6 months'],
           ['12', 'The last 12 months'],
         ]} /></${Field}>
-      ${res.error || p.error
-        ? html`<${Failed} error=${res.error || p.error} />`
-        : !res.data || !p.draft
+      ${res.error
+        ? html`<${Failed} error=${res.error} />`
+        : !res.data
         ? html`<${Loading} lines=${4} />`
         : !found.length
         ? html`<p class="small dim">Nothing to go by yet: no categorised spending in those months.</p>`
@@ -1753,15 +1672,12 @@ function EstimateDialog({ close, b, month, months }) {
                       const next = new Set(drop);
                       next.has(x.categoryId) ? next.delete(x.categoryId) : next.add(x.categoryId);
                       setDrop(next);
-                      setOutcome(null);
                     }} /></td>
                   <td>${x.label}</td>
                   <td class="num">
                     <${Input} value=${amounts[x.categoryId] ?? money(x.amount).slice(1)}
-                      onInput=${(/** @type {string} */ v) => {
-                        setAmounts({ ...amounts, [x.categoryId]: v });
-                        setOutcome(null);
-                      }}
+                      onInput=${(/** @type {string} */ v) =>
+                        setAmounts({ ...amounts, [x.categoryId]: v })}
                       inputmode="decimal" aria-label=${`${x.label}: amount`} data-help="amount"
                       bad=${r?.error('amount')} />
                   </td>
@@ -1774,9 +1690,7 @@ function EstimateDialog({ close, b, month, months }) {
             })}</tbody>
           </table>
         `}
-      <${SaveOutcome} outcome=${outcome} draft=${p.draft} />
-      <${FormError} error=${save.error} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 
@@ -1791,7 +1705,6 @@ function PlanDialog({ close, b, month }) {
   const projections = useList('/projections');
   const p = usePlanDraft(b, month);
   const draft = p.draft;
-  const { save, outcome, setOutcome } = useDraftSave(draft, close);
   const accounts = useList('/accounts');
   const heldOptions = /** @type {[string, string][]} */ ([
     ['', '—'],
@@ -1817,140 +1730,91 @@ function PlanDialog({ close, b, month }) {
     ) => [c.id, c.path]),
   ]);
   const rows = /** @type {PlanLine[]} */ ((draft?.records || []).filter((r) => !r.removed));
-  /** @param {PlanLine} r @param {string} k */
-  const pick = (r, k) => (/** @type {any} */ v) => {
-    r.set(k, v === '' ? null : v);
-    setOutcome(null);
-  };
-  /** @param {PlanLine} r @param {string} k */
-  const typed = (r, k) => (/** @type {string} */ v) => {
-    r.input(k, v);
-    setOutcome(null);
-  };
-  const submit = () => {
-    if (!draft) return;
-    // A line added and left without a category is no line.
-    for (const r of rows) if (r.state === 'new' && !r.get('categoryId')) draft.remove(r);
-    save.run().catch(() => {});
+  const span = 6 + (envelope ? 1 : 0) + (b.reserves ? 2 : 0);
+  // A line added and left without a category is no line.
+  const before = () => {
+    for (const r of rows) if (r.state === 'new' && !r.get('categoryId')) draft?.remove(r);
   };
   return html`
-    <${Dialog} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
-      changed=${() => !!draft?.changed} onSubmit=${submit}
-      note="Earlier months keep the plan they had."
-      footer=${outcome?.status === 'stale'
-        ? html`<button type="button" class="btn primary" onClick=${() => {
-          setOutcome(null);
-          p.reload();
-        }}>Reload</button>`
-        : html`<button class="btn primary" disabled=${save.busy || !draft}>${
-          outcome?.status === 'asks' ? 'Save anyway' : 'Save'
-        }</button>`}>
-      ${p.error
-        ? html`<${Failed} error=${p.error} />`
-        : !draft
-        ? html`<${Loading} lines=${4} />`
-        : html`
-          <table class="t plan">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th class="num">Amount</th>
-                <th>Every</th>
-                <th>Rollover</th>
-                ${envelope ? html`<th>Overspent</th>` : null}
-                ${b.reserves
-                  ? html`
-                    <th class="num">Target</th>
-                    <th>Held in</th>
-                  `
-                  : null}
-                <th>Projection</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>${rows.map((r) =>
-              html`
-                <tr key=${r.key}>
-                  <td>${r.state === 'new'
-                    ? html`
-                      <${Select} value=${r.get('categoryId') || ''} onChange=${pick(
-                        r,
-                        'categoryId',
-                      )}
-                        options=${options.filter(([id]) =>
-                          !id || id === r.get('categoryId') || !taken.has(id)
-                        )} aria-label="Category" data-help="category"
-                        bad=${r.error('categoryId')} />
-                    `
-                    : p.paths[r.get('categoryId')] || 'A category'}</td>
-                  <td class="num">
-                    <${Input} value=${r.shown('amount')} onInput=${typed(r, 'amount')}
-                      inputmode="decimal" aria-label="Amount" data-help="amount"
-                      bad=${r.error('amount')} />
-                  </td>
-                  <td>
-                    <${Select} value=${r.get('cadence')} onChange=${pick(r, 'cadence')}
-                      options=${[['month', 'Month'], ['year', 'Year']]} aria-label="Every"
-                      data-help="every" />
-                  </td>
-                  <td>
-                    <${Switch} on=${r.get('rollover')} onChange=${pick(r, 'rollover')}
-                      label="Rollover" help="rollover" disabled=${r.get('cadence') === 'year'} />
-                  </td>
-                  ${envelope
-                    ? html`
-                      <td>
-                        <${Select} value=${r.get('overspend')} onChange=${pick(r, 'overspend')}
-                          options=${[
-                            ['carry', 'Carried negative'],
-                            ['next', "From next month's To Budget"],
-                          ]} aria-label="Overspent" data-help="overspent" />
-                      </td>
-                    `
-                    : null}
-                  ${b.reserves
-                    ? html`
-                      <td class="num">${r.applies('target')
-                        ? html`
-                          <${Input} value=${r.shown('target')} onInput=${typed(r, 'target')}
-                            inputmode="decimal" placeholder="none" aria-label="Target"
-                            data-help="target" bad=${r.error('target')}
-                            style=${{ width: '90px', textAlign: 'right' }} />
-                        `
-                        : null}</td>
-                      <td>${r.applies('heldInId')
-                        ? html`
-                          <${Select} value=${r.get('heldInId') || ''} onChange=${pick(
-                            r,
-                            'heldInId',
-                          )} options=${heldOptions} aria-label="Held in"
-                            data-help="held-in" />
-                        `
-                        : null}</td>
-                    `
-                    : null}
-                  <td>${r.applies('projectionId')
-                    ? html`
-                      <${Select} value=${r.get('projectionId') || ''} onChange=${pick(
-                        r,
-                        'projectionId',
-                      )} options=${plans} aria-label="Projection"
-                        data-help="projection" />
-                    `
-                    : null}</td>
-                  <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() => {
-                    draft.remove(r);
-                    setOutcome(null);
-                  }}><${Icon} name="x" /></button></td>
-                </tr>
+    <${DraftDialog} f=${p.f} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
+      before=${before} what="The plan" done="Plan saved"
+      note="Earlier months keep the plan they had.">
+      <table class="t plan">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="num">Amount</th>
+            <th>Every</th>
+            <th>Rollover</th>
+            ${envelope ? html`<th>Overspent</th>` : null}
+            ${b.reserves
+              ? html`
+                <th class="num">Target</th>
+                <th>Held in</th>
               `
-            )}</tbody>
-          </table>
-          <button type="button" class="btn sm mt" onClick=${() => p.add()}>
-            <${Icon} name="plus" /> Add a category</button>
-        `}
-      <${SaveOutcome} outcome=${outcome} draft=${draft} />
-      <${FormError} error=${save.error} />
-    </${Dialog}>
+              : null}
+            <th>Projection</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows.map((r) =>
+          html`
+            <tr key=${r.key}>
+              <td>${r.state === 'new'
+                ? html`
+                  <${RecField} rec=${r} name="categoryId" bare label="Category" help="category"
+                    options=${options.filter(([id]) =>
+                      !id || id === r.get('categoryId') || !taken.has(id)
+                    )} />
+                `
+                : p.paths[r.get('categoryId')] || 'A category'}</td>
+              <td class="num">
+                <${RecField} rec=${r} name="amount" bare label="Amount" help="amount" />
+              </td>
+              <td>
+                <${RecField} rec=${r} name="cadence" bare label="Every" help="every"
+                  options=${[['month', 'Month'], ['year', 'Year']]} />
+              </td>
+              <td>
+                <${RecField} rec=${r} name="rollover" bare label="Rollover" help="rollover"
+                  disabled=${r.get('cadence') === 'year'} />
+              </td>
+              ${envelope
+                ? html`
+                  <td>
+                    <${RecField} rec=${r} name="overspend" bare label="Overspent"
+                      help="overspent" options=${[
+                        ['carry', 'Carried negative'],
+                        ['next', "From next month's To Budget"],
+                      ]} />
+                  </td>
+                `
+                : null}
+              ${b.reserves
+                ? html`
+                  <td class="num">
+                    <${RecField} rec=${r} name="target" bare label="Target" help="target"
+                      placeholder="none" style=${{ width: '90px', textAlign: 'right' }} />
+                  </td>
+                  <td>
+                    <${RecField} rec=${r} name="heldInId" bare label="Held in" help="held-in"
+                      options=${heldOptions} />
+                  </td>
+                `
+                : null}
+              <td>
+                <${RecField} rec=${r} name="projectionId" bare label="Projection"
+                  help="projection" options=${plans} />
+              </td>
+              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() =>
+                draft?.remove(r)}><${Icon} name="x" /></button></td>
+            </tr>
+            <${RowErrors} rec=${r} span=${span} />
+          `
+        )}</tbody>
+      </table>
+      <button type="button" class="btn sm mt" onClick=${() => p.add()}>
+        <${Icon} name="plus" /> Add a category</button>
+      </${DraftDialog}>
   `;
 }

@@ -3,6 +3,9 @@ import os
 from decimal import Decimal
 
 import pytest
+
+# The browser tests' shared fixtures (S17.5.2), defined once for every module that uses them.
+from browser import browser, household, served  # noqa: F401
 from fastapi.testclient import TestClient
 
 from moolakata import exactjson

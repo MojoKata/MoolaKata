@@ -80,6 +80,8 @@
          change adds a row from then, earlier months keeping theirs): its entity class says
          which month the form changes it from and sends it with every change (a `changes()`
          that adds it), is taken out by a change rather than deleted (`removal`), and its
-         kind on the server makes a row from that month or changes the one that starts then;
-         the save's answer names the record as it was sent. One kind is built this way; a
+         kind on the server makes a row from that month, or changes the record when it starts
+         then. A row from that month made since the record was read (a change saved
+         meanwhile) makes the change stale (S12.15.5) rather than overwriting it unseen. The
+         save's answer names the record as it was sent. One kind is built this way; a
          second would make it a declaration of the draft and the save.

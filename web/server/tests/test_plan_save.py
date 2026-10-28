@@ -79,6 +79,21 @@ def test_a_line_changed_from_a_later_month_keeps_the_earlier_months(server, froz
     assert dining not in lines(c, b, "2027-01") and dining in lines(c, b, "2026-12")
 
 
+def test_a_line_changed_from_a_month_planned_meanwhile_is_stale(server, frozen):
+    """A dialog read the line in force; another change planned the category from a later
+    month since. Changing the line read from that month would overwrite it unseen: 412."""
+    c, _, cat, b = setup_budget(server)
+    dining = cat["Food › Dining out"]
+    plan(c, b, "2026-10-01", [{"categoryId": dining, "amount": "300.00"}])
+    read = lines(c, b, "2026-12")[dining]
+    r = save(c, [update(read, amount="333.00", fromMonth="2026-12-01")])
+    assert r.status_code == 200, r.text
+    r = save(c, [update(read, amount="150.00", fromMonth="2026-12-01")])
+    assert r.status_code == 412, r.text
+    assert r.json()["current"][0]["current"]["amount"] == "333.00"
+    assert lines(c, b, "2026-12")[dining]["amount"] == "333.00"
+
+
 def test_a_yearly_line_saved_unchanged_but_its_month_stays_yearly(server, frozen):
     """CR3-2's envelope case: a yearly line is a year's amount, not a twelfth."""
     c, acct, cat, _ = setup_budget(server)

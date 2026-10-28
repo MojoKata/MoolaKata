@@ -961,9 +961,10 @@ def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
             ),
             None,
         )
-        if later is not None:  # a line of 0 from that month: taken over
-            for f, v in values.items():
-                setattr(later, f, v)
+        if later is not None:
+            # A line from that month made since this one was read (by another change, or a
+            # taking out): this one no longer holds then, so the change is stale (S13.8.6).
+            raise stale(_line_out(later))
         else:
             ctx.s.add(
                 BudgetLine(

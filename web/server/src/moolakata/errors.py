@@ -10,6 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from . import exactjson
+
 log = logging.getLogger("moolakata.errors")
 
 PROBLEM = "application/problem+json"
@@ -61,6 +63,14 @@ def new_error_id() -> str:
     return "err_" + secrets.token_hex(6)
 
 
+class ProblemResponse(JSONResponse):
+    """A problem's JSON, its exact numbers (a stale record's `current`, S13.8.6) written as
+    numbers: it is answered by the exception handlers, past the routes' own unmarking."""
+
+    def render(self, content) -> bytes:
+        return exactjson.unmark_bytes(super().render(exactjson.marked(content)))
+
+
 def problem_response(
     status: int,
     code: str,
@@ -91,7 +101,7 @@ def problem_response(
     }
     if extra:
         body.update(extra)
-    return JSONResponse(body, status_code=status, headers=headers or {}, media_type=PROBLEM)
+    return ProblemResponse(body, status_code=status, headers=headers or {}, media_type=PROBLEM)
 
 
 def _field_error(e: FieldError) -> dict:
