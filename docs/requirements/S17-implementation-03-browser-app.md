@@ -38,3 +38,33 @@
    7. **The server is the only state.** The browser remembers only how the page looks: theme,
       sidebar, help pane, page size, privacy mode.
    8. Current Chrome, Edge, Safari and Firefox; no polyfills.
+   9. **Editing records** (S12.15) goes through one module, `app/draft.js`, never through
+      request bodies a dialog builds itself.
+      1. **`Record`** holds a record's kind, id, version and state (new, read or deleted), its
+         values (`data`) and, for each field changed, the value it had (`modified`). It reads
+         and sets fields, puts one or all back, says whether anything changed, and gives the
+         changes in the API's form. It neither reads, saves nor draws.
+      2. **Fields** come from the OpenAPI document: `moolakata.contract write` writes
+         `api/fields.js` beside `api/types.js`, each field's name, type, whether it may be
+         empty, its choices and, for a reference, the prefix of what it refers to, so the
+         browser's fields can't drift from the server's models (S17.5). Each type parses what
+         is typed, formats a value for its input, compares two values and writes the API's
+         form. An entity class (`Transaction`, `Gift`, `BudgetLine`) extends `Record` and adds
+         what only the browser needs (labels, input hints, defaults, values worked out for
+         display), never a field's type.
+      3. **Rules** are declared on the entity class: a field that applies only when another
+         has a value, and what it becomes otherwise; a field required when; a field set when.
+         The same declarations decide which inputs a dialog shows. A hook that runs on a
+         change may do what a declaration can't, and is used only then. An edit a rule makes
+         is tied to the edit that caused it, and is put back with it.
+      4. **Related records** are records of the draft, tied by their reference fields; a
+         reference marked as deleted with what it refers to (`schema.md` §4) makes the draft
+         delete, and put back, the records it owns with their owner. A set of pairs with no id
+         of its own is a list field of the record that holds it.
+      5. **`Draft`** reads the records a dialog edits, keeps one Preact signal per record (so
+         an edit redraws what reads that record), makes new records' ids, marks checkpoints
+         for a dialog opened from a dialog (S12.15.7), and saves through S13.8.11, keeping its
+         `Idempotency-Key` while a retry sends the same ops. The live stream (S12.6) never
+         changes a draft. It is dropped after a save that succeeds or a **Cancel**, and kept
+         after a question, a refusal or a lost connection. In the generated mockup's build
+         (S12.9) the ids it makes repeat from run to run, counted apart from the server's.

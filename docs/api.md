@@ -34,6 +34,13 @@ The browser app's API. It changes with the app and carries no version of its own
   that creates sends `"0"`.
 - **A `DELETE`** answers `{deleted, parent}`: what went, and what it belonged to as it now
   stands (S13.8.1).
+- **Dialogs save in one request.** `POST /ui/api/save` takes `{ops, confirm}`, each op
+  `{op, entity, id, version, fields}` (`create`, `update` with only the fields changed, or
+  `delete`), and applies them all in one transaction or none (S13.8.11). A create names its id,
+  made by the caller (`schema.md` §2). A refusal lists every error with the record's `id` and
+  `field`; a stale version answers 412 for the whole save; a save that asks first answers 409
+  `confirm-needed` with the questions, and goes ahead when sent again with each `{code, id}` in
+  `confirm`.
 - **The rest of the conventions** (resources, errors as `application/problem+json`, status
   codes, jobs for long work, `Idempotency-Key`, visibility) are in S13.8.
 

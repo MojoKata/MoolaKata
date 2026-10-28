@@ -50,6 +50,11 @@ there's no layer that translates names.
 - **Record fields.** Each table with an `id` also has `version` (an integer that changes with
   every save, which the API's `If-Match` compares, requirements S13.8.6), `createdAt` and
   `updatedAt`.
+- **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
+  an ID the browser makes the same way: the UUIDv7 from its clock and `crypto.getRandomValues`,
+  with the table's prefix. The server accepts it only in exactly this form, with the prefix of
+  the table it goes in, a time within a day of the server's clock, and not already taken
+  (requirements S13.8.11.2); `createdAt` is the server's time. Every other ID is made by the server.
 - **IDs reveal when a row was created.** File names and anything else visible on disk,
   such as receipt files and a linked copy's files (requirements S11.9), use separate random
   names and never an ID.

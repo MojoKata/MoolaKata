@@ -13,3 +13,20 @@
    tested on OCR text, and a set of fixture receipts (phone photos, flatbed scans, text-layer
    PDFs; skewed, faded, rotated) runs through the real RapidOCR worker against expected date,
    total and merchant, with an accuracy floor that a change must not drop below.
+
+   **Kinds of test** that each change in their area adds to:
+   1. **Browser modules** without a page (`app/draft.js`, `app/dec.js`, `app/duration.js`)
+      are unit-tested by `deno test`, with the draft's id maker passed in so ids repeat.
+   2. **Saved unchanged changes nothing**: every dialog that edits through a draft is opened
+      in Chromium on fixture data and saved untouched, and the records read back are what
+      they were.
+   3. **Workflows** that carry what one use learned or saved into the next (import, correct,
+      import the next statement) run end to end through the API.
+   4. **Faults one at a time**: a link's or the connector's exchange is made to fail at one
+      call or one file, through fakes that keep the real transport's limits and timeouts; the
+      rest goes through, and the failure is recorded and alerted.
+   5. **Limits that fit**: every size a setting allows (S16) is checked against every path
+      it travels (a request, an answer, a link's file, an upload in flight).
+
+   Browser tests that need a page drive it with Playwright, setting the page's clock to the
+   server's frozen one where a test freezes it.
