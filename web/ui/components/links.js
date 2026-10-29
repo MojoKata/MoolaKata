@@ -45,7 +45,7 @@ export function LinksSection() {
   const v = /** @type {any} */ (res.data);
   const values = /** @type {any} */ (s.data)?.values;
   const fd = useSettingsDraft(s.data, ['linkAddress']);
-  const rec = fd.draft?.records[0];
+  const rec = fd.rec;
   const act = useSubmit(async (/** @type {string} */ id, /** @type {string} */ what) => {
     const out = await withReauth(() => api.post(`/settings/links/${id}/${what}`));
     toast(

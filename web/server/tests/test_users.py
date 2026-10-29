@@ -3,7 +3,7 @@ import email
 import re
 
 from conftest import make_user, new_client, sign_in
-from edits import change, saved
+from edits import change, save_settings, saved
 from sqlalchemy import select
 
 from moolakata import settings
@@ -464,12 +464,10 @@ def test_a_users_profile_is_theirs_and_their_email_changes_by_request(server, ad
 def test_settings_are_checked_together_and_recorded(admin_client, server):
     r = admin_client.get("/ui/api/settings")
     assert r.json()["values"]["passwordMinLength"] == 12
-    r = admin_client.patch("/ui/api/settings", json={"passwordMinLength": 4, "backupTime": "9pm"})
+    r = save_settings(admin_client, {"passwordMinLength": 4, "backupTime": "9pm"})
     assert {e["field"] for e in r.json()["errors"]} == {"passwordMinLength", "backupTime"}
     assert admin_client.get("/ui/api/settings").json()["values"]["passwordMinLength"] == 12
-    r = admin_client.patch(
-        "/ui/api/settings", json={"passwordMinLength": 14, "householdName": "The Griffins"}
-    )
+    r = save_settings(admin_client, {"passwordMinLength": 14, "householdName": "The Griffins"})
     assert r.status_code == 200
     assert admin_client.get("/ui/api/session").json()["household"]["name"] == "The Griffins"
     assert "settings.changed" in kinds(server)

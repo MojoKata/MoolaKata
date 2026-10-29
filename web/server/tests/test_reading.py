@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change
+from edits import change, save_settings
 from PIL import Image
 from test_receipts import upload
 
@@ -209,7 +209,7 @@ def test_reading_fills_empty_fields_never_typed_ones(server):
 
 
 def test_reading_off_leaves_receipts_unread(server, admin_client):
-    assert admin_client.patch("/ui/api/settings", json={"readReceipts": False}).status_code == 200
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
     make_user(server, "alice")
     c = sign_in(server, "alice")
     rid = upload(c, _png(draw(["TOTAL 1.00"]))).json()["id"]

@@ -475,6 +475,8 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
             f"'2026-10-01', 'deposit', '10.00', '{iid}', 1, {stamp}, {stamp}, 0)",
             'INSERT INTO "OneTimeToken" ("tokenHash", purpose, "userId", "createdAt", '
             f"\"expiresAt\") VALUES ('h1', 'invitation', '{uid}', {stamp}, '2030-01-01 00:00:00')",
+            'INSERT INTO "Setting" ("key", value, "updatedById", version, "updatedAt", deleted) '
+            f"VALUES ('householdName', '\"The Griffins\"', '{uid}', 3, {stamp}, 0)",
         ):
             conn.exec_driver_sql(statement)
         conn.commit()
@@ -501,6 +503,8 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
         assert [tuple(u) for u in users] == [("alice", 0), ("bob", 1)]
         txn = conn.exec_driver_sql(f'SELECT "importId" FROM "Transaction" WHERE id = \'{tid}\'')
         assert txn.scalar_one() == iid
+        setting = conn.exec_driver_sql('SELECT id, value, version FROM "Setting"').one()
+        assert setting[0].startswith("Setng_") and setting[1:] == ('"The Griffins"', 3)
         migrated = dict(
             conn.exec_driver_sql("SELECT name, sql FROM sqlite_master WHERE type = 'table'").all()
         )

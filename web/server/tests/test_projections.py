@@ -196,19 +196,21 @@ def test_tax_tables_ship_and_can_be_corrected(server, frozen, admin_client):
     assert t["year"] == 2026
     ira = next(r for r in t["rows"] if r["key"] == "iraLimit")
     assert ira["value"] == 7500 and not ira["corrected"]
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2026, "values": {"iraLimit": 8000}}
-    )
-    assert next(x for x in r.json()["rows"] if x["key"] == "iraLimit")["corrected"]
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2026, "values": {"btcArk2030": [1, 2]}}
-    )
-    assert r.status_code == 422
-    # The shipped value again removes the correction.
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2026, "values": {"iraLimit": 7500}}
-    )
-    assert not next(x for x in r.json()["rows"] if x["key"] == "iraLimit")["corrected"]
+    fig = {"year": 2026, "key": "iraLimit", "value": 8000}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fig}
+    t = saved(admin_client.post("/ui/api/save", json={"ops": [op]}))
+    ira = next(x for x in t["rows"] if x["key"] == "iraLimit")
+    assert ira["corrected"] and ira["value"] == 8000
+    bad = {"year": 2026, "key": "btcArk2030", "value": [1, 2]}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": bad}
+    assert admin_client.post("/ui/api/save", json={"ops": [op]}).status_code == 422
+    # The shipped value is no correction; deleting the correction puts it back.
+    correction = {"id": ira["figureId"], "version": ira["version"]}
+    r = change(admin_client, "TaxFg", correction, value=7500)
+    assert r.json()["errors"][0]["code"] == "figure-shipped"
+    assert remove(admin_client, "TaxFg", correction).status_code == 200
+    t = admin_client.get("/ui/api/settings/tax-tables").json()
+    assert not next(x for x in t["rows"] if x["key"] == "iraLimit")["corrected"]
 
 
 def test_a_bitcoin_model_with_cases_gives_three_paths(server, alice):
@@ -276,9 +278,9 @@ def test_every_year_a_book_may_cover_has_its_own_figures(admin_client):
     rows = {r["key"]: r["value"] for r in t["rows"]}
     assert rows["iraLimit"] == 5500 and rows["giftExclusion"] == 14000
     assert "collegePublic" not in rows and "btcArk2030" not in rows
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2016, "values": {"collegePublic": 1}}
-    )
+    fig = {"year": 2016, "key": "collegePublic", "value": 1}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fig}
+    r = admin_client.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "figure-not-of-year"
 
 

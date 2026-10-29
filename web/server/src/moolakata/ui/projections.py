@@ -22,9 +22,6 @@ from .conventions import (
     Model,
     Money,
     Ratio,
-    check_version,
-    if_match,
-    version_of,
 )
 from .deps import Caller, admin, caller, server
 
@@ -597,26 +594,28 @@ class TaxRow(Model):
     value: Any
     shipped: Any
     corrected: bool
+    # Its correction, a record of the save: none while it stands as shipped.
+    figureId: str | None = None
+    version: int = 0
 
 
 class TaxTables(Model):
     year: int
     years: list[int]
     rows: list[TaxRow]
-    version: int  # the year's corrections together (S13.8.6)
-
-
-class TaxChange(Model):
-    year: int
-    values: Loose
 
 
 def _tables(s, year: int) -> TaxTables:
     vals = taxtables.figures(s, year)
     changed = taxtables.corrected(s, year)
     shipped = taxtables.SHIPPED.get(year, {})
+    rows = {
+        r.key: r
+        for r in s.scalars(
+            select(TaxFigure).where(TaxFigure.year == year, TaxFigure.deleted == false())
+        )
+    }
     return TaxTables(
-        version=version_of(s, TaxFigure, TaxFigure.year == year),
         year=year,
         years=taxtables.years(),
         rows=[
@@ -629,6 +628,8 @@ def _tables(s, year: int) -> TaxTables:
                 value=vals.get(f.key),
                 shipped=shipped.get(f.key),
                 corrected=f.key in changed,
+                figureId=rows[f.key].id if f.key in rows else None,
+                version=rows[f.key].version if f.key in rows else 0,
             )
             for f in taxtables.of_year(year)
         ],
@@ -642,66 +643,107 @@ def get_tax_tables(request: Request, c: Caller = Depends(admin), year: int | Non
         return _tables(s, y)
 
 
-@router.put("/settings/tax-tables", response_model=TaxTables)
-def put_tax_tables(
-    body: TaxChange, request: Request, c: Caller = Depends(admin), version: int = Depends(if_match)
-):
-    """A correction to a shipped figure; the shipped value again removes it."""
+class FigureRecord(Model):
+    """An admin's correction of one shipped tax-table figure for a year (S16.11), as the tax
+    tables' draft saves it; the shipped value again deletes it."""
+
+    year: int
+    key: str
+    value: Any
+
+
+def _figure_check(body: FigureRecord):
     if body.year not in taxtables.SHIPPED:
-        raise Problem(404, "year-unknown", "That year's tables don't ship with this release.")
-    errors = []
-    clean = {}
-    for k, v in body.values.items():
-        if k in taxtables.BY_KEY and k not in taxtables.SHIPPED[body.year]:
-            errors.append(FieldError(k, "figure-not-of-year", "That year doesn't ship it."))
-            continue
-        try:
-            clean[k] = taxtables.check(k, v)
-        except taxtables.Invalid as e:
-            errors.append(FieldError(k, "figure-invalid", f"Must be {e}."))
-    _raise(errors)
-    with server(request).db.tx() as s:
-        check_version(
-            version_of(s, TaxFigure, TaxFigure.year == body.year),
-            version,
-            lambda: _tables(s, body.year),
+        raise refuse("year", "year-unknown", "That year's tables don't ship with this release.")
+    if body.key not in taxtables.SHIPPED[body.year]:
+        raise refuse("key", "figure-not-of-year", "That year doesn't ship it.")
+    try:
+        value = taxtables.check(body.key, body.value)
+    except taxtables.Invalid as e:
+        raise refuse("value", "figure-invalid", f"Must be {e}.") from None
+    if value == taxtables.SHIPPED[body.year].get(body.key):
+        raise refuse(
+            "value", "figure-shipped", "That is the figure as shipped: nothing to correct."
         )
-        rows = {
-            r.key: r
-            for r in s.scalars(
-                select(TaxFigure).where(TaxFigure.year == body.year, TaxFigure.deleted == false())
-            )
-        }
-        changed = []
-        for k, v in clean.items():
-            shipped = taxtables.SHIPPED[body.year].get(k)
-            r = rows.get(k)
-            if v == shipped:
-                if r is not None:
-                    r.mark_deleted(c.id)
-                    changed.append(k)
-                continue
-            if r is None:
-                s.add(
-                    TaxFigure(
-                        id=ids.new_id("TaxFg"),
-                        year=body.year,
-                        key=k,
-                        value=exactjson.dumps(v),
-                        changedById=c.id,
-                    )
-                )
-                changed.append(k)
-            elif json.loads(r.value) != v:
-                r.value, r.changedById = exactjson.dumps(v), c.id
-                changed.append(k)
-        if changed:
+    return value
+
+
+def _figure_noted(ctx, row: TaxFigure) -> None:
+    """One Activity entry a save, naming the figures it corrected and their year."""
+    years = ctx.notes.setdefault("tax-tables", {})
+    years.setdefault(row.year, set()).add(row.key)
+
+    def record() -> None:
+        for year, keys in years.items():
             activity.record(
-                s,
+                ctx.s,
                 "settings.tax-tables",
-                actor=c.id,
+                actor=ctx.caller.id,
                 for_admins=True,
-                detail={"fields": sorted(changed), "year": body.year},
+                detail={"fields": sorted(keys), "year": year},
             )
-        s.flush()
-        return _tables(s, body.year)
+
+    ctx.verify("tax-tables", record)
+
+
+def _figure_admin(ctx) -> None:
+    if not ctx.caller.admin:
+        raise Problem(403, "admins-only", "Only admins can do this.")
+
+
+def _figure_create(ctx, record_id: str, body: FigureRecord) -> None:
+    _figure_admin(ctx)
+    value = _figure_check(body)
+    if body.key in taxtables.corrected(ctx.s, body.year):
+        raise refuse("key", "figure-corrected", "It is corrected: change its correction.", 409)
+    row = TaxFigure(
+        id=record_id,
+        year=body.year,
+        key=body.key,
+        value=exactjson.dumps(value),
+        changedById=ctx.caller.id,
+    )
+    ctx.s.add(row)
+    _figure_noted(ctx, row)
+
+
+def _figure_editable(ctx, record_id: str) -> TaxFigure:
+    _figure_admin(ctx)
+    row = ctx.s.get(TaxFigure, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _figure_update(ctx, row: TaxFigure, body: FigureRecord) -> None:
+    if (body.year, body.key) != (row.year, row.key):
+        raise refuse("key", "figure-fixed", "A correction stays with its figure and year.")
+    value = _figure_check(body)
+    row.value, row.changedById = exactjson.dumps(value), ctx.caller.id
+    _figure_noted(ctx, row)
+
+
+def _figure_delete(ctx, row: TaxFigure) -> None:
+    """The figure as shipped again."""
+    _figure_admin(ctx)
+    row.mark_deleted(ctx.caller.id)
+    _figure_noted(ctx, row)
+
+
+def _figure_current(ctx, row: TaxFigure) -> dict:
+    return {"year": row.year, "key": row.key, "value": json.loads(row.value)}
+
+
+save.register(
+    save.Kind(
+        prefix="TaxFg",
+        entity=TaxFigure,
+        fields=FigureRecord,
+        create=_figure_create,
+        editable=_figure_editable,
+        current=_figure_current,
+        update=_figure_update,
+        delete=_figure_delete,
+        read=lambda ctx, record_id: _tables(ctx.s, ctx.s.get(TaxFigure, record_id).year),
+    )
+)

@@ -157,7 +157,7 @@ export function ShareDialog({ close, kind, id, name }) {
   }));
   return html`
     <${DraftDialog} f=${f} title=${`Share “${name}”`} close=${close} what="These shares"
-      done="Sharing saved" saved=${() => close(true)}
+      done="Sharing saved"
       note="When someone loses access, it ends on their next request."
       extra=${() => html`<button type="button" class="btn" data-cancel>Cancel</button>`}>
         ${!view ? html`<${Loading} />` : html`

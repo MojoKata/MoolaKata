@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import pytest
-from edits import edit, giving_plan, saved, share, terms, wallet
+from edits import edit, giving_plan, save_settings, saved, share, terms, wallet
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -247,8 +247,7 @@ def seed(base: str) -> Household:
 def people(h: Household) -> dict:
     """Bob, invited into a Household group, and an access token of the admin's."""
     # Invitations carry links built from the server's public URL (S16.1).
-    v = h.c.get("/ui/api/settings").json()["version"]
-    r = h.c.patch("/ui/api/settings", json={"publicUrl": h.base}, headers={"If-Match": str(v)})
+    r = save_settings(h.c, {"publicUrl": h.base})
     made(r)
     bob = made(
         h.c.post(

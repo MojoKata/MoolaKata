@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
+from . import ids
 from .errors import FieldError, Problem
 from .store.entities.core import Setting
 
@@ -295,36 +296,36 @@ def coerce(key: str, value: Any) -> Any:
         ) from None
 
 
+def row_of(s: Session, key: str) -> Setting | None:
+    """The key's live row, or None while it stands at its default."""
+    return s.scalars(select(Setting).where(Setting.key == key, Setting.deleted == false())).first()
+
+
 def get(s: Session, key: str) -> Any:
-    row = s.get(Setting, key)
-    if row is None or row.deleted:
-        return DEFINITIONS[key].default
-    return json.loads(row.value)
+    row = row_of(s, key)
+    return DEFINITIONS[key].default if row is None else json.loads(row.value)
 
 
 def section(s: Session, name: str) -> dict[str, Any]:
     keys = [k for k, d in DEFINITIONS.items() if d.section == name]
-    rows = {r.key: r for r in s.scalars(select(Setting).where(Setting.key.in_(keys)))}
-    return {
-        k: json.loads(rows[k].value)
-        if k in rows and not rows[k].deleted
-        else DEFINITIONS[k].default
-        for k in keys
+    rows = {
+        r.key: r
+        for r in s.scalars(select(Setting).where(Setting.key.in_(keys), Setting.deleted == false()))
     }
+    return {k: json.loads(rows[k].value) if k in rows else DEFINITIONS[k].default for k in keys}
 
 
 def saved(s: Session, key: str) -> bool:
     """Whether an admin has saved the setting, rather than it standing at its default."""
-    row = s.get(Setting, key)
-    return row is not None and not row.deleted
+    return row_of(s, key) is not None
 
 
 def put(s: Session, key: str, value: Any, by: str | None) -> Any:
     value = coerce(key, value)
-    row = s.get(Setting, key)
+    row = row_of(s, key)
     text = json.dumps(value, sort_keys=True)
     if row is None:
-        s.add(Setting(key=key, value=text, updatedById=by))
+        s.add(Setting(id=ids.new_id("Setng"), key=key, value=text, updatedById=by))
     else:
         row.value = text
         row.updatedById = by

@@ -169,3 +169,20 @@ def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, to
         if ops:
             r = c.post("/ui/api/save", json={"ops": ops})
     return r
+
+
+def save_settings(c, values: dict):
+    """Settings saved as their sections' drafts save them (S16): each key's record changed, or
+    made when it has none. The save's answer: a value its definition refuses names its key."""
+    v = c.get("/ui/api/settings").json()
+    ops = []
+    for key, value in values.items():
+        ref = v["records"].get(key)
+        if ref:
+            op = {"op": "update", "entity": "Setng", "id": ref["id"], "version": ref["version"],
+                  "fields": {"value": value}}  # fmt: skip
+        else:
+            op = {"op": "create", "entity": "Setng", "id": new_id("Setng"),
+                  "fields": {"key": key, "value": value}}  # fmt: skip
+        ops.append(op)
+    return c.post("/ui/api/save", json={"ops": ops})

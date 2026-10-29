@@ -4,7 +4,7 @@ import io
 
 import pytest
 from conftest import make_user, sign_in
-from edits import drop, edit, saved, share
+from edits import drop, edit, save_settings, saved, share
 from PIL import Image
 from test_accounts import add, new_account
 
@@ -141,7 +141,7 @@ def test_attaching_needs_write_on_the_account(server, alice):
 
 
 def test_size_limit_is_a_setting(server, alice, admin_client):
-    assert admin_client.patch("/ui/api/settings", json={"receiptMaxMb": 1}).status_code == 200
+    assert save_settings(admin_client, {"receiptMaxMb": 1}).status_code == 200
     big = png() + b"\x00" * (1024 * 1024)
     r = upload(alice, big)
     assert r.status_code == 413

@@ -164,9 +164,9 @@
    The OpenAPI document is generated from the routes (R3.9); `docs/api.md` says how to use
    `/ui/api` and `/mcp`.
    1. **Resources and methods**: plural nouns (`/ui/api/accounts`, `/ui/api/accounts/{id}`).
-      `GET` reads, `POST` creates, `PATCH` changes the fields it sends. `PUT` replaces
-      something that exists once for its parent (a year's tax tables),
-      creating it when it doesn't exist yet. An action that is
+      `GET` reads, `POST` creates, `PATCH` changes the fields it sends. `PUT` sets a pair
+      that links two records (an account counted in someone's totals, a projection shown on
+      their Dashboard). An action that is
       not a change of fields is a `POST` to a verb under the resource
       (`/ui/api/links/{id}/pull`). Forms save through one route instead (S13.8.11): a kind
       of record the save takes has no `PATCH`, `PUT` or `DELETE` of its own, only its reads
@@ -228,13 +228,11 @@
          browser's dialogs reload (S12.15.5);
       3. with the current one, it is applied and the version goes up.
 
-      A `PUT` that creates what doesn't exist yet sends `0`. What is made of many records
-      replaced together (the settings, a year's tax tables) has one
-      version, the sum of theirs, which goes up with any change to them. Pairs that only link
-      two records (a receipt and a transaction, an account counted in someone's totals) have
-      no version. A secret (a password, a price source's key) is written with the record or
-      the settings it belongs to and never read back. A test walks every
-      route and fails when a change skips its version or a `DELETE` answers another shape.
+      Pairs that only link two records (a receipt and a transaction, an account counted in
+      someone's totals) have no version. A secret (a password, a price source's key) is
+      written with the record it belongs to, a setting's among them, and never read back. A
+      test walks every route and fails when a change skips its version or a `DELETE` answers
+      another shape.
    7. **Long work** (an import, a statement read, a projection run, a reset copy) answers
       202 with a job resource (`/ui/api/jobs/{id}`: state, progress, result), and the live
       stream announces its end (S12.6).

@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, edit, saved
+from edits import change, edit, save_settings, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -156,10 +156,7 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
         r.date = dt.date(2027, 9, 30)
         receipts.attach_account(s, alice.id, r, acct["id"])
     assert kept(c, rid)[0] == "forever", "statements are kept for ever by default"
-    v = admin_client.get("/ui/api/settings").json()["version"]
-    r = admin_client.patch(
-        "/ui/api/settings", json={"keepStatementsYears": 5}, headers={"If-Match": f'"{v}"'}
-    )
+    r = save_settings(admin_client, {"keepStatementsYears": 5})
     assert r.status_code == 200, r.text
     d = c.get(f"/ui/api/receipts/{rid}").json()
     assert (d["keptState"], d["kept"], d["keptWhy"]) == (

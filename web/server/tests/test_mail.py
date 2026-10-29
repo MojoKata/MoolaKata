@@ -6,6 +6,7 @@ from typing import ClassVar
 
 import pytest
 from conftest import make_user, new_client
+from edits import save_settings
 from test_users import kinds, mails, set_public_url
 
 from moolakata import settings
@@ -62,9 +63,9 @@ def smtp(monkeypatch, server):
 
 
 def set_up_smtp(admin_client, password="app password"):
-    r = admin_client.patch(
-        "/ui/api/settings",
-        json={
+    r = save_settings(
+        admin_client,
+        {
             "smtpHost": "smtp.home.lan",
             "smtpUsername": "money@home.lan",
             "smtpFrom": "MoolaKata <money@home.lan>",
@@ -72,7 +73,7 @@ def set_up_smtp(admin_client, password="app password"):
         },
     )
     assert r.status_code == 200, r.text
-    assert "smtpPassword" not in r.json()["values"], "never read back"
+    assert password not in r.text, "never read back"
     r = admin_client.get("/ui/api/settings/email")
     assert r.json()["password"]["setBy"] == "Ada Admin"
 
@@ -84,7 +85,7 @@ def test_settings_check_the_smtp_fields(admin_client):
         ("smtpSecurity", "ssl3"),
         ("smtpFrom", "nobody"),
     ):
-        r = admin_client.patch("/ui/api/settings", json={key: bad})
+        r = save_settings(admin_client, {key: bad})
         assert r.status_code == 422 and r.json()["errors"][0]["field"] == key, key
 
 
@@ -135,7 +136,7 @@ def test_a_failure_keeps_the_email_and_says_why(admin_client, server, smtp):
     assert len(server.services.mailer.waiting()) == 1
     # A recipient the server will never take is set aside, and the rest go on.
     smtp.fail = smtplib.SMTPRecipientsRefused({"dave@x.lan": (550, b"no such user")})
-    admin_client.patch("/ui/api/settings", json={"smtpPassword": "right"})
+    save_settings(admin_client, {"smtpPassword": "right"})
     assert server.services.mailer.send_waiting(_smtp(server), server.guard) == 0
     assert admin_client.get("/ui/api/settings/email").json()["setAside"] == 1
 
@@ -254,9 +255,7 @@ def test_send_a_test_email(admin_client, server, smtp):
 def open_signup(admin_client, server, domains=()):
     set_up_smtp(admin_client)
     set_public_url(server)
-    r = admin_client.patch(
-        "/ui/api/settings", json={"signupEnabled": True, "signupDomains": list(domains)}
-    )
+    r = save_settings(admin_client, {"signupEnabled": True, "signupDomains": list(domains)})
     assert r.status_code == 200, r.text
 
 
@@ -283,7 +282,7 @@ def outbox_link(server) -> tuple[str, str]:
 
 
 def test_sign_up_needs_smtp_and_the_public_url(admin_client, server):
-    r = admin_client.patch("/ui/api/settings", json={"signupEnabled": True})
+    r = save_settings(admin_client, {"signupEnabled": True})
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "signupEnabled"
     with new_client(server) as c:
         assert c.get("/ui/api/signup").json() == {"open": False, "domains": []}
@@ -431,16 +430,16 @@ def test_a_new_smtp_host_needs_the_password_again_and_clears_the_old_password(
 
     set_up_smtp(admin_client)
     stale(server)
-    r = admin_client.patch("/ui/api/settings", json={"smtpHost": "smtp.elsewhere.example"})
-    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    r = save_settings(admin_client, {"smtpHost": "smtp.elsewhere.example"})
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
     # The same host saved again, and other fields, ask nothing.
-    r = admin_client.patch("/ui/api/settings", json={"smtpHost": "smtp.home.lan", "smtpPort": 465})
+    r = save_settings(admin_client, {"smtpHost": "smtp.home.lan", "smtpPort": 465})
     assert r.status_code == 200, r.text
-    r = admin_client.patch("/ui/api/settings", json={"publicUrl": "https://elsewhere.example"})
+    r = save_settings(admin_client, {"publicUrl": "https://elsewhere.example"})
     assert r.status_code == 403
     r = admin_client.post("/ui/api/session/reauth", json={"password": "a long admin passphrase"})
     assert r.status_code == 204
-    r = admin_client.patch("/ui/api/settings", json={"smtpHost": "smtp.elsewhere.example"})
+    r = save_settings(admin_client, {"smtpHost": "smtp.elsewhere.example"})
     assert r.status_code == 200, r.text
     with server.db.read() as s:
         assert secret_repo.info(s, *SMTP_SECRET) is None

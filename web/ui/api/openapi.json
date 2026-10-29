@@ -6243,6 +6243,31 @@
         "title": "Expiring",
         "type": "object"
       },
+      "FigureRecord": {
+        "additionalProperties": false,
+        "description": "An admin's correction of one shipped tax-table figure for a year (S16.11), as the tax\ntables' draft saves it; the shipped value again deletes it.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "key",
+          "value"
+        ],
+        "title": "FigureRecord",
+        "type": "object",
+        "x-entity": "TaxFg"
+      },
       "Filer": {
         "additionalProperties": false,
         "properties": {
@@ -19019,8 +19044,11 @@
               "expense-fixed",
               "expired",
               "fees-invalid",
+              "figure-corrected",
+              "figure-fixed",
               "figure-invalid",
               "figure-not-of-year",
+              "figure-shipped",
               "file-empty",
               "file-pruned",
               "filed-on-missing",
@@ -19230,6 +19258,9 @@
               "sent-invalid",
               "server-error",
               "session-expired",
+              "setting-fixed",
+              "setting-saved",
+              "setting-unknown",
               "settings-invalid",
               "settings-missing",
               "setup-done",
@@ -19442,8 +19473,11 @@
                   "expense-fixed",
                   "expired",
                   "fees-invalid",
+                  "figure-corrected",
+                  "figure-fixed",
                   "figure-invalid",
                   "figure-not-of-year",
+                  "figure-shipped",
                   "file-empty",
                   "file-pruned",
                   "filed-on-missing",
@@ -19653,6 +19687,9 @@
                   "sent-invalid",
                   "server-error",
                   "session-expired",
+                  "setting-fixed",
+                  "setting-saved",
+                  "setting-unknown",
                   "settings-invalid",
                   "settings-missing",
                   "setup-done",
@@ -23263,9 +23300,56 @@
         "title": "SessionInfo",
         "type": "object"
       },
+      "SettingRecord": {
+        "additionalProperties": false,
+        "description": "A setting as a section's draft saves it (S16): its key, and a value its definition\nchecks; a password's value is written and never read back, null removing it.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "default": null,
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "SettingRecord",
+        "type": "object",
+        "x-entity": "Setng"
+      },
+      "SettingRef": {
+        "additionalProperties": false,
+        "description": "A saved setting's record: its id and version (S13.8.6).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "SettingRef",
+        "type": "object"
+      },
       "SettingsView": {
         "additionalProperties": false,
         "properties": {
+          "records": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SettingRef"
+            },
+            "title": "Records",
+            "type": "object"
+          },
           "sections": {
             "additionalProperties": {
               "items": {
@@ -23284,25 +23368,13 @@
             "additionalProperties": true,
             "title": "Values",
             "type": "object"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "versions": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Versions",
-            "type": "object"
           }
         },
         "required": [
           "values",
           "sections",
           "serverZone",
-          "versions",
-          "version"
+          "records"
         ],
         "title": "SettingsView",
         "type": "object"
@@ -25042,32 +25114,23 @@
         "title": "TagOut",
         "type": "object"
       },
-      "TaxChange": {
-        "additionalProperties": false,
-        "properties": {
-          "values": {
-            "additionalProperties": true,
-            "title": "Values",
-            "type": "object"
-          },
-          "year": {
-            "title": "Year",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "year",
-          "values"
-        ],
-        "title": "TaxChange",
-        "type": "object"
-      },
       "TaxRow": {
         "additionalProperties": false,
         "properties": {
           "corrected": {
             "title": "Corrected",
             "type": "boolean"
+          },
+          "figureId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figureid"
           },
           "group": {
             "title": "Group",
@@ -25094,6 +25157,11 @@
           },
           "value": {
             "title": "Value"
+          },
+          "version": {
+            "default": 0,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -25119,10 +25187,6 @@
             "title": "Rows",
             "type": "array"
           },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
           "year": {
             "title": "Year",
             "type": "integer"
@@ -25138,8 +25202,7 @@
         "required": [
           "year",
           "years",
-          "rows",
-          "version"
+          "rows"
         ],
         "title": "TaxTables",
         "type": "object"
@@ -38116,44 +38179,6 @@
         "tags": [
           "settings"
         ]
-      },
-      "patch": {
-        "description": "Every key is checked before any is saved; a refusal names each field (R3.7). The SMTP\nand Bitcoin Core passwords come with their sections' keys, written, never read back: set\nby a value, removed by null (S14.4).",
-        "operationId": "change_settings_ui_api_settings_patch",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SettingsView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Settings",
-        "tags": [
-          "settings"
-        ]
       }
     },
     "/ui/api/settings/backups": {
@@ -39470,42 +39495,6 @@
           }
         },
         "summary": "Get Tax Tables",
-        "tags": [
-          "projections"
-        ]
-      },
-      "put": {
-        "description": "A correction to a shipped figure; the shipped value again removes it.",
-        "operationId": "put_tax_tables_ui_api_settings_tax_tables_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TaxChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaxTables"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Put Tax Tables",
         "tags": [
           "projections"
         ]

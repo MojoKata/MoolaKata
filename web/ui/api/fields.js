@@ -120,6 +120,11 @@ export const FIELDS = {
     amount: {"type": "money"},
     accountId: {"type": "ref", "prefix": "Acct"},
   },
+  FigureRecord: {
+    year: {"type": "int"},
+    key: {"type": "text"},
+    value: {"type": "json"},
+  },
   FilingRecord: {
     bookId: {"type": "ref", "prefix": "TaxBk"},
     jurisdiction: {"type": "choice", "choices": ["federal", "state", "local"]},
@@ -374,6 +379,10 @@ export const FIELDS = {
     categoryId: {"type": "text", "nullable": true},
     payee: {"type": "text", "nullable": true},
     tags: {"type": "list", "items": {"type": "text"}, "set": true},
+  },
+  SettingRecord: {
+    key: {"type": "text"},
+    value: {"type": "json"},
   },
   ShareRecord: {
     kind: {"type": "choice", "choices": ["account", "portfolio", "budget", "projection", "person", "gift-plan", "giving-plan", "tax-book"]},

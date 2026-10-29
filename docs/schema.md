@@ -124,6 +124,7 @@ The prefixes of the tables that exist.
 | Rmbrs  | Reimbursement    | A deposit paired with reimbursable spending: how much of it pays that spending back.                 |
 | Rule   | Rule             | One of a user's categorisation and payee rules: what a transaction matches and what the rule sets.    |
 | Secr   | Secret           | A secret sealed on its own: an API key, a password or a private key.                                  |
+| Setng  | Setting          | One setting an admin saved, by its key; a key with none stands at its default.                        |
 | Sgnup  | SignupRequest    | A person's request for an account, from confirming the email to an admin's decision.                  |
 | Share  | Share            | A grant of an account or portfolio to a user, group or linked server.                                 |
 | Split  | Split            | A part of a transaction's amount given its own category.                                              |

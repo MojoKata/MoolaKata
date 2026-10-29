@@ -5,7 +5,7 @@ import logging
 
 import pytest
 from conftest import make_user, sign_in
-from edits import saved, wallet
+from edits import save_settings, saved, wallet
 from test_accounts import new_account
 
 from moolakata.bitcoin import keys
@@ -262,16 +262,16 @@ def test_a_failing_source_says_what_to_fix_without_naming_an_address(server, ali
 
 
 def test_the_stub_source_gives_dev_wallets_a_history(server, alice, admin_client):
-    from moolakata.store.entities.core import Setting
+    from moolakata import settings
 
     server.config = dataclasses.replace(server.config, stubs=True)
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
     saved(wallet(alice, w["id"], ZPUB))
     # The stub too waits for Settings › Bitcoin (S16.7, S17.7), and is a source saved there.
     with server.db.tx() as s:
-        s.delete(s.get(Setting, "bitcoinSource"))
+        s.delete(settings.row_of(s, "bitcoinSource"))
     assert sync.sync_all(server) is None and sync_count(server, w["id"]) == 0
-    assert admin_client.patch("/ui/api/settings", json={"bitcoinSource": "stub"}).status_code == 200
+    assert save_settings(admin_client, {"bitcoinSource": "stub"}).status_code == 200
     sync.sync_all(server)
     v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["used"] > 0 and v["checkedAt"]
@@ -385,12 +385,11 @@ def test_a_named_node_is_reachable_and_a_public_explorer_is_not_named():
 
 def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server, admin_client):
     c = admin_client
-    r = c.patch(
-        "/ui/api/settings",
-        json={"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.20", "bitcoinNodePort": 8332},
+    r = save_settings(
+        c, {"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.20", "bitcoinNodePort": 8332}
     )
     assert r.status_code == 200, r.text
-    r = c.patch("/ui/api/settings", json={"bitcoinPassword": "rpc-pass-1"})
+    r = save_settings(c, {"bitcoinPassword": "rpc-pass-1"})
     assert r.status_code == 200 and "rpc-pass-1" not in r.text
     v = c.get("/ui/api/settings/bitcoin").json()
     assert v["password"]["setBy"] and "rpc-pass-1" not in str(v)
@@ -402,15 +401,15 @@ def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server,
         8332,
         "rpc-pass-1",
     )
-    bad = c.patch("/ui/api/settings", json={"bitcoinSource": "infura"})
+    bad = save_settings(c, {"bitcoinSource": "infura"})
     assert bad.status_code == 422
-    stub = c.patch("/ui/api/settings", json={"bitcoinSource": "stub"})
+    stub = save_settings(c, {"bitcoinSource": "stub"})
     assert stub.status_code == 422, "the stub is dev mode's"
     server.config = dataclasses.replace(server.config, stubs=True)
     r = c.post("/ui/api/settings/bitcoin/test")
     assert r.status_code == 200 and "answered" in r.json()["answer"]
     # A new host clears the password, so it is never sent there (S16.7).
-    assert c.patch("/ui/api/settings", json={"bitcoinNodeHost": "192.168.1.30"}).status_code == 200
+    assert save_settings(c, {"bitcoinNodeHost": "192.168.1.30"}).status_code == 200
     assert c.get("/ui/api/settings/bitcoin").json()["password"] is None
 
 
@@ -571,12 +570,11 @@ def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, alice):
     # S16.7, R3.5: nothing asked of a public explorer before an admin chooses it.
     from moolakata import settings
     from moolakata.bitcoin import sync
-    from moolakata.store.entities.core import Setting
 
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
     saved(wallet(alice, w["id"], ZPUB))
     with server.db.tx() as s:
-        s.delete(s.get(Setting, "bitcoinSource"))
+        s.delete(settings.row_of(s, "bitcoinSource"))
     r = alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
     assert r.status_code == 409 and r.json()["code"] == "bitcoin-not-set"
     assert sync.sync_all(server) is None

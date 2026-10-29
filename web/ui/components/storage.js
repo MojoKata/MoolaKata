@@ -106,7 +106,7 @@ export function StorageSection() {
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(s.data, ['keepStatementsYears']);
-  const rec = fd.draft?.records[0];
+  const rec = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const years = rec.get('keepStatementsYears');

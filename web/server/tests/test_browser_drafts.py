@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
-from edits import edit
+from edits import edit, save_settings
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -829,12 +829,7 @@ def test_a_settings_section_saves_its_keys_and_a_password_with_them(browser, hou
     assert values["smtpHost"] == "smtp.home.lan" and "smtpPassword" not in values
     assert h.c.get("/ui/api/settings/email").json()["password"]["setBy"]
     # Put back as it was, so other tests' emails are written to the folder.
-    v = h.c.get("/ui/api/settings").json()["version"]
-    r = h.c.patch(
-        "/ui/api/settings",
-        json={"smtpHost": None, "smtpPassword": None},
-        headers={"If-Match": str(v)},
-    )
+    r = save_settings(h.c, {"smtpHost": None, "smtpPassword": None})
     assert r.status_code == 200, r.text
     assert problems == []
     page.close()

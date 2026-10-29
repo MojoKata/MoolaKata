@@ -294,10 +294,11 @@ def test_correcting_a_line_then_importing_the_next_statement_keeps_its_lines(ser
 
 def test_statement_reading_can_be_off(server, admin_client):
     from conftest import make_user, sign_in
+    from edits import save_settings
     from test_accounts import new_account
     from test_reading import text_pdf
 
-    assert admin_client.patch("/ui/api/settings", json={"readStatements": False}).status_code == 200
+    assert save_settings(admin_client, {"readStatements": False}).status_code == 200
     make_user(server, "alice")
     c = sign_in(server, "alice")
     acct = new_account(c)

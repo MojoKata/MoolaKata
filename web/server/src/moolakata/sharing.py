@@ -5,7 +5,6 @@ until Save, which replaces the item's grants as a whole. Removing a share ends t
 access on their next request and deletes their own annotations on the item (their tags).
 """
 
-
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 

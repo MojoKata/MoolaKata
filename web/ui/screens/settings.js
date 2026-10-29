@@ -21,7 +21,7 @@ import { StorageSection } from '../components/storage.js';
 import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-form.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { useSectionDraft, useSettingsDraft } from '../components/settings-draft.js';
+import { useSettingsDraft } from '../components/settings-draft.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -103,7 +103,7 @@ function Plain({ section }) {
   const v = /** @type {any} */ (res.data);
   const keys = KEYS[section] || KEYS.imports;
   const fd = useSettingsDraft(v, keys);
-  const rec = fd.draft?.records[0];
+  const rec = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   /** @type {Record<string, any>} */
@@ -386,7 +386,7 @@ function Prices() {
   const all = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(all.data, ['priceRefreshTime']);
-  const time = fd.draft?.records[0];
+  const time = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v || !time) return html`<${Loading} />`;
   // A switch or a Remove saves at once, as a draft of one change (S12.15).
@@ -645,6 +645,14 @@ function SetKey({ close, src }) {
   `;
 }
 
+/** An admin's correction of a shipped tax-table figure for a year (S16.11). */
+class FigureRec extends Rec {
+  /** @override */
+  static prefix = 'TaxFg';
+  /** @override */
+  static fields = FIELDS.FigureRecord;
+}
+
 /**
  * Tax tables (S16.11): per year, the figures that ship with MoolaKata, each correctable if the
  * IRS changes it before an update; the shipped value again removes the correction.
@@ -653,25 +661,48 @@ function TaxTables() {
   const [year, setYear] = useState(/** @type {number | null} */ (null));
   const res = useApi('/settings/tax-tables', year ? { year } : {});
   const v = /** @type {any} */ (res.data);
-  // The year's figures as one record of a draft, saved by the tables' route.
-  const fd = useSectionDraft(
-    `tax-tables-${v?.year}`,
-    v
-      ? {
-        version: v.version,
-        values: Object.fromEntries(v.rows.map((/** @type {any} */ r) => [r.key, r.value])),
+  // Each correction is a record of the draft: typing a figure makes or changes one, and the
+  // shipped value again removes it (S16.11).
+  const fd = useDraft(
+    (draft) => {
+      for (const r of v?.rows || []) {
+        if (!r.figureId) continue;
+        draft.load(FigureRec, {
+          id: r.figureId,
+          version: r.version,
+          year: v.year,
+          key: r.key,
+          value: r.value,
+        });
       }
-      : null,
-    (values, version) => api.put('/settings/tax-tables', { year: v.year, values }, version),
+    },
+    [v?.year, JSON.stringify((v?.rows || []).map((/** @type {any} */ r) => r.version))],
   );
-  const rec = fd.draft?.records[0];
+  const draft = fd.draft;
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v || !rec) return html`<${Loading} />`;
+  if (!v || !draft) return html`<${Loading} />`;
+  const recOf = (/** @type {string} */ key) =>
+    /** @type {FigureRec[]} */ (draft.records).find((x) => x.get('key') === key);
   const read = (/** @type {any} */ r) => (/** @type {string} */ text) => {
     const x = parse(r, text);
     return [x].flat().some((n) => Number.isNaN(n))
       ? { error: r.kind === 'numbers' ? 'Numbers, separated by commas.' : 'A number.' }
-      : { value: { [r.key]: x } };
+      : { value: { value: x } };
+  };
+  const shown = (/** @type {any} */ r) => {
+    const rec = recOf(r.key);
+    return rec && !rec.removed ? rec.typed('value') ?? show(rec.get('value')) : show(r.shipped);
+  };
+  const type = (/** @type {any} */ r, /** @type {string} */ text) => {
+    let rec = recOf(r.key);
+    const x = read(r)(text);
+    if (x.value && JSON.stringify(x.value.value) === JSON.stringify(r.shipped)) {
+      if (rec) draft.remove(rec);
+      return;
+    }
+    if (!rec) rec = draft.add(FigureRec, { year: v.year, key: r.key, value: r.shipped });
+    else if (rec.removed) draft.unremove(rec);
+    rec.inputAs('value', text, read(r));
   };
   const groups = [...new Set(v.rows.map((/** @type {any} */ r) => r.group))];
   return html`
@@ -681,8 +712,8 @@ function TaxTables() {
         res.reload();
       }}>
       <h3>Tax tables<span class="spacer"></span><select class="in" style=${{ maxWidth: '100px' }}
-        aria-label="Year" id="f-year" value=${v.year} disabled=${fd.draft?.changed}
-        title=${fd.draft?.changed ? 'Save or put back the changes first' : undefined}
+        aria-label="Year" id="f-year" value=${v.year} disabled=${draft.changed}
+        title=${draft.changed ? 'Save or put back the changes first' : undefined}
         onChange=${(/** @type {any} */ ev) => setYear(Number(ev.currentTarget.value))}>${v.years
           .map((/** @type {number} */ y) => html`<option value=${y}>${y}</option>`)}</select></h3>
       <p class="small dim" style=${{
@@ -708,13 +739,12 @@ function TaxTables() {
                   <td class="num"><input class="in num" style=${{
                     maxWidth: '200px',
                   }} data-help="figure"
-                                aria-label=${r.label} value=${rec.typed(r.key) ??
-                                  show(rec.get(r.key))} onInput=${(/** @type {any} */ ev) =>
-                                  rec.inputAs(r.key, ev.currentTarget.value, read(r))} />${rec
-                                    .error(
-                                      r.key,
-                                    )
-                                  ? html`<div class="err">${rec.error(r.key)}</div>`
+                                aria-label=${r.label} value=${shown(r)} onInput=${(
+                                  /** @type {any} */ ev,
+                                ) => type(r, ev.currentTarget.value)} />${recOf(r.key)?.error(
+                                    'value',
+                                  )
+                                  ? html`<div class="err">${recOf(r.key)?.error('value')}</div>`
                                   : null}</td>
                 </tr>
               `
@@ -786,8 +816,8 @@ function EmailSection() {
   const v = /** @type {any} */ (res.data);
   const values = /** @type {any} */ (s.data)?.values;
   // The password is a key of the draft too, written and never read back (S14.4).
-  const fd = useSettingsDraft(s.data, EMAIL_KEYS);
-  const rec = fd.draft?.records[0];
+  const fd = useSettingsDraft(s.data, [...EMAIL_KEYS, 'smtpPassword']);
+  const rec = fd.rec;
   const test = useSubmit(async () => {
     const r = await api.post('/settings/email/test');
     toast(`Test email sent to ${r.to}`);
@@ -895,8 +925,8 @@ function BitcoinSection() {
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   // The password is a key of the draft too, written and never read back (S14.4).
-  const fd = useSettingsDraft(s.data, BITCOIN_KEYS);
-  const rec = fd.draft?.records[0];
+  const fd = useSettingsDraft(s.data, [...BITCOIN_KEYS, 'bitcoinPassword']);
+  const rec = fd.rec;
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
   const test = useSubmit(async () => {
     const r = await api.post('/settings/bitcoin/test');
@@ -1072,7 +1102,7 @@ function Backups() {
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(s.data, ['backupTime', 'backupCopies']);
-  const rec = fd.draft?.records[0];
+  const rec = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const mb = (/** @type {number} */ n) => (n / 1048576).toFixed(n < 1048576 * 10 ? 1 : 0) + ' MB';

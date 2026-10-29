@@ -177,8 +177,3 @@ def map_all() -> None:
 @event.listens_for(Record, "before_update", propagate=True)
 def _touch(mapper, connection, target) -> None:
     target.updatedAt = _now()
-
-
-@event.listens_for(Setting, "before_update")
-def _touch_setting(mapper, connection, target) -> None:
-    target.updatedAt = _now()

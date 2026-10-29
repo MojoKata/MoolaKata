@@ -1,58 +1,68 @@
-// Settings' keys and the tax tables in a screen's draft (requirements S12.15, S16): they are
-// the server's own, not records of the save's, so a section's draft is saved by its own route,
-// as the save would be: only what changed, against the version read, each refusal at its field.
-import { api } from '../api/client.js';
+// A Settings section's draft (requirements S12.15, S16): each of its keys is a record of the
+// save's (`Setng`), changed where it is saved and made, when it changes, where it stands at its
+// default. The section's form reads and sets its keys by name, through one view of them.
 import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
 import { useDraft } from './draft-form.js';
 
-/** A section's values as one record of its draft: its fields the section's keys. */
-export class SectionRec extends Record {
+/** A setting: its key, and a value its definition checks; a password's is never read back. */
+export class SettingRec extends Record {
   /** @override */
-  static prefix = 'Section';
+  static prefix = 'Setng';
+  /** @override */
+  static fields = FIELDS.SettingRecord;
 }
 
 /**
- * A section's draft of `values`, read at `version`, saved by `send(fields, version)`, which
- * answers with the section as read again.
- * @param {string} id  the section's name, the record's id
- * @param {{ version: number, values: { [key: string]: any } } | null} read
- * @param {(fields: any, version: number) => Promise<any>} send
+ * The section's keys as one: `get`, `set`, `revert` and `error` by key, and every refusal
+ * named by its key.
+ * @param {Map<string, SettingRec>} recs
  */
-export function useSectionDraft(id, read, send) {
-  /** @param {any} body */
-  const post = async (body) => {
-    const [op] = body.ops;
-    try {
-      const out = await send(op.fields, op.version);
-      return { saved: [{ entity: op.entity, id: op.id, version: out.version, record: out }] };
-    } catch (e) {
-      // A refusal names the record, so it shows at its field.
-      const err = /** @type {any} */ (e);
-      if (err?.errors) err.errors = err.errors.map((/** @type {any} */ x) => ({ ...x, id }));
-      throw e;
-    }
+function byKey(recs) {
+  const one = (/** @type {string} */ k) => {
+    const r = recs.get(k);
+    if (!r) throw new Error(`${k} is not a key of this section`);
+    return r;
   };
-  return useDraft(
-    (draft) => {
-      if (read) draft.load(SectionRec, { id, version: read.version, ...read.values });
+  return {
+    get: (/** @type {string} */ k) => one(k).get('value'),
+    set: (/** @type {string} */ k, /** @type {any} */ v) => one(k).set('value', v),
+    revert: (/** @type {string} */ k) => one(k).revert('value'),
+    /** A refusal at the key's value, or at the key, which its definition names. */
+    error: (/** @type {string} */ k) =>
+      one(k).error('value') || one(k).error(k) || one(k).error(null),
+    get errors() {
+      return [...recs].flatMap(([k, r]) => r.errors.map((e) => ({ ...e, field: k })));
     },
-    [id, read?.version, Object.keys(read?.values || {}).join()],
-    { post },
-  );
+  };
 }
 
 /**
- * A Settings section's draft of its keys, read from the settings as `GET /settings` gave them.
+ * A section's draft of its keys, read from the settings as `GET /settings` gave them; a
+ * password among them starts empty.
  * @param {any} v  the settings as read
  * @param {string[]} keys
  */
 export function useSettingsDraft(v, keys) {
   const read = v
-    ? { version: v.version, values: Object.fromEntries(keys.map((k) => [k, v.values[k]])) }
-    : null;
-  return useSectionDraft(
-    'settings',
-    read,
-    (fields, version) => api.patch('/settings', fields, version),
+    ? JSON.stringify(keys.map((k) => [k, v.records[k] || null, v.values[k] ?? null]))
+    : '';
+  const f = useDraft(
+    (draft) => {
+      if (!v) return;
+      for (const key of keys) {
+        const ref = v.records[key];
+        const value = v.values[key] ?? null;
+        if (ref) draft.load(SettingRec, { id: ref.id, version: ref.version, key, value });
+        else draft.add(SettingRec, { key, value }, { optional: true });
+      }
+    },
+    [read],
   );
+  const recs = new Map(
+    /** @type {SettingRec[]} */ (f.draft?.records || []).map((r) => [r.get('key'), r]),
+  );
+  // A draft read before the settings came holds none of the keys yet.
+  const ready = f.draft && keys.every((k) => recs.has(k));
+  return { ...f, rec: ready ? byKey(recs) : undefined };
 }
