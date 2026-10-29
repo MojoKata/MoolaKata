@@ -165,7 +165,7 @@
    `/ui/api` and `/mcp`.
    1. **Resources and methods**: plural nouns (`/ui/api/accounts`, `/ui/api/accounts/{id}`).
       `GET` reads, `POST` creates, `PATCH` changes the fields it sends. `PUT` replaces
-      something that exists once for its parent (a record's shares, a year's tax tables),
+      something that exists once for its parent (a year's tax tables),
       creating it when it doesn't exist yet. An action that is
       not a change of fields is a `POST` to a verb under the resource
       (`/ui/api/links/{id}/pull`). Forms save through one route instead (S13.8.11): a kind
@@ -229,7 +229,7 @@
       3. with the current one, it is applied and the version goes up.
 
       A `PUT` that creates what doesn't exist yet sends `0`. What is made of many records
-      replaced together (the settings, a year's tax tables, a record's shares) has one
+      replaced together (the settings, a year's tax tables) has one
       version, the sum of theirs, which goes up with any change to them. Pairs that only link
       two records (a receipt and a transaction, an account counted in someone's totals) have
       no version. A secret (a password, a price source's key) is written with the record or

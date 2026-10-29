@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, giving_plan, saved
+from edits import change, giving_plan, saved, share
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -226,7 +226,7 @@ def test_a_shared_plan_counts_its_owners_accounts_only(server, alice):
     bob = sign_in(server, "bob")
     b_id = bob.get("/ui/api/session").json()["user"]["id"]
     plan = saved(giving_plan(alice, 2026, percent="10"))
-    alice.put(f"/ui/api/shares/giving-plan/{plan['id']}", json={"users": {b_id: "read"}})
+    share(alice, "giving-plan", plan["id"], users={b_id: "read"})
     mine = new_account(alice, name="Alice's checking")
     his = new_account(bob, name="Bob's checking")
     add(alice, mine["id"], "9000.00", "2026-01-02", categoryId=_cat(alice, "Salary"))

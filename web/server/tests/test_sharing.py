@@ -2,16 +2,19 @@ import re
 
 from conftest import make_user, sign_in
 from edits import change, remove, saved
+from edits import share as shared
 from test_accounts import add, new_account
 
 
 def share(c, kind, item, users=None, groups=None, too=False):
-    r = c.put(
-        f"/ui/api/shares/{kind}/{item}",
-        json={"users": users or {}, "groups": groups or {}, "shareAccountsToo": too},
-    )
+    """Shared as the dialog shares it; the shares as read after, with how many accounts
+    Share these accounts too shared."""
+    before = c.get(f"/ui/api/shares/{kind}/{item}").json()
+    r = shared(c, kind, item, users=users, groups=groups, too=too)
     assert r.status_code == 200, r.text
-    return r.json()
+    v = c.get(f"/ui/api/shares/{kind}/{item}").json()
+    hidden = sum(len(x) for x in before["hidden"].values()) if too else 0
+    return {"view": v, "alsoShared": len(r.json()["saved"]) if too and hidden else 0}
 
 
 def setup(server):
@@ -86,9 +89,7 @@ def test_inactive_users_cant_be_added(server, admin_client):
         x for x in admin_client.get("/ui/api/users").json()["items"] if x["username"] == "carol"
     )
     saved(change(admin_client, "User", row, active=False))
-    r = c["alice"].put(
-        f"/ui/api/shares/account/{a['id']}", json={"users": {u["carol"].id: "read"}, "groups": {}}
-    )
+    r = shared(c["alice"], "account", a["id"], users={u["carol"].id: "read"})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "user-inactive"
 
 

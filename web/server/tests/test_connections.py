@@ -5,7 +5,7 @@ the account's Sync using MoolaKata Connector switch for its owner alone, and Rem
 import pytest
 from conftest import make_user, sign_in
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from edits import change, remove, saved
+from edits import change, remove, saved, share
 from test_connector import FakeConnector, pair_code
 
 from moolakata import ids
@@ -183,7 +183,7 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     assert mine["accounts"][0]["id"] == aid
     # A write share doesn't see or change it (S18.6.2).
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    r = alice.put(f"/ui/api/shares/account/{aid}", json={"users": {bob_id: "write"}})
+    r = share(alice, "account", aid, users={bob_id: "write"})
     assert r.status_code == 200, r.text
     shown = bob.get(f"/ui/api/accounts/{aid}").json()
     assert shown["connectionId"] is None and shown["syncAccount"] is None

@@ -4,7 +4,7 @@ import io
 
 import pytest
 from conftest import make_user, sign_in
-from edits import drop, edit, saved
+from edits import drop, edit, saved, share
 from PIL import Image
 from test_accounts import add, new_account
 
@@ -112,9 +112,7 @@ def test_attach_suggest_and_share_through_the_transaction(server, alice):
         u["displayName"]: u["id"]
         for u in alice.get(f"/ui/api/shares/account/{acct['id']}").json()["users"]
     }
-    r = alice.put(
-        f"/ui/api/shares/account/{acct['id']}", json={"users": {users["Bob"]: "read"}, "groups": {}}
-    )
+    r = share(alice, "account", acct["id"], users={users["Bob"]: "read"}, groups={})
     assert r.status_code == 200, r.text
     assert bob.get(f"/ui/api/receipts/{rid}").json()["level"] == "read"
     assert bob.get(f"/ui/api/receipts/{rid}/file").status_code == 200

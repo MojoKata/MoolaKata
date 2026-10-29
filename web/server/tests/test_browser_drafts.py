@@ -188,6 +188,13 @@ FORMS = [
         },
     ),
     Form(
+        "a portfolio's shares, Bob at Read",
+        lambda h: f"/ui/portfolios/{h.extra['portfolio']['id']}/holdings",
+        'button:has-text("Share")',
+        'button:has-text("Share")',
+        lambda h: h.c.get(f"/ui/api/shares/portfolio/{h.extra['portfolio']['id']}").json(),
+    ),
+    Form(
         "a gift plan with a graduation and a gift for it (CR3-43)",
         lambda h: "/ui/gifts/people",
         'tr:has-text("Emma Griffin")',
@@ -862,5 +869,31 @@ def test_a_statement_ticked_off_and_reconciled_through_the_save(browser, househo
     wait(page, '.toast:has-text("reconciled")', problems)
     (rec,) = h.c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["reconciliations"]
     assert rec["finishedAt"] and rec["difference"] == 0
+    assert problems == []
+    page.close()
+
+
+def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
+    h = household
+    b = made(h.c.post("/ui/api/budgets", json={"name": "Joint", "accountIds": []}))
+    page, problems = signed_in(
+        browser, h, f"/ui/budgets/{b['id']}/month", 'button:has-text("Share")'
+    )
+    page.click('button:has-text("Share")')
+    wait(page, '[aria-label="Access for Household"]', problems)
+    page.click('[aria-label="Access for Household"] button:has-text("Write")')
+    page.click('[aria-label="Access for Bob Griffin"] button:has-text("Read")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
+    assert {g["name"]: g["level"] for g in v["groups"]}["Household"] == "write"
+    assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "read"
+    page.click('button:has-text("Share")')
+    wait(page, '[aria-label="Access for Bob Griffin"]', problems)
+    page.click('[aria-label="Access for Bob Griffin"] button:has-text("None")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
+    assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "none"
     assert problems == []
     page.close()

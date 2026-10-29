@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, plan529, remove, saved
+from edits import change, plan529, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -122,7 +122,7 @@ def test_a_gift_for_a_user_is_never_shown_to_them(server, alice):
     gift(alice, people=[emma["id"]], description="Paints")
     gift(alice, people=[him["id"]], description="A watch", status="planned")
     gift(alice, people=[emma["id"], him["id"]], description="A board game", status="bought")
-    r = alice.put(f"/ui/api/shares/gift-plan/{emma['planId']}", json={"users": {bob_id: "write"}})
+    r = share(alice, "gift-plan", emma["planId"], users={bob_id: "write"})
     assert r.status_code == 200, r.text
     seen = {g["description"] for g in bob.get("/ui/api/gifts").json()["items"]}
     assert seen == {"Paints"}, "the surprise stays one"

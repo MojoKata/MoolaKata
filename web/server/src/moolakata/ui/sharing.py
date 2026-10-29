@@ -4,15 +4,15 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
-from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, clock, sharing
-from ..errors import Problem
+from .. import access, activity, clock, sharing
+from ..errors import Problem, refuse
 from ..store.entities.accounts import Account
 from ..store.entities.sharing import CountedAccount, Share
 from ..store.entities.users import Group, User, UserGroup
-from .conventions import ExactRoute, Model, check_version, if_match, version_of
+from . import save
+from .conventions import ExactRoute, IdOf, Model
 from .deps import Caller, caller, recent_auth, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["sharing"])
@@ -33,6 +33,10 @@ class UserGrant(Model):
     avatar: str | None
     level: str
     via: list[Via]
+    # Its grant, a record of the save: none while it has none.
+    shareId: str | None = None
+    version: int = 0
+    includeReceipts: bool = False
 
 
 class GroupGrant(Model):
@@ -40,6 +44,8 @@ class GroupGrant(Model):
     name: str
     level: str
     members: int
+    shareId: str | None = None
+    version: int = 0
 
 
 class AccountName(Model):
@@ -65,19 +71,6 @@ class ShareView(Model):
     links: list[LinkedPeople]
     hidden: dict[str, list[str]]
     accounts: list[AccountName]
-    version: int = 0  # its shares together: saving them is made against it (S13.8.6)
-
-
-class ShareSave(Model):
-    users: dict[str, str] = Field(default_factory=dict)
-    groups: dict[str, str] = Field(default_factory=dict)
-    shareAccountsToo: bool = False
-    receipts: dict[str, bool] = Field(default_factory=dict)  # by link: Include receipts
-
-
-class Saved(Model):
-    view: ShareView
-    alsoShared: int
 
 
 class Counted(Model):
@@ -89,6 +82,20 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
     current = sharing.grants(s, kind, item_id)
     direct = {g.userId: g.level for g in current if g.userId}
     by_group = {g.groupId: g.level for g in current if g.groupId}
+    rows = {g.userId or g.groupId: g for g in current}
+
+    def grant(key: str) -> dict:
+        g = rows.get(key)
+        return (
+            {
+                "shareId": g.id,
+                "version": g.version,
+                **({"includeReceipts": g.includeReceipts} if g.userId else {}),
+            }
+            if g
+            else {}
+        )
+
     groups = s.scalars(
         select(Group).where(Group.deleted == false(), Group.active).order_by(Group.name)
     ).all()
@@ -114,6 +121,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
                 avatar=u.avatar,
                 level=direct.get(u.id, "none"),
                 via=via,
+                **grant(u.id),
             )
         )
     hidden: dict[str, list[str]] = {}
@@ -126,7 +134,6 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
             for a in sharing.portfolio_accounts(s, item_id)
         ]
     return ShareView(
-        version=version_of(s, Share, Share.kind == kind, Share.itemId == item_id),
         kind=kind,
         itemId=item_id,
         itemName=sharing.name_of(s, kind, obj),
@@ -138,6 +145,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
                 name=g.name,
                 level=by_group.get(g.id, "none"),
                 members=len(members.get(g.id, [])),
+                **grant(g.id),
             )
             for g in groups
         ],
@@ -177,6 +185,15 @@ def _linked(s, current) -> list[LinkedPeople]:
                         avatar=None,
                         level=direct[u.id].level if u.id in direct else "none",
                         via=[],
+                        **(
+                            {
+                                "shareId": direct[u.id].id,
+                                "version": direct[u.id].version,
+                                "includeReceipts": direct[u.id].includeReceipts,
+                            }
+                            if u.id in direct
+                            else {}
+                        ),
                     )
                     for u in people
                 ],
@@ -203,22 +220,6 @@ def _owner_only(s, c: Caller, kind: str, item_id: str) -> None:
         raise Problem(403, "owner-only", "Only the owner changes who this is shared with.")
 
 
-def _reaches_a_link(s, kind: str, item_id: str, body: ShareSave) -> bool:
-    """Whether this save sends more to a linked server: one of its users given a share they
-    didn't have, or Include receipts turned on for it (S13.7.2)."""
-    current = {g.userId: g for g in sharing.grants(s, kind, item_id) if g.userId}
-    linked = {}
-    for uid in set(body.users) | set(current):
-        u = s.get(User, uid)
-        if u is not None and u.linkId:
-            linked[uid] = u.linkId
-    for uid, lvl in body.users.items():
-        if uid in linked and lvl != "none" and uid not in current:
-            return True
-    receipts_before = {linked[u] for u, g in current.items() if u in linked and g.includeReceipts}
-    return any(on and link not in receipts_before for link, on in body.receipts.items())
-
-
 @router.get("/shares/{kind}/{item_id}", response_model=ShareView)
 def get_shares(kind: Kind, item_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
@@ -226,41 +227,194 @@ def get_shares(kind: Kind, item_id: str, request: Request, c: Caller = Depends(c
         return view(s, c.user, kind, item_id)
 
 
-@router.put("/shares/{kind}/{item_id}", response_model=Saved)
-def save_shares(
-    kind: Kind,
-    item_id: str,
-    body: ShareSave,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Save: the dialog's grants replace the item's (S10.4)."""
-    srv = server(request)
-    with srv.db.tx() as s:
-        _owner_only(s, c, kind, item_id)
-        check_version(
-            version_of(s, Share, Share.kind == kind, Share.itemId == item_id),
-            version,
-            lambda: view(s, c.user, kind, item_id),
+class ShareRecord(Model):
+    """A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+    one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+    their images and text cross too (S11.5.1). It stays with its item and its grantee."""
+
+    kind: Kind
+    itemId: str
+    userId: IdOf("User") | None = None  # type: ignore[valid-type]
+    groupId: IdOf("Group") | None = None  # type: ignore[valid-type]
+    level: Literal["read", "write"]
+    includeReceipts: bool = False
+
+
+def _grantee(s, c: Caller, body: ShareRecord):
+    """The user or group the grant is for, checked as the dialog offers them."""
+    if (body.userId is None) == (body.groupId is None):
+        raise refuse("userId", "grantee-missing", "A user or a group.")
+    if body.userId:
+        u = s.get(User, body.userId)
+        if u is None or u.deleted or u.id == c.id:
+            raise refuse("userId", "user-unknown", "Choose a user.")
+        if u.linkId and body.level == "write":
+            raise refuse(
+                "level",
+                "read-only",
+                f"{u.displayName} is on a linked server: shares there are read only.",
+            )
+        if u.linkId and not sharing.link_live(s, u.linkId):
+            raise refuse("userId", "link-not-active", "That server's link isn't active.")
+        if not u.active:
+            raise refuse(
+                "userId", "user-inactive", f"{u.displayName} is not active and can't be added."
+            )
+        return u
+    g = s.get(Group, body.groupId)
+    if g is None or g.deleted:
+        raise refuse("groupId", "group-unknown", "Choose a group.")
+    if not g.active:
+        raise refuse("groupId", "group-inactive", f"{g.name} is not active and can't be added.")
+    return g
+
+
+def _reaches(ctx, grantee, receipts: bool) -> None:
+    """More sent to a linked server: the password again (S13.7.2)."""
+    if isinstance(grantee, User) and grantee.linkId:
+        recent_auth(ctx.caller)
+
+
+def _told(ctx, kind: str, item_id: str, grantee) -> None:
+    """Who the change reaches is told once the save has committed (S12.6)."""
+    users = ctx.notes.setdefault("share-told", {}).setdefault(kind, set())
+    if isinstance(grantee, User):
+        users.add(grantee.id)
+    else:
+        users |= {
+            m.userId
+            for m in ctx.s.scalars(
+                select(UserGroup).where(
+                    UserGroup.groupId == grantee.id, UserGroup.deleted == false()
+                )
+            )
+        }
+    srv = server(ctx.request)
+    ctx.after(f"share:{kind}", lambda: srv.events.publish("share", {"kind": kind}, users=users))
+
+
+def _given(ctx, row: Share, verb: str, level: str | None) -> None:
+    obj = sharing.item(ctx.s, row.kind, row.itemId)
+    gk, gid = ("user", row.userId) if row.userId else ("group", row.groupId)
+    activity.record(
+        ctx.s,
+        f"share.{verb}",
+        actor=ctx.caller.id,
+        subject_kind=row.kind,
+        subject_id=row.itemId,
+        owner=obj.ownerId,
+        detail={"granteeKind": gk, "granteeId": gid} | ({"level": level} if level else {}),
+    )
+
+
+def _share_create(ctx, record_id: str, body: ShareRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    _owner_only(s, c, body.kind, body.itemId)
+    grantee = _grantee(s, c, body)
+    same = [
+        g
+        for g in sharing.grants(s, body.kind, body.itemId)
+        if (g.userId or g.groupId) == (body.userId or body.groupId)
+    ]
+    if same:
+        raise refuse(
+            "userId" if body.userId else "groupId",
+            "shared",
+            "It is shared with them: change its level.",
+            409,
         )
-        if _reaches_a_link(s, kind, item_id, body):
-            recent_auth(c)
-        change = sharing.save(
-            s,
-            c.user,
-            kind,
-            item_id,
-            body.users,
-            body.groups,
-            body.shareAccountsToo,
-            body.receipts,
+    _reaches(ctx, grantee, body.includeReceipts)
+    row = Share(
+        id=record_id,
+        kind=body.kind,
+        itemId=body.itemId,
+        level=body.level,
+        userId=body.userId,
+        groupId=body.groupId,
+        createdById=c.id,
+        includeReceipts=body.includeReceipts and bool(body.userId),
+    )
+    s.add(row)
+    s.flush()
+    _given(ctx, row, "given", body.level)
+    _told(ctx, body.kind, body.itemId, grantee)
+
+
+def _share_editable(ctx, record_id: str) -> Share:
+    row = ctx.s.get(Share, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _owner_only(ctx.s, ctx.caller, row.kind, row.itemId)
+    return row
+
+
+def _share_current(ctx, row: Share) -> dict:
+    return {f: getattr(row, f) for f in ShareRecord.model_fields}
+
+
+def _share_update(ctx, row: Share, body: ShareRecord) -> None:
+    current = _share_current(ctx, row)
+    fixed = [f for f in ("kind", "itemId", "userId", "groupId") if getattr(body, f) != current[f]]
+    if fixed:
+        raise refuse(fixed[0], "share-fixed", "A grant stays with its item and its grantee.")
+    grantee = _grantee(ctx.s, ctx.caller, body)
+    if body.includeReceipts and not row.includeReceipts:
+        _reaches(ctx, grantee, True)
+    row.includeReceipts = body.includeReceipts and bool(body.userId)
+    if body.level != row.level:
+        row.level = body.level
+        _given(ctx, row, "changed", body.level)
+    row.updatedAt = clock.now()
+    _told(ctx, row.kind, row.itemId, grantee)
+
+
+def _share_delete(ctx, row: Share) -> None:
+    """Taken away: a receiver who no longer reaches an account loses their tags on it (S10.4)."""
+    s = ctx.s
+    obj = sharing.item(s, row.kind, row.itemId)
+    before = access.holders(s, row.kind, row.itemId, obj.ownerId)
+    row.mark_deleted(ctx.caller.id)
+    s.flush()
+    after = access.holders(s, row.kind, row.itemId, obj.ownerId)
+    if row.kind == "account":
+        for uid in [u for u in before if u not in after]:
+            sharing.drop_annotations(s, uid, row.itemId)
+    _given(ctx, row, "removed", None)
+    grantee = s.get(User, row.userId) if row.userId else s.get(Group, row.groupId)
+    _told(ctx, row.kind, row.itemId, grantee)
+
+
+save.register(
+    save.Kind(
+        prefix="Share",
+        entity=Share,
+        fields=ShareRecord,
+        create=_share_create,
+        editable=_share_editable,
+        current=_share_current,
+        update=_share_update,
+        delete=_share_delete,
+        read=lambda ctx, record_id: ShareOut.of(ctx.s.get(Share, record_id)),
+    )
+)
+
+
+class ShareOut(ShareRecord):
+    id: str
+    version: int
+
+    @classmethod
+    def of(cls, row: Share) -> ShareOut:
+        return cls(
+            id=row.id,
+            version=row.version,
+            kind=row.kind,
+            itemId=row.itemId,
+            userId=row.userId,
+            groupId=row.groupId,
+            level=row.level,
+            includeReceipts=row.includeReceipts,
         )
-        s.flush()
-        out = Saved(view=view(s, c.user, kind, item_id), alsoShared=change.alsoShared)
-    if change.affected:
-        srv.events.publish("share", {"kind": kind}, users=change.affected)
-    return out
 
 
 @router.put("/accounts/{account_id}/counted", status_code=204)

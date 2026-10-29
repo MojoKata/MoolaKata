@@ -103,3 +103,69 @@ def reconcile(c, account_id: str, date: str, balance: str) -> dict:
     fields = {"accountId": account_id, "statementDate": date, "statementBalance": balance}
     op = {"op": "create", "entity": "Recon", "id": new_id("Recon"), "fields": fields}
     return saved(_save(c, op, False))
+
+
+def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, too=False):
+    """An item shared as its dialog's draft shares it (S10.4): for each user and group named,
+    its grant made, changed or taken away (`none`); Include receipts per linked server; with
+    `too`, a portfolio's accounts its people can't see shared at Read in a second save, as the
+    dialog's Share these accounts too does. The last save's answer."""
+    v = c.get(f"/ui/api/shares/{kind}/{item_id}").json()
+    linked = {u["id"]: link["linkId"] for link in v["links"] for u in link["users"]}
+    people = v["users"] + [x for g in v["links"] for x in g["users"]]
+    have = {("userId", u["id"]): u for u in people}
+    have |= {("groupId", g["id"]): g for g in v["groups"]}
+    receipts = receipts or {}
+    wanted = [(("userId", k), x) for k, x in (users or {}).items()]
+    wanted += [(("groupId", k), x) for k, x in (groups or {}).items()]
+    for (field, gid), g in have.items():
+        if g.get("shareId") and linked.get(gid) in receipts and (field, gid) not in dict(wanted):
+            wanted.append(((field, gid), g["level"]))
+    ops = []
+    for (field, gid), level in wanted:
+        g = have.get((field, gid)) or {}
+        rec = {
+            "kind": kind,
+            "itemId": item_id,
+            field: gid,
+            "level": level,
+            "includeReceipts": bool(receipts.get(linked.get(gid), g.get("includeReceipts"))),
+        }
+        if not g.get("shareId"):
+            if level != "none":
+                ops.append(
+                    {"op": "create", "entity": "Share", "id": new_id("Share"), "fields": rec}
+                )
+        elif level == "none":
+            ops.append(
+                {"op": "delete", "entity": "Share", "id": g["shareId"], "version": g["version"]}
+            )
+        else:
+            fields = {k: rec[k] for k in ("level", "includeReceipts")}
+            ops.append(
+                {
+                    "op": "update",
+                    "entity": "Share",
+                    "id": g["shareId"],
+                    "version": g["version"],
+                    "fields": fields,
+                }
+            )
+    r = c.post("/ui/api/save", json={"ops": ops})
+    if too and r.status_code == 200:
+        v = c.get(f"/ui/api/shares/{kind}/{item_id}").json()
+        yours = {a["id"] for a in v["accounts"] if a["yours"]}
+        ops = [
+            {
+                "op": "create",
+                "entity": "Share",
+                "id": new_id("Share"),
+                "fields": {"kind": "account", "itemId": aid, "userId": uid, "level": "read"},
+            }
+            for uid, aids in v["hidden"].items()
+            for aid in aids
+            if aid in yours
+        ]
+        if ops:
+            r = c.post("/ui/api/save", json={"ops": ops})
+    return r

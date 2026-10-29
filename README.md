@@ -18,8 +18,7 @@ milestone 9 made. What the build couldn't try for real is in
 requirements' README. Milestone 10 (S17.9.12), budgets as S7 describes them, is built.
 Milestone 11 (S17.9.13) is built: every form that changes records, dialogs and screen forms
 alike, edits a draft (S12.15, `web/ui/app/draft.js`) and saves it in one request,
-`POST /ui/api/save` (S13.8.11); Settings' keys and the tax tables go to their own routes the
-same way. A record's shares are still saved whole by their own route (gap G25).
+`POST /ui/api/save` (S13.8.11).
 
 **Release:** 0.1.0, a pre-release for testers. Its images are `ghcr.io/mojokata/moolakata` and
 `ghcr.io/mojokata/moolakata-connector`, for amd64 and arm64, each with a provenance attestation

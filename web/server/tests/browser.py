@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import pytest
-from edits import edit, giving_plan, saved, terms, wallet
+from edits import edit, giving_plan, saved, share, terms, wallet
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -239,6 +239,8 @@ def seed(base: str) -> Household:
     h.extra.update(tax_book(h))
     h.extra.update(accounts(h))
     h.extra.update(people(h))
+    # The portfolio shared with Bob at Read, as its Share dialog shares it.
+    made(share(h.c, "portfolio", h.extra["portfolio"]["id"], users={h.extra["bob"]["id"]: "read"}))
     return h
 
 

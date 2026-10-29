@@ -8162,6 +8162,22 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "shareId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shareid"
+          },
+          "version": {
+            "default": 0,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -19019,6 +19035,7 @@
               "gap-invalid",
               "goal-fixed",
               "goal-invalid",
+              "grantee-missing",
               "group-built-in",
               "group-delete",
               "group-inactive",
@@ -19054,7 +19071,6 @@
               "leg-not-held",
               "legs-differ",
               "legs-twice",
-              "level-invalid",
               "limit-invalid",
               "line-fixed",
               "link-not-active",
@@ -19219,8 +19235,10 @@
               "setup-done",
               "setup-required",
               "sex-invalid",
+              "share-fixed",
               "share-invalid",
               "share-read-only",
+              "shared",
               "short-exercise",
               "signup-needs-email",
               "signup-off",
@@ -19440,6 +19458,7 @@
                   "gap-invalid",
                   "goal-fixed",
                   "goal-invalid",
+                  "grantee-missing",
                   "group-built-in",
                   "group-delete",
                   "group-inactive",
@@ -19475,7 +19494,6 @@
                   "leg-not-held",
                   "legs-differ",
                   "legs-twice",
-                  "level-invalid",
                   "limit-invalid",
                   "line-fixed",
                   "link-not-active",
@@ -19640,8 +19658,10 @@
                   "setup-done",
                   "setup-required",
                   "sex-invalid",
+                  "share-fixed",
                   "share-invalid",
                   "share-read-only",
+                  "shared",
                   "short-exercise",
                   "signup-needs-email",
                   "signup-off",
@@ -22829,7 +22849,7 @@
         "properties": {
           "saved": {
             "items": {
-              "$ref": "#/components/schemas/moolakata__ui__save__Saved"
+              "$ref": "#/components/schemas/Saved"
             },
             "title": "Saved",
             "type": "array"
@@ -22839,6 +22859,59 @@
           "saved"
         ],
         "title": "SaveOut",
+        "type": "object"
+      },
+      "Saved": {
+        "additionalProperties": false,
+        "description": "A record the save touched: its new version and the record as read, or what went.",
+        "properties": {
+          "deleted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Gone"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity": {
+            "title": "Entity",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "entity",
+          "id"
+        ],
+        "title": "Saved",
         "type": "object"
       },
       "SavedPlan": {
@@ -23333,38 +23406,78 @@
         "title": "Share",
         "type": "object"
       },
-      "ShareSave": {
+      "ShareRecord": {
         "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee.",
         "properties": {
-          "groups": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Groups",
-            "type": "object"
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
           },
-          "receipts": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "title": "Receipts",
-            "type": "object"
-          },
-          "shareAccountsToo": {
+          "includeReceipts": {
             "default": false,
-            "title": "Shareaccountstoo",
+            "title": "Includereceipts",
             "type": "boolean"
           },
-          "users": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Users",
-            "type": "object"
+          "itemId": {
+            "title": "Itemid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "account",
+              "portfolio",
+              "budget",
+              "projection",
+              "person",
+              "gift-plan",
+              "giving-plan",
+              "tax-book"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
           }
         },
-        "title": "ShareSave",
-        "type": "object"
+        "required": [
+          "kind",
+          "itemId",
+          "level"
+        ],
+        "title": "ShareRecord",
+        "type": "object",
+        "x-entity": "Share"
       },
       "ShareView": {
         "additionalProperties": false,
@@ -23418,11 +23531,6 @@
             },
             "title": "Users",
             "type": "array"
-          },
-          "version": {
-            "default": 0,
-            "title": "Version",
-            "type": "integer"
           }
         },
         "required": [
@@ -26810,9 +26918,30 @@
             "title": "Id",
             "type": "string"
           },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
           "level": {
             "title": "Level",
             "type": "string"
+          },
+          "shareId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shareid"
+          },
+          "version": {
+            "default": 0,
+            "title": "Version",
+            "type": "integer"
           },
           "via": {
             "items": {
@@ -29256,59 +29385,6 @@
         "title": "LinkOut",
         "type": "object"
       },
-      "moolakata__ui__save__Saved": {
-        "additionalProperties": false,
-        "description": "A record the save touched: its new version and the record as read, or what went.",
-        "properties": {
-          "deleted": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Gone"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "entity": {
-            "title": "Entity",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "record": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Record"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          }
-        },
-        "required": [
-          "entity",
-          "id"
-        ],
-        "title": "Saved",
-        "type": "object"
-      },
       "moolakata__ui__session__Household": {
         "additionalProperties": false,
         "properties": {
@@ -29407,24 +29483,6 @@
           "setBy"
         ],
         "title": "SecretSet",
-        "type": "object"
-      },
-      "moolakata__ui__sharing__Saved": {
-        "additionalProperties": false,
-        "properties": {
-          "alsoShared": {
-            "title": "Alsoshared",
-            "type": "integer"
-          },
-          "view": {
-            "$ref": "#/components/schemas/ShareView"
-          }
-        },
-        "required": [
-          "view",
-          "alsoShared"
-        ],
-        "title": "Saved",
         "type": "object"
       },
       "moolakata__ui__taxes__DocumentIn": {
@@ -39505,72 +39563,6 @@
           }
         },
         "summary": "Get Shares",
-        "tags": [
-          "sharing"
-        ]
-      },
-      "put": {
-        "description": "Save: the dialog's grants replace the item's (S10.4).",
-        "operationId": "save_shares_ui_api_shares__kind___item_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "enum": [
-                "account",
-                "portfolio",
-                "budget",
-                "projection",
-                "person",
-                "gift-plan",
-                "giving-plan",
-                "tax-book"
-              ],
-              "title": "Kind",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShareSave"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/moolakata__ui__sharing__Saved"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Save Shares",
         "tags": [
           "sharing"
         ]

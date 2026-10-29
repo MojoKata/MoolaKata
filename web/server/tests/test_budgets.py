@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, drop, edit, saved, terms
+from edits import change, drop, edit, saved, share, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -236,10 +236,7 @@ def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client)
             ],
         },
     ).json()
-    r = c.put(
-        f"/ui/api/shares/budget/{b['id']}",
-        json={"users": {}, "groups": {groups["id"]: "write"}},
-    )
+    r = share(c, "budget", b["id"], users={}, groups={groups["id"]: "write"})
     assert r.status_code == 200, r.text
     assert [x["name"] for x in bob.get("/ui/api/budgets").json()["items"]] == ["Household"]
     # Write: the plan, not the accounts or the budget itself.
@@ -319,14 +316,14 @@ def test_a_shared_budget_names_only_the_accounts_shared_with_its_viewer(server, 
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    c.put(f"/ui/api/shares/budget/{b['id']}", json={"users": {bob_id: "read"}})
+    share(c, "budget", b["id"], users={bob_id: "read"})
     (mine,) = [
         r for r in c.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"] if r["payee"]
     ]
     (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert mine["accountId"] == acct["id"] and mine["accountName"] == acct["name"]
     assert theirs["accountId"] is None and theirs["accountName"] == "an account not shared"
-    c.put(f"/ui/api/shares/account/{acct['id']}", json={"users": {bob_id: "read"}})
+    share(c, "account", acct["id"], users={bob_id: "read"})
     (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert theirs["accountName"] == acct["name"]
 

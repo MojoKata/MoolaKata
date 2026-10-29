@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, new_id, remove, saved
+from edits import change, new_id, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -345,7 +345,7 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, alice):
     alice.post(f"/ui/api/projections/{pid}/activate")
     bob = make_user(server, "bob")
     for kind, item in (("projection", pid), ("account", shared["id"])):
-        r = alice.put(f"/ui/api/shares/{kind}/{item}", json={"users": {bob.id: "read"}})
+        r = share(alice, kind, item, users={bob.id: "read"})
         assert r.status_code == 200, r.text
     mine = alice.get(f"/ui/api/projections/{pid}").json()["tracking"]
     assert mine["band"] and Decimal(str(mine["points"][-1][1])) == 10000

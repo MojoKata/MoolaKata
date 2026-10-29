@@ -7,7 +7,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, remove, saved
+from edits import change, remove, saved, share
 from test_accounts import new_account
 from test_positions import trade
 
@@ -94,7 +94,7 @@ def test_one_person_once_and_asking_to_share_a_private_one(server, two):
         ("share-asked", True),
     ]
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    r = alice.put(f"/ui/api/shares/person/{priya['id']}", json={"users": {bob_id: "read"}})
+    r = share(alice, "person", priya["id"], users={bob_id: "read"})
     assert r.status_code == 200, r.text
     assert "Priya Shah" in {x["name"] for x in bob.get("/ui/api/persons").json()["items"]}
     alerts.evaluate(server)
@@ -313,10 +313,7 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     # Shared with Bob, who plans for her too but may not make her public again.
     pid = r["id"]
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    assert (
-        alice.put(f"/ui/api/shares/person/{pid}", json={"users": {bob_id: "read"}}).status_code
-        == 200
-    )
+    assert share(alice, "person", pid, users={bob_id: "read"}).status_code == 200
     r = bob.post("/ui/api/people", json={"personId": pid})
     assert r.status_code == 201, r.text
     assert not r.json()["canMakePrivate"]

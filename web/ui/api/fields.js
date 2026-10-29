@@ -375,6 +375,14 @@ export const FIELDS = {
     payee: {"type": "text", "nullable": true},
     tags: {"type": "list", "items": {"type": "text"}, "set": true},
   },
+  ShareRecord: {
+    kind: {"type": "choice", "choices": ["account", "portfolio", "budget", "projection", "person", "gift-plan", "giving-plan", "tax-book"]},
+    itemId: {"type": "text"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    level: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
+  },
   SourceRecord: {
     name: {"type": "text"},
     enabled: {"type": "bool"},
