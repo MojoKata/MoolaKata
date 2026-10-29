@@ -374,6 +374,11 @@ export const FIELDS = {
     date: {"type": "date"},
     fee: {"type": "money"},
   },
+  ReceiptLinkRecord: {
+    receiptId: {"type": "ref", "prefix": "Rcpt"},
+    kind: {"type": "choice", "choices": ["transaction", "account", "item", "expense", "gift", "donation"]},
+    itemId: {"type": "text"},
+  },
   ReceiptRecord: {
     date: {"type": "date", "nullable": true},
     amount: {"type": "money", "nullable": true},

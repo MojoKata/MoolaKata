@@ -11,7 +11,7 @@ import { Empty, Failed, Loading } from './bits.js';
 import { Field, Select } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
-import { ACCEPT, uploadAll } from './receipt.js';
+import { ACCEPT, ReceiptLinkRec, uploadAll } from './receipt.js';
 import { FanChart } from '../charts/chart.js';
 import { EducationAnswer } from '../screens/projections.js';
 import { num } from '../app/dec.js';
@@ -476,10 +476,20 @@ function Expense({ x, canWrite, done }) {
   const [busy, setBusy] = useState(false);
   const send = async (/** @type {FileList} */ files) => {
     setBusy(true);
-    for (const r of await uploadAll(files)) {
-      await api.post(`/expenses/${x.id}/documents`, { receiptId: r.id });
+    try {
+      const made = await uploadAll(files);
+      // Kept with the expense as its receipts, each a link saved at once (S1.8.3, S9.3).
+      await saveNow((d) => {
+        for (const r of made) {
+          if (x.documents.some((/** @type {any} */ y) => y.id === r.id)) continue;
+          d.add(ReceiptLinkRec, { receiptId: r.id, kind: 'expense', itemId: x.id });
+        }
+      });
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
     done();
   };
   const remove = useSubmit(async () => {

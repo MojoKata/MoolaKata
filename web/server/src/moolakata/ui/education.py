@@ -464,10 +464,6 @@ class WithdrawalsView(Model):
     canWrite: bool
 
 
-class DocumentIn(Model):
-    receiptId: str
-
-
 def withdrawals_view(s, c: Caller, a: Account, lvl: str) -> WithdrawalsView:
     return WithdrawalsView(
         years=[WithdrawalYearOut(**w.__dict__) for w in education.withdrawals(s, a)],
@@ -561,17 +557,6 @@ save.register(
         read=_expense_read,
     )
 )
-
-
-@router.post("/expenses/{expense_id}/documents", response_model=WithdrawalsView)
-def attach_receipt(
-    expense_id: str, body: DocumentIn, request: Request, c: Caller = Depends(caller)
-):
-    with server(request).db.tx() as s:
-        e, a, lvl = _expense(s, c, expense_id)
-        r = receipts.to_attach(s, c.id, body.receiptId)
-        receipts.attach_item(s, c.id, r, e, "expense")
-        return withdrawals_view(s, c, a, lvl)
 
 
 # ---- The Goal tab (S1.8.5) ----

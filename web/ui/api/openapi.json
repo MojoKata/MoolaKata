@@ -1413,20 +1413,6 @@
         "title": "AssumptionsView",
         "type": "object"
       },
-      "Attach": {
-        "additionalProperties": false,
-        "properties": {
-          "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "transactionId"
-        ],
-        "title": "Attach",
-        "type": "object"
-      },
       "Attention": {
         "additionalProperties": false,
         "properties": {
@@ -4687,28 +4673,6 @@
         "title": "Deleted",
         "type": "object"
       },
-      "Deleted_ReceiptDetail_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ReceiptDetail"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[ReceiptDetail]",
-        "type": "object"
-      },
       "DeliverablePart": {
         "additionalProperties": false,
         "properties": {
@@ -4932,20 +4896,6 @@
         "title": "DependentRecord",
         "type": "object",
         "x-entity": "TxDep"
-      },
-      "DocumentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "receiptId": {
-            "title": "Receiptid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "receiptId"
-        ],
-        "title": "DocumentIn",
-        "type": "object"
       },
       "DocumentOut": {
         "additionalProperties": false,
@@ -17126,6 +17076,7 @@
               "action-fixed",
               "admin-exists",
               "admins-only",
+              "already-attached",
               "already-joined",
               "amends-itself",
               "amount-invalid",
@@ -17271,6 +17222,7 @@
               "line-fixed",
               "link-not-active",
               "link-not-valid",
+              "link-unchanged",
               "loan-delete",
               "loan-exists",
               "loan-fixed",
@@ -17570,6 +17522,7 @@
                   "action-fixed",
                   "admin-exists",
                   "admins-only",
+                  "already-attached",
                   "already-joined",
                   "amends-itself",
                   "amount-invalid",
@@ -17715,6 +17668,7 @@
                   "line-fixed",
                   "link-not-active",
                   "link-not-valid",
+                  "link-unchanged",
                   "loan-delete",
                   "loan-exists",
                   "loan-fixed",
@@ -19068,6 +19022,42 @@
         ],
         "title": "ReceiptDetail",
         "type": "object"
+      },
+      "ReceiptLinkRecord": {
+        "additionalProperties": false,
+        "description": "What a receipt is attached to, as a draft makes or takes it away (S9.3): a record of\nits own, never changed. `itemId` names a record of the kind's table.",
+        "properties": {
+          "itemId": {
+            "title": "Itemid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "transaction",
+              "account",
+              "item",
+              "expense",
+              "gift",
+              "donation"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "receiptId": {
+            "pattern": "^Rcpt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Receiptid",
+            "type": "string",
+            "x-prefix": "Rcpt"
+          }
+        },
+        "required": [
+          "receiptId",
+          "kind",
+          "itemId"
+        ],
+        "title": "ReceiptLinkRecord",
+        "type": "object",
+        "x-entity": "RcLnk"
       },
       "ReceiptRecord": {
         "additionalProperties": false,
@@ -26920,7 +26910,7 @@
       },
       "moolakata__ui__receipts__LinkOut": {
         "additionalProperties": false,
-        "description": "A transaction it supports, the account it is kept on (a statement), or what else it is\nkept with: an item, a qualified expense, a gift, a donation, a tax document.",
+        "description": "A transaction it supports, the account it is kept on (a statement), or what else it is\nkept with: an item, a qualified expense, a gift, a donation, a tax document. `id` and\n`version` are the link's own (`ReceiptLink`); a tax document's file has none.",
         "properties": {
           "accountId": {
             "anyOf": [
@@ -26976,6 +26966,17 @@
             ],
             "title": "Date"
           },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
           "itemId": {
             "title": "Itemid",
             "type": "string"
@@ -27009,9 +27010,22 @@
               }
             ],
             "title": "Transactionid"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
+          "id",
+          "version",
           "kind",
           "itemId",
           "transactionId",
@@ -30069,54 +30083,6 @@
         "summary": "Events",
         "tags": [
           "session"
-        ]
-      }
-    },
-    "/ui/api/expenses/{expense_id}/documents": {
-      "post": {
-        "operationId": "attach_receipt_ui_api_expenses__expense_id__documents_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "expense_id",
-            "required": true,
-            "schema": {
-              "title": "Expense Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DocumentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WithdrawalsView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Attach Receipt",
-        "tags": [
-          "education"
         ]
       }
     },
@@ -33370,159 +33336,6 @@
           }
         },
         "summary": "Receipt File",
-        "tags": [
-          "receipts"
-        ]
-      }
-    },
-    "/ui/api/receipts/{receipt_id}/kept/{kind}/{item_id}": {
-      "delete": {
-        "description": "A receipt kept with a gift or a donation, taken away from it (S9.3).",
-        "operationId": "detach_kept_ui_api_receipts__receipt_id__kept__kind___item_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "receipt_id",
-            "required": true,
-            "schema": {
-              "title": "Receipt Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "title": "Kind",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_ReceiptDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Detach Kept",
-        "tags": [
-          "receipts"
-        ]
-      }
-    },
-    "/ui/api/receipts/{receipt_id}/links": {
-      "post": {
-        "operationId": "attach_ui_api_receipts__receipt_id__links_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "receipt_id",
-            "required": true,
-            "schema": {
-              "title": "Receipt Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Attach"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReceiptDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Attach",
-        "tags": [
-          "receipts"
-        ]
-      }
-    },
-    "/ui/api/receipts/{receipt_id}/links/{transaction_id}": {
-      "delete": {
-        "description": "A receipt's link to a transaction: a pair with no version of its own (S13.8.6).",
-        "operationId": "detach_ui_api_receipts__receipt_id__links__transaction_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "receipt_id",
-            "required": true,
-            "schema": {
-              "title": "Receipt Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "title": "Transaction Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_ReceiptDetail_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Detach",
         "tags": [
           "receipts"
         ]

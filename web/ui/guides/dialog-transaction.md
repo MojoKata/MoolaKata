@@ -97,8 +97,9 @@ Activity records it. The category is the transaction's, the same in every budget
 ## Receipts
 
 The receipts attached to it; each opens its file. **Add a receipt** uploads one or more and attaches
-them here. Whoever can read this account can see its receipts.
+them here when you save. Whoever can read this account can see its receipts.
 
 ## Add a receipt {#add-receipt}
 
-Upload PDFs or photos and attach them to this transaction at once.
+Upload PDFs or photos; they are kept at once, in the inbox, and attached to this transaction when
+you save. ✕ leaves one in the inbox.

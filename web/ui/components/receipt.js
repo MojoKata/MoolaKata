@@ -6,7 +6,6 @@ import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { date, day, money } from '../app/format.js';
 import { useDialogGuide } from './help.js';
-import { FormError } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { Record as Rec } from '../app/draft.js';
@@ -104,9 +103,17 @@ class ReceiptRec extends Rec {
   static fields = FIELDS.ReceiptRecord;
 }
 
+/** What a receipt is attached to (S9.3): made or taken away, never changed. */
+export class ReceiptLinkRec extends Rec {
+  /** @override */
+  static prefix = 'RcLnk';
+  /** @override */
+  static fields = FIELDS.ReceiptLinkRecord;
+}
+
 /**
- * One receipt: the picture or PDF, its fields, and what it is attached to. The fields and Keep
- * are a draft, saved together; attaching and detaching are pairs, done at once (S13.8.6).
+ * One receipt: the picture or PDF, its fields, and what it is attached to, a draft saved
+ * together: attaching and detaching are its links made and taken away.
  * @param {{ close: (v?: any) => void, id: string }} p
  */
 export function ReceiptDialog({ close, id }) {
@@ -114,35 +121,44 @@ export function ReceiptDialog({ close, id }) {
   const res = useApi(`/receipts/${id}`, {}, ['receipt']);
   const r = /** @type {any} */ (res.data);
   const f = useDraft(async (draft) => {
-    draft.load(ReceiptRec, await api.get(`/receipts/${id}`));
+    const got = await api.get(`/receipts/${id}`);
+    draft.load(ReceiptRec, got);
+    for (const l of got.links) {
+      if (!l.id) continue; // a tax document's file: kept with the document
+      const data = { id: l.id, version: l.version, receiptId: id, kind: l.kind, itemId: l.itemId };
+      draft.load(ReceiptLinkRec, data);
+    }
   }, [id]);
-  const rec = /** @type {ReceiptRec | undefined} */ (f.draft?.records[0]);
+  const rec = /** @type {ReceiptRec | undefined} */ (f.draft?.get(id) ?? undefined);
   // What reading fills in comes into the draft while nothing in it has changed.
   useEffect(() => {
     if (r && rec && !f.draft?.changed && rec.version !== r.version) f.reload();
   }, [r?.version]);
-  const attach = useSubmit(async (/** @type {string} */ tid) => {
-    await api.post(`/receipts/${id}/links`, { transactionId: tid });
-    toast('Attached');
-    res.reload();
-  });
-  // A gift's or a donation's receipt, taken back from it (S9.3).
-  const detachKept = useSubmit(async (/** @type {any} */ l) => {
-    await api.del(`/receipts/${id}/kept/${l.kind}/${l.itemId}`);
-    res.reload();
-  });
-  const detach = useSubmit(async (/** @type {string} */ tid) => {
-    await api.del(`/receipts/${id}/links/${tid}`);
-    toast('Detached');
-    res.reload();
-  });
   const again = useSubmit(async () => {
     await api.post(`/receipts/${id}/read`);
     toast('Queued to read again');
     res.reload();
   });
   // The dialog opens once the receipt has come, so its first field takes the focus.
-  if (!r || !rec) return null;
+  if (!r || !rec || !f.draft) return null;
+  const draft = f.draft;
+  const linkRecs = /** @type {ReceiptLinkRec[]} */ (
+    draft.records.filter((x) => x instanceof ReceiptLinkRec && !x.removed)
+  );
+  // What it stays attached to, then what this draft attaches: a match it was offered.
+  const kept = r.links.filter((/** @type {any} */ l) =>
+    !l.id || linkRecs.some((x) => x.id === l.id)
+  );
+  const added = linkRecs.filter((x) => x.state === 'new').map((x) => {
+    const m = r.matches.find((/** @type {any} */ m) => m.transactionId === x.get('itemId'));
+    return { ...m, rec: x, canDetach: true };
+  });
+  const attach = (/** @type {string} */ tid) =>
+    draft.add(ReceiptLinkRec, { receiptId: id, kind: 'transaction', itemId: tid });
+  const detach = (/** @type {any} */ l) => {
+    const x = l.rec || draft.get(l.id);
+    if (x) draft.remove(x);
+  };
   const canEdit = r.level === 'owner' || r.level === 'write';
   const reading = r.readStatus === 'waiting' || r.readStatus === 'reading';
   /** "Read from the receipt" under a field still holding what was read from it. */
@@ -158,8 +174,10 @@ export function ReceiptDialog({ close, id }) {
         r.level === 'owner'
           ? html`
             <button type="button" class="btn danger" style=${{ marginRight: 'auto' }}
-              disabled=${save.busy || r.links.length > 0}
-              title=${r.links.length ? 'Detach it first' : undefined} onClick=${async () => {
+              disabled=${save.busy || r.links.length > 0 || linkRecs.length > 0}
+              title=${r.links.length || linkRecs.length
+                ? 'Detach it first'
+                : undefined} onClick=${async () => {
                 const draft = f.draft;
                 if (!draft) return;
                 draft.remove(rec);
@@ -264,31 +282,26 @@ export function ReceiptDialog({ close, id }) {
             `
             : null}
           <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached to</h4>
-          ${r.links.length
-            ? r.links.map((/** @type {any} */ l) =>
-              l.transactionId
-                ? html`<div class="list-item"><div class="grow small">${
-                  l.payee || 'Transaction'
-                } · <span
-                    class="amt">${money(l.amount)}</span><div class="dim">${l.accountName} · ${
-                  date(l.date)
-                }</div></div>${
-                  canEdit
-                    ? html`<button type="button" class="btn sm" onClick=${() =>
-                      detach.run(l.transactionId).catch((e) => toast(e.message))}>Detach</button>`
-                    : null
-                }</div>`
-                : html`
-                  <div class="list-item">
-                    <div class="grow small">${l.label}</div>${l.canDetach
-                      ? html`<button type="button" class="btn sm" onClick=${() =>
-                        detachKept.run(l).catch((e) => toast(e.message))}>Detach</button>`
-                      : null}
-                  </div>
-                `
+          ${kept.length || added.length
+            ? [...kept, ...added].map((/** @type {any} */ l) =>
+              html`<div class="list-item"><div class="grow small">${
+                l.transactionId
+                  ? html`
+                    ${l.payee || 'Transaction'} · <span class="amt">${money(l.amount)}</span><div
+                      class="dim">${l.accountName} · ${date(l.date)}${l.rec
+                        ? ' · attached when you save'
+                        : ''}</div>
+                  `
+                  : l.label
+              }</div>${
+                l.canDetach && canEdit
+                  ? html`<button type="button" class="btn sm" onClick=${() =>
+                    detach(l)}>Detach</button>`
+                  : null
+              }</div>`
             )
             : html`<p class="small dim">Nothing yet: it waits in the inbox.</p>`}
-          ${r.matches.length
+          ${r.matches.length && !added.length && canEdit
             ? html`
               <div class="notice mt">
                 <${Icon} name="clip" />
@@ -301,22 +314,20 @@ export function ReceiptDialog({ close, id }) {
                             ) =>
                               html`
                                 <button type="button" class=${'btn sm' + (i ? '' : ' primary')}
-                                  disabled=${attach.busy} onClick=${() =>
-                                    attach.run(m.transactionId).catch((e) => toast(e.message))}>${i
+                                  onClick=${() => attach(m.transactionId)}>${i
                                     ? `${m.payee || 'Transaction'} · ${date(m.date)}`
                                     : 'Attach'}</button>
                               `
                             )}</div></div>
               </div>
             `
-            : !r.links.length
+            : !kept.length && !added.length
             ? html`<p class="small dim">${
               r.amount
                 ? 'No transaction of this amount within five days of its date yet. Attach it from the transaction when it arrives.'
                 : 'Give it a date and amount to find the transaction it belongs to, or attach it from the transaction itself.'
             }</p>`
             : null}
-          <${FormError} error=${attach.error || detach.error || detachKept.error} />
         </div>
       </div>
       </${DraftDialog}>

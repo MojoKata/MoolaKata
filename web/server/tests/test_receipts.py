@@ -4,7 +4,7 @@ import io
 
 import pytest
 from conftest import make_user, sign_in
-from edits import drop, edit, save_settings, saved, share
+from edits import attach, detach, drop, edit, save_settings, saved, share
 from PIL import Image
 from test_accounts import add, new_account
 
@@ -99,8 +99,8 @@ def test_attach_suggest_and_share_through_the_transaction(server, alice):
              payee="Blue Bottle")  # fmt: skip
     assert [m["transactionId"] for m in saved(r)["matches"]] == [t["id"], tipped["id"]]
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"][0]["id"] == rid
-    r = alice.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": t["id"]})
-    assert r.status_code == 200 and r.json()["links"][0]["transactionId"] == t["id"]
+    assert saved(attach(alice, rid, t["id"]))["itemId"] == t["id"]
+    assert alice.get(f"/ui/api/receipts/{rid}").json()["links"][0]["transactionId"] == t["id"]
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
     page = alice.get("/ui/api/transactions", params={"account": acct["id"]}).json()
     assert {x["id"]: x["receipts"] for x in page["items"]}[t["id"]] == 1
@@ -119,12 +119,12 @@ def test_attach_suggest_and_share_through_the_transaction(server, alice):
     assert drop(bob, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 403
     # A read share shows it and attaches it nowhere: not to Bob's own transaction (S9.6, P3).
     his = add(bob, new_account(bob, name="Bob's")["id"], "-42.18", "2026-10-02")
-    r = bob.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": his["id"]})
-    assert r.status_code == 403 and r.json()["code"] == "receipt-read-only"
+    r = attach(bob, rid, his["id"])
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "receipt-read-only"
     # Deleted only by its owner, and only once nothing links to it.
     r = drop(alice, "Rcpt", f"/ui/api/receipts/{rid}")
     assert r.status_code == 409 and r.json()["errors"][0]["code"] == "receipt-linked"
-    alice.delete(f"/ui/api/receipts/{rid}/links/{t['id']}")
+    assert detach(alice, rid, t["id"]).status_code == 200
     assert drop(alice, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 200
     assert alice.get(f"/ui/api/receipts/{rid}").status_code == 404
     assert list(server.config.receipts_dir.glob("*.mkr")), "the file stays while a row names it"
@@ -136,8 +136,47 @@ def test_attaching_needs_write_on_the_account(server, alice):
     acct = new_account(alice)
     t = add(alice, acct["id"], "-5.00", "2026-10-02")
     rid = upload(bob, png()).json()["id"]
-    r = bob.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": t["id"]})
+    r = attach(bob, rid, t["id"])
     assert r.status_code == 404
+
+
+def test_a_link_is_made_once_and_never_changed(server, alice):
+    from edits import change, create
+
+    acct = new_account(alice)
+    t = add(alice, acct["id"], "-5.00", "2026-10-02")
+    rid = upload(alice, png()).json()["id"]
+    link = saved(attach(alice, rid, t["id"]))
+    r = attach(alice, rid, t["id"])
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "already-attached"
+    r = change(alice, "RcLnk", link, itemId=acct["id"])
+    assert r.json()["errors"][0]["code"] == "link-unchanged"
+    # An id of another table than its kind's is refused at the field.
+    r = create(alice, "RcLnk", receiptId=rid, kind="transaction", itemId=acct["id"])
+    assert r.json()["errors"][0]["field"] == "itemId"
+    # Taken away, it can be made again.
+    assert detach(alice, rid, t["id"]).status_code == 200
+    assert saved(attach(alice, rid, t["id"]))["id"] != link["id"]
+
+
+def test_a_read_share_neither_attaches_nor_detaches(server, alice):
+    make_user(server, "bob")
+    bob = sign_in(server, "bob")
+    acct = new_account(alice)
+    t = add(alice, acct["id"], "-5.00", "2026-10-02")
+    users = {
+        u["displayName"]: u["id"]
+        for u in alice.get(f"/ui/api/shares/account/{acct['id']}").json()["users"]
+    }
+    assert share(alice, "account", acct["id"], users={users["Bob"]: "read"}).status_code == 200
+    mine = upload(bob, png(color=(1, 2, 3))).json()["id"]
+    r = attach(bob, mine, t["id"])
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "read-only"
+    rid = upload(alice, png()).json()["id"]
+    saved(attach(alice, rid, t["id"]))
+    [link] = bob.get(f"/ui/api/receipts/{rid}").json()["links"]
+    assert not link["canDetach"]
+    assert detach(bob, rid, t["id"]).status_code == 403
 
 
 def test_size_limit_is_a_setting(server, alice, admin_client):

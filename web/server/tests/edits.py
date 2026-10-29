@@ -206,6 +206,18 @@ def create(c, entity: str, confirm: bool = False, **fields):
     return _save(c, op, confirm)
 
 
+def attach(c, receipt_id: str, item_id: str, kind: str = "transaction"):
+    """A receipt attached as its dialog's draft attaches it (S9.3): a link made. The save's
+    answer."""
+    return create(c, "RcLnk", receiptId=receipt_id, kind=kind, itemId=item_id)
+
+
+def detach(c, receipt_id: str, item_id: str):
+    """A receipt's link to `item_id` taken away, as its dialog's draft takes it away."""
+    links = c.get(f"/ui/api/receipts/{receipt_id}").json()["links"]
+    return remove(c, "RcLnk", next(x for x in links if x["itemId"] == item_id))
+
+
 def loan_payment(c, loan_id: str, date: str, amount, from_account: str | None = None,
                  transaction: str | None = None, parts: dict | None = None):  # fmt: skip
     """A loan payment as its dialog's draft records it (S1.9.3): the loan's transaction split

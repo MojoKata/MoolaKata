@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, plan529, remove, saved, share
+from edits import change, detach, make, plan529, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -244,7 +244,7 @@ def test_a_gifts_receipt_is_kept_with_it_and_can_be_taken_back(alice):
     [link] = alice.get(f"/ui/api/receipts/{up['id']}").json()["links"]
     assert link["kind"] == "gift" and link["label"] == "The gift Watercolour set"
     assert link["canDetach"]
-    r = alice.delete(f"/ui/api/receipts/{up['id']}/kept/gift/{g['id']}")
+    r = detach(alice, up["id"], g["id"])
     assert r.status_code == 200, r.text
     inbox = alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"]
     assert [x["id"] for x in inbox] == [up["id"]]

@@ -175,10 +175,6 @@ class ImprovementIn(Model):
     amount: Money
 
 
-class DocumentIn(Model):
-    receiptId: str
-
-
 def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, str]:
     a, lvl = access.account(s, c.id, account_id, need)
     if not assets.is_physical(a.type):

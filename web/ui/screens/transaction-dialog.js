@@ -3,7 +3,7 @@
 // retirement account, the contribution year and who contributed.
 import { useState } from 'preact/hooks';
 import { useList } from '../app/hooks.js';
-import { ACCEPT, uploadAll } from '../components/receipt.js';
+import { ACCEPT, ReceiptLinkRec, uploadAll } from '../components/receipt.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { FIELDS } from '../api/fields.js';
@@ -14,6 +14,7 @@ import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
 import { Field, Switch, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
+import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
 import { BY_TYPE } from '../account-types/index.js';
@@ -308,7 +309,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               : null}
           </fieldset>
           ${editing ? html`<${InBudgets} txn=${txn} rec=${t} />` : null}
-          ${editing ? html`<${TxnReceipts} txn=${txn} canWrite=${!readOnly} />` : null}
+          ${editing && draft
+            ? html`<${TxnReceipts} txn=${txn} draft=${draft} canWrite=${!readOnly} />`
+            : null}
         `
         : null}
     </${DraftDialog}>
@@ -352,21 +355,24 @@ function InBudgets({ txn, rec }) {
 }
 
 /**
- * The receipts attached to a transaction (S9.3), each opening its file, and a way to add one.
- * @param {{ txn: any, canWrite: boolean }} p
+ * The receipts attached to a transaction (S9.3), each opening its file, and a way to add one:
+ * uploaded at once, into the inbox, and attached by the transaction's draft when it is saved.
+ * @param {{ txn: any, draft: any, canWrite: boolean }} p
  */
-function TxnReceipts({ txn, canWrite }) {
+function TxnReceipts({ txn, draft, canWrite }) {
   const res = useList(`/transactions/${txn.id}/receipts`);
   const rows = /** @type {any[]} */ (res.data) || [];
+  const [names, setNames] = useState(/** @type {{ [id: string]: string }} */ ({}));
+  const adding = /** @type {ReceiptLinkRec[]} */ (
+    draft.records.filter((/** @type {any} */ x) => x instanceof ReceiptLinkRec && !x.removed)
+  );
   const add = async (/** @type {FileList} */ files) => {
-    for (const r of await uploadAll(files)) {
-      try {
-        await api.post(`/receipts/${r.id}/links`, { transactionId: txn.id });
-      } catch (e) {
-        toast(/** @type {any} */ (e).message);
-      }
+    const made = await uploadAll(files);
+    setNames((was) => ({ ...was, ...Object.fromEntries(made.map((r) => [r.id, r.fileName])) }));
+    for (const r of made) {
+      if (rows.some((x) => x.id === r.id)) continue; // the same file, attached already
+      draft.add(ReceiptLinkRec, { receiptId: r.id, kind: 'transaction', itemId: txn.id });
     }
-    res.reload();
   };
   return html`
     <div class="field" data-help="receipts" id="x-receipts">
@@ -378,6 +384,14 @@ function TxnReceipts({ txn, canWrite }) {
               rel="noopener">${r.payee || r.fileName}</a>
           `
         )}
+        ${adding.map((x) =>
+          html`
+            <span class="pill info" title="Attached when you save">${names[x.get('receiptId')] ||
+              'Receipt'}</span><button type="button"
+              class="icon-btn" aria-label="Don't attach it"
+              onClick=${() => draft.remove(x)}><${Icon} name="x" /></button>
+          `
+        )}
         ${canWrite
           ? html`
             <label class="btn sm" for="f-add-receipt">Add a receipt</label>
@@ -387,7 +401,7 @@ function TxnReceipts({ txn, canWrite }) {
                 e.currentTarget.value = '';
               }} />
           `
-          : rows.length
+          : rows.length || adding.length
           ? null
           : html`<span class="small dim">None.</span>`}
       </div>

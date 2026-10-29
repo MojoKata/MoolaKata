@@ -5,7 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, new_id, plan529, remove, saved
+from edits import attach, change, detach, make, new_id, plan529, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -141,6 +141,16 @@ def test_withdrawals_against_qualified_expenses(alice):
     bad = make(alice, "QExpn", accountId=acct["id"], date="2026-08-15", kind="car", amount="1")
     assert bad.status_code == 422
     e = alice.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"][0]
+    # Its receipt, kept with it as a link the save makes (S1.8.3, S9.3), and taken away.
+    rid = alice.post(
+        "/ui/api/receipts", files={"file": ("bill.pdf", b"%PDF-1.4 bill", "application/pdf")}
+    ).json()["id"]
+    assert saved(attach(alice, rid, e["id"], "expense"))["kind"] == "expense"
+    e = alice.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"][0]
+    assert [d["id"] for d in e["documents"]] == [rid]
+    assert detach(alice, rid, e["id"]).status_code == 200
+    e = alice.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"][0]
+    assert e["documents"] == []
     assert remove(alice, "QExpn", e).status_code == 200
     assert alice.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"] == []
 

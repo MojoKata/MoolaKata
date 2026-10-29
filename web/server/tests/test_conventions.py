@@ -6,13 +6,9 @@ from fastapi.routing import APIRoute
 from moolakata.app import Server, create_app
 from moolakata.ui.conventions import Deleted, if_match
 
-# Changes to what has no version of its own (S13.8.6): pairs that only link two records,
-# secrets, which are replaced outright, and the key files outside the database (S15). Signing
-# out ends a session, not a record.
+# Changes to what has no version of its own (S13.8.6): the key files outside the database
+# (S15). Signing out ends a session, not a record.
 NO_VERSION = {
-    ("DELETE", "/ui/api/receipts/{receipt_id}/links/{transaction_id}"): "a pair",
-    ("DELETE", "/ui/api/items/{item_id}/documents/{receipt_id}"): "a pair",
-    ("DELETE", "/ui/api/receipts/{receipt_id}/kept/{kind}/{item_id}"): "a pair",
     ("DELETE", "/ui/api/settings/keys/reencrypt"): "a key file: the scheduled re-encryption",
     ("DELETE", "/ui/api/settings/keys/copies/{name}"): "a key file: a copy, by password and phrase",
     ("DELETE", "/ui/api/settings/keys/previous/{fingerprint}"): "a key file: the keyring's list",
@@ -51,8 +47,8 @@ def test_every_change_sends_the_version_it_was_made_against(store, keyed_config)
     version, each listed with why."""
     missing, needless = [], []
     walked = list(_routes(store, keyed_config))
-    # Fewer as the kinds the save takes lose their own (S13.8.1); never none.
-    assert len(walked) > 4, "the app's routes, those of included routers too"
+    # Every route comes from an included router; the save took the rest (S13.8.1).
+    assert walked, "the app's routes, those of included routers too"
     for method, r in walked:
         has = if_match in _calls(r.dependant)
         exempt = (method, r.path) in NO_VERSION

@@ -138,7 +138,7 @@ def test_an_unreachable_peer_says_so(pair):
 # ---------- invitations, approval and the directory (S11.1, S11.3, S11.6)
 
 from conftest import make_user  # noqa: E402
-from edits import create, make, saved, share  # noqa: E402
+from edits import attach, create, make, saved, share  # noqa: E402
 from linkpair import admin_of, linked  # noqa: E402
 
 
@@ -413,7 +413,7 @@ def test_receipts_cross_only_when_included_and_open_through_decryption(admins):
     rid = alice.post(
         "/ui/api/receipts", files={"file": ("r.png", image, "application/octet-stream")}
     ).json()["id"]
-    alice.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": t["id"]})
+    saved(attach(alice, rid, t["id"]))
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
@@ -946,7 +946,7 @@ def _shared_receipt(a, ca, cb):
     rid = alice.post(
         "/ui/api/receipts", files={"file": ("r.png", image, "application/octet-stream")}
     ).json()["id"]
-    alice.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": t["id"]})
+    saved(attach(alice, rid, t["id"]))
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"}, receipts={a_id: True})

@@ -700,6 +700,59 @@ def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     page.close()
 
 
+# ---------- what the receipts' dialog alone does ----------
+
+
+def test_a_receipt_is_attached_and_detached_with_save(browser, household):
+    """Attach and Detach change its draft; the link is made, or taken away, on Save."""
+    h = household
+    r = h.extra["receipt"]
+    t = made(make(h.c, "Txn", accountId=h.checking["id"], date=r["date"], amount="-6.40",
+                  payee="Blue Bottle Coffee"))  # fmt: skip
+    links = lambda: h.c.get(f"/ui/api/receipts/{r['id']}").json()["links"]  # noqa: E731
+    card = 'button[aria-label="Receipt Blue Bottle"]'
+    page, problems = signed_in(browser, h, "/ui/receipts", card)
+    page.click(card)
+    wait(page, '.dialog button:has-text("Attach")', problems)
+    page.click('.dialog button:has-text("Attach")')
+    wait(page, "text=attached when you save", problems)
+    assert links() == [], "nothing is sent before Save"
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    assert [x["itemId"] for x in links()] == [t["id"]]
+    page.click(card)
+    wait(page, '.dialog button:has-text("Detach")', problems)
+    page.click('.dialog button:has-text("Detach")')
+    wait(page, "text=Nothing yet: it waits in the inbox.", problems)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    assert links() == []
+    assert problems == []
+    page.close()
+
+
+def test_a_receipt_added_to_a_transaction_is_attached_on_save(browser, household):
+    """Uploaded at once, into the inbox; attached by the transaction's draft on Save."""
+    h = household
+    t = made(make(h.c, "Txn", accountId=h.checking["id"], date=f"{months_back(1)}-03",
+                  amount="-18.00", payee="Corner Bakery"))  # fmt: skip
+    path = f"/ui/accounts/{h.checking['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Corner Bakery")')
+    page.click('button.linklike:has-text("Corner Bakery")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.set_input_files("#f-add-receipt", files=[
+        {"name": "bakery.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 bakery"}
+    ])  # fmt: skip
+    wait(page, '.dialog .pill:has-text("bakery.pdf")', problems)
+    receipts = lambda: h.c.get(f"/ui/api/transactions/{t['id']}/receipts").json()["items"]  # noqa: E731
+    assert receipts() == [], "uploaded, not yet attached"
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    assert [x["fileName"] for x in receipts()] == ["bakery.pdf"]
+    assert problems == []
+    page.close()
+
+
 # ---------- what the taxes' dialogs alone do ----------
 
 

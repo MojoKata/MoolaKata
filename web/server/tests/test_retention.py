@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, edit, make, save_settings, saved
+from edits import attach, change, edit, make, save_settings, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -33,8 +33,7 @@ def cat(server, name, years=None):
 
 def receipt_on(c, txn_id, data):
     rid = upload(c, data).json()["id"]
-    r = c.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": txn_id})
-    assert r.status_code in (200, 201), r.text
+    saved(attach(c, rid, txn_id))
     return rid
 
 

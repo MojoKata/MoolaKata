@@ -20,7 +20,11 @@
    529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
    one suggests matching transactions by amount and date. A receipt kept with anything is out
    of the inbox, and its dialog names each thing it is kept with; whoever can change one of
-   them can detach it from that.
+   them can detach it from that. Each attachment is a record of its own (`ReceiptLink`),
+   made or taken away, never changed: attaching and detaching are changes of the dialog's
+   draft, saved with the rest (S12.15), whether in the receipt's dialog or in what it is
+   attached to (a file added to a transaction is uploaded at once, into the inbox, and
+   attached when the transaction is saved).
 4. **Viewing**: thumbnails in a grid, a viewer with zoom for images and the browser's own PDF
    viewer for PDFs, served `Content-Disposition: inline` with `Content-Security-Policy:
    sandbox` and `X-Content-Type-Options: nosniff`, from a path that needs the session. The
