@@ -3,7 +3,7 @@
 // default. The section's form reads and sets its keys by name, through one view of them.
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { useDraft } from './draft-form.js';
+import { saveOne, useDraft } from './draft-form.js';
 
 /** A setting: its key, and a value its definition checks; a password's is never read back. */
 export class SettingRec extends Record {
@@ -65,4 +65,15 @@ export function useSettingsDraft(v, keys) {
   // A draft read before the settings came holds none of the keys yet.
   const ready = f.draft && keys.every((k) => recs.has(k));
   return { ...f, rec: ready ? byKey(recs) : undefined };
+}
+
+/**
+ * One key saved at once, as a choice that takes effect when made: the settings as `GET
+ * /settings` gave them, the key, its new value.
+ * @param {any} v @param {string} key @param {any} value
+ */
+export function saveSetting(v, key, value) {
+  const ref = v.records[key];
+  const row = ref ? { id: ref.id, version: ref.version, key, value: v.values[key] ?? null } : null;
+  return saveOne(SettingRec, row, { key, value });
 }

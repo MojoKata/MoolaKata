@@ -15,7 +15,7 @@ import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { DraftForm } from './draft-form.js';
-import { useSettingsDraft } from './settings-draft.js';
+import { saveSetting, useSettingsDraft } from './settings-draft.js';
 
 const KIND = /** @type {Record<string, string>} */ ({
   account: 'An account',
@@ -71,12 +71,7 @@ export function LinksSection() {
     return out;
   });
   const release = useSubmit(async (/** @type {string} */ v) => {
-    await api.patch(
-      '/settings',
-      { linkReleaseMinutes: Number(v) },
-      /** @type {any} */ (s.data)?.version,
-    );
-    s.reload();
+    await saveSetting(s.data, 'linkReleaseMinutes', Number(v));
     toast('Saved');
     s.reload();
   });

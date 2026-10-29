@@ -2,6 +2,8 @@
 import { signal } from '@preact/signals';
 import { api } from '../api/client.js';
 import { setBitcoinUnit, setZone } from '../app/format.js';
+import { Draft, Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
 
 /** @type {import('@preact/signals').Signal<any>} */
 export const session = signal(null);
@@ -52,6 +54,14 @@ export function setSession(info) {
   }
 }
 
+/** The user's own record, as the theme toggle changes it. */
+class ThemeRec extends Record {
+  /** @override */
+  static prefix = 'User';
+  /** @override */
+  static fields = FIELDS.UserRecord;
+}
+
 /**
  * Keep the theme with the profile too, so a new browser starts with it.
  * @param {string} theme
@@ -60,9 +70,11 @@ export async function saveTheme(theme) {
   try {
     const profile = await api.get('/profile');
     if (profile.theme === theme) return;
-    // One field of the user's own record, through the save as every change (S13.8.11).
-    const op = { op: 'update', entity: 'User', id: profile.id, version: profile.version };
-    await api.post('/save', { ops: [{ ...op, fields: { theme } }] }, { idempotent: true });
+    // One field of the user's own record, a draft saved at once as every change (S13.8.11).
+    const draft = new Draft();
+    draft.load(ThemeRec, { id: profile.id, version: profile.version, theme: profile.theme })
+      .set('theme', theme);
+    await draft.save();
   } catch {
     // the browser still remembers it
   }

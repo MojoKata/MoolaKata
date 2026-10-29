@@ -934,3 +934,22 @@ def test_a_tax_books_account_left_out_and_counted_again(browser, household):
     assert name not in [a["name"] for a in b["leftOut"]]
     assert problems == []
     page.close()
+
+
+def test_a_choice_that_takes_effect_when_made_saves_its_record(browser, household):
+    # The theme toggle (one field of the user's own record) and a link setting chosen from a
+    # list (a setting's record), each a draft saved at once.
+    h = household
+    page, problems = signed_in(browser, h, "/ui/settings/links", "#f-link-release")
+    before = h.c.get("/ui/api/profile").json()["theme"]
+    page.click('button[aria-label^="Theme: "]')
+    for _ in range(50):
+        if h.c.get("/ui/api/profile").json()["theme"] != before:
+            break
+        page.wait_for_timeout(100)
+    assert h.c.get("/ui/api/profile").json()["theme"] != before
+    page.select_option("#f-link-release", "240")
+    wait(page, '.toast:has-text("Saved")', problems)
+    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 240
+    assert problems == []
+    page.close()
