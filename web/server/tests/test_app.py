@@ -529,7 +529,14 @@ def open_dialog(page, path: str, button: str, guide: str) -> None:
 
 
 def close_dialog(page) -> None:
+    """Escape; a dialog the sweep changed (a part added to see its guide) asks first."""
     page.keyboard.press("Escape")
+    page.wait_for_function(
+        "!document.querySelector('.dialog') || !!document.querySelector('.dialog-ask')"
+    )
+    asked = page.locator(".dialog-ask")
+    if asked.count():
+        asked.get_by_role("button", name="Discard").click()
     page.wait_for_selector(".dialog", state="detached")
 
 
@@ -846,6 +853,18 @@ def test_categorise_and_share_through_the_app(page):
     page.get_by_role("radio", name="Read").first.click()
     page.get_by_role("button", name="Save").click()
     page.wait_for_selector("text=Sharing saved")
+    assert page.problems == []
+
+
+def test_landed_money_assigned_a_line_for_each_reserve(page):
+    # S7.10.5: the lines start spread by balance; the moves they make are saved together.
+    visit(page, "/ui/budgets/x/where")
+    page.get_by_role("button", name="Assign").first.click()
+    page.wait_for_selector(".dialog #x-reserve, .dialog [data-help=reserve]")
+    page.get_by_role("button", name="Spread by balance").click()
+    page.locator(".dialog footer button.primary").click()
+    page.wait_for_selector("text=Assigned")
+    page.wait_for_selector(".dialog", state="detached")
     assert page.problems == []
 
 

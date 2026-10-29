@@ -8,7 +8,7 @@ S14.1). The tables are declared with SQLAlchemy Core in
 
 1. **Tables** have a capitalized, singular name: `User`, not `Users`.
 2. **Tables for many-to-many relationships** have plural names: `UserGroups`,
-   `TaxBookFilers`.
+   `TaxBookFiler`.
    Their primary key is the pair of foreign keys (`userId`, `groupId`). They have no `id`
    column and no prefix.
 3. **Field names** are camelCase and start with a lowercase letter.
@@ -78,17 +78,21 @@ The prefixes of the tables that exist.
 |--------|------------------|-------------------------------------------------------------------------------------------------------|
 | Acct   | Account          | One place money is held, owned by one user, with an account type.                                     |
 | Actv   | Activity         | A change worth showing: who made it and what it is about, never an amount.                            |
+| AlSt   | AlertState       | One person's state of an alert: when they saw it, dismissed it, were emailed it.                      |
 | Alert  | Alert            | Something that needs a user's attention, one per cause, open until the cause clears.                  |
 | Anchr  | Anchor           | A balance the institution reported on a date, that the account's balance is checked against.          |
 | Asmpt  | AssumptionSet    | A user's expected returns, volatility and inflation for projections.                                  |
+| BdgAc  | BudgetAccount    | An account a budget covers, and where its money comes from: a card's payer, reserves' source.         |
 | BdgLn  | BudgetLine       | One category's planned amount in a budget, from a month on, monthly or yearly.                        |
 | BdgMv  | BudgetMove       | An amount put into a category for a month: from another, *To Budget* or landed money. |
 | BdgRv  | BudgetReview     | A budget's month marked reviewed: by whom, when, and the figures it had then.       |
 | Bdgt   | Budget           | A user's plan per category over chosen accounts; shared with a group for a household.                 |
 | Cat    | Category         | A budget category given to bank transactions.                                                         |
 | Cnctr  | Connector        | The MoolaKata Connector paired with this server: its public keys, its reports' state (S18.4).         |
+| CntAc  | CountedAccount   | Whether a user counts an account shared with them in their own totals.                                |
 | Cntrb  | Contribution     | Who a deposit into a 529 came from, and whether it is a five-year election.                           |
 | Conn   | Connection       | One sign-in at one institution, kept by the connector and owned by a user (S18.6).                    |
+| CorpA  | CorporateAction  | A split, symbol change, spin-off or merger of a holding, the transactions it makes named by it.       |
 | Dnatn  | Donation         | One charitable gift to an organisation, into a donor-advised fund, or a grant from one.               |
 | EdPln  | EducationPlan    | A 529 account's plan: its state, name, beneficiary and opening date.                                  |
 | Email  | QueuedEmail      | An email waiting to go out through SMTP, until it is sent or its link expires.                        |
@@ -106,36 +110,51 @@ The prefixes of the tables that exist.
 | Item   | Item             | A physical asset: metals, a collectable, a property or a vehicle, with how it is valued.              |
 | LItem  | LinkedItem       | An item a link brings in, as the main database knows it: kind, owner and who it names.                |
 | Link   | Link             | A link with another MoolaKata server: its state, address and key.                                     |
+| LkCol  | LinkColour       | The colour a user chose for a linked household's window.                                              |
+| LkFil  | LinkFile         | A receipt file a linked server's change named that hasn't reached the copy yet.                       |
+| LkSnt  | LinkSent         | What this server last sent a linked server of a shared item, as a hash: a cache.                      |
 | Loan   | Loan             | A loan account's terms: principal, rate, term, escrow, PMI, resets and recasts.                       |
 | Lot    | Lot              | One acquisition of an instrument, and what remains open.                                              |
+| LotPk  | LotPick          | How much of a lot a sale took, when the lots were picked.                                             |
 | Lyout  | StatementLayout  | What statement import learned of an institution's layout: section signs, lines to skip.               |
 | Map    | ImportMapping    | A saved column mapping for one institution's CSV files.                                               |
+| OTTkn  | OneTimeToken     | An emailed link's token, as its hash: an invitation, a reset, an email change.                        |
 | Occsn  | Occasion         | A dated occasion in a gift plan: an anniversary, a holiday, a custom date.                            |
 | OptCt  | OptionContract   | An option's contract: underlying, call or put, strike, expiry, multiplier, root and deliverable.      |
 | Orgzn  | Organisation     | An organisation given to: its EIN, whether gifts to it are deductible, causes, pledges.               |
 | Persn  | Person           | Someone in the household's life: every user, and people who never sign in.                            |
 | Portf  | Portfolio        | A named set of accounts, or parts of them, charted as one.                                            |
+| Price  | Price            | One instrument's close on one market day, from a source, kept for ever.                               |
 | Prjct  | Projection       | How money will grow toward a goal; an active one is tracked against its baseline.                     |
 | Pyoff  | PayoffPlan       | A saved overpayment plan for a loan; one may be the plan being followed.                              |
 | QExpn  | QualifiedExpense | A qualified education expense a 529's withdrawals are matched with.                                   |
+| RCode  | RecoveryCode     | A two-step recovery code, as its hash, usable once.                                                   |
+| RcLnk  | ReceiptLink      | What a receipt is attached to: a transaction, an account, an item, a gift, a donation.                |
 | Rcpt   | Receipt          | An uploaded file, encrypted on disk, with a date, an amount and what it is attached to.               |
 | Recon  | Reconciliation   | A statement's closing date and balance, ticked off against the transactions.                          |
 | Rltn   | Relationship     | A dated link between two people: spouse, couple, child, friend, colleague, family.                    |
 | Rmbrs  | Reimbursement    | A deposit paired with reimbursable spending: how much of it pays that spending back.                 |
 | Rule   | Rule             | One of a user's categorisation and payee rules: what a transaction matches and what the rule sets.    |
 | Secr   | Secret           | A secret sealed on its own: an API key, a password or a private key.                                  |
+| Sessn  | Session          | A signed-in browser's session, its token kept as a hash.                                              |
+| Setng  | Setting          | One setting an admin saved, by its key; a key with none stands at its default.                        |
 | Sgnup  | SignupRequest    | A person's request for an account, from confirming the email to an admin's decision.                  |
 | Share  | Share            | A grant of an account or portfolio to a user, group or linked server.                                 |
 | Split  | Split            | A part of a transaction's amount given its own category.                                              |
 | Src    | PriceSource      | A source of daily prices: its name, whether it is on, and its order per class.                        |
+| StLeg  | StrategyLeg      | An instrument held as part of a strategy: an option leg, or shares with their quantity.               |
 | Strat  | Strategy         | Option legs and shares held together as one, or a proposal turned down (S3.5).                       |
+| Tag    | Tag              | A user's own tag, by name: on their transactions, their receipts and what their rules set.            |
 | TaxBk  | TaxBook          | One user's, or a married couple's, tax records for one tax year.                                      |
 | TaxFg  | TaxFigure        | An admin's correction of a shipped tax-table figure for one year.                                     |
 | Token  | AccessToken      | A user's read-only token for the MCP endpoint, kept as a hash of its secret.                          |
+| TxBkA  | TaxBookAccount   | An account a tax book counts or leaves out, and who added it.                                         |
+| TxBkF  | TaxBookFiler     | A filer of a tax book, and when they accepted it.                                                     |
 | TxChg  | TaxBookChange    | An edit made anyway to a year whose federal return was filed, and how it was settled.                 |
 | TxDep  | TaxBookDependent | A person a tax book's filers claim for the year: how claimed, months lived with them, student.        |
 | TxDoc  | TaxDocument      | A tax document received (W-2, 1099) or filed (a return, a notice), with its file.                     |
 | Txn    | Transaction      | One dated movement in an account.                                                                     |
+| TyPrc  | TypedPrice       | A price a user typed for an instrument on a day: it values their own accounts only.                   |
 | User   | User             | A person who signs in here, or a user of a linked server (with `linkId`).                             |
 | Valtn  | ItemValuation    | A dated value of an item, with its source.                                                            |
 | WAddr  | WalletAddress    | An address a bitcoin wallet watches, typed or derived from its key; worked out again.                 |
@@ -237,11 +256,11 @@ as they change.
 
    | Its own end | Tables |
    |---|---|
-   | never | `Instrument`, `Price` (requirements S4.6), `TypedPrice`, `TaxFigure`, `Setting` while set; `TaxBook` and with it `Filing`, `EstimatedPayment`, `TaxDocument`, `TaxBookDependent`, `TaxBookFilers`, `TaxBookAccounts`, `TaxDependentAccounts`; `User` (users are made inactive, not deleted, S10.2) |
+   | never | `Instrument`, `Price` (requirements S4.6), `TypedPrice`, `TaxFigure`, `Setting` while set; `TaxBook` and with it `Filing`, `EstimatedPayment`, `TaxDocument`, `TaxBookDependent`, `TaxBookFiler`, `TaxBookAccount`, `TaxDependentAccounts`; `User` (users are made inactive, not deleted, S10.2) |
    | its date | `Transaction`, `Anchor`, `Holding` (as of), `HoldingCheck` (as of), `Reconciliation` (the statement's), `Donation`, `QualifiedExpense`; `Receipt` (its own date, or when it was uploaded) |
    | an event | `Account`: deleted, or closed with nothing in it still open; `Lot`: the sale of its last share; `Import`: its latest transaction's end; `BudgetLine`: the month before a later line for its category starts; `Gift`, given or received: the later of its occasion and its purchase; `Occasion` with a year: its date; `GivingPlan`: the end of its year; `Item`: its sale; `AccessToken`: expiry or revoking; `SignupRequest`: decided, or expired unconfirmed; `Link`: unlinked; `Connector`: unpaired or replaced; `Connection`: removed; `Relationship`: its `to` date; `Strategy`: its last option leg closed |
    | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, `Share`, `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
-   | its parent's | `BudgetMove`, `BudgetReview`, `BudgetLeaveOuts`, `Reimbursement`, `Split`, `LotPicks`, `StrategyLegs`, `TransactionTags`, `WalletKey`, `OptionContract`, `BudgetAccounts`, `PortfolioAccounts`, `CountedAccounts`, `ShownProjections`, `GiftPersons`, `ReceiptLinks`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColours`; a yearly `Occasion` |
+   | its parent's | `BudgetMove`, `BudgetReview`, `BudgetLeaveOuts`, `Reimbursement`, `Split`, `LotPick`, `StrategyLeg`, `TransactionTags`, `RuleTags`, `ReceiptTags`, `WalletKey`, `OptionContract`, `BudgetAccount`, `PortfolioAccounts`, `CountedAccount`, `ShownProjections`, `GiftPersons`, `ReceiptLink`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColour`; a yearly `Occasion` |
    | `Activity` | when it was written |
 
 3. **What a foreign key does**: each foreign key is declared with one of these, for when
@@ -266,9 +285,9 @@ as they change.
 
    | Ruling | Keys |
    |---|---|
-   | **deleted with** | `accountId` of `Transaction`, `Anchor`, `Holding`, `HoldingCheck`, `Lot`, `Import`, `Reconciliation`, `WalletKey`, `EducationPlan`, `QualifiedExpense`, `Loan`, `PayoffPlan`, `Item`, `Rule`; `Split.transactionId`; `Lot.transactionId` (also keeps ref); `LotPicks.lotId`, `LotPicks.saleId`; `TransactionTags` both keys; `Strategy.accountId`, `StrategyLegs.strategyId`; `TransferMatch.outId`, `TransferMatch.inId`; `OptionContract.instrumentId`; `Price.instrumentId`, `TypedPrice.instrumentId`; `BudgetLine.budgetId`; `BudgetAccounts.budgetId`; `BudgetMove.budgetId`, `BudgetMove.transactionId` (the landed money it gives); `BudgetReview.budgetId`; `BudgetLeaveOuts` both keys; `Reimbursement.spendingId`, `splitId` and `paybackId`; `PortfolioAccounts.portfolioId`; `CountedAccounts`, `ShownProjections`, `UserGroups`, `LinkColours` both keys; `GiftPlan.personId`; `Occasion.giftPlanId`; `GiftPersons.giftId`; `ReceiptLinks.receiptId`; `TaxBookFilers.bookId`, `TaxBookAccounts.bookId`, `Filing.bookId`, `EstimatedPayment.filingId`, `TaxDocument.bookId`, `TaxDocument.filingId`, `TaxBookDependent.bookId`; `TaxDependentAccounts` both keys; `Contribution.transactionId`; `ItemValuation.itemId`, `Improvement.itemId`; `Share.itemId`, `Share.userId`, `Share.groupId`; `AccessToken.userId`; `User.linkId`; `Connection.ownerId` (a user's sign-ins go with them) |
-   | **keeps ref** | `Transaction.importId`, `instrumentId`, `reconciliationId`; `Transaction.transferId` and `optionTransactionId`, both ways; `Lot.transactionId`, `Lot.instrumentId`; `LotPicks.saleId`; `Holding.instrumentId`; `HoldingCheck.importId`, `HoldingCheck.instrumentId`; `OptionContract.underlyingId`; `Strategy.underlyingId`, `StrategyLegs.instrumentId`; `Gift.transactionId`; `Donation.transactionId`, `Donation.instrumentId`; `ReceiptLinks.itemId` (the receipt ends no earlier than what it is linked to); `TaxDocument.receiptId`; `QualifiedExpense.transactionId`; `Loan.securedById`; `User.personId`; `Connection.connectorId` (a Connection outlives a replaced pairing only as history) |
-   | **keeps name** | `categoryId` of `Transaction`, `Split`, `BudgetLine`, `Rule`; `BudgetMove.fromCategoryId`, `toCategoryId`, `cardId`; a `Loan`'s budget categories; `BudgetAccounts.movedFromId`, `paidFromId`; `BudgetLine.heldInId`, `BudgetLine.projectionId`; `BudgetAccounts.accountId`, `PortfolioAccounts.accountId`; what a `Projection` is built on (it waits for its owner to choose again before recomputing); `GiftPersons.personId`; `Donation.organisationId`, `fromAccountId`, `dafAccountId`; `TaxBookAccounts.accountId`, `TaxDocument.accountId`, `TaxBookDependent.personId`; `Filing.resultTransactionId`, `EstimatedPayment.transactionId`; `EducationPlan.beneficiaryId`; `Contribution.fromPersonId`; `Relationship.person1Id`, `person2Id`; every key to a user or person not listed elsewhere |
+   | **deleted with** | `accountId` of `Transaction`, `Anchor`, `Holding`, `HoldingCheck`, `Lot`, `Import`, `Reconciliation`, `WalletKey`, `EducationPlan`, `QualifiedExpense`, `Loan`, `PayoffPlan`, `Item`, `Rule`; `Split.transactionId`; `Lot.transactionId` (also keeps ref); `LotPick.lotId`, `LotPick.saleId`; `TransactionTags`, `RuleTags`, `ReceiptTags` both keys; `Strategy.accountId`, `StrategyLeg.strategyId`; `CorporateAction.accountId`; `TransferMatch.outId`, `TransferMatch.inId`; `OptionContract.instrumentId`; `Price.instrumentId`, `TypedPrice.instrumentId`; `BudgetLine.budgetId`; `BudgetAccount.budgetId`; `BudgetMove.budgetId`, `BudgetMove.transactionId` (the landed money it gives); `BudgetReview.budgetId`; `BudgetLeaveOuts` both keys; `Reimbursement.spendingId`, `splitId` and `paybackId`; `PortfolioAccounts.portfolioId`; `CountedAccount`, `ShownProjections`, `UserGroups`, `LinkColour` both keys; `GiftPlan.personId`; `Occasion.giftPlanId`; `GiftPersons.giftId`; `ReceiptLink.receiptId`; `TaxBookFiler.bookId`, `TaxBookAccount.bookId`, `Filing.bookId`, `EstimatedPayment.filingId`, `TaxDocument.bookId`, `TaxDocument.filingId`, `TaxBookDependent.bookId`; `TaxDependentAccounts` both keys; `Contribution.transactionId`; `ItemValuation.itemId`, `Improvement.itemId`; `Share.itemId`, `Share.userId`, `Share.groupId`; `AccessToken.userId`; `User.linkId`; `Connection.ownerId` (a user's sign-ins go with them) |
+   | **keeps ref** | `Transaction.importId`, `instrumentId`, `reconciliationId`; `Transaction.transferId` and `optionTransactionId`, both ways; `Transaction.corporateActionId` (deleting the action deletes its transactions); `CorporateAction.instrumentId`; `Lot.transactionId`, `Lot.instrumentId`; `LotPick.saleId`; `Holding.instrumentId`; `HoldingCheck.importId`, `HoldingCheck.instrumentId`; `OptionContract.underlyingId`; `Strategy.underlyingId`, `StrategyLeg.instrumentId`; `Gift.transactionId`; `Donation.transactionId`, `Donation.instrumentId`; `ReceiptLink.itemId` (the receipt ends no earlier than what it is linked to); `TaxDocument.receiptId`; `QualifiedExpense.transactionId`; `Loan.securedById`; `User.personId`; `Connection.connectorId` (a Connection outlives a replaced pairing only as history) |
+   | **keeps name** | `categoryId` of `Transaction`, `Split`, `BudgetLine`, `Rule`; `BudgetMove.fromCategoryId`, `toCategoryId`, `cardId`; a `Loan`'s budget categories; `BudgetAccount.movedFromId`, `paidFromId`; `BudgetLine.heldInId`, `BudgetLine.projectionId`; `BudgetAccount.accountId`, `PortfolioAccounts.accountId`; what a `Projection` is built on (it waits for its owner to choose again before recomputing); `GiftPersons.personId`; `Donation.organisationId`, `fromAccountId`, `dafAccountId`; `TaxBookAccount.accountId`, `TaxDocument.accountId`, `TaxBookDependent.personId`; `Filing.resultTransactionId`, `EstimatedPayment.transactionId`; `EducationPlan.beneficiaryId`; `Contribution.fromPersonId`; `Relationship.person1Id`, `person2Id`; every key to a user or person not listed elsewhere |
    | **nullifies** | `Anchor.importId`, `Holding.importId`; `User.activeBudgetId` (the user then follows none until they choose); an account's `connectionId` (its sync turns off, requirements S18.6.4) |
    | **prevents delete** | `Category.parentId`; `Filing.amendsId` |
 

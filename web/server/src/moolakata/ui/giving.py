@@ -15,9 +15,16 @@ from ..errors import FieldError, Problem, refuse
 from ..ledger.lots import long_term as held_long
 from ..store.entities.accounts import Account, Category, Instrument, Lot, LotPick, Transaction
 from ..store.entities.giving import Donation, GivingPlan, Organisation
-from ..store.entities.receipts import ReceiptLink
 from ..store.repos import ledger as repo
-from .conventions import Deleted, ExactRoute, Model, Money, Quantity, Ratio, check, gone, if_match
+from . import save
+from .conventions import (
+    ExactRoute,
+    IdOf,
+    Model,
+    Money,
+    Quantity,
+    Ratio,
+)
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["giving"])
@@ -182,10 +189,7 @@ def get_giving(request: Request, year: int | None = None, c: Caller = Depends(ca
         )
 
 
-@router.put("/giving/plan", response_model=PlanOut)
-def put_plan(
-    body: PlanIn, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
+def _plan_checked(body: PlanIn) -> dict:
     e = []
     if body.targetKind not in ("percent", "amount"):
         e.append(FieldError("targetKind", "target-invalid", "A percentage or an amount."))
@@ -201,22 +205,7 @@ def put_plan(
         e.append(FieldError("dafCounted", "daf-invalid", "When funded, or when it grants."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    with server(request).db.tx() as s:
-        p, lvl = giving.plan_for(s, c.id, body.year)
-        if p is not None and access.RANK[lvl] < access.RANK["write"]:
-            raise Problem(403, "read-only", "This plan is shared with you to read.")
-        check(p, version, lambda: _plan_out(s, p, lvl) if p is not None else {"version": 0})
-        values = body.model_dump()
-        if p is None:
-            p = GivingPlan(id=ids.new_id("GvPln"), ownerId=c.id, **values)
-            s.add(p)
-            lvl = "owner"
-        else:
-            for k, v in values.items():
-                setattr(p, k, v)
-            p.updatedAt = clock.now()
-        s.flush()
-        return _plan_out(s, p, lvl)
+    return PlanIn.model_validate(body.model_dump(include=set(PlanIn.model_fields))).model_dump()
 
 
 # ---- Organisations (S7.9.5) ----
@@ -296,52 +285,11 @@ def list_organisations(request: Request, c: Caller = Depends(caller)):
         return _orgs_view(s, c)
 
 
-@router.post("/giving/organisations", response_model=OrganisationOut, status_code=201)
-def add_organisation(body: OrganisationIn, request: Request, c: Caller = Depends(caller)):
-    values = _org_values(body)
-    with server(request).db.tx() as s:
-        o = Organisation(id=ids.new_id("Orgzn"), ownerId=c.id, **values)
-        s.add(o)
-        s.flush()
-        return next(x for x in _orgs_view(s, c) if x.id == o.id)
-
-
 def _own_org(s, c: Caller, org_id: str) -> Organisation:
     o = s.get(Organisation, org_id)
     if o is None or o.deleted or o.ownerId != c.id:
         raise Problem(404, "not-found", "Not found")
     return o
-
-
-@router.patch("/giving/organisations/{org_id}", response_model=OrganisationOut)
-def change_organisation(
-    org_id: str,
-    body: OrganisationIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    values = _org_values(body)
-    with server(request).db.tx() as s:
-        o = _own_org(s, c, org_id)
-        check(o, version, lambda: next(x for x in _orgs_view(s, c) if x.id == o.id))
-        for k, v in values.items():
-            setattr(o, k, v)
-        o.updatedAt = clock.now()
-        s.flush()
-        return next(x for x in _orgs_view(s, c) if x.id == o.id)
-
-
-@router.delete("/giving/organisations/{org_id}", response_model=Deleted[None])
-def delete_organisation(
-    org_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        o = _own_org(s, c, org_id)
-        check(o, version, lambda: next(x for x in _orgs_view(s, c) if x.id == o.id))
-        o.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(o))
 
 
 # ---- Donations (S7.9.3, S8.9) ----
@@ -525,7 +473,7 @@ def _shares_given(s, c: Caller, body: DonationIn, to: str) -> dict:
     }
 
 
-def _record(s, c: Caller, body: DonationIn) -> Donation:
+def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> Donation:
     e = []
     if body.kind not in giving.KINDS:
         e.append(FieldError("kind", "kind-invalid", "One of the kinds of donation."))
@@ -595,7 +543,7 @@ def _record(s, c: Caller, body: DonationIn) -> Donation:
     elif body.kind == "daf-grant" and fund is not None:
         out = _txn(s, c, fund.id, body.date, "withdrawal", -values["amount"], to)
         values["transactionId"] = out.id
-    d = Donation(id=ids.new_id("Dnatn"), ownerId=owner, **values)
+    d = Donation(id=donation_id or ids.new_id("Dnatn"), ownerId=owner, **values)
     s.add(d)
     s.flush()
     return d
@@ -605,51 +553,11 @@ def _out(s, c: Caller, d: Donation) -> DonationOut:
     return next(x for x in donations_view(s, c, d.date.year) if x.id == d.id)
 
 
-@router.post("/giving/donations", response_model=DonationOut, status_code=201)
-def add_donation(body: DonationIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        d = _record(s, c, body)
-        activity.record(s, "donation.recorded", actor=c.id, owner=c.id)
-        return _out(s, c, d)
-
-
 def _own(s, c: Caller, donation_id: str) -> Donation:
     d = s.get(Donation, donation_id)
     if d is None or d.deleted or d.ownerId != c.id:
         raise Problem(404, "not-found", "Not found")
     return d
-
-
-class DonationChange(Model):
-    acknowledged: bool | None = None
-    granted: bool | None = None
-    notes: str | None = None
-    organisationId: str | None = None
-
-
-@router.patch("/giving/donations/{donation_id}", response_model=DonationOut)
-def change_donation(
-    donation_id: str,
-    body: DonationChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """What changes after the fact: the acknowledgement arriving, a grant paid, notes."""
-    with server(request).db.tx() as s:
-        d = _own(s, c, donation_id)
-        check(d, version, lambda: _out(s, c, d))
-        if body.acknowledged is not None:
-            d.acknowledged = body.acknowledged
-        if body.granted is not None and d.kind == "daf-grant":
-            d.granted = body.granted
-        if body.notes is not None:
-            d.notes = body.notes or None
-        if body.organisationId is not None and d.kind != "daf-contribution":
-            d.organisationId = _org_of(s, c, body.organisationId, d.date.year).id
-        d.updatedAt = clock.now()
-        s.flush()
-        return _out(s, c, d)
 
 
 def _org_of(s, c: Caller, org_id: str, year: int) -> Organisation:
@@ -660,44 +568,151 @@ def _org_of(s, c: Caller, org_id: str, year: int) -> Organisation:
     return o
 
 
-@router.delete("/giving/donations/{donation_id}", response_model=Deleted[None])
-def delete_donation(
-    donation_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Deletes the record; the transactions it made stay, to be changed or deleted there."""
-    with server(request).db.tx() as s:
-        d = _own(s, c, donation_id)
-        check(d, version, lambda: _out(s, c, d))
-        d.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(d))
+# ---------- the plan, organisations and donations in a dialog's draft (S12.15, S13.8.11) ----------
 
 
-class DocumentIn(Model):
-    receiptId: str
+class GivingPlanRecord(PlanIn):
+    """A year's giving plan as a draft saves it (S7.9.1)."""
 
 
-@router.post("/giving/donations/{donation_id}/acknowledgement", response_model=DonationOut)
-def attach_acknowledgement(
-    donation_id: str, body: DocumentIn, request: Request, c: Caller = Depends(caller)
-):
-    """The organisation's written acknowledgement, kept as a receipt: it is then received."""
-    with server(request).db.tx() as s:
-        d = _own(s, c, donation_id)
-        r = receipts.to_attach(s, c.id, body.receiptId)
-        if s.get(ReceiptLink, (r.id, "donation", d.id)) is None:
-            s.add(
-                ReceiptLink(
-                    receiptId=r.id,
-                    kind="donation",
-                    itemId=d.id,
-                    createdAt=clock.now(),
-                    linkedById=c.id,
-                )
-            )
-        d.acknowledged = True
-        s.flush()
-        return _out(s, c, d)
+def _gplan_create(ctx, record_id: str, body: GivingPlanRecord) -> None:
+    values = _plan_checked(body)
+    p, _ = giving.plan_for(ctx.s, ctx.caller.id, body.year)
+    if p is not None:
+        raise refuse("year", "plan-exists", "This year has its plan; change it.", 409)
+    ctx.s.add(GivingPlan(id=record_id, ownerId=ctx.caller.id, **values))
+
+
+def _gplan_editable(ctx, record_id: str) -> GivingPlan:
+    p = ctx.s.get(GivingPlan, record_id)
+    if p is None or p.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _, lvl = giving.plan_for(ctx.s, ctx.caller.id, p.year)
+    if access.RANK.get(lvl or "", 0) < access.RANK["write"]:
+        raise Problem(403, "read-only", "This plan is shared with you to read.")
+    return p
+
+
+def _gplan_update(ctx, p: GivingPlan, body: GivingPlanRecord) -> None:
+    if body.year != p.year:
+        raise refuse("year", "plan-fixed", "A plan keeps its year.")
+    for k, v in _plan_checked(body).items():
+        setattr(p, k, v)
+    p.updatedAt = clock.now()
+
+
+def _gplan_read(ctx, record_id: str) -> PlanOut:
+    p = ctx.s.get(GivingPlan, record_id)
+    _, lvl = giving.plan_for(ctx.s, ctx.caller.id, p.year)
+    return _plan_out(ctx.s, p, lvl or "owner")
+
+
+class OrganisationRecord(OrganisationIn):
+    """An organisation as a draft saves it (S7.9.5)."""
+
+
+def _org_create(ctx, record_id: str, body: OrganisationRecord) -> None:
+    ctx.s.add(Organisation(id=record_id, ownerId=ctx.caller.id, **_org_values(body)))
+
+
+def _org_update(ctx, o: Organisation, body: OrganisationRecord) -> None:
+    for k, v in _org_values(body).items():
+        setattr(o, k, v)
+    o.updatedAt = clock.now()
+
+
+class DonationRecord(DonationIn):
+    """A donation as a draft saves it (S7.9.2): recorded whole; afterwards only what changes
+    after the fact does, the acknowledgement arriving (its file among `receiptIds`), a grant
+    paid, the organisation, notes."""
+
+    receiptIds: list[IdOf("Rcpt")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+
+
+AFTER = ("acknowledged", "granted", "notes", "organisationId", "receiptIds")
+
+
+def _donation_create(ctx, record_id: str, body: DonationRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    d = _record(s, c, body, record_id)
+    if body.receiptIds:
+        receipts.keep_set(s, c.id, "donation", d.id, [], body.receiptIds)
+    activity.record(s, "donation.recorded", actor=c.id, owner=c.id)
+
+
+def _donation_current(ctx, d: Donation) -> dict:
+    out = {f: getattr(d, f, None) for f in DonationIn.model_fields}
+    out["amount"] = d.amount
+    out["receiptIds"] = [r.id for r in receipts.of_item(ctx.s, d.id, "donation")]
+    return out
+
+
+def _donation_update(ctx, d: Donation, body: DonationRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    current = _donation_current(ctx, d)
+    fixed = [
+        f for f in DonationRecord.model_fields if f not in AFTER and getattr(body, f) != current[f]
+    ]
+    if fixed:
+        raise refuse(
+            fixed[0], "donation-fixed", "Recorded, a donation changes only after the fact."
+        )
+    d.acknowledged = body.acknowledged
+    if d.kind == "daf-grant" and body.granted is not None:
+        d.granted = body.granted
+    d.notes = body.notes or None
+    if body.organisationId != current["organisationId"] and d.kind != "daf-contribution":
+        d.organisationId = _org_of(s, c, body.organisationId, d.date.year).id
+    if body.receiptIds != current["receiptIds"]:
+        receipts.keep_set(s, c.id, "donation", d.id, current["receiptIds"], body.receiptIds)
+        if set(body.receiptIds) - set(current["receiptIds"]):
+            d.acknowledged = True  # the acknowledgement's file: it has arrived
+    d.updatedAt = clock.now()
+
+
+save.register(
+    save.Kind(
+        prefix="GvPln",
+        entity=GivingPlan,
+        fields=GivingPlanRecord,
+        create=_gplan_create,
+        editable=_gplan_editable,
+        current=lambda ctx, p: {f: getattr(p, f) for f in PlanIn.model_fields},
+        update=_gplan_update,
+        delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
+        read=_gplan_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Orgzn",
+        entity=Organisation,
+        fields=OrganisationRecord,
+        create=_org_create,
+        editable=lambda ctx, record_id: _own_org(ctx.s, ctx.caller, record_id),
+        current=lambda ctx, o: {
+            **{f: getattr(o, f) for f in OrganisationIn.model_fields if f != "causes"},
+            "causes": json.loads(o.causes or "[]"),
+        },
+        update=_org_update,
+        delete=lambda ctx, o: o.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: next(
+            x for x in _orgs_view(ctx.s, ctx.caller) if x.id == record_id
+        ),
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Dnatn",
+        entity=Donation,
+        fields=DonationRecord,
+        create=_donation_create,
+        editable=lambda ctx, record_id: _own(ctx.s, ctx.caller, record_id),
+        current=_donation_current,
+        update=_donation_update,
+        delete=lambda ctx, d: d.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: _out(ctx.s, ctx.caller, ctx.s.get(Donation, record_id)),
+    )
+)

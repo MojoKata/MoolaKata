@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, or_, select
 
-from .. import access, activity, assets, clock, exactjson, ids, loans
+from .. import access, activity, assets, clock, exactjson, loans
 from ..errors import FieldError, Problem, refuse
 from ..loans import payoff
 from ..projections import assumptions
@@ -19,21 +19,18 @@ from ..store.entities.accounts import (
     Category,
     Loan,
     PayoffPlan,
-    Split,
     Transaction,
 )
 from ..store.entities.assets import Item
+from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
+    IdOf,
     Model,
     Money,
     Rate,
     Ratio,
     ResetRate,
-    check,
-    gone,
-    if_match,
 )
 from .deps import Caller, caller, server
 
@@ -99,6 +96,7 @@ class TermsOut(Model):
     budgetCounting: str
     budgetCategoryId: str | None
     computedPayment: Money
+    id: str
     version: int
 
 
@@ -165,21 +163,10 @@ class LoanView(Model):
     version: int = 0  # the loan's terms: 0 until they are set (S13.8.6)
 
 
-class PaymentIn(Model):
-    date: dt.date
-    amount: Money
-    fromAccountId: str | None = None  # a bank account: its half of the transfer is made too
-    transactionId: str | None = None  # or an existing bank transaction to link
-    # A split typed from the servicer's statement; else the schedule's.
-    principal: Money | None = None
-    interest: Money | None = None
-    escrowTax: Money | None = None
-    escrowInsurance: Money | None = None
-    pmi: Money | None = None
-    fees: Money | None = None
-
-
 class SplitOut(Model):
+    """How the schedule splits a payment (S1.9.3), and the category each part is recorded in;
+    the overpayment is principal beyond the schedule's, part of `principal`."""
+
     principal: Money
     interest: Money
     escrowTax: Money
@@ -187,6 +174,7 @@ class SplitOut(Model):
     pmi: Money
     fees: Money
     overpayment: Money
+    categories: dict[str, str]
 
 
 class Candidate(Model):
@@ -224,6 +212,7 @@ def _terms_out(row: Loan) -> TermsOut:
         budgetCounting=row.budgetCounting,
         budgetCategoryId=row.budgetCategoryId,
         computedPayment=loans.scheduled_payment(t),
+        id=row.id,
         version=row.version,
     )
 
@@ -355,70 +344,54 @@ def get_loan(account_id: str, request: Request, c: Caller = Depends(caller)):
         return view(s, a, lvl)
 
 
-@router.put("/accounts/{account_id}/loan", response_model=LoanView)
-def put_terms(
-    account_id: str,
-    body: TermsIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """The terms, set when the loan is made and corrected later (an ARM's resets, a recast)."""
+def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
+    """The terms' columns, checked as the account's own route checks them."""
     errors = _check(body)
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        if body.securedById:
-            it = s.get(Item, body.securedById)
-            if it is None or it.deleted:
-                raise refuse("securedById", "not-found", "No such property or vehicle.")
-            access.account(s, c.id, it.accountId, "read")
-        if body.budgetCategoryId:
-            cat = s.get(Category, body.budgetCategoryId)
-            if cat is None or cat.deleted or cat.kind == "transfer":
-                raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
-        row = loans.loan_of(s, a)
-        check(row, version, lambda: view(s, a, lvl))
-        values = {
-            "principal": body.principal,
-            "startDate": body.startDate,
-            "termMonths": body.termMonths,
-            "rate": body.rate,
-            "method": body.method,
-            "payment": body.payment,
-            "escrowTax": body.escrowTax,
-            "escrowInsurance": body.escrowInsurance,
-            "pmi": body.pmi,
-            "drawMonths": body.drawMonths,
-            "resets": exactjson.dumps(
-                [{"date": r.date.isoformat(), "rate": str(r.rate)} for r in body.resets]
-            ),
-            "recasts": exactjson.dumps(
-                [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
-            ),
-            "originalValue": body.originalValue,
-            "securedById": body.securedById,
-            "budgetCounting": body.budgetCounting,
-            "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
-        }
-        if row is None:
-            s.add(Loan(id=ids.new_id("Loan"), accountId=a.id, **values))
-        else:
-            for k, v in values.items():
-                setattr(row, k, v)
-            row.updatedAt = clock.now()
-        activity.record(
-            s,
-            "account.updated",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-            detail={"fields": ["terms"]},
-        )
-        s.flush()
-        return view(s, a, lvl)
+    if body.securedById:
+        it = s.get(Item, body.securedById)
+        if it is None or it.deleted:
+            raise refuse("securedById", "not-found", "No such property or vehicle.")
+        access.account(s, c.id, it.accountId, "read")
+    if body.budgetCategoryId:
+        cat = s.get(Category, body.budgetCategoryId)
+        if cat is None or cat.deleted or cat.kind == "transfer":
+            raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+    return {
+        "principal": body.principal,
+        "startDate": body.startDate,
+        "termMonths": body.termMonths,
+        "rate": body.rate,
+        "method": body.method,
+        "payment": body.payment,
+        "escrowTax": body.escrowTax,
+        "escrowInsurance": body.escrowInsurance,
+        "pmi": body.pmi,
+        "drawMonths": body.drawMonths,
+        "resets": exactjson.dumps(
+            [{"date": r.date.isoformat(), "rate": str(r.rate)} for r in body.resets]
+        ),
+        "recasts": exactjson.dumps(
+            [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+        ),
+        "originalValue": body.originalValue,
+        "securedById": body.securedById,
+        "budgetCounting": body.budgetCounting,
+        "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
+    }
+
+
+def _changed_terms(s, c: Caller, a: Account) -> None:
+    activity.record(
+        s,
+        "account.updated",
+        actor=c.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+        detail={"fields": ["terms"]},
+    )
 
 
 def _categories(s) -> dict[str, str]:
@@ -426,16 +399,26 @@ def _categories(s) -> dict[str, str]:
     return {c.builtIn: c.id for c in s.scalars(select(Category).where(Category.builtIn.in_(keys)))}
 
 
-@router.post("/accounts/{account_id}/loan/split", response_model=SplitOut)
-def suggest_split(account_id: str, body: PaymentIn, request: Request, c: Caller = Depends(caller)):
-    """How the schedule would split a payment of this amount on this day."""
+@router.get("/accounts/{account_id}/loan/split", response_model=SplitOut)
+def suggest_split(
+    account_id: str,
+    request: Request,
+    date: dt.date,
+    amount: Money,
+    c: Caller = Depends(caller),
+):
+    """How the schedule would split a payment of this amount on this day: the parts a payment's
+    draft records, a split of its transaction (S1.9.3)."""
+    if amount <= 0:
+        raise refuse("amount", "amount-invalid", "A payment is more than zero.")
     with server(request).db.read() as s:
         a, _ = _account(s, c, account_id)
         row = loans.loan_of(s, a)
         if row is None:
             raise Problem(409, "no-terms", "Set the loan's terms first.")
         payments, draws = loans.history(s, a)
-        p = loans.split_for(loans.terms_of(row), payments, draws, body.date, body.amount)
+        p = loans.split_for(loans.terms_of(row), payments, draws, date, amount)
+        cats = _categories(s)
         return SplitOut(
             principal=p.principal,
             interest=p.interest,
@@ -444,92 +427,8 @@ def suggest_split(account_id: str, body: PaymentIn, request: Request, c: Caller 
             pmi=p.pmi,
             fees=p.fees,
             overpayment=p.overpayment,
+            categories={part: cats[key] for part, key in loans.PARTS.items() if key in cats},
         )
-
-
-@router.post("/accounts/{account_id}/loan/payments", response_model=LoanView, status_code=201)
-def add_payment(account_id: str, body: PaymentIn, request: Request, c: Caller = Depends(caller)):
-    """A payment on the loan, split into its parts. With a bank account, its half of the
-    transfer is made as well; with a bank transaction, that one is linked (S1.9.3)."""
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "A payment is more than zero.")
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        row = loans.loan_of(s, a)
-        if row is None:
-            raise Problem(409, "no-terms", "Set the loan's terms first.")
-        payments, draws = loans.history(s, a)
-        p = loans.split_for(loans.terms_of(row), payments, draws, body.date, body.amount)
-        typed = [
-            f
-            for f in ("principal", "interest", "escrowTax", "escrowInsurance", "pmi", "fees")
-            if getattr(body, f) is not None
-        ]
-        if typed:
-            for f in ("principal", "interest", "escrowTax", "escrowInsurance", "pmi", "fees"):
-                setattr(p, f, getattr(body, f) or Decimal(0))
-            parts = p.principal + p.interest + p.escrowTax + p.escrowInsurance + p.pmi + p.fees
-            if parts != body.amount:
-                raise refuse(
-                    "principal",
-                    "split-does-not-add-up",
-                    f"The parts come to {parts:,.2f}, not {body.amount:,.2f}.",
-                )
-        other = None
-        if body.transactionId:
-            other = s.get(Transaction, body.transactionId)
-            if other is None or other.deleted or other.transferId:
-                raise refuse("transactionId", "not-found", "That bank transaction isn't free.")
-            access.account(s, c.id, other.accountId, "write")
-            if other.amount != -body.amount:
-                raise refuse("amount", "amount-mismatch", "The amounts differ.")
-        elif body.fromAccountId:
-            access.account(s, c.id, body.fromAccountId, "write")
-            other = Transaction(
-                id=ids.new_id("Txn"),
-                accountId=body.fromAccountId,
-                date=body.date,
-                kind="transfer",
-                amount=-body.amount,
-                payee=a.name,
-                createdById=c.id,
-            )
-            s.add(other)
-        txn = Transaction(
-            id=ids.new_id("Txn"),
-            accountId=a.id,
-            date=body.date,
-            kind="transfer" if other else "deposit",
-            amount=body.amount,
-            payee="Payment",
-            createdById=c.id,
-        )
-        s.add(txn)
-        s.flush()
-        if other is not None:
-            txn.transferId, other.transferId = other.id, txn.id
-        cats = _categories(s)
-        for part, key in loans.PARTS.items():
-            amount = getattr(p, part)
-            if amount:
-                s.add(
-                    Split(
-                        id=ids.new_id("Split"),
-                        transactionId=txn.id,
-                        amount=amount,
-                        categoryId=cats.get(key),
-                    )
-                )
-        activity.record(
-            s,
-            "loan.payment",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        s.flush()
-        return view(s, a, lvl)
 
 
 @router.get("/accounts/{account_id}/loan/candidates", response_model=list[Candidate])
@@ -845,32 +744,6 @@ def _check_name(name: str) -> str:
     return name
 
 
-@router.post("/accounts/{account_id}/loan/plans", response_model=SavedPlan, status_code=201)
-def save_plan(account_id: str, body: SavedPlanIn, request: Request, c: Caller = Depends(caller)):
-    name = _check_name(body.name)
-    _check_plan(body.inputs)
-    with server(request).db.tx() as s:
-        a, _ = _account(s, c, account_id, "write")
-        p = PayoffPlan(
-            id=ids.new_id("Pyoff"),
-            accountId=a.id,
-            name=name,
-            inputs=exactjson.unmark(body.inputs.model_dump_json()),
-            createdById=c.id,
-        )
-        s.add(p)
-        s.flush()
-        activity.record(
-            s,
-            "loan.plan-saved",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        return _saved(s, c, a, p)
-
-
 def _get_plan(s, c: Caller, account_id: str, plan_id: str) -> tuple[Account, PayoffPlan]:
     a, _ = _account(s, c, account_id, "write")
     p = s.get(PayoffPlan, plan_id)
@@ -879,61 +752,18 @@ def _get_plan(s, c: Caller, account_id: str, plan_id: str) -> tuple[Account, Pay
     return a, p
 
 
-@router.patch("/accounts/{account_id}/loan/plans/{plan_id}", response_model=SavedPlan)
-def change_plan(
-    account_id: str,
-    plan_id: str,
-    body: SavedPlanIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    name = _check_name(body.name)
-    _check_plan(body.inputs)
-    with server(request).db.tx() as s:
-        a, p = _get_plan(s, c, account_id, plan_id)
-        check(p, version, lambda: _saved(s, c, a, p))
-        p.name = name
-        p.inputs = exactjson.unmark(body.inputs.model_dump_json())
-        p.updatedAt = clock.now()
-        s.flush()
-        return _saved(s, c, a, p)
-
-
-@router.delete("/accounts/{account_id}/loan/plans/{plan_id}", response_model=Deleted[None])
-def delete_plan(
-    account_id: str,
-    plan_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        a, p = _get_plan(s, c, account_id, plan_id)
-        check(p, version, lambda: _saved(s, c, a, p))
-        p.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(p))
-
-
 class FollowIn(Model):
     following: bool
 
 
-@router.put("/accounts/{account_id}/loan/plans/{plan_id}/following", response_model=SavedPlan)
+@router.post("/accounts/{account_id}/loan/plans/{plan_id}/follow", response_model=SavedPlan)
 def follow_plan(
-    account_id: str,
-    plan_id: str,
-    body: FollowIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
+    account_id: str, plan_id: str, body: FollowIn, request: Request, c: Caller = Depends(caller)
 ):
-    """Marks the plan being followed, tracked from today; the one followed before stops. Made
-    against the plan's version."""
+    """Marks the plan being followed, tracked from today, or stops following it; the one
+    followed before stops. An action: it changes every plan of the loan."""
     with server(request).db.tx() as s:
         a, p = _get_plan(s, c, account_id, plan_id)
-        check(p, version, lambda: _saved(s, c, a, p))
         for other in _plans(s, a):
             if other.following and other.id != p.id:
                 other.following, other.followingSince = False, None
@@ -943,3 +773,149 @@ def follow_plan(
             p.following, p.followingSince = False, None
         s.flush()
         return _saved(s, c, a, p)
+
+
+# ---------- a loan's terms and its saved plans in a draft (S12.15, S13.8.11) ----------
+
+
+class LoanRecord(TermsIn):
+    """A loan's terms as a draft saves them: set when the loan is made, corrected later (an
+    ARM's resets, a recast)."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+
+
+TERM_FIELDS = tuple(f for f in TermsIn.model_fields if f not in ("resets", "recasts"))
+
+
+def _loan_account(ctx, account_id: str) -> Account:
+    return _account(ctx.s, ctx.caller, account_id, "write")[0]
+
+
+def _loan_create(ctx, record_id: str, body: LoanRecord) -> None:
+    a = _loan_account(ctx, body.accountId)
+    if loans.loan_of(ctx.s, a) is not None:
+        raise refuse("accountId", "loan-exists", "This loan has its terms; change them.", 409)
+    ctx.s.add(Loan(id=record_id, accountId=a.id, **_terms(ctx.s, ctx.caller, a, body)))
+    _changed_terms(ctx.s, ctx.caller, a)
+
+
+def _loan_editable(ctx, record_id: str) -> Loan:
+    row = ctx.s.get(Loan, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _loan_account(ctx, row.accountId)
+    return row
+
+
+def _loan_current(ctx, row: Loan) -> dict:
+    return {
+        "accountId": row.accountId,
+        "resets": exactjson.loads(row.resets or "[]"),
+        "recasts": exactjson.loads(row.recasts or "[]"),
+        **{f: getattr(row, f) for f in TERM_FIELDS},
+    }
+
+
+def _loan_update(ctx, row: Loan, body: LoanRecord) -> None:
+    if body.accountId != row.accountId:
+        raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+    a = _loan_account(ctx, row.accountId)
+    for k, v in _terms(ctx.s, ctx.caller, a, body).items():
+        setattr(row, k, v)
+    row.updatedAt = clock.now()
+    _changed_terms(ctx.s, ctx.caller, a)
+
+
+def _loan_delete(ctx, row: Loan) -> None:
+    raise refuse(None, "loan-delete", "A loan keeps its terms; delete the account instead.")
+
+
+def _loan_read(ctx, record_id: str) -> LoanView:
+    row = ctx.s.get(Loan, record_id)
+    a, lvl = _account(ctx.s, ctx.caller, row.accountId)
+    return view(ctx.s, a, lvl)
+
+
+class PayoffRecord(SavedPlanIn):
+    """A saved overpayment plan as a draft saves it (S1.9.6)."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+
+
+def _payoff_create(ctx, record_id: str, body: PayoffRecord) -> None:
+    name = _check_name(body.name)
+    _check_plan(body.inputs)
+    a = _loan_account(ctx, body.accountId)
+    ctx.s.add(
+        PayoffPlan(
+            id=record_id,
+            accountId=a.id,
+            name=name,
+            inputs=exactjson.unmark(body.inputs.model_dump_json()),
+            createdById=ctx.caller.id,
+        )
+    )
+    activity.record(
+        ctx.s,
+        "loan.plan-saved",
+        actor=ctx.caller.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+    )
+
+
+def _payoff_editable(ctx, record_id: str) -> PayoffPlan:
+    p = ctx.s.get(PayoffPlan, record_id)
+    if p is None or p.deleted:
+        raise Problem(404, "not-found", "No such plan.")
+    _loan_account(ctx, p.accountId)
+    return p
+
+
+def _payoff_update(ctx, p: PayoffPlan, body: PayoffRecord) -> None:
+    if body.accountId != p.accountId:
+        raise refuse("accountId", "plan-fixed", "A plan stays with its loan.")
+    _check_plan(body.inputs)
+    p.name = _check_name(body.name)
+    p.inputs = exactjson.unmark(body.inputs.model_dump_json())
+    p.updatedAt = clock.now()
+
+
+def _payoff_read(ctx, record_id: str) -> SavedPlan:
+    p = ctx.s.get(PayoffPlan, record_id)
+    a, _ = _account(ctx.s, ctx.caller, p.accountId)
+    return _saved(ctx.s, ctx.caller, a, p)
+
+
+save.register(
+    save.Kind(
+        prefix="Loan",
+        entity=Loan,
+        fields=LoanRecord,
+        create=_loan_create,
+        editable=_loan_editable,
+        current=_loan_current,
+        update=_loan_update,
+        delete=_loan_delete,
+        read=_loan_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Pyoff",
+        entity=PayoffPlan,
+        fields=PayoffRecord,
+        create=_payoff_create,
+        editable=_payoff_editable,
+        current=lambda ctx, p: {
+            "accountId": p.accountId,
+            "name": p.name,
+            "inputs": exactjson.loads(p.inputs),
+        },
+        update=_payoff_update,
+        delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
+        read=_payoff_read,
+    )
+)

@@ -6,23 +6,21 @@ import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, assets, clock, ids, loans, receipts, valuation
+from .. import access, activity, assets, clock, loans, receipts, valuation
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation
+from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
-    Gone,
+    IdOf,
     Model,
     Money,
     Quantity,
     Ratio,
-    check,
-    gone,
-    if_match,
 )
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
@@ -177,16 +175,6 @@ class ImprovementIn(Model):
     amount: Money
 
 
-class SaleIn(Model):
-    soldOn: dt.date
-    proceeds: Money
-    fees: Money = Decimal(0)
-
-
-class DocumentIn(Model):
-    receiptId: str
-
-
 def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, str]:
     a, lvl = access.account(s, c.id, account_id, need)
     if not assets.is_physical(a.type):
@@ -221,6 +209,12 @@ def _secured(s, item_ids: list[str], day: dt.date) -> dict[str, list[SecuredLoan
 def _valuation_out(v: ItemValuation) -> ValuationOut:
     return ValuationOut(
         id=v.id, date=v.date, value=v.value, source=v.source, note=v.note, version=v.version
+    )
+
+
+def _improvement_out(m: Improvement) -> ImprovementOut:
+    return ImprovementOut(
+        id=m.id, date=m.date, description=m.description, amount=m.amount, version=m.version
     )
 
 
@@ -338,16 +332,7 @@ def detail(s, c: Caller, it: Item, a: Account, lvl: str) -> ItemDetail:
         spot=sp.price if sp else None,
         spotAsOf=sp.asOf if sp else None,
         valuations=[_valuation_out(v) for v in reversed(d.valuations)],
-        improvements=[
-            ImprovementOut(
-                id=m.id,
-                date=m.date,
-                description=m.description,
-                amount=m.amount,
-                version=m.version,
-            )
-            for m in reversed(d.improvements)
-        ],
+        improvements=[_improvement_out(m) for m in reversed(d.improvements)],
         documents=[
             receipt_row(s, r, receipts.level(s, c.id, r) or "read", c.id)
             for r in receipts.of_item(s, it.id)
@@ -442,212 +427,11 @@ def list_items(account_id: str, request: Request, c: Caller = Depends(caller)):
         return view(s, a, lvl)
 
 
-@router.post("/accounts/{account_id}/items", response_model=ItemDetail, status_code=201)
-def add_item(account_id: str, body: ItemIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        values = _values(body, a.type)
-        it = Item(id=ids.new_id("Item"), accountId=a.id, createdById=c.id, **values)
-        s.add(it)
-        if it.metal:
-            assets.metal_instrument(s, it.metal)  # so the refresh prices its spot
-        s.flush()
-        _record(s, "item.added", c, a)
-        return detail(s, c, it, a, lvl)
-
-
 @router.get("/items/{item_id}", response_model=ItemDetail)
 def get_item(item_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
         it, a, lvl = _item(s, c, item_id)
         return detail(s, c, it, a, lvl)
-
-
-@router.patch("/items/{item_id}", response_model=ItemDetail)
-def change_item(
-    item_id: str,
-    body: ItemIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        check(it, version, lambda: detail(s, c, it, a, lvl))
-        for k, v in _values(body, a.type).items():
-            setattr(it, k, v)
-        if it.metal:
-            assets.metal_instrument(s, it.metal)
-        it.updatedAt = clock.now()
-        s.flush()
-        _record(s, "item.changed", c, a)
-        return detail(s, c, it, a, lvl)
-
-
-@router.delete("/items/{item_id}", response_model=Deleted[None])
-def delete_item(
-    item_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        check(it, version, lambda: detail(s, c, it, a, lvl))
-        it.mark_deleted(c.id)
-        _record(s, "item.deleted", c, a)
-        s.flush()
-        return Deleted[None](deleted=gone(it))
-
-
-@router.post("/items/{item_id}/valuations", response_model=ItemDetail, status_code=201)
-def add_valuation(item_id: str, body: ValuationIn, request: Request, c: Caller = Depends(caller)):
-    if body.value < 0:
-        raise refuse("value", "amount-invalid", "Zero or more.")
-    if body.source not in SOURCES:
-        raise refuse("source", "source-invalid", "Appraisal, sale, guide or estimate.")
-    if body.date > clock.today():
-        raise refuse("date", "date-ahead", "Not after today.")
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        s.add(
-            ItemValuation(
-                id=ids.new_id("Valtn"),
-                itemId=it.id,
-                date=body.date,
-                value=body.value,
-                source=body.source,
-                note=_clean(body.note),
-                createdById=c.id,
-            )
-        )
-        s.flush()
-        return detail(s, c, it, a, lvl)
-
-
-@router.delete("/items/{item_id}/valuations/{valuation_id}", response_model=Deleted[ItemDetail])
-def delete_valuation(
-    item_id: str,
-    valuation_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        v = s.get(ItemValuation, valuation_id)
-        if v is None or v.deleted or v.itemId != it.id:
-            raise Problem(404, "not-found", "No such valuation.")
-        check(v, version, lambda: detail(s, c, it, a, lvl))
-        v.mark_deleted(c.id)
-        s.flush()
-        return Deleted[ItemDetail](deleted=gone(v), parent=detail(s, c, it, a, lvl))
-
-
-@router.post("/items/{item_id}/improvements", response_model=ItemDetail, status_code=201)
-def add_improvement(
-    item_id: str, body: ImprovementIn, request: Request, c: Caller = Depends(caller)
-):
-    if not body.description.strip():
-        raise refuse("description", "description-missing", "What was done.")
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "More than zero.")
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        s.add(
-            Improvement(
-                id=ids.new_id("Imprv"),
-                itemId=it.id,
-                date=body.date,
-                description=body.description.strip(),
-                amount=body.amount,
-                createdById=c.id,
-            )
-        )
-        s.flush()
-        return detail(s, c, it, a, lvl)
-
-
-@router.delete("/items/{item_id}/improvements/{improvement_id}", response_model=Deleted[ItemDetail])
-def delete_improvement(
-    item_id: str,
-    improvement_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        m = s.get(Improvement, improvement_id)
-        if m is None or m.deleted or m.itemId != it.id:
-            raise Problem(404, "not-found", "No such improvement.")
-        check(m, version, lambda: detail(s, c, it, a, lvl))
-        m.mark_deleted(c.id)
-        s.flush()
-        return Deleted[ItemDetail](deleted=gone(m), parent=detail(s, c, it, a, lvl))
-
-
-@router.put("/items/{item_id}/sale", response_model=ItemDetail)
-def sell(
-    item_id: str,
-    body: SaleIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Records the sale: the gain or loss is realized, and the item leaves the account's value
-    from that day (S1.10.5). The sale is part of the item, so it is made against its version."""
-    if body.proceeds < 0 or body.fees < 0:
-        raise refuse("proceeds" if body.proceeds < 0 else "fees", "amount-invalid", "Zero or more.")
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        check(it, version, lambda: detail(s, c, it, a, lvl))
-        if body.soldOn < it.acquiredOn:
-            raise refuse("soldOn", "sold-before-bought", "On or after the day it was acquired.")
-        if body.soldOn > clock.today():
-            raise refuse("soldOn", "date-ahead", "Not after today.")
-        it.soldOn, it.proceeds, it.saleFees = body.soldOn, body.proceeds, body.fees
-        it.updatedAt = clock.now()
-        s.flush()
-        _record(s, "item.sold", c, a)
-        return detail(s, c, it, a, lvl)
-
-
-@router.delete("/items/{item_id}/sale", response_model=Deleted[ItemDetail])
-def unsell(
-    item_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        check(it, version, lambda: detail(s, c, it, a, lvl))
-        it.soldOn = it.proceeds = it.saleFees = None
-        it.updatedAt = clock.now()
-        s.flush()
-        return Deleted[ItemDetail](
-            deleted=Gone(id=f"{it.id}/sale", deletedAt=clock.now()), parent=detail(s, c, it, a, lvl)
-        )
-
-
-@router.post("/items/{item_id}/documents", response_model=ItemDetail)
-def attach_document(item_id: str, body: DocumentIn, request: Request, c: Caller = Depends(caller)):
-    """A photo or document (an uploaded receipt) kept with the item: a purchase receipt, an
-    appraisal, a certificate, a title."""
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        r = receipts.to_attach(s, c.id, body.receiptId)
-        receipts.attach_item(s, c.id, r, it)
-        return detail(s, c, it, a, lvl)
-
-
-@router.delete("/items/{item_id}/documents/{receipt_id}", response_model=Deleted[ItemDetail])
-def detach_document(item_id: str, receipt_id: str, request: Request, c: Caller = Depends(caller)):
-    """A receipt's link to the item: a pair with no version of its own (S13.8.6)."""
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        r, _ = receipts.get(s, c.id, receipt_id)
-        receipts.detach_item(s, c.id, r, it)
-        s.flush()
-        return Deleted[ItemDetail](
-            deleted=Gone(id=f"{r.id}/{it.id}", deletedAt=clock.now()),
-            parent=detail(s, c, it, a, lvl),
-        )
 
 
 class Securable(Model):
@@ -680,3 +464,239 @@ def securable(request: Request, c: Caller = Depends(caller)):
             )
             for i in rows
         ]
+
+
+# ---------- items, their valuations and improvements in a draft (S12.15, S13.8.11) ----------
+
+
+class ItemRecord(ItemIn):
+    """An item as a draft saves it, with its sale (S1.10.5) and the photos and documents kept
+    with it (`receiptIds`, a set of uploaded receipts). Its valuations and improvements are
+    records of their own."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    soldOn: dt.date | None = None
+    proceeds: Money | None = None
+    saleFees: Money | None = None
+    receiptIds: list[IdOf("Rcpt")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+
+
+class ValuationRecord(ValuationIn):
+    itemId: IdOf("Item")  # type: ignore[valid-type]
+
+
+class ImprovementRecord(ImprovementIn):
+    itemId: IdOf("Item")  # type: ignore[valid-type]
+
+
+ITEM_FIELDS = tuple(f for f in ItemIn.model_fields if f != "purity")
+
+
+def _sale_values(it: Item, body: ItemRecord) -> dict:
+    """Recorded, the gain or loss is realized and the item leaves the account's value from
+    that day (S1.10.5); taken away, it is held again."""
+    if body.soldOn is None:
+        return {"soldOn": None, "proceeds": None, "saleFees": None}
+    proceeds, fees = body.proceeds or Decimal(0), body.saleFees or Decimal(0)
+    if proceeds < 0 or fees < 0:
+        raise refuse("proceeds" if proceeds < 0 else "saleFees", "amount-invalid", "Zero or more.")
+    if body.soldOn < body.acquiredOn:
+        raise refuse("soldOn", "sold-before-bought", "On or after the day it was acquired.")
+    if body.soldOn > clock.today():
+        raise refuse("soldOn", "date-ahead", "Not after today.")
+    return {"soldOn": body.soldOn, "proceeds": proceeds, "saleFees": fees}
+
+
+def _documents(s, c: Caller, it: Item, was: list[str], now: list[str]) -> None:
+    for receipt_id in sorted(set(now) - set(was)):
+        receipts.attach_item(s, c.id, receipts.to_attach(s, c.id, receipt_id, "receiptIds"), it)
+    for receipt_id in sorted(set(was) - set(now)):
+        r, _ = receipts.get(s, c.id, receipt_id)
+        receipts.detach_item(s, c.id, r, it)
+
+
+def _attached(s, it: Item) -> list[str]:
+    return sorted(r.id for r in receipts.of_item(s, it.id))
+
+
+def _item_create(ctx, record_id: str, body: ItemRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    a, _ = _account(s, c, body.accountId, "write")
+    it = Item(id=record_id, accountId=a.id, createdById=c.id, **_values(body, a.type))
+    s.add(it)
+    if it.metal:
+        assets.metal_instrument(s, it.metal)  # so the refresh prices its spot
+    s.flush()
+    for k, v in _sale_values(it, body).items():
+        setattr(it, k, v)
+    _documents(s, c, it, [], body.receiptIds)
+    _record(s, "item.added", c, a)
+
+
+def _item_editable(ctx, record_id: str) -> Item:
+    return _item(ctx.s, ctx.caller, record_id, "write")[0]
+
+
+def _item_current(ctx, it: Item) -> dict:
+    return {
+        "accountId": it.accountId,
+        "purity": str(it.purity) if it.purity is not None else None,
+        "soldOn": it.soldOn,
+        "proceeds": it.proceeds,
+        "saleFees": it.saleFees,
+        "receiptIds": _attached(ctx.s, it),
+        **{f: getattr(it, f) for f in ITEM_FIELDS},
+    }
+
+
+def _item_update(ctx, it: Item, body: ItemRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if body.accountId != it.accountId:
+        raise refuse("accountId", "item-fixed", "An item stays in its account.")
+    _, a, _ = _item(s, c, it.id, "write")
+    sold = it.soldOn
+    for k, v in {**_values(body, a.type), **_sale_values(it, body)}.items():
+        setattr(it, k, v)
+    if it.metal:
+        assets.metal_instrument(s, it.metal)
+    it.updatedAt = clock.now()
+    _documents(s, c, it, _attached(s, it), body.receiptIds)
+    _record(s, "item.sold" if it.soldOn and not sold else "item.changed", c, a)
+
+
+def _item_delete(ctx, it: Item) -> None:
+    """Its valuations and improvements go with it (schema.md §4)."""
+    _, a, _ = _item(ctx.s, ctx.caller, it.id, "write")
+    it.mark_deleted(ctx.caller.id)
+    _record(ctx.s, "item.deleted", ctx.caller, a)
+
+
+def _item_read(ctx, record_id: str) -> ItemDetail:
+    it, a, lvl = _item(ctx.s, ctx.caller, record_id)
+    return detail(ctx.s, ctx.caller, it, a, lvl)
+
+
+def _valuation_create(ctx, record_id: str, body: ValuationRecord) -> None:
+    if body.value < 0:
+        raise refuse("value", "amount-invalid", "Zero or more.")
+    if body.source not in SOURCES:
+        raise refuse("source", "source-invalid", "Appraisal, sale, guide or estimate.")
+    if body.date > clock.today():
+        raise refuse("date", "date-ahead", "Not after today.")
+    it, _, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
+    ctx.s.add(
+        ItemValuation(
+            id=record_id,
+            itemId=it.id,
+            date=body.date,
+            value=body.value,
+            source=body.source,
+            note=_clean(body.note),
+            createdById=ctx.caller.id,
+        )
+    )
+
+
+def _part_of_item(entity, what: str):
+    """Read for a change: a valuation's or an improvement's item, written by the caller."""
+
+    def editable(ctx, record_id: str):
+        x = ctx.s.get(entity, record_id)
+        if x is None or x.deleted:
+            raise Problem(404, "not-found", f"No such {what}.")
+        _item(ctx.s, ctx.caller, x.itemId, "write")
+        return x
+
+    return editable
+
+
+def _valuation_update(ctx, v: ItemValuation, body: ValuationRecord) -> None:
+    if body.itemId != v.itemId:
+        raise refuse("itemId", "valuation-fixed", "A valuation stays with its item.")
+    if body.value < 0:
+        raise refuse("value", "amount-invalid", "Zero or more.")
+    if body.source not in SOURCES:
+        raise refuse("source", "source-invalid", "Appraisal, sale, guide or estimate.")
+    v.date, v.value, v.source, v.note = body.date, body.value, body.source, _clean(body.note)
+
+
+def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
+    if not body.description.strip():
+        raise refuse("description", "description-missing", "What was done.")
+    if body.amount <= 0:
+        raise refuse("amount", "amount-invalid", "More than zero.")
+    it, _, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
+    ctx.s.add(
+        Improvement(
+            id=record_id,
+            itemId=it.id,
+            date=body.date,
+            description=body.description.strip(),
+            amount=body.amount,
+            createdById=ctx.caller.id,
+        )
+    )
+
+
+def _improvement_update(ctx, m: Improvement, body: ImprovementRecord) -> None:
+    if body.itemId != m.itemId:
+        raise refuse("itemId", "improvement-fixed", "An improvement stays with its item.")
+    if not body.description.strip():
+        raise refuse("description", "description-missing", "What was done.")
+    if body.amount <= 0:
+        raise refuse("amount", "amount-invalid", "More than zero.")
+    m.date, m.description, m.amount = body.date, body.description.strip(), body.amount
+
+
+save.register(
+    save.Kind(
+        prefix="Item",
+        entity=Item,
+        fields=ItemRecord,
+        create=_item_create,
+        editable=_item_editable,
+        current=_item_current,
+        update=_item_update,
+        delete=_item_delete,
+        read=_item_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Valtn",
+        entity=ItemValuation,
+        fields=ValuationRecord,
+        create=_valuation_create,
+        editable=_part_of_item(ItemValuation, "valuation"),
+        current=lambda ctx, v: {
+            "itemId": v.itemId,
+            "date": v.date,
+            "value": v.value,
+            "source": v.source,
+            "note": v.note,
+        },
+        update=_valuation_update,
+        delete=lambda ctx, v: v.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: _valuation_out(ctx.s.get(ItemValuation, record_id)),
+    )
+)
+save.register(
+    save.Kind(
+        prefix="Imprv",
+        entity=Improvement,
+        fields=ImprovementRecord,
+        create=_improvement_create,
+        editable=_part_of_item(Improvement, "improvement"),
+        current=lambda ctx, m: {
+            "itemId": m.itemId,
+            "date": m.date,
+            "description": m.description,
+            "amount": m.amount,
+        },
+        update=_improvement_update,
+        delete=lambda ctx, m: m.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: _improvement_out(ctx.s.get(Improvement, record_id)),
+    )
+)

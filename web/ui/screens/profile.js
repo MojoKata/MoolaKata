@@ -1,6 +1,6 @@
 // Profile (requirements S12.2.16): name, sex, birthday and relationships (S10.10), email,
 // avatar, password, two-step sign-in (S10.1.6), time zone, theme and alert emails.
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { date } from '../app/format.js';
@@ -18,6 +18,32 @@ import { loadSession, session } from '../store/session.js';
 import { AccessTokens } from '../components/tokens.js';
 import { Connections } from '../components/connections.js';
 import { num } from '../app/dec.js';
+import { Record as Rec } from '../app/draft.js';
+import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
+import { asFields, DAY } from './gifts.js';
+import { FIELDS } from '../api/fields.js';
+
+/** The user's own assumptions (S6.3), as their form's draft edits them. */
+class AsmRec extends Rec {
+  /** @override */
+  static prefix = 'Asmpt';
+  /** @override */
+  static fields = FIELDS.AssumptionsRecord;
+}
+
+/** The user's own record (S12.2.16), as Profile's draft edits it. */
+class ProfileRec extends Rec {
+  /** @override */
+  static prefix = 'User';
+  /** @override */
+  static fields = FIELDS.UserRecord;
+}
+
+/** A birthday typed as one field, kept as its person's month, day and year. */
+const readBirthday = (/** @type {string} */ t) => {
+  const r = DAY.read(t);
+  return 'error' in r ? r : { value: asFields(r.value, 'birth') };
+};
 
 export default function Profile() {
   useTitle('Profile');
@@ -25,50 +51,13 @@ export default function Profile() {
   const res = useApi('/profile');
   const zones = useApi('/timezones');
   const p = /** @type {any} */ (res.data);
-  const [f, setF] = useState(/** @type {any} */ (null));
-  useEffect(() => {
-    if (p) {
-      setF({
-        displayName: p.displayName,
-        timeZone: p.timeZone,
-        theme: p.theme,
-        sex: p.sex,
-        birthday: p.birthMonth
-          ? `${p.birthYear || ''}-${String(p.birthMonth).padStart(2, '0')}-${
-            String(p.birthDay).padStart(2, '0')
-          }`.replace(/^-/, '')
-          : '',
-        alertEmails: p.alertEmails,
-        bitcoinUnit: p.bitcoinUnit,
-        avatar: p.avatar,
-      });
-    }
-  }, [p]);
-  const save = useSubmit(async () => {
-    const m = String(f.birthday || '').trim().match(/^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/);
-    await api.patch('/profile', {
-      displayName: f.displayName,
-      timeZone: f.timeZone,
-      theme: f.theme,
-      sex: f.sex,
-      birthMonth: m ? Number(m[2]) : null,
-      birthDay: m ? Number(m[3]) : null,
-      birthYear: m && m[1] ? Number(m[1]) : null,
-      alertEmails: f.alertEmails,
-      bitcoinUnit: f.bitcoinUnit,
-      avatar: f.avatar,
-    }, p.version);
-    theme.value = f.theme;
-    applyTheme();
-    toast('Saved');
-    res.reload();
-    loadSession();
-  });
+  const fd = useDraft((draft) => {
+    if (p) draft.load(ProfileRec, p);
+  }, [p?.id, p?.version]);
+  const rec = /** @type {ProfileRec | undefined} */ (fd.draft?.records[0]);
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!p || !f) return html`<${Loading} lines=${8} />`;
+  if (!p || !rec) return html`<${Loading} lines=${8} />`;
   const z = /** @type {any} */ (zones.data);
-  const set = (/** @type {string} */ k) => (/** @type {any} */ v) => setF({ ...f, [k]: v });
-  const e = save.error;
   const pickAvatar = (/** @type {any} */ ev) => {
     const file = ev.currentTarget.files?.[0];
     if (!file) return;
@@ -89,77 +78,67 @@ export default function Profile() {
         128,
         128,
       );
-      setF({ ...f, avatar: c.toDataURL('image/webp', 0.85) });
+      rec.set('avatar', c.toDataURL('image/webp', 0.85));
       URL.revokeObjectURL(img.src);
     };
     img.src = URL.createObjectURL(file);
   };
+  const birthday = rec.typed('birthday') ??
+    DAY.show(rec.get('birthYear'), rec.get('birthMonth'), rec.get('birthDay'));
   return html`
     <div class="grid g2">
-      <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-        ev.preventDefault();
-        save.run().catch(() => {});
-      }}><h3>Profile</h3>
-          <div class="acct-row" style=${{ marginBottom: '14px' }}><${Avatar} name=${f
-            .displayName} image=${f.avatar} id=${p.id} />
+      <${DraftForm} f=${fd} class="card" where="Profile" what="Your profile"
+        saved=${() => {
+          theme.value = rec.get('theme');
+          applyTheme();
+          toast('Saved');
+          res.reload();
+          loadSession();
+        }}><h3>Profile</h3>
+          <div class="acct-row" style=${{ marginBottom: '14px' }}><${Avatar} name=${rec.get(
+            'displayName',
+          )} image=${rec.get('avatar')} id=${p.id} />
             <label class="btn sm" for="f-avatar">Change avatar</label>
             <input id="f-avatar" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange=${pickAvatar} />
-            ${f.avatar
+            ${rec.get('avatar')
               ? html`<button type="button" class="btn sm" onClick=${() =>
-                setF({ ...f, avatar: null })}>Remove</button>`
+                rec.set('avatar', null)}>Remove</button>`
               : null}</div>
-          ${errAt(e, 'avatar') ? html`<div class="err">${errAt(e, 'avatar')}</div>` : null}
-          <${Field} label="Display name" error=${errAt(e, 'displayName')}><${Input} value=${f
-            .displayName} onInput=${set('displayName')} required /></${Field}>
-          <${Field} label="Time zone" error=${errAt(e, 'timeZone')} hint="Times show in it.">
-            <${Select} value=${f.timeZone} onChange=${set('timeZone')} options=${[[
+          ${rec.error('avatar') ? html`<div class="err">${rec.error('avatar')}</div>` : null}
+          <${RecField} rec=${rec} name="displayName" label="Display name" />
+          <${RecField} rec=${rec} name="timeZone" label="Time zone" hint="Times show in it."
+            options=${[[
               'auto',
               `Auto: the server's (${z?.server || '…'})`,
-            ], ...(z?.zones || []).map((/** @type {string} */ x) => [x, x])]} /></${Field}>
-          <${Field} label="Theme" error=${errAt(e, 'theme')}><${Select} value=${f
-            .theme} onChange=${set('theme')}
-            options=${[['dark', 'Dark'], ['light', 'Light'], [
-              'system',
-              "The system's",
-            ]]} /></${Field}>
+            ], ...(z?.zones || []).map((/** @type {string} */ x) => [x, x])]} />
+          <${RecField} rec=${rec} name="theme" label="Theme" options=${[['dark', 'Dark'], [
+            'light',
+            'Light',
+          ], ['system', "The system's"]]} />
           <div class="row">
-            <${Field} label="Sex" error=${errAt(e, 'sex')}><${Select} value=${f.sex}
-              onChange=${set('sex')} options=${[['female', 'Female'], [
-                'male',
-                'Male',
-              ]]} /></${Field}>
-            <${Field} label="Birthday" error=${errAt(e, 'birthDay') || errAt(e, 'birthYear')}
+            <${RecField} rec=${rec} name="sex" label="Sex" options=${[['female', 'Female'], [
+              'male',
+              'Male',
+            ]]} />
+            <${Field} label="Birthday" error=${rec.error('birthday') || rec.error('birthDay') ||
+              rec.error('birthMonth') || rec.error('birthYear')}
               hint="1979-04-12. For catch-up limits, RMDs and your age in projections."><${Input}
-              value=${f.birthday} onInput=${set('birthday')} placeholder="YYYY-MM-DD" /></${Field}>
+              value=${birthday} placeholder="YYYY-MM-DD" onInput=${(/** @type {string} */ v) =>
+                rec.inputAs('birthday', v, readBirthday)} /></${Field}>
           </div>
-          <${Field} label="Alert emails" error=${errAt(
-            e,
-            'alertEmails',
-          )} hint="Alerts always show in MoolaKata; this is only about email.">
-            <${Select} value=${f.alertEmails} onChange=${set('alertEmails')} options=${[
+          <${RecField} rec=${rec} name="alertEmails" label="Alert emails"
+            hint="Alerts always show in MoolaKata; this is only about email." options=${[
               ['each', 'Each alert'],
               ['daily', 'A daily summary'],
               ['none', 'None'],
-            ]} /></${Field}>
-          <${Field} label="Bitcoin in" id="bitcoin-unit" error=${errAt(e, 'bitcoinUnit')}
-            hint="How amounts of bitcoin are shown; they are kept to the sat either way.">
-            <${Select} value=${f.bitcoinUnit} onChange=${set('bitcoinUnit')} options=${[
+            ]} />
+          <${RecField} rec=${rec} name="bitcoinUnit" label="Bitcoin in" id="bitcoin-unit"
+            hint="How amounts of bitcoin are shown; they are kept to the sat either way."
+            options=${[
               ['btc', 'BTC: 0.12345678 BTC'],
               ['sats', 'Sats: 12,345,678 sats'],
-            ]} /></${Field}>
-          <${FormError} error=${e} shown=${[
-            'displayName',
-            'timeZone',
-            'theme',
-            'sex',
-            'birthDay',
-            'birthYear',
-            'alertEmails',
-            'bitcoinUnit',
-            'avatar',
-          ]} />
-          <button class="btn primary" disabled=${save.busy}>Save</button>
-        </form>
+            ]} />
+        </${DraftForm}>
         <div class="grid" style=${{ alignContent: 'start' }}>
           <${Relations} p=${p} reload=${res.reload} />
           <${Email} p=${p} reload=${res.reload} />
@@ -273,6 +252,26 @@ const KINDS = /** @type {[string, string][]} */ ([
   ['family', 'Family of'],
 ]);
 
+/** A relationship (S10.10.4), as a draft makes, changes or removes it. */
+class RelRec extends Rec {
+  /** @override */
+  static prefix = 'Rltn';
+  /** @override */
+  static fields = FIELDS.RelationshipRecord;
+}
+
+/** A relationship as read, in its record's fields. @param {any} r */
+const stored = (r) => ({
+  id: r.id,
+  version: r.version,
+  person1Id: r.person1.id,
+  person2Id: r.person2.id,
+  relation: r.relation,
+  label: r.label,
+  fromDate: r.fromDate,
+  toDate: r.toDate,
+});
+
 /** @param {{ close: (v?: any) => void, me: string, r: any }} props */
 function RelationshipDialog({ close, me, r }) {
   useDialogGuide('dialog-relationship');
@@ -296,6 +295,7 @@ function RelationshipDialog({ close, me, r }) {
     };
   };
   const [f, setF] = useState(start);
+  const [was] = useState(() => JSON.stringify(f));
   const set = (/** @type {string} */ k) => (/** @type {any} */ v) => setF({ ...f, [k]: v });
   const save = useSubmit(async () => {
     // "Child of" runs from the other person to the first; the rest from the first.
@@ -312,13 +312,16 @@ function RelationshipDialog({ close, me, r }) {
       fromDate: f.fromDate || null,
       toDate: f.toDate || null,
     };
-    if (r) await api.patch(`/relationships/${r.id}`, body, r.version);
-    else await api.post('/relationships', body);
+    await saveNow((d) => {
+      if (!r) return void d.add(RelRec, body);
+      const rec = d.load(RelRec, stored(r));
+      for (const [k, v] of Object.entries(body)) rec.set(k, v);
+    });
     toast('Saved');
     close(true);
   });
   const remove = useSubmit(async () => {
-    await api.del(`/relationships/${r.id}`, r.version);
+    await saveNow((d) => d.remove(d.load(RelRec, stored(r))));
     toast('Relationship removed');
     close(true);
   });
@@ -329,15 +332,16 @@ function RelationshipDialog({ close, me, r }) {
     <${Dialog} title=${r ? 'A relationship' : 'Add a relationship'} close=${close} onSubmit=${() =>
       save.run().catch(
         () => {},
-      )} footer=${html`${
-      r
-        ? html`
-          <button type="button" class="btn danger" disabled=${remove.busy}
-            onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
-          ></span>
-        `
-        : null
-    }<button class="btn primary" disabled=${save.busy}>${r ? 'Save' : 'Add'}</button>`}>
+      )} changed=${() => JSON.stringify(f) !== was}
+      footer=${html`${
+        r
+          ? html`
+            <button type="button" class="btn danger" disabled=${remove.busy}
+              onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
+            ></span>
+          `
+          : null
+      }<button class="btn primary" disabled=${save.busy}>${r ? 'Save' : 'Add'}</button>`}>
       <p class="small dim" style=${{ marginTop: 0 }}>Mothers, grandparents, cousins and in-laws
         are worked out from these. A divorce is the marriage's end date.</p>
       ${admin
@@ -508,7 +512,7 @@ function TwoStep({ p, reload }) {
     reload();
   };
   const turnOff = async () => {
-    await api.del('/profile/two-step', p.version);
+    await api.post('/profile/two-step/off');
     toast('Two-step sign-in is off');
     reload();
   };
@@ -619,17 +623,17 @@ function RecoveryCodes({ close, codes, fresh }) {
 function Assumptions() {
   const res = useApi('/assumptions');
   const v = /** @type {any} */ (res.data);
-  const [f, setF] = useState(/** @type {any} */ (null));
-  useEffect(() => {
-    if (v) setF(structuredClone(v.figures));
-  }, [v]);
-  const save = useSubmit(async () => {
-    await api.put('/assumptions', f, v.version);
-    toast('Saved · projections recompute when opened');
-    res.reload();
-  });
-  if (!v || !f) return null;
-  const e = save.error;
+  // The shipped figures until the user changes one: then their own are made (S6.3).
+  const fd = useDraft((draft) => {
+    if (!v) return;
+    if (v.id) draft.load(AsmRec, v);
+    else draft.add(AsmRec, { figures: v.figures }, { optional: true });
+  }, [v?.id, v?.version]);
+  const rec = /** @type {AsmRec | undefined} */ (fd.draft?.records[0]);
+  if (!v || !rec) return null;
+  const f = rec.get('figures');
+  const setF = (/** @type {any} */ next) => rec.set('figures', next);
+  const err = (/** @type {string} */ k) => rec.error(`figures.${k}`);
   const setClass = (/** @type {string} */ k, /** @type {string} */ field) =>
   (
     /** @type {string} */ x,
@@ -639,10 +643,13 @@ function Assumptions() {
     setF(next);
   };
   return html`
-    <form class="card mt" id="assumptions" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${fd} class="card mt" where="Assumptions" what="Your assumptions"
+      saved=${() => {
+        toast('Saved · projections recompute when opened');
+        res.reload();
+      }} extra=${() =>
+        html`<button type="button" class="linklike" onClick=${() =>
+          openDialog(BitcoinModels, {})}>Compare models</button>`}>
       <h3>Assumptions<span class="spacer"></span><span class="small dim" style=${{
         fontWeight: 400,
       }}>used by all your projections</span></h3>
@@ -665,32 +672,32 @@ function Assumptions() {
                           aria-label=${label + ' expected return'} value=${f.classes[k].return ??
                             ''}
                           onInput=${(/** @type {any} */ ev) =>
-                            setClass(k, 'return')(ev.currentTarget.value)} />${errAt(
-                              e,
+                            setClass(k, 'return')(ev.currentTarget.value)} />${err(
                               `classes.${k}.return`,
                             )
-                            ? html`<div class="err">${errAt(e, `classes.${k}.return`)}</div>`
+                            ? html`<div class="err">${err(`classes.${k}.return`)}</div>`
                             : null}</td>
               <td class="num"><input class="in num" style=${{
                 maxWidth: '90px',
               }} data-help="volatility"
                           aria-label=${label + ' volatility'} value=${f.classes[k].volatility ?? ''}
                           onInput=${(/** @type {any} */ ev) =>
-                            setClass(k, 'volatility')(ev.currentTarget.value)} /></td>
+                            setClass(k, 'volatility')(ev.currentTarget.value)} />${err(
+                              `classes.${k}.volatility`,
+                            )
+                            ? html`<div class="err">${err(`classes.${k}.volatility`)}</div>`
+                            : null}</td>
             </tr>
           `
         )}</tbody>
       </table>
       <div class="row mt">
-        <${Field} label="General inflation (%)" id="general-inflation" error=${errAt(
-          e,
-          'inflation',
-        )}>
+        <${Field} label="General inflation (%)" id="general-inflation" error=${err('inflation')}>
           <${Input} value=${f.inflation} inputmode="decimal" onInput=${(/** @type {string} */ x) =>
             setF({ ...f, inflation: Number(x) })} />
           </${Field}>
           <${Field} label="Education inflation (%)" id="education-inflation"
-            error=${errAt(e, 'educationInflation')}>
+            error=${err('educationInflation')}>
             <${Input} value=${f.educationInflation} inputmode="decimal" onInput=${(
               /** @type {string} */ x,
             ) => setF({ ...f, educationInflation: Number(x) })} />
@@ -701,11 +708,7 @@ function Assumptions() {
               <${Select} value=${f.bitcoinModel} onChange=${(/** @type {string} */ x) =>
                 setF({ ...f, bitcoinModel: x })} options=${v.bitcoinModels} />
               </${Field}>
-              <${FormError} error=${e} />
-              <div class="toolbar"><button class="btn primary" disabled=${save.busy}>Save</button>
-        <button type="button" class="linklike" onClick=${() =>
-          openDialog(BitcoinModels, {})}>Compare models</button></div>
-              </form>
+              </${DraftForm}>
   `;
 }
 

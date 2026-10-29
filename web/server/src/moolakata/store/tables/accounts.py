@@ -193,12 +193,16 @@ Rule = record(
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE")),
     Column("categoryId", Text, ForeignKey("Category.id")),
     Column("payee", Text),
-    Column("tags", Text, nullable=False, server_default=text("'[]'")),
     CheckConstraint("direction IN ('any', 'in', 'out')", name="direction"),
-    CheckConstraint(
-        "\"categoryId\" IS NOT NULL OR payee IS NOT NULL OR tags != '[]'", name="sets_something"
-    ),
     Index("ix_Rule_owner", "ownerId", "position"),
+)
+
+# The tags a rule sets on what it matches, its owner's (Tag).
+RuleTags = pairs(
+    "RuleTags",
+    Column("ruleId", Text, ForeignKey("Rule.id", ondelete="CASCADE"), nullable=False),
+    Column("tagId", Text, ForeignKey("Tag.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("ruleId", "tagId"),
 )
 
 # What statement import has learned of one institution's layout (S1.3.3): which section
@@ -228,6 +232,25 @@ Import = record(
     # kept: a statement kept without reading (S1.3.3.6), its period recorded, nothing added.
     _in("format", ("ofx", "csv", "statement", "kept"), "format"),
     Index("ix_Import_accountId", "accountId"),
+)
+
+# A corporate action on a holding (S2.4): a split, a symbol change, a spin-off or a merger, as
+# typed; the transactions that reshape or move its lots are made from it, and go with it.
+CorporateAction = record(
+    "CorporateAction",
+    "CorpA",
+    Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
+    Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("date", Day, nullable=False),
+    Column("ratio", Dec),  # new shares for each one held
+    Column("newSymbol", Text),
+    Column("basisShare", Dec),  # a spin-off: the percent of basis that moves
+    Column("cashPerShare", Cents),  # a merger's cash for each share held
+    Column("newPrice", Dec),  # a new share's price that day, for a merger's cash
+    Column("createdById", Text, ForeignKey("User.id")),
+    _in("kind", ("split", "symbol-change", "spin-off", "merger"), "kind"),
+    Index("ix_CorporateAction_accountId", "accountId"),
 )
 
 Transaction = record(
@@ -275,6 +298,8 @@ Transaction = record(
     # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
     Column("reimbursable", Cents),
     Column("owedBy", Text),
+    # The corporate action it was made from (S2.4), deleted with it.
+    Column("corporateActionId", Text, ForeignKey("CorporateAction.id")),
     _in("kind", TXN_KINDS, "kind"),
     CheckConstraint(
         '"dividendType" IS NULL OR "dividendType" IN (\'ordinary\', '
@@ -294,6 +319,7 @@ Transaction = record(
         '"duplicateAnswer" IS NULL OR "duplicateAnswer" = \'both-real\'', name="duplicate_answer"
     ),
     Index("ix_Transaction_account_date", "accountId", "date"),
+    Index("ix_Transaction_corporateActionId", "corporateActionId"),
     Index("ix_Transaction_instrument", "instrumentId"),
 )
 unique_live(Transaction, "accountId", "fitId")
@@ -325,12 +351,23 @@ Reimbursement = record(
     Index("ix_Reimbursement_paybackId", "paybackId"),
 )
 
+# A user's own tag (S2.6): its name, lower case, once a user; transactions, receipts and the
+# tags a rule sets refer to it, so a rename reaches them all.
+Tag = record(
+    "Tag",
+    "Tag",
+    Column("ownerId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
+    Column("name", Text, nullable=False),
+)
+unique_live(Tag, "ownerId", "name")
+
+# A transaction tagged: each tag its owner's, so each person sees only their own (S2.6).
 TransactionTags = pairs(
     "TransactionTags",
     Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
-    Column("userId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
-    Column("tag", Text, nullable=False),
-    PrimaryKeyConstraint("transactionId", "userId", "tag"),
+    Column("tagId", Text, ForeignKey("Tag.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("transactionId", "tagId"),
+    Index("ix_TransactionTags_tag", "tagId"),
 )
 
 Lot = record(
@@ -347,13 +384,14 @@ Lot = record(
     Index("ix_Lot_account_instrument", "accountId", "instrumentId"),
 )
 
-LotPicks = pairs(
-    "LotPicks",
+LotPick = record(
+    "LotPick",
+    "LotPk",
     Column("saleId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("lotId", Text, ForeignKey("Lot.id", ondelete="CASCADE"), nullable=False),
     Column("quantity", Dec, nullable=False),
-    PrimaryKeyConstraint("saleId", "lotId"),
 )
+unique_live(LotPick, "saleId", "lotId")
 
 Holding = record(
     "Holding",

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, make, new_id, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -39,8 +40,8 @@ def retirement(c, **inputs):
             **inputs,
         },
     }
-    r = c.post("/ui/api/projections", json=body)
-    assert r.status_code == 201, r.text
+    r = make(c, "Prjct", **body)
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -64,30 +65,28 @@ def test_retiring_later_makes_the_money_more_likely_to_last(alice):
 
 
 def test_a_savings_target_says_how_likely_and_what_would_do_it(alice):
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "House deposit",
-            "goal": "savings",
-            "builtOn": {"kind": "typed", "amount": 38200, "allocation": {"cash": 100}},
-            "inputs": {"target": 60000, "date": "2028-10-01", "monthly": 300},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="House deposit",
+        goal="savings",
+        builtOn={"kind": "typed", "amount": 38200, "allocation": {"cash": 100}},
+        inputs={"target": 60000, "date": "2028-10-01", "monthly": 300},
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     a = r.json()["result"]["answer"]
     assert a["chance"] < 0.5, "300 a month falls short"
     assert 800 < a["neededMonthly"] < 1000
 
 
 def test_inputs_are_checked(alice):
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "",
-            "goal": "lottery",
-            "builtOn": {"kind": "accounts", "ids": ["Acct_nope"]},
-            "inputs": {"fees": 9, "date": "2001-01-01"},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="",
+        goal="lottery",
+        builtOn={"kind": "accounts", "ids": ["Acct_nope"]},
+        inputs={"fees": 9, "date": "2001-01-01"},
     )
     assert r.status_code == 422
     assert {e["field"] for e in r.json()["errors"]} >= {
@@ -102,14 +101,13 @@ def test_inputs_are_checked(alice):
 def test_built_on_accounts_starts_from_their_value(alice):
     acct = new_account(alice, name="Savings", type="savings")
     add(alice, acct["id"], "12000.00", "2026-10-01")
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Car",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [acct["id"]]},
-            "inputs": {"target": 20000, "date": "2028-01-01", "monthly": 250},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="Car",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [acct["id"]]},
+        inputs={"target": 20000, "date": "2028-01-01", "monthly": 250},
     )
     res = r.json()["result"]
     assert res["start"] == 12000.0 and res["weights"] == {"cash": 1.0}
@@ -129,25 +127,27 @@ def test_one_active_plan_per_subject_and_its_baseline(alice):
     assert got["tracking"]["status"] == "untracked", "a typed amount has nothing to track"
     # Changing inputs keeps the baseline unless asked to re-baseline.
     base = got["result"]["percentiles"]["50"]
-    r = alice.patch(
-        f"/ui/api/projections/{b['id']}",
-        json={"inputs": {**got["inputs"], "fees": 1.0}},
-        headers={"If-Match": f'"{got["version"]}"'},
+    r = change(alice, "Prjct", got, inputs={**got["inputs"], "fees": 1.0})
+    assert saved(r)["result"]["percentiles"]["50"] != base
+    assert saved(r)["baselineAt"] == got["baselineAt"]
+    clock.fix(dt.datetime(2026, 10, 13, 12, 5, tzinfo=dt.UTC))
+    r = change(alice, "Prjct", saved(r), inputs={**got["inputs"], "fees": 0.5}, rebaseline=True)
+    assert saved(r)["baselineAt"] == "2026-10-13T12:05:00Z"
+    assert change(alice, "Prjct", saved(r), goal="education").json()["errors"][0]["code"] == (
+        "goal-fixed"
     )
-    assert r.status_code == 200 and r.json()["result"]["percentiles"]["50"] != base
 
 
 def test_tracking_against_the_band_and_the_alert_when_behind(server, alice):
     acct = new_account(alice, name="Brokerage cash", type="savings")
     add(alice, acct["id"], "100000.00", "2026-10-01")
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Nest egg",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [acct["id"]]},
-            "inputs": {"target": 150000, "date": "2030-01-01", "monthly": 500},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="Nest egg",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [acct["id"]]},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 500},
     )
     pid = r.json()["id"]
     alice.post(f"/ui/api/projections/{pid}/activate")
@@ -168,13 +168,15 @@ def test_assumptions_are_each_users_and_checked(alice):
     figures = got["figures"]
     assert figures["inflation"] == 2.5 and figures["classes"]["usStocks"]["return"] == 7.0
     figures["classes"]["usStocks"]["return"] = 6.0
-    assert alice.put("/ui/api/assumptions", json=figures).status_code == 200
-    assert (
-        alice.get("/ui/api/assumptions").json()["figures"]["classes"]["usStocks"]["return"] == 6.0
-    )
-    figures["inflation"] = 40
-    r = alice.put("/ui/api/assumptions", json=figures)
-    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "inflation"
+    op = {"op": "create", "entity": "Asmpt", "id": new_id("Asmpt"), "fields": {"figures": figures}}
+    mine = saved(alice.post("/ui/api/save", json={"ops": [op]}))
+    assert mine["figures"]["classes"]["usStocks"]["return"] == 6.0
+    r = change(alice, "Asmpt", mine, figures={**figures, "inflation": 40})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "figures.inflation"
+    # Deleted, the shipped figures stand again.
+    assert remove(alice, "Asmpt", mine).status_code == 200
+    got = alice.get("/ui/api/assumptions").json()
+    assert got["id"] is None and got["figures"]["classes"]["usStocks"]["return"] == 7.0
 
 
 def test_bitcoin_models_compare(alice):
@@ -190,19 +192,21 @@ def test_tax_tables_ship_and_can_be_corrected(server, frozen, admin_client):
     assert t["year"] == 2026
     ira = next(r for r in t["rows"] if r["key"] == "iraLimit")
     assert ira["value"] == 7500 and not ira["corrected"]
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2026, "values": {"iraLimit": 8000}}
-    )
-    assert next(x for x in r.json()["rows"] if x["key"] == "iraLimit")["corrected"]
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2026, "values": {"btcArk2030": [1, 2]}}
-    )
-    assert r.status_code == 422
-    # The shipped value again removes the correction.
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2026, "values": {"iraLimit": 7500}}
-    )
-    assert not next(x for x in r.json()["rows"] if x["key"] == "iraLimit")["corrected"]
+    fig = {"year": 2026, "key": "iraLimit", "value": 8000}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fig}
+    t = saved(admin_client.post("/ui/api/save", json={"ops": [op]}))
+    ira = next(x for x in t["rows"] if x["key"] == "iraLimit")
+    assert ira["corrected"] and ira["value"] == 8000
+    bad = {"year": 2026, "key": "btcArk2030", "value": [1, 2]}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": bad}
+    assert admin_client.post("/ui/api/save", json={"ops": [op]}).status_code == 422
+    # The shipped value is no correction; deleting the correction puts it back.
+    correction = {"id": ira["figureId"], "version": ira["version"]}
+    r = change(admin_client, "TaxFg", correction, value=7500)
+    assert r.json()["errors"][0]["code"] == "figure-shipped"
+    assert remove(admin_client, "TaxFg", correction).status_code == 200
+    t = admin_client.get("/ui/api/settings/tax-tables").json()
+    assert not next(x for x in t["rows"] if x["key"] == "iraLimit")["corrected"]
 
 
 def test_a_bitcoin_model_with_cases_gives_three_paths(server, alice):
@@ -220,18 +224,8 @@ def test_a_bitcoin_model_with_cases_gives_three_paths(server, alice):
         bitcoinModel="ark",
     )
     # A typed amount with some crypto in it.
-    r = alice.patch(
-        f"/ui/api/projections/{p['id']}",
-        json={
-            "builtOn": {
-                "kind": "typed",
-                "amount": 100000,
-                "allocation": {"usStocks": 80, "crypto": 20},
-            }
-        },
-        headers={"If-Match": f'"{p["version"]}"'},
-    )
-    sc = r.json()["result"]["scenarios"]
+    typed = {"kind": "typed", "amount": 100000, "allocation": {"usStocks": 80, "crypto": 20}}
+    sc = saved(change(alice, "Prjct", p, builtOn=typed))["result"]["scenarios"]
     assert set(sc) == {"bear", "base", "bull"}
     assert sc["bear"][-1] < sc["base"][-1] < sc["bull"][-1]
 
@@ -280,9 +274,9 @@ def test_every_year_a_book_may_cover_has_its_own_figures(admin_client):
     rows = {r["key"]: r["value"] for r in t["rows"]}
     assert rows["iraLimit"] == 5500 and rows["giftExclusion"] == 14000
     assert "collegePublic" not in rows and "btcArk2030" not in rows
-    r = admin_client.put(
-        "/ui/api/settings/tax-tables", json={"year": 2016, "values": {"collegePublic": 1}}
-    )
+    fig = {"year": 2016, "key": "collegePublic", "value": 1}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fig}
+    r = admin_client.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "figure-not-of-year"
 
 
@@ -297,18 +291,17 @@ def test_the_tracking_floor_is_a_minimum_width():
 
 def test_the_years_a_projection_runs_are_bounded(alice):
     # A birth year centuries back, or a date a thousand years on, would stall the server.
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Far",
-            "goal": "retirement",
-            "builtOn": {"kind": "typed", "amount": "1000"},
-            "inputs": {
-                "people": [{"birthYear": 1000}, {"birthYear": 1980}, {"birthYear": 1990}],
-                "income": [{"fromAge": 900, "monthly": 10}],
-                "date": "3026-01-01",
-                "firstYear": 9999,
-            },
+    r = make(
+        alice,
+        "Prjct",
+        name="Far",
+        goal="retirement",
+        builtOn={"kind": "typed", "amount": "1000"},
+        inputs={
+            "people": [{"birthYear": 1000}, {"birthYear": 1980}, {"birthYear": 1990}],
+            "income": [{"fromAge": 900, "monthly": 10}],
+            "date": "3026-01-01",
+            "firstYear": 9999,
         },
     )
     assert r.status_code == 422
@@ -318,14 +311,13 @@ def test_the_years_a_projection_runs_are_bounded(alice):
         "inputs.date",
         "inputs.firstYear",
     }
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Old",
-            "goal": "retirement",
-            "builtOn": {"kind": "typed", "amount": "1000"},
-            "inputs": {"people": [{"birthYear": 1800}]},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="Old",
+        goal="retirement",
+        builtOn={"kind": "typed", "amount": "1000"},
+        inputs={"people": [{"birthYear": 1800}]},
     )
     assert r.json()["errors"][0]["field"] == "inputs.people.0.birthYear"
 
@@ -336,23 +328,39 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, alice):
     own = new_account(alice, name="Alice's savings", type="savings")
     add(alice, shared["id"], "1000.00", "2026-10-01")
     add(alice, own["id"], "9000.00", "2026-10-01")
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "House",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [shared["id"], own["id"]]},
-            "inputs": {"target": 50000, "date": "2030-01-01", "monthly": 500},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="House",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [shared["id"], own["id"]]},
+        inputs={"target": 50000, "date": "2030-01-01", "monthly": 500},
     )
     pid = r.json()["id"]
     alice.post(f"/ui/api/projections/{pid}/activate")
     bob = make_user(server, "bob")
     for kind, item in (("projection", pid), ("account", shared["id"])):
-        r = alice.put(f"/ui/api/shares/{kind}/{item}", json={"users": {bob.id: "read"}})
+        r = share(alice, kind, item, users={bob.id: "read"})
         assert r.status_code == 200, r.text
     mine = alice.get(f"/ui/api/projections/{pid}").json()["tracking"]
     assert mine["band"] and Decimal(str(mine["points"][-1][1])) == 10000
     theirs = sign_in(server, "bob").get(f"/ui/api/projections/{pid}").json()["tracking"]
     assert theirs["partial"] and theirs["band"] == [] and theirs["status"] == mine["status"]
     assert Decimal(str(theirs["points"][-1][1])) == 1000, "only the joint account's balance"
+
+
+def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server, alice):
+    # S6.8.3: a set of the receiver's own record, through the save.
+    p = retirement(alice)
+    alice.post(f"/ui/api/projections/{p['id']}/activate")
+    bob_user = make_user(server, "bob")
+    assert share(alice, "projection", p["id"], users={bob_user.id: "read"}).status_code == 200
+    bob = sign_in(server, "bob")
+    assert bob.get(f"/ui/api/projections/{p['id']}").json()["shown"] is False
+    me = bob.get("/ui/api/profile").json()
+    saved(change(bob, "User", me, shownProjectionIds=[p["id"]]))
+    assert bob.get(f"/ui/api/projections/{p['id']}").json()["shown"] is True
+    assert bob.get("/ui/api/profile").json()["shownProjectionIds"] == [p["id"]]
+    me = alice.get("/ui/api/profile").json()
+    r = change(alice, "User", me, shownProjectionIds=[p["id"]])
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "owner-sees-it"

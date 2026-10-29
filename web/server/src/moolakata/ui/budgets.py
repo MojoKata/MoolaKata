@@ -19,14 +19,10 @@ from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine, BudgetMo
 from ..store.entities.users import User
 from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
     IdOf,
     Model,
     Money,
-    check,
-    gone,
-    if_match,
     stale,
 )
 from .deps import Caller, caller, server
@@ -65,22 +61,6 @@ class BudgetRow(Model):
     roles: list[RoleOut]
     active: bool  # the one the caller follows; the others are scenarios (S7.12)
     version: int
-
-
-class NewBudget(Model):
-    name: str
-    accountIds: list[str] = Field(default_factory=list)
-    method: str = "tracking"
-    reserves: bool = False
-    moves: bool = False
-
-
-class BudgetChange(Model):
-    name: str | None = None
-    accountIds: list[str] | None = None
-    reserves: bool | None = None
-    moves: bool | None = None
-    roles: list[RoleIn] | None = None
 
 
 class MonthRow(Model):
@@ -165,14 +145,6 @@ class WhereView(Model):
     sayToMove: bool  # only the active budget says what to move (S7.12.2)
     heldIn: list[HeldInOut]
     cards: list[CardOut]
-
-
-class GiveIn(Model):
-    """Landed money given to a reserve, spread among those held there, or kept (S7.10.5)."""
-
-    transactionId: str
-    to: str  # a reserve's category id, "spread" or "own"
-    amount: Money
 
 
 class CopyIn(Model):
@@ -301,10 +273,6 @@ class InBudget(Model):
     countsAs: str | None  # the category's path, or none when uncategorised
     leftOut: bool
     canWrite: bool
-
-
-class LeaveOutIn(Model):
-    leftOut: bool
 
 
 class CardLine(Model):
@@ -547,8 +515,7 @@ def get_budget(budget_id: str, request: Request, c: Caller = Depends(caller)):
         return shape(s, b, lvl, c.id)
 
 
-@router.post("/budgets", response_model=BudgetRow, status_code=201)
-def create_budget(body: NewBudget, request: Request, c: Caller = Depends(caller)):
+def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
     if body.method not in ("tracking", "envelope"):
         raise Problem(
             422,
@@ -556,99 +523,63 @@ def create_budget(body: NewBudget, request: Request, c: Caller = Depends(caller)
             "Tracking or envelope.",
             [FieldError("method", "method-invalid", "Tracking or envelope.")],
         )
-    with server(request).db.tx() as s:
-        _raise(_check(s, c.id, body))
-        b = Budget(
-            id=ids.new_id("Bdgt"),
-            ownerId=c.id,
-            name=body.name.strip(),
-            method=body.method,
-            reserves=body.reserves,
-            # An envelope budget always has moves (S7.1.4).
-            moves=body.moves or body.method == "envelope",
-            startMonth=budgets.month_of(clock.today()),
-        )
-        s.add(b)
-        s.flush()
-        _set_accounts(s, b, body.accountIds, c.id)
-        # A user's first budget is the one they follow (S7.12.1).
-        if budgets.active_id(s, c.id) is None:
-            s.get(User, c.id).activeBudgetId = b.id
-        activity.record(
-            s, "budget.created", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
-        )
-        s.flush()
-        out = shape(s, b, "owner", c.id)
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/budgets/{b.id}"},
+    _raise(_check(s, c.id, body))
+    b = Budget(
+        id=budget_id,
+        ownerId=c.id,
+        name=body.name.strip(),
+        method=body.method,
+        reserves=body.reserves,
+        # An envelope budget always has moves (S7.1.4).
+        moves=body.moves or body.method == "envelope",
+        startMonth=budgets.month_of(clock.today()),
     )
+    s.add(b)
+    s.flush()
+    _set_accounts(s, b, body.accountIds, c.id)
+    # A user's first budget is the one they follow (S7.12.1).
+    if budgets.active_id(s, c.id) is None:
+        s.get(User, c.id).activeBudgetId = b.id
+    activity.record(
+        s, "budget.created", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
+    )
+    return b
 
 
-@router.patch("/budgets/{budget_id}", response_model=BudgetRow)
-def change_budget(
-    budget_id: str,
-    body: BudgetChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id, "write")
-        if b.version != version:
-            raise stale(shape(s, b, lvl, c.id))
-        _raise(_check(s, b.ownerId, body))
-        fields = []
-        if body.name is not None and body.name.strip() != b.name:
-            b.name = body.name.strip()
-            fields.append("name")
-        if body.accountIds is not None:
-            if lvl != "owner":
-                raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
-            _set_accounts(s, b, body.accountIds, c.id)
-            b.updatedAt = clock.now()
-            fields.append("accounts")
-        for option in ("reserves", "moves"):
-            value = getattr(body, option)
-            if value is not None and value != getattr(b, option):
-                if option == "moves" and b.method == "envelope" and not value:
-                    raise refuse("moves", "moves-needed", "An envelope budget always has moves.")
-                setattr(b, option, value)
-                fields.append(option)
-        if body.roles is not None:
-            _set_roles(s, b, body.roles)
-            b.updatedAt = clock.now()
-            fields.append("roles")
-        if fields:
-            activity.record(
-                s,
-                "budget.updated",
-                actor=c.id,
-                subject_kind="budget",
-                subject_id=b.id,
-                owner=b.ownerId,
-                detail={"fields": fields},
-            )
-        s.flush()
-        return shape(s, b, lvl, c.id)
-
-
-@router.delete("/budgets/{budget_id}", response_model=Deleted[None])
-def delete_budget(
-    budget_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id, "owner")
-        check(b, version, lambda: shape(s, b, lvl, c.id))
-        b.mark_deleted(c.id)
-        for u in s.scalars(select(User).where(User.activeBudgetId == b.id)):
-            u.activeBudgetId = None
+def _change_budget(s, c: Caller, b: Budget, lvl: str, body, sent: set[str]) -> None:
+    """The fields `sent`: its name, accounts (its owner's choice), options and roles."""
+    _raise(_check(s, b.ownerId, body))
+    fields = []
+    if "name" in sent and body.name.strip() != b.name:
+        b.name = body.name.strip()
+        fields.append("name")
+    if "accountIds" in sent:
+        if lvl != "owner":
+            raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
+        _set_accounts(s, b, body.accountIds, c.id)
+        b.updatedAt = clock.now()
+        fields.append("accounts")
+    for option in ("reserves", "moves"):
+        value = getattr(body, option)
+        if option in sent and value != getattr(b, option):
+            if option == "moves" and b.method == "envelope" and not value:
+                raise refuse("moves", "moves-needed", "An envelope budget always has moves.")
+            setattr(b, option, value)
+            fields.append(option)
+    if "roles" in sent:
+        _set_roles(s, b, body.roles)
+        b.updatedAt = clock.now()
+        fields.append("roles")
+    if fields:
         activity.record(
-            s, "budget.deleted", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
+            s,
+            "budget.updated",
+            actor=c.id,
+            subject_kind="budget",
+            subject_id=b.id,
+            owner=b.ownerId,
+            detail={"fields": fields},
         )
-        s.flush()
-        return Deleted[None](deleted=gone(b))
 
 
 @router.get("/budgets/{budget_id}/month", response_model=MonthView)
@@ -961,9 +892,10 @@ def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
             ),
             None,
         )
-        if later is not None:  # a line of 0 from that month: taken over
-            for f, v in values.items():
-                setattr(later, f, v)
+        if later is not None:
+            # A line from that month made since this one was read (by another change, or a
+            # taking out): this one no longer holds then, so the change is stale (S13.8.6).
+            raise stale(_line_out(later))
         else:
             ctx.s.add(
                 BudgetLine(
@@ -1046,94 +978,56 @@ def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:
     ]
 
 
-@router.post("/budgets/{budget_id}/moves", response_model=MoveOut, status_code=201)
-def make_move(budget_id: str, body: MoveIn, request: Request, c: Caller = Depends(caller)):
+def _move(s, c: Caller, b: Budget, body: MoveIn, move_id: str) -> BudgetMove:
     """An amount put from one category, a reserve among them, to another for one month; in an
     envelope budget, from or to To Budget (S7.11). Made by hand, recorded in Activity."""
     month = budgets.month_of(body.month)
-    with server(request).db.tx() as s:
-        b, _ = access.budget(s, c.id, budget_id, "write")
-        if not b.moves:
-            raise refuse("moves", "moves-off", "Turn on moves in the budget's settings.")
-        cats = {x.id: x for x in s.scalars(select(Category).where(Category.deleted == false()))}
-        for f in ("fromCategoryId", "toCategoryId"):
-            v = getattr(body, f)
-            if v is not None and (v not in cats or cats[v].kind == "transfer"):
-                raise refuse(f, "category-unknown", "Choose a category.")
-        if body.cardId is not None:
-            card = s.get(Account, body.cardId)
-            if (
-                b.method != "envelope"
-                or card is None
-                or card.type != "credit-card"
-                or card.id not in budgets.account_ids(s, b)
-                or body.toCategoryId is not None
-            ):
-                raise refuse("cardId", "card-unknown", "One of an envelope budget's cards.")
-        elif body.fromCategoryId == body.toCategoryId or (
-            b.method != "envelope" and (body.fromCategoryId is None or body.toCategoryId is None)
+    if not b.moves:
+        raise refuse("moves", "moves-off", "Turn on moves in the budget's settings.")
+    cats = {x.id: x for x in s.scalars(select(Category).where(Category.deleted == false()))}
+    for f in ("fromCategoryId", "toCategoryId"):
+        v = getattr(body, f)
+        if v is not None and (v not in cats or cats[v].kind == "transfer"):
+            raise refuse(f, "category-unknown", "Choose a category.")
+    if body.cardId is not None:
+        card = s.get(Account, body.cardId)
+        if (
+            b.method != "envelope"
+            or card is None
+            or card.type != "credit-card"
+            or card.id not in budgets.account_ids(s, b)
+            or body.toCategoryId is not None
         ):
-            raise refuse(
-                "toCategoryId",
-                "move-invalid",
-                "From one category to another; To Budget only in an envelope budget.",
-            )
-        if body.amount <= 0:
-            raise refuse("amount", "amount-invalid", "More than nothing.")
-        if body.note is not None and len(body.note) > 200:
-            raise refuse("note", "note-too-long", "At most 200 characters.")
-        mv = BudgetMove(
-            id=ids.new_id("BdgMv"),
-            budgetId=b.id,
-            month=month,
-            fromCategoryId=body.fromCategoryId,
-            toCategoryId=body.toCategoryId,
-            cardId=body.cardId,
-            amount=body.amount,
-            note=(body.note or "").strip() or None,
-            createdById=c.id,
+            raise refuse("cardId", "card-unknown", "One of an envelope budget's cards.")
+    elif body.fromCategoryId == body.toCategoryId or (
+        b.method != "envelope" and (body.fromCategoryId is None or body.toCategoryId is None)
+    ):
+        raise refuse(
+            "toCategoryId",
+            "move-invalid",
+            "From one category to another; To Budget only in an envelope budget.",
         )
-        s.add(mv)
-        b.updatedAt = clock.now()
-        activity.record(
-            s, "budget.moved", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
-        )
-        s.flush()
-        (out,) = [x for x in _moves_out(s, b, month) if x.id == mv.id]
-    # Read with its month (S13.8.4).
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/budgets/{b.id}/month?month={month.isoformat()[:7]}"},
+    if body.amount <= 0:
+        raise refuse("amount", "amount-invalid", "More than nothing.")
+    if body.note is not None and len(body.note) > 200:
+        raise refuse("note", "note-too-long", "At most 200 characters.")
+    mv = BudgetMove(
+        id=move_id,
+        budgetId=b.id,
+        month=month,
+        fromCategoryId=body.fromCategoryId,
+        toCategoryId=body.toCategoryId,
+        cardId=body.cardId,
+        amount=body.amount,
+        note=(body.note or "").strip() or None,
+        createdById=c.id,
     )
-
-
-@router.delete("/budgets/{budget_id}/moves/{move_id}", response_model=Deleted[None])
-def delete_move(
-    budget_id: str,
-    move_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Deleting a move undoes it."""
-    with server(request).db.tx() as s:
-        b, _ = access.budget(s, c.id, budget_id, "write")
-        mv = s.get(BudgetMove, move_id)
-        if mv is None or mv.deleted or mv.budgetId != b.id:
-            raise Problem(404, "not-found", "No such move.")
-        check(mv, version, lambda: None)
-        mv.mark_deleted(c.id)
-        activity.record(
-            s,
-            "budget.move-deleted",
-            actor=c.id,
-            subject_kind="budget",
-            subject_id=b.id,
-            owner=b.ownerId,
-        )
-        s.flush()
-        return Deleted[None](deleted=gone(mv))
+    s.add(mv)
+    b.updatedAt = clock.now()
+    activity.record(
+        s, "budget.moved", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
+    )
+    return mv
 
 
 @router.get("/transactions/{txn_id}/budgets", response_model=list[InBudget])
@@ -1171,44 +1065,6 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
                 )
             )
         return out
-
-
-@router.put("/budgets/{budget_id}/leave-outs/{txn_id}", response_model=InBudget)
-def leave_out(
-    budget_id: str, txn_id: str, body: LeaveOutIn, request: Request, c: Caller = Depends(caller)
-):
-    """Leave a transaction out of this budget, or count it again (S7.3.5)."""
-    from ..store.entities.budgets import BudgetLeaveOut
-
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id, "write")
-        t = s.get(Transaction, txn_id)
-        if t is None or t.deleted or t.accountId not in budgets.account_ids(s, b, c.id):
-            raise Problem(404, "not-found", "No such transaction in this budget.")
-        row = s.get(BudgetLeaveOut, (b.id, t.id))
-        if body.leftOut and row is None:
-            s.add(BudgetLeaveOut(budgetId=b.id, transactionId=t.id, createdAt=clock.now()))
-        elif body.leftOut and row.deleted:
-            row.restore()
-        elif not body.leftOut and row is not None and not row.deleted:
-            row.mark_deleted(c.id)
-        activity.record(
-            s,
-            "budget.left-out" if body.leftOut else "budget.counted-again",
-            actor=c.id,
-            subject_kind="budget",
-            subject_id=b.id,
-            owner=b.ownerId,
-        )
-        s.flush()
-        tr = budgets.tree(s)
-        return InBudget(
-            budgetId=b.id,
-            name=b.name,
-            countsAs=tr.label(t.categoryId) if t.categoryId in tr.by_id else None,
-            leftOut=body.leftOut,
-            canWrite=lvl in ("owner", "write"),
-        )
 
 
 def _projection_ok(s, b: Budget, projection_id: str) -> bool:
@@ -1318,94 +1174,50 @@ def _card_month(s, a: Account, month: dt.date) -> dict:
     }
 
 
-@router.post("/budgets/{budget_id}/landed", response_model=WhereView)
-def give_landed(
-    budget_id: str,
-    body: GiveIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    month: str | None = None,
-):
-    """Landed money given to a reserve, spread among those held where it landed by balance,
-    or kept as the account's own (S7.10.5): moves the budget keeps, recorded in Activity."""
+def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
+    """Landed money given to a reserve held where it landed, or kept as the account's own
+    (S7.10.5): a move the budget keeps, of no more than is unassigned of it, in its month."""
     from ..budgets import reserves
 
-    with server(request).db.tx() as s:
-        b, _ = access.budget(s, c.id, budget_id, "write")
-        t = s.get(Transaction, body.transactionId)
-        accts = budgets.account_ids(s, b, c.id)
-        if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
-            raise refuse("transactionId", "not-found", "No such money landed.")
-        m = budgets.month_of(t.date)
-        tr = budgets.tree(s, b)
-        held = {
-            h.accountId: h
-            for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
-        }
-        h = held.get(t.accountId)
-        free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
-        if free is None and h and body.to == "own":
-            # A transfer in from the budget's accounts, kept as the account's own (S7.10.4).
-            free = next(
-                (x.free for x, kept in h.transfers if x.transactionId == t.id and not kept), None
-            )
-        if free is None or body.amount <= 0 or body.amount > free:
-            raise refuse("amount", "amount-invalid", "No more than is unassigned of it.")
-        if body.to == "own":
-            parts = [(None, body.amount)]
-        elif body.to == "spread":
-            weights = [(k, max(v, Decimal(0))) for k, v in h.reserves]
-            total = sum((w for _, w in weights), Decimal(0)) or Decimal(len(weights))
-            parts, left = [], body.amount
-            for i, (k, w) in enumerate(weights):
-                share = (
-                    left
-                    if i == len(weights) - 1
-                    else (body.amount * (w if total else 1) / total).quantize(Decimal("0.01"))
-                )
-                parts.append((k, share))
-                left -= share
-        elif body.to in {k for k, _ in h.reserves}:
-            parts = [(body.to, body.amount)]
-        else:
-            raise refuse("to", "reserve-unknown", "One of the reserves held there.")
-        for cat, amount in parts:
-            if amount > 0:
-                s.add(
-                    BudgetMove(
-                        id=ids.new_id("BdgMv"),
-                        budgetId=b.id,
-                        month=m,
-                        toCategoryId=cat,
-                        amount=amount,
-                        transactionId=t.id,
-                        createdById=c.id,
-                    )
-                )
-        activity.record(
-            s,
-            "budget.landed",
-            actor=c.id,
-            subject_kind="budget",
-            subject_id=b.id,
-            owner=b.ownerId,
+    t = s.get(Transaction, body.transactionId)
+    accts = budgets.account_ids(s, b, c.id)
+    if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
+        raise refuse("transactionId", "not-found", "No such money landed.")
+    if body.fromCategoryId is not None or body.cardId is not None:
+        raise refuse("fromCategoryId", "move-invalid", "Landed money comes from where it landed.")
+    m = budgets.month_of(t.date)
+    tr = budgets.tree(s, b)
+    held = {
+        h.accountId: h
+        for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+    }
+    h = held.get(t.accountId)
+    own = body.toCategoryId is None
+    free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
+    if free is None and h and own:
+        # A transfer in from the budget's accounts, kept as the account's own (S7.10.4).
+        free = next(
+            (x.free for x, kept in h.transfers if x.transactionId == t.id and not kept), None
         )
-        s.flush()
-    return where(budget_id, request, c, month or m.isoformat()[:7])
-
-
-@router.post("/budgets/{budget_id}/active", response_model=BudgetRow)
-def make_active(budget_id: str, request: Request, c: Caller = Depends(caller)):
-    """The budget the caller follows from now on; the one before becomes a scenario. Nothing
-    is rewritten (S7.12.1)."""
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id)
-        s.get(User, c.id).activeBudgetId = b.id
-        activity.record(
-            s, "budget.activated", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
-        )
-        s.flush()
-        return shape(s, b, lvl, c.id)
+    if free is None or body.amount <= 0 or body.amount > free:
+        raise refuse("amount", "amount-invalid", "No more than is unassigned of it.")
+    if not own and body.toCategoryId not in {k for k, _ in h.reserves}:
+        raise refuse("toCategoryId", "reserve-unknown", "One of the reserves held there.")
+    mv = BudgetMove(
+        id=move_id,
+        budgetId=b.id,
+        month=m,
+        toCategoryId=body.toCategoryId,
+        amount=body.amount,
+        transactionId=t.id,
+        createdById=c.id,
+    )
+    s.add(mv)
+    s.flush()
+    activity.record(
+        s, "budget.landed", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
+    )
+    return mv
 
 
 @router.post("/budgets/{budget_id}/copy", response_model=BudgetRow, status_code=201)
@@ -1795,3 +1607,156 @@ def budget_recurring(budget_id: str, request: Request, c: Caller = Depends(calle
             )
             for x in recurring.detect(txns, today)
         ]
+
+
+# ---------- a budget and its moves in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class BudgetRecord(Model):
+    """A budget as a draft saves it (S7.1): its method chosen when it is made; its accounts
+    its owner's choice; its roles a card's paying account or where reserves' money moves from,
+    chosen (none: as the history says)."""
+
+    name: str
+    method: Literal["tracking", "envelope"] = "tracking"
+    accountIds: list[IdOf("Acct")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+    reserves: bool = False
+    moves: bool = False
+    roles: list[RoleIn] = Field(default_factory=list)
+
+
+class MoveRecord(MoveIn):
+    """A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
+    landed money given to a reserve held where it landed, or to no category: kept as the
+    account's own (S7.10.5); its month is the transaction's."""
+
+    budgetId: IdOf("Bdgt")  # type: ignore[valid-type]
+    transactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
+
+
+def _budget_create(ctx, record_id: str, body: BudgetRecord) -> None:
+    b = _make_budget(ctx.s, ctx.caller, body, record_id)
+    if body.roles:
+        ctx.s.flush()
+        _set_roles(ctx.s, b, body.roles)
+
+
+def _budget_current(ctx, b: Budget) -> dict:
+    members = list(
+        ctx.s.scalars(
+            select(BudgetAccount).where(
+                BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false()
+            )
+        )
+    )
+    return {
+        "name": b.name,
+        "method": b.method,
+        "accountIds": [m.accountId for m in members],
+        "reserves": b.reserves,
+        "moves": b.moves,
+        "roles": [
+            {"accountId": m.accountId, "paidFromId": m.paidFromId, "movedFromId": m.movedFromId}
+            for m in members
+        ],
+    }
+
+
+def _budget_update(ctx, b: Budget, body: BudgetRecord) -> None:
+    current = _budget_current(ctx, b)
+    if body.method != current["method"]:
+        raise refuse("method", "method-fixed", "A budget keeps its method; copy it as a scenario.")
+    sent = {f for f in ("name", "reserves", "moves") if getattr(body, f) != current[f]}
+    if set(body.accountIds) != set(current["accountIds"]):
+        sent.add("accountIds")
+    have = {r["accountId"]: r for r in current["roles"]}
+    if any(r.model_dump() != have.get(r.accountId) for r in body.roles):
+        sent.add("roles")
+    _, lvl = access.budget(ctx.s, ctx.caller.id, b.id, "write")
+    _change_budget(ctx.s, ctx.caller, b, lvl, body, sent)
+
+
+def _budget_delete(ctx, b: Budget) -> None:
+    access.budget(ctx.s, ctx.caller.id, b.id, "owner")
+    b.mark_deleted(ctx.caller.id)
+    for u in ctx.s.scalars(select(User).where(User.activeBudgetId == b.id)):
+        u.activeBudgetId = None
+    activity.record(ctx.s, "budget.deleted", actor=ctx.caller.id, subject_kind="budget",
+                    subject_id=b.id, owner=ctx.caller.id)  # fmt: skip
+
+
+def _budget_read(ctx, record_id: str) -> BudgetRow:
+    b, lvl = access.budget(ctx.s, ctx.caller.id, record_id)
+    return shape(ctx.s, b, lvl, ctx.caller.id)
+
+
+def _move_create(ctx, record_id: str, body: MoveRecord) -> None:
+    b, _ = access.budget(ctx.s, ctx.caller.id, body.budgetId, "write")
+    if body.transactionId:
+        _give_landed(ctx.s, ctx.caller, b, body, record_id)
+    else:
+        _move(ctx.s, ctx.caller, b, body, record_id)
+
+
+def _move_editable(ctx, record_id: str) -> BudgetMove:
+    mv = ctx.s.get(BudgetMove, record_id)
+    if mv is None or mv.deleted:
+        raise Problem(404, "not-found", "No such move.")
+    access.budget(ctx.s, ctx.caller.id, mv.budgetId, "write")
+    return mv
+
+
+def _move_update(ctx, mv: BudgetMove, body: MoveRecord) -> None:
+    raise refuse(None, "move-fixed", "A move isn't changed: delete it, and move again.")
+
+
+def _move_delete(ctx, mv: BudgetMove) -> None:
+    """Deleting a move undoes it."""
+    b = ctx.s.get(Budget, mv.budgetId)
+    mv.mark_deleted(ctx.caller.id)
+    activity.record(ctx.s, "budget.move-deleted", actor=ctx.caller.id, subject_kind="budget",
+                    subject_id=b.id, owner=b.ownerId)  # fmt: skip
+
+
+def _move_read(ctx, record_id: str) -> MoveOut:
+    mv = ctx.s.get(BudgetMove, record_id)
+    b = ctx.s.get(Budget, mv.budgetId)
+    return next(x for x in _moves_out(ctx.s, b, mv.month) if x.id == mv.id)
+
+
+save.register(
+    save.Kind(
+        prefix="Bdgt",
+        entity=Budget,
+        fields=BudgetRecord,
+        create=_budget_create,
+        editable=lambda ctx, record_id: access.budget(ctx.s, ctx.caller.id, record_id, "write")[0],
+        current=_budget_current,
+        update=_budget_update,
+        delete=_budget_delete,
+        read=_budget_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="BdgMv",
+        entity=BudgetMove,
+        fields=MoveRecord,
+        create=_move_create,
+        editable=_move_editable,
+        current=lambda ctx, mv: {
+            "budgetId": mv.budgetId,
+            "month": mv.month,
+            "fromCategoryId": mv.fromCategoryId,
+            "toCategoryId": mv.toCategoryId,
+            "cardId": mv.cardId,
+            "amount": mv.amount,
+            "note": mv.note,
+        },
+        update=_move_update,
+        delete=_move_delete,
+        read=_move_read,
+    )
+)

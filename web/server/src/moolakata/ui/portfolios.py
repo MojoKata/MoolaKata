@@ -6,12 +6,11 @@ import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, figures, ids, valuation
-from ..errors import FieldError, Problem
+from .. import access, activity, clock, figures, valuation
+from ..errors import FieldError, Problem, refuse
 from ..ledger import performance as perf
 from ..ledger import types as atypes
 from ..options import strategies as strat
@@ -19,17 +18,14 @@ from ..store.entities.accounts import Account
 from ..store.entities.sharing import Portfolio, PortfolioAccount
 from ..store.entities.users import User
 from ..store.repos import ledger as repo
+from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
+    IdOf,
     Model,
     Money,
     Quantity,
     Ratio,
-    check,
-    gone,
-    if_match,
-    stale,
 )
 from .deps import Caller, caller, server
 from .sharing import counted_for
@@ -53,20 +49,6 @@ class PortfolioRow(Model):
     sharedWith: int
     notes: str | None
     version: int
-
-
-class NewPortfolio(Model):
-    name: str
-    accountIds: list[str] = Field(default_factory=list)
-    benchmark: str = "VT"
-    notes: str | None = None
-
-
-class PortfolioChange(Model):
-    name: str | None = None
-    accountIds: list[str] | None = None
-    benchmark: str | None = None
-    notes: str | None = None
 
 
 def member_ids(s, portfolio_id: str) -> list[str]:
@@ -213,37 +195,6 @@ def list_portfolios(request: Request, c: Caller = Depends(caller)):
         ]
 
 
-@router.post("/portfolios", response_model=PortfolioRow, status_code=201)
-def create_portfolio(body: NewPortfolio, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        _raise(_check(s, c.id, body))
-        p = Portfolio(
-            id=ids.new_id("Portf"),
-            ownerId=c.id,
-            name=body.name.strip(),
-            benchmark=body.benchmark,
-            notes=body.notes,
-        )
-        s.add(p)
-        s.flush()
-        _set_members(s, p, body.accountIds, c.id)
-        activity.record(
-            s,
-            "portfolio.created",
-            actor=c.id,
-            subject_kind="portfolio",
-            subject_id=p.id,
-            owner=c.id,
-        )
-        s.flush()
-        out = shape(s, c.user, p, "owner")
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/portfolios/{p.id}"},
-    )
-
-
 @router.get("/portfolios/{portfolio_id}", response_model=PortfolioRow)
 def get_portfolio(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
@@ -253,66 +204,85 @@ def get_portfolio(portfolio_id: str, request: Request, c: Caller = Depends(calle
         return shape(s, c.user, p, lvl)
 
 
-@router.patch("/portfolios/{portfolio_id}", response_model=PortfolioRow)
-def change_portfolio(
-    portfolio_id: str,
-    body: PortfolioChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        p, lvl = access.portfolio(s, c.id, portfolio_id, "write")
-        if p.version != version:
-            raise stale(shape(s, c.user, p, lvl))
-        _raise(_check(s, p.ownerId, body))
-        fields = []
-        for f in ("name", "benchmark", "notes"):
-            value = getattr(body, f)
-            if f in body.model_fields_set and value != getattr(p, f):
-                setattr(p, f, value.strip() if isinstance(value, str) and f == "name" else value)
-                fields.append(f)
-        if body.accountIds is not None:
-            if lvl != "owner":
-                raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
-            _set_members(s, p, body.accountIds, c.id)
-            p.updatedAt = clock.now()
-            fields.append("accounts")
-        if fields:
-            activity.record(
-                s,
-                "portfolio.updated",
-                actor=c.id,
-                subject_kind="portfolio",
-                subject_id=p.id,
-                owner=p.ownerId,
-                detail={"fields": fields},
-            )
-        s.flush()
-        return shape(s, c.user, p, lvl)
+class PortfolioRecord(Model):
+    """A portfolio as a draft saves it (S5.1): its accounts are its owner's choice."""
+
+    name: str
+    accountIds: list[IdOf("Acct")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+    benchmark: str = "VT"
+    notes: str | None = None
 
 
-@router.delete("/portfolios/{portfolio_id}", response_model=Deleted[None])
-def delete_portfolio(
-    portfolio_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        p, _ = access.portfolio(s, c.id, portfolio_id, "owner")
-        check(p, version, {"id": p.id, "version": p.version})
-        p.mark_deleted(c.id)
-        activity.record(
-            s,
-            "portfolio.deleted",
-            actor=c.id,
-            subject_kind="portfolio",
-            subject_id=p.id,
-            owner=p.ownerId,
-        )
-        s.flush()
-        return Deleted[None](deleted=gone(p))
+def _portfolio_create(ctx, record_id: str, body: PortfolioRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    _raise(_check(s, c.id, body))
+    p = Portfolio(id=record_id, ownerId=c.id, name=body.name.strip(), benchmark=body.benchmark,
+                  notes=body.notes)  # fmt: skip
+    s.add(p)
+    s.flush()
+    _set_members(s, p, body.accountIds, c.id)
+    activity.record(s, "portfolio.created", actor=c.id, subject_kind="portfolio",
+                    subject_id=p.id, owner=c.id)  # fmt: skip
+
+
+def _portfolio_editable(ctx, record_id: str) -> Portfolio:
+    return access.portfolio(ctx.s, ctx.caller.id, record_id, "write")[0]
+
+
+def _portfolio_current(ctx, p: Portfolio) -> dict:
+    return {"name": p.name, "accountIds": member_ids(ctx.s, p.id), "benchmark": p.benchmark,
+            "notes": p.notes}  # fmt: skip
+
+
+def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    _, lvl = access.portfolio(s, c.id, p.id, "write")
+    _raise(_check(s, p.ownerId, body))
+    fields = []
+    for f in ("name", "benchmark", "notes"):
+        value = getattr(body, f)
+        if value != getattr(p, f):
+            setattr(p, f, value.strip() if isinstance(value, str) and f == "name" else value)
+            fields.append(f)
+    if set(body.accountIds) != set(member_ids(s, p.id)):
+        if lvl != "owner":
+            raise refuse("accountIds", "owner-only", "Only the owner chooses the accounts.", 403)
+        _set_members(s, p, body.accountIds, c.id)
+        p.updatedAt = clock.now()
+        fields.append("accounts")
+    if fields:
+        activity.record(s, "portfolio.updated", actor=c.id, subject_kind="portfolio",
+                        subject_id=p.id, owner=p.ownerId, detail={"fields": fields})  # fmt: skip
+
+
+def _portfolio_delete(ctx, p: Portfolio) -> None:
+    s, c = ctx.s, ctx.caller
+    access.portfolio(s, c.id, p.id, "owner")
+    p.mark_deleted(c.id)
+    activity.record(s, "portfolio.deleted", actor=c.id, subject_kind="portfolio",
+                    subject_id=p.id, owner=p.ownerId)  # fmt: skip
+
+
+def _portfolio_read(ctx, record_id: str) -> PortfolioRow:
+    p, lvl = access.portfolio(ctx.s, ctx.caller.id, record_id)
+    return shape(ctx.s, ctx.caller.user, p, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="Portf",
+        entity=Portfolio,
+        fields=PortfolioRecord,
+        create=_portfolio_create,
+        editable=_portfolio_editable,
+        current=_portfolio_current,
+        update=_portfolio_update,
+        delete=_portfolio_delete,
+        read=_portfolio_read,
+    )
+)
 
 
 # ---------- performance and holdings (S5.2) ----------

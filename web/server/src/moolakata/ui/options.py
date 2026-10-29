@@ -5,110 +5,99 @@ import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import false, select
 
-from .. import access, activity, ids, options, washes
+from .. import access, activity, options, washes
 from ..errors import FieldError, Problem, refuse
 from ..ledger import types as atypes
-from ..store.entities.accounts import Instrument, Transaction
+from ..store.entities.accounts import CorporateAction, Instrument, Transaction
 from ..store.repos import ledger as repo
 from ..taxes import closed
-from .conventions import ExactRoute, Model, Money, Quantity
+from . import save
+from .conventions import ExactRoute, IdOf, Model, Money, Quantity
 from .deps import Caller, caller, server
 from .transactions import TxnOut, shape
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["options"])
 
 
-class OptionTrade(Model):
-    date: dt.date
-    action: str  # buy-to-open, sell-to-open, buy-to-close, sell-to-close
-    underlying: str
-    right: str  # call or put
-    strike: Quantity
-    expiry: dt.date
-    contracts: Quantity
-    premium: Quantity  # a share
-    fees: Money = Decimal(0)
-    multiplier: int = 100
-
-
-@router.post("/accounts/{account_id}/options", response_model=TxnOut, status_code=201)
-def record_trade(
-    account_id: str,
-    body: OptionTrade,
-    request: Request,
-    c: Caller = Depends(caller),
-    confirm: bool = False,
-):
+def make_trade(ctx, record_id: str, body) -> Transaction:
+    """An option trade (S3.2) as a transaction's draft makes it: its kind the trade, `symbol`
+    the underlying, `quantity` the contracts and `price` the premium a share, with the
+    contract's right, strike, expiry and multiplier; its amount the cash the trade comes to."""
+    s, c = ctx.s, ctx.caller
     e: list[FieldError] = []
-    if body.action not in options.ACTIONS:
-        e.append(FieldError("action", "action-invalid", "Buy or sell, to open or to close."))
     if body.right not in ("call", "put"):
         e.append(FieldError("right", "right-invalid", "A call or a put."))
-    underlying = body.underlying.strip().upper()
+    underlying = (body.symbol or "").strip().upper()
     if not underlying or len(underlying) > 12:
-        e.append(FieldError("underlying", "symbol-invalid", "The underlying's symbol: MSFT."))
-    if body.strike <= 0:
+        e.append(FieldError("symbol", "symbol-invalid", "The underlying's symbol: MSFT."))
+    if body.strike is None or body.strike <= 0:
         e.append(FieldError("strike", "strike-invalid", "More than zero."))
-    if body.contracts <= 0 or body.contracts != body.contracts.to_integral_value():
-        e.append(FieldError("contracts", "contracts-invalid", "A whole number of contracts."))
-    if body.premium < 0:
-        e.append(FieldError("premium", "premium-invalid", "Zero or more, a share."))
-    if body.fees < 0:
+    contracts = body.quantity
+    if contracts is None or contracts <= 0 or contracts != contracts.to_integral_value():
+        e.append(FieldError("quantity", "contracts-invalid", "A whole number of contracts."))
+    if body.price is None or body.price < 0:
+        e.append(FieldError("price", "premium-invalid", "Zero or more, a share."))
+    fees = body.fees or Decimal(0)
+    if fees < 0:
         e.append(FieldError("fees", "fees-invalid", "Zero or more."))
-    if body.action.endswith("to-open") and body.expiry < body.date:
+    if body.expiry is None:
+        e.append(FieldError("expiry", "expiry-required", "The day it expires."))
+    elif body.kind.endswith("to-open") and body.expiry < body.date:
         e.append(FieldError("expiry", "expired", "It expired before the trade."))
-    if not 1 <= body.multiplier <= 10000:
+    multiplier = body.multiplier or 100
+    if not 1 <= multiplier <= 10000:
         e.append(FieldError("multiplier", "multiplier-invalid", "Shares a contract: 100."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    with server(request).db.tx() as s:
-        a, level = access.account(s, c.id, account_id, "write")
-        if not atypes.investing(a.type):
+    a, _ = access.account(s, c.id, body.accountId, "write")
+    if not atypes.investing(a.type):
+        raise refuse("kind", "kind-not-for-account", "Options belong in an investing account.")
+    guard = closed.Guard(s, a, False, c.id, ask=ctx.ask)
+    inst, contract = options.contract(
+        s, underlying, body.right, body.strike, body.expiry, multiplier
+    )
+    if body.kind.endswith("to-close"):
+        held = repo.load(s, a).replay().quantity(inst.id)
+        want_long = body.kind == "sell-to-close"
+        if (want_long and held < contracts) or (not want_long and -held < contracts):
             raise refuse(
-                "action", "kind-not-for-account", "Options belong in an investing account."
+                "quantity",
+                "nothing-to-close",
+                f"The account holds {abs(held)} {'long' if held >= 0 else 'short'} "
+                "contracts of it.",
             )
-        guard = closed.Guard(s, a, confirm, c.id)
-        inst, contract = options.contract(
-            s, underlying, body.right, body.strike, body.expiry, body.multiplier
-        )
-        if body.action.endswith("to-close"):
-            held = repo.load(s, a).replay().quantity(inst.id)
-            want_long = body.action == "sell-to-close"
-            if (want_long and held < body.contracts) or (not want_long and -held < body.contracts):
-                raise refuse(
-                    "contracts",
-                    "nothing-to-close",
-                    f"The account holds {abs(held)} {'long' if held >= 0 else 'short'} "
-                    "contracts of it.",
-                )
-        t = Transaction(
-            id=ids.new_id("Txn"),
-            accountId=a.id,
-            date=body.date,
-            kind=body.action,
-            amount=options.cash(
-                body.action, body.contracts, body.premium, body.fees, contract.multiplier
-            ),
-            payee=f"{body.action.replace('-', ' ').capitalize()} {inst.symbol}",
-            instrumentId=inst.id,
-            quantity=body.contracts,
-            price=body.premium,
-            fees=body.fees or None,
-            createdById=c.id,
-        )
-        s.add(t)
-        s.flush()
-        guard.check()
-        activity.record(
-            s,
-            "option.traded",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        return shape(s, c.id, [t], {a.id: level})[0]
+    amount = options.cash(body.kind, contracts, body.price, fees, contract.multiplier)
+    if body.amount != amount:
+        raise refuse("amount", "amount-mismatch", f"The trade comes to {amount:,.2f}.")
+    t = Transaction(
+        id=record_id,
+        accountId=a.id,
+        date=body.date,
+        kind=body.kind,
+        amount=amount,
+        payee=(body.payee or "").strip()
+        or f"{body.kind.replace('-', ' ').capitalize()} {inst.symbol}",
+        memo=body.memo,
+        instrumentId=inst.id,
+        quantity=contracts,
+        price=body.price,
+        fees=fees or None,
+        createdById=c.id,
+    )
+    s.add(t)
+    s.flush()
+    guard.check()
+    activity.record(
+        s,
+        "option.traded",
+        actor=c.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+    )
+    return t
 
 
 class Settle(Model):
@@ -294,10 +283,13 @@ def adjust_contracts(body: Adjustment, request: Request, c: Caller = Depends(cal
 # ---- Corporate actions (S2.4) ----
 
 
-class CorporateAction(Model):
+class CorporateActionRecord(Model):
+    """A corporate action as its dialog's draft saves it (S2.4)."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    instrumentId: IdOf("Instr")  # type: ignore[valid-type]
     kind: str  # split, symbol-change, spin-off, merger
     date: dt.date
-    instrumentId: str
     ratio: Quantity | None = None  # new shares for each one held
     newSymbol: str | None = None
     basisShare: Quantity | None = None  # a spin-off: the percent of basis that moves
@@ -305,52 +297,143 @@ class CorporateAction(Model):
     newPrice: Quantity | None = None  # a new share's price that day, for a merger's cash
 
 
-@router.post(
-    "/accounts/{account_id}/corporate-actions", response_model=list[TxnOut], status_code=201
-)
-def corporate_action(
-    account_id: str,
-    body: CorporateAction,
-    request: Request,
-    c: Caller = Depends(caller),
-    confirm: bool = False,
-):
+class CorporateActionOut(Model):
+    id: str
+    accountId: str
+    instrumentId: str
+    symbol: str
+    kind: str
+    date: dt.date
+    ratio: Quantity | None
+    newSymbol: str | None
+    basisShare: Quantity | None
+    cashPerShare: Money | None
+    newPrice: Quantity | None
+    transactions: list[TxnOut]  # the ones made from it
+    version: int
+
+
+ACTION_FIELDS = (
+    "kind", "date", "ratio", "newSymbol", "basisShare", "cashPerShare", "newPrice"
+)  # fmt: skip
+
+
+def _action_create(ctx, record_id: str, body: CorporateActionRecord) -> None:
     """A split, symbol change, spin-off or merger: lots reshaped or moved, never sold and
     bought again; a merger's cash is a gain only as far as the gain goes."""
     from .. import corporate
 
+    s, c = ctx.s, ctx.caller
     if body.kind not in corporate.KINDS:
         raise refuse("kind", "kind-invalid", "A split, symbol change, spin-off or merger.")
-    with server(request).db.tx() as s:
-        a, level = access.account(s, c.id, account_id, "write")
-        if not atypes.investing(a.type):
-            raise refuse("kind", "kind-not-for-account", "These belong in an investing account.")
-        inst = s.get(Instrument, body.instrumentId)
-        if inst is None or inst.deleted or inst.instrumentClass == "option":
-            raise refuse("instrumentId", "instrument-unknown", "Choose a holding.")
-        guard = closed.Guard(s, a, confirm, c.id)
-        made = corporate.record(
-            s,
-            c.id,
-            a,
-            inst,
-            body.kind,
-            body.date,
-            body.ratio,
-            body.newSymbol,
-            body.basisShare,
-            body.cashPerShare,
-            body.newPrice,
+    a, _ = access.account(s, c.id, body.accountId, "write")
+    if not atypes.investing(a.type):
+        raise refuse("kind", "kind-not-for-account", "These belong in an investing account.")
+    inst = s.get(Instrument, body.instrumentId)
+    if inst is None or inst.deleted or inst.instrumentClass == "option":
+        raise refuse("instrumentId", "instrument-unknown", "Choose a holding.")
+    guard = closed.Guard(s, a, False, c.id, ask=ctx.ask)
+    action = CorporateAction(
+        id=record_id,
+        accountId=a.id,
+        instrumentId=inst.id,
+        createdById=c.id,
+        **{f: getattr(body, f) for f in ACTION_FIELDS},
+    )
+    action.newSymbol = (body.newSymbol or "").strip().upper() or None
+    s.add(action)
+    s.flush()
+    made = corporate.record(
+        s, c.id, a, inst, body.kind, body.date, body.ratio, action.newSymbol, body.basisShare,
+        body.cashPerShare, body.newPrice,
+    )  # fmt: skip
+    for t in made:
+        t.corporateActionId = action.id
+    washes.recompute(s, a.ownerId)
+    guard.check()
+    activity.record(
+        s,
+        "account.corporate-action",
+        actor=c.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+        detail={"name": corporate.WORDS[body.kind].lower()},
+    )
+
+
+def _action_editable(ctx, record_id: str) -> CorporateAction:
+    action = ctx.s.get(CorporateAction, record_id)
+    if action is None or action.deleted:
+        raise Problem(404, "not-found", "Not found")
+    access.account(ctx.s, ctx.caller.id, action.accountId, "write")
+    return action
+
+
+def _action_current(ctx, action: CorporateAction) -> dict:
+    return {
+        "accountId": action.accountId,
+        "instrumentId": action.instrumentId,
+        **{f: getattr(action, f) for f in ACTION_FIELDS},
+    }
+
+
+def _action_update(ctx, action: CorporateAction, body: CorporateActionRecord) -> None:
+    raise refuse(
+        None, "action-fixed", "A corporate action is deleted, and recorded again if it differs."
+    )
+
+
+def _made_from(s, action_id: str) -> list[Transaction]:
+    return list(
+        s.scalars(
+            select(Transaction)
+            .where(Transaction.corporateActionId == action_id, Transaction.deleted == false())
+            .order_by(Transaction.createdAt, Transaction.id)
         )
-        washes.recompute(s, a.ownerId)
-        guard.check()
-        activity.record(
-            s,
-            "account.corporate-action",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-            detail={"name": corporate.WORDS[body.kind].lower()},
-        )
-        return shape(s, c.id, made, {a.id: level})
+    )
+
+
+def _action_delete(ctx, action: CorporateAction) -> None:
+    """Undone: its transactions deleted with it, the lots back as they were."""
+    from .transactions import delete_txn
+
+    a, _ = access.account(ctx.s, ctx.caller.id, action.accountId, "write")
+    guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
+    for t in _made_from(ctx.s, action.id):
+        if not t.deleted:
+            delete_txn(ctx.s, ctx.caller, t, a)
+    if not action.deleted:
+        action.mark_deleted(ctx.caller.id)
+    guard.check()
+
+
+def _action_read(ctx, record_id: str) -> CorporateActionOut:
+    s = ctx.s
+    action = s.get(CorporateAction, record_id)
+    _, level = access.account(s, ctx.caller.id, action.accountId)
+    inst = s.get(Instrument, action.instrumentId)
+    return CorporateActionOut(
+        id=action.id,
+        accountId=action.accountId,
+        instrumentId=action.instrumentId,
+        symbol=inst.symbol,
+        transactions=shape(s, ctx.caller.id, _made_from(s, action.id), {action.accountId: level}),
+        version=action.version,
+        **{f: getattr(action, f) for f in ACTION_FIELDS},
+    )
+
+
+save.register(
+    save.Kind(
+        prefix="CorpA",
+        entity=CorporateAction,
+        fields=CorporateActionRecord,
+        create=_action_create,
+        editable=_action_editable,
+        current=_action_current,
+        update=_action_update,
+        delete=_action_delete,
+        read=_action_read,
+    )
+)

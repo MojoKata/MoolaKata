@@ -7,14 +7,16 @@ import json
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import false, select
 
-from .. import activity, clock, exactjson, settings
-from ..errors import Problem
+from .. import activity, exactjson, settings
+from ..errors import Problem, refuse
 from ..links import copies
 from ..links.changes import waiting
 from ..links.copy import CopyError
 from ..store.entities.links import Link, LinkedItem
 from ..store.entities.users import User
-from .conventions import ExactRoute, Model
+from ..store.rows import by_key
+from . import save
+from .conventions import ExactRoute, IdOf, Model
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["linked"])
@@ -26,6 +28,9 @@ PALETTE = ("teal", "violet", "amber", "rose", "green", "blue")
 class Household(Model):
     linkId: str
     colour: str  # the colour you chose for its window
+    # Your choice, a record of the save (LinkColour): none while it takes the next free one.
+    colourId: str | None = None
+    colourVersion: int = 0
     serverName: str | None
     name: str | None
     avatar: dict | None
@@ -56,6 +61,16 @@ def _mine(s, user_id: str) -> dict[str, int]:
     return out
 
 
+def _chosen(s, user_id: str) -> dict:
+    """The colours this user chose, by link: each its record."""
+    from ..store.entities.links import LinkColour
+
+    rows = s.scalars(
+        select(LinkColour).where(LinkColour.userId == user_id, LinkColour.deleted == false())
+    )
+    return {r.linkId: r for r in rows}
+
+
 def _colours(s, user_id: str, link_ids: list[str]) -> dict[str, str]:
     """Each household's colour for this user: chosen, or the next one not yet used."""
     from ..store.entities.links import LinkColour
@@ -74,10 +89,12 @@ def _colours(s, user_id: str, link_ids: list[str]) -> dict[str, str]:
     return out
 
 
-def _household(srv, link: Link, n: int, colour: str = "teal") -> Household:
+def _household(srv, link: Link, n: int, colour: str = "teal", chosen=None) -> Household:
     return Household(
         linkId=link.id,
         colour=colour,
+        colourId=chosen.id if chosen is not None else None,
+        colourVersion=chosen.version if chosen is not None else 0,
         serverName=link.peerName,
         name=link.householdName,
         avatar=json.loads(link.householdAvatar) if link.householdAvatar else None,
@@ -102,7 +119,11 @@ def households(request: Request, c: Caller = Depends(caller)):
         )
         rows = list(rows)
         colours = _colours(s, c.id, list(mine))
-        return [_household(srv, link, mine[link.id], colours[link.id]) for link in rows]
+        chosen = _chosen(s, c.id)
+        return [
+            _household(srv, link, mine[link.id], colours[link.id], chosen.get(link.id))
+            for link in rows
+        ]
 
 
 def _state(srv, s, c: Caller, link_id: str) -> CopyState:
@@ -119,7 +140,13 @@ def _state(srv, s, c: Caller, link_id: str) -> CopyState:
     who = s.get(User, o.by) if o else None
     left = srv.copies.locks_in(link_id, settings.get(s, "linkReleaseMinutes"))
     return CopyState(
-        household=_household(srv, link, mine[link.id], _colours(s, c.id, list(mine))[link.id]),
+        household=_household(
+            srv,
+            link,
+            mine[link.id],
+            _colours(s, c.id, list(mine))[link.id],
+            _chosen(s, c.id).get(link.id),
+        ),
         hasKey=bool(link.copyPublicKey),
         waiting=len(waiting(srv.config.data_dir, link_id)),
         pulledAt=link.pulledAt,
@@ -163,30 +190,73 @@ def lock(link_id: str, request: Request, c: Caller = Depends(caller)):
         return _state(srv, s, c, link_id)
 
 
-class Colour(Model):
+class ColourRecord(Model):
+    """The colour of a linked household's window, for its chooser (S12.10.3.2)."""
+
+    linkId: IdOf("Link")  # type: ignore[valid-type]
     colour: str
 
 
-@router.put("/linked/{link_id}/colour", response_model=CopyState)
-def set_colour(link_id: str, body: Colour, request: Request, c: Caller = Depends(caller)):
-    """The colour of this household's window, for you (S12.10.3.2)."""
-    from ..errors import refuse
-    from ..store.entities.links import LinkColour
-
+def _colour_check(ctx, body: ColourRecord) -> None:
     if body.colour not in PALETTE:
         raise refuse("colour", "colour-invalid", "One of the palette's colours.")
-    srv = server(request)
-    with srv.db.tx() as s:
-        _state(srv, s, c, link_id)
-        row = s.get(LinkColour, (c.id, link_id))
-        if row is None:
-            s.add(
-                LinkColour(userId=c.id, linkId=link_id, colour=body.colour, createdAt=clock.now())
-            )
-        else:
-            row.colour = body.colour
-        s.flush()
-        return _state(srv, s, c, link_id)
+    _state(server(ctx.request), ctx.s, ctx.caller, body.linkId)
+
+
+def _colour_create(ctx, record_id: str, body: ColourRecord) -> None:
+    from ..store.entities.links import LinkColour
+
+    _colour_check(ctx, body)
+    have = by_key(ctx.s, LinkColour, userId=ctx.caller.id, linkId=body.linkId)
+    if have is not None and not have.deleted:
+        raise refuse("linkId", "colour-chosen", "A colour is chosen: change it.", 409)
+    ctx.s.add(
+        LinkColour(id=record_id, userId=ctx.caller.id, linkId=body.linkId, colour=body.colour)
+    )
+
+
+def _colour_editable(ctx, record_id: str):
+    from ..store.entities.links import LinkColour
+
+    row = ctx.s.get(LinkColour, record_id)
+    if row is None or row.deleted or row.userId != ctx.caller.id:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _colour_update(ctx, row, body: ColourRecord) -> None:
+    if body.linkId != row.linkId:
+        raise refuse("linkId", "colour-fixed", "It stays with its household.")
+    _colour_check(ctx, body)
+    row.colour = body.colour
+
+
+def _colour_read(ctx, record_id: str) -> CopyState:
+    from ..store.entities.links import LinkColour
+
+    row = ctx.s.get(LinkColour, record_id)
+    return _state(server(ctx.request), ctx.s, ctx.caller, row.linkId)
+
+
+def _colour_register() -> None:
+    from ..store.entities.links import LinkColour
+
+    save.register(
+        save.Kind(
+            prefix="LkCol",
+            entity=LinkColour,
+            fields=ColourRecord,
+            create=_colour_create,
+            editable=_colour_editable,
+            current=lambda ctx, row: {"linkId": row.linkId, "colour": row.colour},
+            update=_colour_update,
+            delete=lambda ctx, row: row.mark_deleted(ctx.caller.id),
+            read=_colour_read,
+        )
+    )
+
+
+_colour_register()
 
 
 class LinkedRow(Model):

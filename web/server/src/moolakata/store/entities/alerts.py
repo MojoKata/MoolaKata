@@ -1,5 +1,7 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from ...ids import new_id
 
 
 @dataclass(kw_only=True, eq=False)
@@ -21,6 +23,7 @@ class Alert:
 
 @dataclass(kw_only=True, eq=False)
 class AlertState:
+    id: str = field(default_factory=lambda: new_id("AlSt"))
     alertId: str
     userId: str
     seenAt: dt.datetime | None = None

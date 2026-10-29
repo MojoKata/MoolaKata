@@ -2,7 +2,7 @@
 cause lasts and resolved by itself when it clears. Alerts are never deleted; resolved ones age
 out of the list after 90 days (schema.md §4.4)."""
 
-from sqlalchemy import Column, ForeignKey, Index, PrimaryKeyConstraint, Text, text
+from sqlalchemy import Column, ForeignKey, Index, Text, UniqueConstraint, text
 
 from ..types import UtcTimestamp
 from ._base import exception
@@ -39,6 +39,7 @@ AlertState = exception(
     Column("seenAt", UtcTimestamp),
     Column("dismissedAt", UtcTimestamp),
     Column("emailedAt", UtcTimestamp),
-    PrimaryKeyConstraint("alertId", "userId"),
+    UniqueConstraint("alertId", "userId"),
     Index("ix_AlertState_userId", "userId"),
+    prefix="AlSt",
 )

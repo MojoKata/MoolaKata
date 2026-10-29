@@ -14,7 +14,7 @@ from decimal import Decimal
 from sqlalchemy import and_, false, func, insert, select
 from sqlalchemy.orm import Session
 
-from .. import clock, options, valuation
+from .. import clock, ids, options, valuation
 from ..projections import taxtables
 from ..store.entities.accounts import Account, Holding, Instrument, Transaction
 from ..store.entities.assets import Item
@@ -264,11 +264,13 @@ def store(
     now = clock.now()
     fresh = [
         {
+            "id": ids.new_id("Price"),
             "instrumentId": instrument_id,
             "date": day,
             "close": close,
             "source": source,
             "fetchedAt": now,
+            "createdAt": now,
             "updatedAt": now,
         }
         for day, close in closes

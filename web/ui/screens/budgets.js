@@ -2,7 +2,7 @@
 // spending, cash flow, a category's trend, and the recurring transactions, for one budget at a
 // time. A household budget is one shared with a group at write.
 import { signal } from '@preact/signals';
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -12,12 +12,20 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Draft, Record } from '../app/draft.js';
+import { Record } from '../app/draft.js';
+import {
+  DraftDialog,
+  RecField,
+  RowErrors,
+  saveNow,
+  saveOne,
+  useDraft,
+} from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
@@ -189,7 +197,7 @@ function ThisMonth({ b, month, reloadList }) {
     dec('0'),
   );
   const unmove = async (/** @type {any} */ m) => {
-    await api.del(`/budgets/${b.id}/moves/${m.id}`, m.version);
+    await saveNow((d) => d.remove(d.load(MoveRec, { ...m, budgetId: b.id })));
     toast('Move deleted');
     res.reload();
   };
@@ -653,6 +661,14 @@ function BudgetList({ budgets, reload }) {
   `;
 }
 
+/** The user's own record, as Make active sets the budget they follow (S7.12.1). */
+class FollowRec extends Record {
+  /** @override */
+  static prefix = 'User';
+  /** @override */
+  static fields = FIELDS.UserRecord;
+}
+
 /**
  * Make a budget the one the user follows (S7.12.1): nothing is rewritten.
  * @param {{ close: (v?: any) => void, b: any, from?: any }} p
@@ -660,7 +676,9 @@ function BudgetList({ budgets, reload }) {
 function MakeActiveDialog({ close, b, from }) {
   useDialogGuide('dialog-make-active');
   const save = useSubmit(async () => {
-    await api.post(`/budgets/${b.id}/active`, {});
+    const me = await api.get('/profile');
+    const was = { id: me.id, version: me.version, activeBudgetId: me.activeBudgetId };
+    await saveOne(FollowRec, was, { activeBudgetId: b.id });
     toast(`${b.name} is the budget you follow`);
     close(true);
   });
@@ -805,73 +823,69 @@ function MoveDialog({ close, b, month, rows, to, cards = [] }) {
   const sources = planned.filter((r) => left(r).gt(0) && r.categoryId !== to).sort((x, y) =>
     left(y).sub(left(x)).isNegative() ? -1 : 1
   );
-  const [from, setFrom] = useState(sources[0]?.categoryId || (envelope ? '' : ''));
-  const [dest, setDest] = useState(to || planned.find((r) => r.state === 'over')?.categoryId || '');
-  const over = planned.find((r) => r.categoryId === dest);
-  const card = cards.find((x) => 'card:' + x.accountId === dest);
-  const [amount, setAmount] = useState(
-    card
-      ? String(card.notBacked)
-      : over && over.state === 'over'
-      ? String(dec(over.remaining).abs())
-      : '',
-  );
-  const [note, setNote] = useState('');
-  const save = useSubmit(async () => {
-    await api.post(`/budgets/${b.id}/moves`, {
+  const start = to || planned.find((r) => r.state === 'over')?.categoryId || '';
+  const f = useDraft((draft) => {
+    const over = planned.find((r) => r.categoryId === start);
+    const card = cards.find((x) => 'card:' + x.accountId === start);
+    const mv = draft.add(MoveRec, {
+      budgetId: b.id,
       month: month + '-01',
-      fromCategoryId: from || null,
-      toCategoryId: dest && !dest.startsWith('card:') ? dest : null,
-      cardId: dest.startsWith('card:') ? dest.slice(5) : null,
-      amount: amount.replace(/[$,\s]/g, ''),
-      note: note || null,
+      fromCategoryId: sources[0]?.categoryId || null,
+      toCategoryId: start && !start.startsWith('card:') ? start : null,
+      cardId: start.startsWith('card:') ? start.slice(5) : null,
+      note: null,
     });
-    toast('Moved');
-    close(true);
-  });
+    const amount = card
+      ? card.notBacked
+      : over && over.state === 'over'
+      ? dec(over.remaining).abs()
+      : null;
+    if (amount != null) mv.set('amount', Dec.of(amount));
+  }, []);
+  const rec = /** @type {MoveRec | undefined} */ (f.draft?.records[0]);
+  const from = rec?.get('fromCategoryId') || '';
+  const dest = rec?.get('cardId') ? 'card:' + rec.get('cardId') : rec?.get('toCategoryId') || '';
   const label = (/** @type {any} */ r) =>
     `${r.label}${r.target ? ' (reserve)' : ''}: ${money(left(r).abs())} ${
       left(r).isNegative() ? 'over' : 'left'
     }`;
   return html`
-    <${Dialog} title=${`Move money: ${monthLabel(month)}`} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Move</button>`}>
-      <div class="row">
-        <${Field} label="From" error=${errAt(save.error, 'fromCategoryId')}>
-          <${Select} value=${from} onChange=${setFrom} options=${[
-            ...(envelope ? [['', 'To Budget']] : []),
-            ...sources.map((r) => [r.categoryId, label(r)]),
-          ]} />
-          </${Field}>
-          <${Field} label="To" error=${errAt(save.error, 'toCategoryId')}>
-            <${Select} value=${dest} onChange=${setDest} options=${[
-              ...(envelope ? [['', 'To Budget']] : [['', 'Choose a category']]),
-              ...planned.filter((r) => r.categoryId !== from).map((r) => [r.categoryId, label(r)]),
-              ...cards.map((x) => [
-                'card:' + x.accountId,
-                `${x.name}'s payment: ${money(x.notBacked)} not backed`,
-              ]),
-            ]} />
-            </${Field}>
-            </div>
-            <${Field} label="Amount to move" error=${errAt(save.error, 'amount')}>
-              <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
+    <${DraftDialog} f=${f} title=${`Move money: ${monthLabel(month)}`} close=${close}
+      what="This move" label="Move" done="Moved">
+      ${rec
+        ? html`
+          <div class="row">
+            <${Field} label="From" error=${rec.error('fromCategoryId')}>
+              <${Select} value=${from} onChange=${(/** @type {string} */ v) =>
+                rec.set('fromCategoryId', v || null)} options=${[
+                ...(envelope ? [['', 'To Budget']] : []),
+                ...sources.map((r) => [r.categoryId, label(r)]),
+              ]} />
               </${Field}>
-              <${Field} label="Note" error=${errAt(save.error, 'note')}>
-                <${Input} value=${note} onInput=${setNote} placeholder="optional" />
-                </${Field}>
-                <p class="small dim">For ${monthLabel(
-                  month,
-                )} only. It shows on both rows and in Activity;
-        delete it to undo.</p>
-                <${FormError} error=${save.error} shown=${[
-                  'fromCategoryId',
-                  'toCategoryId',
-                  'amount',
-                  'note',
+              <${Field} label="To" error=${rec.error('toCategoryId') || rec.error('cardId')}>
+                <${Select} value=${dest} onChange=${(/** @type {string} */ v) => {
+                  rec.set('toCategoryId', v && !v.startsWith('card:') ? v : null);
+                  rec.set('cardId', v.startsWith('card:') ? v.slice(5) : null);
+                }} options=${[
+                  ...(envelope ? [['', 'To Budget']] : [['', 'Choose a category']]),
+                  ...planned.filter((r) => r.categoryId !== from).map((r) => [
+                    r.categoryId,
+                    label(r),
+                  ]),
+                  ...cards.map((x) => [
+                    'card:' + x.accountId,
+                    `${x.name}'s payment: ${money(x.notBacked)} not backed`,
+                  ]),
                 ]} />
-                </${Dialog}>
+                </${Field}>
+                </div>
+                <${RecField} rec=${rec} name="amount" label="Amount to move" />
+                <${RecField} rec=${rec} name="note" label="Note" placeholder="optional" />
+                <p class="small dim">For ${monthLabel(month)} only. It shows on both rows and in
+            Activity; delete it to undo.</p>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -929,13 +943,17 @@ function WhereMoneyIs({ b, month }) {
     return html`<${Empty}>No reserve is held in an account, and no card is among the budget's
       accounts. Give a reserve an account it's held in with <b>Edit plan</b>.</${Empty}>`;
   }
+  // A transfer in kept as the account's own: a move to no category (S7.10.4).
   const keepOwn = async (/** @type {any} */ x) => {
     try {
-      await api.post(`/budgets/${b.id}/landed`, {
-        transactionId: x.transactionId,
-        to: 'own',
-        amount: String(x.amount),
-      }, { params: { month } });
+      await saveNow((d) =>
+        d.add(LandedRec, {
+          budgetId: b.id,
+          month: x.date,
+          transactionId: x.transactionId,
+          amount: String(x.amount),
+        })
+      );
       toast("Kept as the account's own");
       res.reload();
     } catch (e) {
@@ -943,7 +961,7 @@ function WhereMoneyIs({ b, month }) {
     }
   };
   const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
-    openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
+    openDialog(AssignDialog, { b, h, landed: x }).then((y) => y && res.reload());
   return html`
     <div class="grid g2">${w.heldIn.map((/** @type {any} */ h) =>
       html`
@@ -1058,45 +1076,106 @@ function WhereMoneyIs({ b, month }) {
 }
 
 /**
- * Landed money given to the reserves held where it landed, or kept as the account's own
- * (S7.10.5).
- * @param {{ close: (v?: any) => void, b: any, h: any, landed: any, month: string }} p
+ * Landed money given as a move (S7.10.5): to a reserve held where it landed, or to no
+ * category, kept as the account's own. Its month is the transaction's.
  */
-function AssignDialog({ close, b, h, landed, month }) {
-  useDialogGuide('dialog-assign');
-  const [to, setTo] = useState('spread');
-  const [amount, setAmount] = useState(String(landed.free));
-  const save = useSubmit(async () => {
-    await api.post(`/budgets/${b.id}/landed`, {
-      transactionId: landed.transactionId,
-      to,
-      amount: amount.replace(/[$,\s]/g, ''),
-    }, { params: { month } });
-    toast('Assigned');
-    close(true);
+class LandedRec extends Record {
+  /** @override */
+  static prefix = 'BdgMv';
+  /** @override */
+  static fields = FIELDS.MoveRecord;
+  /** @override */
+  static defaults = { fromCategoryId: null, toCategoryId: null, cardId: null, note: null };
+}
+
+/**
+ * An amount spread among reserves by their balances, the last taking what rounding leaves;
+ * evenly when none has a balance.
+ * @param {string} amount @param {any[]} reserves @returns {string[]}
+ */
+function spreadByBalance(amount, reserves) {
+  const weights = reserves.map((r) => (dec(r.balance).gt(0) ? dec(r.balance) : dec(0)));
+  const total = Dec.sum(weights);
+  let left = dec(amount);
+  return reserves.map((_, i) => {
+    if (i === reserves.length - 1) return String(left);
+    const share = total.isZero()
+      ? dec(amount).div(reserves.length, 2)
+      : dec(amount).mul(weights[i]).div(total, 2);
+    left = left.sub(share);
+    return String(share);
   });
+}
+
+/** Whether a line gives nothing: empty, or zero. @param {any} v */
+const nothing = (v) => {
+  try {
+    return v == null || v === '' || dec(v).isZero();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Landed money given to the reserves held where it landed, a line each, or kept as the
+ * account's own (S7.10.5): a move for each line given something, saved together.
+ * @param {{ close: (v?: any) => void, b: any, h: any, landed: any }} p
+ */
+function AssignDialog({ close, b, h, landed }) {
+  useDialogGuide('dialog-assign');
+  const free = String(landed.free);
+  const f = useDraft((draft) => {
+    const base = { budgetId: b.id, month: landed.date, transactionId: landed.transactionId };
+    const shares = spreadByBalance(free, h.reserves);
+    h.reserves.forEach((/** @type {any} */ r, /** @type {number} */ i) =>
+      draft.add(LandedRec, { ...base, toCategoryId: r.categoryId, amount: shares[i] })
+    );
+    draft.add(LandedRec, { ...base, toCategoryId: null, amount: '0' });
+  }, [landed.transactionId]);
+  const lines = /** @type {LandedRec[]} */ (f.draft?.records || []);
+  const spread = () => {
+    const shares = spreadByBalance(free, h.reserves);
+    lines.forEach((r, i) => r.set('amount', i < shares.length ? shares[i] : '0'));
+  };
+  // A line given nothing makes no move.
+  const before = () => {
+    for (const r of lines) {
+      if (nothing(r.get('amount'))) {
+        if (!r.removed) f.draft?.remove(r);
+      } else if (r.removed) f.draft?.unremove(r);
+    }
+    if (lines.every((r) => r.removed)) return false;
+  };
+  let given = dec(0);
+  for (const r of lines) {
+    try {
+      given = given.add(dec(r.get('amount') || 0));
+    } catch { /* typed, not yet a number */ }
+  }
   return html`
-    <${Dialog} title="Assign landed money" close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Assign</button>`}>
-      <p
-        style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
-          .accountName} on ${date(
-            landed.date,
-          )}. In the budget it counts as it always does; this says
-        whose it is.</p>
-      <${Field} label="Give it to" error=${errAt(save.error, 'to')}>
-        <${Select} value=${to} onChange=${setTo} options=${[
-          ['spread', 'Spread among the reserves held here, by balance'],
-          ...h.reserves.map((/** @type {any} */ r) => [r.categoryId, r.label]),
-          ['own', "Keep it as the account's own"],
-        ]} />
-        </${Field}>
-        <${Field} label="Amount to assign" error=${errAt(save.error, 'amount')}>
-          <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
-          </${Field}>
-          <${FormError} error=${save.error} shown=${['to', 'amount']} />
-          </${Dialog}>
+    <${DraftDialog} f=${f} title="Assign landed money" close=${close} what="This assignment"
+      label="Assign" done="Assigned" before=${before}>
+      <p style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
+        .accountName} on ${date(landed.date)}. In the budget it counts as it always does; this
+        says whose it is.</p>
+      ${lines.length
+        ? html`
+          ${h.reserves.map((/** @type {any} */ r, /** @type {number} */ i) =>
+            html`
+              <${RecField} rec=${lines[i]} name="amount" label=${r.label}
+                id=${'assign-' + r.categoryId} help="reserve" />
+            `
+          )}
+          <${RecField} rec=${lines[lines.length - 1]} name="amount"
+            label="Kept as the account's own" id="assign-own" help="own" />
+          <div
+            class="toolbar"><span class="small dim">${money(String(given))} of ${money(
+              free,
+            )} given; the rest stays unassigned.</span><span class="spacer"></span><button
+            type="button" class="btn sm" onClick=${spread}>Spread by balance</button></div>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -1259,65 +1338,72 @@ function Reimbursements({ b }) {
   `;
 }
 
+/** A deposit paired with spending it pays back (S2.9.2): made, or deleted to unpair. */
+class PairRec extends Record {
+  /** @override */
+  static prefix = 'Rmbrs';
+  /** @override */
+  static fields = FIELDS.PairIn;
+}
+
 /**
  * Pair a deposit with spending awaiting being paid back.
  * @param {{ close: (v?: any) => void, item: any }} p
  */
 function PairDialog({ close, item }) {
   useDialogGuide('dialog-pair');
-  const [pick, setPick] = useState(item.offers[0]?.transactionId || '');
-  const offer = item.offers.find((/** @type {any} */ o) => o.transactionId === pick);
-  const most = offer
-    ? (dec(offer.free).lt(dec(item.awaited)) ? offer.free : item.awaited)
-    : item.awaited;
-  const [amount, setAmount] = useState(String(most));
-  const save = useSubmit(async () => {
-    await api.post('/reimbursements', {
+  // The most a deposit pays back: what is awaited, or what is left of it.
+  const most = (/** @type {any} */ o) =>
+    o ? (dec(o.free).lt(dec(item.awaited)) ? o.free : item.awaited) : item.awaited;
+  const f = useDraft((draft) => {
+    const first = item.offers[0];
+    const r = draft.add(PairRec, {
       spendingId: item.spendingId,
       splitId: item.splitId,
-      paybackId: pick,
-      amount: String(amount).replace(/[$,\s]/g, ''),
+      paybackId: first?.transactionId || null,
     });
-    toast('Paired: that much is paid back');
-    close(true);
-  });
+    r.set('amount', Dec.of(most(first)));
+  }, []);
+  const rec = /** @type {PairRec | undefined} */ (f.draft?.records[0]);
+  const pick = rec?.get('paybackId');
   return html`
-    <${Dialog} title="Pair a payback" close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy || !pick}>Pair</button>`}>
+    <${DraftDialog} f=${f} title="Pair a payback" close=${close} what="This pairing"
+      label="Pair" done="Paired: that much is paid back" disabled=${!pick}>
       <p style=${{ marginTop: 0 }}>${item.payee || 'Spending'}, ${date(item.date)}: ${money(
         item.awaited,
       )} awaited${item.owedBy ? ` from ${item.owedBy}` : ''}.</p>
-      <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
-        <legend class="small" style=${{
-          color: 'var(--fg-dim)',
-        }}>Deposits that may pay it back</legend>
-        ${item.offers.map((/** @type {any} */ o) =>
-          html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="radio"
-            name="payback" data-help="deposits" checked=${
-            o.transactionId === pick
-          } onChange=${() => {
-            setPick(o.transactionId);
-            setAmount(String(dec(o.free).lt(dec(item.awaited)) ? o.free : item.awaited));
-          }} /><span class="grow">${o.payee || 'A deposit'}<div class="small dim">${
-            date(
-              o.date,
-            )
-          } · ${o.accountName}</div></span><span class="amt">${money(o.free)}</span></label>`
-        )}
-      </fieldset>
-      <${Field} label="Pays back" error=${errAt(save.error, 'amount')}
-        hint="All of it, or part; one deposit can pay back several.">
-        <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
-        </${Field}>
-        <${FormError} error=${save.error} shown=${['amount']} />
-        </${Dialog}>
+      ${rec
+        ? html`
+          <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+            <legend class="small" style=${{
+              color: 'var(--fg-dim)',
+            }}>Deposits that may pay it back</legend>
+            ${item.offers.map((/** @type {any} */ o) =>
+              html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="radio"
+                name="payback" data-help="deposits" checked=${o.transactionId === pick}
+                onChange=${() => {
+                rec.set('paybackId', o.transactionId);
+                rec.set('amount', Dec.of(most(o)));
+              }} /><span class="grow">${o.payee || 'A deposit'}<div class="small dim">${
+                date(o.date)
+              } · ${o.accountName}</div></span><span class="amt">${money(o.free)}</span></label>`
+            )}
+            ${rec.error('paybackId')
+              ? html`<div class="err">${rec.error('paybackId')}</div>`
+              : null}
+          </fieldset>
+          <${RecField} rec=${rec} name="amount" label="Pays back"
+            hint="All of it, or part; one deposit can pay back several." />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
 /**
  * The accounts a budget covers, with a note naming those it leaves out that often get transfers
  * from them (S7.3.2).
- * @param {{ ids: Set<string>, setIds: (s: Set<string>) => void, error: any }} p
+ * @param {{ ids: Set<string>, setIds: (s: Set<string>) => void, error?: string | null }} p
  */
 function AccountsPicker({ ids, setIds, error }) {
   const accounts = useList('/accounts');
@@ -1337,9 +1423,7 @@ function AccountsPicker({ ids, setIds, error }) {
           a.institution || ''
         }</span></span></label>`
       )}
-      ${errAt(error, 'accountIds')
-        ? html`<div class="err">${errAt(error, 'accountIds')}</div>`
-        : null}
+      ${error ? html`<div class="err">${error}</div>` : null}
     </fieldset>
     ${left.map((x) =>
       html`
@@ -1366,41 +1450,31 @@ const METHODS = /** @type {[string, string][]} */ ([
  */
 function BudgetDialog({ close }) {
   useDialogGuide('dialog-budget');
-  const [name, setName] = useState('');
-  const [method, setMethod] = useState('tracking');
-  const [reserves, setReserves] = useState(true);
-  const [moves, setMoves] = useState(true);
   const [estimate, setEstimate] = useState('6');
-  const [ids, setIds] = useState(/** @type {Set<string>} */ (new Set()));
-  const save = useSubmit(async () => {
-    const out = await api.post('/budgets', {
-      name,
-      accountIds: [...ids],
-      method,
-      reserves,
-      moves: moves || method === 'envelope',
-    }, { idempotent: true });
-    toast('Budget made');
-    close({ ...out, estimate: Number(estimate) || 0 });
-  });
+  const f = useDraft((draft) => {
+    draft.add(BudgetRec, { name: '', method: 'tracking', reserves: true, moves: true });
+  }, []);
+  const rec = /** @type {BudgetRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title="New budget" wide close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Make it</button>`}>
-      <${Field} label="Name" error=${errAt(save.error, 'name')}>
-        <${Input} value=${name} onInput=${setName} placeholder="Household" required />
-        </${Field}>
-        <${Field} label="Method" error=${errAt(save.error, 'method')}
-          hint="It keeps its method; copy it as a scenario to try the other.">
-          <${Select} value=${method} onChange=${setMethod} options=${METHODS} />
-          </${Field}>
-          <${SwitchRow} label="Reserves" hint="Save toward a target in a category, month by month."
-            on=${reserves} onChange=${setReserves} />
-          <${SwitchRow} label="Moves" hint=${method === 'envelope'
+    <${DraftDialog} f=${f} title="New budget" wide close=${close} what="This budget"
+      label="Make it" saved=${(/** @type {any} */ o) => {
+        toast('Budget made');
+        close({ ...o.saved[0].record, estimate: Number(estimate) || 0 });
+      }}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="name" label="Name" placeholder="Household" />
+          <${RecField} rec=${rec} name="method" label="Method" options=${METHODS}
+            hint="It keeps its method; copy it as a scenario to try the other." />
+          <${RecField} rec=${rec} name="reserves" label="Reserves"
+            hint="Save toward a target in a category, month by month." />
+          <${RecField} rec=${rec} name="moves" label="Moves" disabled=${rec.get('method') ===
+            'envelope'} hint=${rec.get('method') === 'envelope'
             ? 'Always on in an envelope budget.'
-            : 'Cover one category from another for a month.'} on=${moves ||
-            method === 'envelope'} onChange=${setMoves}
-            disabled=${method === 'envelope'} />
-          <${AccountsPicker} ids=${ids} setIds=${setIds} error=${save.error} />
+            : 'Cover one category from another for a month.'} />
+          <${AccountsPicker} ids=${new Set(rec.get('accountIds'))} setIds=${(
+            /** @type {Set<string>} */ v,
+          ) => rec.set('accountIds', [...v])} error=${rec.error('accountIds')} />
           <${Field} label="Estimate from history"
             hint="A plan line per category from its average; you keep, change or drop each.">
             <${Select} value=${estimate} onChange=${setEstimate} options=${[
@@ -1410,8 +1484,9 @@ function BudgetDialog({ close }) {
               ['12', 'The last 12 months'],
             ]} />
             </${Field}>
-            <${FormError} error=${save.error} shown=${['name', 'accountIds', 'method']} />
-            </${Dialog}>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -1424,35 +1499,23 @@ function BudgetSettingsDialog({ close, b }) {
   const accounts = useList('/accounts');
   const list = /** @type {any[]} */ (accounts.data) || [];
   const byId = Object.fromEntries(list.map((a) => [a.id, a]));
-  const [name, setName] = useState(b.name);
-  const [reserves, setReserves] = useState(b.reserves);
-  const [moves, setMoves] = useState(b.moves);
-  const [ids, setIds] = useState(/** @type {Set<string>} */ (new Set(b.accountIds)));
-  const [roles, setRoles] = useState(
-    Object.fromEntries(
-      b.roles.map((/** @type {any} */ r) => [r.accountId, {
-        paidFromId: r.paidFromLearned ? '' : r.paidFromId || '',
-        movedFromId: r.movedFromProposed ? '' : r.movedFromId || '',
-      }]),
-    ),
-  );
+  const f = useDraft(async (draft) => {
+    const x = await api.get(`/budgets/${b.id}`);
+    // The roles as chosen: none where the history says.
+    draft.load(BudgetRec, {
+      ...x,
+      roles: x.roles.map((/** @type {any} */ r) => ({
+        accountId: r.accountId,
+        paidFromId: r.paidFromLearned ? null : r.paidFromId,
+        movedFromId: r.movedFromProposed ? null : r.movedFromId,
+      })),
+    });
+  }, [b.id]);
+  const rec = /** @type {BudgetRec | undefined} */ (f.draft?.records[0]);
   const learned = Object.fromEntries(b.roles.map((/** @type {any} */ r) => [r.accountId, r]));
   const owner = b.level === 'owner';
-  const save = useSubmit(async () => {
-    await api.patch(`/budgets/${b.id}`, {
-      name,
-      reserves,
-      moves,
-      ...(owner ? { accountIds: [...ids] } : {}),
-      roles: b.roles.map((/** @type {any} */ r) => ({
-        accountId: r.accountId,
-        paidFromId: roles[r.accountId]?.paidFromId || null,
-        movedFromId: roles[r.accountId]?.movedFromId || null,
-      })),
-    }, b.version);
-    toast('Saved');
-    close(true);
-  });
+  const roles = /** @type {any[]} */ (rec?.get('roles') || []);
+  const role = (/** @type {string} */ id) => roles.find((r) => r.accountId === id) || {};
   const inBudget = b.accountIds.map((/** @type {string} */ x) => byId[x]).filter(Boolean);
   const choices = (/** @type {any} */ a, /** @type {string} */ k) => {
     const r = learned[a.id];
@@ -1466,47 +1529,83 @@ function BudgetSettingsDialog({ close, b }) {
     ];
   };
   const set = (/** @type {string} */ id, /** @type {string} */ k) => (/** @type {string} */ v) =>
-    setRoles({ ...roles, [id]: { ...roles[id], [k]: v } });
+    rec?.set(
+      'roles',
+      roles.some((r) => r.accountId === id)
+        ? roles.map((r) => (r.accountId === id ? { ...r, [k]: v || null } : r))
+        : [...roles, { accountId: id, paidFromId: null, movedFromId: null, [k]: v || null }],
+    );
   return html`
-    <${Dialog} title=${`${b.name}: settings`} wide close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      note=${`${
+    <${DraftDialog} f=${f} title=${`${b.name}: settings`} wide close=${close} what="This budget"
+      done="Saved" note=${`${
         b.method === 'envelope' ? 'An envelope' : 'A tracking'
-      } budget: it keeps its method.`}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Name" error=${errAt(save.error, 'name')}>
-        <${Input} value=${name} onInput=${setName} required /></${Field}>
-      <${SwitchRow} label="Reserves" hint="Save toward a target in a category, month by month."
-        on=${reserves} onChange=${setReserves} />
-      <${SwitchRow} label="Moves" hint=${b.method === 'envelope'
-        ? 'Always on in an envelope budget.'
-        : 'Cover one category from another for a month.'} on=${moves} onChange=${setMoves}
-        disabled=${b.method === 'envelope'} />
-      ${owner ? html`<${AccountsPicker} ids=${ids} setIds=${setIds} error=${save.error} />` : null}
-      <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
-        <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Where money comes from</legend>
-        ${[
-          ...inBudget.filter((a) => a.type === 'credit-card'),
-          ...inBudget.filter((a) => a.type !== 'credit-card'),
-        ].map((a) =>
-          a.type === 'credit-card'
-            ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim">paid
-              from</div></span><${Select} value=${roles[a.id]?.paidFromId || ''}
-              onChange=${set(a.id, 'paidFromId')} options=${choices(a, 'paidFromId')}
-              aria-label=${`${a.name}: paid from`} data-help="paid-from" /></div>`
-            : ['savings', 'money-market'].includes(a.type)
-            ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim">money
-              for its reserves moves from</div></span><${Select} value=${
-              roles[a.id]?.movedFromId ||
-              ''
-            } onChange=${set(a.id, 'movedFromId')} options=${choices(a, 'movedFromId')}
-              aria-label=${`${a.name}: moved from`} data-help="moved-from" /></div>`
-            : null
-        )}
-      </fieldset>
-      <${FormError} error=${save.error} shown=${['name', 'accountIds']} />
-    </${Dialog}>
+      } budget: it keeps its method.`}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="name" label="Name" />
+          <${RecField} rec=${rec} name="reserves" label="Reserves"
+            hint="Save toward a target in a category, month by month." />
+          <${RecField} rec=${rec} name="moves" label="Moves" disabled=${b.method === 'envelope'}
+            hint=${b.method === 'envelope'
+              ? 'Always on in an envelope budget.'
+              : 'Cover one category from another for a month.'} />
+          ${owner
+            ? html`<${AccountsPicker} ids=${new Set(rec.get('accountIds'))} setIds=${(
+              /** @type {Set<string>} */ v,
+            ) => rec.set('accountIds', [...v])} error=${rec.error('accountIds')} />`
+            : null}
+          <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+            <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Where money comes
+              from</legend>
+            ${[
+              ...inBudget.filter((a) => a.type === 'credit-card'),
+              ...inBudget.filter((a) => a.type !== 'credit-card'),
+            ].map((a) =>
+              a.type === 'credit-card'
+                ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim"
+                  >paid from</div></span><${Select} value=${role(a.id).paidFromId || ''}
+                  onChange=${set(a.id, 'paidFromId')} options=${choices(a, 'paidFromId')}
+                  aria-label=${`${a.name}: paid from`} data-help="paid-from" /></div>`
+                : ['savings', 'money-market'].includes(a.type)
+                ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim"
+                  >money for its reserves moves from</div></span><${Select}
+                  value=${role(a.id).movedFromId || ''} onChange=${set(a.id, 'movedFromId')}
+                  options=${choices(a, 'movedFromId')} aria-label=${`${a.name}: moved from`}
+                  data-help="moved-from" /></div>`
+                : null
+            )}
+            ${rec.error('roles') ? html`<div class="err">${rec.error('roles')}</div>` : null}
+          </fieldset>
+        `
+        : null}
+    </${DraftDialog}>
   `;
+}
+
+/** A budget (S7.1), as its dialogs' drafts edit it. */
+class BudgetRec extends Record {
+  /** @override */
+  static prefix = 'Bdgt';
+  /** @override */
+  static fields = FIELDS.BudgetRecord;
+  /** @override */
+  static defaults = { accountIds: [], roles: [] };
+  /** @override */
+  static rules = {
+    // An envelope budget always has moves (S7.1.4).
+    moves: {
+      setWhen: (/** @type {BudgetRec} */ r) => r.get('method') === 'envelope' && !r.get('moves'),
+      value: true,
+    },
+  };
+}
+
+/** A move between categories for a month (S7.11): made, or deleted to undo it. */
+class MoveRec extends Record {
+  /** @override */
+  static prefix = 'BdgMv';
+  /** @override */
+  static fields = FIELDS.MoveRecord;
 }
 
 /**
@@ -1565,13 +1664,10 @@ class PlanLine extends Record {
  * @param {any} b @param {string} month
  */
 function usePlanDraft(b, month) {
-  const [state, setState] = useState(
-    /** @type {{ draft: Draft | null, error: any, tick: number }} */ ({
-      draft: null,
-      error: null,
-      tick: 0,
-    }),
-  );
+  const f = useDraft(async (draft) => {
+    const p = await api.get(`/budgets/${b.id}/plan`, { month });
+    for (const ln of p.lines) draft.load(PlanLine, ln);
+  }, [b.id, month]);
   const cats = useList('/categories');
   const kinds = Object.fromEntries(
     (/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.kind]),
@@ -1579,19 +1675,7 @@ function usePlanDraft(b, month) {
   const paths = Object.fromEntries(
     (/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.path]),
   );
-  useEffect(() => {
-    let live = true;
-    api.get(`/budgets/${b.id}/plan`, { month }).then((p) => {
-      if (!live) return;
-      const draft = new Draft();
-      for (const ln of p.lines) draft.load(PlanLine, ln);
-      setState({ draft, error: null, tick: state.tick });
-    }, (error) => live && setState({ draft: null, error, tick: state.tick }));
-    return () => {
-      live = false;
-    };
-  }, [b.id, month, state.tick]);
-  const draft = state.draft;
+  const draft = f.draft;
   if (draft) {
     for (const r of /** @type {PlanLine[]} */ (draft.records)) {
       r.asOf = month + '-01';
@@ -1599,8 +1683,6 @@ function usePlanDraft(b, month) {
       r.kinds = kinds;
     }
   }
-  /** Read the plan again, the changes made here dropped (S12.15.5). */
-  const reload = () => setState({ draft: null, error: null, tick: state.tick + 1 });
   /** A new line, from the month planned. @param {any} [data] */
   const add = (data = {}) => {
     const r = /** @type {PlanLine} */ (
@@ -1611,63 +1693,7 @@ function usePlanDraft(b, month) {
     r.kinds = kinds;
     return r;
   };
-  return { draft, error: state.error, reload, add, kinds, paths, cats };
-}
-
-/**
- * What a draft's save came to, above the buttons: its questions, listed together; a record
- * changed meanwhile; a refusal that belongs to no field (S12.15.4, S12.15.5).
- * @param {{ outcome: any, draft: Draft | null }} p
- */
-function SaveOutcome({ outcome, draft }) {
-  if (outcome?.status === 'asks') {
-    return html`
-      <div class="notice warn" role="alert">
-        <${Icon} name="alert" />
-        <div>Saving this asks ${outcome.asks.length === 1 ? 'one thing' : 'these'} first:<ol
-            class="asks">${outcome.asks.map((/** @type {any} */ a) =>
-              html`<li>${a.message}</li>`
-            )}</ol></div>
-      </div>
-    `;
-  }
-  if (outcome?.status === 'stale') {
-    return html`
-      <div class="notice warn" role="alert">
-        <${Icon} name="alert" />
-        <div>The plan changed since you opened it, so nothing was saved. <b>Reload</b> opens it as
-          it stands; what you changed here is lost.</div>
-      </div>
-    `;
-  }
-  if (draft?.formError) {
-    return html`
-      <div class="notice warn" role="alert">
-        <${Icon} name="alert" />
-        <div>${draft
-          .formError}</div>
-      </div>
-    `;
-  }
-  return null;
-}
-
-/**
- * A draft's Save, with the questions its last save asked confirmed by name (S12.15.4).
- * @param {Draft | null} draft @param {(v?: any) => void} close
- */
-function useDraftSave(draft, close) {
-  const [outcome, setOutcome] = useState(/** @type {any} */ (null));
-  const save = useSubmit(async () => {
-    if (!draft) return;
-    const o = await draft.save({ confirmAsks: outcome?.status === 'asks' });
-    setOutcome(o);
-    if (o.status === 'saved') {
-      toast('Plan saved');
-      close(true);
-    }
-  });
-  return { save, outcome, setOutcome };
+  return { f, draft, add, kinds, paths, cats };
 }
 
 /**
@@ -1683,12 +1709,11 @@ function EstimateDialog({ close, b, month, months }) {
   const [drop, setDrop] = useState(/** @type {Set<string>} */ (new Set()));
   const [amounts, setAmounts] = useState(/** @type {{ [id: string]: string }} */ ({}));
   const p = usePlanDraft(b, month);
-  const { save, outcome, setOutcome } = useDraftSave(p.draft, close);
-  // The proposals chosen, put into the plan's draft: an existing line takes the amount and
-  // cadence, and keeps the rest of what it has (its target, where it is held).
+  // The proposals chosen, put into the plan's draft as it saves: an existing line takes the
+  // amount and cadence, and keeps the rest of what it has (its target, where it is held).
   const apply = () => {
     const draft = p.draft;
-    if (!draft) return;
+    if (!draft) return false;
     draft.revertAll();
     const byCat = new Map(
       /** @type {PlanLine[]} */ (draft.records).map((r) => [r.get('categoryId'), r]),
@@ -1706,26 +1731,18 @@ function EstimateDialog({ close, b, month, months }) {
   };
   const changed = () => drop.size > 0 || Object.keys(amounts).length > 0;
   return html`
-    <${Dialog} title="Plan from history" wide close=${close} changed=${changed}
-      onSubmit=${() => {
-        if (apply()) save.run().catch(() => {});
-      }} note="Nothing is saved until you save."
-      footer=${html`<button class="btn primary" disabled=${
-        save.busy || !found.length ||
-        !p.draft
-      }>${outcome?.status === 'asks' ? 'Save anyway' : 'Save the plan'}</button>`}>
+    <${DraftDialog} f=${p.f} title="Plan from history" wide close=${close} changed=${changed}
+      before=${apply} what="The plan" done="Plan saved" label="Save the plan"
+      disabled=${!found.length} note="Nothing is saved until you save.">
       <${Field} label="Months to average" id="months">
-        <${Select} value=${span} onChange=${(/** @type {string} */ v) => {
-          setSpan(v);
-          setOutcome(null);
-        }} options=${[
+        <${Select} value=${span} onChange=${(/** @type {string} */ v) => setSpan(v)} options=${[
           ['3', 'The last 3 months'],
           ['6', 'The last 6 months'],
           ['12', 'The last 12 months'],
         ]} /></${Field}>
-      ${res.error || p.error
-        ? html`<${Failed} error=${res.error || p.error} />`
-        : !res.data || !p.draft
+      ${res.error
+        ? html`<${Failed} error=${res.error} />`
+        : !res.data
         ? html`<${Loading} lines=${4} />`
         : !found.length
         ? html`<p class="small dim">Nothing to go by yet: no categorised spending in those months.</p>`
@@ -1753,15 +1770,12 @@ function EstimateDialog({ close, b, month, months }) {
                       const next = new Set(drop);
                       next.has(x.categoryId) ? next.delete(x.categoryId) : next.add(x.categoryId);
                       setDrop(next);
-                      setOutcome(null);
                     }} /></td>
                   <td>${x.label}</td>
                   <td class="num">
                     <${Input} value=${amounts[x.categoryId] ?? money(x.amount).slice(1)}
-                      onInput=${(/** @type {string} */ v) => {
-                        setAmounts({ ...amounts, [x.categoryId]: v });
-                        setOutcome(null);
-                      }}
+                      onInput=${(/** @type {string} */ v) =>
+                        setAmounts({ ...amounts, [x.categoryId]: v })}
                       inputmode="decimal" aria-label=${`${x.label}: amount`} data-help="amount"
                       bad=${r?.error('amount')} />
                   </td>
@@ -1774,9 +1788,7 @@ function EstimateDialog({ close, b, month, months }) {
             })}</tbody>
           </table>
         `}
-      <${SaveOutcome} outcome=${outcome} draft=${p.draft} />
-      <${FormError} error=${save.error} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 
@@ -1791,7 +1803,6 @@ function PlanDialog({ close, b, month }) {
   const projections = useList('/projections');
   const p = usePlanDraft(b, month);
   const draft = p.draft;
-  const { save, outcome, setOutcome } = useDraftSave(draft, close);
   const accounts = useList('/accounts');
   const heldOptions = /** @type {[string, string][]} */ ([
     ['', '—'],
@@ -1817,140 +1828,91 @@ function PlanDialog({ close, b, month }) {
     ) => [c.id, c.path]),
   ]);
   const rows = /** @type {PlanLine[]} */ ((draft?.records || []).filter((r) => !r.removed));
-  /** @param {PlanLine} r @param {string} k */
-  const pick = (r, k) => (/** @type {any} */ v) => {
-    r.set(k, v === '' ? null : v);
-    setOutcome(null);
-  };
-  /** @param {PlanLine} r @param {string} k */
-  const typed = (r, k) => (/** @type {string} */ v) => {
-    r.input(k, v);
-    setOutcome(null);
-  };
-  const submit = () => {
-    if (!draft) return;
-    // A line added and left without a category is no line.
-    for (const r of rows) if (r.state === 'new' && !r.get('categoryId')) draft.remove(r);
-    save.run().catch(() => {});
+  const span = 6 + (envelope ? 1 : 0) + (b.reserves ? 2 : 0);
+  // A line added and left without a category is no line.
+  const before = () => {
+    for (const r of rows) if (r.state === 'new' && !r.get('categoryId')) draft?.remove(r);
   };
   return html`
-    <${Dialog} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
-      changed=${() => !!draft?.changed} onSubmit=${submit}
-      note="Earlier months keep the plan they had."
-      footer=${outcome?.status === 'stale'
-        ? html`<button type="button" class="btn primary" onClick=${() => {
-          setOutcome(null);
-          p.reload();
-        }}>Reload</button>`
-        : html`<button class="btn primary" disabled=${save.busy || !draft}>${
-          outcome?.status === 'asks' ? 'Save anyway' : 'Save'
-        }</button>`}>
-      ${p.error
-        ? html`<${Failed} error=${p.error} />`
-        : !draft
-        ? html`<${Loading} lines=${4} />`
-        : html`
-          <table class="t plan">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th class="num">Amount</th>
-                <th>Every</th>
-                <th>Rollover</th>
-                ${envelope ? html`<th>Overspent</th>` : null}
-                ${b.reserves
-                  ? html`
-                    <th class="num">Target</th>
-                    <th>Held in</th>
-                  `
-                  : null}
-                <th>Projection</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>${rows.map((r) =>
-              html`
-                <tr key=${r.key}>
-                  <td>${r.state === 'new'
-                    ? html`
-                      <${Select} value=${r.get('categoryId') || ''} onChange=${pick(
-                        r,
-                        'categoryId',
-                      )}
-                        options=${options.filter(([id]) =>
-                          !id || id === r.get('categoryId') || !taken.has(id)
-                        )} aria-label="Category" data-help="category"
-                        bad=${r.error('categoryId')} />
-                    `
-                    : p.paths[r.get('categoryId')] || 'A category'}</td>
-                  <td class="num">
-                    <${Input} value=${r.shown('amount')} onInput=${typed(r, 'amount')}
-                      inputmode="decimal" aria-label="Amount" data-help="amount"
-                      bad=${r.error('amount')} />
-                  </td>
-                  <td>
-                    <${Select} value=${r.get('cadence')} onChange=${pick(r, 'cadence')}
-                      options=${[['month', 'Month'], ['year', 'Year']]} aria-label="Every"
-                      data-help="every" />
-                  </td>
-                  <td>
-                    <${Switch} on=${r.get('rollover')} onChange=${pick(r, 'rollover')}
-                      label="Rollover" help="rollover" disabled=${r.get('cadence') === 'year'} />
-                  </td>
-                  ${envelope
-                    ? html`
-                      <td>
-                        <${Select} value=${r.get('overspend')} onChange=${pick(r, 'overspend')}
-                          options=${[
-                            ['carry', 'Carried negative'],
-                            ['next', "From next month's To Budget"],
-                          ]} aria-label="Overspent" data-help="overspent" />
-                      </td>
-                    `
-                    : null}
-                  ${b.reserves
-                    ? html`
-                      <td class="num">${r.applies('target')
-                        ? html`
-                          <${Input} value=${r.shown('target')} onInput=${typed(r, 'target')}
-                            inputmode="decimal" placeholder="none" aria-label="Target"
-                            data-help="target" bad=${r.error('target')}
-                            style=${{ width: '90px', textAlign: 'right' }} />
-                        `
-                        : null}</td>
-                      <td>${r.applies('heldInId')
-                        ? html`
-                          <${Select} value=${r.get('heldInId') || ''} onChange=${pick(
-                            r,
-                            'heldInId',
-                          )} options=${heldOptions} aria-label="Held in"
-                            data-help="held-in" />
-                        `
-                        : null}</td>
-                    `
-                    : null}
-                  <td>${r.applies('projectionId')
-                    ? html`
-                      <${Select} value=${r.get('projectionId') || ''} onChange=${pick(
-                        r,
-                        'projectionId',
-                      )} options=${plans} aria-label="Projection"
-                        data-help="projection" />
-                    `
-                    : null}</td>
-                  <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() => {
-                    draft.remove(r);
-                    setOutcome(null);
-                  }}><${Icon} name="x" /></button></td>
-                </tr>
+    <${DraftDialog} f=${p.f} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
+      before=${before} what="The plan" done="Plan saved"
+      note="Earlier months keep the plan they had.">
+      <table class="t plan">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="num">Amount</th>
+            <th>Every</th>
+            <th>Rollover</th>
+            ${envelope ? html`<th>Overspent</th>` : null}
+            ${b.reserves
+              ? html`
+                <th class="num">Target</th>
+                <th>Held in</th>
               `
-            )}</tbody>
-          </table>
-          <button type="button" class="btn sm mt" onClick=${() => p.add()}>
-            <${Icon} name="plus" /> Add a category</button>
-        `}
-      <${SaveOutcome} outcome=${outcome} draft=${draft} />
-      <${FormError} error=${save.error} />
-    </${Dialog}>
+              : null}
+            <th>Projection</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows.map((r) =>
+          html`
+            <tr key=${r.key}>
+              <td>${r.state === 'new'
+                ? html`
+                  <${RecField} rec=${r} name="categoryId" bare label="Category" help="category"
+                    options=${options.filter(([id]) =>
+                      !id || id === r.get('categoryId') || !taken.has(id)
+                    )} />
+                `
+                : p.paths[r.get('categoryId')] || 'A category'}</td>
+              <td class="num">
+                <${RecField} rec=${r} name="amount" bare label="Amount" help="amount" />
+              </td>
+              <td>
+                <${RecField} rec=${r} name="cadence" bare label="Every" help="every"
+                  options=${[['month', 'Month'], ['year', 'Year']]} />
+              </td>
+              <td>
+                <${RecField} rec=${r} name="rollover" bare label="Rollover" help="rollover"
+                  disabled=${r.get('cadence') === 'year'} />
+              </td>
+              ${envelope
+                ? html`
+                  <td>
+                    <${RecField} rec=${r} name="overspend" bare label="Overspent"
+                      help="overspent" options=${[
+                        ['carry', 'Carried negative'],
+                        ['next', "From next month's To Budget"],
+                      ]} />
+                  </td>
+                `
+                : null}
+              ${b.reserves
+                ? html`
+                  <td class="num">
+                    <${RecField} rec=${r} name="target" bare label="Target" help="target"
+                      placeholder="none" style=${{ width: '90px', textAlign: 'right' }} />
+                  </td>
+                  <td>
+                    <${RecField} rec=${r} name="heldInId" bare label="Held in" help="held-in"
+                      options=${heldOptions} />
+                  </td>
+                `
+                : null}
+              <td>
+                <${RecField} rec=${r} name="projectionId" bare label="Projection"
+                  help="projection" options=${plans} />
+              </td>
+              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() =>
+                draft?.remove(r)}><${Icon} name="x" /></button></td>
+            </tr>
+            <${RowErrors} rec=${r} span=${span} />
+          `
+        )}</tbody>
+      </table>
+      <button type="button" class="btn sm mt" onClick=${() => p.add()}>
+        <${Icon} name="plus" /> Add a category</button>
+      </${DraftDialog}>
   `;
 }

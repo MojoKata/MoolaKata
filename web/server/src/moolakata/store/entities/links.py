@@ -1,7 +1,8 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from . import Record, SoftDeleted
+from ...ids import new_id
+from . import Record
 
 
 @dataclass(kw_only=True, eq=False)
@@ -59,6 +60,7 @@ class LinkedItem:
 
 @dataclass(kw_only=True, eq=False)
 class LinkSent:
+    id: str = field(default_factory=lambda: new_id("LkSnt"))
     linkId: str
     itemId: str
     path: str
@@ -68,6 +70,7 @@ class LinkSent:
 
 @dataclass(kw_only=True, eq=False)
 class LinkFile:
+    id: str = field(default_factory=lambda: new_id("LkFil"))
     linkId: str
     fileId: str
     missedAt: dt.datetime
@@ -77,10 +80,8 @@ class LinkFile:
 
 
 @dataclass(kw_only=True, eq=False)
-class LinkColour(SoftDeleted):
+class LinkColour(Record):
+    id: str = field(default_factory=lambda: new_id("LkCol"))
     userId: str
     linkId: str
     colour: str
-    createdAt: dt.datetime
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None

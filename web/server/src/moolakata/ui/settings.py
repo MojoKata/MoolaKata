@@ -7,24 +7,33 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
-from sqlalchemy import select, text
+from sqlalchemy import false, select, text
 
 from .. import activity, clock, settings, timezones
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.core import Setting
-from .conventions import Deleted, ExactRoute, Loose, Model, check_version, if_match, version_of
+from . import save
+from .conventions import Deleted, ExactRoute, Model
 from .deps import Caller, admin, server
 from .imports import JobOut, accepted
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["settings"])
 
 
+class SettingRef(Model):
+    """A saved setting's record: its id and version (S13.8.6)."""
+
+    id: str
+    version: int
+
+
 class SettingsView(Model):
     values: dict[str, Any]
     sections: dict[str, list[str]]
     serverZone: str
-    versions: dict[str, int]
-    version: int  # all of them together: a change is made against it (S13.8.6)
+    # The saved ones' records, by key, the passwords' among them; a key with none stands at
+    # its default, and a section's draft makes its record when it changes.
+    records: dict[str, SettingRef]
 
 
 def view(s) -> SettingsView:
@@ -32,13 +41,12 @@ def view(s) -> SettingsView:
     sections: dict[str, list[str]] = {}
     for k, d in settings.DEFINITIONS.items():
         sections.setdefault(d.section, []).append(k)
-    versions = {r.key: r.version for r in s.scalars(select(Setting))}
+    rows = s.scalars(select(Setting).where(Setting.deleted == false()))
     return SettingsView(
         values=values,
         sections=sections,
         serverZone=timezones.host_zone(),
-        versions=versions,
-        version=version_of(s, Setting),
+        records={r.key: SettingRef(id=r.id, version=r.version) for r in rows},
     )
 
 
@@ -46,22 +54,16 @@ def view(s) -> SettingsView:
 REAUTH = {"smtpHost", "publicUrl"}
 
 
-def _clear_moved_secrets(s, changed: list[str]) -> list[str]:
-    """A stored password belongs to its host: a new host clears it, to be entered again for
-    that host, so it is never sent to whoever runs the new one (S16.2, S16.7)."""
+def _secrets():
     from ..bitcoin.sync import PASSWORD
     from ..mail import SMTP_SECRET
-    from ..store.repos import secrets as secret_repo
 
-    cleared = []
-    for key, secret, name in (
-        ("smtpHost", SMTP_SECRET, "smtpPassword"),
-        ("bitcoinNodeHost", PASSWORD, "bitcoinPassword"),
-    ):
-        if key in changed and secret_repo.info(s, *secret) is not None:
-            secret_repo.remove(s, *secret)
-            cleared.append(name)
-    return cleared
+    return {"smtpPassword": SMTP_SECRET, "bitcoinPassword": PASSWORD}
+
+
+# The passwords a section saves with its keys: written, never read back (S14.4), each bound to
+# the host its section names, which clears it when it changes (S16.2, S16.7).
+SECRETS = {"smtpPassword": "smtpHost", "bitcoinPassword": "bitcoinNodeHost"}
 
 
 @router.get("/settings", response_model=SettingsView)
@@ -70,70 +72,152 @@ def get_settings(request: Request, c: Caller = Depends(admin)):
         return view(s)
 
 
-@router.patch("/settings", response_model=SettingsView)
-def change_settings(
-    body: Loose, request: Request, c: Caller = Depends(admin), version: int = Depends(if_match)
-):
-    """Every key is checked before any is saved; a refusal names each field (R3.7)."""
-    errors: list[FieldError] = []
-    clean = {}
-    for key, value in body.items():
-        try:
-            clean[key] = settings.coerce(key, value)
-        except Problem as p:
-            errors += p.errors
-    srv = server(request)
-    if clean.get("bitcoinSource") == "stub" and not srv.config.stubs:
-        errors.append(
-            FieldError("bitcoinSource", "source-unknown", "Only with dev mode's stubs (--stubs).")
-        )
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
-    with srv.db.tx() as s:
-        check_version(version_of(s, Setting), version, lambda: view(s))
-        if any(
-            k in REAUTH or k.startswith("network")
-            for k, v in clean.items()
-            if settings.get(s, k) != v
-        ):
-            # Who reaches the app, a link or the connector, and where a secret or a link is
-            # sent: the password again (S13.7.2).
-            from .deps import recent_auth
+class SettingRecord(Model):
+    """A setting as a section's draft saves it (S16): its key, and a value its definition
+    checks; a password's value is written and never read back, null removing it."""
 
-            recent_auth(c)
-        # Sign-up sends links by email: it needs SMTP and the public URL (S10.1.4).
-        after = {
-            k: clean.get(k, settings.get(s, k)) for k in ("signupEnabled", "smtpHost", "publicUrl")
-        }
-        missing = [k for k in ("smtpHost", "publicUrl") if not after[k]]
-        if after["signupEnabled"] and missing and not srv.config.dev:
-            field = "signupEnabled" if "signupEnabled" in clean else missing[0]
-            message = "Sign-up sends links by email: set up SMTP and the public URL first."
-            raise Problem(
-                422,
-                "signup-needs-email",
-                message,
-                [FieldError(field, "signup-needs-email", message)],
-            )
-        changed = [k for k, v in clean.items() if settings.get(s, k) != v]
-        for k in changed:
-            settings.put(s, k, clean[k], c.id)
-        cleared = _clear_moved_secrets(s, changed)
-        if changed:
-            activity.record(
-                s,
-                "settings.changed",
-                actor=c.id,
-                for_admins=True,
-                detail={"fields": sorted(changed + cleared)},
-            )
-        s.flush()
-        out = view(s)
-    if "smtpHost" in changed or any(k.startswith("bitcoin") for k in changed):
+    key: str
+    value: Any = None
+
+
+class SettingOut(SettingRecord):
+    id: str
+    version: int
+
+
+def _setting_admin(ctx) -> Caller:
+    if not ctx.caller.admin:
+        raise Problem(403, "admins-only", "Only admins can do this.")
+    return ctx.caller
+
+
+def _setting_create(ctx, record_id: str, body: SettingRecord) -> None:
+    _setting_admin(ctx)
+    if body.key not in settings.DEFINITIONS and body.key not in SECRETS:
+        raise refuse("key", "setting-unknown", "Not a setting.")
+    if settings.row_of(ctx.s, body.key) is not None:
+        raise refuse("key", "setting-saved", "It is saved: change it.", 409)
+    row = Setting(id=record_id, key=body.key, value="null", updatedById=ctx.caller.id)
+    _setting_apply(ctx, row, body, new=True)
+    ctx.s.add(row)
+
+
+def _setting_editable(ctx, record_id: str) -> Setting:
+    _setting_admin(ctx)
+    row = ctx.s.get(Setting, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _setting_current(ctx, row: Setting) -> dict:
+    return {"key": row.key, "value": None if row.key in SECRETS else json.loads(row.value)}
+
+
+def _setting_update(ctx, row: Setting, body: SettingRecord) -> None:
+    if body.key != row.key:
+        raise refuse("key", "setting-fixed", "A setting keeps its key.")
+    _setting_apply(ctx, row, body, new=False)
+
+
+def _setting_apply(ctx, row: Setting, body: SettingRecord, new: bool) -> None:
+    """The value checked and kept; what spans keys is checked once all are (`_settings_after`)."""
+    s, c = ctx.s, ctx.caller
+    srv = server(ctx.request)
+    notes = ctx.notes.setdefault("settings", {"changed": [], "secrets": set(), "ids": {}})
+    notes["ids"][body.key] = row.id
+    if body.key in SECRETS:
+        v = body.value
+        if v is not None and (not isinstance(v, str) or not v or len(v) > 500):
+            raise refuse("value", "password-invalid", "A password, or none.")
+        from .deps import recent_auth
+
+        recent_auth(c)  # a secret: the password again (S13.7.2)
+        from ..store.repos import secrets as secret_repo
+
+        where = _secrets()[body.key]
+        if v:
+            secret_repo.put(s, srv.keys.secrets, *where, v, c.id)
+        else:
+            secret_repo.remove(s, *where)
+        row.updatedById = c.id
+        row.updatedAt = clock.now()
+        notes["secrets"].add(body.key)
+        notes["changed"].append(body.key)
+    else:
+        value = settings.coerce(body.key, body.value)
+        if body.key == "bitcoinSource" and value == "stub" and not srv.config.stubs:
+            raise refuse("value", "source-unknown", "Only with dev mode's stubs (--stubs).")
+        if value != settings.get(s, body.key) or new:
+            if body.key in REAUTH or body.key.startswith("network"):
+                # Who reaches the app, a link or the connector, and where a secret or a link
+                # is sent: the password again (S13.7.2).
+                from .deps import recent_auth
+
+                recent_auth(c)
+            row.value, row.updatedById = json.dumps(value, sort_keys=True), c.id
+            notes["changed"].append(body.key)
+    ctx.verify("settings", lambda: _settings_after(ctx))
+
+
+def _settings_after(ctx) -> None:
+    """Once every setting of the save is in: sign-up's needs, the passwords a new host clears,
+    one Activity entry, and the hosts the server may reach (S13.5)."""
+    s, c = ctx.s, ctx.caller
+    srv = server(ctx.request)
+    notes = ctx.notes["settings"]
+    s.flush()
+    # Sign-up sends links by email: it needs SMTP and the public URL (S10.1.4).
+    missing = [k for k in ("smtpHost", "publicUrl") if not settings.get(s, k)]
+    if settings.get(s, "signupEnabled") and missing and not srv.config.dev:
+        # At the key this save changed: sign-up turned on, or what it needs taken away.
+        key = next(k for k in ("signupEnabled", *missing) if k in notes["ids"])
+        message = "Sign-up sends links by email: set up SMTP and the public URL first."
+        error = FieldError(key, "signup-needs-email", message, notes["ids"][key])
+        raise Problem(422, "signup-needs-email", message, [error])
+    from ..store.repos import secrets as secret_repo
+
+    cleared = []
+    for secret, host in SECRETS.items():
+        where = _secrets()[secret]
+        moved = host in notes["changed"] and secret not in notes["secrets"]
+        if moved and secret_repo.info(s, *where) is not None:
+            secret_repo.remove(s, *where)
+            cleared.append(secret)
+    changed = notes["changed"]
+    if changed:
+        activity.record(s, "settings.changed", actor=c.id, for_admins=True,
+                        detail={"fields": sorted(set(changed + cleared))})  # fmt: skip
+    if any(k == "smtpHost" or k.startswith("bitcoin") for k in changed):
         from .prices import apply_egress
 
-        apply_egress(srv)
-    return out
+        ctx.after("egress", lambda: apply_egress(srv))
+
+
+def _setting_delete(ctx, row: Setting) -> None:
+    """Back to its default."""
+    _setting_admin(ctx)
+    row.mark_deleted(ctx.caller.id)
+
+
+def _setting_read(ctx, record_id: str) -> SettingOut:
+    row = ctx.s.get(Setting, record_id)
+    return SettingOut(id=row.id, version=row.version, **_setting_current(ctx, row))
+
+
+save.register(
+    save.Kind(
+        prefix="Setng",
+        entity=Setting,
+        fields=SettingRecord,
+        create=_setting_create,
+        editable=_setting_editable,
+        current=_setting_current,
+        update=_setting_update,
+        delete=_setting_delete,
+        read=_setting_read,
+    )
+)
 
 
 # ---------- Email (S16.2) ----------
@@ -152,10 +236,6 @@ class EmailView(Model):
     setAside: int
     lastRun: dt.datetime | None
     lastError: str | None
-
-
-class EmailPassword(Model):
-    password: str | None
 
 
 class TestEmail(Model):
@@ -244,33 +324,6 @@ def written_email(name: str, request: Request, c: Caller = Depends(admin)):
     return WrittenEmailText(name=name, text=text)
 
 
-@router.put("/settings/email/password", response_model=EmailView)
-def email_password(body: EmailPassword, request: Request, c: Caller = Depends(admin)):
-    """The SMTP password is a secret (S14.4): the admin's password again (S13.7.2)."""
-    from .deps import recent_auth
-
-    recent_auth(c)
-    """The SMTP password is a secret (S14.4): set or removed, never read back."""
-    from ..mail import SMTP_SECRET
-    from ..store.repos import secrets as secret_repo
-
-    srv = server(request)
-    with srv.db.tx() as s:
-        if body.password:
-            secret_repo.put(s, srv.keys.secrets, *SMTP_SECRET, body.password, c.id)
-        else:
-            secret_repo.remove(s, *SMTP_SECRET)
-        activity.record(
-            s,
-            "settings.changed",
-            actor=c.id,
-            for_admins=True,
-            detail={"fields": ["smtpPassword"]},
-        )
-        s.flush()
-        return _email_view(srv, s)
-
-
 # ---------- Bitcoin (S16.7, S1.6.2) ----------
 
 
@@ -281,10 +334,6 @@ class BitcoinView(Model):
     lastError: str | None
     certificate: str | None  # the Electrum server's, trusted (S1.6.2.4): its SHA-256
     certificateOffered: str | None  # another one it presented since, waiting to be confirmed
-
-
-class BitcoinPassword(Model):
-    password: str | None
 
 
 class BitcoinTest(Model):
@@ -322,33 +371,6 @@ def _bitcoin_view(s) -> BitcoinView:
 @router.get("/settings/bitcoin", response_model=BitcoinView)
 def bitcoin_status(request: Request, c: Caller = Depends(admin)):
     with server(request).db.read() as s:
-        return _bitcoin_view(s)
-
-
-@router.put("/settings/bitcoin/password", response_model=BitcoinView)
-def bitcoin_password(body: BitcoinPassword, request: Request, c: Caller = Depends(admin)):
-    """Bitcoin Core's RPC password is a secret (S14.4): set or removed, never read back; the
-    admin's password again (S13.7.2)."""
-    from ..bitcoin.sync import PASSWORD
-    from ..store.repos import secrets as secret_repo
-    from .deps import recent_auth
-
-    recent_auth(c)
-
-    srv = server(request)
-    with srv.db.tx() as s:
-        if body.password:
-            secret_repo.put(s, srv.keys.secrets, *PASSWORD, body.password, c.id)
-        else:
-            secret_repo.remove(s, *PASSWORD)
-        activity.record(
-            s,
-            "settings.changed",
-            actor=c.id,
-            for_admins=True,
-            detail={"fields": ["bitcoinPassword"]},
-        )
-        s.flush()
         return _bitcoin_view(s)
 
 

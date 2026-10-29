@@ -160,7 +160,7 @@ Deno.test('deleting a record deletes what it owns, and bringing it back brings t
   });
   d.remove(t);
   truthy(s.removed);
-  equal(d.ops().map((o) => [o.op, o.id]), [['delete', t.id], ['delete', s.id]]);
+  equal(d.ops().map((o) => [o.op, o.id]), [['delete', t.id]], 'its parts go with it there too');
   d.unremove(t);
   equal(s.removed, false);
   equal(d.ops(), []);
@@ -253,7 +253,53 @@ Deno.test('text that does not read yet is a change, and is never sent', async ()
   equal(d.changed, true, 'asked about before it is discarded');
   equal(d.ops(), []);
   equal((await d.save()).status, 'refused');
+  equal(d.formError, 'Correct the fields marked first.', 'said above the buttons');
   equal(sent.length, 0);
   t.revert('amount');
   equal(d.changed, false);
+});
+
+Deno.test('a fingerprint tells the same changes from others', () => {
+  const { d } = draft();
+  const t = d.load(Txn, read());
+  const none = d.fingerprint();
+  t.set('payee', 'Bank');
+  const one = d.fingerprint();
+  truthy(one !== none);
+  t.set('payee', 'Broker');
+  equal(d.fingerprint(), none, 'set back, the same as untouched');
+  t.input('amount', '42.0');
+  equal(d.fingerprint(), none, '42.0 and 42.00 are the same amount');
+});
+
+Deno.test('a new record a form starts with is unchanged until edited, and still made', () => {
+  const { d } = draft();
+  const t = d.add(Txn, { payee: 'Shop' });
+  t.input('amount', '−12.50');
+  d.settle();
+  equal(d.changed, false, 'an Add dialog left untouched closes without asking');
+  equal(d.ops().map((o) => o.op), ['create'], 'saved, it is made');
+  t.set('payee', 'Market');
+  equal(d.changed, true);
+  d.revertAll();
+  equal(t.get('payee'), 'Shop', 'put back to where the form started, not taken away');
+  equal(d.records.length, 1);
+  equal(String(t.get('amount')), '-12.50', 'the minus sign reads as a minus');
+});
+
+Deno.test('a list of words is typed with commas between', () => {
+  const { d } = draft();
+  const t = d.load(Txn, read());
+  t.input('tags', 'b, a, ');
+  equal(d.changed, false, 'the same set, typed in another order');
+  t.input('tags', 'a, c');
+  equal(t.changes().tags, { add: ['c'], remove: ['b'] });
+});
+
+Deno.test('a new record is sent after the new records it refers to', () => {
+  const { d } = draft();
+  const s = d.add(Split, { amount: Dec.parse('1.00') });
+  const t = d.add(Txn, { payee: 'Shop' });
+  s.set('transactionId', t.id);
+  equal(d.ops().map((o) => o.id), [t.id, s.id]);
 });

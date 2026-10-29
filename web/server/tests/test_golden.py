@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from conftest import make_user, sign_in
+from edits import loan_payment, make, option_trade, saved, terms
 from test_accounts import add, new_account
 from test_budgets import save_plan
 
@@ -47,36 +48,10 @@ def portfolio(c) -> str:
     trade(c, brk["id"], "2026-03-02", "buy", "10", "400", "MSFT")
     trade(c, brk["id"], "2026-04-01", "sell", "10", "350", "MSFT")  # a loss, washed
     trade(c, brk["id"], "2026-04-15", "buy", "10", "360", "MSFT")  # its replacement
-    r = c.post(
-        f"/ui/api/accounts/{brk['id']}/options",
-        json={
-            "date": "2026-05-01",
-            "action": "sell-to-open",
-            "underlying": "AAPL",
-            "right": "put",
-            "strike": "200",
-            "expiry": "2026-06-19",
-            "contracts": "1",
-            "premium": "3.10",
-            "fees": "0.65",
-        },
-    )
-    assert r.status_code == 201, r.text
-    r = c.post(
-        f"/ui/api/accounts/{brk['id']}/options",
-        json={
-            "date": "2026-05-20",
-            "action": "buy-to-close",
-            "underlying": "AAPL",
-            "right": "put",
-            "strike": "200",
-            "expiry": "2026-06-19",
-            "contracts": "1",
-            "premium": "1.05",
-            "fees": "0.65",
-        },
-    )
-    assert r.status_code == 201, r.text
+    saved(option_trade(c, brk["id"], "2026-05-01", "sell-to-open", "AAPL", "put",
+                       "200", "2026-06-19", "1", "3.10", "0.65"))  # fmt: skip
+    saved(option_trade(c, brk["id"], "2026-05-20", "buy-to-close", "AAPL", "put",
+                       "200", "2026-06-19", "1", "1.05", "0.65"))  # fmt: skip
     ex = new_account(c, name="Exchange", type="crypto-exchange", mask="2002")
     trade(c, ex["id"], "2025-03-01", "buy", "0.05", "80000", "BTC")
     trade(c, ex["id"], "2026-06-01", "sell", "0.05", "100000", "BTC")  # long, no basis: K
@@ -86,8 +61,8 @@ def portfolio(c) -> str:
     trade(c, w["id"], "2026-02-02", "buy", "0.01", "85000", "BTC")
     trade(c, w["id"], "2026-05-04", "sell", "0.01", "98000", "BTC")  # self-custody: I
     me = c.get("/ui/api/session").json()["user"]["id"]
-    r = c.post("/ui/api/tax-books", json={"year": 2026, "filers": [me]})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", year=2026, filers=[me])
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
@@ -106,21 +81,9 @@ def test_the_exports_match_their_golden_files(alice, export, golden):
 
 
 def option(c, acct, day, action, premium, **kw):
-    r = c.post(
-        f"/ui/api/accounts/{acct}/options",
-        json={
-            "date": day,
-            "action": action,
-            "underlying": kw.get("underlying", "MSFT"),
-            "right": kw.get("right", "call"),
-            "strike": kw.get("strike", "500"),
-            "expiry": kw.get("expiry", "2027-01-15"),
-            "contracts": "1",
-            "premium": premium,
-            "fees": "0.65",
-        },
-    )
-    assert r.status_code == 201, r.text
+    saved(option_trade(c, acct, day, action, kw.get("underlying", "MSFT"), kw.get("right", "call"),
+                       kw.get("strike", "500"), kw.get("expiry", "2027-01-15"), "1", premium,
+                       "0.65"))  # fmt: skip
 
 
 def review_cases(c) -> str:
@@ -146,8 +109,8 @@ def review_cases(c) -> str:
     option(c, written["id"], "2025-01-10", "sell-to-open", "20.00")  # 2000 - 0.65
     option(c, written["id"], "2026-03-10", "buy-to-close", "12.00")  # 1200 + 0.65
     me = c.get("/ui/api/session").json()["user"]["id"]
-    r = c.post("/ui/api/tax-books", json={"year": 2026, "filers": [me]})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", year=2026, filers=[me])
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
@@ -176,10 +139,7 @@ def budget_household(c):
     card = new_account(c, name="Visa", type="credit-card", mask="2003")
     brk = new_account(c, name="Brokerage", type="brokerage", mask="2004")
     ids = [chk["id"], sav["id"], card["id"]]
-    b = c.post(
-        "/ui/api/budgets",
-        json={"name": "Household", "accountIds": ids, "reserves": True, "moves": True},
-    ).json()
+    b = make(c, "Bdgt", name="Household", accountIds=ids, reserves=True, moves=True).json()
     food, fun, repair = cat["Food"], cat["Entertainment"], cat["Transportation › Car maintenance"]
     lines = [
         {"categoryId": cat["Income › Salary"], "amount": "4000.00"},
@@ -191,10 +151,7 @@ def budget_household(c):
     ]
     assert save_plan(c, b, "2026-09-01", lines).status_code == 200
     loan = new_account(c, name="Car loan", type="auto-loan", mask="2005")
-    c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={"principal": "20000", "startDate": "2026-08-01", "termMonths": 60, "rate": "6"},
-    )
+    saved(terms(c, loan["id"], principal="20000", startDate="2026-08-01", termMonths=60, rate="6"))
     for m in ("09", "10", "11"):
         add(
             c,
@@ -212,10 +169,7 @@ def budget_household(c):
             payee="Kroger",
             categoryId=cat["Food › Groceries"],
         )
-        c.post(
-            f"/ui/api/accounts/{loan['id']}/loan/payments",
-            json={"date": f"2026-{m}-15", "amount": "1000.00", "fromAccountId": chk["id"]},
-        )
+        saved(loan_payment(c, loan["id"], f"2026-{m}-15", "1000.00", from_account=chk["id"]))
         add(
             c,
             chk["id"],
@@ -248,13 +202,15 @@ def budget_household(c):
         owedBy="Acme Corp",
     )
     back = add(c, chk["id"], "310.00", "2026-11-18", payee="Acme expense report")
-    c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": hotel["id"], "paybackId": back["id"], "amount": "310.00"},
-    )
-    c.post(
-        f"/ui/api/budgets/{b['id']}/moves",
-        json={"month": "2026-10-01", "fromCategoryId": food, "toCategoryId": fun, "amount": "40"},
+    make(c, "Rmbrs", spendingId=hotel["id"], paybackId=back["id"], amount="310.00")
+    make(
+        c,
+        "BdgMv",
+        budgetId=b["id"],
+        month="2026-10-01",
+        fromCategoryId=food,
+        toCategoryId=fun,
+        amount="40",
     )
     for day, amount in (("2026-10-25", "-450.00"), ("2026-11-25", "-150.00")):
         add(c, chk["id"], amount, day, payee="Visa payment")

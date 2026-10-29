@@ -292,7 +292,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
         |----------------------------->| sealing public key, fingerprint |
         | seals {username, password,   |                                 |
         | host, time} in WebCrypto     |                                 |
-        | PUT …/connections/{id}/credential {box}                        |
+        | POST …/connections/{id}/credential {box}                       |
         |----------------------------->| stores the box; cannot open it  |
         |                              |     POST /report {locked: false}|
         |                              |<--------------------------------|

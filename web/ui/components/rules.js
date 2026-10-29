@@ -7,12 +7,15 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { money } from '../app/format.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select } from './fields.js';
+import { FormError } from './fields.js';
+import { Record } from '../app/draft.js';
+import { DraftDialog, RecField, saveNow, saveOne, useDraft } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { TagsField } from './tags.js';
 
-const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 const DIRECTIONS = [['any', 'Money in or out'], ['out', 'Money out'], ['in', 'Money in']];
 
 /**
@@ -75,8 +78,9 @@ function RulesDialog({ close }) {
     toast(r.changed === 1 ? 'Set 1 transaction' : `Set ${r.changed} transactions`);
     close();
   });
+  // Up or down the list: its position, the others closing up around it (S2.7).
   const move = (/** @type {any} */ r, /** @type {number} */ to) =>
-    act.run(() => api.post(`/rules/${r.id}/move`, { to })).catch(() => {});
+    act.run(() => saveOne(RuleRec, r, { position: to })).catch((e) => toast(e.message));
   const rows = v ? /** @type {any[]} */ (v.items) : null;
   return html`
     <${Dialog} title="Categorisation rules" wide close=${close}
@@ -129,7 +133,8 @@ function RulesDialog({ close }) {
                       <button type="button" class="btn sm danger" disabled=${act.busy}
                         onClick=${() =>
                           armed === r.id
-                            ? act.run(() => api.del(`/rules/${r.id}`, r.version)).catch(() => {})
+                            ? act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
+                              .catch(() => {})
                             : setArmed(r.id)}>${armed === r.id
                           ? 'Click again to delete'
                           : 'Delete'}</button>
@@ -145,103 +150,67 @@ function RulesDialog({ close }) {
   `;
 }
 
+/** A rule (S2.7), as its dialog's draft edits it. */
+class RuleRec extends Record {
+  /** @override */
+  static prefix = 'Rule';
+  /** @override */
+  static fields = FIELDS.RuleRecord;
+  /** @override */
+  static defaults = { direction: 'any', tagIds: [] };
+}
+
 /** @param {{ close: (v?: any) => void, rule: any, fill?: any }} p */
 function RuleDialog({ close, rule, fill }) {
   useDialogGuide('dialog-rule');
   const accounts = useList('/accounts');
   const cats = useList('/categories');
-  const r = rule || {};
-  const [f, setF] = useState({
-    payeeMatch: r.payeeMatch ?? fill?.payeeMatch ?? '',
-    amountMin: r.amountMin ?? '',
-    amountMax: r.amountMax ?? '',
-    direction: r.direction ?? 'any',
-    accountId: r.accountId ?? '',
-    categoryId: r.categoryId ?? fill?.categoryId ?? '',
-    payee: r.payee ?? '',
-    tags: (r.tags || []).join(', '),
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const save = useSubmit(async () => {
-    const body = {
-      payeeMatch: f.payeeMatch,
-      amountMin: clean(f.amountMin) || null,
-      amountMax: clean(f.amountMax) || null,
-      direction: f.direction,
-      accountId: f.accountId || null,
-      categoryId: f.categoryId || null,
-      payee: f.payee || null,
-      tags: f.tags.split(',').map((/** @type {string} */ x) => x.trim()).filter(Boolean),
-    };
-    if (rule) await api.patch(`/rules/${rule.id}`, body, rule.version);
-    else await api.post('/rules', body);
-    toast(rule ? 'Rule saved' : 'Rule added');
-    close(true);
-  });
-  const e = save.error;
+  const f = useDraft((draft) => {
+    if (rule) draft.load(RuleRec, rule);
+    else {
+      draft.add(RuleRec, {
+        payeeMatch: fill?.payeeMatch ?? '',
+        categoryId: fill?.categoryId || null,
+      });
+    }
+  }, [rule?.id]);
+  const rec = /** @type {RuleRec | undefined} */ (f.draft?.records[0]);
   const writable = (/** @type {any[]} */ (accounts.data) || []).filter((a) => a.level !== 'read');
   return html`
-    <${Dialog} title=${rule ? 'Edit a rule' : 'New rule'} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`
-        <button type="button" class="btn" onClick=${() =>
-          close()}>Cancel</button><button class="btn primary"
-          disabled=${save.busy}>${rule ? 'Save' : 'Add the rule'}</button>
-      `}>
-      <${Field} label="Payee contains" error=${errAt(e, 'payeeMatch')}
-        hint="As the bank writes it; case doesn't matter. re: starts a regular expression.">
-        <${Input} value=${f.payeeMatch} onInput=${set('payeeMatch')} required
-          placeholder="WHOLE FOODS, or re:^AMZN" />
-        </${Field}>
-        <div class="row">
-          <${Field} label="Amount from" error=${errAt(e, 'amountMin')}>
-            <${Input} value=${f.amountMin} onInput=${set('amountMin')} inputmode="decimal"
-              placeholder="any" />
-            </${Field}>
-            <${Field} label="Amount to" error=${errAt(e, 'amountMax')}>
-              <${Input} value=${f.amountMax} onInput=${set('amountMax')} inputmode="decimal"
-                placeholder="any" />
-              </${Field}>
-              </div>
-              <div class="row">
-                <${Field} label="Direction" error=${errAt(e, 'direction')}>
-                  <${Select} value=${f.direction} onChange=${set(
-                    'direction',
-                  )} options=${DIRECTIONS} />
-                  </${Field}>
-                  <${Field} label="Account" error=${errAt(e, 'accountId')}>
-                    <${Select} value=${f.accountId} onChange=${set('accountId')} options=${[
-                      ['', 'Any account'],
-                      ...writable.map((a) => [a.id, a.name]),
-                    ]} />
-                    </${Field}>
-                    </div>
-                    <${Field} label="Category" error=${errAt(e, 'categoryId')}>
-                      <${Select} value=${f.categoryId} onChange=${set('categoryId')} options=${[
-                        ['', 'Leave it as it is'],
-                        ...(/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.path]),
-                      ]} />
-                      </${Field}>
-                      <${Field} label="Rename to" error=${errAt(e, 'payee')}
-                        hint="The payee shown; the bank's text is kept beside it.">
-                        <${Input} value=${f.payee} onInput=${set('payee')}
-                          placeholder="leave the payee" />
-                        </${Field}>
-                        <${Field} label="Tags" error=${errAt(e, 'tags')}
-                          hint="Your own, separated by commas.">
-                          <${Input} value=${f.tags} onInput=${set('tags')}
-                            placeholder="coffee, work" />
-                          </${Field}>
-                          <${FormError} error=${e} shown=${[
-                            'payeeMatch',
-                            'amountMin',
-                            'amountMax',
-                            'direction',
-                            'accountId',
-                            'categoryId',
-                            'payee',
-                            'tags',
-                          ]} />
-                          </${Dialog}>
+    <${DraftDialog} f=${f} title=${rule ? 'Edit a rule' : 'New rule'} close=${close}
+      what="This rule" label=${rule ? 'Save' : 'Add the rule'}
+      done=${rule ? 'Rule saved' : 'Rule added'}
+      extra=${() => html`<button type="button" class="btn" data-cancel>Cancel</button>`}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="payeeMatch" label="Payee contains"
+            placeholder="WHOLE FOODS, or re:^AMZN"
+            hint="As the bank writes it; case doesn't matter. re: starts a regular expression." />
+          <div class="row">
+            <${RecField} rec=${rec} name="amountMin" label="Amount from" placeholder="any" />
+            <${RecField} rec=${rec} name="amountMax" label="Amount to" placeholder="any" />
+          </div>
+          <div class="row">
+            <${RecField} rec=${rec} name="direction" label="Direction" options=${DIRECTIONS} />
+            <${RecField} rec=${rec} name="accountId" label="Account" options=${[
+              ['', 'Any account'],
+              ...writable.map((a) => [a.id, a.name]),
+            ]} />
+          </div>
+          <${RecField} rec=${rec} name="categoryId" label="Category" options=${[
+            ['', 'Leave it as it is'],
+            ...(/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.path]),
+          ]} />
+          <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
+            hint="The payee shown; the bank's text is kept beside it." />
+          ${f.draft
+            ? html`
+              <${TagsField} rec=${rec} draft=${f.draft} placeholder="coffee, work"
+                hint="Your own, separated by commas." />
+            `
+            : null}
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }

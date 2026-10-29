@@ -5,6 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, make, remove, saved, tag
 from PIL import Image
 from test_accounts import FIX, add, new_account, upload
 from test_receipts import upload as upload_receipt
@@ -58,26 +59,23 @@ def test_patterns_that_cant_be_kept_are_refused(bad):
 
 def test_rules_are_kept_in_order_and_first_match_wins(alice):
     c = cats(alice)
-    r = alice.post(
-        "/ui/api/rules", json={"payeeMatch": "re:(a+)+", "categoryId": c["Food › Groceries"]}
-    )
+    r = make(alice, "Rule", payeeMatch="re:(a+)+", categoryId=c["Food › Groceries"])
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "payeeMatch"
-    r = alice.post("/ui/api/rules", json={"payeeMatch": "kroger"})
+    r = make(alice, "Rule", payeeMatch="kroger")
     assert r.json()["errors"][0]["code"] == "rule-sets-nothing"
-    alice.post("/ui/api/rules", json={"payeeMatch": "kroger", "categoryId": c["Food › Groceries"]})
-    r = alice.post(
-        "/ui/api/rules",
-        json={
-            "payeeMatch": "re:^KROGER #1",
-            "categoryId": c["Food › Dining out"],
-            "payee": "Kroger",
-        },
+    make(alice, "Rule", payeeMatch="kroger", categoryId=c["Food › Groceries"])
+    r = make(
+        alice, "Rule", payeeMatch="re:^KROGER #1", categoryId=c["Food › Dining out"], payee="Kroger"
     )
-    assert r.status_code == 201, r.text
-    first, second = r.json()["items"]
+    assert r.status_code == 200, r.text
+    first, second = alice.get("/ui/api/rules").json()["items"]
     assert (first["position"], second["position"]) == (0, 1)
-    r = alice.post(f"/ui/api/rules/{second['id']}/move", json={"to": 0})
-    assert [x["id"] for x in r.json()["items"]] == [second["id"], first["id"]]
+    # Moved up, through the save: the other closes up behind it.
+    assert saved(change(alice, "Rule", second, position=0))["position"] == 0
+    assert [x["id"] for x in alice.get("/ui/api/rules").json()["items"]] == [
+        second["id"],
+        first["id"],
+    ]
     a = new_account(alice)
     job = upload(alice, a["id"], "bank.ofx", (FIX / "bank.ofx").read_bytes())
     assert job["result"]["categorised"] == 1, job
@@ -100,11 +98,11 @@ def test_applied_on_demand_to_the_uncategorised_only(alice):
         payee="WHOLE FOODS #77",
         categoryId=c["Food › Dining out"],
     )
-    r = alice.post(
-        "/ui/api/rules",
-        json={"payeeMatch": "whole foods", "categoryId": c["Food › Groceries"], "tags": ["Food"]},
+    r = make(
+        alice, "Rule", payeeMatch="whole foods", categoryId=c["Food › Groceries"], tags=["Food"]
     )
-    assert r.json()["uncategorised"] == 1
+    assert r.status_code == 200, r.text
+    assert alice.get("/ui/api/rules").json()["uncategorised"] == 1
     assert alice.post("/ui/api/rules/apply").json()["changed"] == 1
     items = alice.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
     got = sorted((t["amount"], t["categoryId"], t["tags"]) for t in items)
@@ -121,20 +119,33 @@ def test_a_rule_is_its_owners_alone_and_can_be_deleted(server, alice):
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     c = cats(alice)
-    [r] = alice.post(
-        "/ui/api/rules", json={"payeeMatch": "acme", "categoryId": c["Income › Salary"]}
-    ).json()["items"]
+    r = make(alice, "Rule", payeeMatch="acme", categoryId=c["Income › Salary"]).json()
     assert bob.get("/ui/api/rules").json()["items"] == []
-    assert bob.delete(f"/ui/api/rules/{r['id']}", headers={"If-Match": "1"}).status_code == 404
-    assert alice.delete(f"/ui/api/rules/{r['id']}", headers={"If-Match": "1"}).status_code == 200
+    assert remove(bob, "Rule", r).status_code == 404
+    assert remove(alice, "Rule", r).status_code == 200
     assert alice.get("/ui/api/rules").json()["items"] == []
+
+
+def test_a_rule_changed_keeps_its_place_and_sets_what_it_says(server, alice):
+    c = cats(alice)
+    for payee in ("acme", "shop"):
+        make(alice, "Rule", payeeMatch=payee, categoryId=c["Income › Salary"])
+    first, second = alice.get("/ui/api/rules").json()["items"]
+    work = tag(alice, "Work")
+    r = change(alice, "Rule", first, payee="Acme Corp", tagIds={"add": [work], "remove": []})
+    assert r.status_code == 200, r.text
+    items = alice.get("/ui/api/rules").json()["items"]
+    assert [x["id"] for x in items] == [first["id"], second["id"]]
+    assert (items[0]["payee"], items[0]["tags"]) == ("Acme Corp", ["work"])
+    r = change(alice, "Rule", items[1], categoryId=None)
+    assert r.json()["errors"][0]["code"] == "rule-sets-nothing"
 
 
 def test_a_receipts_merchant_is_renamed_by_the_rules(server, alice):
     from moolakata.receipts.reading import save_reading
     from moolakata.store.entities.receipts import Receipt
 
-    alice.post("/ui/api/rules", json={"payeeMatch": "re:blue ?bottle", "payee": "Blue Bottle"})
+    make(alice, "Rule", payeeMatch="re:blue ?bottle", payee="Blue Bottle")
     buf = io.BytesIO()
     Image.new("RGB", (40, 40), "white").save(buf, "PNG")
     rid = upload_receipt(alice, buf.getvalue()).json()["id"]

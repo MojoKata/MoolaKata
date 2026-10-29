@@ -3,6 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
+from edits import asked, change, create, edit, make, new_id, reconcile, remove, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -15,16 +16,14 @@ def new_account(c, **kw):
         "mask": "4821",
         **kw,
     }
-    r = c.post("/ui/api/accounts", json=body)
-    assert r.status_code == 201, r.text
+    r = make(c, "Acct", **body)
+    assert r.status_code == 200, r.text
     return r.json()
 
 
 def add(c, account_id, amount, day="2026-09-01", **kw):
-    r = c.post(
-        "/ui/api/transactions", json={"accountId": account_id, "date": day, "amount": amount, **kw}
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Txn", **{"accountId": account_id, "date": day, "amount": amount, **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -52,10 +51,7 @@ def test_accounts_are_checked_and_their_owners_own(server):
     make_user(server, "alice")
     make_user(server, "bob")
     alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
-    r = alice.post(
-        "/ui/api/accounts",
-        json={"name": "", "type": "yacht", "mask": "12", "openingBalance": "10.00"},
-    )
+    r = make(alice, "Acct", name="", type="yacht", mask="12", openingBalance="10.00")
     fields = {e["field"] for e in r.json()["errors"]}
     assert fields == {"name", "type", "mask", "openingDate"}
     a = new_account(alice, openingBalance="1000.00", openingDate="2026-08-31")
@@ -63,22 +59,11 @@ def test_accounts_are_checked_and_their_owners_own(server):
     assert a["reconcilable"] and not a["investing"]
     assert bob.get(f"/ui/api/accounts/{a['id']}").status_code == 404
     assert bob.get("/ui/api/accounts").json()["items"] == []
-    r = alice.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"name": "Joint checking"},
-        headers={"If-Match": str(a["version"])},
-    )
-    assert r.status_code == 200 and r.json()["name"] == "Joint checking"
-    r = alice.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"name": "Stale"},
-        headers={"If-Match": str(a["version"])},
-    )
+    assert saved(change(alice, "Acct", a, name="Joint checking"))["name"] == "Joint checking"
+    r = change(alice, "Acct", a, name="Stale")
     assert r.status_code == 412
-    v = r.json()["current"]["version"]
-    assert (
-        alice.delete(f"/ui/api/accounts/{a['id']}", headers={"If-Match": str(v)}).status_code == 200
-    )
+    v = r.json()["current"][0]["version"]
+    assert remove(alice, "Acct", {"id": a["id"], "version": v}).status_code == 200
     assert alice.get("/ui/api/accounts").json()["items"] == []
 
 
@@ -106,15 +91,9 @@ def test_transactions_filter_page_and_balance(server):
     assert c.get(f"/ui/api/accounts/{a['id']}").json()["balance"] == "122.00"
     # Money is an exact JSON number (S13.8.2): 12.5 is read as written, not through a float, and
     # more than two places is refused.
-    r = c.post(
-        "/ui/api/transactions",
-        json={"accountId": a["id"], "date": "2026-09-01", "amount": Decimal("12.5")},
-    )
-    assert r.status_code == 201 and r.json()["amount"] == "12.50"
-    r = c.post(
-        "/ui/api/transactions",
-        json={"accountId": a["id"], "date": "2026-09-01", "amount": Decimal("12.505")},
-    )
+    r = make(c, "Txn", accountId=a["id"], date="2026-09-01", amount=Decimal("12.5"))
+    assert r.status_code == 200 and r.json()["amount"] == "12.50"
+    r = make(c, "Txn", accountId=a["id"], date="2026-09-01", amount=Decimal("12.505"))
     assert r.status_code == 422
 
 
@@ -124,18 +103,17 @@ def test_splits_tags_and_bulk_categorise(server):
     a = new_account(c)
     cats = {x["path"]: x["id"] for x in c.get("/ui/api/categories").json()["items"]}
     groceries, dining = cats["Food › Groceries"], cats["Food › Dining out"]
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": a["id"],
-            "date": "2026-09-02",
-            "amount": "-100.00",
-            "payee": "Costco",
-            "splits": [
-                {"categoryId": groceries, "amount": "-70.00"},
-                {"categoryId": dining, "amount": "-20.00"},
-            ],
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=a["id"],
+        date="2026-09-02",
+        amount="-100.00",
+        payee="Costco",
+        splits=[
+            {"categoryId": groceries, "amount": "-70.00"},
+            {"categoryId": dining, "amount": "-20.00"},
+        ],
     )
     assert r.json()["errors"][0]["code"] == "splits-unbalanced"
     t = add(
@@ -174,20 +152,26 @@ def test_transfers_are_matched_and_can_be_undone(server):
     out = add(c, checking["id"], "-500.00", "2026-09-15", payee="Card payment")
     paid = add(c, card["id"], "500.00", "2026-09-16", payee="Payment thank you", kind="deposit")
     assert paid["transferId"] == out["id"] and paid["transferAccountName"] == "Checking"
-    r = c.post(f"/ui/api/transactions/{paid['id']}/transfer", json={"otherId": None})
-    assert r.json()["transferId"] is None
-    r = c.post(f"/ui/api/transactions/{paid['id']}/transfer", json={"otherId": out["id"]})
-    assert r.json()["transferId"] == out["id"]
+    path = f"/ui/api/transactions/{paid['id']}"
+    assert saved(edit(c, "Txn", path, transferWithId=None))["transferId"] is None
+    assert c.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] is None
+    # Matched by hand: the same amount the other way, in another account.
+    other = add(c, checking["id"], "-499.00", "2026-09-15", payee="Not it")
+    r = edit(c, "Txn", path, transferWithId=other["id"])
+    assert r.json()["errors"][0]["code"] == "amount-mismatch"
+    assert saved(edit(c, "Txn", path, transferWithId=out["id"]))["transferId"] == out["id"]
+    assert c.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] == paid["id"]
 
 
 def test_idempotency_key_returns_the_first_answer(server):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     a = new_account(c)
-    body = {"accountId": a["id"], "date": "2026-09-01", "amount": "-1.00"}
-    r1 = c.post("/ui/api/transactions", json=body, headers={"Idempotency-Key": "k1"})
-    r2 = c.post("/ui/api/transactions", json=body, headers={"Idempotency-Key": "k1"})
-    assert r1.json()["id"] == r2.json()["id"]
+    fields = {"accountId": a["id"], "date": "2026-09-01", "amount": "-1.00"}
+    ops = [{"op": "create", "entity": "Txn", "id": new_id("Txn"), "fields": fields}]
+    r1 = c.post("/ui/api/save", json={"ops": ops}, headers={"Idempotency-Key": "k1"})
+    r2 = c.post("/ui/api/save", json={"ops": ops}, headers={"Idempotency-Key": "k1"})
+    assert r1.status_code == r2.status_code == 200 and r1.json() == r2.json()
     assert len(c.get("/ui/api/transactions").json()["items"]) == 1
 
 
@@ -198,10 +182,7 @@ def test_trades_make_lots_holdings_and_gains(server):
     add(c, a["id"], "10000.00", "2025-01-02", kind="deposit")
     add(c, a["id"], "-1000.00", "2025-01-05", kind="buy", symbol="VTI", quantity="10", price="100")
     add(c, a["id"], "-3000.00", "2025-03-05", kind="buy", symbol="VTI", quantity="10", price="300")
-    r = c.post(
-        "/ui/api/transactions",
-        json={"accountId": a["id"], "date": "2025-04-01", "amount": "-1.00", "kind": "buy"},
-    )
+    r = make(c, "Txn", accountId=a["id"], date="2025-04-01", amount="-1.00", kind="buy")
     assert r.json()["errors"][0]["code"] == "trade-incomplete"
     add(c, a["id"], "2500.00", "2026-02-01", kind="sell", symbol="VTI", quantity="10", price="250")
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()
@@ -210,16 +191,15 @@ def test_trades_make_lots_holdings_and_gains(server):
     assert vti["priceSource"] == "trade" and vti["value"] == "2500.00"
     assert h["cash"] == "8500.00" and h["total"] == "11000.00"
     checking = new_account(c, name="Bank", mask="2222")
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": checking["id"],
-            "date": "2026-02-01",
-            "amount": "-1.00",
-            "kind": "buy",
-            "symbol": "VTI",
-            "quantity": "1",
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=checking["id"],
+        date="2026-02-01",
+        amount="-1.00",
+        kind="buy",
+        symbol="VTI",
+        quantity="1",
     )
     assert r.json()["errors"][0]["code"] == "kind-not-for-account"
 
@@ -231,48 +211,20 @@ def test_reconciled_periods_ask_before_an_edit(server):
     t = add(c, a["id"], "-40.00", "2026-09-02")
     t2 = add(c, a["id"], "100.00", "2026-09-03", kind="deposit")
     for x in (t, t2):
-        r = c.patch(
-            f"/ui/api/transactions/{x['id']}",
-            json={"cleared": True},
-            headers={"If-Match": str(x["version"])},
-        )
-        assert r.status_code == 200
-    rec = c.post(
-        f"/ui/api/accounts/{a['id']}/reconciliations",
-        json={"statementDate": "2026-09-30", "statementBalance": "70.00"},
-    ).json()
+        saved(change(c, "Txn", x, cleared=True))
+    rec = reconcile(c, a["id"], "2026-09-30", "70.00")
     assert rec["difference"] == "10.00"
-    r = c.patch(
-        f"/ui/api/reconciliations/{rec['id']}",
-        json={"finish": True},
-        headers={"If-Match": str(rec["version"])},
-    )
-    assert r.json()["code"] == "not-balanced"
-    rec = c.post(
-        f"/ui/api/accounts/{a['id']}/reconciliations",
-        json={"statementDate": "2026-09-30", "statementBalance": "60.00"},
-    ).json()
-    r = c.patch(
-        f"/ui/api/reconciliations/{rec['id']}",
-        json={"finish": True},
-        headers={"If-Match": str(rec["version"])},
-    )
-    assert r.status_code == 200 and r.json()["finishedAt"]
+    r = change(c, "Recon", rec, finished=True)
+    assert r.json()["errors"][0]["code"] == "not-balanced"
+    # Its balance corrected, the period balances, and is reconciled in the same save.
+    r = change(c, "Recon", rec, statementBalance="60.00", finished=True)
+    assert saved(r)["finishedAt"]
+    assert remove(c, "Recon", saved(r)).json()["errors"][0]["code"] == "reconciled"
     current = c.get("/ui/api/transactions").json()["items"]
     t = next(x for x in current if x["id"] == t["id"])
     assert t["reconciled"]
-    r = c.patch(
-        f"/ui/api/transactions/{t['id']}",
-        json={"memo": "x"},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 409 and r.json()["code"] == "reconciled-period"
-    r = c.patch(
-        f"/ui/api/transactions/{t['id']}?confirm=true",
-        json={"memo": "x"},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 200
+    assert asked(change(c, "Txn", t, memo="x")) == ["reconciled-period"]
+    saved(change(c, "Txn", t, confirm=True, memo="x"))
 
 
 # ---------- imports and reconciliation ----------
@@ -332,24 +284,18 @@ def test_typed_balance_mismatch_and_adjustment(server):
     a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
-    r = c.post(
-        f"/ui/api/accounts/{a['id']}/anchors", json={"date": "2026-09-10", "balance": "980.00"}
-    )
-    assert r.status_code == 201
+    r = create(c, "Anchr", accountId=a["id"], date="2026-09-10", balance="980.00")
+    assert r.status_code == 200, r.text
     view = c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()
     check = view["checks"][-1]
     assert not check["ok"] and check["difference"] == "20.00"
     assert len(check["suspects"]["duplicates"]) == 1
     assert c.get(f"/ui/api/accounts/{a['id']}").json()["mismatch"] is True
-    r = c.post(
-        f"/ui/api/accounts/{a['id']}/adjustments",
-        json={"date": "2026-09-10", "amount": "20.00", "note": ""},
-    )
-    assert r.json()["errors"][0]["field"] == "note"
-    c.post(
-        f"/ui/api/accounts/{a['id']}/adjustments",
-        json={"date": "2026-09-10", "amount": "20.00", "note": "Bank fee refunded"},
-    )
+    fix = {"accountId": a["id"], "date": "2026-09-10", "amount": "20.00", "kind": "adjustment",
+           "payee": "Balance adjustment"}  # fmt: skip
+    r = create(c, "Txn", **fix, memo="")
+    assert r.json()["errors"][0]["field"] == "memo"
+    saved(create(c, "Txn", **fix, memo="Bank fee refunded"))
     assert c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["checks"][-1]["ok"]
 
 
@@ -413,11 +359,7 @@ def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
     before = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]["costBasis"]
     assert before == "3951.00"  # five of the $250 lot sold first, FIFO
     acct = c.get(f"/ui/api/accounts/{a['id']}").json()
-    r = c.patch(
-        f"/ui/api/accounts/{a['id']}",
-        json={"lotMethod": "lifo"},
-        headers={"If-Match": str(acct["version"])},
-    )
+    r = change(c, "Acct", acct, lotMethod="lifo")
     assert r.status_code == 200, r.text
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]
     assert h["costBasis"] == before  # the sale before the change is as it was
@@ -497,11 +439,6 @@ def test_an_edited_transfer_in_moves_its_holding(server):
     c = sign_in(server, "alice")
     a = new_account(c, name="Brokerage", type="brokerage")
     t = add(c, a["id"], "0", "2026-03-02", kind="transfer-in", symbol="VTI", quantity="10")
-    r = c.patch(
-        f"/ui/api/transactions/{t['id']}",
-        json={"quantity": "12", "costBasis": "2400.00"},
-        headers={"If-Match": str(t["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(change(c, "Txn", t, quantity="12", costBasis="2400.00"))
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]
     assert Decimal(h["quantity"]) == 12 and h["costBasis"] == "2400.00"

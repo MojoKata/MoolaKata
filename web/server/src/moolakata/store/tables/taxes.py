@@ -31,25 +31,27 @@ TaxBook = record(
 )
 
 # Its filers: one user, or two who are married; one named by someone else accepts first.
-TaxBookFilers = pairs(
-    "TaxBookFilers",
+TaxBookFiler = record(
+    "TaxBookFiler",
+    "TxBkF",
     Column("bookId", Text, ForeignKey("TaxBook.id", ondelete="CASCADE"), nullable=False),
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("acceptedAt", UtcTimestamp),
-    PrimaryKeyConstraint("bookId", "userId"),
-    Index("ix_TaxBookFilers_user", "userId"),
+    Index("ix_TaxBookFiler_user", "userId"),
 )
+unique_live(TaxBookFiler, "bookId", "userId")
 
 # Changes to the accounts it counts: one added (a custodial account) or one left out.
-TaxBookAccounts = pairs(
-    "TaxBookAccounts",
+TaxBookAccount = record(
+    "TaxBookAccount",
+    "TxBkA",
     Column("bookId", Text, ForeignKey("TaxBook.id", ondelete="CASCADE"), nullable=False),
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
     Column("counted", Boolean, nullable=False),
     # The filer who added it: an added account counts only while they can see it (S8.14.2).
     Column("addedById", Text, ForeignKey("User.id")),
-    PrimaryKeyConstraint("bookId", "accountId"),
 )
+unique_live(TaxBookAccount, "bookId", "accountId")
 
 # A person the filers claim for the year (S8.14.5): how they are claimed, the months they
 # lived with the filers, and whether a full-time student. MoolaKata doesn't decide who qualifies.

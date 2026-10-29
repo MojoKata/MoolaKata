@@ -8,6 +8,7 @@ import json
 
 import pytest
 from conftest import ORIGIN, make_user, new_client, sign_in
+from edits import save_settings
 
 from moolakata import alerts, clock, exactjson, ids, settings
 from moolakata.connector import PROTOCOL, manage
@@ -161,7 +162,7 @@ def test_an_unconfirmed_pairing_gets_no_credential_and_posts_no_file(server, adm
     assert r.status_code == 403 and r.json()["code"] == "not-confirmed"
     c = sign_in(server, "alice")
     assert c.get("/ui/api/connector").json()["confirmed"] is False
-    r = c.put(f"/ui/api/profile/connections/{cid}/credential", json={"sealed": "x" * 100})
+    r = c.post(f"/ui/api/profile/connections/{cid}/credential", json={"sealed": "x" * 100})
     assert r.status_code == 409 and r.json()["code"] == "pairing-unconfirmed"
     assert admin.post("/ui/api/settings/connector/confirm").status_code == 200
     view = admin.get("/ui/api/settings/connector").json()
@@ -581,20 +582,15 @@ def frozen_clock():
 
 
 def test_network_ranges_decide_who_reaches_each_path(server, admin):
-    version = admin.get("/ui/api/settings").json()["version"]
-    r = admin.patch(
-        "/ui/api/settings",
-        json={"networkAppRanges": ["10.0.0.0/8", "bad"]},
-        headers={"If-Match": f'"{version}"'},
-    )
+    r = save_settings(admin, {"networkAppRanges": ["10.0.0.0/8", "bad"]})
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "networkAppRanges"
-    r = admin.patch(
-        "/ui/api/settings",
-        json={"networkLinkRanges": ["10.0.0.0/8"], "networkConnectorRanges": ["192.168.1.7"]},
-        headers={"If-Match": f'"{version}"'},
+    r = save_settings(
+        admin,
+        {"networkLinkRanges": ["10.0.0.0/8"], "networkConnectorRanges": ["192.168.1.7"]},
     )
     assert r.status_code == 200, r.text
-    assert r.json()["values"]["networkConnectorRanges"] == ["192.168.1.7/32"]
+    values = admin.get("/ui/api/settings").json()["values"]
+    assert values["networkConnectorRanges"] == ["192.168.1.7/32"]
     # The test client calls from testclient (not an address), which no range allows; the app's
     # own ranges stay empty, so /ui still answers.
     assert admin.get("/ui/api/settings").status_code == 200

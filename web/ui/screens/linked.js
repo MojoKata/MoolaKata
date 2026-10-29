@@ -20,6 +20,9 @@ import { toast } from '../components/toast.js';
 import { TimeChart } from '../charts/chart.js';
 import { Panel, PANEL_TABS } from '../components/taxpanels.js';
 import { Dec, dec } from '../app/dec.js';
+import { Record as Rec } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { saveOne } from '../components/draft-form.js';
 
 const HUES = /** @type {Record<string, string>} */ ({
   teal: '#4fc6d6',
@@ -226,10 +229,22 @@ function Locked({ id, st, reload }) {
   </form>`;
 }
 
+/** The colour a person chose for a linked household's window. */
+class ColourRec extends Rec {
+  /** @override */
+  static prefix = 'LkCol';
+  /** @override */
+  static fields = FIELDS.ColourRecord;
+}
+
 /** @param {{ close: (v?: any) => void, id: string, h: any }} p */
 function ColourDialog({ close, id, h }) {
+  // The colour chosen is a record of the chooser's (S12.10.3.2).
   const save = useSubmit(async (/** @type {string} */ colour) => {
-    await api.put(`/linked/${id}/colour`, { colour });
+    const row = h.colourId
+      ? { id: h.colourId, version: h.colourVersion, linkId: id, colour: h.colour }
+      : null;
+    await saveOne(ColourRec, row, { linkId: id, colour });
     close(true);
   });
   return html`

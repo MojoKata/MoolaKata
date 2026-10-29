@@ -8,13 +8,12 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    PrimaryKeyConstraint,
     Text,
     text,
 )
 
 from ..types import Cents, Day, Dec, UtcTimestamp
-from ._base import exception, pairs, record, unique_live
+from ._base import exception, record, unique_live
 
 OptionContract = record(
     "OptionContract",
@@ -56,14 +55,15 @@ Strategy = record(
 
 # A strategy's legs: each an instrument held in its account (an option contract, or the
 # shares a covered call covers, `quantity` of them), joined when grouped or rolled into it.
-StrategyLegs = pairs(
-    "StrategyLegs",
+StrategyLeg = record(
+    "StrategyLeg",
+    "StLeg",
     Column("strategyId", Text, ForeignKey("Strategy.id", ondelete="CASCADE"), nullable=False),
     Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
     Column("quantity", Dec),  # shares, for a stock leg; none: the whole position
     Column("addedOn", Day, nullable=False),
-    PrimaryKeyConstraint("strategyId", "instrumentId"),
 )
+unique_live(StrategyLeg, "strategyId", "instrumentId")
 
 # A wash sale (S3.8): a loss disallowed because the same instrument was bought within 30 days,
 # moved to the replacement's basis with the sold shares' holding period. Worked out from the

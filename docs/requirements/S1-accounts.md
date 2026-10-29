@@ -302,7 +302,9 @@
       correct a split from the servicer's statement. Principal beyond the schedule is
       recorded as an **overpayment**. Bank transactions of the last 90 days within 2% of the
       payment, not yet a transfer and not filed under another category, are offered on the
-      loan's screen to link as its payments.
+      loan's screen to link as its payments. A payment recorded or linked there is saved
+      whole: the loan's transaction, its split and the bank account's half of the transfer
+      together (S12.15).
    4. **Reconciling**: the servicer's statement balance can be typed in on a date, and a
       difference from the computed balance is shown until it is explained (a fee, a missed
       payment, a wrong rate).

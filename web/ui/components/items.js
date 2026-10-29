@@ -4,18 +4,21 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useApi, useSubmit } from '../app/hooks.js';
+import { useApi } from '../app/hooks.js';
 import { date, quantity, today } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
-import { Dialog, openDialog } from './dialog.js';
+import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
+import { Field, Input, Select } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
 import { BY_TYPE } from '../account-types/index.js';
-import { dec, num } from '../app/dec.js';
+import { Dec, dec, num } from '../app/dec.js';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { DraftDialog, RecField, useDraft } from './draft-form.js';
 
 export const METALS = /** @type {[string, string][]} */ ([
   ['gold', 'Gold'],
@@ -58,7 +61,6 @@ const SOURCES = /** @type {[string, string][]} */ ([
 const SOURCE = Object.fromEntries(SOURCES);
 const METAL = Object.fromEntries(METALS);
 const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,%\s]/g, '') : '');
-const orNull = (/** @type {string} */ s) => (clean(s) === '' ? null : clean(s));
 
 /** @param {{ a: any }} p */
 export function Items({ a }) {
@@ -229,290 +231,236 @@ export function ItemsSummary({ a }) {
   `;
 }
 
+/** An item (S1.10), as its dialog's draft edits it, its sale and documents with it. */
+class ItemRec extends Record {
+  /** @override */
+  static prefix = 'Item';
+  /** @override */
+  static fields = FIELDS.ItemRecord;
+  /** @override */
+  static defaults = {
+    category: null,
+    description: null,
+    acquiredHow: 'bought',
+    quantity: Dec.parse('1'),
+    location: null,
+    serial: null,
+    condition: null,
+    insuredValue: null,
+    policy: null,
+    notes: null,
+    metal: null,
+    unitWeight: null,
+    weightUnit: null,
+    purity: null,
+    sellPremium: Dec.parse('0'),
+    depreciationRate: null,
+    address: null,
+    closingCosts: null,
+    primaryResidence: false,
+    personalUse: false,
+    soldOn: null,
+    proceeds: null,
+    saleFees: null,
+    receiptIds: [],
+  };
+}
+
+/** A dated value of an item, with its source (S1.10.2). */
+class ValuationRec extends Record {
+  /** @override */
+  static prefix = 'Valtn';
+  /** @override */
+  static fields = FIELDS.ValuationRecord;
+  /** @override */
+  static ownedBy = ['itemId'];
+}
+
+/** An improvement to a property, added to its basis (S1.10.4). */
+class ImprovementRec extends Record {
+  /** @override */
+  static prefix = 'Imprv';
+  /** @override */
+  static fields = FIELDS.ImprovementRecord;
+  /** @override */
+  static ownedBy = ['itemId'];
+}
+
 /**
- * The form's values: blank for a new item of this account type, or the item's.
- * @param {any} i  the item, or null
- * @param {string} type  the account type
+ * A new item of this account type, as its type usually has it.
+ * @param {string} type @param {string} accountId
  */
-function itemForm(i, type) {
-  const by = BY_TYPE[type]?.physical || 'valuations';
-  const s = (/** @type {any} */ x) => (x == null ? '' : String(x));
+function newItem(type, accountId) {
+  const metals = type === 'precious-metals';
   return {
-    name: s(i?.name),
-    category: s(i?.category) ||
-      (type === 'precious-metals' ? 'Coin' : type === 'collectables' ? 'Watch' : ''),
-    description: s(i?.description),
-    acquiredOn: s(i?.acquiredOn),
-    acquiredHow: i?.acquiredHow || 'bought',
-    costBasis: s(i?.costBasis),
-    quantity: s(i?.quantity ?? '1'),
-    location: s(i?.location),
-    serial: s(i?.serial),
-    condition: s(i?.condition),
-    insuredValue: s(i?.insuredValue),
-    policy: s(i?.policy),
-    notes: s(i?.notes),
-    valuation: i?.valuation || by,
-    metal: i?.metal || 'gold',
-    unitWeight: s(i?.unitWeight ?? (type === 'precious-metals' ? '1' : '')),
-    weightUnit: i?.weightUnit || 'ozt',
-    purity: s(i?.purity ?? (type === 'precious-metals' ? '.9999' : '')),
-    sellPremium: s(i?.sellPremium ?? '0'),
-    depreciationRate: s(i?.depreciationRate ?? (type === 'vehicle' ? '12' : '')),
-    address: s(i?.address),
-    closingCosts: s(i?.closingCosts),
-    primaryResidence: i ? i.primaryResidence : type === 'real-estate',
-    personalUse: i ? i.personalUse : ['vehicle', 'real-estate'].includes(type),
+    accountId,
+    name: '',
+    category: metals ? 'Coin' : type === 'collectables' ? 'Watch' : null,
+    valuation: BY_TYPE[type]?.physical || 'valuations',
+    metal: metals ? 'gold' : null,
+    unitWeight: metals ? Dec.parse('1') : null,
+    weightUnit: metals ? 'ozt' : null,
+    purity: metals ? '.9999' : null,
+    depreciationRate: type === 'vehicle' ? Dec.parse('12') : null,
+    primaryResidence: type === 'real-estate',
+    personalUse: ['vehicle', 'real-estate'].includes(type),
   };
 }
-
-/** @param {any} f */
-function itemBody(f) {
-  return {
-    name: f.name,
-    category: f.category || null,
-    description: f.description || null,
-    acquiredOn: f.acquiredOn,
-    acquiredHow: f.acquiredHow,
-    costBasis: clean(f.costBasis) || '0',
-    quantity: clean(f.quantity) || '1',
-    location: f.location || null,
-    serial: f.serial || null,
-    condition: f.condition || null,
-    insuredValue: orNull(f.insuredValue),
-    policy: f.policy || null,
-    notes: f.notes || null,
-    valuation: f.valuation,
-    metal: f.valuation === 'spot' ? f.metal : null,
-    unitWeight: f.valuation === 'spot' ? orNull(f.unitWeight) : null,
-    weightUnit: f.valuation === 'spot' ? f.weightUnit : null,
-    purity: f.valuation === 'spot' ? f.purity : null,
-    sellPremium: f.valuation === 'spot' ? clean(f.sellPremium) || '0' : '0',
-    depreciationRate: f.valuation === 'depreciation' ? orNull(f.depreciationRate) : null,
-    address: f.address || null,
-    closingCosts: orNull(f.closingCosts),
-    primaryResidence: f.primaryResidence,
-    personalUse: f.personalUse,
-  };
-}
-
-const ITEM_FIELDS = Object.keys(itemBody(itemForm(null, 'other-asset')));
 
 /** @param {{ close: (v?: any) => void, a: any, id: string | null }} p */
 export function ItemDialog({ close, a, id }) {
   useDialogGuide('dialog-item');
   const res = useApi(id ? `/items/${id}` : null);
   const it = /** @type {any} */ (res.data);
-  if (id && !it) {
-    return html`
-      <${Dialog} title="Item" close=${close} footer=${null}>
-        <${Loading} lines=${6} />
-        </${Dialog}>
-    `;
-  }
-  return html`<${ItemEditor} a=${a} it=${it} close=${close} reload=${res.reload} />`;
-}
-
-/** @param {{ a: any, it: any, close: (v?: any) => void, reload: () => void }} p */
-function ItemEditor({ a, it, close, reload }) {
-  const [f, setF] = useState(itemForm(it, a.type));
-  const [cur, setCur] = useState(it);
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const canWrite = cur ? cur.canWrite : true;
-  const save = useSubmit(async () => {
-    const body = itemBody(f);
-    const out = cur
-      ? await api.patch(`/items/${cur.id}`, body, cur.version)
-      : await api.post(`/accounts/${a.id}/items`, body, { idempotent: true });
-    toast(cur ? 'Saved' : `${out.name} added`);
-    if (cur) {
-      setCur(out);
-      reload();
-    } else close(out);
-  });
-  const e = save.error;
+  const f = useDraft(async (draft) => {
+    if (!id) {
+      draft.add(ItemRec, newItem(a.type, a.id));
+      return;
+    }
+    const x = await api.get(`/items/${id}`);
+    draft.load(ItemRec, {
+      ...x,
+      saleFees: x.sale?.fees ?? null,
+      soldOn: x.sale?.soldOn ?? null,
+      proceeds: x.sale?.proceeds ?? null,
+      receiptIds: x.documents.map((/** @type {any} */ d) => d.id),
+    });
+    for (const v of x.valuations) draft.load(ValuationRec, { ...v, itemId: x.id });
+    for (const m of x.improvements) draft.load(ImprovementRec, { ...m, itemId: x.id });
+  }, [id]);
+  const rec = /** @type {ItemRec | undefined} */ (f.draft?.records[0]);
+  const canWrite = it ? it.canWrite : true;
   const t = a.type;
-  const spot = f.valuation === 'spot';
+  const spot = rec?.get('valuation') === 'spot';
   return html`
-    <${Dialog} title=${cur ? cur.name : 'Add an item'} wide close=${close} onSubmit=${() =>
-      canWrite && save.run().catch(() => {})}
-      footer=${canWrite
-        ? html`<button class="btn primary" disabled=${save.busy}>${cur ? 'Save' : 'Add'}</button>`
-        : null}>
-      <div class="split" style=${{ alignItems: 'flex-start' }}>
-        <fieldset disabled=${!canWrite} style=${{
-          flex: '1 1 320px',
-          border: 0,
-          padding: 0,
-          margin: 0,
-          minWidth: 0,
-        }}>
-          <${Field} label="Name" error=${errAt(e, 'name')}>
-            <${Input} value=${f.name} onInput=${set('name')} required placeholder=${{
-              'precious-metals': 'American Gold Eagle, 1 oz',
-              collectables: 'Rolex Submariner 124060',
-              'real-estate': 'Home',
-              vehicle: '2023 Subaru Outback',
-            }[t] || ''} /></${Field}>
-          ${t === 'real-estate'
-            ? html`
-              <${Field} label="Address" error=${errAt(e, 'address')}>
-                <${Input} value=${f.address} onInput=${set('address')}
-                  placeholder="Optional" />
-                </${Field}>
-                <${SwitchRow} label="Primary residence"
-                  hint="Your main home: its sale may be partly tax-free." on=${f.primaryResidence}
-                  onChange=${set('primaryResidence')} />
-            `
-            : null}
-          ${t === 'precious-metals'
-            ? html`
-              <div class="row">
-                <${Field} label="Metal" error=${errAt(e, 'metal')}>
-                  <${Select} value=${f.metal}
-                    onChange=${set('metal')} options=${METALS} />
-                  </${Field}>
-                  <${Field} label="Form" id="category" error=${errAt(e, 'category')}>
-                    <${Select}
-                      value=${f.category} onChange=${set('category')} options=${FORMS} />
-                    </${Field}>
-                    </div>
-            `
-            : t === 'collectables'
-            ? html`
-              <${Field} label="Category" error=${errAt(e, 'category')}>
-                <${Select}
-                  value=${f.category} onChange=${set('category')} options=${CATEGORIES} />
-                </${Field}>
-            `
-            : null}
-          ${t === 'vehicle' || t === 'other-asset'
-            ? html`
-              <${Field} label="Valued by" id="valuation" error=${errAt(e, 'valuation')}>
-                <${Select} value=${f.valuation} onChange=${set('valuation')}
-                  options=${VALUED_BY.filter(([k]) => k !== 'spot')} />
-                </${Field}>
-            `
-            : null}
-          ${spot
-            ? html`
-              <div class="row">
-                <${Field} label="Weight per unit" id="unit-weight" error=${errAt(e, 'unitWeight')}>
-                  <${Input} value=${f.unitWeight} onInput=${set('unitWeight')}
-                    inputmode="decimal" />
-                  </${Field}>
-                  <${Field} label="Unit" id="weight-unit" error=${errAt(e, 'weightUnit')}>
-                    <${Select} value=${f.weightUnit} onChange=${set('weightUnit')}
-                      options=${UNITS} />
-                    </${Field}>
-                    </div>
-                    <div class="row">
-                      <${Field} label="Purity" error=${errAt(e, 'purity')}
-                        hint=".9999, .925, 22k">
-                        <${Input} value=${f.purity}
-                          onInput=${set('purity')} />
-                        </${Field}>
-                        <${Field} label="Quantity" error=${errAt(e, 'quantity')}>
-                          <${Input}
-                            value=${f.quantity} onInput=${set('quantity')} inputmode="decimal" />
-                          </${Field}>
-                          </div>
-            `
-            : null}
-          ${f.valuation === 'depreciation'
-            ? html`
-              <${Field} label="Depreciation per year" id="depreciation-rate"
-                error=${errAt(e, 'depreciationRate')}
-                hint="A percentage of the value each year, until a valuation replaces it.">
-                <${Input} value=${f.depreciationRate} onInput=${set('depreciationRate')}
-                  inputmode="decimal" placeholder="12" />
-                </${Field}>
-            `
-            : null}
-          <div class="row">
-            <${Field} label="Date acquired" id="acquired-on" error=${errAt(e, 'acquiredOn')}>
-              <${Input} type="date" value=${f.acquiredOn} onInput=${set('acquiredOn')}
-                required /></${Field}>
-            <${Field} label="How acquired" id="acquired-how" error=${errAt(e, 'acquiredHow')}>
-              <${Select} value=${f.acquiredHow} onChange=${set('acquiredHow')}
-                options=${HOW} /></${Field}>
-          </div>
-          <div class="row">
-            <${Field} label=${t === 'real-estate' ? 'Purchase price' : 'Cost basis'}
-              id="cost-basis" error=${errAt(e, 'costBasis')} hint=${t === 'real-estate'
-                ? 'Improvements add to it below.'
-                : 'Price plus premium, fees and shipping.'}>
-              <${Input} value=${f.costBasis} onInput=${set('costBasis')} inputmode="decimal"
-                required /></${Field}>
-            ${t === 'real-estate'
-              ? html`
-                <${Field} label="Closing costs" error=${errAt(e, 'closingCosts')}>
-                  <${Input} value=${f.closingCosts} onInput=${set('closingCosts')}
-                    inputmode="decimal" />
-                  </${Field}>
-              `
-              : html`
-                <${Field} label="Insured value" error=${errAt(e, 'insuredValue')}>
-                  <${Input} value=${f.insuredValue} onInput=${set('insuredValue')}
-                    inputmode="decimal" />
-                  </${Field}>
-              `}
-          </div>
-          ${spot
-            ? html`
-              <${Field} label="Selling premium" id="sell-premium" error=${errAt(
-                e,
-                'sellPremium',
-              )}
-                hint="What you'd expect over spot when selling, in percent; below spot is negative.">
-                <${Input} value=${f.sellPremium} onInput=${set('sellPremium')}
-                  inputmode="decimal" />
-                </${Field}>
-            `
-            : null}
-          ${t === 'real-estate' ? null : html`
-            <div class="row">
-              <${Field} label="Where it's kept" id="location" error=${errAt(e, 'location')}>
-                <${Input} value=${f.location} onInput=${set('location')} />
-                </${Field}>
-                <${Field} label=${t === 'vehicle' ? 'VIN' : 'Serial or certificate'} id="serial"
-                  error=${errAt(e, 'serial')}>
-                  <${Input} value=${f.serial}
-                    onInput=${set('serial')} />
-                  </${Field}>
+    <${DraftDialog} f=${f} wide close=${close} what="This item"
+      title=${it ? it.name : 'Add an item'} label=${it ? 'Save' : 'Add'} hideSave=${!canWrite}
+      saved=${(/** @type {any} */ o) => {
+        toast(it ? 'Saved' : `${rec?.get('name')} added`);
+        if (it) res.reload();
+        close(o.saved);
+      }}>
+      ${rec
+        ? html`
+          <div class="split" style=${{ alignItems: 'flex-start' }}>
+            <fieldset disabled=${!canWrite} style=${{
+              flex: '1 1 320px',
+              border: 0,
+              padding: 0,
+              margin: 0,
+              minWidth: 0,
+            }}>
+              <${RecField} rec=${rec} name="name" label="Name" placeholder=${{
+                'precious-metals': 'American Gold Eagle, 1 oz',
+                collectables: 'Rolex Submariner 124060',
+                'real-estate': 'Home',
+                vehicle: '2023 Subaru Outback',
+              }[t] || ''} />
+              ${t === 'real-estate'
+                ? html`
+                  <${RecField} rec=${rec} name="address" label="Address" placeholder="Optional" />
+                  <${RecField} rec=${rec} name="primaryResidence" label="Primary residence"
+                    hint="Your main home: its sale may be partly tax-free." />
+                `
+                : null}
+              ${t === 'precious-metals'
+                ? html`
+                  <div class="row">
+                    <${RecField} rec=${rec} name="metal" label="Metal" options=${METALS} />
+                    <${RecField} rec=${rec} name="category" label="Form" id="category"
+                      options=${FORMS} />
                   </div>
-          `}
-          <div class="row">
-            <${Field} label="Condition or grade" id="condition" error=${errAt(e, 'condition')}>
-              <${Input} value=${f.condition} onInput=${set('condition')} /></${Field}>
-            <${Field} label="Insurance policy" id="policy" error=${errAt(e, 'policy')}>
-              <${Input} value=${f.policy} onInput=${set('policy')} /></${Field}>
+                `
+                : t === 'collectables'
+                ? html`
+                  <${RecField} rec=${rec} name="category" label="Category"
+                    options=${CATEGORIES} />
+                `
+                : null}
+              ${t === 'vehicle' || t === 'other-asset'
+                ? html`
+                  <${RecField} rec=${rec} name="valuation" label="Valued by" id="valuation"
+                    options=${VALUED_BY.filter(([k]) => k !== 'spot')} />
+                `
+                : null}
+              ${spot
+                ? html`
+                  <div class="row">
+                    <${RecField} rec=${rec} name="unitWeight" label="Weight per unit"
+                      id="unit-weight" />
+                    <${RecField} rec=${rec} name="weightUnit" label="Unit" id="weight-unit"
+                      options=${UNITS} />
+                  </div>
+                  <div class="row">
+                    <${RecField} rec=${rec} name="purity" label="Purity" hint=".9999, .925, 22k" />
+                    <${RecField} rec=${rec} name="quantity" label="Quantity" />
+                  </div>
+                `
+                : null}
+              ${rec.get('valuation') === 'depreciation'
+                ? html`
+                  <${RecField} rec=${rec} name="depreciationRate" label="Depreciation per year"
+                    id="depreciation-rate" placeholder="12"
+                    hint="A percentage of the value each year, until a valuation replaces it." />
+                `
+                : null}
+              <div class="row">
+                <${RecField} rec=${rec} name="acquiredOn" label="Date acquired" id="acquired-on"
+                  type="date" />
+                <${RecField} rec=${rec} name="acquiredHow" label="How acquired"
+                  id="acquired-how" options=${HOW} />
+              </div>
+              <div class="row">
+                <${RecField} rec=${rec} name="costBasis" id="cost-basis"
+                  label=${t === 'real-estate' ? 'Purchase price' : 'Cost basis'}
+                  hint=${t === 'real-estate'
+                    ? 'Improvements add to it below.'
+                    : 'Price plus premium, fees and shipping.'} />
+                ${t === 'real-estate'
+                  ? html`<${RecField} rec=${rec} name="closingCosts" label="Closing costs" />`
+                  : html`<${RecField} rec=${rec} name="insuredValue" label="Insured value" />`}
+              </div>
+              ${spot
+                ? html`
+                  <${RecField} rec=${rec} name="sellPremium" label="Selling premium"
+                    id="sell-premium"
+                    hint="What you'd expect over spot when selling, in percent; below spot is negative." />
+                `
+                : null}
+              ${t === 'real-estate' ? null : html`
+                <div class="row">
+                  <${RecField} rec=${rec} name="location" label="Where it's kept" id="location" />
+                  <${RecField} rec=${rec} name="serial" id="serial"
+                    label=${t === 'vehicle' ? 'VIN' : 'Serial or certificate'} />
+                </div>
+              `}
+              <div class="row">
+                <${RecField} rec=${rec} name="condition" label="Condition or grade"
+                  id="condition" />
+                <${RecField} rec=${rec} name="policy" label="Insurance policy" id="policy" />
+              </div>
+              ${t === 'vehicle' || t === 'other-asset' || t === 'collectables'
+                ? html`
+                  <${RecField} rec=${rec} name="personalUse" label="Used personally"
+                    hint="A loss when it's sold isn't deductible." />
+                `
+                : null}
+              <${RecField} rec=${rec} name="notes" label="Notes" hint="Markdown." rows=${3} />
+            </fieldset>
+            ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
           </div>
-          ${t === 'vehicle' || t === 'other-asset' || t === 'collectables'
-            ? html`
-              <${SwitchRow} label="Used personally"
-                hint="A loss when it's sold isn't deductible." on=${f.personalUse}
-                onChange=${set('personalUse')} />
-            `
-            : null}
-          <${Field} label="Notes" error=${errAt(e, 'notes')} hint="Markdown.">
-            <textarea class="in" rows="3" value=${f.notes} onInput=${(/** @type {any} */ ev) =>
-              set('notes')(ev.currentTarget.value)}></textarea></${Field}>
-          <${FormError} error=${e} shown=${ITEM_FIELDS} />
-        </fieldset>
-        ${cur ? html`<${Side} a=${a} it=${cur} setIt=${setCur} reload=${reload} />` : null}
-      </div>
-    </${Dialog}>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
-/** @param {{ a: any, it: any, setIt: (it: any) => void, reload: () => void }} p */
-function Side({ a, it, setIt, reload }) {
-  const done = (/** @type {any} */ out, /** @type {string} */ msg) => {
-    setIt(out);
-    reload();
-    toast(msg);
-  };
+/**
+ * Beside the item's fields: its value and basis as saved, and what belongs to it, edited in
+ * the dialog's draft.
+ * @param {{ a: any, it: any, rec: ItemRec, draft: import('../app/draft.js').Draft }} p
+ */
+function Side({ a, it, rec, draft }) {
   return html`
     <div style=${{ flex: '0 1 280px', minWidth: 0 }}>
       <div class="list-item"><span class="grow dim">Value</span><b><${Amt} v=${it.value}
@@ -528,7 +476,7 @@ function Side({ a, it, setIt, reload }) {
         cents=${false} /></div>
       ${it.loans.map((/** @type {any} */ l) =>
         html`<div class="list-item"><span class="grow dim">Secures</span><a
-          href=${`/ui/accounts/${l.accountId}`}>${l.name}</a>${' '}<${Amt} v=${l.owed}
+          href=${`/ui/accounts/${l.accountId}`}>${l.name}</a>${' '}<${Amt} v=${l.owed}
           cents=${false} /></div>`
       )}
       ${it.equity != null
@@ -538,170 +486,172 @@ function Side({ a, it, setIt, reload }) {
               .equity} cents=${false} /></div>
         `
         : null}
-      ${it.valuation === 'spot' ? null : html`<${Valuations} it=${it} done=${done} />`}
-      ${a.type === 'real-estate' ? html`<${Improvements} it=${it} done=${done} />` : null}
-      <${Documents} it=${it} done=${done} />
-      <${SaleCard} it=${it} done=${done} />
+      ${rec.get('valuation') === 'spot'
+        ? null
+        : html`<${Valuations} it=${it} rec=${rec} draft=${draft} />`}
+      ${a.type === 'real-estate'
+        ? html`<${Improvements} it=${it} rec=${rec} draft=${draft} />`
+        : null}
+      <${Documents} it=${it} rec=${rec} />
+      <${SaleCard} it=${it} rec=${rec} />
     </div>
   `;
 }
 
-/** @param {{ it: any, done: (out: any, msg: string) => void }} p */
-function Valuations({ it, done }) {
+/** @param {{ it: any, rec: ItemRec, draft: import('../app/draft.js').Draft }} p */
+function Valuations({ it, rec, draft }) {
   const [f, setF] = useState({ date: today(), value: '', source: 'estimate' });
-  const add = useSubmit(async () => {
-    const out = await api.post(`/items/${it.id}/valuations`, {
-      date: f.date,
-      value: clean(f.value),
-      source: f.source,
-    });
+  const rows = /** @type {ValuationRec[]} */ (
+    draft.records.filter((r) => r instanceof ValuationRec && !r.removed)
+  ).sort((x, y) => (x.get('date') < y.get('date') ? 1 : -1));
+  const add = () => {
+    const v = draft.add(ValuationRec, { itemId: rec.id, date: f.date, source: f.source });
+    v.input('value', f.value);
     setF({ ...f, value: '' });
-    done(out, 'Valuation added');
-  });
-  const remove = useSubmit(async (/** @type {string} */ vid) => {
-    const was = it.valuations.find((/** @type {any} */ x) => x.id === vid);
-    const out = await api.del(`/items/${it.id}/valuations/${vid}`, was?.version);
-    done(out.parent, 'Valuation removed');
-  });
+  };
   return html`
     <h4 style=${{ margin: '14px 0 8px' }} data-help="valuations">Valuations</h4>
-    ${it.valuations.length
-      ? it.valuations.map((/** @type {any} */ v) =>
-        html`<div class="list-item"><div class="grow"><${Amt} v=${v.value} cents=${false} /><div
-          class="small dim">${SOURCE[v.source]} · ${date(v.date)}</div></div>${
+    ${rows.length
+      ? rows.map((v) =>
+        html`<div class="list-item" key=${v.key}><div class="grow"><${Amt} v=${v.get('value')}
+          cents=${false} /><div class="small dim">${SOURCE[v.get('source')]} · ${
+          date(v.get('date'))
+        }${
+          v.errors.length
+            ? html`<div class="err">${v.errors.map((e) => e.message).join(' ')}</div>`
+            : null
+        }</div></div>${
           it.canWrite
-            ? html`<button type="button" class="icon-btn" aria-label=${`Remove the ${
-              date(v.date)
-            } valuation`} onClick=${() => remove.run(v.id).catch(() => {})}><${Icon}
-              name="x" /></button>`
+            ? html`
+              <button type="button" class="icon-btn" aria-label=${`Remove the ${
+                date(v.get('date'))
+              } valuation`}
+                onClick=${() => draft.remove(v)}><${Icon} name="x" /></button>
+            `
             : null
         }</div>`
       )
       : html`<p class="small dim">None yet: it counts at its cost basis${
-        it.valuation ===
-            'depreciation'
-          ? ', depreciated'
-          : ''
+        rec.get('valuation') === 'depreciation' ? ', depreciated' : ''
       }.</p>`}
     ${it.canWrite
       ? html`
         <div class="row">
-          <${Field} label="Value" help="valuations" id="valuation-value"
-            error=${errAt(add.error, 'value')}>
+          <${Field} label="Value" help="valuations" id="valuation-value">
             <${Input} value=${f.value} inputmode="decimal"
               onInput=${(/** @type {string} */ x) => setF({ ...f, value: x })} />
             </${Field}>
-            <${Field}
-              label="On" help="valuations" id="valuation-date" error=${errAt(add.error, 'date')}>
-              <${Input}
-                type="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
-                  setF({ ...f, date: x })} />
+            <${Field} label="On" help="valuations" id="valuation-date">
+              <${Input} type="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
+                setF({ ...f, date: x })} />
               </${Field}>
               </div>
               <div class="row">
                 <${Field} label="Source" help="valuations" id="valuation-source"><${Select}
-                  value=${f.source} options=${SOURCES} onChange=${(/** @type {string} */ x) =>
-                    setF({ ...f, source: x })} /></${Field}><button type="button" class="btn sm"
-                  style=${{ alignSelf: 'end' }} disabled=${add.busy ||
-                    !clean(f.value)} onClick=${() =>
-                    add.run().catch(() => {})}><${Icon} name="plus" /> Add</button></div>
+            value=${f.source} options=${SOURCES} onChange=${(/** @type {string} */ x) =>
+              setF({ ...f, source: x })} /></${Field}><button type="button" class="btn sm"
+            style=${{ alignSelf: 'end' }} disabled=${!clean(f.value)} onClick=${add}><${Icon}
+            name="plus" /> Add</button></div>
       `
       : null}
   `;
 }
 
-/** @param {{ it: any, done: (out: any, msg: string) => void }} p */
-function Improvements({ it, done }) {
+/** @param {{ it: any, rec: ItemRec, draft: import('../app/draft.js').Draft }} p */
+function Improvements({ it, rec, draft }) {
   const [f, setF] = useState({ date: today(), description: '', amount: '' });
-  const add = useSubmit(async () => {
-    const out = await api.post(`/items/${it.id}/improvements`, {
+  const rows = /** @type {ImprovementRec[]} */ (
+    draft.records.filter((r) => r instanceof ImprovementRec && !r.removed)
+  );
+  const add = () => {
+    const m = draft.add(ImprovementRec, {
+      itemId: rec.id,
       date: f.date,
       description: f.description,
-      amount: clean(f.amount),
     });
+    m.input('amount', f.amount);
     setF({ ...f, description: '', amount: '' });
-    done(out, 'Improvement added to the basis');
-  });
-  const remove = useSubmit(async (/** @type {string} */ mid) => {
-    const was = it.improvements.find((/** @type {any} */ x) => x.id === mid);
-    const out = await api.del(`/items/${it.id}/improvements/${mid}`, was?.version);
-    done(out.parent, 'Improvement removed');
-  });
+  };
   return html`
     <h4 style=${{ margin: '14px 0 8px' }} data-help="improvements">Improvements</h4>
-    ${it.improvements.map((/** @type {any} */ m) =>
+    ${rows.map((m) =>
       html`
-        <div
-          class="list-item"><div class="grow">${m.description}<div class="small dim">${date(
-            m.date,
-          )}</div></div><${Amt} v=${m.amount} cents=${false} />${it.canWrite
+        <div class="list-item" key=${m.key}><div class="grow">${m.get('description')}<div
+          class="small dim">${date(m.get('date'))}${m.errors.length
+            ? html`<div class="err">${m.errors.map((e) => e.message).join(' ')}</div>`
+            : null}</div></div><${Amt} v=${m.get('amount')} cents=${false} />${it.canWrite
             ? html`
-              <button type="button" class="icon-btn" aria-label=${'Remove ' + m.description}
-                onClick=${() => remove.run(m.id).catch(() => {})}><${Icon} name="x" /></button>
+              <button type="button" class="icon-btn" aria-label=${'Remove ' + m.get('description')}
+                onClick=${() => draft.remove(m)}><${Icon} name="x" /></button>
             `
             : null}</div>
       `
     )}
     ${it.canWrite
       ? html`
-        <${Field} label="What was done" help="improvements" id="improvement-description"
-          error=${errAt(add.error, 'description')}>
-          <${Input} value=${f.description}
-            placeholder="Kitchen remodel" onInput=${(/** @type {string} */ x) =>
-              setF({ ...f, description: x })} />
+        <${Field} label="What was done" help="improvements" id="improvement-description">
+          <${Input} value=${f.description} placeholder="Kitchen remodel"
+            onInput=${(/** @type {string} */ x) => setF({ ...f, description: x })} />
           </${Field}>
           <div class="row">
-            <${Field} label="Cost" help="improvements" id="improvement-amount"
-              error=${errAt(add.error, 'amount')}>
+            <${Field} label="Cost" help="improvements" id="improvement-amount">
               <${Input} value=${f.amount} inputmode="decimal"
                 onInput=${(/** @type {string} */ x) => setF({ ...f, amount: x })} />
               </${Field}>
-              <${Field}
-                label="On" help="improvements" id="improvement-date">
-                <${Input} type="date"
-                  value=${f.date} onInput=${(/** @type {string} */ x) => setF({ ...f, date: x })} />
+              <${Field} label="On" help="improvements" id="improvement-date">
+                <${Input} type="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
+                  setF({ ...f, date: x })} />
                 </${Field}>
                 </div>
-                <button type="button" class="btn sm" disabled=${add.busy ||
-                  !f.description}
-                  onClick=${() =>
-                    add.run().catch(() => {})}><${Icon} name="plus" /> Add improvement</button>
+                <button type="button" class="btn sm" disabled=${!f
+                  .description} onClick=${add}><${Icon}
+          name="plus" /> Add improvement</button>
       `
       : null}
   `;
 }
 
-/** @param {{ it: any, done: (out: any, msg: string) => void }} p */
-function Documents({ it, done }) {
+/**
+ * Photos and documents kept with the item: each upload is a receipt of its own, saved at
+ * once (S12.15.7), and kept with the item when the dialog saves.
+ * @param {{ it: any, rec: ItemRec }} p
+ */
+function Documents({ it, rec }) {
   const [busy, setBusy] = useState(false);
+  const [names, setNames] = useState(
+    /** @type {{ [id: string]: string }} */ (Object.fromEntries(
+      it.documents.map((/** @type {any} */ d) => [d.id, d.fileName]),
+    )),
+  );
+  const ids = /** @type {string[]} */ (rec.get('receiptIds') || []);
   const send = async (/** @type {FileList} */ files) => {
     setBusy(true);
-    let out = null;
-    for (const r of await uploadAll(files)) {
-      out = await api.post(`/items/${it.id}/documents`, { receiptId: r.id });
+    try {
+      const made = await uploadAll(files);
+      setNames({ ...names, ...Object.fromEntries(made.map((r) => [r.id, r.fileName])) });
+      rec.set('receiptIds', [...ids, ...made.map((r) => r.id)]);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    if (out) done(out, 'Kept with the item');
   };
-  const remove = useSubmit(async (/** @type {string} */ rid) =>
-    done((await api.del(`/items/${it.id}/documents/${rid}`)).parent, 'Removed from the item')
-  );
   return html`
     <h4 style=${{ margin: '14px 0 8px' }} data-help="photos-and-documents">Photos and documents</h4>
-    ${it.documents.length
-      ? it.documents.map((/** @type {any} */ d) =>
+    ${ids.length
+      ? ids.map((id) =>
         html`
           <div
-            class="list-item"><span class="grow"><${Icon} name="clip" /> ${d
-              .fileName}</span>${it.canWrite
+            class="list-item"><span class="grow"><${Icon} name="clip" /> ${names[id] ||
+              'A file'}</span>${it.canWrite
               ? html`
-                <button type="button" class="icon-btn" aria-label=${'Remove ' + d.fileName}
-                  onClick=${() => remove.run(d.id).catch(() => {})}><${Icon} name="x" /></button>
+                <button type="button" class="icon-btn" aria-label=${'Remove ' + (names[id] || '')}
+                  onClick=${() => rec.set('receiptIds', ids.filter((x) => x !== id))}><${Icon}
+                  name="x" /></button>
               `
               : null}</div>
         `
       )
       : html`<p class="small dim">The purchase receipt, an appraisal, a certificate, the title.</p>`}
+    ${rec.error('receiptIds') ? html`<div class="err">${rec.error('receiptIds')}</div>` : null}
     ${it.canWrite
       ? html`
         <label class="btn sm" for="f-item-files"><${Icon} name="upload" /> ${busy
@@ -717,24 +667,14 @@ function Documents({ it, done }) {
   `;
 }
 
-/** @param {{ it: any, done: (out: any, msg: string) => void }} p */
-function SaleCard({ it, done }) {
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ soldOn: today(), proceeds: '', fees: '' });
-  const sell = useSubmit(async () => {
-    const out = await api.put(`/items/${it.id}/sale`, {
-      soldOn: f.soldOn,
-      proceeds: clean(f.proceeds),
-      fees: clean(f.fees) || '0',
-    }, it.version);
-    setOpen(false);
-    done(out, 'Sale recorded');
-  });
-  const undo = useSubmit(async () =>
-    done((await api.del(`/items/${it.id}/sale`, it.version)).parent, 'Sale undone')
-  );
+/**
+ * The item's sale (S1.10.5): recorded or undone in the draft, saved with the item.
+ * @param {{ it: any, rec: ItemRec }} p
+ */
+function SaleCard({ it, rec }) {
   const s = it.sale;
-  if (s) {
+  const sold = rec.get('soldOn') != null;
+  if (s && sold && !rec.isChanged('soldOn')) {
     return html`
       <h4 style=${{ margin: '14px 0 8px' }} data-help="sale">Sold</h4>
       <div class="list-item"><span class="grow dim">On</span>${date(s.soldOn)}</div>
@@ -751,43 +691,37 @@ function SaleCard({ it, done }) {
         ? html`<p class="small dim">A loss on property you used yourself isn't deductible.</p>`
         : null}
       ${it.canWrite
-        ? html`<button type="button" class="btn sm" onClick=${() =>
-          undo.run().catch(() => {})}>Undo the sale</button>`
+        ? html`<button type="button" class="btn sm" onClick=${() => {
+          rec.set('soldOn', null);
+          rec.set('proceeds', null);
+          rec.set('saleFees', null);
+        }}>Undo the sale</button>`
         : null}
     `;
   }
   if (!it.canWrite) return null;
-  if (!open) {
+  if (!sold) {
     return html`
       <div
-        class="toolbar mt"><button type="button" class="btn sm" onClick=${() =>
-          setOpen(true)}>Record the sale…</button></div>
+        class="toolbar mt">${s
+          ? html`<span class="small dim grow">The sale is undone when you save.</span>`
+          : null}<button type="button" class="btn sm" onClick=${() =>
+          rec.set('soldOn', today())}>Record the sale…</button></div>
     `;
   }
   return html`
     <h4 style=${{ margin: '14px 0 8px' }} data-help="sale">Sale</h4>
     <div class="row">
-      <${Field} label="Sold on" help="sale" id="sold-on" error=${errAt(
-        sell.error,
-        'soldOn',
-      )}>
-        <${Input} type="date" value=${f.soldOn} onInput=${(/** @type {string} */ x) =>
-          setF({ ...f, soldOn: x })} />
+      <${Field} label="Sold on" help="sale" id="sold-on" error=${rec.error('soldOn')}>
+        <${RecField} rec=${rec} name="soldOn" bare label="Sold on" type="date" />
         </${Field}>
-        <${Field} label="Proceeds" help="sale"
-          id="proceeds" error=${errAt(sell.error, 'proceeds')}>
-          <${Input} value=${f.proceeds}
-            inputmode="decimal" onInput=${(/** @type {string} */ x) =>
-              setF({ ...f, proceeds: x })} />
+        <${Field} label="Proceeds" help="sale" id="proceeds" error=${rec.error('proceeds')}>
+          <${RecField} rec=${rec} name="proceeds" bare label="Proceeds" />
           </${Field}>
           </div>
-          <${Field} label="Fees" help="sale" id="sale-fees" error=${errAt(sell.error, 'fees')}>
-            <${Input}
-              value=${f.fees} inputmode="decimal" onInput=${(/** @type {string} */ x) =>
-                setF({ ...f, fees: x })} />
+          <${Field} label="Fees" help="sale" id="sale-fees" error=${rec.error('saleFees')}>
+            <${RecField} rec=${rec} name="saleFees" bare label="Fees" />
             </${Field}>
-            <${FormError} error=${sell.error} shown=${['soldOn', 'proceeds', 'fees']} />
-            <button type="button" class="btn sm danger" disabled=${sell.busy || !clean(f.proceeds)}
-              onClick=${() => sell.run().catch(() => {})}>Record the sale</button>
+            <p class="small dim">Recorded when you save.</p>
   `;
 }

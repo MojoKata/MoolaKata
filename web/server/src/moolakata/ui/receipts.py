@@ -6,20 +6,23 @@ import json
 import logging
 import urllib.parse
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from pydantic import Field
 
-from .. import activity, clock, exactjson, parsing, receipts, settings
+from .. import activity, clock, exactjson, ids, parsing, receipts, settings, tags
 from ..errors import Problem, new_error_id, refuse
 from ..keys.files import FileError
 from ..receipts import reading, retention
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
-from ..store.entities.receipts import Receipt
+from ..store.entities.receipts import Receipt, ReceiptLink
 from ..store.entities.users import User
-from .conventions import Deleted, ExactRoute, Gone, Model, Money, check, gone, if_match, stale
+from . import save
+from .conventions import ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["receipts"])
@@ -28,8 +31,11 @@ log = logging.getLogger("moolakata.receipts")
 
 class LinkOut(Model):
     """A transaction it supports, the account it is kept on (a statement), or what else it is
-    kept with: an item, a qualified expense, a gift, a donation, a tax document."""
+    kept with: an item, a qualified expense, a gift, a donation, a tax document. `id` and
+    `version` are the link's own (`ReceiptLink`); a tax document's file has none."""
 
+    id: str | None
+    version: int | None
     kind: str  # transaction, account, item, expense, gift, donation, tax-document
     itemId: str
     transactionId: str | None
@@ -55,7 +61,8 @@ class ReceiptRow(Model):
     amount: Money | None
     payee: str | None
     notes: str | None
-    tags: list[str]
+    tags: list[str]  # the reader's own, by name (S2.6)
+    tagIds: list[str]
     links: list[LinkOut]
     hasThumbnail: bool
     readStatus: str
@@ -95,17 +102,10 @@ class ReceiptDetail(ReceiptRow):
     keptWhy: str | None  # Groceries keeps receipts 3 years
 
 
-class ReceiptChange(Model):
-    date: dt.date | None = None
-    amount: Money | None = None
-    payee: str | None = None
-    notes: str | None = None
-    tags: list[str] | None = None
-    keep: bool | None = None
-
-
-class Attach(Model):
-    transactionId: str
+def _own(s, ln, user_id: str | None) -> dict:
+    """A link's id and version, and whether this user may detach it (S9.3)."""
+    can = user_id is not None and receipts.can_unlink(s, user_id, ln)
+    return {"id": ln.id, "version": ln.version, "canDetach": can}
 
 
 def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
@@ -122,6 +122,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
                 name = it.name if ln.kind == "item" else (it.description or "Expense")
                 out.append(
                     LinkOut(
+                        **_own(s, ln, user_id),
                         kind=ln.kind,
                         itemId=ln.itemId,
                         transactionId=None,
@@ -139,6 +140,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
             if a is not None and not a.deleted:
                 out.append(
                     LinkOut(
+                        **_own(s, ln, user_id),
                         kind="account",
                         itemId=a.id,
                         transactionId=None,
@@ -164,6 +166,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
                 when, amount = thing.date, thing.amount
             out.append(
                 LinkOut(
+                    **_own(s, ln, user_id),
                     kind=ln.kind,
                     itemId=ln.itemId,
                     transactionId=None,
@@ -173,8 +176,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
                     amount=amount,
                     payee=None,
                     label=label,
-                    canDetach=user_id is not None
-                    and receipts._kept_level(s, user_id, ln) == "write",
                 )
             )
             continue
@@ -184,6 +185,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
         a = s.get(Account, t.accountId)
         out.append(
             LinkOut(
+                **_own(s, ln, user_id),
                 kind="transaction",
                 itemId=t.id,
                 transactionId=t.id,
@@ -201,6 +203,8 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
             continue
         out.append(
             LinkOut(
+                id=None,
+                version=None,
                 kind="tax-document",
                 itemId=doc.id,
                 transactionId=None,
@@ -217,6 +221,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
 
 def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
     owner = s.get(User, r.ownerId)
+    tagged = tags.of(s, "receipt", user_id, [r.id]).get(r.id, []) if user_id else []
     return ReceiptRow(
         id=r.id,
         fileName=r.fileName,
@@ -230,7 +235,8 @@ def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
         amount=r.amount,
         payee=r.payee,
         notes=r.notes,
-        tags=receipts.tags_of(r),
+        tags=[t.name for t in tagged],
+        tagIds=[t.id for t in tagged],
         links=_links(s, r, user_id),
         hasThumbnail=r.thumbnail is not None,
         readStatus=r.readStatus,
@@ -344,47 +350,6 @@ def get_receipt(receipt_id: str, request: Request, c: Caller = Depends(caller)):
         return detail(s, c.id, r, lvl)
 
 
-@router.patch("/receipts/{receipt_id}", response_model=ReceiptDetail)
-def change_receipt(
-    receipt_id: str,
-    body: ReceiptChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Its date, amount, payee, notes and tags: by its owner, or by anyone who can write to
-    an account it is attached in."""
-    with server(request).db.tx() as s:
-        r, lvl = receipts.get(s, c.id, receipt_id, "write")
-        if r.version != version:
-            raise stale(detail(s, c.id, r, lvl))
-        sent = body.model_fields_set
-        if "payee" in sent and body.payee is not None and len(body.payee) > 200:
-            raise refuse("payee", "payee-too-long", "At most 200 characters.")
-        if "notes" in sent and body.notes is not None and len(body.notes) > 2000:
-            raise refuse("notes", "notes-too-long", "At most 2,000 characters.")
-        filled = set(json.loads(r.filled or "[]"))
-        for f in ("date", "amount", "payee", "notes"):
-            if f in sent:
-                # A value a person gives is theirs: reading again won't replace it.
-                filled.discard(f)
-                value = getattr(body, f)
-                if isinstance(value, str):
-                    value = value.strip() or None
-                if f == "amount" and value is not None:
-                    value = abs(Decimal(value))
-                setattr(r, f, value)
-        r.filled = exactjson.dumps(sorted(filled))
-        if "tags" in sent and body.tags is not None:
-            tags = sorted({t.strip().lower() for t in body.tags if t.strip()})
-            r.tags = exactjson.dumps(tags)
-        if "keep" in sent and body.keep is not None:
-            r.keep = body.keep
-        r.updatedAt = dt.datetime.now(dt.UTC)
-        s.flush()
-        return detail(s, c.id, r, lvl)
-
-
 @router.post("/receipts/{receipt_id}/read", response_model=ReceiptDetail)
 def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     """Read it again (S9.8.6): only empty or suggested fields are replaced."""
@@ -401,78 +366,155 @@ def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     return out
 
 
-@router.delete("/receipts/{receipt_id}", response_model=Deleted[None])
-def delete_receipt(
-    receipt_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        r, lvl = receipts.get(s, c.id, receipt_id, "owner")
-        check(r, version, lambda: detail(s, c.id, r, lvl))
-        receipts.delete(s, c.id, r)
-        activity.record(s, "receipt.deleted", actor=c.id, owner=c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(r))
+class ReceiptRecord(Model):
+    """A receipt as a draft saves it (S9.8): what was read from it, or typed, and whether it is
+    kept for ever. It is made by uploading its file; what it is attached to are pairs of their
+    own (S13.8.6)."""
+
+    date: dt.date | None = None
+    amount: Money | None = None
+    payee: str | None = None
+    notes: str | None = None
+    tagIds: list[IdOf("Tag")] = Field(  # type: ignore[valid-type]  # the saver's own
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+    keep: bool = False
 
 
-@router.post("/receipts/{receipt_id}/links", response_model=ReceiptDetail)
-def attach(receipt_id: str, body: Attach, request: Request, c: Caller = Depends(caller)):
-    srv = server(request)
-    with srv.db.tx() as s:
-        r = receipts.to_attach(s, c.id, receipt_id, "transactionId")
-        receipts.attach(s, c.id, r, body.transactionId)
-        t = s.get(Transaction, body.transactionId)
+RECEIPT_FIELDS = ("date", "amount", "payee", "notes")
+
+
+def _receipt_create(ctx, record_id: str, body: ReceiptRecord) -> None:
+    raise refuse(None, "receipt-uploaded", "A receipt is made by uploading its file.")
+
+
+def _receipt_current(ctx, r: Receipt) -> dict:
+    return {
+        **{f: getattr(r, f) for f in RECEIPT_FIELDS},
+        "tagIds": tags.ids_of(ctx.s, "receipt", ctx.caller.id, r.id),
+        "keep": bool(r.keep),
+    }
+
+
+def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
+    """Its date, amount, payee, notes and tags: by its owner, or by anyone who can write to
+    an account it is attached in."""
+    if body.payee is not None and len(body.payee) > 200:
+        raise refuse("payee", "payee-too-long", "At most 200 characters.")
+    if body.notes is not None and len(body.notes) > 2000:
+        raise refuse("notes", "notes-too-long", "At most 2,000 characters.")
+    filled = set(json.loads(r.filled or "[]"))
+    for f in RECEIPT_FIELDS:
+        value = getattr(body, f)
+        if isinstance(value, str):
+            value = value.strip() or None
+        if f == "amount" and value is not None:
+            value = abs(Decimal(value))
+        if value != getattr(r, f):
+            # A value a person gives is theirs: reading again won't replace it.
+            filled.discard(f)
+            setattr(r, f, value)
+    r.filled = exactjson.dumps(sorted(filled))
+    tags.owned(ctx.s, ctx.caller.id, body.tagIds)
+    tags.set_on(ctx.s, "receipt", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)
+    r.keep = body.keep
+    r.updatedAt = clock.now()
+
+
+def _receipt_delete(ctx, r: Receipt) -> None:
+    s, c = ctx.s, ctx.caller
+    receipts.get(s, c.id, r.id, "owner")
+    receipts.delete(s, c.id, r)
+    activity.record(s, "receipt.deleted", actor=c.id, owner=c.id)
+
+
+def _receipt_read(ctx, record_id: str) -> ReceiptDetail:
+    r, lvl = receipts.get(ctx.s, ctx.caller.id, record_id)
+    return detail(ctx.s, ctx.caller.id, r, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="Rcpt",
+        entity=Receipt,
+        fields=ReceiptRecord,
+        create=_receipt_create,
+        editable=lambda ctx, record_id: receipts.get(ctx.s, ctx.caller.id, record_id, "write")[0],
+        current=_receipt_current,
+        update=_receipt_update,
+        delete=_receipt_delete,
+        read=_receipt_read,
+    )
+)
+
+
+class ReceiptLinkRecord(Model):
+    """What a receipt is attached to, as a draft makes or takes it away (S9.3): a record of
+    its own, never changed. `itemId` names a record of the kind's table."""
+
+    receiptId: IdOf("Rcpt")  # type: ignore[valid-type]
+    kind: Literal["transaction", "account", "item", "expense", "gift", "donation"]
+    itemId: str
+
+
+class ReceiptLinkOut(ReceiptLinkRecord):
+    id: str
+    version: int
+
+
+def _link_create(ctx, record_id: str, body: ReceiptLinkRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if not ids.is_id(body.itemId, receipts.TARGETS[body.kind]):
+        raise refuse("itemId", "id-invalid", f"Not an id of {receipts.TARGETS[body.kind]}.")
+    r = receipts.to_attach(s, c.id, body.receiptId)
+    ln = receipts.link(s, c.id, r, body.kind, body.itemId, record_id)
+    if body.kind == "transaction":
+        a = receipts._account_of(s, ln)
         activity.record(
             s,
             "receipt.attached",
             actor=c.id,
             subject_kind="account",
-            subject_id=t.accountId,
-            owner=s.get(Account, t.accountId).ownerId,
+            subject_id=a.id,
+            owner=a.ownerId,
         )
-        s.flush()
-        r, lvl = receipts.get(s, c.id, receipt_id)
-        out = detail(s, c.id, r, lvl)
-    srv.events.publish("receipt", {"id": receipt_id}, users=[c.id])
-    return out
+    srv = server(ctx.request)
+    ctx.after(f"receipt:{r.id}", lambda: srv.events.publish("receipt", {"id": r.id}, users=[c.id]))
 
 
-@router.delete(
-    "/receipts/{receipt_id}/links/{transaction_id}", response_model=Deleted[ReceiptDetail]
+def _link(ctx, record_id: str) -> ReceiptLink:
+    """A live link, of a receipt the caller can see."""
+    ln = ctx.s.get(ReceiptLink, record_id)
+    if ln is None or ln.deleted:
+        raise Problem(404, "not-found", "Not found")
+    receipts.get(ctx.s, ctx.caller.id, ln.receiptId)
+    return ln
+
+
+def _link_update(ctx, ln: ReceiptLink, body: ReceiptLinkRecord) -> None:
+    raise refuse(None, "link-unchanged", "A link is made or taken away, never changed.")
+
+
+def _link_read(ctx, record_id: str) -> ReceiptLinkOut:
+    ln = ctx.s.get(ReceiptLink, record_id)
+    return ReceiptLinkOut(
+        id=ln.id, version=ln.version, receiptId=ln.receiptId, kind=ln.kind, itemId=ln.itemId
+    )
+
+
+save.register(
+    save.Kind(
+        prefix="RcLnk",
+        entity=ReceiptLink,
+        fields=ReceiptLinkRecord,
+        create=_link_create,
+        editable=_link,
+        current=lambda ctx, ln: {"receiptId": ln.receiptId, "kind": ln.kind, "itemId": ln.itemId},
+        update=_link_update,
+        delete=lambda ctx, ln: receipts.unlink(ctx.s, ctx.caller.id, ln),
+        read=_link_read,
+    )
 )
-def detach(receipt_id: str, transaction_id: str, request: Request, c: Caller = Depends(caller)):
-    """A receipt's link to a transaction: a pair with no version of its own (S13.8.6)."""
-    with server(request).db.tx() as s:
-        r, _ = receipts.get(s, c.id, receipt_id)
-        receipts.detach(s, c.id, r, transaction_id)
-        s.flush()
-        lvl = receipts.level(s, c.id, r)
-        if lvl is None:
-            # Detached from the only thing that let the caller see it.
-            raise Problem(404, "not-found", "Not found")
-        return Deleted[ReceiptDetail](
-            deleted=Gone(id=f"{r.id}/{transaction_id}", deletedAt=clock.now()),
-            parent=detail(s, c.id, r, lvl),
-        )
-
-
-@router.delete(
-    "/receipts/{receipt_id}/kept/{kind}/{item_id}", response_model=Deleted[ReceiptDetail]
-)
-def detach_kept(
-    receipt_id: str, kind: str, item_id: str, request: Request, c: Caller = Depends(caller)
-):
-    """A receipt kept with a gift or a donation, taken away from it (S9.3)."""
-    with server(request).db.tx() as s:
-        r, _ = receipts.get(s, c.id, receipt_id)
-        receipts.detach_kept(s, c.id, r, kind, item_id)
-        s.flush()
-        lvl = receipts.level(s, c.id, r)
-        if lvl is None:
-            raise Problem(404, "not-found", "Not found")
-        return Deleted[ReceiptDetail](
-            deleted=Gone(id=f"{r.id}/{kind}/{item_id}", deletedAt=clock.now()),
-            parent=detail(s, c.id, r, lvl),
-        )
 
 
 def _disposition(name: str) -> str:

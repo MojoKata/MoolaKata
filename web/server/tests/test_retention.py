@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import attach, change, edit, make, save_settings, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -32,8 +33,7 @@ def cat(server, name, years=None):
 
 def receipt_on(c, txn_id, data):
     rid = upload(c, data).json()["id"]
-    r = c.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": txn_id})
-    assert r.status_code in (200, 201), r.text
+    saved(attach(c, rid, txn_id))
     return rid
 
 
@@ -60,8 +60,7 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
     loose = add(c, acct["id"], "-5.00", "2020-01-01", payee="Shop")
     assert kept(c, receipt_on(c, loose["id"], png((7, 8, 9))))[0] == "forever"
     assert kept(c, upload(c, png((9, 9, 9))).json()["id"])[0] == "forever"
-    v = c.get(f"/ui/api/receipts/{rid}").json()["version"]
-    c.patch(f"/ui/api/receipts/{rid}", json={"keep": True}, headers={"If-Match": f'"{v}"'})
+    saved(edit(c, "Rcpt", f"/ui/api/receipts/{rid}", keep=True))
     assert kept(c, rid) == ("forever", "Kept for ever")
 
 
@@ -73,35 +72,33 @@ def test_a_lots_receipt_is_kept_while_the_lot_is_open(server, frozen):
         any_cat = s.scalars(select(Category)).first()
         any_cat.keepReceiptsYears = 2
         cid = any_cat.id
-    buy = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2020-01-02",
-            "kind": "buy",
-            "symbol": "VTI",
-            "quantity": "10",
-            "price": "100",
-            "amount": "-1000.00",
-            "categoryId": cid,
-        },
+    buy = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2020-01-02",
+        kind="buy",
+        symbol="VTI",
+        quantity="10",
+        price="100",
+        amount="-1000.00",
+        categoryId=cid,
     )
-    assert buy.status_code == 201, buy.text
+    assert buy.status_code == 200, buy.text
     rid = receipt_on(c, buy.json()["id"], png((10, 20, 30)))
     assert kept(c, rid) == ("open", "Kept while the lot is open")
-    sell = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2030-02-03",
-            "kind": "sell",
-            "symbol": "VTI",
-            "quantity": "10",
-            "price": "120",
-            "amount": "1200.00",
-        },
+    sell = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2030-02-03",
+        kind="sell",
+        symbol="VTI",
+        quantity="10",
+        price="120",
+        amount="1200.00",
     )
-    assert sell.status_code == 201, sell.text
+    assert sell.status_code == 200, sell.text
     assert kept(c, rid) == ("expired", "Expired Feb 2032, prunable")
 
 
@@ -156,10 +153,7 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
         r.date = dt.date(2027, 9, 30)
         receipts.attach_account(s, alice.id, r, acct["id"])
     assert kept(c, rid)[0] == "forever", "statements are kept for ever by default"
-    v = admin_client.get("/ui/api/settings").json()["version"]
-    r = admin_client.patch(
-        "/ui/api/settings", json={"keepStatementsYears": 5}, headers={"If-Match": f'"{v}"'}
-    )
+    r = save_settings(admin_client, {"keepStatementsYears": 5})
     assert r.status_code == 200, r.text
     d = c.get(f"/ui/api/receipts/{rid}").json()
     assert (d["keptState"], d["kept"], d["keptWhy"]) == (
@@ -186,3 +180,21 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
         assert path.exists()
         assert retention.prune_files(s, server.config.receipts_dir, [a], a.ownerId) > 0
     assert not path.exists()
+
+
+def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_client):
+    make_user(server, "alice")
+    alice = sign_in(server, "alice")
+    food = next(
+        x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
+    )
+    r = change(alice, "Cat", food, keepReceiptsYears=7)
+    assert r.status_code == 403 and r.json()["errors"][0]["field"] == "keepReceiptsYears"
+    r = change(admin_client, "Cat", food, keepReceiptsYears=0)
+    assert r.json()["errors"][0]["code"] == "years-invalid"
+    assert saved(change(admin_client, "Cat", food, keepReceiptsYears=7))["keepReceiptsYears"] == 7
+    food = next(
+        x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
+    )
+    r = change(admin_client, "Cat", food, name="Eating")
+    assert r.json()["errors"][0]["code"] == "category-fixed"

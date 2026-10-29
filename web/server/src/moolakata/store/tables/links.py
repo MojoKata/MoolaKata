@@ -7,13 +7,13 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    PrimaryKeyConstraint,
     Text,
+    UniqueConstraint,
     text,
 )
 
 from ..types import Day, UtcTimestamp
-from ._base import exception, pairs, record, unique_live
+from ._base import exception, record, unique_live
 
 # A link with another server (S11.1). On the inviting side it starts as an invitation (its
 # code kept as a hash), becomes a request when the other side answers, and is active once an
@@ -109,7 +109,8 @@ LinkSent = exception(
     Column("path", Text, nullable=False),  # the item's own row is "", its documents their path
     Column("viewer", Text, nullable=False),  # the peer's user id
     Column("hash", Text, nullable=False),
-    PrimaryKeyConstraint("linkId", "itemId", "path", "viewer"),
+    UniqueConstraint("linkId", "itemId", "path", "viewer"),
+    prefix="LkSnt",
 )
 
 # A receipt a change named that hasn't reached the copy yet (S11.4): asked for again at each
@@ -124,17 +125,19 @@ LinkFile = exception(
     Column("tries", Integer, nullable=False, server_default=text("0")),
     Column("missedAt", UtcTimestamp, nullable=False),
     Column("error", Text),  # why the last try failed, in this server's words
-    PrimaryKeyConstraint("linkId", "fileId"),
+    UniqueConstraint("linkId", "fileId"),
+    prefix="LkFil",
 )
 
 # The colour each user chose for a linked household's window (S12.10.3.2), from a fixed palette.
-LinkColours = pairs(
-    "LinkColours",
+LinkColour = record(
+    "LinkColour",
+    "LkCol",
     Column("userId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
     Column("linkId", Text, ForeignKey("Link.id", ondelete="CASCADE"), nullable=False),
     Column("colour", Text, nullable=False),
     CheckConstraint(
         "colour IN ('teal', 'violet', 'amber', 'rose', 'green', 'blue')", name="colour"
     ),
-    PrimaryKeyConstraint("userId", "linkId"),
 )
+unique_live(LinkColour, "userId", "linkId")

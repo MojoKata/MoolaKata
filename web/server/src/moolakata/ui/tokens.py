@@ -11,7 +11,8 @@ from sqlalchemy import false, select
 from .. import access, activity, clock, tokens
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.users import AccessToken, User
-from .conventions import Deleted, ExactRoute, Model, check, gone, if_match
+from . import save
+from .conventions import ExactRoute, Model
 from .deps import Caller, caller, recent_auth, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["tokens"])
@@ -86,9 +87,9 @@ def list_tokens(request: Request, c: Caller = Depends(caller)):
         return [_out(t, names) for t in rows]
 
 
-@router.post("/profile/tokens", response_model=TokenMade, status_code=201)
-def make_token(body: NewToken, request: Request, c: Caller = Depends(caller)):
-    recent_auth(c)  # the password again (S13.7.2)
+def _made(s, c: Caller, body: NewToken, token_id: str | None = None) -> TokenMade:
+    """A token for its maker, the password given again (S13.7.2); its secret shown once."""
+    recent_auth(c)
     e: list[FieldError] = []
     name = body.name.strip()
     if not 1 <= len(name) <= 60:
@@ -101,29 +102,76 @@ def make_token(body: NewToken, request: Request, c: Caller = Depends(caller)):
         e.append(FieldError("items", "items-missing", "Choose at least one account or portfolio."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    with server(request).db.tx() as s:
-        names = _names(s, c.id)
-        items = []
-        for i in body.items if body.scope == "chosen" else []:
-            if (i.kind, i.id) not in names:
-                raise refuse("items", "not-found", "Only accounts and portfolios you can see.")
-            items.append({"kind": i.kind, "id": i.id})
-        t, secret = tokens.make(s, c.id, name, body.scope, items, body.days)
-        activity.record(s, "token.created", actor=c.id, owner=c.id, detail={"name": name})
-        tokens.tell_made(s, server(request).services, s.get(User, c.id), t)
-        return TokenMade(token=_out(t, names), secret=secret)
+    names = _names(s, c.id)
+    items = []
+    for i in body.items if body.scope == "chosen" else []:
+        if (i.kind, i.id) not in names:
+            raise refuse("items", "not-found", "Only accounts and portfolios you can see.")
+        items.append({"kind": i.kind, "id": i.id})
+    t, secret = tokens.make(s, c.id, name, body.scope, items, body.days, token_id)
+    activity.record(s, "token.created", actor=c.id, owner=c.id, detail={"name": name})
+    return TokenMade(token=_out(t, names), secret=secret)
 
 
-@router.delete("/profile/tokens/{token_id}", response_model=Deleted[None])
-def revoke_token(
-    token_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        t = s.get(AccessToken, token_id)
-        if t is None or t.deleted or t.userId != c.id:
-            raise Problem(404, "not-found", "No such token.")
-        check(t, version, {"id": t.id, "version": t.version})
-        t.mark_deleted(c.id)
-        activity.record(s, "token.revoked", actor=c.id, owner=c.id, detail={"name": t.name})
-        s.flush()
-        return Deleted[None](deleted=gone(t))
+# ---------- a token in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class TokenRecord(NewToken):
+    """A token as a draft makes it (S10.9): made once, its secret in the save's answer alone;
+    never changed; revoked by deleting it."""
+
+
+def _token_create(ctx, record_id: str, body: TokenRecord) -> None:
+    made = _made(ctx.s, ctx.caller, body, record_id)
+    ctx.notes[record_id] = made.secret
+    srv, user_id = server(ctx.request), ctx.caller.id
+
+    def tell() -> None:
+        with srv.db.tx() as s:
+            tokens.tell_made(s, srv.services, s.get(User, user_id), s.get(AccessToken, record_id))
+
+    ctx.after(f"token.made:{record_id}", tell)
+
+
+def _token_editable(ctx, record_id: str) -> AccessToken:
+    t = ctx.s.get(AccessToken, record_id)
+    if t is None or t.deleted or t.userId != ctx.caller.id:
+        raise Problem(404, "not-found", "No such token.")
+    return t
+
+
+def _token_update(ctx, t: AccessToken, body: TokenRecord) -> None:
+    raise refuse(None, "token-fixed", "A token isn't changed: revoke it and make another.")
+
+
+def _token_delete(ctx, t: AccessToken) -> None:
+    t.mark_deleted(ctx.caller.id)
+    activity.record(ctx.s, "token.revoked", actor=ctx.caller.id, owner=ctx.caller.id,
+                    detail={"name": t.name})  # fmt: skip
+
+
+def _token_read(ctx, record_id: str) -> dict:
+    """The token as read; on the save that made it, with its secret, shown once."""
+    out = _out(ctx.s.get(AccessToken, record_id), _names(ctx.s, ctx.caller.id))
+    secret = ctx.notes.get(record_id)
+    return {**out.model_dump(), "secret": secret} if secret else out.model_dump()
+
+
+save.register(
+    save.Kind(
+        prefix="Token",
+        entity=AccessToken,
+        fields=TokenRecord,
+        create=_token_create,
+        editable=_token_editable,
+        current=lambda ctx, t: {
+            "name": t.name,
+            "scope": t.scope,
+            "items": json.loads(t.items or "[]"),
+            "days": 90,
+        },
+        update=_token_update,
+        delete=_token_delete,
+        read=_token_read,
+    )
+)

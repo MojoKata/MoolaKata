@@ -14,6 +14,9 @@ import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { connectionState, DRIVERS } from './connector.js';
+import { Record } from '../app/draft.js';
+import { saveNow } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 
 const DRIVER_OPTIONS = /** @type {[string, string][]} */ ([
   ['schwab', 'Schwab'],
@@ -43,7 +46,7 @@ export function Connections() {
   const paired = /** @type {any} */ (info.data)?.paired;
   const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const remove = useSubmit(async (/** @type {any} */ c) => {
-    await api.del(`/profile/connections/${c.id}`, c.version);
+    await saveNow((d) => d.remove(d.load(ConnRec, c)));
     toast(`${c.label}: removed; its accounts' sync is off`);
     setArmed(null);
     res.reload();
@@ -98,9 +101,18 @@ export function Connections() {
   `;
 }
 
+/** A Connection (S18.6), as a draft makes it or takes it away. */
+class ConnRec extends Record {
+  /** @override */
+  static prefix = 'Conn';
+  /** @override */
+  static fields = FIELDS.ConnectionRecord;
+}
+
 /**
  * New connection, or new credentials for one (S18.7). What is typed is sealed here to the
- * connector's key; or an admin types it on the connector's host.
+ * connector's key; or an admin types it on the connector's host. The connection is made with
+ * a draft's save, so a seal that fails after it leaves it made, to seal again.
  * @param {{ close: (v?: any) => void, connection?: any }} p
  */
 export function ConnectionDialog({ close, connection }) {
@@ -128,11 +140,13 @@ export function ConnectionDialog({ close, connection }) {
     canSeal().then(setSealable);
   }, []);
   const [made, setMade] = useState(/** @type {any} */ (null));
+  const [start] = useState(() => JSON.stringify(f));
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
   const save = useSubmit(async () => {
     const key = /** @type {any} */ (info.data)?.sealingKey;
-    let c = existing;
+    let c = made?.connection || existing;
     if (!c) {
+      // The connection is a record, made with the draft's save; its sign-in never is one.
       const settings = f.driver === 'ofx-direct'
         ? {
           url: f.url,
@@ -143,16 +157,14 @@ export function ConnectionDialog({ close, connection }) {
           bankId: f.bankId,
         }
         : { appKey: f.appKey };
-      const out = await api.post('/profile/connections', {
-        driver: f.driver,
-        label: f.label,
-        settings,
+      const out = await saveNow((d) => {
+        d.add(ConnRec, { driver: f.driver, label: f.label, settings });
       });
-      c = out.connection;
-      setMade(out);
+      c = out[0].record;
+      setMade({ connection: c });
     }
     if (f.how === 'host') {
-      setMade({ connection: c, command: made?.command || command(c) });
+      setMade({ connection: c, command: command(c) });
       return;
     }
     // The box holds the host the credentials are for and when they were sealed, so the
@@ -169,7 +181,7 @@ export function ConnectionDialog({ close, connection }) {
       );
     }
     const box = await seal(plain, key, c.id);
-    await withReauth(() => api.put(`/profile/connections/${c.id}/credential`, { sealed: box }));
+    await withReauth(() => api.post(`/profile/connections/${c.id}/credential`, { sealed: box }));
     toast(`${c.label}: sealed for the connector`);
     close(c);
   });
@@ -203,7 +215,8 @@ export function ConnectionDialog({ close, connection }) {
   }
   return html`
     <${Dialog} title=${existing ? `${existing.label}: credentials` : 'New connection'}
-      close=${close} onSubmit=${() => save.run().catch(() => {})}
+      close=${() => close(made?.connection)} onSubmit=${() => save.run().catch(() => {})}
+      changed=${() => JSON.stringify(f) !== start}
       note=${v.fingerprint ? `Sealed with the connector's key ${v.fingerprint}.` : ''}
       footer=${html`<button class="btn primary" disabled=${save.busy}>${
         f.how === 'host' ? 'Show the command' : 'Seal and send'
@@ -340,25 +353,17 @@ function command(c) {
 
 /**
  * Sync using MoolaKata Connector (S18.6.2), on an account's Settings tab, for its owner: which
- * Connection keeps it current and which of its institution accounts this is.
- * @param {{ a: any, reload: () => void }} p
+ * Connection keeps it current and which of its institution accounts this is, fields of the
+ * account's draft.
+ * @param {{ rec: import('../app/draft.js').Record }} p
  */
-export function SyncCard({ a, reload }) {
+export function SyncCard({ rec }) {
   const info = useApi('/connector');
   const res = useList('/profile/connections', {}, ['task']);
   const rows = /** @type {any[]} */ (res.data) || [];
-  const [on, setOn] = useState(!!a.connectionId);
-  const [cid, setCid] = useState(a.connectionId || '');
-  const [which, setWhich] = useState(a.syncAccount || '');
-  const save = useSubmit(async () => {
-    await api.patch(
-      `/accounts/${a.id}`,
-      on ? { connectionId: cid, syncAccount: which } : { connectionId: null },
-      a.version,
-    );
-    toast(on ? 'Synced by the connector' : 'Sync off');
-    reload();
-  });
+  const [on, setOn] = useState(rec.get('connectionId') != null);
+  const cid = rec.get('connectionId') || '';
+  const which = rec.shown('syncAccount');
   const paired = /** @type {any} */ (info.data)?.paired;
   if (!info.data) return null;
   if (!paired) return null;
@@ -373,49 +378,51 @@ export function SyncCard({ a, reload }) {
       openDialog(ConnectionDialog, {}).then((made) => {
         if (made) {
           res.reload();
-          setCid(made.id);
+          rec.set('connectionId', made.id);
         }
       });
       return;
     }
-    setCid(v);
-    setWhich('');
+    rec.input('connectionId', v);
+    rec.set('syncAccount', null);
+  };
+  const turn = (/** @type {boolean} */ v) => {
+    setOn(v);
+    if (!v) {
+      rec.set('connectionId', null);
+      rec.set('syncAccount', null);
+    }
   };
   const found = chosen ? accountsOf(chosen) : [];
   return html`
     <div style=${{ marginTop: '12px' }}>
-      <${SwitchRow} label="Sync using MoolaKata Connector" on=${on}
-        onChange=${(/** @type {boolean} */ v) => setOn(v)}
-        hint=${a.connectionId && chosen
-          ? `${chosen.label}${a.syncAccount ? ` · ${a.syncAccount}` : ''}`
+      <${SwitchRow} label="Sync using MoolaKata Connector" on=${on} onChange=${turn}
+        hint=${chosen
+          ? `${chosen.label}${which ? ` · ${which}` : ''}`
           : 'Fetched from the institution by the connector; you keep the sign-in.'} />
       ${on
         ? html`
           <div class="row">
-            <${Field} label="Connection" id="connection" error=${errAt(save.error, 'connectionId')}>
+            <${Field} label="Connection" id="connection" error=${rec.error('connectionId')}>
               <${Select} value=${cid} onChange=${pick} options=${options} />
               </${Field}>
-              <${Field} label="Institution account" id="institution-account" error=${errAt(
-                save.error,
-                'syncAccount',
-              )}
+              <${Field} label="Institution account" id="institution-account"
+                error=${rec.error('syncAccount')}
                 hint=${found.length ? '' : 'What the driver found on its first run, or type it.'}>
-                ${found.length
-                  ? html`
-                    <${Select} value=${which} onChange=${setWhich}
-                      options=${[['', 'Choose…'], ...found.map((x) => [x, x])]} />
-                  `
-                  : html`
-                    <${Input} value=${which} onInput=${setWhich}
-                      placeholder="Individual ••4417" />
-                  `}
-                </${Field}>
-                </div>
+              ${found.length
+                ? html`
+                  <${Select} value=${which} onChange=${(/** @type {string} */ v) =>
+                    rec.input('syncAccount', v)}
+                    options=${[['', 'Choose…'], ...found.map((x) => [x, x])]} />
+                `
+                : html`
+                  <${Input} value=${which} onInput=${(/** @type {string} */ v) =>
+                    rec.input('syncAccount', v)} placeholder="Individual ••4417" />
+                `}
+            </${Field}>
+          </div>
         `
         : null}
-      <div class="toolbar"><button type="button" class="btn sm" disabled=${save.busy ||
-        (on && (!cid || !which))} onClick=${() =>
-        save.run().catch(() => {})}>Save sync</button></div>
     </div>
   `;
 }

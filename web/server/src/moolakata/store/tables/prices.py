@@ -1,9 +1,9 @@
 """Price sources and stored daily closes (requirements S4)."""
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, PrimaryKeyConstraint, Text, text
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Text, text
 
 from ..types import Day, Dec, UtcTimestamp
-from ._base import keyed, record, unique_live
+from ._base import record, unique_live
 
 PriceSource = record(
     "PriceSource",
@@ -22,7 +22,8 @@ unique_live(PriceSource, "name")
 
 # One close per instrument and market day, kept for ever (S4.6). Typed prices are kept apart,
 # each its typer's (TypedPrice).
-Price = keyed(
+Price = record(
+    "Price",
     "Price",
     Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
     Column("date", Day, nullable=False),
@@ -30,18 +31,18 @@ Price = keyed(
     Column("source", Text, nullable=False),
     Column("fetchedAt", UtcTimestamp, nullable=False),
     Column("enteredById", Text, ForeignKey("User.id")),
-    PrimaryKeyConstraint("instrumentId", "date"),
     Index("ix_Price_date", "date"),
 )
+unique_live(Price, "instrumentId", "date")
 
 # A price a user typed (S4.10), with its date: it values their own accounts, and never another
 # user's; kept for ever, as closes are.
-TypedPrice = keyed(
+TypedPrice = record(
     "TypedPrice",
+    "TyPrc",
     Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("date", Day, nullable=False),
     Column("close", Dec, nullable=False),
-    PrimaryKeyConstraint("instrumentId", "userId", "date"),
-    Index("ix_TypedPrice_user", "userId", "instrumentId", "date"),
 )
+unique_live(TypedPrice, "userId", "instrumentId", "date")

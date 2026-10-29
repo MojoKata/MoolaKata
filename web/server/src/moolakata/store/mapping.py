@@ -122,6 +122,7 @@ def map_all() -> None:
         (asx.Improvement, assets.Improvement),
         (acc.Import, accounts.Import),
         (acc.Transaction, accounts.Transaction),
+        (acc.CorporateAction, accounts.CorporateAction),
         (acc.Split, accounts.Split),
         (acc.Reimbursement, accounts.Reimbursement),
         (acc.Lot, accounts.Lot),
@@ -132,8 +133,10 @@ def map_all() -> None:
         (acc.Reconciliation, accounts.Reconciliation),
     ):
         _versioned(entity, table)
+    _versioned(acc.Tag, accounts.Tag)
     _map(acc.TransactionTag, accounts.TransactionTags)
-    _map(acc.LotPick, accounts.LotPicks)
+    _map(acc.RuleTag, accounts.RuleTags)
+    _versioned(acc.LotPick, accounts.LotPick)
     _versioned(pr.PriceSource, prices.PriceSource)
     _versioned(pr.Price, prices.Price)
     _versioned(pr.TypedPrice, prices.TypedPrice)
@@ -144,22 +147,23 @@ def map_all() -> None:
     _versioned(bd.BudgetLine, budgets.BudgetLine)
     _versioned(bd.BudgetMove, budgets.BudgetMove)
     _versioned(bd.BudgetReview, budgets.BudgetReview)
-    _map(bd.BudgetAccount, budgets.BudgetAccounts)
+    _versioned(bd.BudgetAccount, budgets.BudgetAccount)
     _map(bd.BudgetLeaveOut, budgets.BudgetLeaveOuts)
     _versioned(rc.Receipt, receipts.Receipt)
-    _map(rc.ReceiptLink, receipts.ReceiptLinks)
+    _versioned(rc.ReceiptLink, receipts.ReceiptLink)
+    _map(rc.ReceiptTag, receipts.ReceiptTags)
     _map(ed.GiftPerson, people.GiftPersons)
     _map(acc.WashSale, options.WashSale)
-    _map(acc.StrategyLeg, options.StrategyLegs)
+    _versioned(acc.StrategyLeg, options.StrategyLeg)
     _map(acc.WalletAddress, wallets.WalletAddress)
-    _map(tx.TaxBookFiler, taxes.TaxBookFilers)
-    _map(tx.TaxBookAccount, taxes.TaxBookAccounts)
+    _versioned(tx.TaxBookFiler, taxes.TaxBookFiler)
+    _versioned(tx.TaxBookAccount, taxes.TaxBookAccount)
     _map(tx.TaxDependentAccount, taxes.TaxDependentAccounts)
     _versioned(pj.AssumptionSet, projections.AssumptionSet)
     _versioned(pj.Projection, projections.Projection)
     _versioned(pj.TaxFigure, projections.TaxFigure)
     _map(pj.ShownProjection, projections.ShownProjections)
-    _map(sh.CountedAccount, sharing.CountedAccounts)
+    _versioned(sh.CountedAccount, sharing.CountedAccount)
     _versioned(Setting, core.Setting)
     _versioned(lk.Link, links.Link)
     _versioned(cn.Connector, connector.Connector)
@@ -167,7 +171,7 @@ def map_all() -> None:
     _map(lk.LinkedItem, links.LinkedItem)
     _map(lk.LinkSent, links.LinkSent)
     _map(lk.LinkFile, links.LinkFile)
-    _map(lk.LinkColour, links.LinkColours)
+    _versioned(lk.LinkColour, links.LinkColour)
     _map(Secret, core.Secret)
     _map(TaskRun, core.TaskRun)
     _map(QueuedEmail, core.QueuedEmail)
@@ -176,9 +180,4 @@ def map_all() -> None:
 
 @event.listens_for(Record, "before_update", propagate=True)
 def _touch(mapper, connection, target) -> None:
-    target.updatedAt = _now()
-
-
-@event.listens_for(Setting, "before_update")
-def _touch_setting(mapper, connection, target) -> None:
     target.updatedAt = _now()

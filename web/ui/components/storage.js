@@ -2,7 +2,7 @@
 // files expired against the rest, what expires each coming year by category, how long
 // statements are kept, each category's period, and Prune. Sizes and counts only, never what
 // the files hold.
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -12,6 +12,10 @@ import { Dialog, openDialog } from './dialog.js';
 import { errAt, Field, FormError, Input } from './fields.js';
 import { useDialogGuide } from './help.js';
 import { toast } from './toast.js';
+import { Record } from '../app/draft.js';
+import { DraftDialog, DraftForm, RecField, useDraft } from './draft-form.js';
+import { useSettingsDraft } from './settings-draft.js';
+import { FIELDS } from '../api/fields.js';
 
 const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 
@@ -101,32 +105,20 @@ export function StorageSection() {
   const res = useApi('/settings/storage');
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const values = /** @type {any} */ (s.data)?.values;
-  const [years, setYears] = useState('');
-  useEffect(() => {
-    if (values) {
-      setYears(values.keepStatementsYears == null ? '' : String(values.keepStatementsYears));
-    }
-  }, [values]);
-  const save = useSubmit(async () => {
-    await api.patch(
-      '/settings',
-      { keepStatementsYears: years ? Number(years) : null },
-      /** @type {any} */ (s.data)?.version,
-    );
-    s.reload();
-    res.reload();
-    toast('Saved');
-  });
+  const fd = useSettingsDraft(s.data, ['keepStatementsYears']);
+  const rec = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v) return html`<${Loading} />`;
+  if (!v || !rec) return html`<${Loading} />`;
+  const years = rec.get('keepStatementsYears');
   const prune = () => openDialog(PruneDialog, { v }).then((x) => x && res.reload());
   return html`
     <div class="grid" style=${{ alignContent: 'start' }}>
-      <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-        ev.preventDefault();
-        save.run().catch(() => {});
-      }}>
+      <${DraftForm} f=${fd} class="card" where="Settings › Storage" what="These settings"
+        saved=${() => {
+          toast('Saved');
+          s.reload();
+          res.reload();
+        }}>
         <h3>Storage<span class="spacer"></span>${v.expired.files
           ? html`<button type="button" class="btn" onClick=${prune}>Prune ${
             count(
@@ -144,14 +136,13 @@ export function StorageSection() {
           v.receiptsBytes,
         )}</b></div>
         <${Field} label="Keep statements for" id="keep-statements-years"
-          error=${errAt(save.error, 'keepStatementsYears')}
+          error=${rec.error('keepStatementsYears')}
           hint="Years after each statement's period. Empty keeps them for ever.">
-          <${Input} value=${years} onInput=${setYears} inputmode="numeric"
+          <${Input} value=${years ?? ''} onInput=${(/** @type {string} */ x) =>
+            rec.set('keepStatementsYears', x.trim() ? Number(x) : null)} inputmode="numeric"
             placeholder="for ever" />
           </${Field}>
-          <${FormError} error=${save.error} shown=${['keepStatementsYears']} />
-          <div class="toolbar"><button class="btn primary" disabled=${save.busy}>Save</button></div>
-          </form>
+          </${DraftForm}>
           <div
             class="card"><h3 data-help="files">Receipt and statement files</h3><${Ring} parts=${[
               {
@@ -239,34 +230,33 @@ function CategoryPeriods({ reload }) {
   `;
 }
 
+/** A category (S2.5), as its dialog's draft edits how long its receipts are kept. */
+class CategoryRec extends Record {
+  /** @override */
+  static prefix = 'Cat';
+  /** @override */
+  static fields = FIELDS.CategoryRecord;
+}
+
 /** @param {{ close: (v?: any) => void, c: any, cats: any[] }} p */
 function CategoryDialog({ close, c }) {
   useDialogGuide('dialog-category');
-  const [years, setYears] = useState(
-    c.keepReceiptsYears == null ? '' : String(c.keepReceiptsYears),
-  );
-  const save = useSubmit(async () => {
-    const out = await api.patch(
-      `/categories/${c.id}`,
-      { keepReceiptsYears: years ? Number(years) : null },
-      c.version,
-    );
-    toast('Saved');
-    close(out);
-  });
-  const n = Number(years);
+  const f = useDraft((draft) => {
+    draft.load(CategoryRec, c);
+  }, [c.id]);
+  const rec = /** @type {CategoryRec | undefined} */ (f.draft?.records[0]);
+  const years = rec?.get('keepReceiptsYears');
   return html`
-    <${Dialog} title=${c.path} close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Keep receipts for" id="keep-receipts-years"
-        error=${errAt(save.error, 'keepReceiptsYears')}
-        hint=${years && n < 7
-          ? html`<b>Under 7 years:</b> 7 covers every IRS audit window.`
-          : 'Years after the record a receipt is attached to ended. Empty keeps them for ever, or as its parent says.'}>
-        <${Input} value=${years} onInput=${setYears} inputmode="numeric" placeholder="for ever" />
-        </${Field}>
-        <${FormError} error=${save.error} shown=${['keepReceiptsYears']} />
-        </${Dialog}>
+    <${DraftDialog} f=${f} title=${c.path} close=${close} what="This category" done="Saved">
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="keepReceiptsYears" label="Keep receipts for"
+            id="keep-receipts-years" placeholder="for ever" hint=${years != null && years < 7
+              ? html`<b>Under 7 years:</b> 7 covers every IRS audit window.`
+              : 'Years after the record a receipt is attached to ended. Empty keeps them for ever, or as its parent says.'} />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 

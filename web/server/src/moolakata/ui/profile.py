@@ -7,15 +7,15 @@ import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import false, select
 
-from .. import activity, clock, people, settings, timezones
+from .. import access, activity, clock, people, settings, timezones
 from ..auth import sessions, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
 from ..people import tree
 from ..store.entities.users import OneTimeToken, User
-from .conventions import Deleted, ExactRoute, Gone, Model, check, if_match, stale
+from .conventions import ExactRoute, Model
 from .deps import Caller, caller, recent_auth, server, set_cookie
 from .session import count_failure, guarded
 
@@ -82,23 +82,12 @@ class Profile(Model):
     birthYear: int | None
     alertEmails: str
     bitcoinUnit: str  # how bitcoin amounts are shown: btc or sats (S1.6.4)
+    shownProjectionIds: list[str]  # shared projections shown on their Dashboard (S6.8.3)
+    activeBudgetId: str | None  # the budget they follow (S7.12.1)
     twoStep: TwoStep
     relations: list[Relation]
     spouse: Spouse | None
     version: int
-
-
-class ProfileChange(Model):
-    displayName: str | None = None
-    avatar: str | None = None
-    timeZone: str | None = None
-    theme: str | None = None
-    sex: str | None = None
-    birthMonth: int | None = None
-    birthDay: int | None = None
-    birthYear: int | None = None
-    alertEmails: str | None = None
-    bitcoinUnit: str | None = None
 
 
 class PasswordChange(Model):
@@ -147,6 +136,8 @@ def profile(s, u: User) -> Profile:
         birthYear=me.birthYear,
         alertEmails=u.alertEmails,
         bitcoinUnit=u.bitcoinUnit,
+        shownProjectionIds=shown(s, u.id),
+        activeBudgetId=u.activeBudgetId,
         twoStep=TwoStep(
             on=twostep.is_on(u),
             since=u.twoStepAt,
@@ -172,87 +163,144 @@ def get_profile(request: Request, c: Caller = Depends(caller)):
         return profile(s, s.get(User, c.id))
 
 
-@router.patch("/profile", response_model=Profile)
-def change_profile(
-    body: ProfileChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    sent = body.model_fields_set
-    with server(request).db.tx() as s:
-        u = s.get(User, c.id)
-        if u.version != version:
-            raise stale(profile(s, u))
-        me = people.of_user(s, u.id)
-        fields = []
-        if "displayName" in sent:
-            name = (body.displayName or "").strip()
-            if not name or len(name) > 80:
-                raise refuse("displayName", "name-invalid", "Enter a name of up to 80 characters.")
-            people.change(s, me, {"name": name})
-            fields.append("displayName")
-        if "avatar" in sent:
-            if body.avatar is not None and (
-                not AVATAR.match(body.avatar) or len(body.avatar) > AVATAR_MAX
-            ):
-                raise refuse(
-                    "avatar", "avatar-invalid", "Use a PNG, JPEG or WebP image under 192 KB."
-                )
-            u.avatar = body.avatar
-            fields.append("avatar")
-        if "timeZone" in sent:
-            tz = body.timeZone or "auto"
-            if tz != "auto" and not timezones.valid(tz):
-                raise refuse("timeZone", "zone-invalid", "Choose a time zone from the list.")
-            u.timeZone = tz
-            fields.append("timeZone")
-        if "theme" in sent:
-            if body.theme not in ("dark", "light", "system"):
-                raise refuse("theme", "theme-invalid", "Dark, light or the system's.")
-            u.theme = body.theme
-            fields.append("theme")
-        if "sex" in sent:
-            if body.sex not in people.SEXES:
-                raise refuse("sex", "sex-invalid", "Female or male.")
-            people.change(s, me, {"sex": body.sex})
-            u.updatedAt = clock.now()
-            fields.append("sex")
-        if sent & {"birthMonth", "birthDay", "birthYear"}:
-            month, day, year = body.birthMonth, body.birthDay, body.birthYear
-            if (month is None) != (day is None):
-                raise refuse("birthDay", "birthday-incomplete", "A month and a day.")
-            if month is not None and not (1 <= month <= 12 and 1 <= day <= 31):
-                raise refuse("birthDay", "day-invalid", "A day of the year.")
-            if year is not None and not 1900 <= year <= 2100:
-                raise refuse("birthYear", "year-invalid", "Enter a year such as 1979.")
-            people.change(s, me, {"birthMonth": month, "birthDay": day, "birthYear": year})
-            u.updatedAt = clock.now()
-            fields.append("birthday")
-        if "alertEmails" in sent:
-            if body.alertEmails not in ("each", "daily", "none"):
-                raise refuse(
-                    "alertEmails", "choice-invalid", "Each alert, a daily summary or none."
-                )
-            u.alertEmails = body.alertEmails
-            fields.append("alertEmails")
-        if "bitcoinUnit" in sent:
-            if body.bitcoinUnit not in ("btc", "sats"):
-                raise refuse("bitcoinUnit", "choice-invalid", "BTC or sats.")
-            u.bitcoinUnit = body.bitcoinUnit
-            fields.append("bitcoinUnit")
-        if fields:
-            activity.record(
-                s,
-                "profile.updated",
-                actor=u.id,
-                subject_kind="user",
-                subject_id=u.id,
-                owner=u.id,
-                detail={"fields": fields},
+def _show(s, u: User, wanted: list[str]) -> None:
+    """A shared active projection shows on a receiver's Dashboard only when they ask; their own
+    always show (S6.8.3)."""
+    from .. import projections
+    from ..store.entities.projections import ShownProjection
+
+    mine = {p.id: lvl for p, lvl in projections.visible(s, u.id)}
+    for pid in wanted:
+        if pid not in mine:
+            raise refuse(
+                "shownProjectionIds", "projection-unknown", "A projection shared with you."
             )
-        s.flush()
-        return profile(s, u)
+        if mine[pid] == "owner":
+            raise refuse(
+                "shownProjectionIds", "owner-sees-it", "Your own active projections always show."
+            )
+    rows = {
+        r.projectionId: r
+        for r in s.scalars(select(ShownProjection).where(ShownProjection.userId == u.id))
+    }
+    for pid in wanted:
+        if pid in rows:
+            rows[pid].restore()
+        else:
+            s.add(ShownProjection(userId=u.id, projectionId=pid, createdAt=clock.now()))
+    for pid, r in rows.items():
+        if pid not in wanted and not r.deleted:
+            r.mark_deleted(u.id)
+
+
+# A user's own profile, theirs alone to change (S12.2.16); an admin changes the rest.
+PROFILE_FIELDS = (
+    "shownProjectionIds",
+    "displayName",
+    "avatar",
+    "timeZone",
+    "theme",
+    "sex",
+    "birthMonth",
+    "birthDay",
+    "birthYear",
+    "alertEmails",
+    "bitcoinUnit",
+    "activeBudgetId",
+)
+
+
+def shown(s, user_id: str) -> list[str]:
+    """The shared active projections the user shows on their Dashboard (S6.8.3)."""
+    from ..store.entities.projections import ShownProjection
+
+    rows = s.scalars(
+        select(ShownProjection.projectionId).where(
+            ShownProjection.userId == user_id, ShownProjection.deleted == false()
+        )
+    )
+    return sorted(rows)
+
+
+def current(s, u: User) -> dict:
+    """The profile's fields as a draft holds them."""
+    me = people.of_user(s, u.id)
+    return {"displayName": u.displayName, "avatar": u.avatar, "timeZone": u.timeZone,
+            "theme": u.theme, "sex": me.sex, "birthMonth": me.birthMonth,
+            "birthDay": me.birthDay, "birthYear": me.birthYear, "alertEmails": u.alertEmails,
+            "bitcoinUnit": u.bitcoinUnit, "shownProjectionIds": shown(s, u.id),
+            "activeBudgetId": u.activeBudgetId}  # fmt: skip
+
+
+def change(s, u: User, body, sent: set[str]) -> None:
+    """The fields `sent` set on the user's own profile, each checked."""
+    me = people.of_user(s, u.id)
+    fields = []
+    if "shownProjectionIds" in sent:
+        _show(s, u, body.shownProjectionIds)
+    if "displayName" in sent:
+        name = (body.displayName or "").strip()
+        if not name or len(name) > 80:
+            raise refuse("displayName", "name-invalid", "Enter a name of up to 80 characters.")
+        people.change(s, me, {"name": name})
+        fields.append("displayName")
+    if "avatar" in sent:
+        if body.avatar is not None and (
+            not AVATAR.match(body.avatar) or len(body.avatar) > AVATAR_MAX
+        ):
+            raise refuse("avatar", "avatar-invalid", "Use a PNG, JPEG or WebP image under 192 KB.")
+        u.avatar = body.avatar
+        fields.append("avatar")
+    if "timeZone" in sent:
+        tz = body.timeZone or "auto"
+        if tz != "auto" and not timezones.valid(tz):
+            raise refuse("timeZone", "zone-invalid", "Choose a time zone from the list.")
+        u.timeZone = tz
+        fields.append("timeZone")
+    if "theme" in sent:
+        if body.theme not in ("dark", "light", "system"):
+            raise refuse("theme", "theme-invalid", "Dark, light or the system's.")
+        u.theme = body.theme
+        fields.append("theme")
+    if "sex" in sent:
+        if body.sex not in people.SEXES:
+            raise refuse("sex", "sex-invalid", "Female or male.")
+        people.change(s, me, {"sex": body.sex})
+        fields.append("sex")
+    if sent & {"birthMonth", "birthDay", "birthYear"}:
+        month, day, year = body.birthMonth, body.birthDay, body.birthYear
+        if (month is None) != (day is None):
+            raise refuse("birthDay", "birthday-incomplete", "A month and a day.")
+        if month is not None and not (1 <= month <= 12 and 1 <= day <= 31):
+            raise refuse("birthDay", "day-invalid", "A day of the year.")
+        if year is not None and not 1900 <= year <= 2100:
+            raise refuse("birthYear", "year-invalid", "Enter a year such as 1979.")
+        people.change(s, me, {"birthMonth": month, "birthDay": day, "birthYear": year})
+        fields.append("birthday")
+    if "alertEmails" in sent:
+        if body.alertEmails not in ("each", "daily", "none"):
+            raise refuse("alertEmails", "choice-invalid", "Each alert, a daily summary or none.")
+        u.alertEmails = body.alertEmails
+        fields.append("alertEmails")
+    if "bitcoinUnit" in sent:
+        if body.bitcoinUnit not in ("btc", "sats"):
+            raise refuse("bitcoinUnit", "choice-invalid", "BTC or sats.")
+        u.bitcoinUnit = body.bitcoinUnit
+        fields.append("bitcoinUnit")
+    if "activeBudgetId" in sent:
+        # The budget they follow from now on; the one before becomes a scenario, and nothing
+        # is rewritten (S7.12.1).
+        if body.activeBudgetId is None:
+            raise refuse("activeBudgetId", "budget-required", "Choose a budget to follow.")
+        b, _ = access.budget(s, u.id, body.activeBudgetId)
+        u.activeBudgetId = b.id
+        activity.record(s, "budget.activated", actor=u.id, subject_kind="budget",
+                        subject_id=b.id, owner=u.id)  # fmt: skip
+    if fields:
+        # The person's fields are the user's profile too: its version moves with them.
+        u.updatedAt = clock.now()
+        activity.record(s, "profile.updated", actor=u.id, subject_kind="user", subject_id=u.id,
+                        owner=u.id, detail={"fields": fields})  # fmt: skip
 
 
 @router.post("/profile/password", status_code=204)
@@ -314,20 +362,17 @@ def two_step_codes(request: Request, c: Caller = Depends(caller)):
         return RecoveryCodes(codes=twostep.new_recovery_codes(s, s.get(User, c.id)))
 
 
-@router.delete("/profile/two-step", response_model=Deleted[Profile])
-def two_step_off(request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)):
-    """Two-step sign-in off: it belongs to the user, so it is made against their version."""
+@router.post("/profile/two-step/off", response_model=Profile)
+def two_step_off(request: Request, c: Caller = Depends(caller)):
+    """Two-step sign-in off, with the password again (S13.7.2): an action on the user."""
     recent_auth(c)
     srv = server(request)
     with srv.db.tx() as s:
         u = s.get(User, c.id)
-        check(u, version, lambda: profile(s, u))
         twostep.turn_off(s, srv.services, u, u)
         u.updatedAt = clock.now()
         s.flush()
-        return Deleted[Profile](
-            deleted=Gone(id=f"{u.id}/two-step", deletedAt=clock.now()), parent=profile(s, u)
-        )
+        return profile(s, u)
 
 
 @router.get("/timezones", response_model=Zones)

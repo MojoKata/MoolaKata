@@ -42,7 +42,7 @@ function shaped(shape, hint, read = asIs) {
 function decimal(places) {
   return /** @type {FieldType} */ ({
     parse(t) {
-      let s = t.replace(/[$,\s]/g, '');
+      let s = t.replace(/[$,\s]/g, '').replace('\u2212', '-');
       const paren = /^\((.*)\)$/.exec(s);
       if (paren) s = '-' + paren[1];
       const m = /^[+-]?\d+(?:\.(\d*))?$/.exec(s);
@@ -110,7 +110,11 @@ export const TYPES = {
     wire: asIs,
   },
   list: {
-    parse: () => ({ error: 'A list is chosen, not typed.' }),
+    // A list of words is typed with commas between; any other list is chosen, not typed.
+    parse: (t, spec) =>
+      spec.items?.type === 'text'
+        ? { value: t.split(',').map((x) => x.trim()).filter(Boolean) }
+        : { error: 'A list is chosen, not typed.' },
     format: (v) => (v || []).join(', '),
     equal(a, b, spec) {
       const item = typeOf(spec.items || { type: 'json' });
@@ -146,7 +150,7 @@ export function typeOf(spec) {
   const t = TYPES[spec.type] || TYPES.json;
   return /** @type {FieldType} */ ({
     parse(input, s) {
-      if (String(input ?? '').trim() === '' && spec.type !== 'text') {
+      if (String(input ?? '').trim() === '' && (spec.type !== 'text' || s.nullable)) {
         return s.nullable ? { value: null } : { error: 'Required.' };
       }
       return t.parse(String(input), s);
@@ -283,6 +287,10 @@ export class Record {
     this.state = o.state || 'read';
     this.version = o.version ?? data.version ?? 0;
     this.removed = false;
+    /** A new record the form starts with (an Add dialog's): unchanged until edited. */
+    this.settled = false;
+    /** A new record made only if it is edited: a loan's terms not yet set, on its Settings. */
+    this.optional = false;
     /** The record whose removal removed this one. @type {string | null} */
     this.removedBy = null;
     this.key = ++serial;
@@ -361,6 +369,39 @@ export class Record {
     return true;
   }
 
+  /**
+   * Set several fields from one typed text (a birthday's month, day and year): `read` gives
+   * their values, or why the text doesn't read; the text stays as typed under `key`.
+   * @param {string} key @param {string} input
+   * @param {(t: string) => { value: { [name: string]: any } } | { error: string }} read
+   */
+  inputAs(key, input, read) {
+    const r = read(input);
+    this.#typed.set(key, input);
+    if ('error' in r) {
+      this.#unread.add(key);
+      this.#errors.set(key, r.error);
+      this.#tick.value++;
+      return false;
+    }
+    this.#unread.delete(key);
+    this.#errors.delete(key);
+    this.#inputting = true;
+    try {
+      for (const [name, v] of Object.entries(r.value)) this.set(name, v);
+    } finally {
+      this.#inputting = false;
+    }
+    this.#tick.value++;
+    return true;
+  }
+
+  /** What was typed under a key, as typed, while it is being edited. @param {string} key */
+  typed(key) {
+    this.#tick.value;
+    return this.#typed.get(key);
+  }
+
   #inputting = false;
   /** Fields whose typed text doesn't read yet: a change too, not to be lost unasked. */
   #unread = new Set();
@@ -422,6 +463,13 @@ export class Record {
     this.#tick.value++;
   }
 
+  /** Take the record as it stands as where the form starts: a new one counts as unchanged. */
+  settle() {
+    this.settled = true;
+    this.#modified.clear();
+    this.#tick.value++;
+  }
+
   /** Whether a field holds typed text that doesn't read yet. */
   get unread() {
     this.#tick.value;
@@ -438,7 +486,7 @@ export class Record {
    * read yet. */
   get changed() {
     this.#tick.value;
-    if (this.state === 'new') return !this.removed;
+    if (this.state === 'new' && !this.settled) return !this.removed;
     return this.removed || this.#modified.size > 0 || this.#unread.size > 0;
   }
 
@@ -472,6 +520,12 @@ export class Record {
   error(name) {
     this.#tick.value;
     return this.#errors.get(name) || null;
+  }
+
+  /** Every refusal on the record, each with its field (`null` for the record as a whole). */
+  get errors() {
+    this.#tick.value;
+    return [...this.#errors].map(([field, message]) => ({ field, message }));
   }
 
   /** @param {string | null} name @param {string} message */
@@ -527,6 +581,8 @@ export class Draft {
   asks = [];
   /** A refusal that belongs to no record. @type {string | null} */
   formError = null;
+  /** Whether the last save was refused for want of the password again (S13.7.2). */
+  reauth = false;
   #lastBody = '';
   #key = '';
 
@@ -551,13 +607,16 @@ export class Draft {
   }
 
   /**
-   * A new record, its id made here so other records of the draft can refer to it.
+   * A new record, its id made here so other records of the draft can refer to it; an
+   * `optional` one is made only if it is edited.
    * @template {Record} T @param {new (...a: any[]) => T} Cls @param {{ [name: string]: any }} [data]
+   * @param {{ optional?: boolean }} [o]
    * @returns {T}
    */
-  add(Cls, data = {}) {
+  add(Cls, data = {}, o = {}) {
     const C = /** @type {typeof Record} */ (/** @type {any} */ (Cls));
     const r = new Cls(this.newId(C.prefix), { ...C.defaults, ...data }, { state: 'new' });
+    r.optional = !!o.optional;
     this.#records.set(r.id, r);
     this.#tick.value++;
     return r;
@@ -603,10 +662,15 @@ export class Draft {
     return this.records.some((r) => r.changed);
   }
 
-  /** Put every record back as it was read; new ones go. */
+  /** Where the form starts: every record as it stands, new ones the form starts with too. */
+  settle() {
+    for (const r of this.records) r.settle();
+  }
+
+  /** Put every record back as it was read or the form started; new ones made since go. */
   revertAll() {
     for (const r of this.records) {
-      if (r.state === 'new') this.#records.delete(r.id);
+      if (r.state === 'new' && !r.settled) this.#records.delete(r.id);
       else {
         r.revertAll();
         if (r.removed) this.unremove(r);
@@ -643,15 +707,52 @@ export class Draft {
     return false;
   }
 
+  /**
+   * The records in the order they are sent: a new record after the new records it refers to,
+   * since the save makes them in that order and checks each reference as it is made.
+   */
+  #ordered() {
+    const all = this.records;
+    const byId = new Map(all.map((r) => [r.id, r]));
+    /** @type {Record[]} */
+    const out = [];
+    const seen = new Set();
+    /** @param {Record} r */
+    const visit = (r) => {
+      if (seen.has(r.id)) return;
+      seen.add(r.id);
+      if (r.state === 'new') {
+        for (const [name, spec] of Object.entries(r.cls.fields)) {
+          // A reference, or a list of them (a transaction's tags).
+          const refs = spec.type === 'ref'
+            ? [r.get(name)]
+            : spec.type === 'list' && spec.items?.type === 'ref'
+            ? r.get(name) || []
+            : [];
+          for (const id of refs) {
+            const to = byId.get(id);
+            if (to && to.state === 'new') visit(to);
+          }
+        }
+      }
+      out.push(r);
+    };
+    for (const r of all) visit(r);
+    return out;
+  }
+
   /** The ops the save sends (S13.8.11.1): creates, updates and deletes. */
   ops() {
     /** @type {any[]} */
     const ops = [];
-    for (const r of this.records) {
+    for (const r of this.#ordered()) {
       const entity = r.cls.prefix;
       if (r.state === 'new') {
-        if (!r.removed) ops.push({ op: 'create', entity, id: r.id, fields: r.changes() });
+        if (r.removed || (r.optional && !r.changed)) continue;
+        ops.push({ op: 'create', entity, id: r.id, fields: r.changes() });
       } else if (r.removed) {
+        // What went with its owner goes with the owner's delete on the server too (S13.8.11.3).
+        if (r.removedBy) continue;
         const removal = r.cls.removal?.(r);
         ops.push(
           removal
@@ -668,6 +769,11 @@ export class Draft {
     return ops;
   }
 
+  /** What the save would send, as one string: two that match send the same changes. */
+  fingerprint() {
+    return canonical(this.ops());
+  }
+
   /**
    * Save the draft. `confirmAsks` confirms the questions the last save asked, by name.
    * @param {{ confirmAsks?: boolean }} [o]
@@ -676,7 +782,9 @@ export class Draft {
   async save(o = {}) {
     // Nothing is sent while a field holds text that doesn't read: its reason is at the field.
     if (this.records.some((r) => !r.removed && r.unread)) {
-      return { status: 'refused', message: 'Correct the fields marked first.' };
+      this.formError = 'Correct the fields marked first.';
+      this.#tick.value++;
+      return { status: 'refused', message: this.formError };
     }
     const ops = this.ops();
     if (!ops.length) return { status: 'saved', saved: [] };
@@ -688,6 +796,7 @@ export class Draft {
       [this.#lastBody, this.#key] = [text, crypto.randomUUID()];
     }
     this.formError = null;
+    this.reauth = false;
     try {
       const answer = await this.post(body, this.#key);
       this.asks = [];
@@ -701,6 +810,8 @@ export class Draft {
         return { status: 'asks', asks: this.asks };
       }
       if (!err?.status) throw e;
+      this.reauth = err.code === 'reauth-required' ||
+        (err.errors || []).some((/** @type {any} */ x) => x.code === 'reauth-required');
       for (const x of err.errors || []) {
         const r = x.id ? this.get(x.id) : null;
         if (r) r.refuse(x.field, x.message);

@@ -3,6 +3,7 @@
 import datetime as dt
 
 import pytest
+from edits import change, edit, new_id, saved
 from test_accounts import add, new_account
 from test_budgets import month, row, setup_budget
 
@@ -25,9 +26,17 @@ def put_plan(c, b, month_, lines, confirm=False):
 
 
 def reserves_on(c, b):
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    r = c.patch(f"/ui/api/budgets/{b['id']}", json={"reserves": True}, headers={"If-Match": str(v)})
-    assert r.status_code == 200, r.text
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
+
+
+def landed(c, b, txn, parts: dict):
+    """Landed money given as the assign dialog's draft gives it (S7.10.5): a move for each
+    reserve's line, or to no category for the account's own."""
+    ops = [{"op": "create", "entity": "BdgMv", "id": new_id("BdgMv"),
+            "fields": {"budgetId": b["id"], "month": txn["date"], "toCategoryId": cat,
+                       "amount": amount, "transactionId": txn["id"]}}
+           for cat, amount in parts.items()]  # fmt: skip
+    return c.post("/ui/api/save", json={"ops": ops})
 
 
 def test_a_reserve_puts_in_up_to_its_target_and_spending_takes_from_it(server, frozen):
@@ -86,13 +95,8 @@ def test_where_the_money_is(server, frozen):
     c, acct, cat, b = setup_budget(server)
     savings = new_account(c, name="Ally", type="savings", mask="2222")
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()
-    r = c.patch(
-        f"/ui/api/budgets/{b['id']}",
-        json={"reserves": True, "accountIds": [acct["id"], savings["id"], card["id"]]},
-        headers={"If-Match": str(v["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True,
+               accountIds=[acct["id"], savings["id"], card["id"]]))  # fmt: skip
     roof, repair = cat["Housing › Maintenance"], cat["Transportation › Car maintenance"]
     lines = [
         {"categoryId": roof, "amount": "150", "target": "5000", "heldInId": savings["id"]},
@@ -120,12 +124,12 @@ def test_where_the_money_is(server, frozen):
     (card_view,) = w["cards"]
     assert card_view["paidFromName"] == "Checking" and card_view["paid"] == "500.00"
     # The interest given to the reserves: they gain it, and nothing more is asked to move.
-    r = c.post(
-        f"/ui/api/budgets/{b['id']}/landed",
-        json={"transactionId": interest["id"], "to": "spread", "amount": "4.20"},
-    )
+    # A line for each reserve held there (S7.10.5), one move each, saved together.
+    parts = {x["categoryId"]: "2.10" for x in h["reserves"][:2]}
+    assert len(parts) == 2, h["reserves"]
+    r = landed(c, b, interest, parts)
     assert r.status_code == 200, r.text
-    (h,) = r.json()["heldIn"]
+    (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert (h["total"], h["given"], h["toMove"], h["unassigned"]) == (
         "424.20",
         "4.20",
@@ -139,36 +143,21 @@ def test_where_the_money_is(server, frozen):
     (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert h["toMove"] == "-330.00"
     assert [(x["amount"], x["kept"]) for x in h["transfers"]] == [("500.00", False)]
-    r = c.post(
-        f"/ui/api/budgets/{b['id']}/landed",
-        json={"transactionId": pair["id"], "to": "own", "amount": "500.00"},
-    )
+    r = landed(c, b, pair, {None: "500.00"})
     assert r.status_code == 200, r.text
-    (h,) = r.json()["heldIn"]
+    (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert h["toMove"] == "170.00" and h["transfers"][0]["kept"]
-    bad = c.post(
-        f"/ui/api/budgets/{b['id']}/landed",
-        json={"transactionId": pair["id"], "to": "own", "amount": "1.00"},
-    )
+    bad = landed(c, b, pair, {None: "1.00"})
     assert bad.status_code == 422
     # A repair paid from checking: money goes back, and with one withdrawal already this
     # month, a second would go past the account's limit of one.
     v = c.get(f"/ui/api/accounts/{savings['id']}").json()
-    r = c.patch(
-        f"/ui/api/accounts/{savings['id']}",
-        json={"withdrawalsAMonth": 1},
-        headers={"If-Match": str(v["version"])},
-    )
-    assert r.status_code == 200 and r.json()["withdrawalsAMonth"] == 1
+    assert saved(change(c, "Acct", v, withdrawalsAMonth=1))["withdrawalsAMonth"] == 1
     add(c, acct["id"], "-300.00", "2026-12-12", payee="Roofer", categoryId=roof)
     (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert h["toMove"] == "-130.00" and h["withdrawals"] == 0 and not h["overLimit"]
     add(c, savings["id"], "-20.00", "2026-12-14", payee="Wire fee", kind="fee")
     (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-12"}).json()["heldIn"]
     assert h["withdrawals"] == 1 and h["overLimit"]
-    bad = c.patch(
-        f"/ui/api/accounts/{acct['id']}",
-        json={"withdrawalsAMonth": 3},
-        headers={"If-Match": str(c.get(f"/ui/api/accounts/{acct['id']}").json()["version"])},
-    )
+    bad = edit(c, "Acct", f"/ui/api/accounts/{acct['id']}", withdrawalsAMonth=3)
     assert bad.status_code == 422

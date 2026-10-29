@@ -2,17 +2,18 @@
 import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
-import { api } from '../api/client.js';
-import { useSubmit } from '../app/hooks.js';
 import { Dialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { Field, Select } from '../components/fields.js';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { Tile } from '../components/bits.js';
 import { toast } from '../components/toast.js';
 import { BY_TYPE, TYPES } from '../account-types/index.js';
-import { TERM_FIELDS, termsBody, TermsFields, termsForm } from '../components/loan.js';
-import { PLAN_FIELDS, planBody, PlanFields, planForm } from '../components/edu.js';
-import { WALLET_FIELDS, walletBody, WalletFields } from '../components/wallet.js';
+import { LoanRec, newTerms, TermsFields } from '../components/loan.js';
+import { EduPlanRec, PlanFields } from '../components/edu.js';
+import { WalletFields } from '../components/wallet.js';
 
 export const LOT_METHODS = /** @type {[string, string][]} */ ([
   ['fifo', 'FIFO (first in, first out)'],
@@ -50,143 +51,122 @@ export function NewAccount({ close }) {
   return html`<${AccountForm} type=${type} close=${close} back=${() => setType(null)} />`;
 }
 
+/** An account (S1), as New account's draft and its Settings edit it. */
+export class AcctRec extends Record {
+  /** @override */
+  static prefix = 'Acct';
+  /** @override */
+  static fields = FIELDS.AccountRecord;
+  /** @override */
+  static defaults = {
+    institution: null,
+    mask: null,
+    notes: null,
+    keptBy: ['file'],
+    lotMethod: 'fifo',
+    openingBalance: null,
+    openingDate: null,
+    countInNetWorth: null,
+    active: true,
+    statementInterval: null,
+    withdrawalsAMonth: null,
+    connectionId: null,
+    syncAccount: null,
+    walletKeys: null,
+    gapLimit: 20,
+  };
+}
+
 /** @param {{ type: string, close: (v?: any) => void, back: () => void }} p */
 function AccountForm({ type, close, back }) {
   const { route } = useLocation();
   const t = BY_TYPE[type];
-  const [f, setF] = useState({
-    name: '',
-    institution: '',
-    mask: '',
-    keptBy: 'file',
-    lotMethod: 'fifo',
-    openingBalance: '',
-    openingDate: '',
-    ...termsForm(null, type),
-    ...planForm(null),
-    walletText: '',
-    gapLimit: '20',
-  });
-  const set = (/** @type {string} */ k) => (/** @type {string} */ v) => setF({ ...f, [k]: v });
-  const [made, setMade] = useState(/** @type {any} */ (null));
-  const save = useSubmit(async () => {
-    const body = {
-      name: f.name,
-      type,
-      institution: f.institution || null,
-      mask: f.mask || null,
-      keptBy: [f.keptBy],
-      lotMethod: f.lotMethod,
-      openingBalance: f.openingBalance ? String(f.openingBalance).replace(/[$,\s]/g, '') : null,
-      openingDate: f.openingDate || null,
-    };
-    if (t.loan || t.physical) {
-      Object.assign(body, { keptBy: ['manual'], openingBalance: null, openingDate: null });
-    }
-    if (t.wallet) {
-      Object.assign(body, { keptBy: ['bitcoin'], openingBalance: null, openingDate: null });
-    }
-    // A loan is made, then given its terms; a refusal of the terms keeps the account made.
-    const a = made || await api.post('/accounts', body, { idempotent: true });
-    if (t.loan) {
-      setMade(a);
-      await api.put(`/accounts/${a.id}/loan`, termsBody(f), 0);
-    }
-    if (t.wallet && f.walletText.trim()) {
-      setMade(a);
-      await api.put(`/accounts/${a.id}/wallet`, walletBody(f), 0);
-    }
-    if (t.education) {
-      setMade(a);
-      await api.put(`/accounts/${a.id}/plan529`, await planBody(f), 0);
-    }
+  const d = useDraft((draft) => {
+    const kept = t.loan || t.physical ? ['manual'] : t.wallet ? ['bitcoin'] : ['file'];
+    const a = draft.add(AcctRec, { name: '', type, keptBy: kept });
+    if (t.loan) draft.add(LoanRec, newTerms(type, a.id));
+    if (t.education) draft.add(EduPlanRec, { accountId: a.id }, { optional: true });
+  }, [type]);
+  const draft = d.draft;
+  const acct = /** @type {AcctRec | undefined} */ (draft?.records[0]);
+  const loan = /** @type {LoanRec | undefined} */ (
+    draft?.records.find((r) => r instanceof LoanRec)
+  );
+  const plan = /** @type {EduPlanRec | undefined} */ (
+    draft?.records.find((r) => r instanceof EduPlanRec)
+  );
+  /** The account made, with its terms, plan or keys: then its page. */
+  const made = (/** @type {any} */ o) => {
+    const a = o.saved.find((/** @type {any} */ x) => x.entity === 'Acct').record;
     toast(`${a.name} made`);
     close(a);
     route(`/ui/accounts/${a.id}`);
-  });
-  const e = save.error;
+  };
   return html`
-    <${Dialog} title=${`New ${t.label} account`} close=${close} onSubmit=${() =>
-      save.run().catch(() => {})} footer=${html`
-      <button type="button" class="btn" onClick=${back}>Back</button>
-      <button class="btn primary" disabled=${save.busy}>Create</button>
-    `}>
-      <${Field} label="Name" error=${errAt(e, 'name')}>
-        <${Input} value=${f.name} onInput=${set('name')}
-          placeholder=${t.investing
+    <${DraftDialog} f=${d} title=${`New ${t.label} account`} close=${close} what="This account"
+      label="Create" saved=${made}
+      extra=${() => html`<button type="button" class="btn" onClick=${back}>Back</button>`}>
+      ${acct
+        ? html`
+          <${RecField} rec=${acct} name="name" label="Name" placeholder=${t.investing
             ? 'Individual brokerage'
             : t.loan
             ? t.label
-            : 'Everyday checking'} required />
-        </${Field}>
-        <div class="row">
-          <${Field} label="Institution" error=${errAt(e, 'institution')}>
-            <${Input} value=${f.institution}
-              onInput=${set('institution')} placeholder="The bank or broker" />
-            </${Field}>
-            <${Field} label="Last 4" id="mask" error=${errAt(e, 'mask')}>
-              <${Input} value=${f.mask}
-                onInput=${set('mask')} inputmode="numeric" placeholder="4821" />
-              </${Field}>
-              </div>
-              ${t.education ? html`<${PlanFields} f=${f} set=${set} e=${e} />` : null}
-              ${t.wallet
+            : 'Everyday checking'} />
+          <div class="row">
+            <${RecField} rec=${acct} name="institution" label="Institution"
+              placeholder="The bank or broker" />
+            <${RecField} rec=${acct} name="mask" label="Last 4" id="mask"
+              placeholder="4821" />
+          </div>
+          ${t.education && plan && draft
+            ? html`<${PlanFields} rec=${plan} draft=${draft} />`
+            : null}
+          ${t.wallet
+            ? html`
+              <p class="small dim">Bitcoin. Other coins come later.</p>
+              <${WalletFields} rec=${acct} />
+              <${RecField} rec=${acct} name="lotMethod" label="Lot method" options=${LOT_METHODS}
+                hint="How sales pick lots. The method in force at a sale is recorded with it." />
+            `
+            : t.loan && loan
+            ? html`<${TermsFields} rec=${loan} type=${type} />`
+            : t.physical
+            ? html`<p class="small dim">Add the items after making the account, each with its
+              purchase date, cost basis, notes and documents.</p>`
+            : html`
+              <${KeptBy} rec=${acct} />
+              ${t.investing
                 ? html`
-                  <p class="small dim">Bitcoin. Other coins come later.</p>
-                  <${WalletFields} f=${f} set=${set} e=${e} />
-                  <${Field} label="Lot method" error=${errAt(e, 'lotMethod')}
-                    hint="How sales pick lots. The method in force at a sale is recorded with it.">
-                    <${Select} value=${f.lotMethod} onChange=${set('lotMethod')}
-                      options=${LOT_METHODS} />
-                    </${Field}>
+                  <${RecField} rec=${acct} name="lotMethod" label="Lot method"
+                    options=${LOT_METHODS}
+                    hint="How sales pick lots. The method in force at a sale is recorded with it." />
                 `
-                : t.loan
-                ? html`<${TermsFields} f=${f} set=${set} e=${e} type=${type} />`
-                : t.physical
-                ? html`<p class="small dim">Add the items after making the account, each with its
-                  purchase date, cost basis, notes and documents.</p>`
-                : html`
-                  <${Field} label="Keep it current by" id="kept-by" error=${errAt(
-                    e,
-                    'keptBy',
-                  )}><${Select}
-                    value=${f.keptBy} onChange=${set('keptBy')} options=${KEPT_BY} /></${Field}>
-                  ${t.investing
-                    ? html`
-                      <${Field} label="Lot method" error=${errAt(e, 'lotMethod')}
-                        hint="How sales pick lots. The method in force at a sale is recorded with it.">
-                        <${Select}
-                          value=${f.lotMethod} onChange=${set(
-                            'lotMethod',
-                          )} options=${LOT_METHODS} />
-                        </${Field}>
-                    `
-                    : null}
-                  <div class="row">
-                    <${Field} label="Opening balance" error=${errAt(e, 'openingBalance')}
-                      hint="Optional. Without it, the first imported balance stands in."><${Input}
-                      value=${f.openingBalance} onInput=${set(
-                        'openingBalance',
-                      )} inputmode="decimal" placeholder="0.00" /></${Field}>
-                    <${Field} label="Opening balance date" id="opening-date" error=${errAt(
-                      e,
-                      'openingDate',
-                    )}><${Input}
-                      type="date" value=${f.openingDate} onInput=${set('openingDate')} /></${Field}>
-                  </div>
-                `}
-        <${FormError} error=${e} shown=${[
-          'name',
-          'institution',
-          'mask',
-          'keptBy',
-          'lotMethod',
-          'openingBalance',
-          'openingDate',
-          ...TERM_FIELDS,
-          ...PLAN_FIELDS,
-          ...WALLET_FIELDS,
-        ]} />
-      </${Dialog}>
+                : null}
+              <div class="row">
+                <${RecField} rec=${acct} name="openingBalance" label="Opening balance"
+                  placeholder="0.00"
+                  hint="Optional. Without it, the first imported balance stands in." />
+                <${RecField} rec=${acct} name="openingDate" label="Opening balance date"
+                  id="opening-date" type="date" />
+              </div>
+            `}
+        `
+        : null}
+    </${DraftDialog}>
+  `;
+}
+
+/**
+ * How the account is kept current: one way, of the list the account's record keeps.
+ * @param {{ rec: AcctRec, label?: string }} p
+ */
+export function KeptBy({ rec, label = 'Keep it current by' }) {
+  return html`
+    <${Field} label=${label} id="kept-by" error=${rec.error('keptBy')}>
+      <${Select} value=${(rec.get('keptBy') || [])[0] || 'manual'} onChange=${(
+        /** @type {string} */ v,
+      ) => rec.set('keptBy', [v])} options=${KEPT_BY} />
+      </${Field}>
   `;
 }

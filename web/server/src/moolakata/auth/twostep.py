@@ -110,7 +110,9 @@ def codes_left(s: Db, user_id: str) -> int:
 
 
 def _use_recovery_code(s: Db, user: User, code: str) -> bool:
-    row = s.get(RecoveryCode, digest(_normal(code)))
+    row = s.scalars(
+        select(RecoveryCode).where(RecoveryCode.codeHash == digest(_normal(code)))
+    ).first()
     if row is None or row.userId != user.id:
         return False
     s.delete(row)
@@ -252,7 +254,9 @@ def start_sign_in(s: Db, user: User) -> str:
 
 
 def pending_user(s: Db, token: str) -> User:
-    row = s.get(OneTimeToken, digest(token or ""))
+    row = s.scalars(
+        select(OneTimeToken).where(OneTimeToken.tokenHash == digest(token or ""))
+    ).first()
     if row is None or row.purpose != "two-step" or row.expiresAt <= clock.now():
         if row is not None and row.expiresAt <= clock.now():
             s.delete(row)

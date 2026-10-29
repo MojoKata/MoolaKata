@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, drop, edit, loan_payment, make, saved, share, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -30,8 +31,8 @@ def setup_budget(server):
     c = sign_in(server, "alice")
     acct = new_account(c)
     cat = cats(c)
-    r = c.post("/ui/api/budgets", json={"name": "Household", "accountIds": [acct["id"]]})
-    assert r.status_code == 201, r.text
+    r = make(c, "Bdgt", name="Household", accountIds=[acct["id"]])
+    assert r.status_code == 200, r.text
     return c, acct, cat, r.json()
 
 
@@ -187,20 +188,19 @@ def test_a_yearly_line_compares_with_the_year_to_date(server, frozen):
 def test_matched_transfers_and_splits(server, frozen):
     c, acct, cat, b = setup_budget(server)
     plan(c, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2026-10-04",
-            "amount": "-100.00",
-            "payee": "Target",
-            "splits": [
-                {"amount": "-60.00", "categoryId": cat["Food › Groceries"]},
-                {"amount": "-40.00", "categoryId": cat["Personal › Clothing"]},
-            ],
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2026-10-04",
+        amount="-100.00",
+        payee="Target",
+        splits=[
+            {"amount": "-60.00", "categoryId": cat["Food › Groceries"]},
+            {"amount": "-40.00", "categoryId": cat["Personal › Clothing"]},
+        ],
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "60.00"
 
 
@@ -224,30 +224,24 @@ def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client)
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     assert bob.get(f"/ui/api/budgets/{b['id']}/month").status_code == 404
-    groups = admin_client.post(
-        "/ui/api/groups",
-        json={
-            "name": "Household",
-            "memberIds": [
-                u["id"]
-                for u in admin_client.get("/ui/api/users").json()["items"]
-                if u["username"] in ("alice", "bob")
-            ],
-        },
+    groups = make(
+        admin_client,
+        "Group",
+        name="Household",
+        memberIds=[
+            u["id"]
+            for u in admin_client.get("/ui/api/users").json()["items"]
+            if u["username"] in ("alice", "bob")
+        ],
     ).json()
-    r = c.put(
-        f"/ui/api/shares/budget/{b['id']}",
-        json={"users": {}, "groups": {groups["id"]: "write"}},
-    )
+    r = share(c, "budget", b["id"], users={}, groups={groups["id"]: "write"})
     assert r.status_code == 200, r.text
     assert [x["name"] for x in bob.get("/ui/api/budgets").json()["items"]] == ["Household"]
     # Write: the plan, not the accounts or the budget itself.
     plan(bob, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "400.00"}])
-    r = bob.patch(
-        f"/ui/api/budgets/{b['id']}", json={"accountIds": []}, headers={"If-Match": '"1"'}
-    )
+    r = edit(bob, "Bdgt", f"/ui/api/budgets/{b['id']}", accountIds=[])
     assert r.status_code == 403
-    assert bob.delete(f"/ui/api/budgets/{b['id']}").status_code == 403
+    assert drop(bob, "Bdgt", f"/ui/api/budgets/{b['id']}").status_code == 403
 
 
 def test_cash_flow_and_trends(server, frozen):
@@ -320,14 +314,14 @@ def test_a_shared_budget_names_only_the_accounts_shared_with_its_viewer(server, 
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    c.put(f"/ui/api/shares/budget/{b['id']}", json={"users": {bob_id: "read"}})
+    share(c, "budget", b["id"], users={bob_id: "read"})
     (mine,) = [
         r for r in c.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"] if r["payee"]
     ]
     (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert mine["accountId"] == acct["id"] and mine["accountName"] == acct["name"]
     assert theirs["accountId"] is None and theirs["accountName"] == "an account not shared"
-    c.put(f"/ui/api/shares/account/{acct['id']}", json={"users": {bob_id: "read"}})
+    share(c, "account", acct["id"], users={bob_id: "read"})
     (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert theirs["accountName"] == acct["name"]
 
@@ -338,23 +332,9 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
     (S1.9.7, S7.3.3)."""
     c, acct, cat, b = setup_budget(server)
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
-    r = c.put(
-        f"/ui/api/accounts/{loan['id']}/loan",
-        json={
-            "principal": "300000",
-            "startDate": "2026-09-01",
-            "termMonths": 360,
-            "rate": "6",
-            "escrowTax": "300",
-            "escrowInsurance": "100",
-        },
-    )
-    assert r.status_code == 200, r.text
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-10-01", "amount": "2198.65", "fromAccountId": acct["id"]},
-    )
-    assert r.status_code == 201, r.text
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-09-01", termMonths=360,
+                rate="6", escrowTax="300", escrowInsurance="100"))  # fmt: skip
+    saved(loan_payment(c, loan["id"], "2026-10-01", "2198.65", from_account=acct["id"]))
     plan(c, b, "2026-10-01", [{"categoryId": cat["Loan payments"], "amount": "2200.00"}])
     v = month(c, b, "2026-10")
     lp = row(v, "Loan payments")
@@ -365,17 +345,12 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
 def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     c, acct, cat, b = setup_budget(server)
     loan = new_account(c, name="Car", type="auto-loan", institution="Ally")
-    terms = {"principal": "20000", "startDate": "2026-09-01", "termMonths": 60, "rate": "6"}
-    bad = c.put(f"/ui/api/accounts/{loan['id']}/loan", json=terms | {"budgetCounting": "half"})
+    car = {"principal": "20000", "startDate": "2026-09-01", "termMonths": 60, "rate": "6"}
+    bad = terms(c, loan["id"], **car, budgetCounting="half")
     assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "budgetCounting"
-    whole = terms | {"budgetCounting": "whole", "budgetCategoryId": cat["Transportation"]}
-    r = c.put(f"/ui/api/accounts/{loan['id']}/loan", json=whole)
-    assert r.status_code == 200, r.text
-    assert r.json()["terms"]["budgetCounting"] == "whole"
-    c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-10-01", "amount": "386.66", "fromAccountId": acct["id"]},
-    )
+    whole = car | {"budgetCounting": "whole", "budgetCategoryId": cat["Transportation"]}
+    assert saved(terms(c, loan["id"], **whole))["terms"]["budgetCounting"] == "whole"
+    saved(loan_payment(c, loan["id"], "2026-10-01", "386.66", from_account=acct["id"]))
     v = month(c, b, "2026-10")
     assert v["spent"] == "386.66" and v["saved"] == "0.00"
     assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [("Transportation", "386.66")]
@@ -387,12 +362,7 @@ def test_money_leaving_or_entering_the_budget(server, frozen):
     c, acct, cat, b = setup_budget(server)
     savings = new_account(c, name="Savings", type="savings", mask="2222")
     brokerage = new_account(c, name="Brokerage", type="brokerage", mask="3333")
-    r = c.patch(
-        f"/ui/api/budgets/{b['id']}",
-        json={"accountIds": [acct["id"], savings["id"]]},
-        headers={"If-Match": str(b["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(change(c, "Bdgt", b, accountIds=[acct["id"], savings["id"]]))
     # Inside the budget: nothing moved in or out.
     add(c, acct["id"], "-200.00", "2026-10-02", payee="To savings")
     add(c, savings["id"], "200.00", "2026-10-02", payee="From checking", kind="deposit")
@@ -414,12 +384,8 @@ def test_money_leaving_or_entering_the_budget(server, frozen):
     v = month(c, b, "2026-10")
     assert v["spent"] == "0.00" and v["saved"] == "0.00" and v["income"] == "150.00"
     assert [(m["otherAccountName"], m["amount"]) for m in v["moved"]] == [("Brokerage", "-500.00")]
-    r = c.patch(
-        f"/ui/api/transactions/{out['id']}",
-        json={"categoryId": cat["Savings › Investing"]},
-        headers={"If-Match": str(c.get(f"/ui/api/transactions/{out['id']}").json()["version"])},
-    )
-    assert r.status_code == 200, r.text
+    current = c.get(f"/ui/api/transactions/{out['id']}").json()
+    saved(change(c, "Txn", current, categoryId=cat["Savings › Investing"]))
     v = month(c, b, "2026-10")
     assert v["saved"] == "500.00" and v["moved"] == []
     # The accounts named when the budget is edited: two or more transfers in a year.

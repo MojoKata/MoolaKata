@@ -974,7 +974,9 @@ def _where(s: Session, server, a: Alert) -> str:
 
 
 def _state(s: Session, alert_id: str, user_id: str) -> AlertState:
-    st = s.get(AlertState, (alert_id, user_id))
+    st = s.scalars(
+        select(AlertState).where(AlertState.alertId == alert_id, AlertState.userId == user_id)
+    ).first()
     if st is None:
         st = AlertState(alertId=alert_id, userId=user_id)
         s.add(st)

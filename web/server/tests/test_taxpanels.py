@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import loan_payment, make, option_trade, saved, sell, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -28,8 +29,8 @@ def alice(server, frozen):
 
 def book(c):
     me = c.get("/ui/api/session").json()["user"]["id"]
-    r = c.post("/ui/api/tax-books", json={"year": 2026, "filers": [me]})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", year=2026, filers=[me])
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
@@ -86,16 +87,20 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
 def test_collectables_and_personal_use_losses(alice):
     coll = new_account(alice, name="Collectables", type="collectables")
     cars = new_account(alice, name="Cars", type="vehicle")
-    coin = alice.post(
-        f"/ui/api/accounts/{coll['id']}/items",
-        json={"name": "Coin", "acquiredOn": "2020-01-01", "costBasis": "1000"},
+    coin = make(
+        alice, "Item", accountId=coll["id"], name="Coin", acquiredOn="2020-01-01", costBasis="1000"
     ).json()
-    car = alice.post(
-        f"/ui/api/accounts/{cars['id']}/items",
-        json={"name": "Car", "acquiredOn": "2022-01-01", "costBasis": "30000", "personalUse": True},
+    car = make(
+        alice,
+        "Item",
+        accountId=cars["id"],
+        name="Car",
+        acquiredOn="2022-01-01",
+        costBasis="30000",
+        personalUse=True,
     ).json()
-    alice.put(f"/ui/api/items/{coin['id']}/sale", json={"soldOn": "2026-05-01", "proceeds": "3000"})
-    alice.put(f"/ui/api/items/{car['id']}/sale", json={"soldOn": "2026-05-01", "proceeds": "18000"})
+    saved(sell(alice, coin["id"], "2026-05-01", "3000"))
+    saved(sell(alice, car["id"], "2026-05-01", "18000"))
     book_id = book(alice)
     p = panels(alice, book_id)
     rows = {r["description"]: r for r in p["rows"]}
@@ -173,14 +178,9 @@ def test_deductions_loans_and_issues(alice):
     cats = {x["name"]: x["id"] for x in alice.get("/ui/api/categories").json()["items"]}
     add(alice, card["id"], "-240.00", "2026-04-02", payee="Clinic", categoryId=cats["Doctor"])
     home = new_account(alice, name="Mortgage", type="mortgage")
-    alice.put(
-        f"/ui/api/accounts/{home['id']}/loan",
-        json={"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"},
-    )
-    alice.post(
-        f"/ui/api/accounts/{home['id']}/loan/payments",
-        json={"date": "2026-02-01", "amount": "1798.65"},
-    )
+    saved(terms(alice, home["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    saved(loan_payment(alice, home["id"], "2026-02-01", "1798.65"))
     brk = new_account(alice, name="Brokerage", type="brokerage")
     trade(alice, brk["id"], "2026-05-01", "sell", "3", "100", "MSFT")  # nothing to sell
     p = panels(alice, book(alice))
@@ -245,18 +245,8 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(alice):
     add(alice, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     trade(alice, brk["id"], "2026-08-03", "buy", "100", "500", "MSFT")
     trade(alice, brk["id"], "2026-09-01", "sell", "100", "450", "MSFT")  # a 5,000 loss
-    put = {
-        "action": "sell-to-open",
-        "underlying": "MSFT",
-        "right": "put",
-        "strike": "455",
-        "expiry": "2026-09-18",
-        "contracts": "1",
-        "premium": "4.00",
-        "fees": "0",
-    }
-    r = alice.post(f"/ui/api/accounts/{brk['id']}/options", json={**put, "date": "2026-08-20"})
-    assert r.status_code == 201, r.text
+    saved(option_trade(alice, brk["id"], "2026-08-20", "sell-to-open", "MSFT", "put", "455",
+                       "2026-09-18", "1", "4.00"))  # fmt: skip
     held = alice.get("/ui/api/positions", params={"kind": "options"}).json()["open"][0]
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",

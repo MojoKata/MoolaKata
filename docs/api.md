@@ -28,10 +28,10 @@ The browser app's API. It changes with the app and carries no version of its own
   digits can't be told from one that hasn't, so send the text the person typed.
 - **Lists** take `?offset=` and `?limit=` (500 by default, at most 1000) and answer
   `{items, total, offset, limit}` (S13.8.5).
-- **Changes send their version.** Every `PATCH`, `PUT` and `DELETE` of a record with a version
-  carries `If-Match: "<version>"`, the version it was made against: without it the answer is
-  428, with a stale one 412 with the record as it is now and its `version` (S13.8.6). A `PUT`
-  that creates sends `"0"`.
+- **Changes send their version.** A `DELETE` of a record with a version carries
+  `If-Match: "<version>"`, the version it was made against: without it the answer is 428, with
+  a stale one 412 with the record as it is now and its `version` (S13.8.6). Records are made
+  and changed through the save, below.
 - **A `DELETE`** answers `{deleted, parent}`: what went, and what it belonged to as it now
   stands (S13.8.1).
 - **Dialogs save in one request.** `POST /ui/api/save` takes `{ops, confirm}`, each op

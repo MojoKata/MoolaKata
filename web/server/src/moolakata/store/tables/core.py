@@ -3,14 +3,17 @@
 from sqlalchemy import Column, ForeignKey, Index, LargeBinary, Text, UniqueConstraint
 
 from ..types import UtcTimestamp
-from ._base import exception, keyed
+from ._base import exception, record, unique_live
 
-Setting = keyed(
+# A setting an admin saved (S16): one live row a key; a key with none stands at its default.
+Setting = record(
     "Setting",
-    Column("key", Text, primary_key=True),
+    "Setng",
+    Column("key", Text, nullable=False),
     Column("value", Text, nullable=False),
     Column("updatedById", Text, ForeignKey("User.id")),
 )
+unique_live(Setting, "key")
 
 Secret = exception(
     "Secret",

@@ -184,13 +184,13 @@ def test_changing_two_step_needs_the_password_within_ten_minutes(server, frozen)
     turn_on(c)
     later(11 * 60)
     for method, path in (
-        ("delete", "/ui/api/profile/two-step"),
+        ("post", "/ui/api/profile/two-step/off"),
         ("post", "/ui/api/profile/two-step/recovery-codes"),
     ):
         r = getattr(c, method)(path)
         assert r.status_code == 403 and r.json()["code"] == "reauth-required", path
     assert c.post("/ui/api/session/reauth", json={"password": PW}).status_code == 204
-    assert c.delete("/ui/api/profile/two-step").status_code == 200
+    assert c.post("/ui/api/profile/two-step/off").status_code == 200
     assert c.get("/ui/api/profile").json()["twoStep"] == {
         "on": False,
         "since": None,
@@ -207,8 +207,8 @@ def test_an_admins_reset_turns_it_off_and_ends_the_users_sessions(server, admin_
     turn_on(c)
     rows = {u["username"]: u for u in admin_client.get("/ui/api/users").json()["items"]}
     assert rows["alice"]["twoStep"] is True
-    r = admin_client.delete(f"/ui/api/users/{alice.id}/two-step")
-    assert r.status_code == 200 and r.json()["parent"]["twoStep"] is False
+    r = admin_client.post(f"/ui/api/users/{alice.id}/two-step/reset")
+    assert r.status_code == 200 and r.json()["twoStep"] is False
     assert c.get("/ui/api/session").status_code == 401
     with server.db.read() as s:
         assert s.scalars(select(Session).where(Session.userId == alice.id)).first() is None
@@ -217,7 +217,7 @@ def test_an_admins_reset_turns_it_off_and_ends_the_users_sessions(server, admin_
     assert "an admin, turned it off for you" in mails(server)[-1].get_content()
     # Not an admin: refused.
     c2 = sign_in(server, "alice")
-    assert c2.delete(f"/ui/api/users/{alice.id}/two-step").status_code == 403
+    assert c2.post(f"/ui/api/users/{alice.id}/two-step/reset").status_code == 403
 
 
 def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):

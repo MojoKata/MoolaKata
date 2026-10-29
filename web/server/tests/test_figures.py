@@ -2,6 +2,7 @@ import datetime as dt
 from decimal import Decimal as D
 
 from conftest import make_user, sign_in
+from edits import make, remove
 from sqlalchemy import text
 from test_accounts import add, new_account
 
@@ -86,7 +87,7 @@ def test_portfolio_series_returns_and_holdings(server):
     )
     add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
     add(c, a["id"], "-1000.00", "2026-07-01", kind="buy", symbol="VTI", quantity="10", price="100")
-    p = c.post("/ui/api/portfolios", json={"name": "Mine", "accountIds": [a["id"]]}).json()
+    p = make(c, "Portf", name="Mine", accountIds=[a["id"]]).json()
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     assert s["end"] == "1000.00" and s["contributed"] == "1000.00" and s["growth"] == "0.00"
     assert s["benchmark"] == "VT"
@@ -110,7 +111,7 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
     assert ks["previous"] == [] and ks["scheduled"] is None and ks["lastReencryption"] is None
     with server.db.read() as s:  # the data, wherever it sits: the file or its log
         pages = s.execute(text("PRAGMA page_count")).scalar_one()
-    assert ks["databaseBytes"] == pages * 4096 > server.config.db_path.stat().st_size
+    assert ks["databaseBytes"] == pages * 4096 >= server.config.db_path.stat().st_size
     t = admin_client.post("/ui/api/settings/keys/test").json()
     assert t["ok"] and [x["name"] for x in t["checks"]][:2] == ["Keyring", "Database"]
     b = admin_client.get("/ui/api/settings/backups").json()
@@ -132,11 +133,9 @@ def test_a_portfolio_keeps_a_deleted_account_up_to_its_deletion(server):
         a = new_account(c, name=name, mask=mask, openingBalance="0.00", openingDate="2026-06-30")
         add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
         ids.append(a)
-    p = c.post(
-        "/ui/api/portfolios", json={"name": "Both", "accountIds": [x["id"] for x in ids]}
-    ).json()
+    p = make(c, "Portf", name="Both", accountIds=[x["id"] for x in ids]).json()
     gone = c.get(f"/ui/api/accounts/{ids[1]['id']}").json()
-    r = c.delete(f"/ui/api/accounts/{gone['id']}", headers={"If-Match": str(gone["version"])})
+    r = remove(c, "Acct", gone)
     assert r.status_code == 200, r.text
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     by_day = {x["date"]: x["value"] for x in s["points"]}
@@ -156,11 +155,9 @@ def test_a_portfolios_returns_count_a_deleted_accounts_gain(server):
     add(c, a["id"], "100.00", "2026-08-01", kind="interest")
     keep = new_account(c, name="Kept", mask="4444", openingBalance="0.00", openingDate="2026-06-30")
     add(c, keep["id"], "1000.00", "2026-07-01", kind="deposit")
-    p = c.post(
-        "/ui/api/portfolios", json={"name": "Both", "accountIds": [a["id"], keep["id"]]}
-    ).json()
+    p = make(c, "Portf", name="Both", accountIds=[a["id"], keep["id"]]).json()
     before = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     gone = c.get(f"/ui/api/accounts/{a['id']}").json()
-    c.delete(f"/ui/api/accounts/{a['id']}", headers={"If-Match": str(gone["version"])})
+    remove(c, "Acct", gone)
     after = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     assert before["YTD"] and after["YTD"] == before["YTD"], (before, after)

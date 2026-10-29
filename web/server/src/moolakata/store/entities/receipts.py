@@ -1,8 +1,9 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
-from . import Record, SoftDeleted
+from ...ids import new_id
+from . import Record, SoftDeleted, _now
 
 
 @dataclass(kw_only=True, eq=False)
@@ -19,7 +20,6 @@ class Receipt(Record):
     amount: Decimal | None = None
     payee: str | None = None
     notes: str | None = None
-    tags: str = "[]"
     readStatus: str = "waiting"
     readError: str | None = None
     readMethod: str | None = None
@@ -34,11 +34,16 @@ class Receipt(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class ReceiptLink(SoftDeleted):
+class ReceiptTag(SoftDeleted):
+    receiptId: str
+    tagId: str
+    createdAt: dt.datetime = field(default_factory=_now)
+
+
+@dataclass(kw_only=True, eq=False)
+class ReceiptLink(Record):
+    id: str = field(default_factory=lambda: new_id("RcLnk"))
     receiptId: str
     kind: str
     itemId: str
-    createdAt: dt.datetime
     linkedById: str | None = None
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None

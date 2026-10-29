@@ -122,7 +122,9 @@
    a linked server have **None · Read**, under the server's name, which notes that it
    confirms who they are. Each linked server with anyone set to Read has **Include
    receipts** (off by default, S11.5). A user who has access only through a group is shown
-   *via* it. Nothing changes until **Save** (with **Cancel** beside it). When a share is
+   *via* it. Nothing changes until **Save** (with **Cancel** beside it): each grant is a
+   record of the dialog's draft (S12.15), made, changed or removed by its switch, and Include
+   receipts is set on the grants of that server's people. When a share is
    removed, the receiver's access ends on their next request. Their own annotations, such as
    their tags on the account's transactions, are deleted.
 5. **Through a group**: every member holds the share while they are in the group and it is

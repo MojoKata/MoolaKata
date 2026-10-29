@@ -54,10 +54,15 @@ class Found:
     ended: str | None  # why it is no longer good: "expired"
 
 
+def by_hash(s: Db, token_hash: str) -> Session | None:
+    """The session its token's hash names: the token itself is never stored."""
+    return s.scalars(select(Session).where(Session.tokenHash == token_hash)).first()
+
+
 def find(s: Db, token: str | None) -> Found | None:
     if not token or len(token) > 100:
         return None
-    row = s.get(Session, digest(token))
+    row = by_hash(s, digest(token))
     if row is None:
         return None
     t = now()

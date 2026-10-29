@@ -10,9 +10,12 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Avatar, Chips, Failed, Loading } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Select, Switch } from '../components/fields.js';
+import { Field, FormError, Input, Switch } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { withReauth } from '../components/reauth.js';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { DraftDialog, RecField, saveNow, useDraft } from '../components/draft-form.js';
 
 export default function Users() {
   useTitle('Users and Groups');
@@ -35,7 +38,7 @@ export default function Users() {
   const setActive = async (/** @type {any} */ x, /** @type {boolean} */ on) => {
     setBusy(x.id);
     try {
-      await api.patch(`/users/${x.id}`, { active: on }, x.version);
+      await saveNow((d) => d.load(UserRec, x).set('active', on));
       toast(`${x.displayName} is ${on ? 'active again' : 'inactive: their sessions ended'}`);
     } catch (e) {
       toast(/** @type {any} */ (e).message);
@@ -189,53 +192,59 @@ export default function Users() {
   `;
 }
 
+/** A user, as an admin's draft edits them (S10.1). */
+class UserRec extends Record {
+  /** @override */
+  static prefix = 'User';
+  /** @override */
+  static fields = FIELDS.UserRecord;
+  /** @override */
+  static defaults = { sex: null, active: true, groupIds: [] };
+}
+
+/** A group (S10.2). */
+class GroupRec extends Record {
+  /** @override */
+  static prefix = 'Group';
+  /** @override */
+  static fields = FIELDS.GroupRecord;
+  /** @override */
+  static defaults = { active: true, memberIds: [] };
+}
+
 /** @param {{ close: (v?: any) => void, groups: any[] }} p */
 function NewUser({ close, groups }) {
   useDialogGuide('dialog-new-user');
-  const [f, setF] = useState({ displayName: '', username: '', email: '', sex: '' });
-  const [ids, setIds] = useState(/** @type {string[]} */ ([]));
-  const set = (/** @type {string} */ k) => (/** @type {string} */ v) => setF({ ...f, [k]: v });
-  const save = useSubmit(async () => {
-    const u = await withReauth(() =>
-      api.post('/users', { ...f, groupIds: ids }, { idempotent: true })
-    );
-    toast(`Invitation sent to ${u.email}`);
-    close(u);
-  });
-  const e = save.error;
+  const f = useDraft((draft) => {
+    draft.add(UserRec, { displayName: '', username: '', email: '' });
+  }, []);
+  const rec = /** @type {UserRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title="New user" close=${close} onSubmit=${() => save.run().catch(() => {})}
-      note="They choose their own password from the invitation."
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Send the invitation</button>`}>
-      <${Field} label="Name" id="display-name" error=${errAt(e, 'displayName')}>
-        <${Input} value=${f.displayName} onInput=${set('displayName')} required />
-        </${Field}>
-        <${Field} label="Sex" error=${errAt(e, 'sex')}>
-          <${Select} value=${f.sex} onChange=${set('sex')} options=${[
+    <${DraftDialog} f=${f} title="New user" close=${close} what="This user"
+      label="Send the invitation" note="They choose their own password from the invitation."
+      saved=${(/** @type {any} */ o) => {
+        const u = o.saved[0].record;
+        toast(`Invitation sent to ${u.email}`);
+        close(u);
+      }}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="displayName" label="Name" id="display-name" />
+          <${RecField} rec=${rec} name="sex" label="Sex" options=${[
             ['', 'Choose…'],
             ['female', 'Female'],
             ['male', 'Male'],
           ]} />
-          </${Field}>
           <div class="row">
-            <${Field} label="Username" error=${errAt(e, 'username')}>
-              <${Input} value=${f.username} onInput=${set('username')} required />
-              </${Field}>
-              <${Field} label="Email address" id="email" error=${errAt(e, 'email')}>
-                <${Input} type="email" value=${f.email} onInput=${set('email')} required />
-                </${Field}>
-                </div>
-                <${GroupPicker} groups=${groups} ids=${ids} setIds=${setIds} error=${errAt(
-                  e,
-                  'groupIds',
-                )} />
-                <${FormError} error=${e} shown=${[
-                  'displayName',
-                  'username',
-                  'email',
-                  'groupIds',
-                ]} />
-                </${Dialog}>
+            <${RecField} rec=${rec} name="username" label="Username" />
+            <${RecField} rec=${rec} name="email" label="Email address" id="email" type="email" />
+          </div>
+          <${GroupPicker} groups=${groups} ids=${rec.get('groupIds')} setIds=${(
+            /** @type {string[]} */ v,
+          ) => rec.set('groupIds', v)} error=${rec.error('groupIds')} />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -283,42 +292,35 @@ function SignupRequest({ r, groups, done }) {
 /** @param {{ close: (v?: any) => void, user: any, groups: any[] }} p */
 function EditUser({ close, user, groups }) {
   useDialogGuide('dialog-edit-user');
-  const [displayName, setName] = useState(user.displayName);
-  const [email, setEmail] = useState(user.email || '');
-  const [ids, setIds] = useState(/** @type {string[]} */ (user.groupIds));
+  const f = useDraft((draft) => {
+    draft.load(UserRec, user);
+  }, [user.id]);
+  const rec = /** @type {UserRec | undefined} */ (f.draft?.records[0]);
   const [password, setPassword] = useState('');
   const [needPassword, setNeed] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const save = useSubmit(async () => {
-    if (resetting) {
-      // The last resort when the app and the recovery codes are lost (S10.1.6).
-      if (needPassword) await api.post('/session/reauth', { password });
-      try {
-        close((await api.del(`/users/${user.id}/two-step`, user.version)).parent);
-      } catch (e) {
-        if (/** @type {any} */ (e).code === 'reauth-required') {
-          setNeed(true);
-          return;
-        }
-        throw e;
+  // The last resort when the app and the recovery codes are lost (S10.1.6): an action.
+  const reset = useSubmit(async () => {
+    if (needPassword) await api.post('/session/reauth', { password });
+    try {
+      close(await api.post(`/users/${user.id}/two-step/reset`));
+    } catch (e) {
+      if (/** @type {any} */ (e).code === 'reauth-required') {
+        setNeed(true);
+        return;
       }
-      toast(`Two-step sign-in is off for ${user.displayName}`);
-      return;
+      throw e;
     }
-    const body = /** @type {Record<string, any>} */ ({ displayName, groupIds: ids });
-    if (user.invited) body.email = email;
-    close(await withReauth(() => api.patch(`/users/${user.id}`, body, user.version)));
-    toast('Saved');
+    toast(`Two-step sign-in is off for ${user.displayName}`);
   });
   if (resetting) {
     return html`
       <${Dialog} title="Reset two-step sign-in" close=${close}
-        onSubmit=${() => save.run().catch(() => {})}
+        onSubmit=${() => reset.run().catch(() => {})}
         footer=${html`
           <button type="button" class="btn" onClick=${() =>
             setResetting(false)}>Back</button> <button class="btn danger"
-            disabled=${save
-              .busy}>Turn it off</button>
+            disabled=${reset.busy}>Turn it off</button>
         `}>
         <p>This turns off two-step sign-in for ${user.displayName}, so their password alone signs
           them in, and signs them out everywhere. Do it only when they have lost both their app and
@@ -333,40 +335,32 @@ function EditUser({ close, user, groups }) {
               </${Field}>
           `
           : null}
-        <${FormError} error=${save.error} />
+        <${FormError} error=${reset.error} />
       </${Dialog}>
     `;
   }
   return html`
-    <${Dialog} title=${user.displayName} close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`${
+    <${DraftDialog} f=${f} title=${user.displayName} close=${close} what="This user"
+      done="Saved" extra=${() =>
         user.twoStep
           ? html`
             <button type="button" class="btn" style=${{ marginRight: 'auto' }}
               onClick=${() => setResetting(true)}>Reset two-step</button>
           `
-          : null
-      }<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Name" id="display-name" error=${errAt(save.error, 'displayName')}>
-        <${Input} value=${displayName} onInput=${setName} required />
-        </${Field}>
-        <${Field} label="Email address" id="email" error=${errAt(save.error, 'email')}
-          hint=${user.invited
-            ? 'Fix it before they join; the invitation then goes to the new address.'
-            : 'Once a user has joined, they change it themselves.'}>
-          <${Input} type="email" value=${email} onInput=${setEmail} disabled=${!user.invited} />
-          </${Field}>
-          <${GroupPicker} groups=${groups} ids=${ids} setIds=${setIds} error=${errAt(
-            save.error,
-            'groupIds',
-          ) || errAt(save.error, 'memberIds')} />
-          <${FormError} error=${save.error} shown=${[
-            'displayName',
-            'email',
-            'groupIds',
-            'memberIds',
-          ]} />
-          </${Dialog}>
+          : null}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="displayName" label="Name" id="display-name" />
+          <${RecField} rec=${rec} name="email" label="Email address" id="email" type="email"
+            disabled=${!user.invited} hint=${user.invited
+              ? 'Fix it before they join; the invitation then goes to the new address.'
+              : 'Once a user has joined, they change it themselves.'} />
+          <${GroupPicker} groups=${groups} ids=${rec.get('groupIds')} setIds=${(
+            /** @type {string[]} */ v,
+          ) => rec.set('groupIds', v)} error=${rec.error('groupIds') || rec.error('memberIds')} />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -394,54 +388,44 @@ function GroupPicker({ groups, ids, setIds, error }) {
 /** @param {{ close: (v?: any) => void, users: any[], group?: any }} p */
 function GroupDialog({ close, users, group }) {
   useDialogGuide('dialog-group');
-  const [name, setName] = useState(group?.name || '');
-  const [active, setActive] = useState(group ? group.active : true);
-  const [ids, setIds] = useState(/** @type {string[]} */ (group?.memberIds || []));
-  const save = useSubmit(async () => {
-    const out = group
-      ? await withReauth(() =>
-        api.patch(`/groups/${group.id}`, {
-          name: group.builtIn ? undefined : name,
-          active: group.builtIn ? undefined : active,
-          memberIds: ids,
-        }, group.version)
-      )
-      : await api.post('/groups', { name, memberIds: ids }, { idempotent: true });
-    toast('Saved');
-    close(out);
-  });
+  const f = useDraft((draft) => {
+    if (group) draft.load(GroupRec, group);
+    else draft.add(GroupRec, { name: '' });
+  }, [group?.id]);
+  const rec = /** @type {GroupRec | undefined} */ (f.draft?.records[0]);
+  const ids = /** @type {string[]} */ (rec?.get('memberIds') || []);
   return html`
-    <${Dialog} title=${group ? group.name : 'New group'} close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Name"
-        error=${errAt(
-          save.error,
-          'name',
-        )}><${Input} value=${name} onInput=${setName} required disabled=${group
-          ?.builtIn} /></${Field}>
-        ${group && !group.builtIn
-          ? html`
-            <div
-              class="list-item"><span class="grow">Active<div class="small dim">An inactive group's shares give its members nothing.</div></span>
-                  <${Switch} on=${active} onChange=${setActive} label="Active" /></div>
-          `
-          : null}
-        <fieldset class="field" style=${{
-          border: 0,
-          padding: 0,
-          margin: '14px 0',
-        }}><legend class="small" style=${{ color: 'var(--fg-dim)' }}>Members</legend>
-          ${users.filter((u) => u.active).map((u) =>
-            html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
-        checked=${ids.includes(u.id)} onChange=${() =>
-              setIds(ids.includes(u.id) ? ids.filter((x) => x !== u.id) : [...ids, u.id])} />
-        <${Avatar} sm name=${u.displayName} image=${u.avatar} id=${u.id} /><span class="grow">${u.displayName}</span></label>`
-          )}
-          ${errAt(save.error, 'memberIds')
-            ? html`<div class="err">${errAt(save.error, 'memberIds')}</div>`
-            : null}</fieldset>
-        <${FormError} error=${save.error} shown=${['name', 'memberIds', 'active']} />
-      </${Dialog}>
+    <${DraftDialog} f=${f} title=${group ? group.name : 'New group'} close=${close}
+      what="This group" done="Saved">
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="name" label="Name" disabled=${group?.builtIn} />
+          ${group && !group.builtIn
+            ? html`
+              <${RecField} rec=${rec} name="active" label="Active"
+                hint="An inactive group's shares give its members nothing." />
+            `
+            : null}
+          <fieldset class="field" style=${{
+            border: 0,
+            padding: 0,
+            margin: '14px 0',
+          }}><legend class="small" style=${{ color: 'var(--fg-dim)' }}>Members</legend>
+            ${users.filter((u) => u.active).map((u) =>
+              html`<label class="list-item" style=${{ cursor: 'pointer' }}><input
+                type="checkbox" checked=${ids.includes(u.id)} onChange=${() =>
+                rec.set(
+                  'memberIds',
+                  ids.includes(u.id) ? ids.filter((x) => x !== u.id) : [...ids, u.id],
+                )} />
+                <${Avatar} sm name=${u.displayName} image=${u.avatar} id=${u.id} /><span
+                  class="grow">${u.displayName}</span></label>`
+            )}
+            ${rec.error('memberIds')
+              ? html`<div class="err">${rec.error('memberIds')}</div>`
+              : null}</fieldset>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }

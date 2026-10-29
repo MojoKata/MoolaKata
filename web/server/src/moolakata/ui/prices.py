@@ -5,11 +5,10 @@ import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse, Response
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, settings
+from .. import access, activity, clock, exactjson, settings
 from ..errors import FieldError, Problem, refuse
 from ..prices import SOURCES
 from ..prices import refresh as pricing
@@ -18,7 +17,8 @@ from ..store.entities.prices import Price, PriceSource
 from ..store.entities.prices import TypedPrice as Typed
 from ..store.entities.users import User
 from ..store.repos import secrets as secret_repo
-from .conventions import Deleted, ExactRoute, Model, Quantity, check, gone, if_match, stale
+from . import save
+from .conventions import ExactRoute, IdOf, Model, Quantity
 from .deps import Caller, admin, caller, recent_auth, server
 from .imports import JobOut, accepted
 
@@ -67,25 +67,13 @@ class SourcesView(Model):
     refreshZone: str
 
 
-class NewSource(Model):
-    name: str
-
-
-class SourceChange(Model):
-    enabled: bool | None = None
-    preference: dict[str, int] | None = None
-    apiKey: str | None = Field(None, description="the source's key; null removes it")
-
-
-class TypedPrice(Model):
-    date: dt.date
-    price: Quantity
-
-
 class Close(Model):
     date: dt.date
     close: Quantity
     source: str
+    # A price the reader typed (TypedPrice), a record of the save: its id and version.
+    id: str | None = None
+    version: int = 0
 
 
 def _kind(cls) -> SourceKind:
@@ -185,126 +173,137 @@ def list_sources(request: Request, c: Caller = Depends(admin)):
         return _view(s, srv.config.dev)
 
 
-@router.post("/price-sources", response_model=SourcesView, status_code=201)
-def add_source(body: NewSource, request: Request, c: Caller = Depends(admin)):
-    srv = server(request)
-    cls = SOURCES.get(body.name)
+def _add(s, srv, c: Caller, name: str, source_id: str) -> PriceSource:
+    cls = SOURCES.get(name)
     if cls is None or (cls.dev_only and not srv.config.dev):
         raise refuse("name", "source-unknown", "Choose a source MoolaKata ships.")
-    with srv.db.tx() as s:
-        if s.scalars(
-            select(PriceSource).where(PriceSource.name == body.name, PriceSource.deleted == false())
-        ).first():
-            raise refuse("name", "source-added", f"{cls.label} is already added.", 409)
-        taken = {}
-        for r in s.scalars(select(PriceSource).where(PriceSource.deleted == false())):
-            for k, v in json.loads(r.preference or "{}").items():
-                taken[k] = max(taken.get(k, 0), v)
-        pref = {k: taken.get(k, 0) + 1 for k in sorted(cls.classes)}
-        s.add(
-            PriceSource(
-                id=ids.new_id("Src"),
-                name=body.name,
-                enabled=not cls.needs_key,
-                preference=exactjson.dumps(pref),
-                createdById=c.id,
-            )
-        )
-        activity.record(
-            s, "prices.source-added", actor=c.id, for_admins=True, detail={"source": body.name}
-        )
-        s.flush()
-        view = _view(s, srv.config.dev)
-    apply_egress(srv)
-    return JSONResponse(view.model_dump(mode="json"), status_code=201)
+    if s.scalars(
+        select(PriceSource).where(PriceSource.name == name, PriceSource.deleted == false())
+    ).first():
+        raise refuse("name", "source-added", f"{cls.label} is already added.", 409)
+    taken = {}
+    for r in s.scalars(select(PriceSource).where(PriceSource.deleted == false())):
+        for k, v in json.loads(r.preference or "{}").items():
+            taken[k] = max(taken.get(k, 0), v)
+    pref = {k: taken.get(k, 0) + 1 for k in sorted(cls.classes)}
+    src = PriceSource(
+        id=source_id,
+        name=name,
+        enabled=not cls.needs_key,
+        preference=exactjson.dumps(pref),
+        createdById=c.id,
+    )
+    s.add(src)
+    activity.record(s, "prices.source-added", actor=c.id, for_admins=True, detail={"source": name})
+    return src
 
 
-@router.patch("/price-sources/{source_id}", response_model=SourcesView)
-def change_source(
-    source_id: str,
-    body: SourceChange,
-    request: Request,
-    c: Caller = Depends(admin),
-    version: int = Depends(if_match),
-):
-    srv = server(request)
-    sent = body.model_fields_set
-    if "apiKey" in sent and body.apiKey is not None:
+class SourceRecord(Model):
+    """A price source as a draft saves it (S4.2): added by name; on or off, its place for
+    each class it serves, and its key, a secret written and never read back (S14.4)."""
+
+    name: str
+    enabled: bool = False
+    preference: dict[str, int] = Field(default_factory=dict)
+    apiKey: str | None = Field(None, description="the source's key, written, never read back")
+
+
+def _source_admin(ctx) -> Caller:
+    if not ctx.caller.admin:
+        raise Problem(403, "admins-only", "Only admins can do this.")
+    return ctx.caller
+
+
+def _source_create(ctx, record_id: str, body: SourceRecord) -> None:
+    c = _source_admin(ctx)
+    srv = server(ctx.request)
+    src = _add(ctx.s, srv, c, body.name, record_id)
+    ctx.s.flush()
+    if body.apiKey is not None:
+        _source_update(ctx, src, body)
+    ctx.after("egress", lambda: apply_egress(srv))
+
+
+def _source_editable(ctx, record_id: str) -> PriceSource:
+    _source_admin(ctx)
+    src = ctx.s.get(PriceSource, record_id)
+    if src is None or src.deleted or src.name not in SOURCES:
+        raise Problem(404, "not-found", "Not found")
+    return src
+
+
+def _source_current(ctx, src: PriceSource) -> dict:
+    return {"name": src.name, "enabled": src.enabled, "apiKey": None,
+            "preference": json.loads(src.preference or "{}")}  # fmt: skip
+
+
+def _source_update(ctx, src: PriceSource, body: SourceRecord) -> None:
+    s, c = ctx.s, _source_admin(ctx)
+    srv = server(ctx.request)
+    cls = SOURCES[src.name]
+    if body.name != src.name:
+        raise refuse("name", "source-fixed", "A source keeps its name; add another.")
+    fields = []
+    if body.apiKey is not None:
         recent_auth(c)  # a secret set: the password again (S13.7.2)
-    with srv.db.tx() as s:
-        src = s.get(PriceSource, source_id)
-        if src is None or src.deleted or src.name not in SOURCES:
-            raise Problem(404, "not-found", "Not found")
-        if src.version != version:
-            raise stale(_row(s, src))
-        cls = SOURCES[src.name]
-        fields = []
-        if "apiKey" in sent:
-            if not cls.needs_key:
-                raise refuse("apiKey", "no-key", f"{cls.label} needs no key.")
-            if body.apiKey is None:
-                secret_repo.remove(s, "PriceSource", src.id, "apiKey")
-                src.enabled = False
-            else:
-                key = body.apiKey.strip()
-                if not 8 <= len(key) <= 200 or any(ch.isspace() for ch in key):
-                    raise refuse("apiKey", "key-invalid", "Paste the key as the source gives it.")
-                secret_repo.put(s, srv.keys.secrets, "PriceSource", src.id, "apiKey", key, c.id)
-            fields.append("apiKey")
-        if body.enabled is not None and "enabled" in sent:
-            if (
-                body.enabled
-                and cls.needs_key
-                and not secret_repo.info(s, "PriceSource", src.id, "apiKey")
-            ):
-                raise refuse(
-                    "enabled", "key-needed", f"{cls.label} needs its key before it can be enabled."
-                )
-            src.enabled = body.enabled
-            fields.append("enabled")
-        if body.preference is not None:
-            errors = [
-                FieldError(f"preference.{k}", "class-not-served", f"{cls.label} doesn't serve {k}.")
-                for k in body.preference
-                if k not in cls.classes
-            ]
-            if errors:
-                raise Problem(422, errors[0].code, errors[0].message, errors)
-            src.preference = exactjson.dumps({k: int(v) for k, v in body.preference.items()})
-            fields.append("preference")
-        if fields:
-            activity.record(
-                s,
-                "prices.source-changed",
-                actor=c.id,
-                for_admins=True,
-                detail={"source": src.name, "fields": fields},
+        if not cls.needs_key:
+            raise refuse("apiKey", "no-key", f"{cls.label} needs no key.")
+        key = body.apiKey.strip()
+        if not 8 <= len(key) <= 200 or any(ch.isspace() for ch in key):
+            raise refuse("apiKey", "key-invalid", "Paste the key as the source gives it.")
+        secret_repo.put(s, srv.keys.secrets, "PriceSource", src.id, "apiKey", key, c.id)
+        fields.append("apiKey")
+    if body.enabled != src.enabled:
+        if (
+            body.enabled
+            and cls.needs_key
+            and not secret_repo.info(s, "PriceSource", src.id, "apiKey")
+        ):
+            raise refuse(
+                "enabled", "key-needed", f"{cls.label} needs its key before it can be enabled."
             )
-        s.flush()
-        view = _view(s, srv.config.dev)
-    apply_egress(srv)
-    return view
+        src.enabled = body.enabled
+        fields.append("enabled")
+    if body.preference != json.loads(src.preference or "{}"):
+        errors = [
+            FieldError(f"preference.{k}", "class-not-served", f"{cls.label} doesn't serve {k}.")
+            for k in body.preference
+            if k not in cls.classes
+        ]
+        if errors:
+            raise Problem(422, errors[0].code, errors[0].message, errors)
+        src.preference = exactjson.dumps({k: int(v) for k, v in body.preference.items()})
+        fields.append("preference")
+    if fields:
+        src.updatedAt = clock.now()
+        activity.record(s, "prices.source-changed", actor=c.id, for_admins=True,
+                        detail={"source": src.name, "fields": fields})  # fmt: skip
+        ctx.after("egress", lambda: apply_egress(srv))
 
 
-@router.delete("/price-sources/{source_id}", response_model=Deleted[None])
-def remove_source(
-    source_id: str, request: Request, c: Caller = Depends(admin), version: int = Depends(if_match)
-):
-    srv = server(request)
-    with srv.db.tx() as s:
-        src = s.get(PriceSource, source_id)
-        if src is None or src.deleted:
-            raise Problem(404, "not-found", "Not found")
-        check(src, version, {"id": src.id, "version": src.version})
-        secret_repo.remove(s, "PriceSource", src.id, "apiKey")
-        src.mark_deleted(c.id)
-        activity.record(
-            s, "prices.source-removed", actor=c.id, for_admins=True, detail={"source": src.name}
-        )
-        s.flush()
-        out = Deleted[None](deleted=gone(src))
-    apply_egress(srv)
-    return out
+def _source_delete(ctx, src: PriceSource) -> None:
+    c = _source_admin(ctx)
+    srv = server(ctx.request)
+    secret_repo.remove(ctx.s, "PriceSource", src.id, "apiKey")
+    src.mark_deleted(c.id)
+    activity.record(ctx.s, "prices.source-removed", actor=c.id, for_admins=True,
+                    detail={"source": src.name})  # fmt: skip
+    ctx.after("egress", lambda: apply_egress(srv))
+
+
+save.register(
+    save.Kind(
+        prefix="Src",
+        entity=PriceSource,
+        fields=SourceRecord,
+        create=_source_create,
+        editable=_source_editable,
+        current=_source_current,
+        update=_source_update,
+        delete=_source_delete,
+        read=lambda ctx, record_id: _row(ctx.s, ctx.s.get(PriceSource, record_id)),
+    )
+)
 
 
 def _held_writable(s, user_id: str, instrument_id: str) -> bool:
@@ -323,26 +322,96 @@ def _held_writable(s, user_id: str, instrument_id: str) -> bool:
     )
 
 
-@router.post("/instruments/{instrument_id}/prices", status_code=201)
-def type_price(instrument_id: str, body: TypedPrice, request: Request, c: Caller = Depends(caller)):
-    """A price from a statement, or typed, with its date (S4.3)."""
+class TypedPriceRecord(Model):
+    """A price from a statement, or typed, with its date (S4.3), as its dialog's draft saves
+    it: its typer's alone, valuing their own accounts and never another user's (S4.10), one a
+    day."""
+
+    instrumentId: IdOf("Instr")  # type: ignore[valid-type]
+    date: dt.date
+    close: Quantity
+
+
+def _typed_check(ctx, body: TypedPriceRecord) -> None:
     if body.date > clock.today():
         raise refuse("date", "date-in-future", "A price can't be dated in the future.")
-    if body.price < 0:
-        raise refuse("price", "price-negative", "A price can't be negative.")
-    with server(request).db.tx() as s:
-        inst = s.get(Instrument, instrument_id)
-        if inst is None or inst.deleted or not _held_writable(s, c.id, inst.id):
-            raise Problem(404, "not-found", "Not found")
-        # Its typer's alone: it values their own accounts, never another user's (S4.10).
-        row = s.get(Typed, (inst.id, c.id, body.date))
-        if row is None:
-            s.add(Typed(instrumentId=inst.id, userId=c.id, date=body.date, close=body.price))
-        else:
-            row.close = body.price
-            row.restore()
-    server(request).events.publish("prices", {"instrumentId": instrument_id})
-    return Response(status_code=201)
+    if body.close < 0:
+        raise refuse("close", "price-negative", "A price can't be negative.")
+    inst = ctx.s.get(Instrument, body.instrumentId)
+    if inst is None or inst.deleted or not _held_writable(ctx.s, ctx.caller.id, inst.id):
+        raise refuse("instrumentId", "not-found", "One of your holdings.", 404)
+
+
+def _typed_told(ctx, instrument_id: str) -> None:
+    srv = server(ctx.request)
+    ctx.after(
+        f"prices:{instrument_id}",
+        lambda: srv.events.publish("prices", {"instrumentId": instrument_id}),
+    )
+
+
+def _typed_create(ctx, record_id: str, body: TypedPriceRecord) -> None:
+    _typed_check(ctx, body)
+    have = ctx.s.scalars(
+        select(Typed).where(
+            Typed.instrumentId == body.instrumentId,
+            Typed.userId == ctx.caller.id,
+            Typed.date == body.date,
+            Typed.deleted == false(),
+        )
+    ).first()
+    if have is not None:
+        raise refuse("date", "price-typed", "You typed a price for that day: change it.", 409)
+    ctx.s.add(
+        Typed(
+            id=record_id,
+            instrumentId=body.instrumentId,
+            userId=ctx.caller.id,
+            date=body.date,
+            close=body.close,
+        )
+    )
+    _typed_told(ctx, body.instrumentId)
+
+
+def _typed_editable(ctx, record_id: str) -> Typed:
+    t = ctx.s.get(Typed, record_id)
+    if t is None or t.deleted or t.userId != ctx.caller.id:
+        raise Problem(404, "not-found", "Not found")
+    return t
+
+
+def _typed_update(ctx, t: Typed, body: TypedPriceRecord) -> None:
+    if (body.instrumentId, body.date) != (t.instrumentId, t.date):
+        raise refuse("date", "price-fixed", "A typed price keeps its day: type another.")
+    _typed_check(ctx, body)
+    t.close = body.close
+    _typed_told(ctx, t.instrumentId)
+
+
+def _typed_delete(ctx, t: Typed) -> None:
+    t.mark_deleted(ctx.caller.id)
+    _typed_told(ctx, t.instrumentId)
+
+
+def _typed_read(ctx, record_id: str) -> Close:
+    t = ctx.s.get(Typed, record_id)
+    return Close(date=t.date, close=t.close, source="manual", id=t.id, version=t.version)
+
+
+save.register(
+    save.Kind(
+        prefix="TyPrc",
+        entity=Typed,
+        fields=TypedPriceRecord,
+        create=_typed_create,
+        editable=_typed_editable,
+        current=lambda ctx, t: {"instrumentId": t.instrumentId, "date": t.date, "close": t.close},
+        update=_typed_update,
+        delete=_typed_delete,
+        read=_typed_read,
+    )
+)
 
 
 @router.get("/instruments/{instrument_id}/prices", response_model=list[Close])
@@ -368,5 +437,7 @@ def closes(
         # The closes every account shares, and the prices this user typed, which win their day.
         by_day = {p.date: Close(date=p.date, close=p.close, source=p.source) for p in s.scalars(q)}
         for p in s.scalars(t):
-            by_day[p.date] = Close(date=p.date, close=p.close, source="manual")
+            by_day[p.date] = Close(
+                date=p.date, close=p.close, source="manual", id=p.id, version=p.version
+            )
         return [by_day[d] for d in sorted(by_day)]

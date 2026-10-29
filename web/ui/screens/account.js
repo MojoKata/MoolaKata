@@ -4,13 +4,28 @@ import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
-import { LoanSummary, Schedule, TermsCard } from '../components/loan.js';
+import {
+  AnchorRec,
+  LoanRec,
+  LoanSummary,
+  newTerms,
+  Schedule,
+  TermsCard,
+} from '../components/loan.js';
 import { Payoff } from '../components/payoff.js';
 import { OptionTrade } from '../components/optiontrade.js';
 import { Items, ItemsSummary } from '../components/items.js';
 import { WalletCard } from '../components/wallet.js';
 import { SyncCard } from '../components/connections.js';
-import { Contributions, Goal, PlanCard, PlanFacts, Withdrawals } from '../components/edu.js';
+import {
+  Contributions,
+  EduPlanRec,
+  Goal,
+  loadPlan,
+  PlanCard,
+  PlanFacts,
+  Withdrawals,
+} from '../components/edu.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { ago, bitcoin, date, price, quantity, today } from '../app/format.js';
@@ -21,7 +36,7 @@ import { Chips, Empty, Failed, Loading, Tabs, Tile } from '../components/bits.js
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from '../components/fields.js';
+import { errAt, Field, FormError, Input, SwitchRow } from '../components/fields.js';
 import { ShareDialog } from '../components/share.js';
 import { TxTable } from '../components/txtable.js';
 import { toast } from '../components/toast.js';
@@ -29,11 +44,21 @@ import { RANGES, TimeChart } from '../charts/chart.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
-import { KEPT_BY, LOT_METHODS } from './new-account.js';
-import { TransactionDialog } from './transaction-dialog.js';
+import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
+import {
+  DraftDialog,
+  DraftForm,
+  RecField,
+  saveNow,
+  saveOne,
+  useDraft,
+} from '../components/draft-form.js';
+import { TransactionDialog, Txn } from './transaction-dialog.js';
+import { Record as Rec } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../components/pager.js';
 import { pageSize } from '../store/prefs.js';
-import { dec } from '../app/dec.js';
+import { Dec, dec } from '../app/dec.js';
 
 /** @param {{ id: string, tab?: string }} p */
 export default function Account({ id, tab }) {
@@ -590,68 +615,79 @@ function Mismatch({ a, check, all, again }) {
   `;
 }
 
+/** Whether a receiver counts an account shared with them in their own totals (S10.7). */
+class CountedRec extends Rec {
+  /** @override */
+  static prefix = 'CntAc';
+  /** @override */
+  static fields = FIELDS.CountedRecord;
+}
+
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function TypeBalance({ close, a }) {
   useDialogGuide('dialog-type-balance');
-  const [balance, setBalance] = useState('');
-  const [day, setDay] = useState(today());
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/anchors`, {
-      date: day,
-      balance: balance.replace(/[$,\s]/g, '').replace('−', '-'),
-    });
-    toast('Balance recorded and checked');
-    close(true);
-  });
+  const f = useDraft((draft) => {
+    draft.add(AnchorRec, { accountId: a.id, date: today() });
+  }, [a.id]);
+  const rec = /** @type {AnchorRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title="Type today's balance" close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Check</button>`}>
+    <${DraftDialog} f=${f} title="Type today's balance" close=${close} what="This balance"
+      label="Check" done="Balance recorded and checked">
       <p class="small dim" style=${{ marginTop: 0 }}>Copy the balance from ${a.institution ||
         'the institution'}'s site or app.
           MoolaKata checks it against its own for the same day.</p>
-      <div class="row">
-        <${Field} label="Balance" error=${errAt(save.error, 'balance')}>
-          <${Input} value=${balance} onInput=${setBalance}
-            inputmode="decimal" required />
-          </${Field}>
-          <${Field} label="As of" id="as-of" error=${errAt(save.error, 'date')}>
-            <${Input} type="date" value=${day} onInput=${setDay} />
-            </${Field}>
-            </div>
-            <${FormError} error=${save.error} shown=${['balance', 'date']} />
-            </${Dialog}>
+      ${rec
+        ? html`
+          <div class="row">
+            <${RecField} rec=${rec} name="balance" label="Balance" />
+            <${RecField} rec=${rec} name="date" label="As of" id="as-of" type="date" />
+          </div>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
 /** @param {{ close: (v?: any) => void, a: any, check: any }} p */
 function Adjust({ close, a, check }) {
   useDialogGuide('dialog-adjustment');
-  const [note, setNote] = useState('');
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/adjustments`, {
+  // The difference, as a transaction marked an adjustment (S1.11.4): the note says why.
+  const f = useDraft((draft) => {
+    draft.add(Txn, {
+      accountId: a.id,
       date: check.date,
-      amount: check.difference,
-      note,
-    });
-    toast('Recorded as a balance adjustment');
-    close(true);
-  });
+      kind: 'adjustment',
+      payee: 'Balance adjustment',
+      memo: '',
+    }).set('amount', Dec.of(check.difference));
+  }, [a.id, check.date]);
+  const rec = /** @type {Txn | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title="Accept as a balance adjustment" close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Record the adjustment</button>`}>
+    <${DraftDialog} f=${f} title="Accept as a balance adjustment" close=${close}
+      what="This adjustment" label="Record the adjustment"
+      done="Recorded as a balance adjustment">
       <p class="small dim"
         style=${{ marginTop: 0 }}>A transaction of <${Amt} v=${check
           .difference} signed /> on ${date(check.date)},
           marked as an adjustment, in the account and in Activity.</p>
-      <${Field} label="Why" id="note" error=${errAt(save.error, 'note')}>
-        <${Input} value=${note} onInput=${setNote} required
-          placeholder="A fee the bank refunded" />
-        </${Field}>
-        <${FormError} error=${save.error} shown=${['note']} />
-        </${Dialog}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="memo" label="Why" id="note"
+            placeholder="A fee the bank refunded" />
+        `
+        : null}
+    </${DraftDialog}>
   `;
+}
+
+/** A statement ticked off against (S1.11.6): made by Start, finished by Mark reconciled. */
+class ReconRec extends Rec {
+  /** @override */
+  static prefix = 'Recon';
+  /** @override */
+  static fields = FIELDS.ReconciliationRecord;
+  /** @override */
+  static defaults = { finished: false };
 }
 
 /** @param {{ close: (v?: any) => void, a: any }} p */
@@ -662,21 +698,22 @@ function TickOff({ close, a }) {
   const [rec, setRec] = useState(/** @type {any} */ (null));
   const txns = useApi(rec ? '/transactions' : null, { account: a.id, to: day, limit: 500 });
   const start = useSubmit(async () => {
-    setRec(
-      await api.post(`/accounts/${a.id}/reconciliations`, {
-        statementDate: day,
-        statementBalance: balance.replace(/[$,\s]/g, '').replace('−', '-'),
-      }),
-    );
+    const [made] = await saveNow((d) => {
+      const r = d.add(ReconRec, { accountId: a.id });
+      r.input('statementDate', day);
+      r.input('statementBalance', balance);
+    });
+    setRec(made.record);
   });
   const tick = async (/** @type {any} */ t) => {
-    await api.patch(`/transactions/${t.id}`, { cleared: !t.cleared }, t.version);
+    // Each tick saves at once (S1.11.6), through the save every change of a transaction takes.
+    await saveNow((d) => d.load(Txn, t).set('cleared', !t.cleared));
     txns.reload();
     const all = await api.get(`/accounts/${a.id}/reconcile`);
     setRec(all.reconciliations.find((/** @type {any} */ r) => r.id === rec.id));
   };
   const finish = useSubmit(async () => {
-    await api.patch(`/reconciliations/${rec.id}`, { finish: true }, rec.version);
+    await saveNow((d) => d.load(ReconRec, { ...rec, accountId: a.id }).set('finished', true));
     toast('The period is reconciled');
     close(true);
   });
@@ -809,50 +846,36 @@ function Sharing({ a, reload }) {
   `;
 }
 
-/** @param {{ a: any, reload: () => void }} p */
+/**
+ * The account's Settings (S12.2.2): its own fields, and a loan's terms, in one form (S12.15),
+ * with a wallet's keys or a 529's plan beside it.
+ * @param {{ a: any, reload: () => void }} p
+ */
 function Settings({ a, reload }) {
   const { route } = useLocation();
   const owner = a.level === 'owner';
   const loan = BY_TYPE[a.type]?.loan;
   const physical = BY_TYPE[a.type]?.physical;
   const wallet = BY_TYPE[a.type]?.wallet;
-  const [f, setF] = useState({
-    name: a.name,
-    institution: a.institution || '',
-    mask: a.mask || '',
-    lotMethod: a.lotMethod,
-    keptBy: a.keptBy[0] || 'manual',
-    openingBalance: a.openingBalance || '',
-    openingDate: a.openingDate || '',
-    active: a.active,
-    countInNetWorth: a.countInNetWorth,
-  });
+  const education = BY_TYPE[a.type]?.education;
   const [armed, setArmed] = useState(false);
-  const set = (/** @type {string} */ k) => (/** @type {any} */ v) => setF({ ...f, [k]: v });
-  const save = useSubmit(async () => {
-    await api.patch(`/accounts/${a.id}`, {
-      name: f.name,
-      institution: f.institution || null,
-      mask: f.mask || null,
-      lotMethod: f.lotMethod,
-      keptBy: [f.keptBy],
-      openingBalance: f.openingBalance ? String(f.openingBalance).replace(/[$,\s]/g, '') : null,
-      openingDate: f.openingDate || null,
-      active: f.active,
-      countInNetWorth: f.countInNetWorth,
-    }, a.version);
-    toast('Saved');
-    reload();
-  });
+  const f = useDraft(async (draft) => {
+    draft.load(AcctRec, await api.get(`/accounts/${a.id}`));
+    if (education) await loadPlan(draft, a.id);
+    if (!loan) return;
+    // The loan's terms, saved with the account's settings; made once typed in (S1.9).
+    const terms = (await api.get(`/accounts/${a.id}/loan`)).terms;
+    if (terms) draft.load(LoanRec, { ...terms, accountId: a.id });
+    else draft.add(LoanRec, newTerms(a.type, a.id), { optional: true });
+  }, [a.id]);
+  // A receiver's Count in my totals: a record of their own (S10.7).
   const counted = useSubmit(async (/** @type {boolean} */ v) => {
-    await api.put(`/accounts/${a.id}/counted`, { counted: v });
+    const row = a.countedId
+      ? { id: a.countedId, version: a.countedVersion, accountId: a.id, counted: a.counted }
+      : null;
+    await saveOne(CountedRec, row, { accountId: a.id, counted: v });
     toast(v ? 'Counted in your totals' : 'Left out of your totals');
     reload();
-  });
-  const remove = useSubmit(async () => {
-    await api.del(`/accounts/${a.id}`, a.version);
-    toast(`${a.name} deleted`);
-    route('/ui/accounts');
   });
   if (!owner) {
     return html`
@@ -864,150 +887,121 @@ function Settings({ a, reload }) {
       </div>
     `;
   }
-  const e = save.error;
+  const rec = /** @type {AcctRec | undefined} */ (f.draft?.records[0]);
+  const terms = /** @type {LoanRec | undefined} */ (
+    f.draft?.records.find((r) => r instanceof LoanRec)
+  );
+  const plan = /** @type {EduPlanRec | undefined} */ (
+    f.draft?.records.find((r) => r instanceof EduPlanRec)
+  );
+  /** How it is kept current, for the types kept from files or statements. */
+  const keeping = (/** @type {AcctRec} */ r) =>
+    html`
+      <${KeptBy} rec=${r} label="Method" />
+      <${SyncCard} rec=${r} />
+      <${StatementsExpected} a=${a} rec=${r} />
+    `;
   return html`
-    <div class="grid g2">
-      <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-        ev.preventDefault();
-        save.run().catch(() => {});
-      }}>
-        <h3>Account</h3>
-        <${Field} label="Name" error=${errAt(e, 'name')}>
-          <${Input} value=${f.name} onInput=${set('name')} required />
-          </${Field}>
-          <div class="row">
-            <${Field} label="Institution" error=${errAt(e, 'institution')}>
-              <${Input} value=${f.institution} onInput=${set('institution')} />
-              </${Field}>
-              <${Field} label="Last 4" id="mask"
-                error=${errAt(e, 'mask')}><${Input} value=${f.mask} onInput=${set(
-                  'mask',
-                )} /></${Field}></div>
-        ${a.investing
-          ? html`
-            <${Field} label="Lot method" error=${errAt(e, 'lotMethod')}
-              hint="How sales pick lots. The method in force at a sale is recorded with it.">
-              <${Select} value=${f.lotMethod}
-                onChange=${set('lotMethod')} options=${LOT_METHODS} />
-              </${Field}>
-          `
-          : null}
-        ${loan || physical || wallet ? null : html`
-          <div class="row">
-            <${Field} label="Opening balance" error=${errAt(
-              e,
-              'openingBalance',
-            )}>
-              <${Input} value=${f.openingBalance}
-                onInput=${set('openingBalance')} inputmode="decimal" />
-              </${Field}>
-              <${Field} label="Opening balance date" id="opening-date" error=${errAt(
-                e,
-                'openingDate',
-              )}>
-                <${Input} type="date" value=${f.openingDate}
-                  onInput=${set('openingDate')} />
-                </${Field}>
-                </div>
-        `}
-        <${SwitchRow} label="Active" hint="A closed account stays for history and taxes." on=${f
-          .active} onChange=${set('active')} />
-        <${SwitchRow} label="Count in net worth" hint="Your totals include it." on=${f
-          .countInNetWorth} onChange=${set('countInNetWorth')} />
-        <${FormError} error=${e} shown=${[
-          'name',
-          'institution',
-          'mask',
-          'lotMethod',
-          'openingBalance',
-          'openingDate',
-        ]} />
-        <div class="toolbar mt"><button type="button" class="btn danger" onClick=${() => (armed
-          ? remove.run()
-          : setArmed(true))}>${armed
-          ? 'Click again to delete'
-          : 'Delete account…'}</button><span class="spacer"></span><button class="btn primary" disabled=${save
-          .busy}>Save</button></div>
-      </form>
-      ${loan
+    <${DraftForm} f=${f} where="the account's settings" what="This account" done="Saved"
+      saved=${() => {
+        toast('Saved');
+        f.reload();
+        reload();
+      }}
+      extra=${({ save }) =>
+        html`
+          <button type="button" class="btn danger" disabled=${save.busy}
+            onClick=${async () => {
+              if (!armed || !rec || !f.draft) return setArmed(true);
+              f.draft.remove(rec);
+              const r = await save.run().catch(() => null);
+              if (r?.status === 'saved') {
+                toast(`${a.name} deleted`);
+                route('/ui/accounts');
+              } else if (r?.status !== 'asks') f.draft.unremove(rec);
+            }}>${armed ? 'Click again to delete' : 'Delete account…'}</button>
+        `}>
+      ${rec
         ? html`
-          <div class="grid" style=${{ alignContent: 'start' }}>
-            <${TermsCard} a=${a} />
-            <div
-              class="card">
-              <h3>Statements</h3>
-              <${StatementsExpected} a=${a} reload=${reload}
-              />
-            </div>
-          </div>
-        `
-        : BY_TYPE[a.type]?.wallet
-        ? html`<${WalletCard} a=${a} />`
-        : BY_TYPE[a.type]?.education
-        ? html`
-          <div class="grid" style=${{ alignContent: 'start' }}>
-            <${PlanCard} a=${a} />
+          <div class="grid g2">
             <div class="card">
-              <h3>Keeping it current</h3>
-              <${Field} label="Method" id="kept-by">
-                <${Select}
-                  value=${f.keptBy} onChange=${set('keptBy')} options=${KEPT_BY} />
-                </${Field}>
-                <${SyncCard} a=${a} reload=${reload} />
-                <${StatementsExpected} a=${a} reload=${reload} />
+              <h3>Account</h3>
+              <${RecField} rec=${rec} name="name" label="Name" />
+              <div class="row">
+                <${RecField} rec=${rec} name="institution" label="Institution" />
+                <${RecField} rec=${rec} name="mask" label="Last 4" id="mask" />
+              </div>
+              ${a.investing
+                ? html`
+                  <${RecField} rec=${rec} name="lotMethod" label="Lot method"
+                    options=${LOT_METHODS}
+                    hint="How sales pick lots. The method in force at a sale is recorded with it." />
+                `
+                : null}
+              ${loan || physical || wallet ? null : html`
+                <div class="row">
+                  <${RecField} rec=${rec} name="openingBalance" label="Opening balance" />
+                  <${RecField} rec=${rec} name="openingDate" label="Opening balance date"
+                    id="opening-date" type="date" />
                 </div>
+              `}
+              <${RecField} rec=${rec} name="active" label="Active"
+                hint="A closed account stays for history and taxes." />
+              <${RecField} rec=${rec} name="countInNetWorth" label="Count in net worth"
+                hint="Your totals include it." />
+            </div>
+            ${loan && terms
+              ? html`
+                <div class="grid" style=${{ alignContent: 'start' }}>
+                  <${TermsCard} a=${a} rec=${terms} />
+                  <div class="card">
+                    <h3>Statements</h3>
+                    <${StatementsExpected} a=${a} rec=${rec} />
+                  </div>
                 </div>
-        `
-        : physical
-        ? html`
-          <div class="card">
-            <h3>Keeping it current</h3>
-            <p class="small dim">Its value is
-                    its items': add them, and their valuations, on the Items tab.</p>
+              `
+              : wallet
+              ? html`<${WalletCard} a=${a} rec=${rec} />`
+              : physical
+              ? html`
+                <div class="card">
+                  <h3>Keeping it current</h3>
+                  <p class="small dim">Its value is its items': add them, and their valuations,
+                    on the Items tab.</p>
+                </div>
+              `
+              : education && plan && f.draft
+              ? html`
+                <div class="grid" style=${{ alignContent: 'start' }}>
+                  <${PlanCard} rec=${plan} draft=${f.draft} />
+                  <div class="card">
+                    <h3>Keeping it current</h3>
+                    ${keeping(rec)}
+                  </div>
+                </div>
+              `
+              : html`
+                <div class="card">
+                  <h3>Keeping it current</h3>
+                  ${keeping(rec)}
+                  ${education
+                    ? null
+                    : html`<p class="small dim">Import OFX, QFX or CSV files from the Transactions
+                      tab. A CSV's columns are asked once per institution and remembered.</p>`}
+                  ${['savings', 'money-market'].includes(a.type)
+                    ? html`
+                      <${RecField} rec=${rec} name="withdrawalsAMonth"
+                        label="Withdrawals allowed a month" id="withdrawals-a-month"
+                        placeholder="no limit"
+                        hint="The bank's limit, empty for none. Budgets sum the moves back within it." />
+                    `
+                    : null}
+                </div>
+              `}
           </div>
         `
-        : html`
-          <div class="card">
-            <h3>Keeping it current</h3>
-            <${Field} label="Method" id="kept-by">
-              <${Select} value=${f.keptBy} onChange=${set(
-                'keptBy',
-              )} options=${KEPT_BY} />
-              </${Field}>
-              <p
-                class="small dim">Import OFX, QFX or CSV files from the Transactions tab. A CSV's columns are asked
-                    once per institution and remembered.</p>
-              <${SyncCard} a=${a} reload=${reload} />
-              <${StatementsExpected} a=${a} reload=${reload} />
-              ${['savings', 'money-market'].includes(a.type)
-                ? html`<${WithdrawalsLimit} a=${a} reload=${reload} />`
-                : null}
-              </div>
-        `}</div>
-  `;
-}
-
-/**
- * A savings account's limit on withdrawals a month, the bank's (S1.2): budgets keep the moves
- * back within it.
- * @param {{ a: any, reload: () => void }} p
- */
-function WithdrawalsLimit({ a, reload }) {
-  const [value, setValue] = useState(a.withdrawalsAMonth ? String(a.withdrawalsAMonth) : '');
-  const change = useSubmit(async () => {
-    await api.patch(`/accounts/${a.id}`, {
-      withdrawalsAMonth: value.trim() ? Number(value) : null,
-    }, a.version);
-    toast('Saved');
-    reload();
-  });
-  return html`
-    <${Field} label="Withdrawals allowed a month" id="withdrawals-a-month"
-      error=${errAt(change.error, 'withdrawalsAMonth')}
-      hint="The bank's limit, empty for none. Budgets sum the moves back within it.">
-      <${Input} value=${value} onInput=${setValue} inputmode="numeric" placeholder="no limit"
-        onBlur=${() => change.run().catch(() => {})} />
-      </${Field}>
+        : null}
+    </${DraftForm}>
   `;
 }
 
@@ -1020,43 +1014,29 @@ const INTERVALS = /** @type {[string, string][]} */ ([
 
 /**
  * How often the institution issues statements (S1.11.7): an overdue one raises an alert. Set
- * here or following the account's type; one learned from what arrives is proposed.
- * @param {{ a: any, reload: () => void }} p
+ * here or following the account's type; one learned from what arrives is proposed, to use or
+ * set aside with the form's Save.
+ * @param {{ a: any, rec: AcctRec }} p
  */
-function StatementsExpected({ a, reload }) {
-  const change = useSubmit(async (/** @type {any} */ body) => {
-    await api.patch(`/accounts/${a.id}`, body, a.version);
-    reload();
-  });
+function StatementsExpected({ a, rec }) {
   const label = (/** @type {string} */ k) => INTERVALS.find(([x]) => x === k)?.[1] || k;
   const p = a.statementIntervalProposal;
   return html`
-    <${Field} label="Statements expected" id="statements-expected" error=${errAt(
-      change.error,
-      'statementInterval',
-    )}
-      hint="An alert asks for a statement once it is overdue: the interval and a grace period after it.">
-      <${Select} value=${a.statementInterval || ''} onChange=${(/** @type {string} */ v) =>
-        change.run({ statementInterval: v || null }).then(() => toast('Saved')).catch(() => {})}
-        options=${[
-          ['', `As the type: ${label(a.statementIntervalDefault).toLowerCase()}`],
-          ...INTERVALS,
-        ]} />
-    </${Field}>
-    ${p
+    <${RecField} rec=${rec} name="statementInterval" label="Statements expected"
+      id="statements-expected"
+      hint="An alert asks for a statement once it is overdue: the interval and a grace period after it."
+      options=${[
+        ['', `As the type: ${label(a.statementIntervalDefault).toLowerCase()}`],
+        ...INTERVALS,
+      ]} />
+    ${p && rec.get('statementInterval') !== p && rec.get('statementIntervalDismissed') !== p
       ? html`
         <div class="notice" role="status">
           <${Icon} name="info" />
-          <div>Statements seem to
-                  arrive ${label(p)
-                    .toLowerCase()}. <button type="button" class="btn sm" disabled=${change
-                    .busy} onClick=${() =>
-                    change.run({ statementInterval: p }).catch(() => {})}>Use ${label(p)
-                    .toLowerCase()}</button> <button type="button" class="btn sm" disabled=${change
-                    .busy} onClick=${() =>
-                    change.run({ dismissIntervalProposal: true }).catch(
-                      () => {},
-                    )}>Dismiss</button></div>
+          <div>Statements seem to arrive ${label(p).toLowerCase()}. <button type="button"
+              class="btn sm" onClick=${() => rec.set('statementInterval', p)}>Use ${label(p)
+                .toLowerCase()}</button> <button type="button" class="btn sm"
+              onClick=${() => rec.set('statementIntervalDismissed', p)}>Dismiss</button></div>
         </div>
       `
       : null}

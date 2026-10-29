@@ -3,12 +3,13 @@ filers and the accounts they count, filings with their estimated payments and th
 carry forward, and tax documents received and filed, against the documents expected."""
 
 import datetime as dt
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, people, receipts
+from .. import access, activity, clock, exactjson, people, receipts
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.taxes import (
@@ -21,8 +22,10 @@ from ..store.entities.taxes import (
     TaxDocument,
 )
 from ..store.entities.users import User
+from ..store.rows import by_key
 from ..taxes import books, closed, dependents
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match
+from . import save
+from .conventions import ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["taxes"])
@@ -102,15 +105,7 @@ class NewBookOut(BookRow):
     dependentsLeftOut: list[str]  # last year's, past a qualifying child's age (S8.14.5.4)
 
 
-class NewBook(Model):
-    year: int
-    filers: list[str]
-    fromLastYear: bool = True
-    bitcoinFees: str = "sale"  # or not-taxed, on transfers between the owner's accounts
-
-
-@router.post("/tax-books", response_model=NewBookOut, status_code=201)
-def create_book(body: NewBook, request: Request, c: Caller = Depends(caller)):
+def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
     """A book for a year and its filers: the caller, alone or with their spouse. With
     *from last year*, it copies last year's accounts left out or added, and its dependents a
     year older, leaving out and naming those past a qualifying child's age (S8.14.4)."""
@@ -122,43 +117,37 @@ def create_book(body: NewBook, request: Request, c: Caller = Depends(caller)):
         raise refuse("filers", "filers-invalid", "You are one of the filers.")
     if len(who) > 2:
         raise refuse("filers", "filers-invalid", "One filer, or two who are married.")
-    with server(request).db.tx() as s:
-        if len(who) == 2 and not people.joint_filers(s, who[0], who[1], body.year):
-            raise refuse(
-                "filers",
-                "not-married",
-                "Two filers file together only if married on the last day of the year.",
-            )
-        if body.bitcoinFees not in ("sale", "not-taxed"):
-            raise refuse("bitcoinFees", "choice-invalid", "A sale, or not taxed.")
-        b = TaxBook(
-            id=ids.new_id("TaxBk"),
-            ownerId=c.id,
-            year=body.year,
-            bitcoinFees=body.bitcoinFees,
-            fromLastYear=body.fromLastYear,
+    if len(who) == 2 and not people.joint_filers(s, who[0], who[1], body.year):
+        raise refuse(
+            "filers",
+            "not-married",
+            "Two filers file together only if married on the last day of the year.",
         )
-        s.add(b)
-        s.flush()
-        now = clock.now()
-        for u in who:
-            s.add(
-                TaxBookFiler(
-                    bookId=b.id, userId=u, createdAt=now, acceptedAt=now if u == c.id else None
-                )
+    if body.bitcoinFees not in ("sale", "not-taxed"):
+        raise refuse("bitcoinFees", "choice-invalid", "A sale, or not taxed.")
+    b = TaxBook(
+        id=book_id,
+        ownerId=c.id,
+        year=body.year,
+        bitcoinFees=body.bitcoinFees,
+        fromLastYear=body.fromLastYear,
+    )
+    s.add(b)
+    s.flush()
+    now = clock.now()
+    for u in who:
+        s.add(
+            TaxBookFiler(
+                bookId=b.id, userId=u, createdAt=now, acceptedAt=now if u == c.id else None
             )
-        s.flush()
-        left = _from_last_year(s, b, now)
-        activity.record(
-            s,
-            "tax-book.created",
-            actor=c.id,
-            subject_kind="tax-book",
-            subject_id=b.id,
-            owner=c.id,
         )
-        s.flush()
-        return NewBookOut(**_row(s, b, "owner").model_dump(), dependentsLeftOut=left)
+    s.flush()
+    left = _from_last_year(s, b, now)
+    activity.record(
+        s, "tax-book.created", actor=c.id, subject_kind="tax-book", subject_id=b.id, owner=c.id
+    )
+    s.flush()
+    return b, left
 
 
 def _from_last_year(s, b: TaxBook, now: dt.datetime) -> list[str]:
@@ -208,18 +197,6 @@ def accept(book_id: str, request: Request, c: Caller = Depends(caller)):
         return _row(s, b, "owner")
 
 
-@router.delete("/tax-books/{book_id}", response_model=Deleted[None])
-def delete_book(
-    book_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "owner")
-        check(b, version, lambda: _row(s, b, lvl))
-        b.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(b))
-
-
 # ---- A book in full ----
 
 
@@ -228,6 +205,9 @@ class AccountRef(Model):
     name: str
     type: str
     ownerName: str
+    # Its change in this book (TaxBookAccount), a record of the save: added or left out.
+    rowId: str | None = None
+    rowVersion: int = 0
 
 
 class Payment(Model):
@@ -243,6 +223,7 @@ class PaymentView(Model):
     """A payment as shown; its own model, so the contract has one schema each way."""
 
     id: str | None
+    version: int
     quarter: int
     dueDate: dt.date | None
     amount: Money
@@ -383,9 +364,16 @@ def _dependent(d: dependents.Dependent) -> DependentOut:
     )
 
 
-def _acct(s, a: Account) -> AccountRef:
+def _acct(s, a: Account, book_id: str | None = None) -> AccountRef:
+    row = by_key(s, TaxBookAccount, bookId=book_id, accountId=a.id) if book_id else None
+    live = row is not None and not row.deleted
     return AccountRef(
-        id=a.id, name=a.name, type=a.type, ownerName=s.get(User, a.ownerId).displayName
+        id=a.id,
+        name=a.name,
+        type=a.type,
+        ownerName=s.get(User, a.ownerId).displayName,
+        rowId=row.id if live else None,
+        rowVersion=row.version if live else 0,
     )
 
 
@@ -452,6 +440,7 @@ def _filing(s, f: Filing, docs: list[TaxDocument], today: dt.date) -> FilingOut:
         payments=[
             PaymentView(
                 id=p.id,
+                version=p.version,
                 quarter=p.quarter,
                 dueDate=p.dueDate,
                 amount=p.amount,
@@ -494,9 +483,9 @@ def detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
             Form8615Out(**f.__dict__) for f in dependents.form_8615(s, b, deps, cnt.accounts)
         ],
         claimedElsewhere=[p.name for p in dependents.filers_claimed_elsewhere(s, b)],
-        accounts=[_acct(s, a) for a in cnt.accounts],
-        leftOut=[_acct(s, a) for a in cnt.leftOut],
-        addable=[_acct(s, a) for a in addable],
+        accounts=[_acct(s, a, b.id) for a in cnt.accounts],
+        leftOut=[_acct(s, a, b.id) for a in cnt.leftOut],
+        addable=[_acct(s, a, b.id) for a in addable],
         filings=[_filing(s, f, docs, today) for f in books.filings(s, b)],
         expected=[
             ExpectedOut(
@@ -530,66 +519,78 @@ def get_book(book_id: str, request: Request, c: Caller = Depends(caller)):
         return detail(s, c, b, lvl)
 
 
-class BookChange(Model):
-    bitcoinFees: str
+class BookAccountRecord(Model):
+    """An account a tax book counts or leaves out beyond what its filers' own say (S8.14.2):
+    one the caller can see added (a custodial account in a child's name), or one of the
+    filers' own left out. Deleted, the book counts it as its filers' accounts say."""
+
+    bookId: IdOf("TaxBk")  # type: ignore[valid-type]
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    counted: bool
 
 
-@router.patch("/tax-books/{book_id}", response_model=BookDetail)
-def change_book(
-    book_id: str,
-    body: BookChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """How the book reads bitcoin network fees on transfers between the owner's accounts
-    (S8.19): a sale, the default, or not taxed, as a preparer may read them."""
-    if body.bitcoinFees not in ("sale", "not-taxed"):
-        raise refuse("bitcoinFees", "choice-invalid", "A sale, or not taxed.")
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        check(b, version, lambda: detail(s, c, b, lvl))
-        b.bitcoinFees = body.bitcoinFees
-        b.updatedAt = clock.now()
-        s.flush()
-        return detail(s, c, b, lvl)
+def _book_account_filer(ctx, book_id: str):
+    b, lvl = books.get(ctx.s, ctx.caller.id, book_id, "read")
+    if lvl != "owner":  # a helper edits filings, never what the book counts (S8.14.3)
+        raise refuse(None, "filers-only", "Only its filers add or leave out accounts.", 403)
+    return b
 
 
-class CountIn(Model):
-    counted: bool | None  # None: as the filers' ownership says
+def _book_account_create(ctx, record_id: str, body: BookAccountRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    b = _book_account_filer(ctx, body.bookId)
+    access.account(s, c.id, body.accountId)
+    have = by_key(s, TaxBookAccount, bookId=b.id, accountId=body.accountId)
+    if have is not None and not have.deleted:
+        raise refuse("accountId", "account-in-book", "It is in the book: change it.", 409)
+    s.add(
+        TaxBookAccount(
+            id=record_id,
+            bookId=b.id,
+            accountId=body.accountId,
+            counted=body.counted,
+            addedById=c.id,
+        )
+    )
 
 
-@router.put("/tax-books/{book_id}/accounts/{account_id}", response_model=BookDetail)
-def count_account(
-    book_id: str, account_id: str, body: CountIn, request: Request, c: Caller = Depends(caller)
-):
-    """Add an account the caller can see (a custodial account in a child's name), or leave
-    one of the filers' own out (S8.14.2)."""
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "read")
-        if lvl != "owner":  # a helper edits filings, never what the book counts (S8.14.3)
-            raise Problem(403, "filers-only", "Only its filers add or leave out accounts.")
-        access.account(s, c.id, account_id)
-        row = s.get(TaxBookAccount, (b.id, account_id))
-        if body.counted is None:
-            if row is not None and not row.deleted:
-                row.mark_deleted(c.id, clock.now())
-        elif row is None:
-            s.add(
-                TaxBookAccount(
-                    bookId=b.id,
-                    accountId=account_id,
-                    counted=body.counted,
-                    addedById=c.id,
-                    createdAt=clock.now(),
-                )
-            )
-        else:
-            row.counted = body.counted
-            row.addedById = c.id
-            row.restore()
-        s.flush()
-        return detail(s, c, b, lvl)
+def _book_account_editable(ctx, record_id: str) -> TaxBookAccount:
+    row = ctx.s.get(TaxBookAccount, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _book_account_filer(ctx, row.bookId)
+    return row
+
+
+def _book_account_update(ctx, row: TaxBookAccount, body: BookAccountRecord) -> None:
+    if (body.bookId, body.accountId) != (row.bookId, row.accountId):
+        raise refuse("accountId", "account-fixed", "It stays with its book and account.")
+    row.counted, row.addedById = body.counted, ctx.caller.id
+
+
+def _book_account_read(ctx, record_id: str) -> BookDetail:
+    row = ctx.s.get(TaxBookAccount, record_id)
+    b, lvl = books.get(ctx.s, ctx.caller.id, row.bookId, "read")
+    return detail(ctx.s, ctx.caller, b, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="TxBkA",
+        entity=TaxBookAccount,
+        fields=BookAccountRecord,
+        create=_book_account_create,
+        editable=_book_account_editable,
+        current=lambda ctx, row: {
+            "bookId": row.bookId,
+            "accountId": row.accountId,
+            "counted": row.counted,
+        },
+        update=_book_account_update,
+        delete=lambda ctx, row: row.mark_deleted(ctx.caller.id),
+        read=_book_account_read,
+    )
+)
 
 
 # ---- Dependents (S8.14.5) ----
@@ -659,57 +660,12 @@ def _dependent_values(s, c: Caller, b: TaxBook, body: DependentIn, row_id: str |
     }
 
 
-@router.post("/tax-books/{book_id}/dependents", response_model=BookDetail, status_code=201)
-def add_dependent(book_id: str, body: DependentIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        d = TaxBookDependent(
-            id=ids.new_id("TxDep"), bookId=b.id, **_dependent_values(s, c, b, body, None)
-        )
-        s.add(d)
-        s.flush()
-        dependents.set_accounts(s, d, list(dict.fromkeys(body.accountIds)), clock.now())
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
 def _own_dependent(s, c: Caller, dep_id: str) -> tuple[TaxBookDependent, TaxBook, str]:
     d = s.get(TaxBookDependent, dep_id)
     if d is None or d.deleted:
         raise Problem(404, "not-found", "Not found")
     b, lvl = books.get(s, c.id, d.bookId, "write")
     return d, b, lvl
-
-
-@router.patch("/tax-dependents/{dep_id}", response_model=BookDetail)
-def change_dependent(
-    dep_id: str,
-    body: DependentIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        d, b, lvl = _own_dependent(s, c, dep_id)
-        check(d, version, lambda: detail(s, c, b, lvl))
-        for k, v in _dependent_values(s, c, b, body, d.id).items():
-            setattr(d, k, v)
-        d.updatedAt = clock.now()
-        dependents.set_accounts(s, d, list(dict.fromkeys(body.accountIds)), clock.now())
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
-@router.delete("/tax-dependents/{dep_id}", response_model=Deleted[BookDetail])
-def delete_dependent(
-    dep_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        d, b, lvl = _own_dependent(s, c, dep_id)
-        check(d, version, lambda: detail(s, c, b, lvl))
-        d.mark_deleted(c.id)
-        s.flush()
-        return Deleted[BookDetail](deleted=gone(d), parent=detail(s, c, b, lvl))
 
 
 # ---- Filings (S8.15) ----
@@ -765,7 +721,7 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         e.append(FieldError("resultKind", "result-invalid", "A refund, an amount owed, nothing."))
     if body.progress in ("filed", "accepted") and not body.filedOn:
         e.append(FieldError("filedOn", "filed-on-missing", "The day it was filed."))
-    for i, p in enumerate(body.payments):
+    for i, p in enumerate(getattr(body, "payments", [])):
         if not 1 <= p.quarter <= 4:
             e.append(FieldError(f"payments.{i}.quarter", "quarter-invalid", "1 to 4."))
         if p.amount < 0:
@@ -776,7 +732,10 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         amended = s.get(Filing, body.amendsId)
         if amended is None or amended.deleted or amended.bookId != b.id:
             raise refuse("amendsId", "filing-unknown", "One of this book's filings.")
-    for t_id in [body.resultTransactionId, *[p.transactionId for p in body.payments]]:
+    for t_id in [
+        body.resultTransactionId,
+        *[p.transactionId for p in getattr(body, "payments", [])],
+    ]:
         if t_id:
             t = s.get(Transaction, t_id)
             if t is None or t.deleted:
@@ -808,39 +767,9 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
     }
 
 
-def _set_payments(s, f: Filing, pays: list[Payment], user_id: str) -> None:
-    for p in s.scalars(select(EstimatedPayment).where(EstimatedPayment.filingId == f.id)):
-        if not p.deleted:
-            p.mark_deleted(user_id)
-    for p in pays:
-        s.add(
-            EstimatedPayment(
-                id=ids.new_id("EstPy"),
-                filingId=f.id,
-                quarter=p.quarter,
-                dueDate=p.dueDate,
-                amount=p.amount,
-                paidOn=p.paidOn,
-                transactionId=p.transactionId or None,
-            )
-        )
-
-
-@router.post("/tax-books/{book_id}/filings", response_model=BookDetail, status_code=201)
-def add_filing(book_id: str, body: FilingIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        f = Filing(id=ids.new_id("Filng"), bookId=b.id, **_filing_values(s, c, b, body))
-        s.add(f)
-        s.flush()
-        _set_payments(s, f, body.payments, c.id)
-        _amending(s, c, b, f)
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
 def _amending(s, c: Caller, b: TaxBook, f: Filing) -> None:
-    """An amended federal return settles the edits made since the return was filed (S8.15)."""
+    """A filing made an amended federal return settles the edits made anyway before it
+    (S8.15); one changed afterwards settles nothing more (CR3-35)."""
     if f.jurisdiction == "federal" and f.amendsId:
         closed.settle(s, b, c.id, "amended")
 
@@ -851,40 +780,6 @@ def _own_filing(s, c: Caller, filing_id: str) -> tuple[Filing, TaxBook, str]:
         raise Problem(404, "not-found", "Not found")
     b, lvl = books.get(s, c.id, f.bookId, "write")
     return f, b, lvl
-
-
-@router.patch("/filings/{filing_id}", response_model=BookDetail)
-def change_filing(
-    filing_id: str,
-    body: FilingIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        f, b, lvl = _own_filing(s, c, filing_id)
-        check(f, version, lambda: detail(s, c, b, lvl))
-        if body.amendsId == f.id:
-            raise refuse("amendsId", "amends-itself", "A filing can't amend itself.")
-        for k, v in _filing_values(s, c, b, body).items():
-            setattr(f, k, v)
-        f.updatedAt = clock.now()
-        _set_payments(s, f, body.payments, c.id)
-        _amending(s, c, b, f)
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
-@router.delete("/filings/{filing_id}", response_model=Deleted[BookDetail])
-def delete_filing(
-    filing_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        f, b, lvl = _own_filing(s, c, filing_id)
-        check(f, version, lambda: detail(s, c, b, lvl))
-        f.mark_deleted(c.id)
-        s.flush()
-        return Deleted[BookDetail](deleted=gone(f), parent=detail(s, c, b, lvl))
 
 
 # ---- Tax documents (S8.16) ----
@@ -900,7 +795,7 @@ class DocumentIn(Model):
     notes: str | None = None
 
 
-def _doc_values(s, c: Caller, b: TaxBook, body: DocumentIn) -> dict:
+def _doc_values(s, c: Caller, b: TaxBook, body: DocumentIn, had: str | None = None) -> dict:
     e: list[FieldError] = []
     if body.direction not in ("received", "filed"):
         e.append(FieldError("direction", "direction-invalid", "Received or filed."))
@@ -916,7 +811,7 @@ def _doc_values(s, c: Caller, b: TaxBook, body: DocumentIn) -> dict:
             raise refuse("filingId", "filing-unknown", "One of this book's filings.")
     if body.accountId:
         access.account(s, c.id, body.accountId)
-    if body.receiptId:
+    if body.receiptId and body.receiptId != had:
         receipts.to_attach(s, c.id, body.receiptId)
     return {
         "direction": body.direction,
@@ -929,51 +824,12 @@ def _doc_values(s, c: Caller, b: TaxBook, body: DocumentIn) -> dict:
     }
 
 
-@router.post("/tax-books/{book_id}/documents", response_model=BookDetail, status_code=201)
-def add_document(book_id: str, body: DocumentIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        s.add(TaxDocument(id=ids.new_id("TxDoc"), bookId=b.id, **_doc_values(s, c, b, body)))
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
 def _own_doc(s, c: Caller, doc_id: str) -> tuple[TaxDocument, TaxBook, str]:
     d = s.get(TaxDocument, doc_id)
     if d is None or d.deleted:
         raise Problem(404, "not-found", "Not found")
     b, lvl = books.get(s, c.id, d.bookId, "write")
     return d, b, lvl
-
-
-@router.patch("/tax-documents/{doc_id}", response_model=BookDetail)
-def change_document(
-    doc_id: str,
-    body: DocumentIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        d, b, lvl = _own_doc(s, c, doc_id)
-        check(d, version, lambda: detail(s, c, b, lvl))
-        for k, v in _doc_values(s, c, b, body).items():
-            setattr(d, k, v)
-        d.updatedAt = clock.now()
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
-@router.delete("/tax-documents/{doc_id}", response_model=Deleted[BookDetail])
-def delete_document(
-    doc_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        d, b, lvl = _own_doc(s, c, doc_id)
-        check(d, version, lambda: detail(s, c, b, lvl))
-        d.mark_deleted(c.id)
-        s.flush()
-        return Deleted[BookDetail](deleted=gone(d), parent=detail(s, c, b, lvl))
 
 
 class Forms(Model):
@@ -985,3 +841,339 @@ class Forms(Model):
 @router.get("/tax-forms", response_model=Forms)
 def forms(request: Request, c: Caller = Depends(caller)):
     return Forms(received=list(RECEIVED_FORMS), filed=list(FILED_FORMS), statuses=list(STATUSES))
+
+
+# ---------- filings and their estimated payments in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class FilingRecord(Model):
+    """A filing as a draft saves it: its estimated payments are records of their own
+    (`EstPy`), so each keeps its matched transaction."""
+
+    bookId: IdOf("TaxBk")  # type: ignore[valid-type]
+    jurisdiction: Literal["federal", "state", "local"] = "federal"
+    place: str | None = None
+    form: str = "Form 1040"
+    amendsId: IdOf("Filng") | None = None  # type: ignore[valid-type]
+    filingStatus: str | None = None
+    preparedBy: str | None = None
+    sentBy: str | None = None
+    progress: str = "not started"
+    dueDate: dt.date | None = None
+    extensionFiledOn: dt.date | None = None
+    extendedDue: dt.date | None = None
+    filedOn: dt.date | None = None
+    confirmation: str | None = None
+    resultKind: str | None = None
+    resultAmount: Money | None = None
+    resultTransactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
+    carried: Carried = Field(default_factory=Carried)
+
+
+class PaymentRecord(Model):
+    """An estimated tax payment of a filing (S8.15), matched to its transaction."""
+
+    filingId: IdOf("Filng")  # type: ignore[valid-type]
+    quarter: int
+    dueDate: dt.date | None = None
+    amount: Money
+    paidOn: dt.date | None = None
+    transactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
+
+
+FILING_FIELDS = tuple(f for f in FilingRecord.model_fields if f not in ("bookId", "carried"))
+
+
+def _filing_create(ctx, record_id: str, body: FilingRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    b, _ = books.get(s, c.id, body.bookId, "write")
+    f = Filing(id=record_id, bookId=b.id, **_filing_values(s, c, b, body))
+    s.add(f)
+    s.flush()
+    _amending(s, c, b, f)
+
+
+def _filing_editable(ctx, record_id: str) -> Filing:
+    return _own_filing(ctx.s, ctx.caller, record_id)[0]
+
+
+def _filing_current(ctx, f: Filing) -> dict:
+    carried = {
+        k: v for k, v in exactjson.loads(f.carried or "{}").items() if k in Carried.model_fields
+    }
+    return {"bookId": f.bookId, "carried": carried, **{k: getattr(f, k) for k in FILING_FIELDS}}
+
+
+def _filing_update(ctx, f: Filing, body: FilingRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if body.bookId != f.bookId:
+        raise refuse("bookId", "filing-fixed", "A filing stays in its book.")
+    if body.amendsId == f.id:
+        raise refuse("amendsId", "amends-itself", "A filing can't amend itself.")
+    b, _ = books.get(s, c.id, f.bookId, "write")
+    was = f.jurisdiction == "federal" and f.amendsId is not None
+    for k, v in _filing_values(s, c, b, body).items():
+        setattr(f, k, v)
+    f.updatedAt = clock.now()
+    if not was:
+        _amending(s, c, b, f)
+
+
+def _filing_delete(ctx, f: Filing) -> None:
+    """Its estimated payments go with it (schema.md §4)."""
+    f.mark_deleted(ctx.caller.id)
+
+
+def _filing_read(ctx, record_id: str) -> FilingOut:
+    s = ctx.s
+    f = s.get(Filing, record_id)
+    docs = list(s.scalars(select(TaxDocument).where(TaxDocument.bookId == f.bookId)))
+    return _filing(s, f, [d for d in docs if not d.deleted], clock.today())
+
+
+def _payment_values(ctx, body: PaymentRecord) -> dict:
+    e: list[FieldError] = []
+    if not 1 <= body.quarter <= 4:
+        e.append(FieldError("quarter", "quarter-invalid", "1 to 4."))
+    if body.amount < 0:
+        e.append(FieldError("amount", "amount-invalid", "Zero or more."))
+    if e:
+        raise Problem(422, e[0].code, e[0].message, e)
+    if body.transactionId:
+        t = ctx.s.get(Transaction, body.transactionId)
+        if t is None or t.deleted:
+            raise refuse("transactionId", "not-found", "No such transaction.")
+        access.account(ctx.s, ctx.caller.id, t.accountId)
+    return body.model_dump(exclude={"filingId"})
+
+
+def _payment_create(ctx, record_id: str, body: PaymentRecord) -> None:
+    _own_filing(ctx.s, ctx.caller, body.filingId)
+    ctx.s.add(EstimatedPayment(id=record_id, filingId=body.filingId, **_payment_values(ctx, body)))
+
+
+def _payment_editable(ctx, record_id: str) -> EstimatedPayment:
+    p = ctx.s.get(EstimatedPayment, record_id)
+    if p is None or p.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _own_filing(ctx.s, ctx.caller, p.filingId)
+    return p
+
+
+PAYMENT_FIELDS = ("quarter", "dueDate", "amount", "paidOn", "transactionId")
+
+
+def _payment_update(ctx, p: EstimatedPayment, body: PaymentRecord) -> None:
+    if body.filingId != p.filingId:
+        raise refuse("filingId", "payment-fixed", "A payment stays with its filing.")
+    for k, v in _payment_values(ctx, body).items():
+        setattr(p, k, v)
+
+
+def _payment_read(ctx, record_id: str) -> PaymentView:
+    p = ctx.s.get(EstimatedPayment, record_id)
+    return PaymentView(id=p.id, version=p.version, **{k: getattr(p, k) for k in PAYMENT_FIELDS})
+
+
+save.register(
+    save.Kind(
+        prefix="Filng",
+        entity=Filing,
+        fields=FilingRecord,
+        create=_filing_create,
+        editable=_filing_editable,
+        current=_filing_current,
+        update=_filing_update,
+        delete=_filing_delete,
+        read=_filing_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="EstPy",
+        entity=EstimatedPayment,
+        fields=PaymentRecord,
+        create=_payment_create,
+        editable=_payment_editable,
+        current=lambda ctx, p: {
+            "filingId": p.filingId,
+            **{k: getattr(p, k) for k in PAYMENT_FIELDS},
+        },
+        update=_payment_update,
+        delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
+        read=_payment_read,
+    )
+)
+
+
+# ---------- a book, its dependents and documents in a dialog's draft (S12.15, S13.8.11) ----------
+
+
+class BookRecord(Model):
+    """A tax book as a draft saves it (S8.14): its year and filers are chosen when it is made;
+    how it reads bitcoin network fees may change (S8.19)."""
+
+    year: int
+    filers: list[IdOf("User")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+    fromLastYear: bool = True
+    bitcoinFees: Literal["sale", "not-taxed"] = "sale"
+
+
+class DependentRecord(DependentIn):
+    """A dependent of a book (S8.14.5), with the accounts in their name it counts."""
+
+    bookId: IdOf("TaxBk")  # type: ignore[valid-type]
+    accountIds: list[str] = Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+
+
+class DocumentRecord(DocumentIn):
+    """A tax document of a book (S8.16), received or filed, with its file."""
+
+    bookId: IdOf("TaxBk")  # type: ignore[valid-type]
+
+
+def _book_create(ctx, record_id: str, body: BookRecord) -> None:
+    _, left = _make_book(ctx.s, ctx.caller, body, record_id)
+    ctx.notes[record_id] = left
+
+
+def _book_editable(ctx, record_id: str) -> TaxBook:
+    return books.get(ctx.s, ctx.caller.id, record_id, "write")[0]
+
+
+def _book_current(ctx, b: TaxBook) -> dict:
+    filers = [
+        f.userId for f in ctx.s.scalars(select(TaxBookFiler).where(TaxBookFiler.bookId == b.id))
+    ]
+    return {"year": b.year, "filers": filers, "fromLastYear": b.fromLastYear,
+            "bitcoinFees": b.bitcoinFees}  # fmt: skip
+
+
+def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
+    """How the book reads bitcoin network fees on transfers between the owner's accounts
+    (S8.19): a sale, the default, or not taxed, as a preparer may read them."""
+    current = _book_current(ctx, b)
+    for fixed in ("year", "filers", "fromLastYear"):
+        if getattr(body, fixed) != current[fixed]:
+            raise refuse(fixed, "book-fixed", "A book keeps its year and filers.")
+    b.bitcoinFees = body.bitcoinFees
+    b.updatedAt = clock.now()
+
+
+def _book_delete(ctx, b: TaxBook) -> None:
+    books.get(ctx.s, ctx.caller.id, b.id, "owner")
+    b.mark_deleted(ctx.caller.id)
+
+
+def _book_read(ctx, record_id: str) -> NewBookOut:
+    b, lvl = books.get(ctx.s, ctx.caller.id, record_id)
+    return NewBookOut(**_row(ctx.s, b, lvl).model_dump(),
+                      dependentsLeftOut=ctx.notes.get(record_id, []))  # fmt: skip
+
+
+def _dep_create(ctx, record_id: str, body: DependentRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    b, _ = books.get(s, c.id, body.bookId, "write")
+    d = TaxBookDependent(id=record_id, bookId=b.id, **_dependent_values(s, c, b, body, record_id))
+    s.add(d)
+    s.flush()
+    dependents.set_accounts(s, d, list(body.accountIds), clock.now())
+
+
+def _dep_editable(ctx, record_id: str) -> TaxBookDependent:
+    return _own_dependent(ctx.s, ctx.caller, record_id)[0]
+
+
+def _dep_current(ctx, d: TaxBookDependent) -> dict:
+    return {"bookId": d.bookId, "personId": d.personId, "claimedAs": d.claimedAs,
+            "months": d.months, "student": d.student,
+            "accountIds": dependents.account_ids(ctx.s, d)}  # fmt: skip
+
+
+def _dep_update(ctx, d: TaxBookDependent, body: DependentRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if body.bookId != d.bookId:
+        raise refuse("bookId", "dependent-fixed", "A dependent stays in their book.")
+    _, b, _ = _own_dependent(s, c, d.id)
+    for k, v in _dependent_values(s, c, b, body, d.id).items():
+        setattr(d, k, v)
+    d.updatedAt = clock.now()
+    dependents.set_accounts(s, d, list(body.accountIds), clock.now())
+
+
+def _dep_read(ctx, record_id: str) -> DependentOut:
+    d = ctx.s.get(TaxBookDependent, record_id)
+    b, _ = books.get(ctx.s, ctx.caller.id, d.bookId)
+    return next(_dependent(x) for x in dependents.listed(ctx.s, b) if x.row.id == record_id)
+
+
+def _doc_create(ctx, record_id: str, body: DocumentRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    b, _ = books.get(s, c.id, body.bookId, "write")
+    s.add(TaxDocument(id=record_id, bookId=b.id, **_doc_values(s, c, b, body)))
+
+
+def _doc_editable(ctx, record_id: str) -> TaxDocument:
+    return _own_doc(ctx.s, ctx.caller, record_id)[0]
+
+
+DOC_FIELDS = ("direction", "form", "issuer", "accountId", "filingId", "receiptId", "notes")
+
+
+def _doc_update(ctx, d: TaxDocument, body: DocumentRecord) -> None:
+    """Its form, issuer, account, notes and file; a file is checked as one to attach only
+    when it is newly given, so a co-filer changes a document the other filer filed (CR3-36)."""
+    s, c = ctx.s, ctx.caller
+    if body.bookId != d.bookId:
+        raise refuse("bookId", "document-fixed", "A document stays in its book.")
+    _, b, _ = _own_doc(s, c, d.id)
+    for k, v in _doc_values(s, c, b, body, d.receiptId).items():
+        setattr(d, k, v)
+    d.updatedAt = clock.now()
+
+
+def _doc_read(ctx, record_id: str) -> DocumentOut:
+    return _doc(ctx.s, ctx.s.get(TaxDocument, record_id))
+
+
+save.register(
+    save.Kind(
+        prefix="TaxBk",
+        entity=TaxBook,
+        fields=BookRecord,
+        create=_book_create,
+        editable=_book_editable,
+        current=_book_current,
+        update=_book_update,
+        delete=_book_delete,
+        read=_book_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="TxDep",
+        entity=TaxBookDependent,
+        fields=DependentRecord,
+        create=_dep_create,
+        editable=_dep_editable,
+        current=_dep_current,
+        update=_dep_update,
+        delete=lambda ctx, d: d.mark_deleted(ctx.caller.id),
+        read=_dep_read,
+    )
+)
+save.register(
+    save.Kind(
+        prefix="TxDoc",
+        entity=TaxDocument,
+        fields=DocumentRecord,
+        create=_doc_create,
+        editable=_doc_editable,
+        current=lambda ctx, d: {"bookId": d.bookId, **{f: getattr(d, f) for f in DOC_FIELDS}},
+        update=_doc_update,
+        delete=lambda ctx, d: d.mark_deleted(ctx.caller.id),
+        read=_doc_read,
+    )
+)

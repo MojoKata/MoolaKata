@@ -123,7 +123,9 @@
       they already have). The person's **birthday**, their **wedding anniversary** (the start
       of a *spouse* relationship) and their relation to the user (*your granddaughter*,
       S10.10.5) come from the person. Adding a gift plan for someone new adds the person
-      first, as S10.10.3 says.
+      first, as S10.10.3 says. Changing an occasion keeps the gifts planned for it; taking
+      away an anniversary or other occasion that has gifts planned asks first, and they
+      become ideas, with no occasion.
    2. **Holidays** ship as a list with their dates computed per year: fixed dates
       (Christmas, Valentine's Day), rule-based ones (Mother's Day, Father's Day,
       Thanksgiving), and lunar or lunisolar ones (Hanukkah, Diwali, Lunar New Year, Eid
@@ -232,10 +234,11 @@
     5. **Landed money**: money that arrives in an account reserves are held in other than by
        a transfer from the budget's accounts (its interest, a paycheck split into it, a
        transfer from an account the budget doesn't count) is listed under **Where the money
-       is** as **unassigned** until the user gives it: to one reserve held there, spread among
-       them by balance, or kept as the account's own, *not set aside*. Money given to a
-       reserve is put into it as a move (S7.11) and counts as moved in, so *to move* never
-       asks for it again. In the budget it counts as it always does: interest as income, a
+       is** as **unassigned** until the user gives it, with a line for each reserve held
+       there and one for the account's own (*not set aside*): the lines start spread among
+       the reserves by balance, any may change, and what no line takes stays unassigned. Each
+       line given something is a move (S7.11), saved together; money given to a reserve
+       counts as moved in, so *to move* never asks for it again. In the budget it counts as it always does: interest as income, a
        transfer by S7.3.2.
 11. **Moves** (a budget's option, always on in an envelope budget): a **move** puts an
     amount from one category to another, a reserve among them, for one month (*$40 from Entertainment to Dining,

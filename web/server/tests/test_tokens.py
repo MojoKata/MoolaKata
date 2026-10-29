@@ -5,6 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import make, remove
 from test_accounts import new_account
 
 from moolakata import clock, tokens
@@ -17,13 +18,13 @@ def alice(server):
 
 
 def test_a_token_is_shown_once_and_kept_as_a_hash(server, alice):
-    r = alice.post("/ui/api/profile/tokens", json={"name": "Claude on my laptop"})
-    assert r.status_code == 201, r.text
+    r = make(alice, "Token", name="Claude on my laptop")
+    assert r.status_code == 200, r.text
     made = r.json()
     secret = made["secret"]
     assert secret.startswith("mkt_") and "." in secret
-    assert made["token"]["scope"] == "all"
-    left = dt.datetime.fromisoformat(made["token"]["expiresAt"]) - clock.now()
+    assert made["scope"] == "all"
+    left = dt.datetime.fromisoformat(made["expiresAt"]) - clock.now()
     assert dt.timedelta(days=89) < left <= dt.timedelta(days=90), "90 days by default"
     listed = alice.get("/ui/api/profile/tokens").json()["items"]
     assert [t["name"] for t in listed] == ["Claude on my laptop"]
@@ -38,17 +39,16 @@ def test_a_token_is_shown_once_and_kept_as_a_hash(server, alice):
 
 def test_a_token_can_be_limited_to_chosen_items(server, alice):
     a = new_account(alice, name="Brokerage", type="brokerage")
-    r = alice.post(
-        "/ui/api/profile/tokens",
-        json={
-            "name": "Retirement check-ins",
-            "scope": "chosen",
-            "items": [{"kind": "account", "id": a["id"]}],
-            "days": 30,
-        },
+    r = make(
+        alice,
+        "Token",
+        name="Retirement check-ins",
+        scope="chosen",
+        items=[{"kind": "account", "id": a["id"]}],
+        days=30,
     )
-    assert r.status_code == 201, r.text
-    assert r.json()["token"]["items"] == [{"kind": "account", "id": a["id"], "name": "Brokerage"}]
+    assert r.status_code == 200, r.text
+    assert r.json()["items"] == [{"kind": "account", "id": a["id"], "name": "Brokerage"}]
     for body, field in (
         ({"name": "x", "scope": "chosen", "items": []}, "items"),
         ({"name": "x", "days": 7}, "days"),
@@ -58,29 +58,29 @@ def test_a_token_can_be_limited_to_chosen_items(server, alice):
             "items",
         ),
     ):
-        r = alice.post("/ui/api/profile/tokens", json=body)
+        r = make(alice, "Token", **body)
         assert r.status_code == 422 and r.json()["errors"][0]["field"] == field, body
 
 
 def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice):
-    def make():
-        return alice.post("/ui/api/profile/tokens", json={"name": "t", "days": 30}).json()
+    def new_token():
+        return make(alice, "Token", name="t", days=30).json()
 
-    one = make()
-    assert alice.delete(f"/ui/api/profile/tokens/{one['token']['id']}").status_code == 200
+    one = new_token()
+    assert remove(alice, "Token", one).status_code == 200
     assert alice.get("/ui/api/profile/tokens").json()["items"] == []
-    two = make()
+    two = new_token()
     with server.db.read() as s:
         assert tokens.find(s, one["secret"]) is None
         assert tokens.find(s, two["secret"]) is not None
     from moolakata.store.entities.users import AccessToken
 
     with server.db.tx() as s:
-        s.get(AccessToken, two["token"]["id"]).expiresAt = clock.now() - dt.timedelta(seconds=1)
+        s.get(AccessToken, two["id"]).expiresAt = clock.now() - dt.timedelta(seconds=1)
     with server.db.read() as s:
         assert tokens.find(s, two["secret"]) is None
     assert alice.get("/ui/api/profile/tokens").json()["items"][0]["expired"] is True
-    three = make()
+    three = new_token()
     from moolakata.store.entities.users import User
 
     with server.db.tx() as s:
@@ -90,10 +90,10 @@ def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice
 
 
 def test_someone_elses_token_cant_be_revoked(server, alice):
-    t = alice.post("/ui/api/profile/tokens", json={"name": "mine"}).json()["token"]
+    t = make(alice, "Token", name="mine").json()
     make_user(server, "bob")
     bob = sign_in(server, "bob")
-    assert bob.delete(f"/ui/api/profile/tokens/{t['id']}").status_code == 404
+    assert remove(bob, "Token", t).status_code == 404
     assert bob.get("/ui/api/profile/tokens").json()["items"] == []
 
 
@@ -106,10 +106,10 @@ def test_making_a_token_needs_the_password_again_and_is_emailed(server, alice):
 
     with server.db.tx() as s:
         s.scalars(select(Session)).one().authAt -= dt.timedelta(minutes=11)
-    r = alice.post("/ui/api/profile/tokens", json={"name": "Stale"})
-    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    r = make(alice, "Token", name="Stale")
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
     assert alice.post("/ui/api/session/reauth", json={"password": PW}).status_code == 204
-    assert alice.post("/ui/api/profile/tokens", json={"name": "Fresh"}).status_code == 201
+    assert make(alice, "Token", name="Fresh").status_code == 200
     told = mails(server)[-1]
     assert told["To"] == "alice@home.lan" and told["Subject"] == "An access token was made"
     assert '"Fresh"' in told.get_content()
@@ -119,7 +119,7 @@ def test_a_password_change_or_reset_stops_every_token(server, alice):
     """S10.9.4: a token outlives neither."""
     from test_users import PW, mails
 
-    secret = alice.post("/ui/api/profile/tokens", json={"name": "Laptop"}).json()["secret"]
+    secret = make(alice, "Token", name="Laptop").json()["secret"]
     r = alice.post(
         "/ui/api/profile/password",
         json={"currentPassword": PW, "newPassword": "another long passphrase"},

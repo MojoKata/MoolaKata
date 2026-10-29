@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, create, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -101,15 +102,9 @@ def test_a_wash_sale_moves_the_loss_into_the_replacement_lot(server, alice):
     assert sale["realized"] == "0.00", "all 500 disallowed: 10 of 10 replaced"
     in_ira = next(r for r in v["open"] if r["symbol"] == "AAPL" and r["accountId"] == ira["id"])
     assert in_ira["cost"] == "930.00", "930 paid, nothing added"
-    alice.delete(
-        f"/ui/api/transactions/{_txns(alice, ira)[0]['id']}",
-        headers={"If-Match": f'"{_txns(alice, ira)[0]["version"]}"'},
-    )
+    remove(alice, "Txn", _txns(alice, ira)[0])
     # The rest of this test replaces in the IRA alone.
-    alice.delete(
-        f"/ui/api/transactions/{_txns(alice, other)[0]['id']}",
-        headers={"If-Match": f'"{_txns(alice, other)[0]["version"]}"'},
-    )
+    remove(alice, "Txn", _txns(alice, other)[0])
     trade(alice, ira["id"], "2026-06-20", "buy", "4", "155", "AAPL")
     v = alice.get("/ui/api/positions").json()
     held = next(r for r in v["open"] if r["symbol"] == "AAPL")
@@ -121,9 +116,7 @@ def test_a_wash_sale_moves_the_loss_into_the_replacement_lot(server, alice):
     # Selling the replacement in the IRA undoes nothing; deleting the buy removes the wash.
     items = alice.get("/ui/api/transactions", params={"account": ira["id"]}).json()["items"]
     buy = items[0]
-    r = alice.delete(
-        f"/ui/api/transactions/{buy['id']}", headers={"If-Match": f'"{buy["version"]}"'}
-    )
+    r = remove(alice, "Txn", buy)
     assert r.status_code == 200
     sale = next(r for r in alice.get("/ui/api/positions").json()["closed"] if r["symbol"] == "AAPL")
     assert sale["realized"] == "-500.00"
@@ -155,11 +148,7 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, alice):
         s.execute(delete(WashSale))
     assert realized() == "-200.00"
     acct = alice.get(f"/ui/api/accounts/{brk['id']}").json()
-    r = alice.patch(
-        f"/ui/api/accounts/{brk['id']}",
-        json={"lotMethod": "lifo"},
-        headers={"If-Match": str(acct["version"])},
-    )
+    r = change(alice, "Acct", acct, lotMethod="lifo")
     assert r.status_code == 200, r.text
     # By LIFO the sale would take the $50 lot, a 300 gain with nothing to disallow.
     assert realized() == "0.00", "worked out again, by the FIFO recorded on the sale"
@@ -173,9 +162,8 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, alice):
 
 
 def _ca(c, acct, inst_id, **body):
-    r = c.post(f"/ui/api/accounts/{acct}/corporate-actions", json={"instrumentId": inst_id} | body)
-    assert r.status_code == 201, r.text
-    return r.json()
+    """The corporate action, recorded through the save, its transactions with it."""
+    return saved(create(c, "CorpA", accountId=acct, instrumentId=inst_id, **body))
 
 
 def _lots(server, acct):
@@ -252,20 +240,20 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, alice):
     _ca(alice, a, held["TWTR"], kind="merger", date="2026-10-13", cashPerShare="54.20")
     lots, disposals = _lots(server, a)
     assert "TWTR" not in lots and disposals[0].proceeds == Decimal("2710.00")
-    _, new = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
-    r = alice.delete(f"/ui/api/transactions/{new['id']}", headers={"If-Match": str(new["version"])})
+    action = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    _, new = action["transactions"]
+    r = remove(alice, "Txn", new)
     assert r.status_code == 200, r.text
     lots, _ = _lots(server, a)
     assert "FB" in lots and "META" not in lots
-    r = alice.post(
-        f"/ui/api/accounts/{a}/corporate-actions",
-        json={
-            "instrumentId": held["FB"],
-            "kind": "spin-off",
-            "date": "2026-06-09",
-            "newSymbol": "X",
-            "ratio": "1",
-            "basisShare": "150",
-        },
-    )
+    r = remove(alice, "CorpA", action)
+    assert r.status_code == 404, "the action went with its transaction"
+    # Deleting the action undoes it, its transactions with it.
+    action = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    assert "META" in _lots(server, a)[0]
+    assert remove(alice, "CorpA", action).status_code == 200
+    lots, _ = _lots(server, a)
+    assert "FB" in lots and "META" not in lots
+    r = create(alice, "CorpA", accountId=a, instrumentId=held["FB"], kind="spin-off",
+               date="2026-06-09", newSymbol="X", ratio="1", basisShare="150")  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "basisShare"

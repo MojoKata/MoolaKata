@@ -7,6 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import make, remove, saved
 from test_accounts import new_account
 from test_options import opt
 
@@ -35,28 +36,25 @@ def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(alice):
     a = new_account(alice, type="brokerage")["id"]
     assert (
         opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
-        == 201
+        == 200
     )
-    r = alice.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": a,
-            "date": "2026-10-01",
-            "kind": "split",
-            "symbol": "MSFT",
-            "amount": "0",
-            "splitRatio": "2",
-        },
+    r = make(
+        alice,
+        "Txn",
+        accountId=a,
+        date="2026-10-01",
+        kind="split",
+        symbol="MSFT",
+        amount="0",
+        splitRatio="2",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     after = held(alice)
     assert after == {"MSFT 20NOV26 240 P": (-4, -1280, "2026-09-01")}, "basis and days carry"
     gains = alice.get("/ui/api/positions").json()["closed"]
     assert gains == [], "nothing was sold"
     split = r.json()
-    alice.delete(
-        f"/ui/api/transactions/{split['id']}", headers={"If-Match": f'"{split["version"]}"'}
-    )
+    saved(remove(alice, "Txn", split))
     assert held(alice) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
 

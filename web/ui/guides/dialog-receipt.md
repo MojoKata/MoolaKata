@@ -38,9 +38,9 @@ Words to find it by, separated by commas, such as _medical_ or _warranty_.
 
 ## Attached to {#attached-to}
 
-The transactions it supports. **Attach** takes the best match among your transactions with the same
-amount near its date; the buttons beside it are the next two. **Detach** returns it to the inbox
-when nothing else links to it.
+The transactions it supports, and what else it is kept with. **Attach** takes the best match among
+your transactions with the same amount near its date; the buttons beside it are the next two.
+**Detach** returns it to the inbox when nothing else links to it. Both happen when you save.
 
 ## Text read from the receipt
 

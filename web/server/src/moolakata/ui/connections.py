@@ -9,14 +9,15 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import activity, clock, ids
+from .. import activity, clock
 from ..connector import manage, sealed
 from ..errors import FieldError, Problem, refuse
 from ..links import keys
 from ..store.entities.accounts import Account
 from ..store.entities.connector import Connection
+from . import save
 from .connector import ConnectionOut, connection_out
-from .conventions import Deleted, ExactRoute, Model, check, gone, if_match
+from .conventions import ExactRoute, Model
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["connections"])
@@ -62,20 +63,10 @@ class NewConnection(Model):
     settings: dict = Field(default_factory=dict)
 
 
-class ConnectionChange(Model):
-    label: str | None = None
-    settings: dict | None = None
-
-
 class Credential(Model):
     """A credential sealed in the browser to the connector's sealing key: the box as it is."""
 
     sealed: str
-
-
-class ConnectionMade(Model):
-    connection: ConnectionOut
-    command: str  # for the stricter way: typed on the connector's host (S18.7.2)
 
 
 def _info(s) -> ConnectorInfo:
@@ -155,104 +146,61 @@ def list_connections(request: Request, c: Caller = Depends(caller)):
         return [connection_out(s, r) for r in rows]
 
 
-@router.post("/profile/connections", response_model=ConnectionMade, status_code=201)
-def new_connection(body: NewConnection, request: Request, c: Caller = Depends(caller)):
+def _make(s, c: Caller, body: NewConnection, connection_id: str) -> Connection:
     if body.driver not in DRIVERS:
         raise refuse("driver", "driver-invalid", "Schwab or OFX Direct Connect.")
     label = body.label.strip()
     if not 1 <= len(label) <= 60:
         raise refuse("label", "label-invalid", "A name to tell it apart: up to 60 letters.")
     settings = _check_settings(body.driver, body.settings)
-    with server(request).db.tx() as s:
-        row = manage.paired(s)
-        if row is None:
-            raise refuse(None, "no-connector", "No MoolaKata Connector is paired.", 409)
-        twice = s.scalars(
-            select(Connection).where(
-                Connection.ownerId == c.id,
-                Connection.label == label,
-                Connection.deleted == false(),
-                Connection.state != "removed",
-            )
-        ).first()
-        if twice is not None:
-            raise refuse("label", "label-taken", "You already have a connection with that name.")
-        conn = Connection(
-            id=ids.new_id("Conn"),
-            ownerId=c.id,
-            connectorId=row.id,
-            driver=body.driver,
-            label=label,
-            state="new",
-            settings=json.dumps(settings, sort_keys=True),
+    row = manage.paired(s)
+    if row is None:
+        raise refuse(None, "no-connector", "No MoolaKata Connector is paired.", 409)
+    twice = s.scalars(
+        select(Connection).where(
+            Connection.ownerId == c.id,
+            Connection.label == label,
+            Connection.deleted == false(),
+            Connection.state != "removed",
         )
-        s.add(conn)
-        s.flush()
-        activity.record(
-            s,
-            "connection.created",
-            actor=c.id,
-            subject_kind="connection",
-            subject_id=conn.id,
-            owner=c.id,
-            detail={"driver": body.driver, "label": label},
-        )
-        return ConnectionMade(
-            connection=connection_out(s, conn),
-            command=f"docker compose exec connector moolakata-connector connect {conn.id}",
-        )
+    ).first()
+    if twice is not None:
+        raise refuse("label", "label-taken", "You already have a connection with that name.")
+    conn = Connection(
+        id=connection_id,
+        ownerId=c.id,
+        connectorId=row.id,
+        driver=body.driver,
+        label=label,
+        state="new",
+        settings=json.dumps(settings, sort_keys=True),
+    )
+    s.add(conn)
+    s.flush()
+    activity.record(
+        s,
+        "connection.created",
+        actor=c.id,
+        subject_kind="connection",
+        subject_id=conn.id,
+        owner=c.id,
+        detail={"driver": body.driver, "label": label},
+    )
+    return conn
 
 
-@router.patch("/profile/connections/{connection_id}", response_model=ConnectionOut)
-def change_connection(
-    connection_id: str,
-    body: ConnectionChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        row = _mine(s, c, connection_id)
-        check(row, version, connection_out(s, row))
-        changed = []
-        if body.label is not None:
-            label = body.label.strip()
-            if not 1 <= len(label) <= 60:
-                raise refuse("label", "label-invalid", "A name: up to 60 letters.")
-            if label != row.label:
-                row.label = label
-                changed.append("label")
-        if body.settings is not None:
-            settings = _check_settings(row.driver, body.settings)
-            text = json.dumps(settings, sort_keys=True)
-            where = ADDRESS.get(row.driver)
-            if where and settings.get(where) != json.loads(row.settings or "{}").get(where):
-                from .deps import recent_auth
-
-                recent_auth(c)  # where its credentials go: the password again (S13.7.2)
-            if text != row.settings:
-                row.settings = text
-                changed.append("settings")
-        if changed:
-            activity.record(
-                s,
-                "connection.updated",
-                actor=c.id,
-                subject_kind="connection",
-                subject_id=row.id,
-                owner=c.id,
-                detail={"fields": changed},
-            )
-        s.flush()
-        return connection_out(s, row)
+def command(connection_id: str) -> str:
+    """For the stricter way: typed on the connector's host (S18.7.2)."""
+    return f"docker compose exec connector moolakata-connector connect {connection_id}"
 
 
-@router.put("/profile/connections/{connection_id}/credential", response_model=ConnectionOut)
+@router.post("/profile/connections/{connection_id}/credential", response_model=ConnectionOut)
 def put_credential(
     connection_id: str, body: Credential, request: Request, c: Caller = Depends(caller)
 ):
     """The credential sealed in the browser (S18.7.1): kept as it is until the connector
-    collects it on its next report. A secret, replaced outright: no version (S13.8.6). The
+    collects it on its next report. A secret, replaced outright: an action, with no version
+    (S13.8.6). The
     password again (S13.7.2), and only once an admin confirmed the pairing (S18.4.3)."""
     from .deps import recent_auth
 
@@ -284,34 +232,68 @@ def put_credential(
         return connection_out(s, row)
 
 
-@router.delete("/profile/connections/{connection_id}", response_model=Deleted[None])
-def remove_connection(
-    connection_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
+class ConnectionRecord(NewConnection):
+    """A Connection as a draft saves it (S18.6): its driver chosen when it is made; its name
+    and settings its owner's to change, the institution's address only with the password
+    again. Its sign-in is never here: it is sealed apart (S18.7)."""
+
+
+def _connection_current(ctx, row: Connection) -> dict:
+    return {"driver": row.driver, "label": row.label, "settings": json.loads(row.settings or "{}")}
+
+
+def _connection_update(ctx, row: Connection, body: ConnectionRecord) -> None:
+    c = ctx.caller
+    if body.driver != row.driver:
+        raise refuse("driver", "driver-fixed", "A connection keeps its driver; make another.")
+    changed = []
+    label = body.label.strip()
+    if not 1 <= len(label) <= 60:
+        raise refuse("label", "label-invalid", "A name: up to 60 letters.")
+    if label != row.label:
+        row.label = label
+        changed.append("label")
+    settings = _check_settings(row.driver, body.settings)
+    text = json.dumps(settings, sort_keys=True)
+    where = ADDRESS.get(row.driver)
+    if where and settings.get(where) != json.loads(row.settings or "{}").get(where):
+        from .deps import recent_auth
+
+        recent_auth(c)  # where its credentials go: the password again (S13.7.2)
+    if text != row.settings:
+        row.settings = text
+        changed.append("settings")
+    if changed:
+        activity.record(ctx.s, "connection.updated", actor=c.id, subject_kind="connection",
+                        subject_id=row.id, owner=c.id, detail={"fields": changed})  # fmt: skip
+
+
+def _connection_remove(ctx, row: Connection) -> None:
     """Remove (S18.6.4): its accounts' sync turns off, and the connector deletes its
     credentials at its next report."""
-    with server(request).db.tx() as s:
-        row = _mine(s, c, connection_id)
-        check(row, version, connection_out(s, row))
-        row.state = "removed"
-        row.removedAt = clock.now()
-        row.sealedCredential = None
-        row.sealedAt = None
-        for a in s.scalars(select(Account).where(Account.connectionId == row.id)):
-            a.connectionId = None
-            a.syncAccount = None
-        row.mark_deleted(c.id)
-        activity.record(
-            s,
-            "connection.removed",
-            actor=c.id,
-            subject_kind="connection",
-            subject_id=row.id,
-            owner=c.id,
-            detail={"label": row.label},
-        )
-        s.flush()
-        return Deleted[None](deleted=gone(row))
+    s, c = ctx.s, ctx.caller
+    row.state = "removed"
+    row.removedAt = clock.now()
+    row.sealedCredential = None
+    row.sealedAt = None
+    for a in s.scalars(select(Account).where(Account.connectionId == row.id)):
+        a.connectionId = None
+        a.syncAccount = None
+    row.mark_deleted(c.id)
+    activity.record(s, "connection.removed", actor=c.id, subject_kind="connection",
+                    subject_id=row.id, owner=c.id, detail={"label": row.label})  # fmt: skip
+
+
+save.register(
+    save.Kind(
+        prefix="Conn",
+        entity=Connection,
+        fields=ConnectionRecord,
+        create=lambda ctx, record_id, body: _make(ctx.s, ctx.caller, body, record_id),
+        editable=lambda ctx, record_id: _mine(ctx.s, ctx.caller, record_id),
+        current=_connection_current,
+        update=_connection_update,
+        delete=_connection_remove,
+        read=lambda ctx, record_id: connection_out(ctx.s, ctx.s.get(Connection, record_id)),
+    )
+)

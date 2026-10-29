@@ -18,7 +18,6 @@ once, with what is known about them in the database.
 import datetime as dt
 import hashlib
 import io
-import json
 import logging
 import secrets
 from collections.abc import Iterator
@@ -36,6 +35,7 @@ from ..store.entities.accounts import Account, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
 from ..store.entities.receipts import Receipt, ReceiptLink
+from ..store.rows import by_key
 from .ocr import MAX_PIXELS
 
 log = logging.getLogger("moolakata.receipts")
@@ -391,30 +391,80 @@ def visible(s: Session, user_id: str) -> list[tuple[Receipt, str]]:
     return out
 
 
-def attach(s: Session, user_id: str, r: Receipt, transaction_id: str) -> ReceiptLink:
-    """Onto a transaction in an account the user can write to (S9.3)."""
-    t = s.get(Transaction, transaction_id)
-    if t is None or t.deleted:
-        raise refuse("transactionId", "not-found", "That transaction is not there.", 404)
-    access.account(s, user_id, t.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, "transaction", t.id))
-    now = clock.now()
-    if row is None:
-        row = ReceiptLink(
-            receiptId=r.id, kind="transaction", itemId=t.id, createdAt=now, linkedById=user_id
-        )
-        s.add(row)
-    elif row.deleted:
-        row.restore()
-        row.linkedById = user_id
+# What a link of each kind names, by the prefix of its id (schema.md §3).
+TARGETS = {
+    "transaction": "Txn",
+    "account": "Acct",
+    "item": "Item",
+    "expense": "QExpn",
+    "gift": "Gift",
+    "donation": "Dnatn",
+}
+
+
+def _account_of(s: Session, ln: ReceiptLink) -> Account | None:
+    """The live account a link's transaction, item or expense is in, or its account."""
+    if ln.kind == "account":
+        a = s.get(Account, ln.itemId)
+    else:
+        entity = {"transaction": Transaction, "item": Item, "expense": QualifiedExpense}[ln.kind]
+        x = s.get(entity, ln.itemId)
+        a = s.get(Account, x.accountId) if x is not None and not x.deleted else None
+    return a if a is not None and not a.deleted else None
+
+
+def target_level(s: Session, user_id: str, ln: ReceiptLink) -> str | None:
+    """The user's level on what a link names, while it is there: its account's, or a gift's
+    or donation's as it is seen (S9.6)."""
+    if ln.kind in ("gift", "donation"):
+        return _kept_level(s, user_id, ln)
+    a = _account_of(s, ln)
+    return access.account_level(s, user_id, a) if a is not None else None
+
+
+def can_unlink(s: Session, user_id: str, ln: ReceiptLink) -> bool:
+    """Whoever can change what a receipt is kept with can detach it from that (S9.3)."""
+    return target_level(s, user_id, ln) in ("owner", "write")
+
+
+def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):
+    """A draft's link (S13.8.11): onto what the user can change, once (S9.3)."""
+    ln = ReceiptLink(
+        id=link_id,
+        receiptId=r.id,
+        kind=kind,
+        itemId=item_id,
+        createdAt=clock.now(),
+        linkedById=user_id,
+    )
+    lvl = target_level(s, user_id, ln)
+    if lvl is None:
+        raise refuse("itemId", "not-found", "That is not there.", 404)
+    if lvl not in ("owner", "write"):
+        raise refuse("itemId", "read-only", "That is shared with you to read.", 403)
+    have = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
+    if have is not None and not have.deleted:
+        raise refuse("itemId", "already-attached", "The receipt is attached to that already.", 409)
+    s.add(ln)
     s.flush()
-    return row
+    return ln
+
+
+def unlink(s: Session, user_id: str, ln: ReceiptLink) -> None:
+    """A link taken away by whoever can change what it names, or, once that is gone, by the
+    receipt's owner."""
+    lvl = target_level(s, user_id, ln)
+    if lvl is None and s.get(Receipt, ln.receiptId).ownerId != user_id:
+        raise Problem(404, "not-found", "Not found")
+    if lvl is not None and lvl not in ("owner", "write"):
+        raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
+    ln.mark_deleted(user_id, clock.now())
 
 
 def attach_account(s: Session, user_id: str, r: Receipt, account_id: str) -> None:
     """A statement kept as a receipt on its account (S1.3.3)."""
     access.account(s, user_id, account_id, "write")
-    if s.get(ReceiptLink, (r.id, "account", account_id)) is None:
+    if by_key(s, ReceiptLink, receiptId=r.id, kind="account", itemId=account_id) is None:
         s.add(
             ReceiptLink(
                 receiptId=r.id,
@@ -431,7 +481,7 @@ def attach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") 
     """A photo or document of a physical-asset item (S1.10.1), or a qualified expense's
     receipt (S1.8.3): kept with it, in the item's account."""
     access.account(s, user_id, item.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, kind, item.id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
     if row is None:
         s.add(
             ReceiptLink(
@@ -449,7 +499,7 @@ def attach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") 
 
 def detach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") -> None:
     access.account(s, user_id, item.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, kind, item.id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
     if row is None or row.deleted:
         raise Problem(404, "not-found", "The receipt is not kept with that.")
     row.mark_deleted(user_id, clock.now())
@@ -473,7 +523,7 @@ def of_item(s: Session, item_id: str, kind: str = "item") -> list[Receipt]:
 
 def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -> None:
     """A receipt's link to a gift or a donation, by someone who can change that (S9.6)."""
-    row = s.get(ReceiptLink, (r.id, kind, item_id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if row is None or row.deleted or kind not in ("gift", "donation"):
         raise Problem(404, "not-found", "The receipt is not kept with that.")
     if _kept_level(s, user_id, row) != "write":
@@ -481,14 +531,27 @@ def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -
     row.mark_deleted(user_id, clock.now())
 
 
-def detach(s: Session, user_id: str, r: Receipt, transaction_id: str) -> None:
-    t = s.get(Transaction, transaction_id)
-    if t is not None:
-        access.account(s, user_id, t.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, "transaction", transaction_id))
-    if row is None or row.deleted:
-        raise Problem(404, "not-found", "The receipt is not attached to that transaction.")
-    row.mark_deleted(user_id, clock.now())
+def keep_set(s: Session, user_id: str, kind: str, item_id: str, was, now) -> None:
+    """The receipts kept with a gift or a donation, as its draft's set (S9.6): those added are
+    attached, those taken away detached."""
+    for receipt_id in sorted(set(now) - set(was)):
+        r = to_attach(s, user_id, receipt_id, "receiptIds")
+        row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
+        if row is None:
+            s.add(
+                ReceiptLink(
+                    receiptId=r.id,
+                    kind=kind,
+                    itemId=item_id,
+                    createdAt=clock.now(),
+                    linkedById=user_id,
+                )
+            )
+        elif row.deleted:
+            row.restore()
+    for receipt_id in sorted(set(was) - set(now)):
+        r, _ = get(s, user_id, receipt_id)
+        detach_kept(s, user_id, r, kind, item_id)
 
 
 def delete(s: Session, user_id: str, r: Receipt) -> None:
@@ -571,7 +634,3 @@ def _alike(a: str | None, b: str | None) -> float:
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / min(len(wa), len(wb))
-
-
-def tags_of(r: Receipt) -> list[str]:
-    return json.loads(r.tags or "[]")

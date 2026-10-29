@@ -1,18 +1,15 @@
 import datetime as dt
 from dataclasses import dataclass, field
 
-from . import Record, SoftDeleted, _now
+from . import Record, _now
 
 
 @dataclass(kw_only=True, eq=False)
-class Setting(SoftDeleted):
+class Setting(Record):
+    id: str
     key: str
     value: str
-    version: int = 1
-    updatedAt: dt.datetime = field(default_factory=_now)
     updatedById: str | None = None
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

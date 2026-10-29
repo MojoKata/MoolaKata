@@ -5,6 +5,7 @@ import logging
 
 import pytest
 from conftest import make_user, sign_in
+from edits import save_settings, saved, wallet
 from test_accounts import new_account
 
 from moolakata.bitcoin import keys
@@ -110,9 +111,9 @@ def alice(server):
 
 def test_a_wallet_watches_a_keys_addresses_up_to_the_gap_limit(alice):
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    r = alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB})
+    r = wallet(alice, w["id"], ZPUB)
     assert r.status_code == 200, r.text
-    v = r.json()
+    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["keys"][0]["script"] == "p2wpkh" and v["keys"][0]["gapLimit"] == 20
     assert v["watched"] == 40, "20 receive and 20 change"
     first = v["addresses"][0]
@@ -123,17 +124,13 @@ def test_a_wallet_watches_a_keys_addresses_up_to_the_gap_limit(alice):
     )
     assert len(v["addresses"]) == 20, "the first 10 a chain are shown"
     # An address added, the gap limit narrowed: the key keeps its addresses.
-    r = alice.put(
-        f"/ui/api/accounts/{w['id']}/wallet",
-        json={"text": ZPUB + "\n3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy", "gapLimit": 5},
-    )
-    v = r.json()
+    saved(wallet(alice, w["id"], ZPUB + "\n3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy", 5))
+    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert [k["kind"] for k in v["keys"]] == ["xpub", "address"]
     assert v["keys"][0]["gapLimit"] == 5 and v["watched"] == 41
     # The key taken out: its addresses go with it.
-    v = alice.put(
-        f"/ui/api/accounts/{w['id']}/wallet", json={"text": "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"}
-    ).json()
+    saved(wallet(alice, w["id"], "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"))
+    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["watched"] == 1 and v["addresses"][0]["chain"] is None
     assert alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 1
 
@@ -142,10 +139,10 @@ def test_a_seed_phrase_or_private_key_is_refused_and_never_repeated(alice, caplo
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
     caplog.set_level(logging.DEBUG)
     for text in (SEED, WIF, HEX, XPRV):
-        r = alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": text})
+        r = wallet(alice, w["id"], text)
         assert r.status_code == 422
-        assert r.json()["code"] == "secret-refused"
-        assert r.json()["errors"][0]["field"] == "text"
+        assert r.json()["errors"][0]["code"] == "secret-refused"
+        assert r.json()["errors"][0]["field"] == "walletKeys"
         assert text.split()[0] not in r.text
     assert not any(SEED.split()[1] in m or WIF in m or HEX in m for m in caplog.messages)
     assert alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 0
@@ -153,11 +150,11 @@ def test_a_seed_phrase_or_private_key_is_refused_and_never_repeated(alice, caplo
 
 def test_only_a_wallet_holds_keys(alice):
     b = new_account(alice, name="Brokerage", type="brokerage")
-    r = alice.put(f"/ui/api/accounts/{b['id']}/wallet", json={"text": ZPUB})
-    assert r.status_code == 422 and r.json()["code"] == "not-a-wallet"
+    r = wallet(alice, b["id"], ZPUB)
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-a-wallet"
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    r = alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB[:-1] + "a"})
-    assert r.json()["code"] == "key-invalid"
+    r = wallet(alice, w["id"], ZPUB[:-1] + "a")
+    assert r.json()["errors"][0]["code"] == "key-invalid"
 
 
 # ---------- reading wallets from an explorer or node (S1.6.2)
@@ -205,7 +202,7 @@ class Fake:
 
 def test_a_sync_records_each_transaction_once_and_extends_the_gap(server, alice, monkeypatch):
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB})
+    saved(wallet(alice, w["id"], ZPUB))
     far = keys.extended(ZPUB).address(0, 19)
     fake = Fake(far)
     monkeypatch.setattr(sync, "source", lambda srv, s: fake)
@@ -250,7 +247,7 @@ def test_a_coinjoins_fee_is_the_wallets_share_never_the_whole(server, alice):
 
 def test_a_failing_source_says_what_to_fix_without_naming_an_address(server, alice, monkeypatch):
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB})
+    saved(wallet(alice, w["id"], ZPUB))
 
     class Down:
         def history(self, addresses):
@@ -265,16 +262,16 @@ def test_a_failing_source_says_what_to_fix_without_naming_an_address(server, ali
 
 
 def test_the_stub_source_gives_dev_wallets_a_history(server, alice, admin_client):
-    from moolakata.store.entities.core import Setting
+    from moolakata import settings
 
     server.config = dataclasses.replace(server.config, stubs=True)
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB})
+    saved(wallet(alice, w["id"], ZPUB))
     # The stub too waits for Settings › Bitcoin (S16.7, S17.7), and is a source saved there.
     with server.db.tx() as s:
-        s.delete(s.get(Setting, "bitcoinSource"))
+        s.delete(settings.row_of(s, "bitcoinSource"))
     assert sync.sync_all(server) is None and sync_count(server, w["id"]) == 0
-    assert admin_client.patch("/ui/api/settings", json={"bitcoinSource": "stub"}).status_code == 200
+    assert save_settings(admin_client, {"bitcoinSource": "stub"}).status_code == 200
     sync.sync_all(server)
     v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["used"] > 0 and v["checkedAt"]
@@ -388,12 +385,13 @@ def test_a_named_node_is_reachable_and_a_public_explorer_is_not_named():
 
 def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server, admin_client):
     c = admin_client
-    r = c.patch(
-        "/ui/api/settings",
-        json={"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.20", "bitcoinNodePort": 8332},
+    r = save_settings(
+        c, {"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.20", "bitcoinNodePort": 8332}
     )
     assert r.status_code == 200, r.text
-    v = c.put("/ui/api/settings/bitcoin/password", json={"password": "rpc-pass-1"}).json()
+    r = save_settings(c, {"bitcoinPassword": "rpc-pass-1"})
+    assert r.status_code == 200 and "rpc-pass-1" not in r.text
+    v = c.get("/ui/api/settings/bitcoin").json()
     assert v["password"]["setBy"] and "rpc-pass-1" not in str(v)
     with server.db.read() as s:
         cfg = sync.config(s, server.keys.secrets)
@@ -403,15 +401,15 @@ def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server,
         8332,
         "rpc-pass-1",
     )
-    bad = c.patch("/ui/api/settings", json={"bitcoinSource": "infura"})
+    bad = save_settings(c, {"bitcoinSource": "infura"})
     assert bad.status_code == 422
-    stub = c.patch("/ui/api/settings", json={"bitcoinSource": "stub"})
+    stub = save_settings(c, {"bitcoinSource": "stub"})
     assert stub.status_code == 422, "the stub is dev mode's"
     server.config = dataclasses.replace(server.config, stubs=True)
     r = c.post("/ui/api/settings/bitcoin/test")
     assert r.status_code == 200 and "answered" in r.json()["answer"]
     # A new host clears the password, so it is never sent there (S16.7).
-    assert c.patch("/ui/api/settings", json={"bitcoinNodeHost": "192.168.1.30"}).status_code == 200
+    assert save_settings(c, {"bitcoinNodeHost": "192.168.1.30"}).status_code == 200
     assert c.get("/ui/api/settings/bitcoin").json()["password"] is None
 
 
@@ -493,7 +491,7 @@ def test_a_transaction_that_leaves_the_chain_is_marked_and_kept_or_deleted(
     server, alice, monkeypatch
 ):
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB})
+    saved(wallet(alice, w["id"], ZPUB))
     fake = Fake(keys.extended(ZPUB).address(0, 19))
     monkeypatch.setattr(sync, "source", lambda srv, s: fake)
     alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
@@ -529,9 +527,9 @@ def test_an_address_two_keys_derive_is_watched_once(server, alice):
     # The same zpub typed with one of its own addresses: neither is refused, nor stops a sync.
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
     first = keys.extended(ZPUB).address(0, 0)
-    r = alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": f"{first}\n{ZPUB}"})
-    assert r.status_code == 200, r.text
-    watched = [a["address"] for a in r.json()["addresses"]]
+    saved(wallet(alice, w["id"], f"{first}\n{ZPUB}"))
+    view = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    watched = [a["address"] for a in view["addresses"]]
     assert watched.count(first) == 1
 
 
@@ -572,12 +570,11 @@ def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, alice):
     # S16.7, R3.5: nothing asked of a public explorer before an admin chooses it.
     from moolakata import settings
     from moolakata.bitcoin import sync
-    from moolakata.store.entities.core import Setting
 
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": ZPUB})
+    saved(wallet(alice, w["id"], ZPUB))
     with server.db.tx() as s:
-        s.delete(s.get(Setting, "bitcoinSource"))
+        s.delete(settings.row_of(s, "bitcoinSource"))
     r = alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
     assert r.status_code == 409 and r.json()["code"] == "bitcoin-not-set"
     assert sync.sync_all(server) is None
@@ -591,11 +588,11 @@ def test_a_wallets_keys_are_bounded(alice):
     # B37: the text and the number of keys and addresses are capped, so no wallet stalls the
     # server (S1.6.1).
     w = new_account(alice, name="Huge", type="crypto-wallet")
-    r = alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": "x" * 200_001})
-    assert r.status_code == 422 and r.json()["code"] == "too-long"
+    r = wallet(alice, w["id"], "x" * 200_001)
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-long"
     from moolakata.ui import wallets
 
     z = keys.extended(ZPUB)
     lines = "\n".join(z.address(0, i) for i in range(wallets.MAX_ENTRIES + 1))
-    r = alice.put(f"/ui/api/accounts/{w['id']}/wallet", json={"text": lines})
-    assert r.status_code == 422 and r.json()["code"] == "too-many", r.text
+    r = wallet(alice, w["id"], lines)
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-many", r.text

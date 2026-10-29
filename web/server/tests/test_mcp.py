@@ -3,6 +3,7 @@ to the token's chosen items, rate limited, and recorded in Activity."""
 
 import pytest
 from conftest import make_user, new_client, sign_in
+from edits import make, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import mcp
@@ -15,8 +16,8 @@ def alice(server):
 
 
 def token(c, **body) -> str:
-    r = c.post("/ui/api/profile/tokens", json={"name": "Claude", **body})
-    assert r.status_code == 201, r.text
+    r = make(c, "Token", **{"name": "Claude", **body})
+    assert r.status_code == 200, r.text
     return r.json()["secret"]
 
 
@@ -110,8 +111,7 @@ def test_the_endpoint_refuses_without_a_live_token_or_from_a_web_page(server, al
     # A token is never a way into the app's own API.
     r = agent.get("/ui/api/accounts", headers={"Authorization": f"Bearer {secret}"})
     assert r.status_code == 401
-    tid = alice.get("/ui/api/profile/tokens").json()["items"][0]["id"]
-    alice.delete(f"/ui/api/profile/tokens/{tid}")
+    saved(remove(alice, "Token", alice.get("/ui/api/profile/tokens").json()["items"][0]))
     assert rpc(agent, secret, "ping").status_code == 401
 
 

@@ -6,6 +6,7 @@ from typing import ClassVar
 
 import pytest
 from conftest import make_user, new_client
+from edits import make, save_settings
 from test_users import kinds, mails, set_public_url
 
 from moolakata import settings
@@ -62,17 +63,19 @@ def smtp(monkeypatch, server):
 
 
 def set_up_smtp(admin_client, password="app password"):
-    r = admin_client.patch(
-        "/ui/api/settings",
-        json={
+    r = save_settings(
+        admin_client,
+        {
             "smtpHost": "smtp.home.lan",
             "smtpUsername": "money@home.lan",
             "smtpFrom": "MoolaKata <money@home.lan>",
+            "smtpPassword": password,
         },
     )
     assert r.status_code == 200, r.text
-    r = admin_client.put("/ui/api/settings/email/password", json={"password": password})
-    assert r.status_code == 200 and r.json()["password"]["setBy"] == "Ada Admin"
+    assert password not in r.text, "never read back"
+    r = admin_client.get("/ui/api/settings/email")
+    assert r.json()["password"]["setBy"] == "Ada Admin"
 
 
 def test_settings_check_the_smtp_fields(admin_client):
@@ -82,7 +85,7 @@ def test_settings_check_the_smtp_fields(admin_client):
         ("smtpSecurity", "ssl3"),
         ("smtpFrom", "nobody"),
     ):
-        r = admin_client.patch("/ui/api/settings", json={key: bad})
+        r = save_settings(admin_client, {key: bad})
         assert r.status_code == 422 and r.json()["errors"][0]["field"] == key, key
 
 
@@ -101,11 +104,10 @@ def test_with_smtp_emails_go_through_the_outbox(admin_client, server, smtp):
     set_up_smtp(admin_client)
     set_public_url(server)
     before = len(mails(server))
-    r = admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "Dave", "username": "dave", "email": "dave@x.lan", "sex": "male"},
+    r = make(
+        admin_client, "User", displayName="Dave", username="dave", email="dave@x.lan", sex="male"
     )
-    assert r.status_code == 201
+    assert r.status_code == 200
     assert len(mails(server)) == before, "not written to the mail folder"
     assert len(server.services.mailer.waiting()) == 1
     assert server.services.mailer.send_waiting(_smtp(server), server.guard) == 1
@@ -124,16 +126,13 @@ def _smtp(server):
 def test_a_failure_keeps_the_email_and_says_why(admin_client, server, smtp):
     set_up_smtp(admin_client, password="wrong")
     set_public_url(server)
-    admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "Dave", "username": "dave", "email": "dave@x.lan", "sex": "male"},
-    )
+    make(admin_client, "User", displayName="Dave", username="dave", email="dave@x.lan", sex="male")
     with pytest.raises(RuntimeError, match="refused the username or password"):
         server.services.mailer.send_waiting(_smtp(server), server.guard)
     assert len(server.services.mailer.waiting()) == 1
     # A recipient the server will never take is set aside, and the rest go on.
     smtp.fail = smtplib.SMTPRecipientsRefused({"dave@x.lan": (550, b"no such user")})
-    admin_client.put("/ui/api/settings/email/password", json={"password": "right"})
+    save_settings(admin_client, {"smtpPassword": "right"})
     assert server.services.mailer.send_waiting(_smtp(server), server.guard) == 0
     assert admin_client.get("/ui/api/settings/email").json()["setAside"] == 1
 
@@ -149,9 +148,8 @@ def test_emails_wait_in_the_database_until_sent_or_their_link_expires(admin_clie
     set_up_smtp(admin_client)
     set_public_url(server)
     for name in ("dave", "erin"):
-        admin_client.post(
-            "/ui/api/users",
-            json={"displayName": name, "username": name, "email": f"{name}@x.lan", "sex": "male"},
+        make(
+            admin_client, "User", displayName=name, username=name, email=f"{name}@x.lan", sex="male"
         )
     assert not server.config.outbox_dir.exists(), "nothing in the data directory in the clear"
     assert [w.recipient for w in server.services.mailer.waiting()] == ["dave@x.lan", "erin@x.lan"]
@@ -166,10 +164,7 @@ def test_emails_wait_in_the_database_until_sent_or_their_link_expires(admin_clie
         assert all(r.error for r in refused)
     assert server.services.mailer.waiting() == []
     smtp.fail = None
-    admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "fay", "username": "fay", "email": "fay@x.lan", "sex": "female"},
-    )
+    make(admin_client, "User", displayName="fay", username="fay", email="fay@x.lan", sex="female")
     clock.fix(clock.now() + dt.timedelta(days=8))  # past even an invitation's week
     try:
         assert server.services.mailer.waiting() == []
@@ -252,9 +247,7 @@ def test_send_a_test_email(admin_client, server, smtp):
 def open_signup(admin_client, server, domains=()):
     set_up_smtp(admin_client)
     set_public_url(server)
-    r = admin_client.patch(
-        "/ui/api/settings", json={"signupEnabled": True, "signupDomains": list(domains)}
-    )
+    r = save_settings(admin_client, {"signupEnabled": True, "signupDomains": list(domains)})
     assert r.status_code == 200, r.text
 
 
@@ -281,7 +274,7 @@ def outbox_link(server) -> tuple[str, str]:
 
 
 def test_sign_up_needs_smtp_and_the_public_url(admin_client, server):
-    r = admin_client.patch("/ui/api/settings", json={"signupEnabled": True})
+    r = save_settings(admin_client, {"signupEnabled": True})
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "signupEnabled"
     with new_client(server) as c:
         assert c.get("/ui/api/signup").json() == {"open": False, "domains": []}
@@ -386,16 +379,15 @@ def test_written_emails_are_listed_for_admins_and_expire(admin_client, server, t
     with server.db.tx() as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     make_user(server, "carol")
-    r = admin_client.post(
-        "/ui/api/users",
-        json={
-            "displayName": "Dave",
-            "username": "dave",
-            "email": "dave@example.com",
-            "sex": "male",
-        },
+    r = make(
+        admin_client,
+        "User",
+        displayName="Dave",
+        username="dave",
+        email="dave@example.com",
+        sex="male",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     listed = admin_client.get("/ui/api/settings/email/written").json()["items"]
     assert (
         listed and listed[0]["to"] == "dave@example.com" and "invit" in listed[0]["subject"].lower()
@@ -429,16 +421,16 @@ def test_a_new_smtp_host_needs_the_password_again_and_clears_the_old_password(
 
     set_up_smtp(admin_client)
     stale(server)
-    r = admin_client.patch("/ui/api/settings", json={"smtpHost": "smtp.elsewhere.example"})
-    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    r = save_settings(admin_client, {"smtpHost": "smtp.elsewhere.example"})
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
     # The same host saved again, and other fields, ask nothing.
-    r = admin_client.patch("/ui/api/settings", json={"smtpHost": "smtp.home.lan", "smtpPort": 465})
+    r = save_settings(admin_client, {"smtpHost": "smtp.home.lan", "smtpPort": 465})
     assert r.status_code == 200, r.text
-    r = admin_client.patch("/ui/api/settings", json={"publicUrl": "https://elsewhere.example"})
+    r = save_settings(admin_client, {"publicUrl": "https://elsewhere.example"})
     assert r.status_code == 403
     r = admin_client.post("/ui/api/session/reauth", json={"password": "a long admin passphrase"})
     assert r.status_code == 204
-    r = admin_client.patch("/ui/api/settings", json={"smtpHost": "smtp.elsewhere.example"})
+    r = save_settings(admin_client, {"smtpHost": "smtp.elsewhere.example"})
     assert r.status_code == 200, r.text
     with server.db.read() as s:
         assert secret_repo.info(s, *SMTP_SECRET) is None

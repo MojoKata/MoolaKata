@@ -119,7 +119,7 @@ UserGroups = pairs(
 Session = exception(
     "Session",
     "sessions are removed when they end or expire (§4.4.1)",
-    Column("tokenHash", Text, primary_key=True),
+    Column("tokenHash", Text, nullable=False, unique=True),
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("createdAt", UtcTimestamp, nullable=False),
     Column("lastSeenAt", UtcTimestamp, nullable=False),
@@ -130,12 +130,13 @@ Session = exception(
     Column("admin", Boolean, nullable=False, server_default=text("0")),
     Column("needsSetup", Boolean, nullable=False, server_default=text("0")),
     Index("ix_Session_userId", "userId"),
+    prefix="Sessn",
 )
 
 OneTimeToken = exception(
     "OneTimeToken",
     "one-time tokens are removed when used or expired (§4.4.1)",
-    Column("tokenHash", Text, primary_key=True),
+    Column("tokenHash", Text, nullable=False, unique=True),
     Column("purpose", Text, nullable=False),
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("data", Text),
@@ -145,16 +146,18 @@ OneTimeToken = exception(
         "purpose IN ('invitation', 'reset', 'email-change', 'two-step')", name="purpose"
     ),
     Index("ix_OneTimeToken_userId", "userId"),
+    prefix="OTTkn",
 )
 
 # Ten per user, each usable once in place of a two-step code (S10.1.6).
 RecoveryCode = exception(
     "RecoveryCode",
     "two-step recovery codes are removed when used or replaced (§4.4.1)",
-    Column("codeHash", Text, primary_key=True),
+    Column("codeHash", Text, nullable=False, unique=True),
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("createdAt", UtcTimestamp, nullable=False),
     Index("ix_RecoveryCode_userId", "userId"),
+    prefix="RCode",
 )
 
 # A person's request for an account (S10.1.4): confirmed by an emailed link, then approved or

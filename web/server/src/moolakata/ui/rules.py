@@ -1,18 +1,17 @@
 """Categorisation and payee rules (requirements S2.7): a user's own ordered list, edited on
 Transactions › Rules, applied on import and on demand to the uncategorised."""
 
-import json
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, ids
+from .. import access, activity, tags
 from ..errors import FieldError, Problem, refuse
 from ..ledger import rules as match
 from ..store.entities.accounts import Account, Category, Rule, Transaction
 from ..store.repos import rules as repo
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match
+from . import save
+from .conventions import ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["rules"])
@@ -20,7 +19,7 @@ router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["rules"])
 DIRECTIONS = ("any", "in", "out")
 
 
-class RuleIn(Model):
+class RuleFields(Model):
     payeeMatch: str
     amountMin: Money | None = None
     amountMax: Money | None = None
@@ -28,7 +27,6 @@ class RuleIn(Model):
     accountId: str | None = None
     categoryId: str | None = None
     payee: str | None = None  # the payee shown: Rename to
-    tags: list[str] = Field(default_factory=list)
 
 
 class RuleOut(Model):
@@ -45,17 +43,14 @@ class RuleOut(Model):
     categoryPath: str | None
     categoryDeleted: bool
     payee: str | None
-    tags: list[str]
+    tags: list[str]  # by name
+    tagIds: list[str]
     version: int
 
 
 class RuleList(Model):
     items: list[RuleOut]
     uncategorised: int  # in the accounts the user can change, that a rule could set
-
-
-class Move(Model):
-    to: int  # the place it goes, from 0
 
 
 class Applied(Model):
@@ -88,7 +83,8 @@ def _out(s, r: Rule, paths: dict) -> RuleOut:
         categoryPath=path,
         categoryDeleted=cat_deleted,
         payee=r.payee,
-        tags=json.loads(r.tags or "[]"),
+        tags=[t.name for t in _rule_tags(s, r)],
+        tagIds=[t.id for t in _rule_tags(s, r)],
         version=r.version,
     )
 
@@ -127,7 +123,11 @@ def _list(s, user_id: str) -> RuleList:
     )
 
 
-def _check(s, c: Caller, body: RuleIn) -> list[FieldError]:
+def _rule_tags(s, r: Rule) -> list:
+    return tags.of(s, "rule", r.ownerId, [r.id]).get(r.id, [])
+
+
+def _check(s, c: Caller, body: RuleFields, tagged: int) -> list[FieldError]:
     e: list[FieldError] = []
     try:
         match.compile_pattern(body.payeeMatch)
@@ -153,18 +153,13 @@ def _check(s, c: Caller, body: RuleIn) -> list[FieldError]:
             e.append(FieldError("categoryId", "category-unknown", "Choose a category."))
     if body.payee is not None and len(body.payee.strip()) > 200:
         e.append(FieldError("payee", "payee-too-long", "At most 200 characters."))
-    tags = _tags(body.tags)
-    if len(tags) > match.MAX_TAGS or any(len(t) > 40 for t in tags):
-        e.append(FieldError("tags", "tags-invalid", "Up to 10 tags of at most 40 characters."))
-    if not body.categoryId and not (body.payee or "").strip() and not tags:
+    if tagged > match.MAX_TAGS:
+        e.append(FieldError("tagIds", "tags-invalid", "Up to 10 tags."))
+    if not body.categoryId and not (body.payee or "").strip() and not tagged:
         e.append(
             FieldError("categoryId", "rule-sets-nothing", "A category, a payee or a tag to set.")
         )
     return e
-
-
-def _tags(tags: list[str]) -> list[str]:
-    return sorted({t.strip().lower() for t in tags if t.strip()})
 
 
 def _raise(e: list[FieldError]) -> None:
@@ -172,14 +167,13 @@ def _raise(e: list[FieldError]) -> None:
         raise Problem(422, e[0].code, e[0].message, e)
 
 
-def _fill(r: Rule, body: RuleIn) -> None:
+def _fill(r: Rule, body: RuleFields) -> None:
     r.payeeMatch = body.payeeMatch.strip()
     r.amountMin, r.amountMax = body.amountMin, body.amountMax
     r.direction = body.direction
     r.accountId = body.accountId or None
     r.categoryId = body.categoryId or None
     r.payee = (body.payee or "").strip() or None
-    r.tags = json.dumps(_tags(body.tags))
 
 
 def _record(s, kind: str, c: Caller, count: int | None = None) -> None:
@@ -206,22 +200,6 @@ def list_rules(request: Request, c: Caller = Depends(caller)):
         return _list(s, c.id)
 
 
-@router.post("/rules", response_model=RuleList, status_code=201)
-def add_rule(body: RuleIn, request: Request, c: Caller = Depends(caller)):
-    """A new rule, last in the list."""
-    with server(request).db.tx() as s:
-        _raise(_check(s, c, body))
-        rules = repo.of_user(s, c.id)
-        if len(rules) >= 500:
-            raise refuse(None, "too-many-rules", "At most 500 rules.")
-        r = Rule(id=ids.new_id("Rule"), ownerId=c.id, position=len(rules), payeeMatch="")
-        _fill(r, body)
-        s.add(r)
-        s.flush()
-        _record(s, "rule.created", c)
-        return _list(s, c.id)
-
-
 def _own(s, c: Caller, rule_id: str) -> Rule:
     r = s.get(Rule, rule_id)
     if r is None or r.deleted or r.ownerId != c.id:
@@ -229,49 +207,76 @@ def _own(s, c: Caller, rule_id: str) -> Rule:
     return r
 
 
-@router.patch("/rules/{rule_id}", response_model=RuleList)
-def change_rule(
-    rule_id: str,
-    body: RuleIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        r = _own(s, c, rule_id)
-        check(r, version, lambda: _out(s, r, _paths(s)))
-        _raise(_check(s, c, body))
-        _fill(r, body)
-        s.flush()
-        _record(s, "rule.updated", c)
-        return _list(s, c.id)
+class RuleRecord(RuleFields):
+    """A rule as a draft saves it (S2.7): a new one goes last in the list, and one moved goes
+    to its `position` (from 0), the others closing up around it; the tags it sets are its
+    owner's."""
+
+    tagIds: list[IdOf("Tag")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
+    position: int | None = None
 
 
-@router.post("/rules/{rule_id}/move", response_model=RuleList)
-def move_rule(rule_id: str, body: Move, request: Request, c: Caller = Depends(caller)):
-    """Up or down the list: first match wins, so the order is what a rule means."""
-    with server(request).db.tx() as s:
-        r = _own(s, c, rule_id)
+def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    _raise(_check(s, c, body, len(body.tagIds)))
+    tags.owned(s, c.id, body.tagIds)
+    rules = repo.of_user(s, c.id)
+    if len(rules) >= 500:
+        raise refuse(None, "too-many-rules", "At most 500 rules.")
+    r = Rule(id=record_id, ownerId=c.id, position=len(rules), payeeMatch="")
+    _fill(r, body)
+    s.add(r)
+    s.flush()
+    tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)
+    _record(s, "rule.created", c)
+
+
+def _rule_current(ctx, r: Rule) -> dict:
+    return {f: getattr(r, f) for f in RuleFields.model_fields} | {
+        "tagIds": [t.id for t in _rule_tags(ctx.s, r)],
+        "position": r.position,
+    }
+
+
+def _rule_update(ctx, r: Rule, body: RuleRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    current = _rule_current(ctx, r)
+    if body.position is not None and body.position != r.position:
+        # Up or down the list: first match wins, so the order is what a rule means.
         rules = [x for x in repo.of_user(s, c.id) if x.id != r.id]
-        rules.insert(max(0, min(body.to, len(rules))), r)
+        rules.insert(max(0, min(body.position, len(rules))), r)
         _renumber(rules)
-        s.flush()
         _record(s, "rule.moved", c)
-        return _list(s, c.id)
+    if any(getattr(body, f) != current[f] for f in (*RuleFields.model_fields, "tagIds")):
+        _raise(_check(s, c, body, len(body.tagIds)))
+        tags.owned(s, c.id, body.tagIds)
+        _fill(r, body)
+        tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)
+        _record(s, "rule.updated", c)
 
 
-@router.delete("/rules/{rule_id}", response_model=Deleted[None])
-def delete_rule(
-    rule_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        r = _own(s, c, rule_id)
-        check(r, version, lambda: _out(s, r, _paths(s)))
-        r.mark_deleted(c.id)
-        _renumber([x for x in repo.of_user(s, c.id) if x.id != r.id])
-        s.flush()
-        _record(s, "rule.deleted", c)
-        return Deleted[None](deleted=gone(r))
+def _rule_delete(ctx, r: Rule) -> None:
+    s, c = ctx.s, ctx.caller
+    r.mark_deleted(c.id)
+    _renumber([x for x in repo.of_user(s, c.id) if x.id != r.id])
+    _record(s, "rule.deleted", c)
+
+
+save.register(
+    save.Kind(
+        prefix="Rule",
+        entity=Rule,
+        fields=RuleRecord,
+        create=_rule_create,
+        editable=lambda ctx, record_id: _own(ctx.s, ctx.caller, record_id),
+        current=_rule_current,
+        update=_rule_update,
+        delete=_rule_delete,
+        read=lambda ctx, record_id: _out(ctx.s, ctx.s.get(Rule, record_id), _paths(ctx.s)),
+    )
+)
 
 
 @router.post("/rules/apply", response_model=Applied)

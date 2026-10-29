@@ -3,6 +3,7 @@
 import datetime as dt
 
 import pytest
+from edits import edit, giving_plan, make, saved
 from test_accounts import add, new_account
 from test_budgets import month, plan, row, save_plan, setup_budget
 
@@ -19,8 +20,7 @@ def frozen():
 
 
 def change(c, b, **body):
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    return c.patch(f"/ui/api/budgets/{b['id']}", json=body, headers={"If-Match": str(v)})
+    return edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", **body)
 
 
 def test_a_method_and_options_chosen_when_made(server, frozen):
@@ -31,17 +31,13 @@ def test_a_method_and_options_chosen_when_made(server, frozen):
         False,
         "2026-10-01",
     )
-    r = c.post("/ui/api/budgets", json={"name": "Try", "method": "zero"})
+    r = make(c, "Bdgt", name="Try", method="zero")
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "method"
-    r = c.post(
-        "/ui/api/budgets",
-        json={"name": "Envelopes", "method": "envelope", "accountIds": [acct["id"]]},
-    )
+    r = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[acct["id"]])
     env = r.json()
     assert env["method"] == "envelope" and env["moves"]
     assert change(c, env, moves=False).status_code == 422
-    r = change(c, b, reserves=True)
-    assert r.status_code == 200 and r.json()["reserves"]
+    assert saved(change(c, b, reserves=True))["reserves"]
 
 
 def test_where_money_comes_from_is_worked_out(server, frozen):
@@ -58,13 +54,11 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
     add(c, acct["id"], "-250.00", "2026-09-10", payee="To Ally")
     add(c, savings["id"], "250.00", "2026-09-10", payee="From checking", kind="deposit")
     ids = [acct["id"], other["id"], card["id"], savings["id"]]
-    r = change(c, b, accountIds=ids)
-    assert r.status_code == 200, r.text
-    roles = {x["accountId"]: x for x in r.json()["roles"]}
+    roles = {x["accountId"]: x for x in saved(change(c, b, accountIds=ids))["roles"]}
     assert roles[card["id"]]["paidFromId"] == other["id"] and roles[card["id"]]["paidFromLearned"]
     assert roles[savings["id"]]["movedFromId"] == acct["id"]
     r = change(c, b, roles=[{"accountId": savings["id"], "movedFromId": other["id"]}])
-    roles = {x["accountId"]: x for x in r.json()["roles"]}
+    roles = {x["accountId"]: x for x in saved(r)["roles"]}
     assert roles[savings["id"]]["movedFromId"] == other["id"]
     assert not roles[savings["id"]]["movedFromProposed"]
     bad = change(c, b, roles=[{"accountId": savings["id"], "movedFromId": "Acct_nope"}])
@@ -73,11 +67,9 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
 
 def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
     c, acct, cat, b = setup_budget(server)
-    r = c.post(
-        "/ui/api/people", json={"name": "Emma Griffin", "sex": "female", "giftBudget": "600"}
-    )
-    assert r.status_code == 201, r.text
-    r = c.put("/ui/api/giving/plan", json={"year": 2026, "targetKind": "amount", "amount": "1200"})
+    r = make(c, "GfPln", name="Emma Griffin", sex="female", giftBudget="600")
+    assert r.status_code == 200, r.text
+    r = giving_plan(c, 2026, targetKind="amount", amount="1200")
     assert r.status_code == 200, r.text
     add(c, acct["id"], "-80.00", "2026-03-04", payee="Toy store", categoryId=cat["Gifts"])
     v = month(c, b, "2026-10")
@@ -95,14 +87,13 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
 
 def test_a_savings_line_shows_its_projections_monthly(server, frozen):
     c, acct, cat, b = setup_budget(server)
-    r = c.post(
-        "/ui/api/projections",
-        json={
-            "name": "Nest egg",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [acct["id"]]},
-            "inputs": {"target": 150000, "date": "2030-01-01", "monthly": 650},
-        },
+    r = make(
+        c,
+        "Prjct",
+        name="Nest egg",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [acct["id"]]},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 650},
     )
     pid = r.json()["id"]
     c.post(f"/ui/api/projections/{pid}/activate")

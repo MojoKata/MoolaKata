@@ -58,8 +58,8 @@ How the account is kept current: from files you import (OFX, QFX or CSV), or by 
 
 The connector fetches this account from its institution with one of your connections and
 imports what it fetches as an upload would. Only the account's owner turns it on; an account
-shared with write can't be. **Save sync** keeps the choice. Each post shows in Activity as by
-the connector and the connection.
+shared with write can't be. **Save** keeps the choice with the rest of the settings. Each post
+shows in Activity as by the connector and the connection.
 
 ## Connection
 
@@ -79,7 +79,7 @@ for 401(k)s, 403(b)s, 457(b)s and 529s; none for accounts kept by hand. A statem
 its period has passed and a grace after it (15 days monthly, 30 quarterly, 60 yearly): an alert
 names the one missing, and clears when it arrives, read or kept. Once three statements or imports
 have arrived, MoolaKata proposes the interval they arrive at when it differs; dismissed, it isn't
-proposed again.
+proposed again once the settings are saved.
 
 ## Withdrawals allowed a month {#withdrawals-a-month}
 

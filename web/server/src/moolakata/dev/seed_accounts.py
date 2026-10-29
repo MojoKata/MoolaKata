@@ -474,8 +474,6 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
 
 def seed_rules(s, people: dict) -> None:
     """Alice's categorisation rules (S2.7), first match wins."""
-    import json
-
     from ..store.entities.accounts import Category, Rule
 
     cats = {
@@ -486,17 +484,22 @@ def seed_rules(s, people: dict) -> None:
             ("re:^WHOLE ?FOODS", "food.groceries", {"payee": "Whole Foods"}),
             ("kroger", "food.groceries", {}),
             ("shell", "transport.fuel", {"direction": "out", "amountMax": D(100)}),
-            ("netflix", "personal.subscriptions", {"tags": json.dumps(["streaming"])}),
+            ("netflix", "personal.subscriptions", {}),
             ("acme corp payroll", "income.salary", {"direction": "in"}),
         )
     ):
-        s.add(
-            Rule(
-                id=ids.new_id("Rule"),
-                ownerId=people["alice"].id,
-                position=i,
-                payeeMatch=match,
-                categoryId=cats[key],
-                **extra,
-            )
+        rule = Rule(
+            id=ids.new_id("Rule"),
+            ownerId=people["alice"].id,
+            position=i,
+            payeeMatch=match,
+            categoryId=cats[key],
+            **extra,
         )
+        s.add(rule)
+        if match == "netflix":  # it tags what it matches too
+            s.flush()
+            from .. import tags
+
+            tag = tags.make(s, people["alice"].id, "streaming")
+            tags.set_on(s, "rule", rule.id, people["alice"].id, [tag.id], people["alice"].id)

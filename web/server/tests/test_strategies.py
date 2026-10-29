@@ -4,6 +4,8 @@ mockup's worked numbers; then grouping, proposals, rolls and undo through the AP
 import datetime as dt
 from decimal import Decimal as D
 
+from edits import change, create, make, remove, saved
+
 from moolakata.options.strategies import Leg, capital_at_risk, figures, shape
 
 EXP = dt.date(2026, 11, 20)
@@ -106,27 +108,17 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
         ("buy-to-open", "530", "1.20"),
     ):
         r = option(alice, a, action, "2026-10-02", premium, strike=strike, fees="0")
-        assert r.status_code == 201, r.text
+        assert r.status_code == 200, r.text
     v = alice.get("/ui/api/positions/strategies").json()
     [p] = v["proposals"]
     assert (p["kind"], p["shape"], len(p["legs"])) == ("group", "Bull put spread", 2)
     # Turned down, it isn't proposed again.
-    r = alice.post(
-        "/ui/api/strategies",
-        json={
-            "accountId": a,
-            "legs": [{"instrumentId": x["instrumentId"]} for x in p["legs"]],
-            "dismiss": True,
-        },
-    )
-    assert r.status_code == 201, r.text
-    assert r.json()["proposals"] == [] and r.json()["strategies"] == []
+    legs = [{"instrumentId": x["instrumentId"]} for x in p["legs"]]
+    saved(create(alice, "Strat", accountId=a, legs=legs, dismissed=True))
+    v = alice.get("/ui/api/positions/strategies").json()
+    assert v["proposals"] == [] and v["strategies"] == []
     # Grouped by hand.
-    r = alice.post(
-        "/ui/api/strategies",
-        json={"accountId": a, "legs": [{"instrumentId": x["instrumentId"]} for x in p["legs"]]},
-    )
-    [st] = r.json()["strategies"]
+    st = saved(create(alice, "Strat", accountId=a, legs=legs))
     assert (st["shape"], st["credit"], st["maxProfit"], st["maxLoss"]) == (
         "Bull put spread",
         80,
@@ -134,21 +126,17 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
         920,
     )
     assert st["capitalAtRiskAtOpen"] == 920 and st["breakevens"] == [539.2]
-    again = alice.post(
-        "/ui/api/strategies",
-        json={"accountId": a, "legs": [{"instrumentId": p["legs"][0]["instrumentId"]}]},
-    )
-    assert again.json()["code"] == "leg-grouped"
+    again = create(alice, "Strat", accountId=a, legs=legs[:1])
+    assert again.json()["errors"][0]["code"] == "leg-grouped"
     # A roll: the short leg closed and a new one opened the same day.
     option(alice, a, "buy-to-close", "2026-10-10", "1.00", strike="540", fees="0")
     option(alice, a, "sell-to-open", "2026-10-10", "1.50", strike="535", fees="0")
     v = alice.get("/ui/api/positions/strategies").json()
     [roll] = v["proposals"]
     assert (roll["kind"], roll["strategyId"]) == ("roll", st["id"])
-    r = alice.patch(
-        f"/ui/api/strategies/{st['id']}",
+    r = alice.post(
+        f"/ui/api/strategies/{st['id']}/roll",
         json={"roll": [{"instrumentId": roll["legs"][0]["instrumentId"]}]},
-        headers={"If-Match": f'"{st["version"]}"'},
     )
     assert r.status_code == 200, r.text
     st = r.json()
@@ -162,26 +150,29 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
     assert (closed["capitalAtRisk"], closed["returnPct"]) == (920, 10.87)
     assert alice.get("/ui/api/positions/strategies").json()["proposals"] == []
     # Undone: the legs stand alone again.
-    r = alice.delete(f"/ui/api/strategies/{st['id']}", headers={"If-Match": f'"{st["version"]}"'})
+    r = change(alice, "Strat", st, marginRequirement="1000.00", name="Rolled spread")
+    assert (saved(r)["name"], saved(r)["marginRequirement"]) == ("Rolled spread", "1000.00")
+    r = change(alice, "Strat", saved(r), marginRequirement="-1")
+    assert r.json()["errors"][0]["code"] == "margin-invalid"
+    r = remove(alice, "Strat", alice.get("/ui/api/positions/strategies").json()["strategies"][0])
     assert r.status_code == 200, r.text
     assert alice.get("/ui/api/positions/strategies").json()["strategies"] == []
 
 
 def test_a_short_call_against_shares_is_proposed_as_a_covered_call(alice):
     a = new_account(alice, type="brokerage")["id"]
-    r = alice.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": a,
-            "date": "2026-01-05",
-            "kind": "buy",
-            "symbol": "MSFT",
-            "quantity": "100",
-            "price": "400",
-            "amount": "-40000.00",
-        },
+    r = make(
+        alice,
+        "Txn",
+        accountId=a,
+        date="2026-01-05",
+        kind="buy",
+        symbol="MSFT",
+        quantity="100",
+        price="400",
+        amount="-40000.00",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     option(alice, a, "sell-to-open", "2026-09-15", "4.12", right="call", strike="500", fees="0")
     [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
     assert (p["kind"], p["shape"]) == ("covered-call", "Covered call")
@@ -192,9 +183,7 @@ def test_a_short_call_against_shares_is_proposed_as_a_covered_call(alice):
         }
         for x in p["legs"]
     ]
-    [st] = alice.post("/ui/api/strategies", json={"accountId": a, "legs": legs}).json()[
-        "strategies"
-    ]
+    st = saved(create(alice, "Strat", accountId=a, legs=legs))
     assert st["shape"] == "Covered call" and st["credit"] == 412
 
 
@@ -204,20 +193,17 @@ def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(alice):
     a = new_account(alice, type="brokerage")["id"]
     for right, premium in (("call", "3.00"), ("put", "2.50")):
         r = option(alice, a, "sell-to-open", "2026-10-02", premium, right=right, fees="0")
-        assert r.status_code == 201, r.text
+        assert r.status_code == 200, r.text
     [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
     assert p["shape"] == "Short straddle"
-    r = alice.post(
-        "/ui/api/strategies",
-        json={"accountId": a, "legs": [{"instrumentId": x["instrumentId"]} for x in p["legs"]]},
-    )
-    [st] = r.json()["strategies"]
+    legs = [{"instrumentId": x["instrumentId"]} for x in p["legs"]]
+    st = saved(create(alice, "Strat", accountId=a, legs=legs))
     assert st["capitalAtRiskNow"] is None and st["capitalAtRiskAtOpen"] is None
     acct = alice.get(f"/ui/api/accounts/{a}").json()
     assert acct["capitalAtRiskUnlimited"] and acct["capitalAtRisk"] is None
     _, put = sorted(p["legs"], key=lambda x: x["symbol"])
     r = option(alice, a, "buy-to-close", "2026-10-09", "1.00", right="call", fees="0")
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     r = alice.post(
         f"/ui/api/accounts/{a}/options/{put['instrumentId']}/settle",
         json={"how": "assign", "date": "2026-10-12"},

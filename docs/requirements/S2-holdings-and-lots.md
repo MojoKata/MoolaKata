@@ -31,6 +31,9 @@
       gain is a row of Form 8949. A merger paid all in cash is a sale of every lot.
    6. A move between instruments is a pair of transactions, one on each; deleting either
       deletes both, after asking. Options on the shares are adjusted as S3.10 says.
+   7. **The action is kept** as typed, its transactions made from it: deleting the action, or
+      one of its transactions, undoes it whole. One read from a broker's file is its
+      transaction alone.
 5. **Dividends and interest**: qualified and ordinary dividends, reinvestment (a dividend plus
    a buy), and capital-gain distributions, with the classification the 1099 will use.
 6. **Bank transactions** have a payee (normalised by **payee rules**), a category (S7.2), an

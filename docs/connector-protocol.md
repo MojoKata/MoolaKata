@@ -231,9 +231,9 @@ owner pastes back is exchanged within seconds), `POST /connector/v1/report`:
    host being the one the dialog shows the owner, as an X25519 sealed box (an ephemeral X25519
    key, HKDF-SHA256 over the exchange with the label `moolakata connector credential` and the
    Connection's id as salt, AES-256-GCM with a random 96-bit nonce; the box is the ephemeral
-   public key, the nonce and the ciphertext, base64url), and sends the box to `PUT
-   /ui/api/connections/{id}/credential`. MoolaKata stores the box as it is and hands it to the
-   connector in the next report's answer.
+   public key, the nonce and the ciphertext, base64url), and sends the box to `POST
+   /ui/api/profile/connections/{id}/credential`. MoolaKata stores the box as it is and hands
+   it to the connector in the next report's answer.
 2. The connector opens the box with the sealing key from its vault, refuses it when its host
    isn't the one the Connection's settings name or when it is older than the credential it
    holds, files the credentials in the vault under the Connection's id **bound to the host

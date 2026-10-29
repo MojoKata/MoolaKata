@@ -306,9 +306,14 @@ def _issue(s: Db, user: User, purpose: str, lifetime: dt.timedelta, data: str | 
     return token
 
 
+def token_by_hash(s: Db, token_hash: str) -> OneTimeToken | None:
+    """The one-time token its hash names: the token itself is never stored."""
+    return s.scalars(select(OneTimeToken).where(OneTimeToken.tokenHash == token_hash)).first()
+
+
 def _take(s: Db, token: str, purpose: str) -> OneTimeToken:
     """A token is used once: found, checked and removed."""
-    row = s.get(OneTimeToken, digest(token or ""))
+    row = token_by_hash(s, digest(token or ""))
     if row is None or row.purpose != purpose or row.expiresAt <= now():
         if row is not None and row.expiresAt <= now():
             s.delete(row)
@@ -317,7 +322,7 @@ def _take(s: Db, token: str, purpose: str) -> OneTimeToken:
 
 
 def peek_invitation(s: Db, token: str) -> User:
-    row = s.get(OneTimeToken, digest(token or ""))
+    row = token_by_hash(s, digest(token or ""))
     if row is None or row.purpose != "invitation" or row.expiresAt <= now():
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
     return s.get(User, row.userId)
@@ -332,6 +337,7 @@ def invite(
     email: str,
     groups: list[str],
     sex: str | None = None,
+    user_id: str | None = None,
 ) -> User:
     from .. import people
 
@@ -348,7 +354,7 @@ def invite(
         errors.append(FieldError("groupIds", "group-unknown", "Choose existing groups."))
     _raise(errors)
     u = User(
-        id=ids.new_id("User"),
+        id=user_id or ids.new_id("User"),
         personId=people.for_new_user(s, display_name.strip(), sex, by.id).id,
         username=username,
         displayName=display_name.strip(),
@@ -711,10 +717,12 @@ def members(s: Db, group_id: str) -> list[str]:
     )
 
 
-def create_group(s: Db, by: User, name: str, member_ids: list[str]) -> Group:
+def create_group(
+    s: Db, by: User, name: str, member_ids: list[str], group_id: str | None = None
+) -> Group:
     name = (name or "").strip()
     _raise(_name_problems(name, "name") + _group_name_taken(s, name, None))
-    g = Group(id=ids.new_id("Group"), name=name)
+    g = Group(id=group_id or ids.new_id("Group"), name=name)
     s.add(g)
     s.flush()
     set_members(s, by, g, member_ids, record=False)

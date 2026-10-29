@@ -1,6 +1,6 @@
 // Gifts (requirements S7.7, S7.8, S12.2.8): Upcoming occasions, People, Gifts from idea to given
 // (and received), and Spending by person, occasion and year.
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -9,13 +9,16 @@ import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Seg, Select, SwitchRow } from '../components/fields.js';
+import { openDialog } from '../components/dialog.js';
+import { Field, Input, Seg, Select } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { dec, num } from '../app/dec.js';
+import { Record as Rec } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -37,7 +40,6 @@ const TONE = /** @type {Record<string, string>} */ ({
   given: 'ok',
   received: '',
 });
-const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 
 /** @param {{ status: string }} p */
 function StatusPill({ status }) {
@@ -315,166 +317,210 @@ function Spending() {
   `;
 }
 
-/** @param {any} p */
-function personForm(p) {
-  return {
-    name: p?.name || '',
-    sex: p?.sex || '',
-    birthday: p?.birthMonth
-      ? `${p.birthYear || ''}-${String(p.birthMonth).padStart(2, '0')}-${
-        String(p.birthDay)
-          .padStart(2, '0')
-      }`.replace(/^-/, '')
-      : '',
-    diedOn: p?.diedOn || '',
-    private: !!p?.private,
-    giftBudget: p?.giftBudget || '',
-    leadDays: String(p?.leadDays ?? 14),
-    notes: p?.notes || '',
-    holidays: (p?.occasions || []).filter((/** @type {any} */ o) => o.kind === 'holiday').map((
-      /** @type {any} */ o,
-    ) => o.holiday),
-    dated: (p?.occasions || []).filter((/** @type {any} */ o) => o.kind !== 'holiday').map((
-      /** @type {any} */ o,
-    ) => ({
-      kind: o.kind,
-      name: o.name || '',
-      date: `${o.year || ''}-${String(o.month).padStart(2, '0')}-${String(o.day).padStart(2, '0')}`
-        .replace(/^-/, ''),
-      budget: o.budget || '',
-    })),
+/** A person, as a gift plan's dialog edits them (S10.10.1). */
+class PersonRec extends Rec {
+  /** @override */
+  static prefix = 'Persn';
+  /** @override */
+  static fields = FIELDS.PersonRecord;
+  /** @override */
+  static defaults = {
+    name: '',
+    sex: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    diedOn: null,
+    private: false,
+    differentPerson: false,
   };
 }
 
-/** "2018-10-20" or "10-20": month, day and the year if given. */
-/** @param {string} s */
-function parseDay(s) {
-  const m = s.trim().match(/^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/);
-  if (!m) return null;
-  return { year: m[1] ? Number(m[1]) : null, month: Number(m[2]), day: Number(m[3]) };
+/** A gift plan (S7.7): it goes with its person. */
+class PlanRec extends Rec {
+  /** @override */
+  static prefix = 'GfPln';
+  /** @override */
+  static fields = FIELDS.PlanRecord;
+  /** @override */
+  static defaults = { giftBudget: null, leadDays: 14, notes: null };
+  /** @override */
+  static ownedBy = ['personId'];
 }
+
+/** A plan's occasion: a holiday, or an anniversary or other occasion on a day (S7.7.1). */
+class OccasionRec extends Rec {
+  /** @override */
+  static prefix = 'Occsn';
+  /** @override */
+  static fields = FIELDS.OccasionRecord;
+  /** @override */
+  static defaults = { name: null, holiday: null, month: null, day: null, year: null, budget: null };
+  /** @override */
+  static ownedBy = ['giftPlanId'];
+}
+
+/** A day as typed, "2018-10-20" or "10-20" without the year, shown back the same way. */
+export const DAY = {
+  /** @param {string} s */
+  read(s) {
+    if (!s.trim()) return { value: { month: null, day: null, year: null } };
+    const m = s.trim().match(/^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/);
+    if (!m) return { error: 'Type 2018-10-20, or 10-20 without the year.' };
+    return { value: { year: m[1] ? Number(m[1]) : null, month: Number(m[2]), day: Number(m[3]) } };
+  },
+  /** @param {number | null} y @param {number | null} m @param {number | null} d */
+  show: (y, m, d) =>
+    m ? `${y ? y + '-' : ''}${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '',
+};
+
+/** @param {string} prefix */
+export const asFields = (/** @type {any} */ v, /** @type {string} */ prefix) =>
+  Object.fromEntries(
+    Object.entries(v).map(([k, x]) => [prefix + k[0].toUpperCase() + k.slice(1), x]),
+  );
 
 /** @param {{ close: (v?: any) => void, p: any }} p */
 function PersonDialog({ close, p }) {
   useDialogGuide('dialog-person');
   const hols = useList('/holidays');
-  const [f, setF] = useState(personForm(p));
-  const [use, setUse] = useState(/** @type {string | null} */ (null));
-  const [apart, setApart] = useState(false);
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const canWrite = !p || p.level !== 'read';
-  const ownPerson = !p || p.canChangePerson;
-  const save = useSubmit(async () => {
-    const b = f.birthday ? parseDay(f.birthday) : null;
-    const body = {
-      personId: use,
-      differentPerson: apart,
-      name: f.name,
-      sex: f.sex || null,
-      birthMonth: b?.month ?? null,
-      birthDay: b?.day ?? null,
-      birthYear: b?.year ?? null,
-      diedOn: f.diedOn || null,
-      private: !p || p.canMakePrivate ? f.private : null,
-      giftBudget: clean(f.giftBudget) || null,
-      leadDays: Number(f.leadDays) || 0,
-      notes: f.notes || null,
-      occasions: [
-        ...f.holidays.map((/** @type {string} */ h) => ({ kind: 'holiday', holiday: h })),
-        ...f.dated.map((/** @type {any} */ o) => {
-          const d = parseDay(o.date) || { year: null, month: 0, day: 0 };
-          return {
-            kind: o.kind,
-            name: o.name || null,
-            month: d.month,
-            day: d.day,
-            year: d.year,
-            budget: clean(o.budget) || null,
-          };
-        }),
-      ],
-    };
-    const out = p
-      ? await api.patch(`/people/${p.id}`, body, p.version)
-      : await api.post('/people', body);
-    toast(p ? 'Saved' : `${out.name} added`);
-    close(out);
-  });
-  // Deleting asks twice: the plan only, or the person with it (S7.8.6).
-  const [armed, setArmed] = useState('');
-  const drop = useSubmit(async (/** @type {string} */ what) => {
-    if (armed !== what) {
-      setArmed(what);
+  const f = useDraft(async (draft) => {
+    if (!p) {
+      const who = draft.add(PersonRec);
+      draft.add(PlanRec, { personId: who.id });
       return;
     }
-    if (what === 'person') await api.del(`/persons/${p.id}`, p.personVersion);
-    else await api.del(`/people/${p.id}`, p.version);
-    toast(what === 'person' ? `${p.name} deleted` : 'Gift plan deleted');
-    close(true);
-  });
-  // A linked server's user who is this person, joined once someone who may change it says so
-  // (S10.10.1).
+    const x = await api.get(`/people/${p.id}`);
+    draft.load(PersonRec, {
+      id: x.id,
+      version: x.personVersion,
+      ...Object.fromEntries(Object.keys(PersonRec.defaults).map((k) => [k, x[k] ?? null])),
+      private: x.private,
+      differentPerson: false,
+    });
+    draft.load(PlanRec, {
+      id: x.planId,
+      version: x.version,
+      personId: x.id,
+      giftBudget: x.giftBudget,
+      leadDays: x.leadDays,
+      notes: x.notes,
+    });
+    for (const o of x.occasions) draft.load(OccasionRec, { ...o, giftPlanId: x.planId });
+  }, [p?.id]);
+  const draft = f.draft;
+  const who = /** @type {PersonRec | undefined} */ (
+    draft?.records.find((r) => r instanceof PersonRec)
+  );
+  const plan = /** @type {PlanRec | undefined} */ (
+    draft?.records.find((r) => r instanceof PlanRec)
+  );
+  const occasions = /** @type {OccasionRec[]} */ (
+    (draft?.records || []).filter((r) => r instanceof OccasionRec)
+  );
+  const dated = occasions.filter((o) => !o.removed && o.get('kind') !== 'holiday');
+  const canWrite = !p || p.level !== 'read';
+  const ownPerson = !p || p.canChangePerson;
+  // One person, once (S10.10.3): a name already here shows that person instead.
+  const [clash, setClash] = useState(/** @type {any} */ (null));
+  const [using, setUsing] = useState(false);
+  useEffect(() => {
+    if (!who || who.state !== 'new' || !who.error('name')) return;
+    api.get('/persons/clash', { name: who.get('name'), birthYear: who.get('birthYear') ?? '' })
+      .then(setClash, () => {});
+  }, [who?.error('name')]);
+  /** The plan for someone already here: the new person goes. */
+  const use = () => {
+    if (!who || !plan || !draft) return;
+    plan.set('personId', clash.id);
+    draft.remove(who);
+    setUsing(true);
+  };
+  /** Typing the name again: a new person after all. */
+  const unuse = () => {
+    setClash(null);
+    if (!who || !plan || !draft || !using) return;
+    draft.unremove(who);
+    plan.set('personId', who.id);
+    setUsing(false);
+  };
+  const holiday = (/** @type {string} */ key) =>
+    occasions.find((o) => o.get('kind') === 'holiday' && o.get('holiday') === key);
+  const toggle = (/** @type {string} */ key) => {
+    if (!draft || !plan) return;
+    const o = holiday(key);
+    if (!o) draft.add(OccasionRec, { giftPlanId: plan.id, kind: 'holiday', holiday: key });
+    else if (o.removed) draft.unremove(o);
+    else draft.remove(o);
+  };
+  // Deleting asks twice: the plan only, or the person with it (S7.8.6).
+  const [armed, setArmed] = useState('');
   const join = useSubmit(async (/** @type {any} */ r) => {
     await api.post(`/persons/${p.id}/join`, { userId: r.id });
     toast(`${r.name} on ${r.server} is ${p.name} here`);
     close(true);
   });
-  const rels = useApi(p ? `/persons/${p.id}/relations` : null, {});
-  const relations = /** @type {any[]} */ ((/** @type {any} */ (rels.data))?.items || []);
-  const e = save.error || drop.error || join.error;
-  // One person, once (S10.10.3): a name already here shows that person instead.
-  const clash = e?.code === 'person-exists' ? e.body?.person : null;
   const ask = useSubmit(async () => {
     await api.post(`/persons/${clash.id}/ask-to-share`);
     toast(`Asked ${clash.createdBy || 'an admin'} to share ${clash.name}`);
     close();
   });
-  const dated = (/** @type {number} */ i, /** @type {string} */ k) => (/** @type {string} */ x) =>
-    set('dated')(
-      f.dated.map((/** @type {any} */ o, /** @type {number} */ j) =>
-        j === i ? { ...o, [k]: x } : o
-      ),
-    );
-  const toggle = (/** @type {string} */ h) =>
-    set('holidays')(
-      f.holidays.includes(h)
-        ? f.holidays.filter((/** @type {string} */ x) => x !== h)
-        : [...f.holidays, h],
-    );
+  const rels = useApi(p ? `/persons/${p.id}/relations` : null, {});
+  const relations = /** @type {any[]} */ ((/** @type {any} */ (rels.data))?.items || []);
+  const birthday = who
+    ? who.typed('birthday') ??
+      DAY.show(who.get('birthYear'), who.get('birthMonth'), who.get('birthDay'))
+    : '';
+  const deleting = (plan?.removed && !using) ? (who?.removed ? 'person' : 'plan') : '';
   return html`
-    <${Dialog} title=${p ? `Gift plan for ${p.name}` : 'New gift plan'} wide close=${close}
-      onSubmit=${() => canWrite && save.run().catch(() => {})}
-      footer=${html`${
-        p && p.level === 'owner'
-          ? html`<button type="button" class="btn" onClick=${() =>
-            openDialog(ShareDialog, {
-              kind: 'gift-plan',
-              id: p.planId,
-              name: `Gift plan for ${p.name}`,
-            })}><${Icon}
-            name="share" /> Share</button>`
-          : null
-      }${
-        p && p.level === 'owner'
-          ? html`
-            <button type="button" class="btn danger" disabled=${drop.busy}
-              onClick=${() => drop.run('plan').catch(() => {})}>${armed === 'plan'
-                ? 'Delete the plan?'
-                : 'Delete plan'}</button>
-          `
-          : null
-      }${
-        p && p.canChangePerson && !p.isUser
-          ? html`
-            <button type="button" class="btn danger" disabled=${drop.busy}
-              onClick=${() => drop.run('person').catch(() => {})}>${armed === 'person'
-                ? `Delete ${p.name} for everyone?`
-                : 'Delete person'}</button>
-          `
-          : null
-      }<span class="spacer"></span>${
-        canWrite ? html`<button class="btn primary" disabled=${save.busy}>Save</button>` : null
-      }`}>
+    <${DraftDialog} f=${f} wide close=${close} what="This gift plan"
+      title=${p ? `Gift plan for ${p.name}` : 'New gift plan'}
+      done=${deleting === 'person'
+        ? `${p?.name} deleted`
+        : deleting
+        ? 'Gift plan deleted'
+        : p
+        ? 'Saved'
+        : `${who?.get('name') || 'They'} added`}
+      hideSave=${!canWrite}
+      extra=${({ save }) => {
+        /** Delete the plan, or the person with it: armed first, then removed and saved. */
+        const drop = async (/** @type {string} */ what) => {
+          if (armed !== what || !draft) return setArmed(what);
+          const r = /** @type {any} */ (what === 'person' ? who : plan);
+          draft.remove(r);
+          const out = await save.run().catch(() => null);
+          if (out?.status !== 'asks' && out?.status !== 'saved') draft.unremove(r);
+        };
+        return html`${
+          p && p.level === 'owner'
+            ? html`<button type="button" class="btn" onClick=${() =>
+              openDialog(ShareDialog, {
+                kind: 'gift-plan',
+                id: p.planId,
+                name: `Gift plan for ${p.name}`,
+              })}><${Icon} name="share" /> Share</button>`
+            : null
+        }${
+          p && p.level === 'owner'
+            ? html`
+              <button type="button" class="btn danger" disabled=${save.busy}
+                onClick=${() => drop('plan')}>${armed === 'plan'
+                  ? 'Delete the plan?'
+                  : 'Delete plan'}</button>
+            `
+            : null
+        }${
+          p && p.canChangePerson && !p.isUser
+            ? html`
+              <button type="button" class="btn danger" disabled=${save.busy}
+                onClick=${() => drop('person')}>${armed === 'person'
+                  ? `Delete ${p.name} for everyone?`
+                  : 'Delete person'}</button>
+            `
+            : null
+        }<span class="spacer"></span>`;
+      }}>
       ${(p?.sameAs || []).map((/** @type {any} */ r) =>
         html`<div class="notice" role="status" key=${r.id} style=${{
           marginBottom: '12px',
@@ -485,176 +531,158 @@ function PersonDialog({ close, p }) {
             class="btn sm" disabled=${join.busy} onClick=${() =>
           join.run(r).catch(() => {})}>Join them</button></div>`
       )}
-      <fieldset disabled=${!canWrite} style=${{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <fieldset disabled=${!ownPerson || !!use} class="card" style=${{
-          margin: '0 0 12px',
-          padding: '10px 12px',
-          minWidth: 0,
-        }} data-help="the-person">
-          <div class="small dim">The person, seen by the household${p?.private
-            ? ' (private: only those it is shared with)'
-            : ''}</div>
-          <div class="row">
-            <${Field} label="Name" error=${errAt(e, 'name')}>
-              <${Input} value=${f.name}
-                onInput=${(/** @type {string} */ v) => {
-                  setUse(null);
-                  setApart(false);
-                  set('name')(v);
-                }} required placeholder="Emma Griffin" />
-              </${Field}>
-              <${Field} label="Sex" error=${errAt(e, 'sex')}>
-                <${Select} value=${f.sex} onChange=${set('sex')} options=${[
+      ${who && plan
+        ? html`
+          <fieldset disabled=${!canWrite} style=${{
+            border: 0,
+            padding: 0,
+            margin: 0,
+            minWidth: 0,
+          }}>
+            <fieldset disabled=${!ownPerson || using} class="card" style=${{
+              margin: '0 0 12px',
+              padding: '10px 12px',
+              minWidth: 0,
+            }} data-help="the-person">
+              <div class="small dim">The person, seen by the household${p?.private
+                ? ' (private: only those it is shared with)'
+                : ''}</div>
+              <div class="row">
+                <${RecField} rec=${who} name="name" label="Name" placeholder="Emma Griffin"
+                  onEdit=${unuse} />
+                <${RecField} rec=${who} name="sex" label="Sex" options=${[
                   ['', 'Choose…'],
                   ['female', 'Female'],
                   ['male', 'Male'],
                 ]} />
-                </${Field}>
-                <${Field} label="Birthday" error=${errAt(e, 'birthDay') ||
-                  errAt(e, 'birthMonth') ||
-                  errAt(e, 'birthYear')}
+                <${Field} label="Birthday" error=${who.error('birthday') ||
+                  who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
                   hint="2018-10-20, or 10-20 without the year.">
-                  <${Input} value=${f.birthday} onInput=${set(
-                    'birthday',
-                  )} placeholder="YYYY-MM-DD" />
-                  </${Field}>
-                  </div>
-                  <div class="row">
-                    <${Field} label="Died on" id="died-on" error=${errAt(e, 'diedOn')}
-                      hint="Ends a marriage on that day; their gifts stay in the history.">
-              <${Input} type="date" value=${f.diedOn} onInput=${set('diedOn')} />
-            </${Field}>
-            ${!p || p.canMakePrivate
+                  <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(
+                    /** @type {string} */ v,
+                  ) =>
+                    who.inputAs(
+                      'birthday',
+                      v,
+                      (t) => {
+                        const r = DAY.read(t);
+                        return 'error' in r ? r : { value: asFields(r.value, 'birth') };
+                      },
+                    )} />
+                </${Field}>
+              </div>
+              <div class="row">
+                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date"
+                  hint="Ends a marriage on that day; their gifts stay in the history." />
+                ${!p || p.canMakePrivate
+                  ? html`
+                    <${RecField} rec=${who} name="private" label="Private"
+                      hint="Seen only by you and whoever you share them with." />
+                  `
+                  : null}
+              </div>
+              <div class="small">${p?.relation
+                ? html`<b>${p.relation[0].toUpperCase() + p.relation.slice(1)}</b> to you, worked
+                  out from relationships.`
+                : 'How they’re related to you is worked out from relationships.'}</div>
+              ${relations.length
+                ? html`
+                  <div class="small dim" data-help="their-relationships"
+                    style=${{
+                      marginTop: '6px',
+                    }}>${p.name.split(' ')[0]}'s family and friends: ${relations.map((
+                      /** @type {any} */ r,
+                    ) => `${r.name} (${r.label || r.word})`).join(', ')}</div>
+                `
+                : null}
+            </fieldset>
+            ${clash && !using
               ? html`
-                <${SwitchRow} label="Private" hint="Seen only by you and whoever you share them with."
-                  on=${f.private} onChange=${set('private')} />
+                <div class="notice" role="status">
+                  <${Icon} name="info" />
+                  <div><b>${clash.name} is already here</b>${clash.visible
+                    ? html`. <button type="button" class="btn sm" onClick=${use}>Use ${clash.name}</button>`
+                    : html`
+                      , kept private by ${clash.createdBy || 'someone'}. <button type="button"
+                        class="btn sm" disabled=${ask.busy} onClick=${() =>
+                          ask.run().catch(() => {})}>Ask to share</button>
+                    `} <button type="button" class="btn sm" onClick=${() =>
+                    who.set('differentPerson', true)}>A different person</button>
+                    ${who.get('differentPerson')
+                      ? html`<div class="small">Give a birth year above that differs from theirs.</div>`
+                      : null}</div>
+                </div>
+              `
+              : using
+              ? html`
+                <div class="notice">
+                  <${Icon} name="info" />
+                  <div>A gift plan for ${who.get('name')}, who is already here.</div>
+                </div>
               `
               : null}
-          </div>
-          <div class="small">${p?.relation
-            ? html`<b>${p.relation[0].toUpperCase() + p.relation.slice(1)}</b> to you, worked out
-              from relationships.`
-            : 'How they’re related to you is worked out from relationships.'}</div>
-          ${relations.length
-            ? html`
-              <div class="small dim" data-help="their-relationships"
-                style=${{
-                  marginTop: '6px',
-                }}>${p.name.split(' ')[0]}'s family and friends: ${relations.map((
-                  /** @type {any} */ r,
-                ) => `${r.name} (${r.label || r.word})`).join(', ')}</div>
-            `
-            : null}
-        </fieldset>
-        ${clash
-          ? html`
-            <div class="notice" role="status">
-              <${Icon} name="info" />
-              <div><b>${clash
-                .name} is already here</b>${clash.visible
-                ? html`. <button type="button" class="btn sm" onClick=${() => {
-                  setUse(clash.id);
-                  save.setError(null);
-                }}>Use ${clash.name}</button>`
-                : html`
-                  , kept private by ${clash.createdBy || 'someone'}. <button type="button"
-                    class="btn sm" disabled=${ask.busy} onClick=${() =>
-                      ask.run().catch(() => {})}>Ask to share</button>
-                `} <button type="button"
-                          class="btn sm" onClick=${() => setApart(true)}>A different person</button>
-                          ${apart
-                            ? html`<div class="small">Give a birth year above that differs from theirs.</div>`
-                            : null}</div>
-            </div>
-          `
-          : use
-          ? html`
-            <div class="notice">
-              <${Icon} name="info" />
-              <div>A gift plan for ${f
-                .name}, who is already here.</div>
-            </div>
-          `
-          : null}
-        <div class="row">
-                    <${Field} label="Yearly gift budget" id="gift-budget" error=${errAt(
-                      e,
-                      'giftBudget',
-                    )}>
-            <${Input} value=${f.giftBudget} onInput=${set('giftBudget')} inputmode="decimal"
-              placeholder="600" /></${Field}>
-        </div>
-        <div class="field" data-help="holidays" id="x-holidays"><label>Holidays</label>
-          <div class="chips" style=${{
-            flexWrap: 'wrap',
-          }}>${(/** @type {any[]} */ (hols.data) || []).map((h) =>
-            html`
-              <button type="button" class=${'chip' + (f.holidays.includes(h.key) ? ' on' : '')}
-                aria-pressed=${f.holidays.includes(h.key) ? 'true' : 'false'} onClick=${() =>
-                  toggle(h.key)}>${h.label}</button>
-            `
-          )}</div></div>
-        <div class="toolbar"><b class="small" data-help="dates">Anniversaries and other dates</b><span
-          class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
-            set('dated')([...f.dated, {
-              kind: 'anniversary',
-              name: '',
-              date: '',
-              budget: '',
-            }])}><${Icon}
-            name="plus" /> Add a date</button></div>
-        ${f.dated.map((/** @type {any} */ o, /** @type {number} */ i) =>
-          html`
             <div class="row">
-              <${Field} label="What" help="dates" id=${'date-kind-' + i}>
-                <${Select} value=${o.kind}
-                  onChange=${dated(i, 'kind')} options=${[
-                    ['anniversary', 'Anniversary'],
-                    ['custom', 'Other occasion'],
-                  ]} />
-                </${Field}>
-                <${Field} label="Called" help="dates" id=${'date-name-' + i}
-                  error=${errAt(e, `occasions.${f.holidays.length + i}.name`)}>
-                  <${Input} value=${o.name}
-                    onInput=${dated(i, 'name')} placeholder=${o.kind === 'anniversary'
-                      ? 'Wedding'
-                      : 'Name day'} />
-                  </${Field}>
-                  <${Field} label="On" help="dates" id=${'date-on-' + i}
-                    error=${errAt(e, `occasions.${f.holidays.length + i}.month`)}>
-                    <${Input} value=${o.date}
-                      onInput=${dated(i, 'date')} placeholder="YYYY-MM-DD" />
+              <${RecField} rec=${plan} name="giftBudget" label="Yearly gift budget" id="gift-budget"
+                placeholder="600" />
+            </div>
+            <div class="field" data-help="holidays" id="x-holidays"><label>Holidays</label>
+              <div class="chips" style=${{
+                flexWrap: 'wrap',
+              }}>${(/** @type {any[]} */ (hols.data) || []).map((h) => {
+                const on = !!holiday(h.key) && !holiday(h.key)?.removed;
+                return html`
+                  <button type="button" class=${'chip' + (on ? ' on' : '')}
+                    aria-pressed=${on ? 'true' : 'false'} onClick=${() => toggle(h.key)}>${h
+                      .label}</button>
+                `;
+              })}</div></div>
+            <div class="toolbar"><b class="small" data-help="dates">Anniversaries and other
+                dates</b><span class="spacer"></span><button type="button" class="btn sm"
+                onClick=${() =>
+                  draft?.add(OccasionRec, { giftPlanId: plan.id, kind: 'anniversary' })}><${Icon}
+                name="plus" /> Add a date</button></div>
+            ${dated.map((o, i) =>
+              html`
+                <div class="row" key=${o.key}>
+                  <${Field} label="What" help="dates" id=${'date-kind-' + i}>
+                    <${RecField} rec=${o} name="kind" bare label="What" options=${[
+                      ['anniversary', 'Anniversary'],
+                      ['custom', 'Other occasion'],
+                    ]} />
                     </${Field}>
-                    <${Field} label="Budget" help="dates" id=${'date-budget-' + i}>
-                      <${Input} value=${o.budget}
-                        onInput=${dated(i, 'budget')} inputmode="decimal" />
+                    <${Field} label="Called" help="dates" id=${'date-name-' + i}
+                      error=${o.error('name')}>
+                      <${RecField} rec=${o} name="name" bare label="Called"
+                        placeholder=${o.get('kind') === 'anniversary' ? 'Wedding' : 'Name day'} />
                       </${Field}>
-                      <button type="button" class="icon-btn" aria-label="Remove the date"
-                        onClick=${() =>
-                          set('dated')(
-                            f.dated.filter((/** @type {any} */ _, /** @type {number} */ j) =>
-                              j !== i
-                            ),
-                          )}><${Icon} name="x" /></button>
-                      </div>
-          `
-        )}
-        <${Field} label="Remind me" id="lead-days" error=${errAt(e, 'leadDays')}>
-          <${Select} value=${f.leadDays} onChange=${set('leadDays')} options=${[
-            ['7', '7 days before'],
-            ['14', '14 days before'],
-            ['30', '30 days before'],
-          ]} /></${Field}>
-        <${Field} label="Notes" error=${errAt(
-          e,
-          'notes',
-        )} hint="Sizes, likes, what they already have.">
-          <textarea class="in" rows="3" value=${f.notes} onInput=${(/** @type {any} */ ev) =>
-            set('notes')(ev.currentTarget.value)}></textarea></${Field}>
-        <${FormError} error=${e} />
-      </fieldset>
+                      <${Field} label="On" help="dates" id=${'date-on-' + i}
+                        error=${o.error('on') || o.error('month')}>
+                        <${Input} value=${o.typed('on') ??
+                          DAY.show(o.get('year'), o.get('month'), o.get('day'))}
+                          placeholder="YYYY-MM-DD" aria-label="On"
+                          onInput=${(/** @type {string} */ v) => o.inputAs('on', v, DAY.read)} />
+                        </${Field}>
+                        <${Field} label="Budget" help="dates" id=${'date-budget-' + i}
+                          error=${o.error('budget')}>
+                          <${RecField} rec=${o} name="budget" bare label="Budget" />
+                          </${Field}>
+                          <button type="button" class="icon-btn" aria-label="Remove the date"
+                            onClick=${() => draft?.remove(o)}><${Icon} name="x" /></button>
+                          </div>
+              `
+            )}
+            <${RecField} rec=${plan} name="leadDays" label="Remind me" id="lead-days" options=${[
+              ['7', '7 days before'],
+              ['14', '14 days before'],
+              ['30', '30 days before'],
+            ]} />
+            <${RecField} rec=${plan} name="notes" label="Notes" rows=${3}
+              hint="Sizes, likes, what they already have." />
+          </fieldset>
+        `
+        : null}
       ${p ? html`<${History} p=${p} />` : null}
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 
@@ -675,24 +703,33 @@ function History({ p }) {
   }`;
 }
 
-/** @param {any} g @param {any} start */
-function giftForm(g, start) {
-  return {
-    people: g ? g.people.map((/** @type {any} */ p) => p.id) : start?.people || [],
-    occasion: g
-      ? (g.occasion ? `${g.occasion}|${g.occasionYear}` : '')
-      : start?.occasion
-      ? `${start.occasion}|${start.occasionYear}`
-      : '',
-    description: g?.description || '',
-    status: g?.status || (start ? 'planned' : 'idea'),
-    cost: g?.cost || '',
-    transactionId: g?.paid?.transactionId || '',
-    store: g?.store || '',
-    link: g?.link || '',
-    notes: g?.notes || '',
-    cash: g?.cash || false,
-    thankYou: g?.thankYou || false,
+/** A gift (S7.8), as its dialog's draft edits it, its receipts kept with it. */
+class GiftRec extends Rec {
+  /** @override */
+  static prefix = 'Gift';
+  /** @override */
+  static fields = FIELDS.GiftRecord;
+  /** @override */
+  static defaults = {
+    occasion: null,
+    occasionYear: null,
+    status: 'idea',
+    cost: null,
+    transactionId: null,
+    store: null,
+    link: null,
+    notes: null,
+    cash: false,
+    thankYou: false,
+    receiptIds: [],
+  };
+  /** @override */
+  static rules = {
+    // A thank-you is for a gift received.
+    thankYou: {
+      when: (/** @type {GiftRec} */ r) => r.get('status') === 'received',
+      otherwise: false,
+    },
   };
 }
 
@@ -701,13 +738,31 @@ function GiftDialog({ close, gift, start }) {
   useDialogGuide('dialog-gift');
   const people = useList('/people');
   const buys = useList('/gifts/purchases');
-  const [f, setF] = useState(giftForm(gift, start));
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
+  const f = useDraft((draft) => {
+    if (gift) {
+      draft.load(GiftRec, {
+        ...gift,
+        people: gift.people.map((/** @type {any} */ p) => p.id),
+        transactionId: gift.paid?.transactionId ?? null,
+        receiptIds: gift.documents.map((/** @type {any} */ d) => d.id),
+      });
+      return;
+    }
+    draft.add(GiftRec, {
+      description: '',
+      people: start?.people || [],
+      occasion: start?.occasion || null,
+      occasionYear: start?.occasionYear || null,
+      status: start ? 'planned' : 'idea',
+    });
+  }, [gift?.id]);
+  const rec = /** @type {GiftRec | undefined} */ (f.draft?.records[0]);
   const list = /** @type {any[]} */ (people.data) || [];
   const canWrite = !gift || gift.canWrite;
   const year = thisYear();
+  const who = /** @type {string[]} */ (rec?.get('people') || []);
   // The occasions of the chosen people, this year and next.
-  const chosen = list.filter((p) => f.people.includes(p.id));
+  const chosen = list.filter((p) => who.includes(p.id));
   /** @type {[string, string][]} */
   const occasions = [['', 'No date (an idea)']];
   for (const y of [year, year + 1]) {
@@ -721,161 +776,125 @@ function GiftDialog({ close, gift, start }) {
     }
     for (const [k, l] of keys) occasions.push([`${k}|${y}`, `${l} ${y}`]);
   }
-  if (f.occasion && !occasions.some(([k]) => k === f.occasion)) {
-    occasions.push([
-      f.occasion,
-      `${gift?.occasionLabel || 'Occasion'} ${f.occasion.split('|')[1]}`,
-    ]);
+  const occasion = rec?.get('occasion') ? `${rec.get('occasion')}|${rec.get('occasionYear')}` : '';
+  if (occasion && !occasions.some(([k]) => k === occasion)) {
+    occasions.push([occasion, `${gift?.occasionLabel || 'Occasion'} ${rec?.get('occasionYear')}`]);
   }
-  const save = useSubmit(async () => {
-    const [occ, y] = f.occasion ? f.occasion.split('|') : [null, null];
-    const body = {
-      people: f.people,
-      occasion: occ,
-      occasionYear: y ? Number(y) : null,
-      description: f.description,
-      status: f.status,
-      cost: clean(f.cost) || null,
-      transactionId: f.transactionId || null,
-      store: f.store || null,
-      link: f.link || null,
-      notes: f.notes || null,
-      cash: f.cash,
-      thankYou: f.thankYou,
-    };
-    const out = gift
-      ? await api.patch(`/gifts/${gift.id}`, body, gift.version)
-      : await api.post('/gifts', body);
-    toast('Gift saved');
-    close(out);
-  });
-  const remove = useSubmit(async () => {
-    await api.del(`/gifts/${gift.id}`, gift.version);
-    toast('Gift deleted');
-    close(true);
-  });
   const [busy, setBusy] = useState(false);
+  const ids = /** @type {string[]} */ (rec?.get('receiptIds') || []);
   const send = async (/** @type {FileList} */ files) => {
     setBusy(true);
-    for (const r of await uploadAll(files)) {
-      await api.post(`/gifts/${gift.id}/documents`, { receiptId: r.id });
+    try {
+      const made = await uploadAll(files);
+      rec?.set('receiptIds', [...ids, ...made.map((r) => r.id)]);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    toast('Receipt kept with the gift');
   };
-  const e = save.error;
-  const received = f.status === 'received';
+  const received = rec?.get('status') === 'received';
   return html`
-    <${Dialog} title=${gift ? gift.description : 'Add a gift'} close=${close} onSubmit=${() =>
-      canWrite && save.run().catch(() => {})}
-      footer=${html`${
+    <${DraftDialog} f=${f} close=${close} what="This gift" hideSave=${!canWrite}
+      title=${gift ? gift.description : 'Add a gift'}
+      done=${rec?.removed ? 'Gift deleted' : 'Gift saved'}
+      extra=${({ save }) =>
         gift && canWrite
           ? html`
-            <button type="button" class="btn danger" onClick=${() =>
-              remove.run().catch(() => {})}>Delete</button><span
-              class="spacer"></span>
+            <button type="button" class="btn danger" disabled=${save.busy}
+              onClick=${async () => {
+                if (!rec || !f.draft) return;
+                f.draft.remove(rec);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'saved') f.draft.unremove(rec);
+              }}>Delete</button><span class="spacer"></span>
           `
-          : null
-      }${canWrite ? html`<button class="btn primary" disabled=${save.busy}>Save</button>` : null}`}>
-      <fieldset disabled=${!canWrite} style=${{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <div class="field" data-help="status" id="x-status"><label>Status</label>
-          <${Seg} label="Status" value=${f.status} onChange=${set(
-            'status',
-          )} options=${STATUS} /></div>
-        <${Field} label=${received ? 'From' : 'For'} id="people" error=${errAt(e, 'people')}
-          hint=${received ? '' : 'One or more people.'}>
-          <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))} value=${f
-            .people}
-            onChange=${(/** @type {any} */ ev) =>
-              set('people')([...ev.currentTarget.selectedOptions].map((o) => o.value))}>
-            ${list.map((p) =>
-              html`<option value=${p.id} selected=${f.people.includes(p.id)}>${p.name}</option>`
-            )}</select></${Field}>
-        <${Field} label="Occasion" error=${errAt(e, 'occasionYear')}>
-          <${Select} value=${f.occasion} onChange=${set(
-            'occasion',
-          )} options=${occasions} /></${Field}>
-        <${Field} label="Description" error=${errAt(e, 'description')}><${Input}
-          value=${f.description} onInput=${set('description')} required
-          placeholder="Watercolour set" /></${Field}>
-        ${received
-          ? html`
-            <${SwitchRow} label="Thank-you sent" on=${f.thankYou}
-              onChange=${set('thankYou')} />
-          `
-          : html`
-            <div class="row">
-              <${Field} label="Cost" error=${errAt(e, 'cost')}>
-                <${Input} value=${f.cost}
-                  onInput=${set('cost')} inputmode="decimal" />
-                </${Field}>
-                <${Field} label="Paid with" id="paid-with" error=${errAt(e, 'transactionId')}
-                  hint="Its transaction; one purchase can pay for several gifts.">
-                  <${Select} value=${f.transactionId} onChange=${(/** @type {string} */ x) => {
-                    const t = (/** @type {any[]} */ (buys.data) || []).find((b) =>
-                      b.transactionId === x
-                    );
-                    setF({
-                      ...f,
-                      transactionId: x,
-                      cost: f.cost || (t ? String(dec(t.amount).neg()) : ''),
-                    });
-                  }} options=${[
-                    ['', 'Typed, or not bought yet'],
-                    ...(gift?.paid &&
-                        !(/** @type {any[]} */ (buys.data) || []).some((b) =>
-                          b.transactionId === gift.paid.transactionId
-                        )
-                      ? [[
-                        gift.paid.transactionId,
-                        `${gift.paid.payee || 'Purchase'} · ${
-                          date(
-                            gift.paid.date,
-                          )
-                        }`,
-                      ]]
-                      : []),
-                    ...(/** @type {any[]} */ (buys.data) || []).map((b) => [
-                      b.transactionId,
-                      `${b.payee || 'Purchase'} · ${date(b.date)} · ${b.accountName} ${b.amount}`,
-                    ]),
-                  ]} />
-                  </${Field}>
-                  </div>
-                  <${SwitchRow} label="Given in money"
-                    hint="Cash or a cheque: counted against the annual gift exclusion."
-                    on=${f.cash} onChange=${set('cash')} />
-                  <div class="row">
-                    <${Field} label="Where bought" id="store" error=${errAt(e, 'store')}>
-                      <${Input}
-                        value=${f.store} onInput=${set('store')} />
-                      </${Field}>
-                      <${Field} label="Link" error=${errAt(e, 'link')}>
-                        <${Input} value=${f.link}
-                          onInput=${set('link')} placeholder="https://" />
-                        </${Field}>
-                        </div>
-          `}
-        <${Field} label="Notes" error=${errAt(e, 'notes')}><textarea class="in" rows="2"
-          value=${f.notes} onInput=${(/** @type {any} */ ev) =>
-            set('notes')(ev.currentTarget.value)}></textarea></${Field}>
-        <${FormError} error=${e} />
-      </fieldset>
-      ${gift && canWrite
+          : null}>
+      ${rec
         ? html`
-          <div
-            class="toolbar"><label class="btn sm" for="f-gift-files"><${Icon} name="clip" /> ${busy
-              ? 'Uploading…'
-              : `Attach a receipt${
-                gift.documents.length ? ` (${gift.documents.length})` : ''
-              }`}</label><input
-                    id="f-gift-files" class="sr-only" type="file" multiple accept=${ACCEPT} data-help="receipts"
-                    onChange=${(/** @type {any} */ ev) => {
-                      send(ev.currentTarget.files);
-                      ev.currentTarget.value = '';
-                    }} /></div>
+          <fieldset disabled=${!canWrite} style=${{
+            border: 0,
+            padding: 0,
+            margin: 0,
+            minWidth: 0,
+          }}>
+            <div class="field" data-help="status" id="x-status"><label>Status</label>
+              <${Seg} label="Status" value=${rec.get('status')} onChange=${(
+                /** @type {string} */ v,
+              ) => rec.set('status', v)} options=${STATUS} /></div>
+            <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
+              hint=${received ? '' : 'One or more people.'}>
+              <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))}
+                onChange=${(/** @type {any} */ ev) =>
+                  rec.set('people', [...ev.currentTarget.selectedOptions].map((o) => o.value))}>
+                ${list.map((p) =>
+                  html`<option value=${p.id} selected=${who.includes(p.id)}>${p.name}</option>`
+                )}</select></${Field}>
+            <${Field} label="Occasion" error=${rec.error('occasionYear')}>
+              <${Select} value=${occasion} onChange=${(/** @type {string} */ v) => {
+                const [occ, y] = v ? v.split('|') : [null, null];
+                rec.set('occasion', occ);
+                rec.set('occasionYear', y ? Number(y) : null);
+              }} options=${occasions} /></${Field}>
+            <${RecField} rec=${rec} name="description" label="Description"
+              placeholder="Watercolour set" />
+            ${received
+              ? html`<${RecField} rec=${rec} name="thankYou" label="Thank-you sent" />`
+              : html`
+                <div class="row">
+                  <${RecField} rec=${rec} name="cost" label="Cost" />
+                  <${Field} label="Paid with" id="paid-with" error=${rec.error('transactionId')}
+                    hint="Its transaction; one purchase can pay for several gifts.">
+                    <${Select} value=${rec.get('transactionId') || ''} onChange=${(
+                      /** @type {string} */ x,
+                    ) => {
+                      const t = (/** @type {any[]} */ (buys.data) || []).find((b) =>
+                        b.transactionId === x
+                      );
+                      rec.set('transactionId', x || null);
+                      if (rec.get('cost') == null && t) {
+                        rec.set('cost', dec(t.amount).neg(), 'transactionId');
+                      }
+                    }} options=${[
+                      ['', 'Typed, or not bought yet'],
+                      ...(gift?.paid &&
+                          !(/** @type {any[]} */ (buys.data) || []).some((b) =>
+                            b.transactionId === gift.paid.transactionId
+                          )
+                        ? [[
+                          gift.paid.transactionId,
+                          `${gift.paid.payee || 'Purchase'} · ${date(gift.paid.date)}`,
+                        ]]
+                        : []),
+                      ...(/** @type {any[]} */ (buys.data) || []).map((b) => [
+                        b.transactionId,
+                        `${b.payee || 'Purchase'} · ${date(b.date)} · ${b.accountName} ${b.amount}`,
+                      ]),
+                    ]} />
+                    </${Field}>
+                    </div>
+                    <${RecField} rec=${rec} name="cash" label="Given in money"
+                      hint="Cash or a cheque: counted against the annual gift exclusion." />
+                    <div class="row">
+                      <${RecField} rec=${rec} name="store" label="Where bought" id="store" />
+                      <${RecField} rec=${rec} name="link" label="Link" placeholder="https://" />
+                    </div>
+              `}
+            <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
+          </fieldset>
+          ${gift && canWrite
+            ? html`
+              <div class="toolbar"><label class="btn sm" for="f-gift-files"><${Icon}
+                name="clip" /> ${busy
+                  ? 'Uploading…'
+                  : `Attach a receipt${ids.length ? ` (${ids.length})` : ''}`}</label><input
+                  id="f-gift-files" class="sr-only" type="file" multiple accept=${ACCEPT}
+                  data-help="receipts" onChange=${(/** @type {any} */ ev) => {
+                    send(ev.currentTarget.files);
+                    ev.currentTarget.value = '';
+                  }} /></div>
+            `
+            : null}
         `
         : null}
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }

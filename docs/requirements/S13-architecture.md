@@ -164,14 +164,13 @@
    The OpenAPI document is generated from the routes (R3.9); `docs/api.md` says how to use
    `/ui/api` and `/mcp`.
    1. **Resources and methods**: plural nouns (`/ui/api/accounts`, `/ui/api/accounts/{id}`).
-      `GET` reads, `POST` creates, `PATCH` changes the fields it sends. `PUT` replaces
-      something that exists once for its parent (a loan's terms, a wallet's keys, an item's
-      sale), creating it when it doesn't exist yet. An action that is
-      not a change of fields is a `POST` to a verb under the resource
-      (`/ui/api/links/{id}/pull`). Forms save through one route instead (S13.8.11): a kind
-      of record the save takes has no `PATCH`, `PUT` or `DELETE` of its own, only its reads
-      and its actions (a `POST` to a verb). The app is the API's only caller, so a kind's
-      own routes go when it moves to the save.
+      `GET` reads. Records are made, changed and deleted through one route, the save
+      (S13.8.11): a kind of record it takes has only its reads and its actions, an action
+      that is not a change of fields being a `POST` to a verb under the resource
+      (`/ui/api/links/{id}/pull`). A `POST` makes something of its own only where no
+      record's draft can: an upload (a receipt, a statement), signing in and the first
+      start's steps, pairing a linked server or the connector. The app is the API's only
+      caller.
       1. **`DELETE`** soft-deletes (`schema.md` §4) and answers 200 with
          `{deleted, parent}`: `deleted` is what went (its id, or a pair's two keys joined by
          a slash, its `deletedAt` and its version), and `parent` is what it belonged to as it
@@ -219,27 +218,25 @@
       the same way, its `items` taken whole. Rows that arrive while someone reads a long list
       are counted on its "+N new" pill and added to the offset of later pages, so the pages
       don't shift (S12.1.3).
-   6. **Versions**: each record has a `version` that goes up with every save. Every `PATCH`,
-      `PUT` and `DELETE` of a record with a version sends the version it was made against in
-      `If-Match`:
+   6. **Versions**: each record has a `version` that goes up with every save. A change or a
+      delete through the save names it with each op (S13.8.11); a `DELETE` of a record with
+      a version sends the version it was made against in `If-Match`:
       1. without it, the change is refused with 428 `version-required`;
       2. with a stale one, it is refused with 412 `stale-version`, carrying the record as it is
          now (`current`) and its `version`, for a caller that starts again from it; the
          browser's dialogs reload (S12.15.5);
       3. with the current one, it is applied and the version goes up.
 
-      A `PUT` that creates what doesn't exist yet sends `0`. What is made of many records
-      replaced together (the settings, a year's tax tables, a wallet's keys, an item's shares)
-      has one version, the sum of theirs, which goes up with any change to them. Pairs that
-      only link two records (a receipt and a transaction, an account counted in someone's
-      totals) and secrets, which are replaced outright, have no version. A test walks every
-      route and fails when a change skips its version or a `DELETE` answers another shape.
+      Pure relations, two keys and nothing of their own (a user in a group), have no
+      version. A secret (a password, a price source's key) is
+      written with the record it belongs to, a setting's among them, and never read back. A
+      test walks every route and fails when a change skips its version or a `DELETE` answers
+      another shape.
    7. **Long work** (an import, a statement read, a projection run, a reset copy) answers
       202 with a job resource (`/ui/api/jobs/{id}`: state, progress, result), and the live
       stream announces its end (S12.6).
-   8. **Idempotency**: `POST /ui/api/transactions` and the save (S13.8.11) may carry
-      `Idempotency-Key`; a repeat within 24 hours returns the first answer. Every other create comes later ([later
-      work](later.md), L8). Imports are idempotent by their content (S1.3).
+   8. **Idempotency**: the save (S13.8.11) may carry `Idempotency-Key`; a repeat within 24
+      hours returns the first answer. Imports are idempotent by their content (S1.3).
    9. **Versioning**: `/ui/api` is served with the app and changes with it, so it carries no
       version; the OpenAPI document states the release. `/link` is versioned in its protocol
       (`docs/link-protocol.md`), `/connector` by its path (`/connector/v1/`), and `/mcp` by
@@ -270,8 +267,9 @@
           `message` (S13.8.3). A stale version anywhere refuses the whole save with 412
           `stale-version`, listing each stale record as it stands.
        5. **Questions.** A change that asks first (`reconciled-period`, `closed-year`,
-          `reserve-balance`) is gathered with the others; the save rolls back and answers 409
-          `confirm-needed`, listing each question's `code`, record `id` and message. Sent
+          `reserve-balance`, `occasion-gifts`) is gathered with the others; the save rolls
+          back and answers 409 `confirm-needed`, listing each question's `code`, record `id`
+          and message. Sent
           again with `confirm` (a list of `{code, id}`), it goes ahead only when every
           question it raises is in that list.
        6. **After the commit**, the live stream's events (S12.6), alerts and the work that

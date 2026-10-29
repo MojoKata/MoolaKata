@@ -14,6 +14,8 @@ import { errAt, Field, FormError, Input, Select } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { DraftForm } from './draft-form.js';
+import { saveSetting, useSettingsDraft } from './settings-draft.js';
 
 const KIND = /** @type {Record<string, string>} */ ({
   account: 'An account',
@@ -42,21 +44,8 @@ export function LinksSection() {
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   const values = /** @type {any} */ (s.data)?.values;
-  const [address, setAddress] = useState('');
-  useEffect(() => {
-    if (values) setAddress(values.linkAddress || '');
-  }, [values]);
-  const saveAddress = useSubmit(async () => {
-    await api.patch(
-      '/settings',
-      { linkAddress: address || null },
-      /** @type {any} */ (s.data)?.version,
-    );
-    s.reload();
-    toast('Saved');
-    res.reload();
-    s.reload();
-  });
+  const fd = useSettingsDraft(s.data, ['linkAddress']);
+  const rec = fd.rec;
   const act = useSubmit(async (/** @type {string} */ id, /** @type {string} */ what) => {
     const out = await withReauth(() => api.post(`/settings/links/${id}/${what}`));
     toast(
@@ -82,17 +71,12 @@ export function LinksSection() {
     return out;
   });
   const release = useSubmit(async (/** @type {string} */ v) => {
-    await api.patch(
-      '/settings',
-      { linkReleaseMinutes: Number(v) },
-      /** @type {any} */ (s.data)?.version,
-    );
-    s.reload();
+    await saveSetting(s.data, 'linkReleaseMinutes', Number(v));
     toast('Saved');
     s.reload();
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v || !values) return html`<${Loading} />`;
+  if (!v || !values || !rec) return html`<${Loading} />`;
   const live = v.links.filter((/** @type {any} */ l) => l.state !== 'ended');
   const ended = v.links.filter((/** @type {any} */ l) => l.state === 'ended');
   const people = live.filter((/** @type {any} */ l) => l.users.length);
@@ -112,23 +96,21 @@ export function LinksSection() {
           ? html`. Its own certificate's key: <code>${grouped(v.certificate)}</code>`
           : ''}</div>
       </div>
-      <form onSubmit=${(/** @type {Event} */ ev) => {
-        ev.preventDefault();
-        saveAddress.run().catch(() => {});
-      }}>
-        <${Field} label="This server's link address" id="link-address" error=${errAt(
-          saveAddress.error,
-          'linkAddress',
-        )}
+      <${DraftForm} f=${fd} class="draft-form mb" where="Settings › Linked servers"
+        what="This server's link address" saved=${() => {
+          toast('Saved');
+          res.reload();
+          s.reload();
+        }}>
+        <${Field} label="This server's link address" id="link-address"
+          error=${rec.error('linkAddress')}
           hint=${`Where other servers reach this one's /link. Empty: the public URL${
             values.publicUrl ? ` (${values.publicUrl})` : ', which is not set'
           }.`}>
-          <${Input} value=${address} onInput=${setAddress}
-            placeholder="https://money.griffin.ts.net" />
+          <${Input} value=${rec.get('linkAddress') || ''} onInput=${(/** @type {string} */ x) =>
+            rec.set('linkAddress', x || null)} placeholder="https://money.griffin.ts.net" />
         </${Field}>
-        <div class="toolbar" style=${{ marginBottom: '12px' }}><button class="btn sm"
-          disabled=${saveAddress.busy}>Save</button></div>
-      </form>
+      </${DraftForm}>
       ${live.length
         ? html`
           <div class="table-wrap">

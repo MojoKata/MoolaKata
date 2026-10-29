@@ -6,27 +6,22 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, projections
-from ..errors import FieldError, Problem
+from .. import access, activity, clock, exactjson, projections
+from ..errors import FieldError, Problem, refuse
 from ..projections import assumptions, bitcoin, taxtables
-from ..store.entities.projections import Projection, ShownProjection, TaxFigure
+from ..store.entities.projections import AssumptionSet, Projection, ShownProjection, TaxFigure
 from ..store.entities.users import User
+from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
     Loose,
     Model,
     Money,
     Ratio,
-    check,
-    check_version,
-    gone,
-    if_match,
-    version_of,
 )
 from .deps import Caller, admin, caller, server
 
@@ -64,20 +59,8 @@ class NewProjection(Model):
     inputs: Loose = Field(default_factory=dict)
 
 
-class ProjectionChange(Model):
-    name: str | None = None
-    builtOn: Loose | None = None
-    inputs: Loose | None = None
-    # An active projection's new inputs become its baseline only when asked (S6.7.4).
-    rebaseline: bool = False
-
-
 class Activated(Model):
     replaced: str | None
-
-
-class Shown(Model):
-    shown: bool
 
 
 def _shown(s, user_id: str, projection_id: str) -> bool:
@@ -272,83 +255,10 @@ def list_projections(request: Request, c: Caller = Depends(caller)):
         return [row(s, c.id, p, lvl) for p, lvl in projections.visible(s, c.id)]
 
 
-@router.post("/projections", response_model=ProjectionDetail, status_code=201)
-def create_projection(body: NewProjection, request: Request, c: Caller = Depends(caller)):
-    """It starts as a scenario; making it active is a step of its own (S6.7)."""
-    with server(request).db.tx() as s:
-        _raise(_check(s, c.id, body.name, body.goal, body.builtOn, body.inputs))
-        p = Projection(
-            id=ids.new_id("Prjct"),
-            ownerId=c.id,
-            name=body.name.strip(),
-            goal=body.goal,
-            builtOn=exactjson.dumps(body.builtOn),
-            inputs=exactjson.dumps(body.inputs),
-        )
-        s.add(p)
-        s.flush()
-        activity.record(
-            s,
-            "projection.created",
-            actor=c.id,
-            subject_kind="projection",
-            subject_id=p.id,
-            owner=c.id,
-        )
-        out = detail(s, c.id, p, "owner")
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/projections/{p.id}"},
-    )
-
-
 @router.get("/projections/{projection_id}", response_model=ProjectionDetail)
 def get_projection(projection_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
         p, lvl = _get(s, c.id, projection_id)
-        return detail(s, c.id, p, lvl)
-
-
-@router.patch("/projections/{projection_id}", response_model=ProjectionDetail)
-def change_projection(
-    projection_id: str,
-    body: ProjectionChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        p, lvl = _get(s, c.id, projection_id, "write")
-        check(p, version, lambda: detail(s, c.id, p, lvl))
-        _raise(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
-        fields = []
-        if body.name is not None and body.name.strip() != p.name:
-            p.name = body.name.strip()
-            fields.append("name")
-        if body.builtOn is not None:
-            p.builtOn = exactjson.dumps(body.builtOn)
-            fields.append("builtOn")
-        if body.inputs is not None:
-            p.inputs = exactjson.dumps(body.inputs)
-            fields.append("inputs")
-        if p.active and body.rebaseline:
-            s.flush()
-            p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, c.id)))
-            p.baselineAt = clock.now()
-            fields.append("baseline")
-        p.updatedAt = clock.now()
-        if fields:
-            activity.record(
-                s,
-                "projection.updated",
-                actor=c.id,
-                subject_kind="projection",
-                subject_id=p.id,
-                owner=p.ownerId,
-                detail={"fields": fields},
-            )
-        s.flush()
         return detail(s, c.id, p, lvl)
 
 
@@ -391,48 +301,84 @@ def deactivate(projection_id: str, request: Request, c: Caller = Depends(caller)
     return Response(status_code=204)
 
 
-@router.delete("/projections/{projection_id}", response_model=Deleted[None])
-def delete_projection(
-    projection_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        p, lvl = _get(s, c.id, projection_id, "owner")
-        check(p, version, lambda: detail(s, c.id, p, lvl))
-        p.mark_deleted(c.id)
-        activity.record(
-            s,
-            "projection.deleted",
-            actor=c.id,
-            subject_kind="projection",
-            subject_id=p.id,
-            owner=c.id,
-        )
+class ProjectionRecord(NewProjection):
+    """A projection as a draft saves it (S6.6): its goal chosen when it is made. An active
+    one's new inputs become its baseline only when `rebaseline` asks it (S6.7.4); it is an
+    instruction, never kept."""
+
+    rebaseline: bool = False
+
+
+def _projection_create(ctx, record_id: str, body: ProjectionRecord) -> None:
+    """It starts as a scenario; making it active is a step of its own (S6.7)."""
+    s, c = ctx.s, ctx.caller
+    _raise(_check(s, c.id, body.name, body.goal, body.builtOn, body.inputs))
+    p = Projection(
+        id=record_id,
+        ownerId=c.id,
+        name=body.name.strip(),
+        goal=body.goal,
+        builtOn=exactjson.dumps(body.builtOn),
+        inputs=exactjson.dumps(body.inputs),
+    )
+    s.add(p)
+    s.flush()
+    activity.record(s, "projection.created", actor=c.id, subject_kind="projection",
+                    subject_id=p.id, owner=c.id)  # fmt: skip
+
+
+def _projection_current(ctx, p: Projection) -> dict:
+    return {"name": p.name, "goal": p.goal, "builtOn": json.loads(p.builtOn or "null"),
+            "inputs": json.loads(p.inputs or "{}"), "rebaseline": False}  # fmt: skip
+
+
+def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if body.goal != p.goal:
+        raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
+    _raise(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
+    current = _projection_current(ctx, p)
+    fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
+    p.name = body.name.strip()
+    p.builtOn = exactjson.dumps(body.builtOn)
+    p.inputs = exactjson.dumps(body.inputs)
+    if p.active and body.rebaseline:
         s.flush()
-        return Deleted[None](deleted=gone(p))
+        p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, c.id)))
+        p.baselineAt = clock.now()
+        fields.append("baseline")
+    p.updatedAt = clock.now()
+    if fields:
+        activity.record(s, "projection.updated", actor=c.id, subject_kind="projection",
+                        subject_id=p.id, owner=p.ownerId, detail={"fields": fields})  # fmt: skip
 
 
-@router.put("/projections/{projection_id}/shown", response_model=Shown)
-def show_on_dashboard(
-    projection_id: str, body: Shown, request: Request, c: Caller = Depends(caller)
-):
-    """A shared active projection shows on a receiver's Dashboard only when they ask (S6.8.3)."""
-    with server(request).db.tx() as s:
-        p, lvl = _get(s, c.id, projection_id)
-        if lvl == "owner":
-            raise Problem(409, "owner-sees-it", "Your own active projections always show.")
-        row_ = s.get(ShownProjection, (c.id, p.id))
-        if row_ is None:
-            if body.shown:
-                s.add(ShownProjection(userId=c.id, projectionId=p.id, createdAt=clock.now()))
-        else:
-            if body.shown:
-                row_.restore()
-            else:
-                row_.mark_deleted(c.id)
-    return body
+def _projection_delete(ctx, p: Projection) -> None:
+    s, c = ctx.s, ctx.caller
+    _get(s, c.id, p.id, "owner")
+    p.mark_deleted(c.id)
+    activity.record(s, "projection.deleted", actor=c.id, subject_kind="projection",
+                    subject_id=p.id, owner=c.id)  # fmt: skip
+
+
+def _projection_read(ctx, record_id: str) -> ProjectionDetail:
+    p, lvl = _get(ctx.s, ctx.caller.id, record_id)
+    return detail(ctx.s, ctx.caller.id, p, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="Prjct",
+        entity=Projection,
+        fields=ProjectionRecord,
+        create=_projection_create,
+        editable=lambda ctx, record_id: _get(ctx.s, ctx.caller.id, record_id, "write")[0],
+        current=_projection_current,
+        update=_projection_update,
+        delete=_projection_delete,
+        read=_projection_read,
+    )
+)
 
 
 # ---------- the Dashboard's Plans card (S6.8.1) ----------
@@ -483,35 +429,78 @@ class AssumptionsView(Model):
     figures: dict
     classes: list[tuple[str, str]]
     bitcoinModels: list[tuple[str, str]]
-    version: int = 0  # the user's own figures: 0 while they keep the shipped ones
+    id: str | None = None  # the user's own figures: none while they keep the shipped ones
+    version: int = 0
+
+
+def assumptions_view(s, user_id: str) -> AssumptionsView:
+    row = assumptions.row_of(s, user_id)
+    return AssumptionsView(
+        figures=assumptions.load(s, user_id),
+        classes=[(k, label) for k, label, _, _ in assumptions.CLASSES],
+        bitcoinModels=assumptions.BITCOIN_MODELS,
+        id=row.id if row else None,
+        version=row.version if row else 0,
+    )
 
 
 @router.get("/assumptions", response_model=AssumptionsView)
 def get_assumptions(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
-        row = assumptions.row_of(s, c.id)
-        return AssumptionsView(
-            figures=assumptions.load(s, c.id),
-            classes=[(k, label) for k, label, _, _ in assumptions.CLASSES],
-            bitcoinModels=assumptions.BITCOIN_MODELS,
-            version=row.version if row else 0,
-        )
+        return assumptions_view(s, c.id)
 
 
-@router.put("/assumptions", response_model=AssumptionsView)
-def put_assumptions(
-    body: Loose, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    problems = assumptions.check(body)
+class AssumptionsRecord(Model):
+    """A user's own assumptions as a draft saves them (S6.3): every figure, checked together;
+    made when they first change the shipped ones, deleted to go back to them."""
+
+    figures: Loose
+
+
+def _assumptions_check(body: AssumptionsRecord) -> None:
+    problems = assumptions.check(body.figures)
     if problems:
-        errors = [FieldError(f, "assumption-invalid", m) for f, m in problems]
+        errors = [FieldError(f"figures.{f}", "assumption-invalid", m) for f, m in problems]
         raise Problem(422, "assumption-invalid", errors[0].message, errors)
-    with server(request).db.tx() as s:
-        check(assumptions.row_of(s, c.id), version, lambda: {"version": 0})
-        assumptions.save(s, c.id, body)
-        activity.record(s, "profile.assumptions", actor=c.id, owner=c.id)
-        s.flush()
-    return get_assumptions(request, c)
+
+
+def _assumptions_create(ctx, record_id: str, body: AssumptionsRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if assumptions.row_of(s, c.id) is not None:
+        raise refuse(None, "assumptions-exist", "Your assumptions are here: change them.", 409)
+    _assumptions_check(body)
+    figures = json.dumps(body.figures, sort_keys=True)
+    s.add(AssumptionSet(id=record_id, ownerId=c.id, figures=figures))
+    activity.record(s, "profile.assumptions", actor=c.id, owner=c.id)
+
+
+def _assumptions_editable(ctx, record_id: str) -> AssumptionSet:
+    row = ctx.s.get(AssumptionSet, record_id)
+    if row is None or row.deleted or row.ownerId != ctx.caller.id:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _assumptions_update(ctx, row: AssumptionSet, body: AssumptionsRecord) -> None:
+    _assumptions_check(body)
+    row.figures = json.dumps(body.figures, sort_keys=True)
+    activity.record(ctx.s, "profile.assumptions", actor=ctx.caller.id, owner=ctx.caller.id)
+
+
+save.register(
+    save.Kind(
+        prefix="Asmpt",
+        entity=AssumptionSet,
+        fields=AssumptionsRecord,
+        create=_assumptions_create,
+        editable=_assumptions_editable,
+        current=lambda ctx, row: {"figures": json.loads(row.figures or "{}")},
+        update=_assumptions_update,
+        # Deleted, the shipped figures stand again.
+        delete=lambda ctx, row: row.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: assumptions_view(ctx.s, ctx.caller.id),
+    )
+)
 
 
 class ModelRow(Model):
@@ -549,26 +538,28 @@ class TaxRow(Model):
     value: Any
     shipped: Any
     corrected: bool
+    # Its correction, a record of the save: none while it stands as shipped.
+    figureId: str | None = None
+    version: int = 0
 
 
 class TaxTables(Model):
     year: int
     years: list[int]
     rows: list[TaxRow]
-    version: int  # the year's corrections together (S13.8.6)
-
-
-class TaxChange(Model):
-    year: int
-    values: Loose
 
 
 def _tables(s, year: int) -> TaxTables:
     vals = taxtables.figures(s, year)
     changed = taxtables.corrected(s, year)
     shipped = taxtables.SHIPPED.get(year, {})
+    rows = {
+        r.key: r
+        for r in s.scalars(
+            select(TaxFigure).where(TaxFigure.year == year, TaxFigure.deleted == false())
+        )
+    }
     return TaxTables(
-        version=version_of(s, TaxFigure, TaxFigure.year == year),
         year=year,
         years=taxtables.years(),
         rows=[
@@ -581,6 +572,8 @@ def _tables(s, year: int) -> TaxTables:
                 value=vals.get(f.key),
                 shipped=shipped.get(f.key),
                 corrected=f.key in changed,
+                figureId=rows[f.key].id if f.key in rows else None,
+                version=rows[f.key].version if f.key in rows else 0,
             )
             for f in taxtables.of_year(year)
         ],
@@ -594,66 +587,107 @@ def get_tax_tables(request: Request, c: Caller = Depends(admin), year: int | Non
         return _tables(s, y)
 
 
-@router.put("/settings/tax-tables", response_model=TaxTables)
-def put_tax_tables(
-    body: TaxChange, request: Request, c: Caller = Depends(admin), version: int = Depends(if_match)
-):
-    """A correction to a shipped figure; the shipped value again removes it."""
+class FigureRecord(Model):
+    """An admin's correction of one shipped tax-table figure for a year (S16.11), as the tax
+    tables' draft saves it; the shipped value again deletes it."""
+
+    year: int
+    key: str
+    value: Any
+
+
+def _figure_check(body: FigureRecord):
     if body.year not in taxtables.SHIPPED:
-        raise Problem(404, "year-unknown", "That year's tables don't ship with this release.")
-    errors = []
-    clean = {}
-    for k, v in body.values.items():
-        if k in taxtables.BY_KEY and k not in taxtables.SHIPPED[body.year]:
-            errors.append(FieldError(k, "figure-not-of-year", "That year doesn't ship it."))
-            continue
-        try:
-            clean[k] = taxtables.check(k, v)
-        except taxtables.Invalid as e:
-            errors.append(FieldError(k, "figure-invalid", f"Must be {e}."))
-    _raise(errors)
-    with server(request).db.tx() as s:
-        check_version(
-            version_of(s, TaxFigure, TaxFigure.year == body.year),
-            version,
-            lambda: _tables(s, body.year),
+        raise refuse("year", "year-unknown", "That year's tables don't ship with this release.")
+    if body.key not in taxtables.SHIPPED[body.year]:
+        raise refuse("key", "figure-not-of-year", "That year doesn't ship it.")
+    try:
+        value = taxtables.check(body.key, body.value)
+    except taxtables.Invalid as e:
+        raise refuse("value", "figure-invalid", f"Must be {e}.") from None
+    if value == taxtables.SHIPPED[body.year].get(body.key):
+        raise refuse(
+            "value", "figure-shipped", "That is the figure as shipped: nothing to correct."
         )
-        rows = {
-            r.key: r
-            for r in s.scalars(
-                select(TaxFigure).where(TaxFigure.year == body.year, TaxFigure.deleted == false())
-            )
-        }
-        changed = []
-        for k, v in clean.items():
-            shipped = taxtables.SHIPPED[body.year].get(k)
-            r = rows.get(k)
-            if v == shipped:
-                if r is not None:
-                    r.mark_deleted(c.id)
-                    changed.append(k)
-                continue
-            if r is None:
-                s.add(
-                    TaxFigure(
-                        id=ids.new_id("TaxFg"),
-                        year=body.year,
-                        key=k,
-                        value=exactjson.dumps(v),
-                        changedById=c.id,
-                    )
-                )
-                changed.append(k)
-            elif json.loads(r.value) != v:
-                r.value, r.changedById = exactjson.dumps(v), c.id
-                changed.append(k)
-        if changed:
+    return value
+
+
+def _figure_noted(ctx, row: TaxFigure) -> None:
+    """One Activity entry a save, naming the figures it corrected and their year."""
+    years = ctx.notes.setdefault("tax-tables", {})
+    years.setdefault(row.year, set()).add(row.key)
+
+    def record() -> None:
+        for year, keys in years.items():
             activity.record(
-                s,
+                ctx.s,
                 "settings.tax-tables",
-                actor=c.id,
+                actor=ctx.caller.id,
                 for_admins=True,
-                detail={"fields": sorted(changed), "year": body.year},
+                detail={"fields": sorted(keys), "year": year},
             )
-        s.flush()
-        return _tables(s, body.year)
+
+    ctx.verify("tax-tables", record)
+
+
+def _figure_admin(ctx) -> None:
+    if not ctx.caller.admin:
+        raise Problem(403, "admins-only", "Only admins can do this.")
+
+
+def _figure_create(ctx, record_id: str, body: FigureRecord) -> None:
+    _figure_admin(ctx)
+    value = _figure_check(body)
+    if body.key in taxtables.corrected(ctx.s, body.year):
+        raise refuse("key", "figure-corrected", "It is corrected: change its correction.", 409)
+    row = TaxFigure(
+        id=record_id,
+        year=body.year,
+        key=body.key,
+        value=exactjson.dumps(value),
+        changedById=ctx.caller.id,
+    )
+    ctx.s.add(row)
+    _figure_noted(ctx, row)
+
+
+def _figure_editable(ctx, record_id: str) -> TaxFigure:
+    _figure_admin(ctx)
+    row = ctx.s.get(TaxFigure, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _figure_update(ctx, row: TaxFigure, body: FigureRecord) -> None:
+    if (body.year, body.key) != (row.year, row.key):
+        raise refuse("key", "figure-fixed", "A correction stays with its figure and year.")
+    value = _figure_check(body)
+    row.value, row.changedById = exactjson.dumps(value), ctx.caller.id
+    _figure_noted(ctx, row)
+
+
+def _figure_delete(ctx, row: TaxFigure) -> None:
+    """The figure as shipped again."""
+    _figure_admin(ctx)
+    row.mark_deleted(ctx.caller.id)
+    _figure_noted(ctx, row)
+
+
+def _figure_current(ctx, row: TaxFigure) -> dict:
+    return {"year": row.year, "key": row.key, "value": json.loads(row.value)}
+
+
+save.register(
+    save.Kind(
+        prefix="TaxFg",
+        entity=TaxFigure,
+        fields=FigureRecord,
+        create=_figure_create,
+        editable=_figure_editable,
+        current=_figure_current,
+        update=_figure_update,
+        delete=_figure_delete,
+        read=lambda ctx, record_id: _tables(ctx.s, ctx.s.get(TaxFigure, record_id).year),
+    )
+)

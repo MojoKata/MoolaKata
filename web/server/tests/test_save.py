@@ -119,6 +119,15 @@ DON = save.Kind(
 
 @pytest.fixture(autouse=True)
 def kinds(monkeypatch):
+    # The routes' kinds register as their modules load: every one first, so none registers
+    # into the stand-ins below and is lost to the tests after.
+    import importlib
+    import pkgutil
+
+    from moolakata import ui
+
+    for m in pkgutil.iter_modules(ui.__path__):
+        importlib.import_module(f"moolakata.ui.{m.name}")
     monkeypatch.setattr(save, "KINDS", {"Orgzn": ORG, "Dnatn": DON})
     AFTER.clear()
 

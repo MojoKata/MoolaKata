@@ -2,25 +2,6 @@
 // Do not edit: web/check fails when this file differs from what the routes give.
 
 /**
- * @typedef {Object} AccountChange
- * @property {(string | null)} [name]
- * @property {(string | null)} [institution]
- * @property {(string | null)} [mask]
- * @property {(string | null)} [notes]
- * @property {(Array<string> | null)} [keptBy]
- * @property {(string | null)} [lotMethod]
- * @property {(import('../app/dec.js').Dec | null)} [openingBalance]
- * @property {(string | null)} [openingDate]
- * @property {(boolean | null)} [countInNetWorth]
- * @property {(boolean | null)} [active]
- * @property {(string | null)} [statementInterval]
- * @property {boolean} [dismissIntervalProposal]
- * @property {(number | null)} [withdrawalsAMonth]
- * @property {(string | null)} [connectionId]
- * @property {(string | null)} [syncAccount]
- */
-
-/**
  * @typedef {Object} AccountDetail
  * @property {string} id
  * @property {string} name
@@ -56,12 +37,17 @@
  * @property {(string | null)} statementInterval
  * @property {string} statementIntervalDefault
  * @property {(string | null)} statementIntervalProposal
+ * @property {(string | null)} statementIntervalDismissed
  * @property {(number | null)} withdrawalsAMonth
  * @property {(import('../app/dec.js').Dec | null)} optionsValue
  * @property {(import('../app/dec.js').Dec | null)} capitalAtRisk
  * @property {boolean} [capitalAtRiskUnlimited]
  * @property {(string | null)} connectionId
  * @property {(string | null)} syncAccount
+ * @property {(string | null)} [walletKeys]
+ * @property {number} [gapLimit]
+ * @property {(string | null)} [countedId]
+ * @property {number} [countedVersion]
  */
 
 /**
@@ -72,11 +58,37 @@
  */
 
 /**
+ * An account as a draft saves it (S12.15): its type is chosen when it is made; its
+ * settings are its owner's (S10.3).
+ * @typedef {Object} AccountRecord
+ * @property {string} name
+ * @property {string} type
+ * @property {(string | null)} [institution]
+ * @property {(string | null)} [mask]
+ * @property {(string | null)} [notes]
+ * @property {Array<string>} [keptBy]
+ * @property {string} [lotMethod]
+ * @property {(import('../app/dec.js').Dec | null)} [openingBalance]
+ * @property {(string | null)} [openingDate]
+ * @property {(boolean | null)} [countInNetWorth]
+ * @property {boolean} [active]
+ * @property {(string | null)} [statementInterval]
+ * @property {(string | null)} [statementIntervalDismissed]
+ * @property {(number | null)} [withdrawalsAMonth]
+ * @property {(string | null)} [connectionId]
+ * @property {(string | null)} [syncAccount]
+ * @property {(string | null)} [walletKeys]
+ * @property {number} [gapLimit]
+ */
+
+/**
  * @typedef {Object} AccountRef
  * @property {string} id
  * @property {string} name
  * @property {string} type
  * @property {string} ownerName
+ * @property {(string | null)} [rowId]
+ * @property {number} [rowVersion]
  */
 
 /**
@@ -184,6 +196,15 @@
  */
 
 /**
+ * A balance typed from the institution's site (S1.11.2), as its dialog's draft saves it.
+ * @typedef {Object} AnchorRecord
+ * @property {string} accountId
+ * @property {string} date
+ * @property {import('../app/dec.js').Dec} balance
+ * @property {(string | null)} [note]
+ */
+
+/**
  * @typedef {Object} Applied
  * @property {number} changed
  */
@@ -199,16 +220,19 @@
  */
 
 /**
+ * A user's own assumptions as a draft saves them (S6.3): every figure, checked together;
+ * made when they first change the shipped ones, deleted to go back to them.
+ * @typedef {Object} AssumptionsRecord
+ * @property {Object<string, unknown>} figures
+ */
+
+/**
  * @typedef {Object} AssumptionsView
  * @property {Object<string, unknown>} figures
  * @property {Array<Array<unknown>>} classes
  * @property {Array<Array<unknown>>} bitcoinModels
+ * @property {(string | null)} [id]
  * @property {number} [version]
- */
-
-/**
- * @typedef {Object} Attach
- * @property {string} transactionId
  */
 
 /**
@@ -266,17 +290,6 @@
  */
 
 /**
- * @typedef {Object} BeneficiaryRef
- * @property {string} kind
- * @property {string} id
- */
-
-/**
- * @typedef {Object} BitcoinPassword
- * @property {(string | null)} password
- */
-
-/**
  * @typedef {Object} BitcoinTest
  * @property {string} answer
  */
@@ -307,8 +320,13 @@
  */
 
 /**
- * @typedef {Object} BookChange
- * @property {string} bitcoinFees
+ * An account a tax book counts or leaves out beyond what its filers' own say (S8.14.2):
+ * one the caller can see added (a custodial account in a child's name), or one of the
+ * filers' own left out. Deleted, the book counts it as its filers' accounts say.
+ * @typedef {Object} BookAccountRecord
+ * @property {string} bookId
+ * @property {string} accountId
+ * @property {boolean} counted
  */
 
 /**
@@ -332,6 +350,16 @@
  * @property {Array<LastYear>} lastYear
  * @property {string} federalDue
  * @property {boolean} canWrite
+ */
+
+/**
+ * A tax book as a draft saves it (S8.14): its year and filers are chosen when it is made;
+ * how it reads bitcoin network fees may change (S8.19).
+ * @typedef {Object} BookRecord
+ * @property {number} year
+ * @property {Array<string>} [filers]
+ * @property {boolean} [fromLastYear]
+ * @property {("sale" | "not-taxed")} [bitcoinFees]
  */
 
 /**
@@ -374,12 +402,16 @@
  */
 
 /**
- * @typedef {Object} BudgetChange
- * @property {(string | null)} [name]
- * @property {(Array<string> | null)} [accountIds]
- * @property {(boolean | null)} [reserves]
- * @property {(boolean | null)} [moves]
- * @property {(Array<RoleIn> | null)} [roles]
+ * A budget as a draft saves it (S7.1): its method chosen when it is made; its accounts
+ * its owner's choice; its roles a card's paying account or where reserves' money moves from,
+ * chosen (none: as the history says).
+ * @typedef {Object} BudgetRecord
+ * @property {string} name
+ * @property {("tracking" | "envelope")} [method]
+ * @property {Array<string>} [accountIds]
+ * @property {boolean} [reserves]
+ * @property {boolean} [moves]
+ * @property {Array<RoleIn>} [roles]
  */
 
 /**
@@ -479,11 +511,6 @@
  */
 
 /**
- * @typedef {Object} CategoryChange
- * @property {(number | null)} [keepReceiptsYears]
- */
-
-/**
  * @typedef {Object} CategoryOut
  * @property {string} id
  * @property {string} name
@@ -493,6 +520,18 @@
  * @property {string} path
  * @property {(number | null)} keepReceiptsYears
  * @property {number} version
+ */
+
+/**
+ * A category as a draft saves it (S2.5): made with its name, kind and parent; afterwards
+ * only how long receipts in it are kept, an admin's, since it decides what file pruning may
+ * remove (S14.10.1.1).
+ * @typedef {Object} CategoryRecord
+ * @property {string} name
+ * @property {string} kind
+ * @property {(string | null)} [parentId]
+ * @property {(string | null)} [taxTag]
+ * @property {(number | null)} [keepReceiptsYears]
  */
 
 /**
@@ -529,10 +568,23 @@
  */
 
 /**
+ * Someone already here by a name (S10.10.3): who, whether the caller sees them, and who
+ * added them, to use them or ask them to be shared.
+ * @typedef {Object} Clash
+ * @property {string} id
+ * @property {string} name
+ * @property {boolean} visible
+ * @property {boolean} private
+ * @property {(string | null)} createdBy
+ */
+
+/**
  * @typedef {Object} Close
  * @property {string} date
  * @property {import('../app/dec.js').Dec} close
  * @property {string} source
+ * @property {(string | null)} [id]
+ * @property {number} [version]
  */
 
 /**
@@ -556,7 +608,9 @@
  */
 
 /**
- * @typedef {Object} Colour
+ * The colour of a linked household's window, for its chooser (S12.10.3.2).
+ * @typedef {Object} ColourRecord
+ * @property {string} linkId
  * @property {string} colour
  */
 
@@ -603,18 +657,6 @@
  */
 
 /**
- * @typedef {Object} ConnectionChange
- * @property {(string | null)} [label]
- * @property {(Object<string, unknown> | null)} [settings]
- */
-
-/**
- * @typedef {Object} ConnectionMade
- * @property {ConnectionOut} connection
- * @property {string} command
- */
-
-/**
  * @typedef {Object} ConnectionOut
  * @property {string} id
  * @property {string} ownerId
@@ -632,6 +674,16 @@
  * @property {(string | null)} [signInHost]
  * @property {string} createdAt
  * @property {number} version
+ */
+
+/**
+ * A Connection as a draft saves it (S18.6): its driver chosen when it is made; its name
+ * and settings its owner's to change, the institution's address only with the password
+ * again. Its sign-in is never here: it is sealed apart (S18.7).
+ * @typedef {Object} ConnectionRecord
+ * @property {string} driver
+ * @property {string} label
+ * @property {Object<string, unknown>} [settings]
  */
 
 /**
@@ -678,12 +730,17 @@
  */
 
 /**
- * @typedef {Object} ContributionIn
- * @property {string} date
- * @property {import('../app/dec.js').Dec} amount
+ * A contribution's tag as a draft saves it (S1.8.2): who made a deposit into the 529 and
+ * whether it is a five-year election. Made for a deposit already there (an imported one), or
+ * with the deposit it records, from a bank account with both halves.
+ * @typedef {Object} ContributionRecord
+ * @property {string} accountId
+ * @property {(string | null)} [transactionId]
+ * @property {(string | null)} [date]
+ * @property {(import('../app/dec.js').Dec | null)} [amount]
+ * @property {(string | null)} [fromAccountId]
  * @property {string} [contributor]
  * @property {boolean} [fiveYear]
- * @property {(string | null)} [fromAccountId]
  */
 
 /**
@@ -718,10 +775,12 @@
  */
 
 /**
- * @typedef {Object} CorporateAction
+ * A corporate action as its dialog's draft saves it (S2.4).
+ * @typedef {Object} CorporateActionRecord
+ * @property {string} accountId
+ * @property {string} instrumentId
  * @property {string} kind
  * @property {string} date
- * @property {string} instrumentId
  * @property {(import('../app/dec.js').Dec | null)} [ratio]
  * @property {(string | null)} [newSymbol]
  * @property {(import('../app/dec.js').Dec | null)} [basisShare]
@@ -730,12 +789,10 @@
  */
 
 /**
- * @typedef {Object} CountIn
- * @property {(boolean | null)} counted
- */
-
-/**
- * @typedef {Object} Counted
+ * A receiver's Count in my totals on an account shared with them (S10.7), off until they
+ * tick it; their own, as its record of the save.
+ * @typedef {Object} CountedRecord
+ * @property {string} accountId
  * @property {boolean} counted
  */
 
@@ -768,48 +825,6 @@
  */
 
 /**
- * @typedef {Object} Deleted_BookDetail_
- * @property {Gone} deleted
- * @property {(BookDetail | null)} [parent]
- */
-
-/**
- * @typedef {Object} Deleted_ItemDetail_
- * @property {Gone} deleted
- * @property {(ItemDetail | null)} [parent]
- */
-
-/**
- * @typedef {Object} Deleted_NoneType_
- * @property {Gone} deleted
- * @property {null} [parent]
- */
-
-/**
- * @typedef {Object} Deleted_Profile_
- * @property {Gone} deleted
- * @property {(Profile | null)} [parent]
- */
-
-/**
- * @typedef {Object} Deleted_ReceiptDetail_
- * @property {Gone} deleted
- * @property {(ReceiptDetail | null)} [parent]
- */
-
-/**
- * @typedef {Object} Deleted_UserRow_
- * @property {Gone} deleted
- * @property {(UserRow | null)} [parent]
- */
-
-/**
- * @typedef {Object} Deleted_WithdrawalsView_
- * @property {Gone} deleted
- * @property {(WithdrawalsView | null)} [parent]
- */
-
-/**
  * @typedef {Object} DeliverablePart
  * @property {string} symbol
  * @property {import('../app/dec.js').Dec} shares
@@ -823,15 +838,6 @@
  * @property {boolean} under17
  * @property {boolean} under13
  * @property {Array<string>} agesOut
- */
-
-/**
- * @typedef {Object} DependentIn
- * @property {string} personId
- * @property {string} [claimedAs]
- * @property {number} [months]
- * @property {boolean} [student]
- * @property {Array<string>} [accountIds]
  */
 
 /**
@@ -853,6 +859,17 @@
  */
 
 /**
+ * A dependent of a book (S8.14.5), with the accounts in their name it counts.
+ * @typedef {Object} DependentRecord
+ * @property {string} personId
+ * @property {string} [claimedAs]
+ * @property {number} [months]
+ * @property {boolean} [student]
+ * @property {Array<string>} [accountIds]
+ * @property {string} bookId
+ */
+
+/**
  * @typedef {Object} DocumentOut
  * @property {string} id
  * @property {string} direction
@@ -868,28 +885,16 @@
  */
 
 /**
- * @typedef {Object} DonationChange
- * @property {(boolean | null)} [acknowledged]
- * @property {(boolean | null)} [granted]
+ * A tax document of a book (S8.16), received or filed, with its file.
+ * @typedef {Object} DocumentRecord
+ * @property {string} [direction]
+ * @property {string} form
+ * @property {(string | null)} [issuer]
+ * @property {(string | null)} [accountId]
+ * @property {(string | null)} [filingId]
+ * @property {(string | null)} [receiptId]
  * @property {(string | null)} [notes]
- * @property {(string | null)} [organisationId]
- */
-
-/**
- * @typedef {Object} DonationIn
- * @property {string} date
- * @property {string} kind
- * @property {(string | null)} [organisationId]
- * @property {(import('../app/dec.js').Dec | null)} [amount]
- * @property {(string | null)} [description]
- * @property {(string | null)} [transactionId]
- * @property {(string | null)} [fromAccountId]
- * @property {(string | null)} [dafAccountId]
- * @property {(string | null)} [lotId]
- * @property {(import('../app/dec.js').Dec | null)} [quantity]
- * @property {boolean} [acknowledged]
- * @property {(boolean | null)} [granted]
- * @property {(string | null)} [notes]
+ * @property {string} bookId
  */
 
 /**
@@ -915,6 +920,27 @@
  * @property {(string | null)} notes
  * @property {boolean} canWrite
  * @property {(number | null)} version
+ */
+
+/**
+ * A donation as a draft saves it (S7.9.2): recorded whole; afterwards only what changes
+ * after the fact does, the acknowledgement arriving (its file among `receiptIds`), a grant
+ * paid, the organisation, notes.
+ * @typedef {Object} DonationRecord
+ * @property {string} date
+ * @property {string} kind
+ * @property {(string | null)} [organisationId]
+ * @property {(import('../app/dec.js').Dec | null)} [amount]
+ * @property {(string | null)} [description]
+ * @property {(string | null)} [transactionId]
+ * @property {(string | null)} [fromAccountId]
+ * @property {(string | null)} [dafAccountId]
+ * @property {(string | null)} [lotId]
+ * @property {(import('../app/dec.js').Dec | null)} [quantity]
+ * @property {boolean} [acknowledged]
+ * @property {(boolean | null)} [granted]
+ * @property {(string | null)} [notes]
+ * @property {Array<string>} [receiptIds]
  */
 
 /**
@@ -945,13 +971,19 @@
  */
 
 /**
- * @typedef {Object} EmailChange
- * @property {string} email
+ * A 529's plan as a draft saves it (S1.8.1): made with the account or on its Settings.
+ * @typedef {Object} EducationPlanRecord
+ * @property {string} accountId
+ * @property {(string | null)} [planState]
+ * @property {(string | null)} [planName]
+ * @property {(string | null)} [beneficiaryId]
+ * @property {(string | null)} [openedOn]
+ * @property {(import('../app/dec.js').Dec | null)} [stateDeduction]
  */
 
 /**
- * @typedef {Object} EmailPassword
- * @property {(string | null)} password
+ * @typedef {Object} EmailChange
+ * @property {string} email
  */
 
 /**
@@ -987,15 +1019,6 @@
  */
 
 /**
- * @typedef {Object} ExpenseIn
- * @property {string} date
- * @property {(number | null)} [year]
- * @property {string} kind
- * @property {(string | null)} [description]
- * @property {import('../app/dec.js').Dec} amount
- */
-
-/**
  * @typedef {Object} ExpenseOut
  * @property {string} id
  * @property {string} date
@@ -1009,6 +1032,17 @@
  */
 
 /**
+ * A qualified expense as a draft saves it (S1.8.3), in its 529's account.
+ * @typedef {Object} ExpenseRecord
+ * @property {string} date
+ * @property {(number | null)} [year]
+ * @property {string} kind
+ * @property {(string | null)} [description]
+ * @property {import('../app/dec.js').Dec} amount
+ * @property {string} accountId
+ */
+
+/**
  * @typedef {Object} Expiring
  * @property {string} symbol
  * @property {number} days
@@ -1016,32 +1050,19 @@
  */
 
 /**
+ * An admin's correction of one shipped tax-table figure for a year (S16.11), as the tax
+ * tables' draft saves it; the shipped value again deletes it.
+ * @typedef {Object} FigureRecord
+ * @property {number} year
+ * @property {string} key
+ * @property {unknown} value
+ */
+
+/**
  * @typedef {Object} Filer
  * @property {string} id
  * @property {string} name
  * @property {boolean} accepted
- */
-
-/**
- * @typedef {Object} FilingIn
- * @property {string} [jurisdiction]
- * @property {(string | null)} [place]
- * @property {string} [form]
- * @property {(string | null)} [amendsId]
- * @property {(string | null)} [filingStatus]
- * @property {(string | null)} [preparedBy]
- * @property {(string | null)} [sentBy]
- * @property {string} [progress]
- * @property {(string | null)} [dueDate]
- * @property {(string | null)} [extensionFiledOn]
- * @property {(string | null)} [extendedDue]
- * @property {(string | null)} [filedOn]
- * @property {(string | null)} [confirmation]
- * @property {(string | null)} [resultKind]
- * @property {(import('../app/dec.js').Dec | null)} [resultAmount]
- * @property {(string | null)} [resultTransactionId]
- * @property {Array<Payment>} [payments]
- * @property {Carried} [carried]
  */
 
 /**
@@ -1070,6 +1091,30 @@
  * @property {CarriedView} carried
  * @property {Array<DocumentOut>} documents
  * @property {number} version
+ */
+
+/**
+ * A filing as a draft saves it: its estimated payments are records of their own
+ * (`EstPy`), so each keeps its matched transaction.
+ * @typedef {Object} FilingRecord
+ * @property {string} bookId
+ * @property {("federal" | "state" | "local")} [jurisdiction]
+ * @property {(string | null)} [place]
+ * @property {string} [form]
+ * @property {(string | null)} [amendsId]
+ * @property {(string | null)} [filingStatus]
+ * @property {(string | null)} [preparedBy]
+ * @property {(string | null)} [sentBy]
+ * @property {string} [progress]
+ * @property {(string | null)} [dueDate]
+ * @property {(string | null)} [extensionFiledOn]
+ * @property {(string | null)} [extendedDue]
+ * @property {(string | null)} [filedOn]
+ * @property {(string | null)} [confirmation]
+ * @property {(string | null)} [resultKind]
+ * @property {(import('../app/dec.js').Dec | null)} [resultAmount]
+ * @property {(string | null)} [resultTransactionId]
+ * @property {Carried} [carried]
  */
 
 /**
@@ -1151,22 +1196,6 @@
  */
 
 /**
- * @typedef {Object} GiftIn
- * @property {Array<string>} people
- * @property {(string | null)} [occasion]
- * @property {(number | null)} [occasionYear]
- * @property {string} description
- * @property {string} [status]
- * @property {(import('../app/dec.js').Dec | null)} [cost]
- * @property {(string | null)} [transactionId]
- * @property {(string | null)} [store]
- * @property {(string | null)} [link]
- * @property {(string | null)} [notes]
- * @property {boolean} [cash]
- * @property {boolean} [thankYou]
- */
-
-/**
  * @typedef {Object} GiftOut
  * @property {string} id
  * @property {Array<PersonRef>} people
@@ -1185,6 +1214,25 @@
  * @property {Array<ReceiptRow>} documents
  * @property {boolean} canWrite
  * @property {number} version
+ */
+
+/**
+ * A gift as a draft saves it (S7.8), with its people as a set and the receipts kept with
+ * it (`receiptIds`).
+ * @typedef {Object} GiftRecord
+ * @property {Array<string>} [people]
+ * @property {(string | null)} [occasion]
+ * @property {(number | null)} [occasionYear]
+ * @property {string} description
+ * @property {string} [status]
+ * @property {(import('../app/dec.js').Dec | null)} [cost]
+ * @property {(string | null)} [transactionId]
+ * @property {(string | null)} [store]
+ * @property {(string | null)} [link]
+ * @property {(string | null)} [notes]
+ * @property {boolean} [cash]
+ * @property {boolean} [thankYou]
+ * @property {Array<string>} [receiptIds]
  */
 
 /**
@@ -1207,20 +1255,24 @@
  */
 
 /**
- * Landed money given to a reserve, spread among those held there, or kept (S7.10.5).
- * @typedef {Object} GiveIn
- * @property {string} transactionId
- * @property {string} to
- * @property {import('../app/dec.js').Dec} amount
- */
-
-/**
  * @typedef {Object} GivingOut
  * @property {Array<DonationRow>} deductible
  * @property {Array<DonationRow>} apart
  * @property {import('../app/dec.js').Dec} deductibleTotal
  * @property {number} missingAcks
  * @property {Array<string>} notes
+ */
+
+/**
+ * A year's giving plan as a draft saves it (S7.9.1).
+ * @typedef {Object} GivingPlanRecord
+ * @property {number} year
+ * @property {string} [targetKind]
+ * @property {(import('../app/dec.js').Dec | null)} [percent]
+ * @property {(import('../app/dec.js').Dec | null)} [amount]
+ * @property {string} [incomeBasis]
+ * @property {(import('../app/dec.js').Dec | null)} [income]
+ * @property {string} [dafCounted]
  */
 
 /**
@@ -1260,18 +1312,13 @@
  */
 
 /**
- * @typedef {Object} GroupChange
- * @property {(string | null)} [name]
- * @property {(boolean | null)} [active]
- * @property {(Array<string> | null)} [memberIds]
- */
-
-/**
  * @typedef {Object} GroupGrant
  * @property {string} id
  * @property {string} name
  * @property {string} level
  * @property {number} members
+ * @property {(string | null)} [shareId]
+ * @property {number} [version]
  */
 
 /**
@@ -1279,6 +1326,14 @@
  * @property {string} date
  * @property {import('../app/dec.js').Dec} total
  * @property {Object<string, import('../app/dec.js').Dec>} groups
+ */
+
+/**
+ * A group as an admin's draft saves it (S10.2): the built-in admins keep their name.
+ * @typedef {Object} GroupRecord
+ * @property {string} name
+ * @property {boolean} [active]
+ * @property {Array<string>} [memberIds]
  */
 
 /**
@@ -1398,19 +1453,20 @@
  */
 
 /**
- * @typedef {Object} ImprovementIn
- * @property {string} date
- * @property {string} description
- * @property {import('../app/dec.js').Dec} amount
- */
-
-/**
  * @typedef {Object} ImprovementOut
  * @property {string} id
  * @property {string} date
  * @property {string} description
  * @property {import('../app/dec.js').Dec} amount
  * @property {number} version
+ */
+
+/**
+ * @typedef {Object} ImprovementRecord
+ * @property {string} date
+ * @property {string} description
+ * @property {import('../app/dec.js').Dec} amount
+ * @property {string} itemId
  */
 
 /**
@@ -1537,7 +1593,10 @@
  */
 
 /**
- * @typedef {Object} ItemIn
+ * An item as a draft saves it, with its sale (S1.10.5) and the photos and documents kept
+ * with it (`receiptIds`, a set of uploaded receipts). Its valuations and improvements are
+ * records of their own.
+ * @typedef {Object} ItemRecord
  * @property {string} name
  * @property {(string | null)} [category]
  * @property {(string | null)} [description]
@@ -1562,6 +1621,11 @@
  * @property {(import('../app/dec.js').Dec | null)} [closingCosts]
  * @property {boolean} [primaryResidence]
  * @property {boolean} [personalUse]
+ * @property {string} accountId
+ * @property {(string | null)} [soldOn]
+ * @property {(import('../app/dec.js').Dec | null)} [proceeds]
+ * @property {(import('../app/dec.js').Dec | null)} [saleFees]
+ * @property {Array<string>} [receiptIds]
  */
 
 /**
@@ -1651,11 +1715,6 @@
  * @typedef {Object} LastYear
  * @property {string} filing
  * @property {CarriedView} figures
- */
-
-/**
- * @typedef {Object} LeaveOutIn
- * @property {boolean} leftOut
  */
 
 /**
@@ -1766,6 +1825,29 @@
  * @property {import('../app/dec.js').Dec} pmi
  * @property {import('../app/dec.js').Dec} propertyTax
  * @property {(string | null)} securedBy
+ */
+
+/**
+ * A loan's terms as a draft saves them: set when the loan is made, corrected later (an
+ * ARM's resets, a recast).
+ * @typedef {Object} LoanRecord
+ * @property {import('../app/dec.js').Dec} principal
+ * @property {string} startDate
+ * @property {number} termMonths
+ * @property {import('../app/dec.js').Dec} rate
+ * @property {string} [method]
+ * @property {(import('../app/dec.js').Dec | null)} [payment]
+ * @property {(import('../app/dec.js').Dec | null)} [escrowTax]
+ * @property {(import('../app/dec.js').Dec | null)} [escrowInsurance]
+ * @property {(import('../app/dec.js').Dec | null)} [pmi]
+ * @property {(number | null)} [drawMonths]
+ * @property {Array<Reset>} [resets]
+ * @property {Array<Recast>} [recasts]
+ * @property {(import('../app/dec.js').Dec | null)} [originalValue]
+ * @property {(string | null)} [securedById]
+ * @property {string} [budgetCounting]
+ * @property {(string | null)} [budgetCategoryId]
+ * @property {string} accountId
  */
 
 /**
@@ -1934,21 +2016,6 @@
  */
 
 /**
- * @typedef {Object} Move
- * @property {number} to
- */
-
-/**
- * @typedef {Object} MoveIn
- * @property {string} month
- * @property {(string | null)} [fromCategoryId]
- * @property {(string | null)} [toCategoryId]
- * @property {(string | null)} [cardId]
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [note]
- */
-
-/**
  * An amount put from one category to another for the month (S7.11).
  * @typedef {Object} MoveOut
  * @property {string} id
@@ -1962,6 +2029,21 @@
  * @property {string} createdAt
  * @property {boolean} landed
  * @property {number} version
+ */
+
+/**
+ * A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
+ * landed money given to a reserve held where it landed, or to no category: kept as the
+ * account's own (S7.10.5); its month is the transaction's.
+ * @typedef {Object} MoveRecord
+ * @property {string} month
+ * @property {(string | null)} [fromCategoryId]
+ * @property {(string | null)} [toCategoryId]
+ * @property {(string | null)} [cardId]
+ * @property {import('../app/dec.js').Dec} amount
+ * @property {(string | null)} [note]
+ * @property {string} budgetId
+ * @property {(string | null)} [transactionId]
  */
 
 /**
@@ -1990,135 +2072,6 @@
  */
 
 /**
- * @typedef {Object} NewAccount
- * @property {string} name
- * @property {string} type
- * @property {(string | null)} [institution]
- * @property {(string | null)} [mask]
- * @property {(string | null)} [notes]
- * @property {Array<string>} [keptBy]
- * @property {string} [lotMethod]
- * @property {(import('../app/dec.js').Dec | null)} [openingBalance]
- * @property {(string | null)} [openingDate]
- * @property {(boolean | null)} [countInNetWorth]
- */
-
-/**
- * @typedef {Object} NewAdjustment
- * @property {string} date
- * @property {import('../app/dec.js').Dec} amount
- * @property {string} note
- */
-
-/**
- * @typedef {Object} NewAnchor
- * @property {string} date
- * @property {import('../app/dec.js').Dec} balance
- * @property {(string | null)} [note]
- */
-
-/**
- * @typedef {Object} NewBook
- * @property {number} year
- * @property {Array<string>} filers
- * @property {boolean} [fromLastYear]
- * @property {string} [bitcoinFees]
- */
-
-/**
- * @typedef {Object} NewBookOut
- * @property {string} id
- * @property {number} year
- * @property {Array<Filer>} filers
- * @property {string} level
- * @property {string} label
- * @property {number} version
- * @property {Array<string>} dependentsLeftOut
- */
-
-/**
- * @typedef {Object} NewBudget
- * @property {string} name
- * @property {Array<string>} [accountIds]
- * @property {string} [method]
- * @property {boolean} [reserves]
- * @property {boolean} [moves]
- */
-
-/**
- * @typedef {Object} NewCategory
- * @property {string} name
- * @property {string} kind
- * @property {(string | null)} [parentId]
- * @property {(string | null)} [taxTag]
- */
-
-/**
- * @typedef {Object} NewConnection
- * @property {string} driver
- * @property {string} label
- * @property {Object<string, unknown>} [settings]
- */
-
-/**
- * @typedef {Object} NewGroup
- * @property {string} name
- * @property {Array<string>} [memberIds]
- */
-
-/**
- * @typedef {Object} NewPortfolio
- * @property {string} name
- * @property {Array<string>} [accountIds]
- * @property {string} [benchmark]
- * @property {(string | null)} [notes]
- */
-
-/**
- * @typedef {Object} NewProjection
- * @property {string} name
- * @property {string} goal
- * @property {Object<string, unknown>} builtOn
- * @property {Object<string, unknown>} [inputs]
- */
-
-/**
- * @typedef {Object} NewReconciliation
- * @property {string} statementDate
- * @property {import('../app/dec.js').Dec} statementBalance
- */
-
-/**
- * @typedef {Object} NewSource
- * @property {string} name
- */
-
-/**
- * @typedef {Object} NewStrategy
- * @property {string} accountId
- * @property {Array<LegIn>} legs
- * @property {(string | null)} [name]
- * @property {boolean} [dismiss]
- */
-
-/**
- * @typedef {Object} NewToken
- * @property {string} name
- * @property {string} [scope]
- * @property {Array<TokenItem>} [items]
- * @property {number} [days]
- */
-
-/**
- * @typedef {Object} NewUser
- * @property {string} displayName
- * @property {string} username
- * @property {string} email
- * @property {(string | null)} [sex]
- * @property {Array<string>} [groupIds]
- */
-
-/**
  * @typedef {Object} Newer
  * @property {number} count
  */
@@ -2133,17 +2086,6 @@
  */
 
 /**
- * @typedef {Object} OccasionIn
- * @property {string} kind
- * @property {(string | null)} [name]
- * @property {(string | null)} [holiday]
- * @property {(number | null)} [month]
- * @property {(number | null)} [day]
- * @property {(number | null)} [year]
- * @property {(import('../app/dec.js').Dec | null)} [budget]
- */
-
-/**
  * @typedef {Object} OccasionOut
  * @property {string} kind
  * @property {(string | null)} [name]
@@ -2155,6 +2097,21 @@
  * @property {string} id
  * @property {string} label
  * @property {(string | null)} next
+ * @property {number} version
+ */
+
+/**
+ * An occasion of a gift plan (S7.7.1): a holiday by its key, or an anniversary or other
+ * occasion on a month and day, with the year it began when known.
+ * @typedef {Object} OccasionRecord
+ * @property {string} giftPlanId
+ * @property {("anniversary" | "holiday" | "custom")} kind
+ * @property {(string | null)} [name]
+ * @property {(string | null)} [holiday]
+ * @property {(number | null)} [month]
+ * @property {(number | null)} [day]
+ * @property {(number | null)} [year]
+ * @property {(import('../app/dec.js').Dec | null)} [budget]
  */
 
 /**
@@ -2222,20 +2179,6 @@
  */
 
 /**
- * @typedef {Object} OptionTrade
- * @property {string} date
- * @property {string} action
- * @property {string} underlying
- * @property {string} right
- * @property {import('../app/dec.js').Dec} strike
- * @property {string} expiry
- * @property {import('../app/dec.js').Dec} contracts
- * @property {import('../app/dec.js').Dec} premium
- * @property {import('../app/dec.js').Dec} [fees]
- * @property {number} [multiplier]
- */
-
-/**
  * @typedef {Object} OptionTradeRow
  * @property {string} accountId
  * @property {string} accountName
@@ -2255,17 +2198,6 @@
  */
 
 /**
- * @typedef {Object} OrganisationIn
- * @property {string} name
- * @property {(string | null)} [ein]
- * @property {boolean} [deductible]
- * @property {Array<string>} [causes]
- * @property {(import('../app/dec.js').Dec | null)} [pledge]
- * @property {(string | null)} [pledgeEvery]
- * @property {(string | null)} [notes]
- */
-
-/**
  * @typedef {Object} OrganisationOut
  * @property {string} name
  * @property {(string | null)} [ein]
@@ -2278,6 +2210,18 @@
  * @property {import('../app/dec.js').Dec} given
  * @property {boolean} canWrite
  * @property {number} version
+ */
+
+/**
+ * An organisation as a draft saves it (S7.9.5).
+ * @typedef {Object} OrganisationRecord
+ * @property {string} name
+ * @property {(string | null)} [ein]
+ * @property {boolean} [deductible]
+ * @property {Array<string>} [causes]
+ * @property {(import('../app/dec.js').Dec | null)} [pledge]
+ * @property {(string | null)} [pledgeEvery]
+ * @property {(string | null)} [notes]
  */
 
 /**
@@ -2614,6 +2558,14 @@
  */
 
 /**
+ * @typedef {Object} Page_TagOut_
+ * @property {Array<moolakata__ui__tags__TagOut>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
  * @typedef {Object} Page_TokenOut_
  * @property {Array<TokenOut>} items
  * @property {number} total
@@ -2687,16 +2639,6 @@
  */
 
 /**
- * @typedef {Object} PairOut
- * @property {string} id
- * @property {string} spendingId
- * @property {(string | null)} splitId
- * @property {string} paybackId
- * @property {import('../app/dec.js').Dec} amount
- * @property {number} version
- */
-
-/**
  * @typedef {Object} PairingOut
  * @property {string} code
  * @property {string} expiresAt
@@ -2711,7 +2653,7 @@
  * @property {ScheduleDOut} scheduleD
  * @property {IncomeOut} income
  * @property {RetirementOut} retirement
- * @property {Array<TagOut>} deductions
+ * @property {Array<moolakata__ui__taxpanels__TagOut>} deductions
  * @property {Array<DependentAge>} dependents
  * @property {Array<Quarter>} estimated
  * @property {(import('../app/dec.js').Dec | null)} lastYearTax
@@ -2745,8 +2687,9 @@
  */
 
 /**
- * @typedef {Object} Payment
- * @property {(string | null)} [id]
+ * An estimated tax payment of a filing (S8.15), matched to its transaction.
+ * @typedef {Object} PaymentRecord
+ * @property {string} filingId
  * @property {number} quarter
  * @property {(string | null)} [dueDate]
  * @property {import('../app/dec.js').Dec} amount
@@ -2755,23 +2698,10 @@
  */
 
 /**
- * @typedef {Object} PaymentIn
- * @property {string} date
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [fromAccountId]
- * @property {(string | null)} [transactionId]
- * @property {(import('../app/dec.js').Dec | null)} [principal]
- * @property {(import('../app/dec.js').Dec | null)} [interest]
- * @property {(import('../app/dec.js').Dec | null)} [escrowTax]
- * @property {(import('../app/dec.js').Dec | null)} [escrowInsurance]
- * @property {(import('../app/dec.js').Dec | null)} [pmi]
- * @property {(import('../app/dec.js').Dec | null)} [fees]
- */
-
-/**
  * A payment as shown; its own model, so the contract has one schema each way.
  * @typedef {Object} PaymentView
  * @property {(string | null)} id
+ * @property {number} version
  * @property {number} quarter
  * @property {(string | null)} dueDate
  * @property {import('../app/dec.js').Dec} amount
@@ -2788,6 +2718,14 @@
  * @property {Array<moolakata__ui__loans__RowOut>} planRows
  * @property {Array<moolakata__ui__loans__RowOut>} recastRows
  * @property {Array<ResetView>} assumedRates
+ */
+
+/**
+ * A saved overpayment plan as a draft saves it (S1.9.6).
+ * @typedef {Object} PayoffRecord
+ * @property {string} name
+ * @property {PlanIn} inputs
+ * @property {string} accountId
  */
 
 /**
@@ -2828,6 +2766,20 @@
  * @property {string} ownerName
  * @property {number} version
  * @property {number} personVersion
+ */
+
+/**
+ * A person as a draft saves them. `differentPerson`, on a new one, says a name already
+ * here is someone else, told apart by birth year (S10.10.3).
+ * @typedef {Object} PersonRecord
+ * @property {string} name
+ * @property {(string | null)} [sex]
+ * @property {(number | null)} [birthMonth]
+ * @property {(number | null)} [birthDay]
+ * @property {(number | null)} [birthYear]
+ * @property {(string | null)} [diedOn]
+ * @property {boolean} [private]
+ * @property {boolean} [differentPerson]
  */
 
 /**
@@ -2872,12 +2824,6 @@
  */
 
 /**
- * @typedef {Object} PickIn
- * @property {string} lotId
- * @property {import('../app/dec.js').Dec} quantity
- */
-
-/**
  * @typedef {Object} Plan
  * @property {string} id
  * @property {string} name
@@ -2888,6 +2834,31 @@
  * @property {Array<Array<unknown>>} baseline
  * @property {(string | null)} sharedBy
  * @property {Object<string, unknown>} builtOn
+ */
+
+/**
+ * @typedef {Object} PlanIn
+ * @property {import('../app/dec.js').Dec} [monthly]
+ * @property {(string | null)} [monthlyFrom]
+ * @property {(string | null)} [monthlyUntil]
+ * @property {import('../app/dec.js').Dec} [yearly]
+ * @property {number} [yearlyMonth]
+ * @property {Array<Lump>} [lumps]
+ * @property {boolean} [biweekly]
+ * @property {import('../app/dec.js').Dec} [roundTo]
+ * @property {boolean} [recast]
+ * @property {import('../app/dec.js').Dec} [recastFee]
+ * @property {string} [investClass]
+ */
+
+/**
+ * A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so
+ * each keeps its id, and the gifts planned for it stay with it (CR3-43).
+ * @typedef {Object} PlanRecord
+ * @property {string} personId
+ * @property {(import('../app/dec.js').Dec | null)} [giftBudget]
+ * @property {number} [leadDays]
+ * @property {(string | null)} [notes]
  */
 
 /**
@@ -2907,14 +2878,6 @@
  */
 
 /**
- * @typedef {Object} PortfolioChange
- * @property {(string | null)} [name]
- * @property {(Array<string> | null)} [accountIds]
- * @property {(string | null)} [benchmark]
- * @property {(string | null)} [notes]
- */
-
-/**
  * @typedef {Object} PortfolioHoldings
  * @property {Array<HoldingTotal>} holdings
  * @property {import('../app/dec.js').Dec} cash
@@ -2922,6 +2885,15 @@
  * @property {(import('../app/dec.js').Dec | null)} optionsValue
  * @property {(import('../app/dec.js').Dec | null)} capitalAtRisk
  * @property {boolean} [capitalAtRiskUnlimited]
+ */
+
+/**
+ * A portfolio as a draft saves it (S5.1): its accounts are its owner's choice.
+ * @typedef {Object} PortfolioRecord
+ * @property {string} name
+ * @property {Array<string>} [accountIds]
+ * @property {string} [benchmark]
+ * @property {(string | null)} [notes]
  */
 
 /**
@@ -2993,7 +2965,7 @@
  * @property {string} title
  * @property {number} status
  * @property {string} detail
- * @property {("account-disabled" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-invalid" | "admin-exists" | "admins-only" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "assumption-invalid" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "draw-invalid" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expired" | "fees-invalid" | "figure-invalid" | "figure-not-of-year" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-invalid" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-twice" | "level-invalid" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-exists" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-missing" | "price-negative" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "reconciled-period" | "reencrypt-pending" | "reencrypt-running" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-invalid" | "share-read-only" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-invalid" | "source-unknown" | "split-does-not-add-up" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-too-long" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-inactive" | "user-unknown" | "username-invalid" | "username-taken" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
+ * @property {("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reencrypt-running" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
  * @property {string} errorId
  * @property {Array<ProblemFieldError>} errors
  */
@@ -3002,7 +2974,7 @@
  * @typedef {Object} ProblemFieldError
  * @property {unknown} field
  * @property {string} [id]
- * @property {(("account-disabled" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-invalid" | "admin-exists" | "admins-only" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "assumption-invalid" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "draw-invalid" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expired" | "fees-invalid" | "figure-invalid" | "figure-not-of-year" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-invalid" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-twice" | "level-invalid" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-exists" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-missing" | "price-negative" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "reconciled-period" | "reencrypt-pending" | "reencrypt-running" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-invalid" | "share-read-only" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-invalid" | "source-unknown" | "split-does-not-add-up" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-too-long" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-inactive" | "user-unknown" | "username-invalid" | "username-taken" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
+ * @property {(("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reencrypt-running" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
  * @property {string} message
  */
 
@@ -3024,32 +2996,12 @@
  * @property {(number | null)} birthYear
  * @property {string} alertEmails
  * @property {string} bitcoinUnit
+ * @property {Array<string>} shownProjectionIds
+ * @property {(string | null)} activeBudgetId
  * @property {TwoStep} twoStep
  * @property {Array<Relation>} relations
  * @property {(Spouse | null)} spouse
  * @property {number} version
- */
-
-/**
- * @typedef {Object} ProfileChange
- * @property {(string | null)} [displayName]
- * @property {(string | null)} [avatar]
- * @property {(string | null)} [timeZone]
- * @property {(string | null)} [theme]
- * @property {(string | null)} [sex]
- * @property {(number | null)} [birthMonth]
- * @property {(number | null)} [birthDay]
- * @property {(number | null)} [birthYear]
- * @property {(string | null)} [alertEmails]
- * @property {(string | null)} [bitcoinUnit]
- */
-
-/**
- * @typedef {Object} ProjectionChange
- * @property {(string | null)} [name]
- * @property {(Object<string, unknown> | null)} [builtOn]
- * @property {(Object<string, unknown> | null)} [inputs]
- * @property {boolean} [rebaseline]
  */
 
 /**
@@ -3071,6 +3023,18 @@
  * @property {Object<string, unknown>} result
  * @property {(Object<string, unknown> | null)} tracking
  * @property {(string | null)} baselineAt
+ */
+
+/**
+ * A projection as a draft saves it (S6.6): its goal chosen when it is made. An active
+ * one's new inputs become its baseline only when `rebaseline` asks it (S6.7.4); it is an
+ * instruction, never kept.
+ * @typedef {Object} ProjectionRecord
+ * @property {string} name
+ * @property {string} goal
+ * @property {Object<string, unknown>} builtOn
+ * @property {Object<string, unknown>} [inputs]
+ * @property {boolean} [rebaseline]
  */
 
 /**
@@ -3174,16 +3138,6 @@
  */
 
 /**
- * @typedef {Object} ReceiptChange
- * @property {(string | null)} [date]
- * @property {(import('../app/dec.js').Dec | null)} [amount]
- * @property {(string | null)} [payee]
- * @property {(string | null)} [notes]
- * @property {(Array<string> | null)} [tags]
- * @property {(boolean | null)} [keep]
- */
-
-/**
  * @typedef {Object} ReceiptDetail
  * @property {string} id
  * @property {string} fileName
@@ -3198,6 +3152,7 @@
  * @property {(string | null)} payee
  * @property {(string | null)} notes
  * @property {Array<string>} tags
+ * @property {Array<string>} tagIds
  * @property {Array<moolakata__ui__receipts__LinkOut>} links
  * @property {boolean} hasThumbnail
  * @property {string} readStatus
@@ -3220,6 +3175,28 @@
  */
 
 /**
+ * What a receipt is attached to, as a draft makes or takes it away (S9.3): a record of
+ * its own, never changed. `itemId` names a record of the kind's table.
+ * @typedef {Object} ReceiptLinkRecord
+ * @property {string} receiptId
+ * @property {("transaction" | "account" | "item" | "expense" | "gift" | "donation")} kind
+ * @property {string} itemId
+ */
+
+/**
+ * A receipt as a draft saves it (S9.8): what was read from it, or typed, and whether it is
+ * kept for ever. It is made by uploading its file; what it is attached to are pairs of their
+ * own (S13.8.6).
+ * @typedef {Object} ReceiptRecord
+ * @property {(string | null)} [date]
+ * @property {(import('../app/dec.js').Dec | null)} [amount]
+ * @property {(string | null)} [payee]
+ * @property {(string | null)} [notes]
+ * @property {Array<string>} [tagIds]
+ * @property {boolean} [keep]
+ */
+
+/**
  * @typedef {Object} ReceiptRow
  * @property {string} id
  * @property {string} fileName
@@ -3234,6 +3211,7 @@
  * @property {(string | null)} payee
  * @property {(string | null)} notes
  * @property {Array<string>} tags
+ * @property {Array<string>} tagIds
  * @property {Array<moolakata__ui__receipts__LinkOut>} links
  * @property {boolean} hasThumbnail
  * @property {string} readStatus
@@ -3259,8 +3237,14 @@
  */
 
 /**
- * @typedef {Object} ReconciliationChange
- * @property {boolean} finish
+ * Ticking off against a statement (S1.11.6), as its dialog's draft saves it: made with the
+ * statement's closing date and balance; `finished` once the ticked transactions leave no
+ * difference, which marks them reconciled. A finished one stays; an unfinished one may go.
+ * @typedef {Object} ReconciliationRecord
+ * @property {string} statementDate
+ * @property {import('../app/dec.js').Dec} statementBalance
+ * @property {string} accountId
+ * @property {boolean} [finished]
  */
 
 /**
@@ -3344,16 +3328,6 @@
  */
 
 /**
- * @typedef {Object} RelationshipIn
- * @property {string} person1Id
- * @property {string} person2Id
- * @property {string} relation
- * @property {(string | null)} [label]
- * @property {(string | null)} [fromDate]
- * @property {(string | null)} [toDate]
- */
-
-/**
  * @typedef {Object} RelationshipOut
  * @property {string} id
  * @property {Named} person1
@@ -3368,6 +3342,18 @@
  * @property {boolean} canConfirm
  * @property {boolean} canChange
  * @property {number} version
+ */
+
+/**
+ * A relationship as a draft saves it (S10.10.4): a marriage changed in any way is
+ * confirmed again by the other.
+ * @typedef {Object} RelationshipRecord
+ * @property {string} person1Id
+ * @property {string} person2Id
+ * @property {string} relation
+ * @property {(string | null)} [label]
+ * @property {(string | null)} [fromDate]
+ * @property {(string | null)} [toDate]
  */
 
 /**
@@ -3476,24 +3462,18 @@
  */
 
 /**
+ * @typedef {Object} Rolled
+ * @property {Array<LegIn>} [roll]
+ * @property {Array<string>} [declineRoll]
+ */
+
+/**
  * @typedef {Object} RolloverOut
  * @property {(string | null)} possibleFrom
  * @property {import('../app/dec.js').Dec} limit
  * @property {import('../app/dec.js').Dec} used
  * @property {import('../app/dec.js').Dec} eligible
  * @property {import('../app/dec.js').Dec} available
- */
-
-/**
- * @typedef {Object} RuleIn
- * @property {string} payeeMatch
- * @property {(import('../app/dec.js').Dec | null)} [amountMin]
- * @property {(import('../app/dec.js').Dec | null)} [amountMax]
- * @property {string} [direction]
- * @property {(string | null)} [accountId]
- * @property {(string | null)} [categoryId]
- * @property {(string | null)} [payee]
- * @property {Array<string>} [tags]
  */
 
 /**
@@ -3518,7 +3498,24 @@
  * @property {boolean} categoryDeleted
  * @property {(string | null)} payee
  * @property {Array<string>} tags
+ * @property {Array<string>} tagIds
  * @property {number} version
+ */
+
+/**
+ * A rule as a draft saves it (S2.7): a new one goes last in the list, and one moved goes
+ * to its `position` (from 0), the others closing up around it; the tags it sets are its
+ * owner's.
+ * @typedef {Object} RuleRecord
+ * @property {string} payeeMatch
+ * @property {(import('../app/dec.js').Dec | null)} [amountMin]
+ * @property {(import('../app/dec.js').Dec | null)} [amountMax]
+ * @property {string} [direction]
+ * @property {(string | null)} [accountId]
+ * @property {(string | null)} [categoryId]
+ * @property {(string | null)} [payee]
+ * @property {Array<string>} [tagIds]
+ * @property {(number | null)} [position]
  */
 
 /**
@@ -3532,13 +3529,6 @@
  */
 
 /**
- * @typedef {Object} SaleIn
- * @property {string} soldOn
- * @property {import('../app/dec.js').Dec} proceeds
- * @property {import('../app/dec.js').Dec} [fees]
- */
-
-/**
  * @typedef {Object} SaveIn
  * @property {Array<Op>} ops
  * @property {Array<Confirmed>} [confirm]
@@ -3546,7 +3536,17 @@
 
 /**
  * @typedef {Object} SaveOut
- * @property {Array<moolakata__ui__save__Saved>} saved
+ * @property {Array<Saved>} saved
+ */
+
+/**
+ * A record the save touched: its new version and the record as read, or what went.
+ * @typedef {Object} Saved
+ * @property {string} entity
+ * @property {string} id
+ * @property {(number | null)} [version]
+ * @property {(Object<string, unknown> | null)} [record]
+ * @property {(Gone | null)} [deleted]
  */
 
 /**
@@ -3559,12 +3559,6 @@
  * @property {string} createdAt
  * @property {number} version
  * @property {string} headline
- */
-
-/**
- * @typedef {Object} SavedPlanIn
- * @property {string} name
- * @property {moolakata__ui__loans__PlanIn} inputs
  */
 
 /**
@@ -3625,12 +3619,26 @@
  */
 
 /**
+ * A setting as a section's draft saves it (S16): its key, and a value its definition
+ * checks; a password's value is written and never read back, null removing it.
+ * @typedef {Object} SettingRecord
+ * @property {string} key
+ * @property {unknown} [value]
+ */
+
+/**
+ * A saved setting's record: its id and version (S13.8.6).
+ * @typedef {Object} SettingRef
+ * @property {string} id
+ * @property {number} version
+ */
+
+/**
  * @typedef {Object} SettingsView
  * @property {Object<string, unknown>} values
  * @property {Object<string, Array<string>>} sections
  * @property {string} serverZone
- * @property {Object<string, number>} versions
- * @property {number} version
+ * @property {Object<string, SettingRef>} records
  */
 
 /**
@@ -3655,11 +3663,16 @@
  */
 
 /**
- * @typedef {Object} ShareSave
- * @property {Object<string, string>} [users]
- * @property {Object<string, string>} [groups]
- * @property {boolean} [shareAccountsToo]
- * @property {Object<string, boolean>} [receipts]
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee.
+ * @typedef {Object} ShareRecord
+ * @property {("account" | "portfolio" | "budget" | "projection" | "person" | "gift-plan" | "giving-plan" | "tax-book")} kind
+ * @property {string} itemId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} level
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -3672,12 +3685,6 @@
  * @property {Array<LinkedPeople>} links
  * @property {Object<string, Array<string>>} hidden
  * @property {Array<AccountName>} accounts
- * @property {number} [version]
- */
-
-/**
- * @typedef {Object} Shown
- * @property {boolean} shown
  */
 
 /**
@@ -3724,13 +3731,6 @@
  */
 
 /**
- * @typedef {Object} SourceChange
- * @property {(boolean | null)} [enabled]
- * @property {(Object<string, number> | null)} [preference]
- * @property {(string | null)} [apiKey]
- */
-
-/**
  * @typedef {Object} SourceKind
  * @property {string} name
  * @property {string} label
@@ -3741,6 +3741,16 @@
  * @property {(string | null)} termsChecked
  * @property {(string | null)} attribution
  * @property {boolean} fetches
+ */
+
+/**
+ * A price source as a draft saves it (S4.2): added by name; on or off, its place for
+ * each class it serves, and its key, a secret written and never read back (S14.4).
+ * @typedef {Object} SourceRecord
+ * @property {string} name
+ * @property {boolean} [enabled]
+ * @property {Object<string, number>} [preference]
+ * @property {(string | null)} [apiKey]
  */
 
 /**
@@ -3782,7 +3792,9 @@
  */
 
 /**
- * @typedef {Object} SplitIn
+ * A part of a transaction's amount with its own category (S2.6), as a draft saves it.
+ * @typedef {Object} SplitRecord
+ * @property {string} transactionId
  * @property {(string | null)} [categoryId]
  * @property {import('../app/dec.js').Dec} amount
  * @property {(string | null)} [memo]
@@ -3841,15 +3853,6 @@
  */
 
 /**
- * @typedef {Object} StrategyChange
- * @property {(string | null)} [name]
- * @property {(boolean | null)} [cashSecured]
- * @property {(import('../app/dec.js').Dec | null)} [marginRequirement]
- * @property {Array<LegIn>} [roll]
- * @property {Array<string>} [declineRoll]
- */
-
-/**
  * @typedef {Object} StrategyOut
  * @property {string} id
  * @property {string} accountId
@@ -3875,6 +3878,20 @@
  * @property {(import('../app/dec.js').Dec | null)} marginRequirement
  * @property {boolean} canWrite
  * @property {number} version
+ */
+
+/**
+ * A strategy as a draft saves it (S3.5): grouped from legs held in its account, by hand or
+ * as proposed, or a proposal turned down (`dismissed`, kept so it isn't proposed again); then
+ * its name, cash-secured tick and margin. Undone by deleting it, its legs standing on their
+ * own again.
+ * @typedef {Object} StrategyRecord
+ * @property {string} accountId
+ * @property {Array<LegIn>} [legs]
+ * @property {boolean} [dismissed]
+ * @property {(string | null)} [name]
+ * @property {boolean} [cashSecured]
+ * @property {(import('../app/dec.js').Dec | null)} [marginRequirement]
  */
 
 /**
@@ -3931,24 +3948,9 @@
  */
 
 /**
- * @typedef {Object} TagIn
- * @property {string} [contributor]
- * @property {boolean} [fiveYear]
- */
-
-/**
- * @typedef {Object} TagOut
- * @property {string} tag
- * @property {string} label
- * @property {import('../app/dec.js').Dec} total
- * @property {number} count
- * @property {number} withReceipts
- */
-
-/**
- * @typedef {Object} TaxChange
- * @property {number} year
- * @property {Object<string, unknown>} values
+ * A tag as a draft saves it: its name, lower case, once its owner's.
+ * @typedef {Object} TagRecord
+ * @property {string} name
  */
 
 /**
@@ -3961,6 +3963,8 @@
  * @property {unknown} value
  * @property {unknown} shipped
  * @property {boolean} corrected
+ * @property {(string | null)} [figureId]
+ * @property {number} [version]
  */
 
 /**
@@ -3968,27 +3972,6 @@
  * @property {number} year
  * @property {Array<number>} years
  * @property {Array<TaxRow>} rows
- * @property {number} version
- */
-
-/**
- * @typedef {Object} TermsIn
- * @property {import('../app/dec.js').Dec} principal
- * @property {string} startDate
- * @property {number} termMonths
- * @property {import('../app/dec.js').Dec} rate
- * @property {string} [method]
- * @property {(import('../app/dec.js').Dec | null)} [payment]
- * @property {(import('../app/dec.js').Dec | null)} [escrowTax]
- * @property {(import('../app/dec.js').Dec | null)} [escrowInsurance]
- * @property {(import('../app/dec.js').Dec | null)} [pmi]
- * @property {(number | null)} [drawMonths]
- * @property {Array<Reset>} [resets]
- * @property {Array<Recast>} [recasts]
- * @property {(import('../app/dec.js').Dec | null)} [originalValue]
- * @property {(string | null)} [securedById]
- * @property {string} [budgetCounting]
- * @property {(string | null)} [budgetCategoryId]
  */
 
 /**
@@ -4010,6 +3993,7 @@
  * @property {string} budgetCounting
  * @property {(string | null)} budgetCategoryId
  * @property {import('../app/dec.js').Dec} computedPayment
+ * @property {string} id
  * @property {number} version
  */
 
@@ -4043,12 +4027,6 @@
  */
 
 /**
- * @typedef {Object} TokenMade
- * @property {TokenOut} token
- * @property {string} secret
- */
-
-/**
  * @typedef {Object} TokenOut
  * @property {string} id
  * @property {string} name
@@ -4068,6 +4046,16 @@
  */
 
 /**
+ * A token as a draft makes it (S10.9): made once, its secret in the save's answer alone;
+ * never changed; revoked by deleting it.
+ * @typedef {Object} TokenRecord
+ * @property {string} name
+ * @property {string} [scope]
+ * @property {Array<TokenItem>} [items]
+ * @property {number} [days]
+ */
+
+/**
  * @typedef {Object} TransferAnswer
  * @property {boolean} confirm
  */
@@ -4080,11 +4068,6 @@
  * @property {(string | null)} payee
  * @property {import('../app/dec.js').Dec} amount
  * @property {boolean} kept
- */
-
-/**
- * @typedef {Object} TransferLink
- * @property {(string | null)} otherId
  */
 
 /**
@@ -4151,54 +4134,6 @@
  */
 
 /**
- * @typedef {Object} TxnChange
- * @property {(string | null)} [date]
- * @property {(string | null)} [kind]
- * @property {(import('../app/dec.js').Dec | null)} [amount]
- * @property {(string | null)} [payee]
- * @property {(string | null)} [memo]
- * @property {(string | null)} [categoryId]
- * @property {(import('../app/dec.js').Dec | null)} [quantity]
- * @property {(import('../app/dec.js').Dec | null)} [price]
- * @property {(import('../app/dec.js').Dec | null)} [fees]
- * @property {(string | null)} [dividendType]
- * @property {(number | null)} [contributionYear]
- * @property {(string | null)} [contributionSource]
- * @property {(import('../app/dec.js').Dec | null)} [costBasis]
- * @property {(boolean | null)} [cleared]
- * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
- * @property {(string | null)} [owedBy]
- * @property {(Array<SplitIn> | null)} [splits]
- * @property {(Array<string> | null)} [tags]
- */
-
-/**
- * @typedef {Object} TxnIn
- * @property {string} accountId
- * @property {string} date
- * @property {string} [kind]
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [payee]
- * @property {(string | null)} [memo]
- * @property {(string | null)} [categoryId]
- * @property {(string | null)} [instrumentId]
- * @property {(string | null)} [symbol]
- * @property {(import('../app/dec.js').Dec | null)} [quantity]
- * @property {(import('../app/dec.js').Dec | null)} [price]
- * @property {(import('../app/dec.js').Dec | null)} [fees]
- * @property {(string | null)} [dividendType]
- * @property {(import('../app/dec.js').Dec | null)} [splitRatio]
- * @property {(number | null)} [contributionYear]
- * @property {(string | null)} [contributionSource]
- * @property {(import('../app/dec.js').Dec | null)} [costBasis]
- * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
- * @property {(string | null)} [owedBy]
- * @property {Array<SplitIn>} [splits]
- * @property {Array<string>} [tags]
- * @property {Array<PickIn>} [picks]
- */
-
-/**
  * @typedef {Object} TxnOut
  * @property {string} id
  * @property {string} accountId
@@ -4228,17 +4163,58 @@
  * @property {(import('../app/dec.js').Dec | null)} reimbursable
  * @property {(string | null)} owedBy
  * @property {import('../app/dec.js').Dec} paidBack
+ * @property {(import('../app/dec.js').Dec | null)} [costBasis]
+ * @property {(Array<string> | null)} [leftOutOf]
  * @property {Array<moolakata__ui__transactions__SplitOut>} splits
  * @property {Array<string>} tags
+ * @property {Array<string>} tagIds
  * @property {number} receipts
  * @property {string} level
  * @property {number} version
  */
 
 /**
- * @typedef {Object} TypedPrice
+ * A transaction as a draft saves it: its splits are records of their own (`Split`), so
+ * each keeps its id, and with it what pays it back (S2.9). `symbol` names a new trade's
+ * instrument; `leftOutOf` lists the budgets it is left out of (S7.3.5).
+ * @typedef {Object} TxnRecord
+ * @property {string} accountId
  * @property {string} date
- * @property {import('../app/dec.js').Dec} price
+ * @property {string} [kind]
+ * @property {import('../app/dec.js').Dec} amount
+ * @property {(string | null)} [payee]
+ * @property {(string | null)} [memo]
+ * @property {(string | null)} [categoryId]
+ * @property {(string | null)} [symbol]
+ * @property {(string | null)} [instrumentId]
+ * @property {(import('../app/dec.js').Dec | null)} [quantity]
+ * @property {(import('../app/dec.js').Dec | null)} [price]
+ * @property {(import('../app/dec.js').Dec | null)} [fees]
+ * @property {(string | null)} [dividendType]
+ * @property {(number | null)} [contributionYear]
+ * @property {(string | null)} [contributionSource]
+ * @property {(import('../app/dec.js').Dec | null)} [costBasis]
+ * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
+ * @property {(string | null)} [owedBy]
+ * @property {boolean} [cleared]
+ * @property {Array<string>} [tagIds]
+ * @property {Array<string>} [leftOutOf]
+ * @property {(import('../app/dec.js').Dec | null)} [splitRatio]
+ * @property {(string | null)} [right]
+ * @property {(import('../app/dec.js').Dec | null)} [strike]
+ * @property {(string | null)} [expiry]
+ * @property {(number | null)} [multiplier]
+ * @property {(string | null)} [transferWithId]
+ */
+
+/**
+ * A price from a statement, or typed, with its date (S4.3), as its dialog's draft saves
+ * it: its typer's alone, valuing their own accounts and never another user's (S4.10), one a
+ * day.
+ * @typedef {Object} TypedPriceRecord
+ * @property {string} instrumentId
+ * @property {string} date
+ * @property {import('../app/dec.js').Dec} close
  */
 
 /**
@@ -4269,20 +4245,38 @@
  */
 
 /**
- * @typedef {Object} UserChange
- * @property {(string | null)} [displayName]
- * @property {(string | null)} [email]
- * @property {(boolean | null)} [active]
- * @property {(Array<string> | null)} [groupIds]
- */
-
-/**
  * @typedef {Object} UserGrant
  * @property {string} id
  * @property {string} displayName
  * @property {(string | null)} avatar
  * @property {string} level
  * @property {Array<Via>} via
+ * @property {(string | null)} [shareId]
+ * @property {number} [version]
+ * @property {boolean} [includeReceipts]
+ */
+
+/**
+ * A user as a draft saves them: an admin's (S10.1), invited when made, their email
+ * changed only while the invitation is pending; and the user's own Profile (S12.2.16),
+ * theirs alone, their sex and birthday their person's (S10.10.1).
+ * @typedef {Object} UserRecord
+ * @property {string} displayName
+ * @property {string} username
+ * @property {(string | null)} [email]
+ * @property {(string | null)} [sex]
+ * @property {boolean} [active]
+ * @property {Array<string>} [groupIds]
+ * @property {(string | null)} [avatar]
+ * @property {string} [timeZone]
+ * @property {string} [theme]
+ * @property {(number | null)} [birthMonth]
+ * @property {(number | null)} [birthDay]
+ * @property {(number | null)} [birthYear]
+ * @property {string} [alertEmails]
+ * @property {string} [bitcoinUnit]
+ * @property {Array<string>} [shownProjectionIds]
+ * @property {(string | null)} [activeBudgetId]
  */
 
 /**
@@ -4304,14 +4298,6 @@
  */
 
 /**
- * @typedef {Object} ValuationIn
- * @property {string} date
- * @property {import('../app/dec.js').Dec} value
- * @property {string} [source]
- * @property {(string | null)} [note]
- */
-
-/**
  * @typedef {Object} ValuationOut
  * @property {string} id
  * @property {string} date
@@ -4319,6 +4305,15 @@
  * @property {string} source
  * @property {(string | null)} note
  * @property {number} version
+ */
+
+/**
+ * @typedef {Object} ValuationRecord
+ * @property {string} date
+ * @property {import('../app/dec.js').Dec} value
+ * @property {string} [source]
+ * @property {(string | null)} [note]
+ * @property {string} itemId
  */
 
 /**
@@ -4353,12 +4348,6 @@
  * @property {number} txCount
  * @property {number} balanceSats
  * @property {(string | null)} checkedAt
- */
-
-/**
- * @typedef {Object} WalletIn
- * @property {string} text
- * @property {number} [gapLimit]
  */
 
 /**
@@ -4473,6 +4462,7 @@
 
 /**
  * @typedef {Object} moolakata__ui__education__ContributionOut
+ * @property {(string | null)} [id]
  * @property {string} transactionId
  * @property {string} date
  * @property {import('../app/dec.js').Dec} amount
@@ -4481,20 +4471,6 @@
  * @property {(string | null)} relationship
  * @property {boolean} fiveYear
  * @property {number} [version]
- */
-
-/**
- * @typedef {Object} moolakata__ui__education__DocumentIn
- * @property {string} receiptId
- */
-
-/**
- * @typedef {Object} moolakata__ui__education__PlanIn
- * @property {(string | null)} [planState]
- * @property {(string | null)} [planName]
- * @property {(BeneficiaryRef | null)} [beneficiary]
- * @property {(string | null)} [openedOn]
- * @property {(import('../app/dec.js').Dec | null)} [stateDeduction]
  */
 
 /**
@@ -4507,30 +4483,9 @@
  * @property {import('../app/dec.js').Dec} contributedThisYear
  * @property {RolloverOut} rollover
  * @property {boolean} canWrite
+ * @property {(string | null)} [id]
+ * @property {(string | null)} [beneficiaryId]
  * @property {number} [version]
- */
-
-/**
- * @typedef {Object} moolakata__ui__gifts__DocumentIn
- * @property {string} receiptId
- */
-
-/**
- * A gift plan, and the person it is for: an existing one (`personId`) or a new one.
- * @typedef {Object} moolakata__ui__gifts__PersonIn
- * @property {(string | null)} [personId]
- * @property {string} [name]
- * @property {(string | null)} [sex]
- * @property {(number | null)} [birthMonth]
- * @property {(number | null)} [birthDay]
- * @property {(number | null)} [birthYear]
- * @property {(string | null)} [diedOn]
- * @property {(boolean | null)} [private]
- * @property {boolean} [differentPerson]
- * @property {(import('../app/dec.js').Dec | null)} [giftBudget]
- * @property {number} [leadDays]
- * @property {(string | null)} [notes]
- * @property {(Array<OccasionIn> | null)} [occasions]
  */
 
 /**
@@ -4538,22 +4493,6 @@
  * @property {string} id
  * @property {string} name
  * @property {string} server
- */
-
-/**
- * @typedef {Object} moolakata__ui__giving__DocumentIn
- * @property {string} receiptId
- */
-
-/**
- * @typedef {Object} moolakata__ui__giving__PlanIn
- * @property {number} year
- * @property {string} [targetKind]
- * @property {(import('../app/dec.js').Dec | null)} [percent]
- * @property {(import('../app/dec.js').Dec | null)} [amount]
- * @property {string} [incomeBasis]
- * @property {(import('../app/dec.js').Dec | null)} [income]
- * @property {string} [dafCounted]
  */
 
 /**
@@ -4572,14 +4511,11 @@
  */
 
 /**
- * @typedef {Object} moolakata__ui__items__DocumentIn
- * @property {string} receiptId
- */
-
-/**
  * @typedef {Object} moolakata__ui__linked__Household
  * @property {string} linkId
  * @property {string} colour
+ * @property {(string | null)} [colourId]
+ * @property {number} [colourVersion]
  * @property {(string | null)} serverName
  * @property {(string | null)} name
  * @property {(Object<string, unknown> | null)} avatar
@@ -4647,21 +4583,6 @@
  */
 
 /**
- * @typedef {Object} moolakata__ui__loans__PlanIn
- * @property {import('../app/dec.js').Dec} [monthly]
- * @property {(string | null)} [monthlyFrom]
- * @property {(string | null)} [monthlyUntil]
- * @property {import('../app/dec.js').Dec} [yearly]
- * @property {number} [yearlyMonth]
- * @property {Array<Lump>} [lumps]
- * @property {boolean} [biweekly]
- * @property {import('../app/dec.js').Dec} [roundTo]
- * @property {boolean} [recast]
- * @property {import('../app/dec.js').Dec} [recastFee]
- * @property {string} [investClass]
- */
-
-/**
  * @typedef {Object} moolakata__ui__loans__Point
  * @property {string} date
  * @property {import('../app/dec.js').Dec} balance
@@ -4681,6 +4602,8 @@
  */
 
 /**
+ * How the schedule splits a payment (S1.9.3), and the category each part is recorded in;
+ * the overpayment is principal beyond the schedule's, part of `principal`.
  * @typedef {Object} moolakata__ui__loans__SplitOut
  * @property {import('../app/dec.js').Dec} principal
  * @property {import('../app/dec.js').Dec} interest
@@ -4689,23 +4612,12 @@
  * @property {import('../app/dec.js').Dec} pmi
  * @property {import('../app/dec.js').Dec} fees
  * @property {import('../app/dec.js').Dec} overpayment
+ * @property {Object<string, string>} categories
  */
 
 /**
  * @typedef {Object} moolakata__ui__people__JoinIn
  * @property {string} userId
- */
-
-/**
- * @typedef {Object} moolakata__ui__people__PersonIn
- * @property {string} name
- * @property {(string | null)} [sex]
- * @property {(number | null)} [birthMonth]
- * @property {(number | null)} [birthDay]
- * @property {(number | null)} [birthYear]
- * @property {(string | null)} [diedOn]
- * @property {boolean} [private]
- * @property {boolean} [differentPerson]
  */
 
 /**
@@ -4716,8 +4628,11 @@
 
 /**
  * A transaction it supports, the account it is kept on (a statement), or what else it is
- * kept with: an item, a qualified expense, a gift, a donation, a tax document.
+ * kept with: an item, a qualified expense, a gift, a donation, a tax document. `id` and
+ * `version` are the link's own (`ReceiptLink`); a tax document's file has none.
  * @typedef {Object} moolakata__ui__receipts__LinkOut
+ * @property {(string | null)} id
+ * @property {(number | null)} version
  * @property {string} kind
  * @property {string} itemId
  * @property {(string | null)} transactionId
@@ -4728,16 +4643,6 @@
  * @property {(string | null)} payee
  * @property {string} label
  * @property {boolean} [canDetach]
- */
-
-/**
- * A record the save touched: its new version and the record as read, or what went.
- * @typedef {Object} moolakata__ui__save__Saved
- * @property {string} entity
- * @property {string} id
- * @property {(number | null)} [version]
- * @property {(Object<string, unknown> | null)} [record]
- * @property {(Gone | null)} [deleted]
  */
 
 /**
@@ -4765,20 +4670,10 @@
  */
 
 /**
- * @typedef {Object} moolakata__ui__sharing__Saved
- * @property {ShareView} view
- * @property {number} alsoShared
- */
-
-/**
- * @typedef {Object} moolakata__ui__taxes__DocumentIn
- * @property {string} [direction]
- * @property {string} form
- * @property {(string | null)} [issuer]
- * @property {(string | null)} [accountId]
- * @property {(string | null)} [filingId]
- * @property {(string | null)} [receiptId]
- * @property {(string | null)} [notes]
+ * @typedef {Object} moolakata__ui__tags__TagOut
+ * @property {string} id
+ * @property {string} name
+ * @property {number} version
  */
 
 /**
@@ -4811,6 +4706,15 @@
  */
 
 /**
+ * @typedef {Object} moolakata__ui__taxpanels__TagOut
+ * @property {string} tag
+ * @property {string} label
+ * @property {import('../app/dec.js').Dec} total
+ * @property {number} count
+ * @property {number} withReceipts
+ */
+
+/**
  * @typedef {Object} moolakata__ui__transactions__SplitOut
  * @property {(string | null)} [categoryId]
  * @property {import('../app/dec.js').Dec} amount
@@ -4818,6 +4722,7 @@
  * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
  * @property {(string | null)} [owedBy]
  * @property {string} id
+ * @property {number} version
  */
 
 export {};

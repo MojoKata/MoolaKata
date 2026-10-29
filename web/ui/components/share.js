@@ -1,63 +1,153 @@
 // The Share dialog (requirements S10.4): every active user, then every active group, each with
 // None · Read · Write, then each linked server's people with None · Read; who has access through a group is shown "via" it. Nothing changes until
-// Save. For a portfolio, it names the accounts each person can't see (S5.1.2).
-import { useEffect, useState } from 'preact/hooks';
+// Save, which saves the item's grants as records of a draft (S12.15). For a portfolio, it names
+// the accounts each person can't see (S5.1.2).
+import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useSubmit } from '../app/hooks.js';
-import { Dialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { FormError, Seg, Switch } from './fields.js';
+import { Seg, Switch } from './fields.js';
+import { Record as Rec } from '../app/draft.js';
+import { DraftDialog, useDraft } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 import { Avatar, Loading, Tile } from './bits.js';
 import { Icon } from './icon.js';
-import { toast } from './toast.js';
-import { withReauth } from './reauth.js';
 
 const LEVELS =
   /** @type {[string, string][]} */ ([['none', 'None'], ['read', 'Read'], ['write', 'Write']]);
 const REMOTE = /** @type {[string, string][]} */ ([['none', 'None'], ['read', 'Read']]);
 
+/** A grant (S10.4): an item shared with a user or a group, a record of the dialog's draft. */
+class ShareRec extends Rec {
+  /** @override */
+  static prefix = 'Share';
+  /** @override */
+  static fields = FIELDS.ShareRecord;
+  /** @override */
+  static defaults = { userId: null, groupId: null, includeReceipts: false };
+}
+
 /** @param {{ close: (v?: any) => void, kind: 'account' | 'portfolio' | 'budget', id: string, name: string }} p */
 export function ShareDialog({ close, kind, id, name }) {
   useDialogGuide('dialog-share');
   const [view, setView] = useState(/** @type {any} */ (null));
-  const [users, setUsers] = useState(/** @type {Record<string, string>} */ ({}));
-  const [groups, setGroups] = useState(/** @type {Record<string, string>} */ ({}));
-  const [receipts, setReceipts] = useState(/** @type {Record<string, boolean>} */ ({}));
-  useEffect(() => {
-    api.get(`/shares/${kind}/${id}`).then((v) => {
-      setView(v);
-      setUsers(
-        Object.fromEntries(
-          [...v.users, ...v.links.flatMap((/** @type {any} */ l) => l.users)].map((
-            /** @type {any} */ u,
-          ) => [u.id, u.level]),
-        ),
-      );
-      setReceipts(
-        Object.fromEntries(v.links.map((/** @type {any} */ l) => [l.linkId, l.includeReceipts])),
-      );
-      setGroups(Object.fromEntries(v.groups.map((/** @type {any} */ g) => [g.id, g.level])));
-    });
+  // Each grant the item has is a record; giving one adds it, None removes it (S12.15).
+  const f = useDraft(async (draft) => {
+    const v = await api.get(`/shares/${kind}/${id}`);
+    const people = [...v.users, ...v.links.flatMap((/** @type {any} */ l) => l.users)];
+    for (const u of people) {
+      if (u.shareId) {
+        draft.load(ShareRec, {
+          id: u.shareId,
+          version: u.version,
+          kind,
+          itemId: id,
+          userId: u.id,
+          level: u.level,
+          includeReceipts: u.includeReceipts,
+        });
+      }
+    }
+    for (const g of v.groups) {
+      if (g.shareId) {
+        draft.load(ShareRec, {
+          id: g.shareId,
+          version: g.version,
+          kind,
+          itemId: id,
+          groupId: g.id,
+          level: g.level,
+        });
+      }
+    }
+    setView(v);
   }, [kind, id]);
-  const save = useSubmit(async (/** @type {boolean} */ too = false) => {
-    // Sharing with a linked server asks for the password again (S13.7.2).
-    const out = await withReauth(() =>
-      api.put(`/shares/${kind}/${id}`, {
-        users,
-        groups,
-        receipts,
-        shareAccountsToo: too,
-      }, view?.version ?? 0)
+  const draft = f.draft;
+  const all = /** @type {ShareRec[]} */ (draft?.records || []);
+  /** The grant for a user or a group, or for an account of a portfolio's, if any. */
+  const grant = (/** @type {string} */ key, /** @type {string} */ who, item = id) =>
+    all.find((r) => r.get(key) === who && r.get('itemId') === item);
+  const level = (/** @type {string} */ key, /** @type {string} */ who) => {
+    const r = grant(key, who);
+    return r && !r.removed ? r.get('level') : 'none';
+  };
+  const linkOf = (/** @type {string} */ uid) =>
+    view?.links.find((/** @type {any} */ l) =>
+      l.users.some((/** @type {any} */ u) => u.id === uid)
     );
-    if (too && out.alsoShared) {
-      setView(out.view);
-      toast(`${out.alsoShared} account${out.alsoShared === 1 ? '' : 's'} shared at read`);
+  const receiptsOn = (/** @type {any} */ l) =>
+    l.users.some((/** @type {any} */ u) => {
+      const r = grant('userId', u.id);
+      return r && !r.removed && r.get('includeReceipts');
+    });
+  const setLevel = (/** @type {string} */ key, /** @type {string} */ who) =>
+  (
+    /** @type {string} */ v,
+  ) => {
+    if (!draft) return;
+    const r = grant(key, who);
+    if (v === 'none') {
+      if (r) draft.remove(r);
       return;
     }
-    toast('Sharing saved');
-    close(out);
-  });
+    if (r) {
+      if (r.removed) draft.unremove(r);
+      r.set('level', v);
+      return;
+    }
+    const l = key === 'userId' ? linkOf(who) : null;
+    draft.add(ShareRec, {
+      kind,
+      itemId: id,
+      [key]: who,
+      level: v,
+      includeReceipts: !!(l && receiptsOn(l)),
+    });
+  };
+  const setReceipts = (/** @type {any} */ l) => (/** @type {boolean} */ on) => {
+    for (const u of l.users) {
+      const r = grant('userId', u.id);
+      if (r && !r.removed) r.set('includeReceipts', on);
+    }
+  };
+  // Share these accounts too (S5.1.2): each hidden account the owner holds, at Read, saved
+  // with the rest.
+  const yours = new Set(
+    (view?.accounts || []).filter((/** @type {any} */ a) => a.yours).map((/** @type {any} */ a) =>
+      a.id
+    ),
+  );
+  const pending = Object.entries(view?.hidden || {}).flatMap(([uid, accts]) =>
+    /** @type {string[]} */ (accts).filter((a) => yours.has(a) && !grant('userId', uid, a)).map((
+      a,
+    ) => [uid, a])
+  );
+  const accountsToo = () => {
+    for (const [uid, a] of pending) {
+      draft?.add(ShareRec, { kind: 'account', itemId: a, userId: uid, level: 'read' });
+    }
+  };
+  const users = Object.fromEntries(
+    [...(view?.users || []), ...(view?.links || []).flatMap((/** @type {any} */ l) => l.users)]
+      .map((/** @type {any} */ u) => [u.id, level('userId', u.id)]),
+  );
+  const groups = Object.fromEntries(
+    (view?.groups || []).map((/** @type {any} */ g) => [g.id, level('groupId', g.id)]),
+  );
+  const receipts = Object.fromEntries(
+    (view?.links || []).map((/** @type {any} */ l) => [l.linkId, receiptsOn(l)]),
+  );
+  const setUsers = (/** @type {Record<string, string>} */ next) => {
+    for (const [uid, v] of Object.entries(next)) if (v !== users[uid]) setLevel('userId', uid)(v);
+  };
+  const setGroups = (/** @type {Record<string, string>} */ next) => {
+    for (const [gid, v] of Object.entries(next)) if (v !== groups[gid]) setLevel('groupId', gid)(v);
+  };
+  const setReceiptsFor = (/** @type {Record<string, boolean>} */ next) => {
+    for (const l of view?.links || []) {
+      if (next[l.linkId] !== receipts[l.linkId]) setReceipts(l)(next[l.linkId]);
+    }
+  };
   const hidden = view?.hidden || {};
   const hiddenNames = Object.entries(hidden).map(([uid, accts]) => ({
     who: view.users.find((/** @type {any} */ u) => u.id === uid)?.displayName,
@@ -66,13 +156,10 @@ export function ShareDialog({ close, kind, id, name }) {
     ),
   }));
   return html`
-    <${Dialog} title=${`Share “${name}”`} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
+    <${DraftDialog} f=${f} title=${`Share “${name}”`} close=${close} what="These shares"
+      done="Sharing saved"
       note="When someone loses access, it ends on their next request."
-      footer=${html`
-        <button type="button" class="btn" onClick=${() => close()}>Cancel</button>
-        <button class="btn primary" disabled=${save.busy || !view}>Save</button>
-      `}>
+      extra=${() => html`<button type="button" class="btn" data-cancel>Cancel</button>`}>
         ${!view ? html`<${Loading} />` : html`
           ${hiddenNames.length
             ? html`
@@ -85,10 +172,13 @@ export function ShareDialog({ close, kind, id, name }) {
                           }: they see only what is shared
             with them, and the rest is left out of the portfolio's figures.</div>`
                         )}
-                        <div class="toolbar mt" style=${{ marginBottom: 0 }}><button type="button"
-                          class="btn sm primary" onClick=${() =>
-                            save.run(true).catch(() => {})}>Share these accounts too</button>
-                          <span class="small dim">at Read, only accounts you own</span></div></div>
+                        <div class="toolbar mt" style=${{ marginBottom: 0 }}>${pending.length
+                          ? html`
+                            <button type="button" class="btn sm primary" onClick=${accountsToo}
+                            >Share these accounts too</button>
+                            <span class="small dim">at Read, only accounts you own</span>
+                          `
+                          : html`<span class="small dim">Shared at Read when you save.</span>`}</div></div>
               </div>
             `
             : null}
@@ -154,13 +244,12 @@ export function ShareDialog({ close, kind, id, name }) {
                   } id=${l.linkId} help="include-receipts" on=${!!receipts[
                     l.linkId
                   ]} onChange=${(/** @type {boolean} */ v) =>
-                    setReceipts({ ...receipts, [l.linkId]: v })} /></div>`
+                    setReceiptsFor({ ...receipts, [l.linkId]: v })} /></div>`
                   : null}
               `
             )}
           </div>
         `}
-        <${FormError} error=${save.error} />
-      </${Dialog}>
+    </${DraftDialog}>
   `;
 }

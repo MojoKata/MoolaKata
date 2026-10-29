@@ -5,6 +5,7 @@ change is worked out, and undone unless confirmed. One made anyway is kept on ea
 closed the year (S2.8.3) until an amended federal return, or No amendment needed, settles it
 (S8.15)."""
 
+from collections.abc import Callable
 from decimal import Decimal
 
 from sqlalchemy import false, select
@@ -57,8 +58,17 @@ class Guard:
     and isn't confirmed, refused with the years named (409 closed-year), so the request's
     unit of work rolls it back; when confirmed, kept on each tax book that closed the year."""
 
-    def __init__(self, s: Session, account: Account, confirm: bool, by: str | None = None):
-        self.s, self.account, self.confirm, self.by = s, account, confirm, by
+    def __init__(
+        self,
+        s: Session,
+        account: Account,
+        confirm: bool,
+        by: str | None = None,
+        ask: Callable[[str, str], None] | None = None,
+    ):
+        """`ask`, for a draft's save (S13.8.11.5), asks the question by its code instead of
+        refusing, and returns only once it is confirmed."""
+        self.s, self.account, self.confirm, self.by, self.ask = s, account, confirm, by, ask
         self.books = closing_books(s, account)
         self.before = gains(s, account, set(self.books)) if self.books else {}
 
@@ -72,8 +82,14 @@ class Guard:
             for y in sorted(self.books)
             if self.before.get(y, Decimal(0)) != after.get(y, Decimal(0))
         }
-        if moved and not self.confirm:
-            named = " and ".join(str(y) for y in moved)
+        named = " and ".join(str(y) for y in moved)
+        if moved and self.ask is not None:
+            self.ask(
+                "closed-year",
+                f"It changes the realized gains of {named}, a year whose return is filed. The "
+                "return may need amending, and the tax book will list the change.",
+            )
+        elif moved and not self.confirm:
             raise Problem(
                 409,
                 "closed-year",

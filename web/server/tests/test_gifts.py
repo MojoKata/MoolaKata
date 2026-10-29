@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, detach, make, plan529, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -28,14 +29,14 @@ def alice(server, frozen):
 
 
 def person(c, **kw):
-    r = c.post("/ui/api/people", json={"name": "Emma Griffin", "sex": "female", **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "GfPln", **{"name": "Emma Griffin", "sex": "female", **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
 def gift(c, **kw):
-    r = c.post("/ui/api/gifts", json={"description": "Watercolour set", **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "Gift", **{"description": "Watercolour set", **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -69,15 +70,10 @@ def test_a_person_with_occasions_and_their_next_date(alice):
     }
     labels = {o["label"]: o["next"] for o in p["occasions"]}
     assert labels == {"Christmas": "2026-12-25", "First day of school": "2027-09-01"}
-    bad = alice.post(
-        "/ui/api/people",
-        json={
-            "name": "X",
-            "sex": "male",
-            "occasions": [{"kind": "holiday", "holiday": "festivus"}],
-        },
+    bad = make(
+        alice, "GfPln", name="X", sex="male", occasions=[{"kind": "holiday", "holiday": "festivus"}]
     )
-    assert bad.json()["errors"][0]["field"] == "occasions.0.holiday"
+    assert bad.json()["errors"][0]["field"] == "holiday"
 
 
 def test_upcoming_with_the_reminder_on_the_dashboard_and_as_an_alert(server, alice):
@@ -97,17 +93,8 @@ def test_upcoming_with_the_reminder_on_the_dashboard_and_as_an_alert(server, ali
         alice.get("/ui/api/gifts/upcoming").json()["items"][0]["missing"]
         == "1 idea, nothing bought"
     )
-    alice.patch(
-        f"/ui/api/gifts/{g['id']}",
-        json={
-            "people": [emma["id"]],
-            "occasion": "birthday",
-            "occasionYear": 2026,
-            "description": "Watercolour set",
-            "status": "bought",
-            "cost": "35",
-        },
-    )
+    saved(change(alice, "Gift", g, occasion="birthday", occasionYear=2026, status="bought",
+                 cost="35"))  # fmt: skip
     assert alice.get("/ui/api/gifts/upcoming").json()["items"][0]["planned"] == "35.00"
     alerts.evaluate(server)
     with server.db.read() as s:
@@ -123,14 +110,14 @@ def test_a_gift_for_a_user_is_never_shown_to_them(server, alice):
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
     bob_person = bob.get("/ui/api/profile").json()["personId"]
     emma = person(alice)
-    him = alice.post("/ui/api/people", json={"personId": bob_person, "giftBudget": "800"})
-    assert him.status_code == 201, him.text
+    him = make(alice, "GfPln", personId=bob_person, giftBudget="800")
+    assert him.status_code == 200, him.text
     him = him.json()
     assert him["userId"] == bob_id and not him["canChangePerson"]
     gift(alice, people=[emma["id"]], description="Paints")
     gift(alice, people=[him["id"]], description="A watch", status="planned")
     gift(alice, people=[emma["id"], him["id"]], description="A board game", status="bought")
-    r = alice.put(f"/ui/api/shares/gift-plan/{emma['planId']}", json={"users": {bob_id: "write"}})
+    r = share(alice, "gift-plan", emma["planId"], users={bob_id: "write"})
     assert r.status_code == 200, r.text
     seen = {g["description"] for g in bob.get("/ui/api/gifts").json()["items"]}
     assert seen == {"Paints"}, "the surprise stays one"
@@ -140,8 +127,8 @@ def test_a_gift_for_a_user_is_never_shown_to_them(server, alice):
         "A board game",
     }
     # Bob plans Emma's gifts with Alice: what he adds goes in her plan, so she sees it.
-    r = bob.post("/ui/api/gifts", json={"people": [emma["id"]], "description": "Horse book"})
-    assert r.status_code == 201, r.text
+    r = make(bob, "Gift", people=[emma["id"]], description="Horse book")
+    assert r.status_code == 200, r.text
     assert "Horse book" in {g["description"] for g in alice.get("/ui/api/gifts").json()["items"]}
     names = [p["name"] for p in bob.get("/ui/api/people").json()["items"]]
     assert names == ["Emma Griffin"]
@@ -161,9 +148,7 @@ def test_deleting_a_person_keeps_what_was_given_by_name(alice):
         occasion="birthday",
         occasionYear=2026,
     )
-    p = alice.get("/ui/api/persons").json()["items"]
-    v = next(x["version"] for x in p if x["id"] == sam["id"])
-    r = alice.delete(f"/ui/api/persons/{sam['id']}", headers={"If-Match": f'"{v}"'})
+    r = remove(alice, "Persn", alice.get(f"/ui/api/persons/{sam['id']}").json())
     assert r.status_code == 200, r.text
     left = {g["description"]: g for g in alice.get("/ui/api/gifts").json()["items"]}
     assert set(left) == {"Puzzle", "Book"}, "ideas and planned gifts for Sam alone go"
@@ -212,14 +197,8 @@ def test_money_given_above_the_exclusion_is_flagged(alice):
         occasionYear=2026,
     )
     acct = new_account(alice, name="Emma's 529", type="529")
-    alice.put(
-        f"/ui/api/accounts/{acct['id']}/plan529",
-        json={"beneficiary": {"kind": "person", "id": emma["id"]}},
-    )
-    alice.post(
-        f"/ui/api/accounts/{acct['id']}/contributions",
-        json={"date": "2026-03-01", "amount": "6000"},
-    )
+    saved(plan529(alice, acct["id"], beneficiaryId=emma["id"]))
+    make(alice, "Cntrb", accountId=acct["id"], date="2026-03-01", amount="6000")
     sp = alice.get("/ui/api/gifts/spending?year=2026").json()
     assert sp["flagged"] == [
         {
@@ -233,17 +212,13 @@ def test_money_given_above_the_exclusion_is_flagged(alice):
 def test_a_529_counts_with_no_gift_plan_and_an_election_over_its_five_years(alice):
     # B16: the beneficiary has no gift plan; the owner's five-year election of 100,000 in 2024
     # is 20,000 in each of 2024-2028, over the 2026 exclusion.
-    leo = alice.post("/ui/api/people", json={"name": "Leo Griffin", "sex": "male"}).json()
+    leo = make(alice, "GfPln", name="Leo Griffin", sex="male").json()
     acct = new_account(alice, name="Leo's 529", type="529")
-    alice.put(
-        f"/ui/api/accounts/{acct['id']}/plan529",
-        json={"beneficiary": {"kind": "person", "id": leo["id"]}},
+    saved(plan529(alice, acct["id"], beneficiaryId=leo["id"]))
+    r = make(
+        alice, "Cntrb", accountId=acct["id"], date="2024-03-01", amount="100000", fiveYear=True
     )
-    r = alice.post(
-        f"/ui/api/accounts/{acct['id']}/contributions",
-        json={"date": "2024-03-01", "amount": "100000", "fiveYear": True},
-    )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     sp = alice.get("/ui/api/gifts/spending?year=2026").json()
     assert [(f["person"]["id"], f["given"]) for f in sp["flagged"]] == [(leo["id"], "20000.00")]
     assert alice.get("/ui/api/gifts/spending?year=2029").json()["flagged"] == []
@@ -264,13 +239,12 @@ def test_a_gifts_receipt_is_kept_with_it_and_can_be_taken_back(alice):
     up = alice.post(
         "/ui/api/receipts", files={"file": ("r.pdf", b"%PDF-1.4 r", "application/pdf")}
     ).json()
-    r = alice.post(f"/ui/api/gifts/{g['id']}/documents", json={"receiptId": up["id"]})
-    assert r.status_code == 200, r.text
+    saved(change(alice, "Gift", g, receiptIds={"add": [up["id"]], "remove": []}))
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
     [link] = alice.get(f"/ui/api/receipts/{up['id']}").json()["links"]
     assert link["kind"] == "gift" and link["label"] == "The gift Watercolour set"
     assert link["canDetach"]
-    r = alice.delete(f"/ui/api/receipts/{up['id']}/kept/gift/{g['id']}")
+    r = detach(alice, up["id"], g["id"])
     assert r.status_code == 200, r.text
     inbox = alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"]
     assert [x["id"] for x in inbox] == [up["id"]]

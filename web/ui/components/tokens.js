@@ -2,15 +2,16 @@
 // change, what you can see through the MCP endpoint. Each is shown once, when it is made.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
 import { ago, day } from '../app/format.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select } from './fields.js';
+import { Field, Select } from './fields.js';
 import { Failed, Loading } from './bits.js';
+import { Record } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { Icon } from './icon.js';
-import { withReauth } from './reauth.js';
 import { toast } from './toast.js';
 
 const endpoint = () => `${location.origin}/mcp`;
@@ -20,7 +21,7 @@ export function AccessTokens() {
   const rows = /** @type {any[]} */ (res.data);
   const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const revoke = useSubmit(async (/** @type {any} */ t) => {
-    await api.del(`/profile/tokens/${t.id}`, t.version);
+    await saveNow((d) => d.remove(d.load(TokenRec, t)));
     toast(`${t.name}: revoked`);
     setArmed(null);
     res.reload();
@@ -66,14 +67,23 @@ export function AccessTokens() {
   `;
 }
 
+/** An access token (S10.9.1): made once, its secret in the save's answer alone. */
+class TokenRec extends Record {
+  /** @override */
+  static prefix = 'Token';
+  /** @override */
+  static fields = FIELDS.TokenRecord;
+}
+
 /** @param {{ close: (v?: any) => void }} p */
 function NewToken({ close }) {
   useDialogGuide('dialog-new-token');
   const accounts = useList('/accounts');
   const portfolios = useList('/portfolios');
-  const [f, setF] = useState({ name: '', scope: 'all', days: '90' });
-  const [picked, setPicked] = useState(/** @type {Record<string, boolean>} */ ({}));
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
+  const f = useDraft((draft) => {
+    draft.add(TokenRec, { name: '', scope: 'all', days: 90, items: [] });
+  }, []);
+  const rec = /** @type {TokenRec | undefined} */ (f.draft?.records[0]);
   const items = [
     ...(/** @type {any[]} */ (accounts.data) || []).map((a) => ({
       kind: 'account',
@@ -86,56 +96,54 @@ function NewToken({ close }) {
       name: `${p.name} (portfolio)`,
     })),
   ];
-  const save = useSubmit(async () => {
-    const made = await withReauth(() =>
-      api.post('/profile/tokens', {
-        name: f.name,
-        scope: f.scope,
-        days: Number(f.days),
-        items: items.filter((i) => picked[i.kind + i.id]).map((i) => ({ kind: i.kind, id: i.id })),
-      })
+  const chosen = /** @type {any[]} */ (rec?.get('items') || []);
+  const has = (/** @type {any} */ i) => chosen.some((x) => x.kind === i.kind && x.id === i.id);
+  const pick = (/** @type {any} */ i, /** @type {boolean} */ on) =>
+    rec?.set(
+      'items',
+      on
+        ? [...chosen, { kind: i.kind, id: i.id }]
+        : chosen.filter((x) => !(x.kind === i.kind && x.id === i.id)),
     );
-    close(made);
-  });
-  const e = save.error;
   return html`
-    <${Dialog} title="New access token" close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Create token</button>`}>
+    <${DraftDialog} f=${f} title="New access token" close=${close} what="This token"
+      label="Create token" saved=${(/** @type {any} */ o) => {
+        const { secret, ...token } = o.saved[0].record;
+        close({ token, secret });
+      }}>
       <p class="small dim" style=${{ marginTop: 0 }}>For an AI assistant or another tool that
         speaks MCP. It can read, never change, and only what you choose here.</p>
-      <${Field} label="Token name" error=${errAt(e, 'name')}>
-        <${Input} value=${f.name} onInput=${set('name')} placeholder="Claude on my laptop"
-          required />
-        </${Field}>
-        <${Field} label="Can read" error=${errAt(e, 'scope') || errAt(e, 'items')}
-          hint="Never secrets, Settings or linked households.">
-        <${Select} value=${f.scope} onChange=${set('scope')} options=${[
-          ['all', 'Everything I can see'],
-          ['chosen', 'Chosen items…'],
-        ]} />
-      </${Field}>
-      ${f.scope === 'chosen'
-        ? html`<div class="field" data-help="chosen-items" style=${{
-          maxHeight: '220px',
-          overflow: 'auto',
-        }}>${
-          items.map((i) =>
-            html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
-              checked=${!!picked[i.kind + i.id]} onChange=${(/** @type {any} */ ev) =>
-              setPicked({ ...picked, [i.kind + i.id]: ev.currentTarget.checked })} /><span
-              class="grow">${i.name}</span></label>`
-          )
-        }</div>`
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="name" label="Token name" placeholder="Claude on my laptop" />
+          <${Field} label="Can read" error=${rec.error('scope') || rec.error('items')}
+            hint="Never secrets, Settings or linked households.">
+            <${Select} value=${rec.get('scope')} onChange=${(/** @type {string} */ v) =>
+              rec.set('scope', v)} options=${[
+              ['all', 'Everything I can see'],
+              ['chosen', 'Chosen items…'],
+            ]} />
+          </${Field}>
+          ${rec.get('scope') === 'chosen'
+            ? html`<div class="field" data-help="chosen-items" style=${{
+              maxHeight: '220px',
+              overflow: 'auto',
+            }}>${
+              items.map((i) =>
+                html`<label class="list-item" style=${{ cursor: 'pointer' }}><input
+                  type="checkbox" checked=${has(i)} onChange=${(/** @type {any} */ ev) =>
+                  pick(i, ev.currentTarget.checked)} /><span class="grow">${i.name}</span></label>`
+              )
+            }</div>`
+            : null}
+          <${RecField} rec=${rec} name="days" label="Expires" options=${[
+            ['30', 'In 30 days'],
+            ['90', 'In 90 days'],
+            ['365', 'In a year'],
+          ]} />
+        `
         : null}
-      <${Field} label="Expires" error=${errAt(e, 'days')}>
-        <${Select} value=${f.days} onChange=${set('days')} options=${[
-          ['30', 'In 30 days'],
-          ['90', 'In 90 days'],
-          ['365', 'In a year'],
-        ]} />
-      </${Field}>
-      <${FormError} error=${e} shown=${['name', 'scope', 'items', 'days']} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 

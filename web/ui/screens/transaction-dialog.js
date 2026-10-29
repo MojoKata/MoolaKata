@@ -3,18 +3,21 @@
 // retirement account, the contribution year and who contributed.
 import { useState } from 'preact/hooks';
 import { useList } from '../app/hooks.js';
-import { ACCEPT, uploadAll } from '../components/receipt.js';
+import { ACCEPT, ReceiptLinkRec, uploadAll } from '../components/receipt.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useSubmit } from '../app/hooks.js';
-import { Dialog } from '../components/dialog.js';
+import { FIELDS } from '../api/fields.js';
+import { Record } from '../app/draft.js';
+import { Dec } from '../app/dec.js';
+import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
-import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
-import { toast } from '../components/toast.js';
-import { cents, fromCents, money, today } from '../app/format.js';
+import { Field, Switch, SwitchRow } from '../components/fields.js';
+import { Icon } from '../components/icon.js';
+import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
 import { BY_TYPE } from '../account-types/index.js';
+import { TagsField } from '../components/tags.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -38,8 +41,53 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
 ]);
 const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out'];
 
-/** @param {string} s */
-const clean = (s) => String(s).replace(/[$,\s]/g, '').replace('−', '-');
+/**
+ * A transaction as its dialog's draft edits it (S2.6, S12.15). Its parts are records of their
+ * own (`Part`), so each keeps its id, and what pays it back with it (S2.9).
+ */
+export class Txn extends Record {
+  /** @override */
+  static prefix = 'Txn';
+  /** @override */
+  static fields = FIELDS.TxnRecord;
+  /** @override */
+  static defaults = {
+    kind: 'withdrawal',
+    payee: null,
+    memo: null,
+    categoryId: null,
+    tagIds: [],
+    leftOutOf: [],
+    cleared: false,
+  };
+  /** @override */
+  static rules = {
+    // A transfer-in's basis is typed with it (S2.6); the one paid back is named (S2.9).
+    costBasis: { when: (/** @type {Txn} */ r) => r.get('kind') === 'transfer-in' },
+    owedBy: { when: (/** @type {Txn} */ r) => r.get('reimbursable') != null },
+  };
+  /** The kinds an account's type takes. @type {(accountId: string) => string[]} */
+  kindsOf = () => [];
+
+  /** A new transaction's account takes a kind its type has: its first, otherwise. @override */
+  onSet(/** @type {string} */ name) {
+    if (name !== 'accountId') return;
+    const kinds = this.kindsOf(this.get('accountId'));
+    if (!kinds.includes(this.get('kind'))) this.set('kind', kinds[0], 'accountId');
+  }
+}
+
+/** A part of a transaction's amount with its own category (S2.6). */
+class Part extends Record {
+  /** @override */
+  static prefix = 'Split';
+  /** @override */
+  static fields = FIELDS.SplitRecord;
+  /** @override */
+  static defaults = { categoryId: null, memo: null, reimbursable: null, owedBy: null };
+  /** @override */
+  static ownedBy = ['transactionId'];
+}
 
 /**
  * `start` fills a new transaction, such as a trade a statement shows but doesn't read
@@ -52,386 +100,256 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   const editing = !!txn;
   const readOnly = editing && txn.level === 'read';
   const writable = accounts.filter((a) => a.level !== 'read');
-  const [acct, setAcct] = useState(txn?.accountId || accountId || writable[0]?.id || '');
-  const account = accounts.find((a) => a.id === acct) || { type: 'checking' };
+  const kindsOf = (/** @type {string} */ id) => {
+    const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
+    return (type.investing ? TRADE_KINDS : BANK_KINDS).map(([k]) => k);
+  };
+  const f = useDraft(async (draft) => {
+    if (editing) {
+      const got = await api.get(`/transactions/${txn.id}`);
+      draft.load(Txn, { ...got, transferWithId: got.transferId });
+      const t = /** @type {Txn} */ (draft.records[0]);
+      for (const sp of t.get('splits') || []) draft.load(Part, { ...sp, transactionId: t.id });
+      return;
+    }
+    const acct = accountId || writable[0]?.id || '';
+    const t = draft.add(Txn, { accountId: acct, date: today(), kind: kindsOf(acct)[0] });
+    // What a statement shows, typed in as a person would type it.
+    for (const [k, v] of Object.entries(start || {})) {
+      if (k in Txn.fields && v !== '' && v != null) t.input(k, String(v));
+    }
+  }, [txn?.id]);
+  const draft = f.draft;
+  const t = /** @type {Txn | undefined} */ (draft?.records.find((r) => r instanceof Txn));
+  if (t) t.kindsOf = kindsOf;
+  const parts = /** @type {Part[]} */ (
+    (draft?.records || []).filter((r) => r instanceof Part && !r.removed)
+  );
+  const account = accounts.find((a) => a.id === t?.get('accountId')) || { type: 'checking' };
   const type = BY_TYPE[account.type] || BY_TYPE.checking;
   const cats = useCategories();
-  const init = txn || start;
-  const [f, setF] = useState({
-    date: init?.date || today(),
-    kind: init?.kind || (type.investing ? 'buy' : 'withdrawal'),
-    amount: init?.amount || '',
-    payee: init?.payee || '',
-    memo: init?.memo || '',
-    categoryId: init?.categoryId || '',
-    symbol: init?.symbol || '',
-    quantity: init?.quantity || '',
-    price: init?.price || '',
-    fees: init?.fees || '',
-    costBasis: '',
-    contributionYear: init?.contributionYear ? String(txn.contributionYear) : '',
-    contributionSource: init?.contributionSource || '',
-    tags: (init?.tags || []).join(', '),
-    reimbursable: txn?.reimbursable || '',
-    owedBy: txn?.owedBy || '',
-  });
-  const [owed, setOwed] = useState(!!txn?.reimbursable);
-  const [splits, setSplits] = useState(
-    /** @type {{ categoryId: string, amount: string, memo: string, reimbursable?: string,
-     *   owedBy?: string }[]} */ (
-      (txn?.splits || []).map((/** @type {any} */ s) => ({
-        categoryId: s.categoryId || '',
-        amount: s.amount,
-        memo: s.memo || '',
-        reimbursable: s.reimbursable || undefined,
-        owedBy: s.owedBy || undefined,
-      }))
-    ),
-  );
-  const set = (/** @type {string} */ k) => (/** @type {string} */ v) => setF({ ...f, [k]: v });
-  const changeAccount = (/** @type {string} */ id) => {
-    setAcct(id);
-    // A kind the new account's type doesn't have goes back to its first.
-    const next = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
-    const kinds = next.investing ? TRADE_KINDS : BANK_KINDS;
-    if (!kinds.some(([k]) => k === f.kind)) setF({ ...f, kind: kinds[0][0] });
-  };
-  const trade = TRADE.includes(f.kind);
-  const body = () => {
-    /** @type {Record<string, any>} */
-    const b = {
-      date: f.date,
-      kind: f.kind,
-      amount: clean(f.amount),
-      payee: f.payee || null,
-      memo: f.memo || null,
-      categoryId: splits.length ? null : f.categoryId || null,
-      splits: splits.map((s) => ({
-        categoryId: s.categoryId || null,
-        amount: clean(s.amount),
-        memo: s.memo || null,
-        // A part marked to be paid back keeps its mark (S2.9).
-        ...(s.reimbursable ? { reimbursable: s.reimbursable, owedBy: s.owedBy || null } : {}),
-      })),
-      // Spending to be paid back: all of it unless a smaller amount is typed (S2.9).
-      reimbursable: owed && !splits.length
-        ? clean(f.reimbursable) || clean(f.amount).replace(/^-/, '') || null
-        : null,
-      owedBy: owed && !splits.length ? f.owedBy || null : null,
-      tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
-    };
-    if (type.investing) {
-      b.quantity = f.quantity ? clean(f.quantity) : null;
-      b.price = f.price ? clean(f.price) : null;
-      b.fees = f.fees ? clean(f.fees) : null;
-      if (!editing) b.symbol = f.symbol || null;
-      if (f.kind === 'transfer-in') b.costBasis = f.costBasis ? clean(f.costBasis) : null;
-    }
-    if (type.contributions) {
-      b.contributionYear = f.contributionYear ? Number(f.contributionYear) : null;
-      b.contributionSource = f.contributionSource || null;
-    }
-    return b;
-  };
-  const save = useSubmit(async (/** @type {boolean} */ confirm = false) => {
-    if (editing) {
-      await api.patch(
-        `/transactions/${txn.id}`,
-        body(),
-        txn.version,
-        confirm ? { confirm: true } : undefined,
-      );
-      toast('Saved');
-    } else {
-      await api.post('/transactions', { accountId: acct, ...body() }, {
-        idempotent: true,
-        ...(confirm ? { params: { confirm: true } } : {}),
-      });
-      toast('Added');
-    }
-    close(true);
-  });
-  const remove = useSubmit(async (/** @type {boolean} */ confirm = false) => {
-    await api.del(`/transactions/${txn.id}`, txn.version, confirm ? { confirm: true } : undefined);
-    toast('Deleted');
-    close(true);
-  });
-  const unlink = useSubmit(async () => {
-    await api.post(`/transactions/${txn.id}/transfer`, { otherId: null });
-    toast('No longer a transfer');
-    close(true);
-  });
-  const e = save.error;
-  // A reconciled period, or a year whose return is filed (S2.8): asked, then done anyway.
-  const reconciled = ['reconciled-period', 'closed-year'].includes(e?.code);
-  const removeAsk = ['reconciled-period', 'closed-year'].includes(remove.error?.code);
+  const kind = t?.get('kind') || '';
+  const trade = TRADE.includes(kind);
   const options = [['', 'Uncategorised'], ...cats.list.map((c) => [c.id, c.path])];
-  const splitTotal = splits.reduce((s, x) => s + (cents(x.amount) ?? 0n), 0n);
-  const left = (cents(f.amount) ?? 0n) - splitTotal;
+  const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
+  const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
   const [armed, setArmed] = useState(false);
-
+  const deleting = !!t?.removed;
+  /** Split…: a part, the category moving to the parts and the mark to be paid back with it. */
+  const addPart = () => {
+    if (!t || !draft) return;
+    if (!parts.length) {
+      t.set('categoryId', null);
+      t.set('reimbursable', null);
+    }
+    draft.add(Part, { transactionId: t.id, amount: null });
+  };
   return html`
-    <${Dialog} title=${readOnly ? 'Transaction' : editing ? 'Edit transaction' : 'Add transaction'}
-      close=${close} onSubmit=${() => !readOnly && save.run(reconciled).catch(() => {})}
-      footer=${readOnly
-        ? html`<button type="button" class="btn" onClick=${() => close()}>Close</button>`
-        : html`
-          ${editing
-            ? html`
-              <button type="button" class="btn danger" disabled=${remove.busy}
-                onClick=${() =>
-                  armed ? remove.run(removeAsk).catch(() => {}) : setArmed(true)}>${removeAsk
-                  ? 'Delete it anyway'
-                  : armed
-                  ? (['assign', 'exercise'].includes(txn.kind)
-                    ? 'Click again to delete it and its stock trade'
-                    : 'Click again to delete')
-                  : 'Delete'}</button>
-            `
-            : null}
-          ${editing && txn.transferId
-            ? html`<button type="button" class="btn" onClick=${() =>
-              unlink.run()}>Not a transfer</button>`
-            : null}
-          ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
-            ? html`<button type="button" class="btn" onClick=${() => {
-              // One dialog at a time: this one closes, and the rule opens filled from it.
-              close();
-              setTimeout(() =>
-                openRules({
-                  payeeMatch: txn.payeeRaw || txn.payee,
-                  categoryId: f.categoryId || null,
-                }), 0);
-            }}>Make a rule</button>`
-            : null}
-          <span class="spacer" style=${{ flex: 1 }}></span>
-          <button type="button" class="btn" onClick=${() => close()}>Cancel</button>
-          <button class="btn primary" disabled=${save.busy}>${reconciled
-            ? 'Change it anyway'
-            : editing
-            ? 'Save'
-            : 'Add'}</button>
-        `}>
-      <fieldset disabled=${readOnly} style=${{ border: 0, padding: 0, margin: 0 }}>
-        ${!editing
-          ? html`
-            <${Field} label="Account">
-              <${Select} value=${acct} onChange=${changeAccount}
-                options=${writable.map((a) => [a.id, a.name])} />
-              </${Field}>
-          `
-          : null}
-        <div class="row">
-          <${Field} label="Date" error=${errAt(e, 'date')}><${Input} type="date" value=${f.date}
-            onInput=${set('date')} required /></${Field}>
-          <${Field} label="Kind" error=${errAt(e, 'kind')}><${Select} value=${f
-            .kind} onChange=${set('kind')}
-            options=${type.investing ? TRADE_KINDS : BANK_KINDS} /></${Field}>
-        </div>
-        ${trade
-          ? html`
-            <div class="row">
-              <${Field} label="Symbol" error=${errAt(e, 'symbol')}>
-                <${Input} value=${f.symbol}
-                  onInput=${set('symbol')} placeholder="VTI" disabled=${editing} />
-                </${Field}>
-                <${Field} label="Quantity" error=${errAt(e, 'quantity')}>
-                  <${Input} value=${f.quantity}
-                    onInput=${set('quantity')} inputmode="decimal" />
-                  </${Field}>
-                  <${Field} label="Price" error=${errAt(e, 'price')}>
-                    <${Input} value=${f.price}
-                      onInput=${set('price')} inputmode="decimal" />
-                    </${Field}>
-                    </div>
-          `
-          : null}
-        <div class="row">
-          <${Field} label="Amount" error=${errAt(e, 'amount')} hint=${trade
-            ? 'The cash effect: − for a buy, + for a sale, after fees.'
-            : '− for money out, + for money in.'}><${Input} value=${f.amount} onInput=${set(
-              'amount',
-            )}
-            inputmode="decimal" required /></${Field}>
-          ${trade
-            ? html`
-              <${Field} label="Fees" error=${errAt(e, 'fees')}>
-                <${Input} value=${f.fees}
-                  onInput=${set('fees')} inputmode="decimal" />
-                </${Field}>
-            `
-            : null}
-        </div>
-        ${f.kind === 'transfer-in'
-          ? html`
-            <${Field} label="Cost basis" error=${errAt(e, 'costBasis')}
-              hint="What the shares cost. Without it, the lot is marked basis missing until you add it.">
-              <${Input}
-                value=${f.costBasis} onInput=${set('costBasis')} inputmode="decimal" />
-              </${Field}>
-          `
-          : null}
-        ${!trade
-          ? html`
-            <${Field} label="Payee" error=${errAt(e, 'payee')}>
-              <${Input} value=${f.payee}
-                onInput=${set('payee')} />
-              </${Field}>
-          `
-          : null}
-        ${!trade && !splits.length
-          ? html`
-            <${Field} label="Category" error=${errAt(e, 'categoryId')}>
-              <${Select}
-                value=${f.categoryId} onChange=${set('categoryId')} options=${options} />
-              </${Field}>
-          `
-          : null}
-        ${!trade
-          ? html`<div class="field"><div class="toolbar" style=${{ marginBottom: 0 }}>
-        <span class="small dim">${
-            splits.length ? 'Split across categories' : ''
-          }</span><span class="spacer"></span>
-        <button type="button" class="btn sm" onClick=${() =>
-            setSplits([...splits, { categoryId: '', amount: '', memo: '' }])}>
-          ${splits.length ? 'Add a part' : 'Split…'}</button></div>
-      ${
-            splits.map((s, i) =>
-              html`
-                <div class="row" style=${{ alignItems: 'end' }}>
-                  <${Field} label=${'Part ' + (i + 1) + ' category'} help="split" id=${'split-' +
-                    i +
-                    '-category'}
-                    error=${errAt(e, `splits.${i}.categoryId`)}>
-                    <${Select} value=${s.categoryId} options=${options}
-                      onChange=${(/** @type {string} */ v) =>
-                        setSplits(splits.map((x, j) => (j === i ? { ...x, categoryId: v } : x)))} />
-                    </${Field}>
-                    <${Field} label=${'Part ' + (i + 1) + ' amount'} help="split" id=${'split-' +
-                      i + '-amount'}>
-                      <${Input}
-                        value=${s.amount} inputmode="decimal" onInput=${(/** @type {string} */ v) =>
-                          setSplits(splits.map((x, j) => (j === i ? { ...x, amount: v } : x)))} />
-                      </${Field}>
-                      <button type="button" class="icon-btn" aria-label=${'Remove part ' + (i + 1)}
-                        onClick=${() => setSplits(splits.filter((_, j) => j !== i))} style=${{
-                          marginBottom: '14px',
-                        }}>×</button>
-                      </div>
-              `
-            )
-          }
-      ${
-            splits.length
-              ? html`<div class=${'small ' + (left ? 'err' : 'dim')}>${
-                left ? `${money(fromCents(left))} still to place` : 'The parts add up.'
-              }</div>`
-              : null
-          }
-      ${errAt(e, 'splits') ? html`<div class="err">${errAt(e, 'splits')}</div>` : null}
-    </div>`
-          : null}
-        ${type.contributions && ['deposit'].includes(f.kind)
-          ? html`
-            <div class="row">
-              <${Field} label="Contribution year" error=${errAt(e, 'contributionYear')}
-                hint="A contribution made before the April deadline may be for the year before.">
-                <${Input}
-                  value=${f.contributionYear} onInput=${set(
-                    'contributionYear',
-                  )} inputmode="numeric" />
-                </${Field}>
-                <${Field} label="Contributed by" id="contribution-source">
-                  <${Select} value=${f.contributionSource}
-                    onChange=${set('contributionSource')} options=${[
-                      ['', '—'],
-                      ['employee', 'Me'],
-                      ['employer', 'My employer'],
-                      ['rollover', 'A rollover'],
-                    ]} />
-                  </${Field}>
-                  </div>
-          `
-          : null}
-        <${Field} label="Memo"><${Input} value=${f.memo} onInput=${set('memo')} /></${Field}>
-        <${Field} label="Tags" hint="Yours only, separated by commas."><${Input} value=${f.tags}
-          onInput=${set('tags')} /></${Field}>
-        ${!type.investing && !splits.length
-          ? html`
-            <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."
-              on=${owed} onChange=${setOwed} />
-            ${owed
+    <${DraftDialog} f=${f} close=${close} what="This transaction"
+      title=${readOnly ? 'Transaction' : editing ? 'Edit transaction' : 'Add transaction'}
+      done=${deleting ? 'Deleted' : editing ? 'Saved' : 'Added'}
+      label=${editing ? 'Save' : 'Add'}
+      confirm=${deleting ? 'Delete it anyway' : 'Change it anyway'}
+      hideSave=${readOnly && !draft?.changed}
+      extra=${({ save }) =>
+        readOnly
+          ? html`<button type="button" class="btn" onClick=${() => close()}>Close</button>`
+          : html`
+            ${editing
               ? html`
-                <div class="row">
-                  <${Field} label="Reimbursable amount" error=${errAt(e, 'reimbursable')}>
-                    <${Input} value=${f.reimbursable} onInput=${set('reimbursable')}
-                      inputmode="decimal" placeholder="all of it" />
-                    </${Field}>
-                    <${Field} label="Owed by" error=${errAt(e, 'owedBy')}>
-                      <${Input} value=${f.owedBy} onInput=${set('owedBy')}
-                        placeholder="Acme Corp" />
-                      </${Field}>
-                      </div>
+                <button type="button" class="btn danger" disabled=${save.busy}
+                  onClick=${async () => {
+                    if (!armed || !t || !draft) return setArmed(true);
+                    draft.remove(t);
+                    const r = await save.run().catch(() => null);
+                    // Refused or stale, it stays: only a question keeps the delete waiting.
+                    if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(t);
+                  }}>${armed
+                    ? (['assign', 'exercise'].includes(txn.kind)
+                      ? 'Click again to delete it and its stock trade'
+                      : 'Click again to delete')
+                    : 'Delete'}</button>
               `
               : null}
-          `
-          : null}
-        </fieldset>
-        ${editing ? html`<${InBudgets} txn=${txn} />` : null}
-        ${editing ? html`<${TxnReceipts} txn=${txn} canWrite=${!readOnly} />` : null}
-        ${reconciled
-          ? html`<div class="notice warn" role="alert">${e.message}</div>`
-          : html`<${FormError} error=${e || remove.error} shown=${[
-            'date',
-            'kind',
-            'amount',
-            'payee',
-            'categoryId',
-            'symbol',
-            'quantity',
-            'price',
-            'fees',
-            'costBasis',
-            'contributionYear',
-            'splits',
-            'reimbursable',
-            'owedBy',
-          ]} />`}
-      </${Dialog}>
+            ${editing && txn.transferId
+              ? html`<button type="button" class="btn" disabled=${save.busy} onClick=${async () => {
+                if (!t) return;
+                // The match undone through the save, with whatever else was changed here.
+                t.set('transferWithId', null);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'asks' && r?.status !== 'saved') t.revert('transferWithId');
+              }}>Not a transfer</button>`
+              : null}
+            ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
+              ? html`<button type="button" class="btn" onClick=${() => {
+                // One dialog at a time: this one closes, and the rule opens filled from it.
+                close();
+                setTimeout(() =>
+                  openRules({
+                    payeeMatch: txn.payeeRaw || txn.payee,
+                    categoryId: t?.get('categoryId') || null,
+                  }), 0);
+              }}>Make a rule</button>`
+              : null}
+            <span class="spacer" style=${{ flex: 1 }}></span>
+            <button type="button" class="btn" data-cancel>Cancel</button>
+          `}>
+      ${t
+        ? html`
+          <fieldset disabled=${readOnly} style=${{ border: 0, padding: 0, margin: 0 }}>
+            ${!editing
+              ? html`
+                <${RecField} rec=${t} name="accountId" label="Account"
+                  options=${writable.map((a) => [a.id, a.name])} />
+              `
+              : null}
+            <div class="row">
+              <${RecField} rec=${t} name="date" label="Date" />
+              <${RecField} rec=${t} name="kind" label="Kind"
+                options=${type.investing ? TRADE_KINDS : BANK_KINDS} />
+            </div>
+            ${trade
+              ? html`
+                <div class="row">
+                  <${RecField} rec=${t} name="symbol" label="Symbol" placeholder="VTI"
+                    disabled=${editing} />
+                  <${RecField} rec=${t} name="quantity" label="Quantity" />
+                  <${RecField} rec=${t} name="price" label="Price" />
+                </div>
+              `
+              : null}
+            <div class="row">
+              <${RecField} rec=${t} name="amount" label="Amount" hint=${trade
+                ? 'The cash effect: − for a buy, + for a sale, after fees.'
+                : '− for money out, + for money in.'} />
+              ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}
+            </div>
+            <${RecField} rec=${t} name="costBasis" label="Cost basis"
+              hint="What the shares cost. Without it, the lot is marked basis missing until you add it." />
+            ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
+            ${!trade && !parts.length
+              ? html`<${RecField} rec=${t} name="categoryId" label="Category" options=${options} />`
+              : null}
+            ${!trade
+              ? html`
+                <div class="field">
+                  <div class="toolbar" style=${{ marginBottom: 0 }}>
+                    <span class="small dim">${parts.length ? 'Split across categories' : ''}</span>
+                    <span class="spacer"></span>
+                    <button type="button" class="btn sm" onClick=${addPart}>
+                      ${parts.length ? 'Add a part' : 'Split…'}</button>
+                  </div>
+                  ${parts.map((r, i) =>
+                    html`
+                      <div class="row" key=${r.key} style=${{ alignItems: 'end' }}>
+                        <${Field} label=${'Part ' + (i + 1) + ' category'} help="split"
+                          id=${'split-' + i + '-category'} error=${r.error('categoryId')}>
+                          <${RecField} rec=${r} name="categoryId" bare label=${'Part ' +
+                            (i + 1) + ' category'} options=${options} />
+                          </${Field}>
+                          <${Field} label=${'Part ' + (i + 1) + ' amount'} help="split"
+                            id=${'split-' + i + '-amount'} error=${r.error('amount')}>
+                            <${RecField} rec=${r} name="amount" bare label=${'Part ' + (i + 1) +
+                              ' amount'} />
+                            </${Field}>
+                            <button type="button" class="icon-btn" aria-label=${'Remove part ' +
+                              (i + 1)} onClick=${() => draft?.remove(r)}
+                              style=${{ marginBottom: '14px' }}>×</button>
+                            </div>
+                    `
+                  )}
+                  ${parts.length
+                    ? html`<div class=${'small ' + (left.isZero() ? 'dim' : 'err')}>${
+                      left.isZero() ? 'The parts add up.' : `${money(left)} still to place`
+                    }</div>`
+                    : null}
+                  ${t.error('splits') ? html`<div class="err">${t.error('splits')}</div>` : null}
+                </div>
+              `
+              : null}
+            ${type.contributions && kind === 'deposit'
+              ? html`
+                <div class="row">
+                  <${RecField} rec=${t} name="contributionYear" label="Contribution year"
+                    hint="A contribution made before the April deadline may be for the year before." />
+                  <${Field} label="Contributed by" id="contribution-source">
+                    <${RecField} rec=${t} name="contributionSource" bare label="Contributed by"
+                      options=${[
+                        ['', '—'],
+                        ['employee', 'Me'],
+                        ['employer', 'My employer'],
+                        ['rollover', 'A rollover'],
+                      ]} />
+                    </${Field}>
+                    </div>
+              `
+              : null}
+            <${RecField} rec=${t} name="memo" label="Memo" />
+            ${draft
+              ? html`<${TagsField} rec=${t} draft=${draft} hint="Yours only, separated by commas." />`
+              : null}
+            ${!type.investing && !parts.length
+              ? html`
+                <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."
+                  on=${t.get('reimbursable') != null} onChange=${(/** @type {boolean} */ on) =>
+                    t.set(
+                      'reimbursable',
+                      on && t.get('amount') != null && Dec.of(t.get('amount')).isNegative()
+                        ? Dec.of(t.get('amount')).neg()
+                        : null,
+                    )} />
+                ${t.get('reimbursable') != null
+                  ? html`
+                    <div class="row">
+                      <${RecField} rec=${t} name="reimbursable" label="Reimbursable amount" />
+                      <${RecField} rec=${t} name="owedBy" label="Owed by"
+                        placeholder="Acme Corp" />
+                    </div>
+                  `
+                  : null}
+              `
+              : null}
+          </fieldset>
+          ${editing ? html`<${InBudgets} txn=${txn} rec=${t} />` : null}
+          ${editing && draft
+            ? html`<${TxnReceipts} txn=${txn} draft=${draft} canWrite=${!readOnly} />`
+            : null}
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
 /**
  * The budgets counting a transaction, what it counts as in each, and each one's leave-out
- * (S7.3.5): the category is the transaction's, the same in every budget.
- * @param {{ txn: any }} p
+ * (S7.3.5), kept in the transaction's draft: the category is the transaction's, the same in
+ * every budget.
+ * @param {{ txn: any, rec: Txn }} p
  */
-function InBudgets({ txn }) {
+function InBudgets({ txn, rec }) {
   const res = useList(`/transactions/${txn.id}/budgets`);
   const rows = /** @type {any[]} */ (res.data) || [];
   if (!rows.length) return null;
-  const flip = async (/** @type {any} */ r, /** @type {boolean} */ on) => {
-    try {
-      await api.put(`/budgets/${r.budgetId}/leave-outs/${txn.id}`, { leftOut: on });
-      toast(on ? `Left out of ${r.name}` : `Counted in ${r.name} again`);
-      res.reload();
-    } catch (e) {
-      toast(/** @type {any} */ (e).message);
-    }
-  };
+  const out = /** @type {string[]} */ (rec.get('leftOutOf') || []);
+  const flip = (/** @type {any} */ r, /** @type {boolean} */ on) =>
+    rec.set(
+      'leftOutOf',
+      on ? [...out, r.budgetId] : out.filter((x) => x !== r.budgetId),
+    );
   return html`
     <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
       <legend class="small" style=${{ color: 'var(--fg-dim)' }}>In budgets</legend>
-      ${rows.map((r) =>
-        html`<div class="list-item"><span class="grow">${r.name}<div class="small dim">${
-          r.leftOut
+      ${rows.map((r) => {
+        const left = out.includes(r.budgetId);
+        return html`<div class="list-item"><span class="grow">${r.name}<div class="small dim">${
+          left
             ? 'left out: counts nowhere in it'
             : `counts in ${r.countsAs || 'nothing yet: uncategorised'}`
         }</div></span>
           <span class="small dim">Leave out</span>
-          <${Switch} on=${r.leftOut} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
-            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.canWrite} /></div>`
-      )}
+          <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
+            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.canWrite} /></div>`;
+      })}
       <div class="hint">The category is the transaction's: changing it changes every budget that
         counts it.</div>
     </fieldset>
@@ -439,21 +357,24 @@ function InBudgets({ txn }) {
 }
 
 /**
- * The receipts attached to a transaction (S9.3), each opening its file, and a way to add one.
- * @param {{ txn: any, canWrite: boolean }} p
+ * The receipts attached to a transaction (S9.3), each opening its file, and a way to add one:
+ * uploaded at once, into the inbox, and attached by the transaction's draft when it is saved.
+ * @param {{ txn: any, draft: any, canWrite: boolean }} p
  */
-function TxnReceipts({ txn, canWrite }) {
+function TxnReceipts({ txn, draft, canWrite }) {
   const res = useList(`/transactions/${txn.id}/receipts`);
   const rows = /** @type {any[]} */ (res.data) || [];
+  const [names, setNames] = useState(/** @type {{ [id: string]: string }} */ ({}));
+  const adding = /** @type {ReceiptLinkRec[]} */ (
+    draft.records.filter((/** @type {any} */ x) => x instanceof ReceiptLinkRec && !x.removed)
+  );
   const add = async (/** @type {FileList} */ files) => {
-    for (const r of await uploadAll(files)) {
-      try {
-        await api.post(`/receipts/${r.id}/links`, { transactionId: txn.id });
-      } catch (e) {
-        toast(/** @type {any} */ (e).message);
-      }
+    const made = await uploadAll(files);
+    setNames((was) => ({ ...was, ...Object.fromEntries(made.map((r) => [r.id, r.fileName])) }));
+    for (const r of made) {
+      if (rows.some((x) => x.id === r.id)) continue; // the same file, attached already
+      draft.add(ReceiptLinkRec, { receiptId: r.id, kind: 'transaction', itemId: txn.id });
     }
-    res.reload();
   };
   return html`
     <div class="field" data-help="receipts" id="x-receipts">
@@ -465,6 +386,14 @@ function TxnReceipts({ txn, canWrite }) {
               rel="noopener">${r.payee || r.fileName}</a>
           `
         )}
+        ${adding.map((x) =>
+          html`
+            <span class="pill info" title="Attached when you save">${names[x.get('receiptId')] ||
+              'Receipt'}</span><button type="button"
+              class="icon-btn" aria-label="Don't attach it"
+              onClick=${() => draft.remove(x)}><${Icon} name="x" /></button>
+          `
+        )}
         ${canWrite
           ? html`
             <label class="btn sm" for="f-add-receipt">Add a receipt</label>
@@ -474,7 +403,7 @@ function TxnReceipts({ txn, canWrite }) {
                 e.currentTarget.value = '';
               }} />
           `
-          : rows.length
+          : rows.length || adding.length
           ? null
           : html`<span class="small dim">None.</span>`}
       </div>

@@ -1,7 +1,8 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
+from ...ids import new_id
 from . import Record, SoftDeleted
 
 
@@ -17,14 +18,12 @@ class Budget(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class BudgetAccount(SoftDeleted):
+class BudgetAccount(Record):
+    id: str = field(default_factory=lambda: new_id("BdgAc"))
     budgetId: str
     accountId: str
-    createdAt: dt.datetime
     movedFromId: str | None = None
     paidFromId: str | None = None
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)
