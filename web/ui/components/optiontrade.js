@@ -1,6 +1,6 @@
 // Recording an option trade (requirements S3.2): buy or sell, to open or to close, a contract
 // by its underlying, call or put, strike and expiry.
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { Record } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
@@ -54,9 +54,12 @@ export function OptionTrade({ close, accountId, start }) {
   const list = (/** @type {any[]} */ (accounts.data) || []).filter((a) =>
     a.investing && a.active && ['owner', 'write'].includes(a.level)
   );
-  const f = useDraft((draft) => {
+  // The account given, or the first the list offers, until another is chosen.
+  const f = useDraft(async (draft) => {
+    const first = accountId || (/** @type {any[]} */ ((await api.get('/accounts')).items))
+      .find((a) => a.investing && a.active && ['owner', 'write'].includes(a.level))?.id;
     draft.add(OptionTxn, {
-      accountId: accountId || null,
+      accountId: first || null,
       date: today(),
       kind: start?.action || 'sell-to-open',
       symbol: start?.underlying || '',
@@ -69,11 +72,6 @@ export function OptionTrade({ close, accountId, start }) {
     });
   }, [accountId]);
   const rec = /** @type {OptionTxn | undefined} */ (f.draft?.records[0]);
-  // The first account the list offers, until another is chosen.
-  const first = list[0]?.id;
-  useEffect(() => {
-    if (rec && !rec.get('accountId') && first) rec.set('accountId', first);
-  }, [rec, first]);
   const cash = rec ? cashOf(rec) : null;
   const before = () => {
     if (!rec || cash === null) return false;

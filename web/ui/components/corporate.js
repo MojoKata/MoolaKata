@@ -1,11 +1,11 @@
 // Corporate actions (requirements S2.4): a split, a symbol change, a spin-off or a merger on
 // a holding, its lots reshaped or moved with their days held, never sold and bought again.
 // The action is a record of its own; the transactions it makes are made from it.
-import { useEffect } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useApi } from '../app/hooks.js';
+import { api } from '../api/client.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { useDialogGuide } from './help.js';
 import { Field, Select } from './fields.js';
@@ -59,20 +59,25 @@ export function CorporateAction({ close, accountId }) {
   ) =>
     p.instrumentClass !== 'option' && p.side === 'long' && (!accountId || p.accountId === accountId)
   );
-  const f = useDraft((draft) => {
-    draft.add(ActionRec, { date: today() });
+  const key = (/** @type {any} */ p) => p.accountId + p.instrumentId;
+  // The first holding the list offers, until another is chosen.
+  const f = useDraft(async (draft) => {
+    const open = /** @type {any[]} */ ((await api.get('/positions')).open);
+    const first = open.find((p) =>
+      p.instrumentClass !== 'option' && p.side === 'long' &&
+      (!accountId || p.accountId === accountId)
+    );
+    draft.add(ActionRec, {
+      date: today(),
+      accountId: first?.accountId ?? null,
+      instrumentId: first?.instrumentId ?? null,
+    });
   }, [accountId]);
   const rec = /** @type {ActionRec | undefined} */ (f.draft?.records[0]);
-  const key = (/** @type {any} */ p) => p.accountId + p.instrumentId;
   const choose = (/** @type {any} */ p) => {
     rec?.set('accountId', p.accountId);
     rec?.set('instrumentId', p.instrumentId);
   };
-  // The first holding the list offers, until another is chosen.
-  const first = held[0];
-  useEffect(() => {
-    if (rec && !rec.get('instrumentId') && first) choose(first);
-  }, [rec, first && key(first)]);
   const chosen = held.find((p) =>
     p.accountId === rec?.get('accountId') && p.instrumentId === rec?.get('instrumentId')
   );
