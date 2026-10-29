@@ -4,7 +4,7 @@ S2.6, S2.9, S7.3.5, S12.15, S13.8.11)."""
 import datetime as dt
 
 import pytest
-from edits import asked, change, remove, saved
+from edits import asked, change, reconcile, remove, saved
 from test_budgets import setup_budget
 from test_save import made_at
 
@@ -101,12 +101,8 @@ def test_deleting_a_transaction_in_a_reconciled_period_asks_first(server, frozen
     r, txn = made(c, acct, cat, [])
     t = c.get(f"/ui/api/transactions/{txn}").json()
     t = saved(change(c, "Txn", t, cleared=True))
-    rec = c.post(
-        f"/ui/api/accounts/{acct['id']}/reconciliations",
-        json={"statementDate": "2026-10-31", "statementBalance": "-100.00"},
-    ).json()
-    r = c.post(f"/ui/api/reconciliations/{rec['id']}/finish")
-    assert r.status_code == 200, r.text
+    rec = reconcile(c, acct["id"], "2026-10-31", "-100.00")
+    saved(change(c, "Recon", rec, finished=True))
     t = c.get(f"/ui/api/transactions/{txn}").json()
     r = remove(c, "Txn", t)
     assert asked(r) == ["reconciled-period"]

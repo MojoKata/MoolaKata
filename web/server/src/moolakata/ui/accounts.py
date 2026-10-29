@@ -870,61 +870,98 @@ def add_adjustment(
     return Response(status_code=201)
 
 
-@router.post(
-    "/accounts/{account_id}/reconciliations", response_model=ReconciliationRow, status_code=201
-)
-def start_reconciliation(
-    account_id: str, body: NewReconciliation, request: Request, c: Caller = Depends(caller)
-):
-    """Ticking off (S1.11.6): a statement's closing date and balance."""
-    with server(request).db.tx() as s:
-        a, _ = access.account(s, c.id, account_id, "write")
-        r = Reconciliation(
-            id=ids.new_id("Recon"),
-            accountId=a.id,
-            statementDate=body.statementDate,
-            statementBalance=body.statementBalance,
+class ReconciliationRecord(NewReconciliation):
+    """Ticking off against a statement (S1.11.6), as its dialog's draft saves it: made with the
+    statement's closing date and balance; `finished` once the ticked transactions leave no
+    difference, which marks them reconciled. A finished one stays; an unfinished one may go."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    finished: bool = False
+
+
+def _recon_create(ctx, record_id: str, body: ReconciliationRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    a, _ = access.account(s, c.id, body.accountId, "write")
+    r = Reconciliation(id=record_id, accountId=a.id, statementDate=body.statementDate,
+                       statementBalance=body.statementBalance)  # fmt: skip
+    s.add(r)
+    s.flush()
+    if body.finished:
+        _finish(ctx, r)
+
+
+def _recon_editable(ctx, record_id: str) -> Reconciliation:
+    r = ctx.s.get(Reconciliation, record_id)
+    if r is None or r.deleted:
+        raise Problem(404, "not-found", "Not found")
+    access.account(ctx.s, ctx.caller.id, r.accountId, "write")
+    return r
+
+
+def _recon_current(ctx, r: Reconciliation) -> dict:
+    return {
+        "accountId": r.accountId,
+        "statementDate": r.statementDate,
+        "statementBalance": r.statementBalance,
+        "finished": r.finishedAt is not None,
+    }
+
+
+def _finish(ctx, r: Reconciliation) -> None:
+    """The ticked transactions up to the statement's date are reconciled with it."""
+    s, c = ctx.s, ctx.caller
+    if _reconciliation_row(s, r).difference != 0:
+        raise refuse("finished", "not-balanced", "Tick transactions until the difference is zero.")
+    for t in s.scalars(
+        select(Transaction).where(
+            Transaction.accountId == r.accountId,
+            Transaction.deleted == false(),
+            Transaction.cleared,
+            Transaction.date <= r.statementDate,
+            Transaction.reconciliationId.is_(None),
         )
-        s.add(r)
-        s.flush()
-        return _reconciliation_row(s, r)
+    ):
+        t.reconciliationId = r.id
+    r.finishedAt, r.finishedById = clock.now(), c.id
+    a = s.get(Account, r.accountId)
+    activity.record(s, "account.reconciled", actor=c.id, subject_kind="account",
+                    subject_id=a.id, owner=a.ownerId)  # fmt: skip
 
 
-@router.post("/reconciliations/{rec_id}/finish", response_model=ReconciliationRow)
-def finish_reconciliation(rec_id: str, request: Request, c: Caller = Depends(caller)):
-    """The period reconciled once the ticked transactions leave no difference (S1.11.6)."""
-    with server(request).db.tx() as s:
-        r = s.get(Reconciliation, rec_id)
-        if r is None or r.deleted:
-            raise Problem(404, "not-found", "Not found")
-        a, _ = access.account(s, c.id, r.accountId, "write")
-        current = _reconciliation_row(s, r)
-        if r.finishedAt is None:
-            if current.difference != 0:
-                raise refuse(
-                    None, "not-balanced", "Tick transactions until the difference is zero.", 409
-                )
-            for t in s.scalars(
-                select(Transaction).where(
-                    Transaction.accountId == a.id,
-                    Transaction.deleted == false(),
-                    Transaction.cleared,
-                    Transaction.date <= r.statementDate,
-                    Transaction.reconciliationId.is_(None),
-                )
-            ):
-                t.reconciliationId = r.id
-            r.finishedAt, r.finishedById = clock.now(), c.id
-            activity.record(
-                s,
-                "account.reconciled",
-                actor=c.id,
-                subject_kind="account",
-                subject_id=a.id,
-                owner=a.ownerId,
-            )
-        s.flush()
-        return _reconciliation_row(s, r)
+def _recon_update(ctx, r: Reconciliation, body: ReconciliationRecord) -> None:
+    current = _recon_current(ctx, r)
+    if current["finished"]:
+        raise refuse(None, "reconciled", "A reconciled period stays as it was reconciled.")
+    if body.accountId != r.accountId:
+        raise refuse("accountId", "reconciliation-fixed", "It stays with its account.")
+    r.statementDate, r.statementBalance = body.statementDate, body.statementBalance
+    r.updatedAt = clock.now()
+    ctx.s.flush()
+    if body.finished:
+        _finish(ctx, r)
+
+
+def _recon_delete(ctx, r: Reconciliation) -> None:
+    if r.finishedAt is not None:
+        raise refuse(None, "reconciled", "A reconciled period stays as it was reconciled.")
+    r.mark_deleted(ctx.caller.id)
+
+
+save.register(
+    save.Kind(
+        prefix="Recon",
+        entity=Reconciliation,
+        fields=ReconciliationRecord,
+        create=_recon_create,
+        editable=_recon_editable,
+        current=_recon_current,
+        update=_recon_update,
+        delete=_recon_delete,
+        read=lambda ctx, record_id: _reconciliation_row(
+            ctx.s, ctx.s.get(Reconciliation, record_id)
+        ),
+    )
+)
 
 
 # ---------- an account in a dialog's or a screen's draft (S12.15, S13.8.11) ----------

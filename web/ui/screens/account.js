@@ -38,8 +38,10 @@ import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
 import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
-import { DraftForm, RecField, useDraft } from '../components/draft-form.js';
-import { TransactionDialog } from './transaction-dialog.js';
+import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
+import { TransactionDialog, Txn } from './transaction-dialog.js';
+import { Record as Rec } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../components/pager.js';
 import { pageSize } from '../store/prefs.js';
 import { dec } from '../app/dec.js';
@@ -663,6 +665,16 @@ function Adjust({ close, a, check }) {
   `;
 }
 
+/** A statement ticked off against (S1.11.6): made by Start, finished by Mark reconciled. */
+class ReconRec extends Rec {
+  /** @override */
+  static prefix = 'Recon';
+  /** @override */
+  static fields = FIELDS.ReconciliationRecord;
+  /** @override */
+  static defaults = { finished: false };
+}
+
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function TickOff({ close, a }) {
   useDialogGuide('dialog-tick-off');
@@ -671,27 +683,22 @@ function TickOff({ close, a }) {
   const [rec, setRec] = useState(/** @type {any} */ (null));
   const txns = useApi(rec ? '/transactions' : null, { account: a.id, to: day, limit: 500 });
   const start = useSubmit(async () => {
-    setRec(
-      await api.post(`/accounts/${a.id}/reconciliations`, {
-        statementDate: day,
-        statementBalance: balance.replace(/[$,\s]/g, '').replace('−', '-'),
-      }),
-    );
+    const [made] = await saveNow((d) => {
+      const r = d.add(ReconRec, { accountId: a.id });
+      r.input('statementDate', day);
+      r.input('statementBalance', balance);
+    });
+    setRec(made.record);
   });
   const tick = async (/** @type {any} */ t) => {
     // Each tick saves at once (S1.11.6), through the save every change of a transaction takes.
-    const fields = { cleared: !t.cleared };
-    await api.post('/save', {
-      ops: [{ op: 'update', entity: 'Txn', id: t.id, version: t.version, fields }],
-    }, {
-      idempotent: true,
-    });
+    await saveNow((d) => d.load(Txn, t).set('cleared', !t.cleared));
     txns.reload();
     const all = await api.get(`/accounts/${a.id}/reconcile`);
     setRec(all.reconciliations.find((/** @type {any} */ r) => r.id === rec.id));
   };
   const finish = useSubmit(async () => {
-    await api.post(`/reconciliations/${rec.id}/finish`);
+    await saveNow((d) => d.load(ReconRec, { ...rec, accountId: a.id }).set('finished', true));
     toast('The period is reconciled');
     close(true);
   });

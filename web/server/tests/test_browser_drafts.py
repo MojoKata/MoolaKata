@@ -831,3 +831,36 @@ def test_a_settings_section_saves_its_keys_and_a_password_with_them(browser, hou
     assert r.status_code == 200, r.text
     assert problems == []
     page.close()
+
+
+def test_a_statement_ticked_off_and_reconciled_through_the_save(browser, household):
+    h = household
+    a = made(
+        h.c.post(
+            "/ui/api/accounts",
+            json={"name": "Ticked", "type": "checking", "openingBalance": "0.00",
+                  "openingDate": f"{months_back(2)}-28"},
+        )
+    )  # fmt: skip
+    made(
+        h.c.post(
+            "/ui/api/transactions",
+            json={"accountId": a["id"], "date": f"{months_back(1)}-03", "amount": "100.00",
+                  "kind": "deposit", "payee": "Paycheck"},
+        )
+    )  # fmt: skip
+    path = f"/ui/accounts/{a['id']}/reconcile"
+    page, problems = signed_in(browser, h, path, 'button:has-text("Tick off against")')
+    page.click('button:has-text("Tick off against")')
+    page.fill("#f-statement-date", f"{months_back(1)}-28")
+    page.fill("#f-statement-balance", "100")
+    page.click(".dialog footer button.primary")
+    wait(page, 'input[aria-label="Cleared: Paycheck"]', problems)
+    page.check('input[aria-label="Cleared: Paycheck"]')
+    wait(page, '.dialog footer button.primary:has-text("Mark reconciled"):enabled', problems)
+    page.click(".dialog footer button.primary")
+    wait(page, '.toast:has-text("reconciled")', problems)
+    (rec,) = h.c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["reconciliations"]
+    assert rec["finishedAt"] and rec["difference"] == 0
+    assert problems == []
+    page.close()

@@ -13747,30 +13747,6 @@
         "title": "NewProjection",
         "type": "object"
       },
-      "NewReconciliation": {
-        "additionalProperties": false,
-        "properties": {
-          "statementBalance": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Statementbalance",
-            "type": "number"
-          },
-          "statementDate": {
-            "format": "date",
-            "title": "Statementdate",
-            "type": "string"
-          }
-        },
-        "required": [
-          "statementDate",
-          "statementBalance"
-        ],
-        "title": "NewReconciliation",
-        "type": "object"
-      },
       "NewSource": {
         "additionalProperties": false,
         "properties": {
@@ -19215,7 +19191,9 @@
               "receipt-unreadable",
               "receipt-unshowable",
               "receipt-uploaded",
+              "reconciled",
               "reconciled-period",
+              "reconciliation-fixed",
               "reencrypt-pending",
               "reencrypt-running",
               "reference-missing",
@@ -19634,7 +19612,9 @@
                   "receipt-unreadable",
                   "receipt-unshowable",
                   "receipt-uploaded",
+                  "reconciled",
                   "reconciled-period",
+                  "reconciliation-fixed",
                   "reencrypt-pending",
                   "reencrypt-running",
                   "reference-missing",
@@ -21170,6 +21150,44 @@
         ],
         "title": "ReconcileView",
         "type": "object"
+      },
+      "ReconciliationRecord": {
+        "additionalProperties": false,
+        "description": "Ticking off against a statement (S1.11.6), as its dialog's draft saves it: made with the\nstatement's closing date and balance; `finished` once the ticked transactions leave no\ndifference, which marks them reconciled. A finished one stays; an unfinished one may go.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "finished": {
+            "default": false,
+            "title": "Finished",
+            "type": "boolean"
+          },
+          "statementBalance": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Statementbalance",
+            "type": "number"
+          },
+          "statementDate": {
+            "format": "date",
+            "title": "Statementdate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statementDate",
+          "statementBalance",
+          "accountId"
+        ],
+        "title": "ReconciliationRecord",
+        "type": "object",
+        "x-entity": "Recon"
       },
       "ReconciliationRow": {
         "additionalProperties": false,
@@ -31232,63 +31250,6 @@
         ]
       }
     },
-    "/ui/api/accounts/{account_id}/reconciliations": {
-      "post": {
-        "description": "Ticking off (S1.11.6): a statement's closing date and balance.",
-        "operationId": "start_reconciliation_ui_api_accounts__account_id__reconciliations_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewReconciliation"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReconciliationRow"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Start Reconciliation",
-        "tags": [
-          "accounts"
-        ]
-      }
-    },
     "/ui/api/accounts/{account_id}/series": {
       "get": {
         "operationId": "account_series_ui_api_accounts__account_id__series_get",
@@ -37490,45 +37451,6 @@
         "summary": "Receipt Thumbnail",
         "tags": [
           "receipts"
-        ]
-      }
-    },
-    "/ui/api/reconciliations/{rec_id}/finish": {
-      "post": {
-        "description": "The period reconciled once the ticked transactions leave no difference (S1.11.6).",
-        "operationId": "finish_reconciliation_ui_api_reconciliations__rec_id__finish_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "rec_id",
-            "required": true,
-            "schema": {
-              "title": "Rec Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReconciliationRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Finish Reconciliation",
-        "tags": [
-          "accounts"
         ]
       }
     },

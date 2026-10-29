@@ -20,7 +20,6 @@ READ_NOWHERE = [
     "/ui/api/settings/connector/pairings",
     "/ui/api/accounts/{account_id}/anchors",
     "/ui/api/accounts/{account_id}/adjustments",
-    "/ui/api/accounts/{account_id}/reconciliations",
     "/ui/api/accounts/{account_id}/options",
     "/ui/api/strategies",
     "/ui/api/accounts/{account_id}/options/{instrument_id}/settle",
@@ -133,11 +132,6 @@ def calls(i: dict[str, str]):
             "alice",
             {"account_id": chk},
             {"date": day, "amount": 1, "note": "Bank fee refunded"},
-        ),
-        "/ui/api/accounts/{account_id}/reconciliations": (
-            "alice",
-            {"account_id": chk},
-            {"statementDate": "2026-09-30", "statementBalance": 100},
         ),
         "/ui/api/transactions": (
             "alice",

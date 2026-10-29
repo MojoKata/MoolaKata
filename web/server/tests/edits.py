@@ -96,3 +96,10 @@ def wallet(c, account_id: str, text: str, gap_limit: int | None = None):
     """A wallet's keys and addresses set as its account's draft sets them (S1.6.1)."""
     fields = {"walletKeys": text} | ({"gapLimit": gap_limit} if gap_limit else {})
     return edit(c, "Acct", f"/ui/api/accounts/{account_id}", **fields)
+
+
+def reconcile(c, account_id: str, date: str, balance: str) -> dict:
+    """A statement to tick off against (S1.11.6), started as its dialog starts it."""
+    fields = {"accountId": account_id, "statementDate": date, "statementBalance": balance}
+    op = {"op": "create", "entity": "Recon", "id": new_id("Recon"), "fields": fields}
+    return saved(_save(c, op, False))

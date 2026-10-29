@@ -342,6 +342,12 @@ export const FIELDS = {
     tags: {"type": "list", "items": {"type": "text"}, "set": true},
     keep: {"type": "bool"},
   },
+  ReconciliationRecord: {
+    statementDate: {"type": "date"},
+    statementBalance: {"type": "money"},
+    accountId: {"type": "ref", "prefix": "Acct"},
+    finished: {"type": "bool"},
+  },
   RelationshipRecord: {
     person1Id: {"type": "ref", "prefix": "Persn"},
     person2Id: {"type": "ref", "prefix": "Persn"},

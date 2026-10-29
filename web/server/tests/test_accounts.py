@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
-from edits import asked, change, remove, saved
+from edits import asked, change, reconcile, remove, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -222,19 +222,14 @@ def test_reconciled_periods_ask_before_an_edit(server):
     t2 = add(c, a["id"], "100.00", "2026-09-03", kind="deposit")
     for x in (t, t2):
         saved(change(c, "Txn", x, cleared=True))
-    rec = c.post(
-        f"/ui/api/accounts/{a['id']}/reconciliations",
-        json={"statementDate": "2026-09-30", "statementBalance": "70.00"},
-    ).json()
+    rec = reconcile(c, a["id"], "2026-09-30", "70.00")
     assert rec["difference"] == "10.00"
-    r = c.post(f"/ui/api/reconciliations/{rec['id']}/finish")
-    assert r.json()["code"] == "not-balanced"
-    rec = c.post(
-        f"/ui/api/accounts/{a['id']}/reconciliations",
-        json={"statementDate": "2026-09-30", "statementBalance": "60.00"},
-    ).json()
-    r = c.post(f"/ui/api/reconciliations/{rec['id']}/finish")
-    assert r.status_code == 200 and r.json()["finishedAt"]
+    r = change(c, "Recon", rec, finished=True)
+    assert r.json()["errors"][0]["code"] == "not-balanced"
+    # Its balance corrected, the period balances, and is reconciled in the same save.
+    r = change(c, "Recon", rec, statementBalance="60.00", finished=True)
+    assert saved(r)["finishedAt"]
+    assert remove(c, "Recon", saved(r)).json()["errors"][0]["code"] == "reconciled"
     current = c.get("/ui/api/transactions").json()["items"]
     t = next(x for x in current if x["id"] == t["id"])
     assert t["reconciled"]

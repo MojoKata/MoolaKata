@@ -44,7 +44,7 @@ const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out'];
  * A transaction as its dialog's draft edits it (S2.6, S12.15). Its parts are records of their
  * own (`Part`), so each keeps its id, and what pays it back with it (S2.9).
  */
-class Txn extends Record {
+export class Txn extends Record {
   /** @override */
   static prefix = 'Txn';
   /** @override */
