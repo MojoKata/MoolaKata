@@ -917,3 +917,20 @@ def test_tags_typed_are_made_with_the_save_and_a_rename_reaches_them(browser, ho
     assert t["tags"] == ["conference", "travel"]
     assert problems == []
     page.close()
+
+
+def test_a_tax_books_account_left_out_and_counted_again(browser, household):
+    h = household
+    name = h.checking["name"]
+    row = f'.list-item:has-text("{name}") button'
+    page, problems = signed_in(browser, h, "/ui/taxes/summary", f'{row}:has-text("Leave out")')
+    page.click(f'{row}:has-text("Leave out")')
+    wait(page, f'{row}:has-text("Count it")', problems)
+    assert name in [a["name"] for a in book_of(h)["leftOut"]]
+    page.click(f'{row}:has-text("Count it")')
+    wait(page, f'{row}:has-text("Leave out")', problems)
+    b = book_of(h)
+    assert name in [a["name"] for a in b["accounts"]]
+    assert name not in [a["name"] for a in b["leftOut"]]
+    assert problems == []
+    page.close()

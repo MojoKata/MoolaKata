@@ -407,6 +407,21 @@ export function RowErrors({ rec, span }) {
 }
 
 /**
+ * One record saved at once, as a switch or a choice saves it: `existing` (its id, version and
+ * fields as read) changed to `values`, or made from them when there is none.
+ * @param {new (...a: any[]) => import('../app/draft.js').Record} Cls
+ * @param {any} existing
+ * @param {{ [name: string]: any }} values
+ */
+export function saveOne(Cls, existing, values) {
+  return saveNow((d) => {
+    if (!existing?.id) return void d.add(Cls, values);
+    const r = d.load(Cls, existing);
+    for (const [k, v] of Object.entries(values)) r.set(k, v);
+  });
+}
+
+/**
  * A record made or deleted at once, through the save (S13.8.11): a list's own Delete, or a
  * small form of one field beside it. Anything but a save is thrown, with its reasons.
  * @param {(draft: Draft) => void} fill @returns {Promise<any[]>}  what was saved

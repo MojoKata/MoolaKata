@@ -138,7 +138,7 @@ def test_an_unreachable_peer_says_so(pair):
 # ---------- invitations, approval and the directory (S11.1, S11.3, S11.6)
 
 from conftest import make_user  # noqa: E402
-from edits import share  # noqa: E402
+from edits import create, saved, share  # noqa: E402
 from linkpair import admin_of, linked  # noqa: E402
 
 
@@ -349,8 +349,8 @@ def test_a_shared_account_reaches_the_people_it_names_as_its_screens_show_it(adm
     assert dave.get(f"/ui/api/linked/{b_id}/items").status_code == 404
     homes = carol.get("/ui/api/linked").json()["items"]
     assert homes[0]["colour"] == "teal" and not homes[0]["locked"]
-    r = carol.put(f"/ui/api/linked/{b_id}/colour", json={"colour": "amber"})
-    assert r.json()["household"]["colour"] == "amber"
+    r = create(carol, "LkCol", linkId=b_id, colour="amber")
+    assert saved(r)["household"]["colour"] == "amber"
     carol.post(f"/ui/api/linked/{b_id}/lock")
     assert carol.get(f"/ui/api/linked/{b_id}/items").status_code == 423
     carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})

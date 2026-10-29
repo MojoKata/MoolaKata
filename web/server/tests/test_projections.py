@@ -354,3 +354,20 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, alice):
     theirs = sign_in(server, "bob").get(f"/ui/api/projections/{pid}").json()["tracking"]
     assert theirs["partial"] and theirs["band"] == [] and theirs["status"] == mine["status"]
     assert Decimal(str(theirs["points"][-1][1])) == 1000, "only the joint account's balance"
+
+
+def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server, alice):
+    # S6.8.3: a set of the receiver's own record, through the save.
+    p = retirement(alice)
+    alice.post(f"/ui/api/projections/{p['id']}/activate")
+    bob_user = make_user(server, "bob")
+    assert share(alice, "projection", p["id"], users={bob_user.id: "read"}).status_code == 200
+    bob = sign_in(server, "bob")
+    assert bob.get(f"/ui/api/projections/{p['id']}").json()["shown"] is False
+    me = bob.get("/ui/api/profile").json()
+    saved(change(bob, "User", me, shownProjectionIds=[p["id"]]))
+    assert bob.get(f"/ui/api/projections/{p['id']}").json()["shown"] is True
+    assert bob.get("/ui/api/profile").json()["shownProjectionIds"] == [p["id"]]
+    me = alice.get("/ui/api/profile").json()
+    r = change(alice, "User", me, shownProjectionIds=[p["id"]])
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "owner-sees-it"

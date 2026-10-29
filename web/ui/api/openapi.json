@@ -82,6 +82,22 @@
             "title": "Counted",
             "type": "boolean"
           },
+          "countedId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countedid"
+          },
+          "countedVersion": {
+            "default": 0,
+            "title": "Countedversion",
+            "type": "integer"
+          },
           "gapLimit": {
             "default": 20,
             "title": "Gaplimit",
@@ -628,6 +644,22 @@
           "ownerName": {
             "title": "Ownername",
             "type": "string"
+          },
+          "rowId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rowid"
+          },
+          "rowVersion": {
+            "default": 0,
+            "title": "Rowversion",
+            "type": "integer"
           },
           "type": {
             "title": "Type",
@@ -1817,6 +1849,36 @@
         ],
         "title": "Body_upload_ui_api_receipts_post",
         "type": "object"
+      },
+      "BookAccountRecord": {
+        "additionalProperties": false,
+        "description": "An account a tax book counts or leaves out beyond what its filers' own say (S8.14.2):\none the caller can see added (a custodial account in a child's name), or one of the\nfilers' own left out. Deleted, the book counts it as its filers' accounts say.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "bookId": {
+            "pattern": "^TaxBk_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Bookid",
+            "type": "string",
+            "x-prefix": "TaxBk"
+          },
+          "counted": {
+            "title": "Counted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bookId",
+          "accountId",
+          "counted"
+        ],
+        "title": "BookAccountRecord",
+        "type": "object",
+        "x-entity": "TxBkA"
       },
       "BookDetail": {
         "additionalProperties": false,
@@ -3386,19 +3448,28 @@
         "title": "ClosedRow",
         "type": "object"
       },
-      "Colour": {
+      "ColourRecord": {
         "additionalProperties": false,
+        "description": "The colour of a linked household's window, for its chooser (S12.10.3.2).",
         "properties": {
           "colour": {
             "title": "Colour",
             "type": "string"
+          },
+          "linkId": {
+            "pattern": "^Link_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Linkid",
+            "type": "string",
+            "x-prefix": "Link"
           }
         },
         "required": [
+          "linkId",
           "colour"
         ],
-        "title": "Colour",
-        "type": "object"
+        "title": "ColourRecord",
+        "type": "object",
+        "x-entity": "LkCol"
       },
       "CompareRow": {
         "additionalProperties": false,
@@ -4495,40 +4566,28 @@
         "title": "CorporateAction",
         "type": "object"
       },
-      "CountIn": {
+      "CountedRecord": {
         "additionalProperties": false,
+        "description": "A receiver's Count in my totals on an account shared with them (S10.7), off until they\ntick it; their own, as its record of the save.",
         "properties": {
-          "counted": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Counted"
-          }
-        },
-        "required": [
-          "counted"
-        ],
-        "title": "CountIn",
-        "type": "object"
-      },
-      "Counted": {
-        "additionalProperties": false,
-        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
           "counted": {
             "title": "Counted",
             "type": "boolean"
           }
         },
         "required": [
+          "accountId",
           "counted"
         ],
-        "title": "Counted",
-        "type": "object"
+        "title": "CountedRecord",
+        "type": "object",
+        "x-entity": "CntAc"
       },
       "Credential": {
         "additionalProperties": false,
@@ -18987,6 +19046,8 @@
           "code": {
             "enum": [
               "account-disabled",
+              "account-fixed",
+              "account-in-book",
               "account-missing",
               "account-not-counted",
               "account-unknown",
@@ -19031,6 +19092,8 @@
               "class-not-served",
               "closed-year",
               "code-wrong",
+              "colour-chosen",
+              "colour-fixed",
               "colour-invalid",
               "confirm-needed",
               "contracts-invalid",
@@ -19040,6 +19103,8 @@
               "copy-locked",
               "corporate-kind",
               "count-mismatch",
+              "counted-fixed",
+              "counted-set",
               "counting-invalid",
               "daf-invalid",
               "date-ahead",
@@ -19422,6 +19487,8 @@
               {
                 "enum": [
                   "account-disabled",
+                  "account-fixed",
+                  "account-in-book",
                   "account-missing",
                   "account-not-counted",
                   "account-unknown",
@@ -19466,6 +19533,8 @@
                   "class-not-served",
                   "closed-year",
                   "code-wrong",
+                  "colour-chosen",
+                  "colour-fixed",
                   "colour-invalid",
                   "confirm-needed",
                   "contracts-invalid",
@@ -19475,6 +19544,8 @@
                   "copy-locked",
                   "corporate-kind",
                   "count-mismatch",
+                  "counted-fixed",
+                  "counted-set",
                   "counting-invalid",
                   "daf-invalid",
                   "date-ahead",
@@ -19942,6 +20013,13 @@
             "title": "Sex",
             "type": "string"
           },
+          "shownProjectionIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shownprojectionids",
+            "type": "array"
+          },
           "spouse": {
             "anyOf": [
               {
@@ -19993,6 +20071,7 @@
           "birthYear",
           "alertEmails",
           "bitcoinUnit",
+          "shownProjectionIds",
           "twoStep",
           "relations",
           "spouse",
@@ -23686,20 +23765,6 @@
         "title": "ShareView",
         "type": "object"
       },
-      "Shown": {
-        "additionalProperties": false,
-        "properties": {
-          "shown": {
-            "title": "Shown",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "shown"
-        ],
-        "title": "Shown",
-        "type": "object"
-      },
       "SignIn": {
         "additionalProperties": false,
         "properties": {
@@ -27194,6 +27259,16 @@
             "default": null,
             "title": "Sex"
           },
+          "shownProjectionIds": {
+            "items": {
+              "pattern": "^Prjct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Prjct"
+            },
+            "title": "Shownprojectionids",
+            "type": "array",
+            "uniqueItems": true
+          },
           "theme": {
             "default": "system",
             "title": "Theme",
@@ -28615,6 +28690,22 @@
           "colour": {
             "title": "Colour",
             "type": "string"
+          },
+          "colourId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colourid"
+          },
+          "colourVersion": {
+            "default": 0,
+            "title": "Colourversion",
+            "type": "integer"
           },
           "items": {
             "title": "Items",
@@ -30316,48 +30407,6 @@
         "summary": "Corporate Action",
         "tags": [
           "options"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/counted": {
-      "put": {
-        "description": "A receiver's Count in my totals (S10.7); off by default.",
-        "operationId": "set_counted_ui_api_accounts__account_id__counted_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Counted"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Set Counted",
-        "tags": [
-          "sharing"
         ]
       }
     },
@@ -34809,55 +34858,6 @@
         ]
       }
     },
-    "/ui/api/linked/{link_id}/colour": {
-      "put": {
-        "description": "The colour of this household's window, for you (S12.10.3.2).",
-        "operationId": "set_colour_ui_api_linked__link_id__colour_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "link_id",
-            "required": true,
-            "schema": {
-              "title": "Link Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Colour"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CopyState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Set Colour",
-        "tags": [
-          "linked"
-        ]
-      }
-    },
     "/ui/api/linked/{link_id}/doc": {
       "get": {
         "description": "One document of an item shared with you, as its source answered it for you.",
@@ -37035,55 +37035,6 @@
           }
         },
         "summary": "Deactivate",
-        "tags": [
-          "projections"
-        ]
-      }
-    },
-    "/ui/api/projections/{projection_id}/shown": {
-      "put": {
-        "description": "A shared active projection shows on a receiver's Dashboard only when they ask (S6.8.3).",
-        "operationId": "show_on_dashboard_ui_api_projections__projection_id__shown_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projection_id",
-            "required": true,
-            "schema": {
-              "title": "Projection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Shown"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Shown"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Show On Dashboard",
         "tags": [
           "projections"
         ]
@@ -40064,64 +40015,6 @@
           }
         },
         "summary": "Accept",
-        "tags": [
-          "taxes"
-        ]
-      }
-    },
-    "/ui/api/tax-books/{book_id}/accounts/{account_id}": {
-      "put": {
-        "description": "Add an account the caller can see (a custodial account in a child's name), or leave\none of the filers' own out (S8.14.2).",
-        "operationId": "count_account_ui_api_tax_books__book_id__accounts__account_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "book_id",
-            "required": true,
-            "schema": {
-              "title": "Book Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CountIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Count Account",
         "tags": [
           "taxes"
         ]

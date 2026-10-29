@@ -32,6 +32,11 @@ export const FIELDS = {
   AssumptionsRecord: {
     figures: {"type": "json"},
   },
+  BookAccountRecord: {
+    bookId: {"type": "ref", "prefix": "TaxBk"},
+    accountId: {"type": "ref", "prefix": "Acct"},
+    counted: {"type": "bool"},
+  },
   BookRecord: {
     year: {"type": "int"},
     filers: {"type": "list", "items": {"type": "ref", "prefix": "User"}, "set": true},
@@ -62,6 +67,10 @@ export const FIELDS = {
     taxTag: {"type": "text", "nullable": true},
     keepReceiptsYears: {"type": "int", "nullable": true},
   },
+  ColourRecord: {
+    linkId: {"type": "ref", "prefix": "Link"},
+    colour: {"type": "text"},
+  },
   ConnectionRecord: {
     driver: {"type": "text"},
     label: {"type": "text"},
@@ -75,6 +84,10 @@ export const FIELDS = {
     fromAccountId: {"type": "ref", "prefix": "Acct", "nullable": true},
     contributor: {"type": "text"},
     fiveYear: {"type": "bool"},
+  },
+  CountedRecord: {
+    accountId: {"type": "ref", "prefix": "Acct"},
+    counted: {"type": "bool"},
   },
   DependentRecord: {
     personId: {"type": "text"},
@@ -473,6 +486,7 @@ export const FIELDS = {
     birthYear: {"type": "int", "nullable": true},
     alertEmails: {"type": "text"},
     bitcoinUnit: {"type": "text"},
+    shownProjectionIds: {"type": "list", "items": {"type": "ref", "prefix": "Prjct"}, "set": true},
   },
   ValuationRecord: {
     date: {"type": "date"},

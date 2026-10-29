@@ -7,7 +7,7 @@ import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import false, select
 
 from .. import activity, clock, people, settings, timezones
 from ..auth import sessions, twostep
@@ -82,6 +82,7 @@ class Profile(Model):
     birthYear: int | None
     alertEmails: str
     bitcoinUnit: str  # how bitcoin amounts are shown: btc or sats (S1.6.4)
+    shownProjectionIds: list[str]  # shared projections shown on their Dashboard (S6.8.3)
     twoStep: TwoStep
     relations: list[Relation]
     spouse: Spouse | None
@@ -134,6 +135,7 @@ def profile(s, u: User) -> Profile:
         birthYear=me.birthYear,
         alertEmails=u.alertEmails,
         bitcoinUnit=u.bitcoinUnit,
+        shownProjectionIds=shown(s, u.id),
         twoStep=TwoStep(
             on=twostep.is_on(u),
             since=u.twoStepAt,
@@ -159,8 +161,39 @@ def get_profile(request: Request, c: Caller = Depends(caller)):
         return profile(s, s.get(User, c.id))
 
 
+def _show(s, u: User, wanted: list[str]) -> None:
+    """A shared active projection shows on a receiver's Dashboard only when they ask; their own
+    always show (S6.8.3)."""
+    from .. import projections
+    from ..store.entities.projections import ShownProjection
+
+    mine = {p.id: lvl for p, lvl in projections.visible(s, u.id)}
+    for pid in wanted:
+        if pid not in mine:
+            raise refuse(
+                "shownProjectionIds", "projection-unknown", "A projection shared with you."
+            )
+        if mine[pid] == "owner":
+            raise refuse(
+                "shownProjectionIds", "owner-sees-it", "Your own active projections always show."
+            )
+    rows = {
+        r.projectionId: r
+        for r in s.scalars(select(ShownProjection).where(ShownProjection.userId == u.id))
+    }
+    for pid in wanted:
+        if pid in rows:
+            rows[pid].restore()
+        else:
+            s.add(ShownProjection(userId=u.id, projectionId=pid, createdAt=clock.now()))
+    for pid, r in rows.items():
+        if pid not in wanted and not r.deleted:
+            r.mark_deleted(u.id)
+
+
 # A user's own profile, theirs alone to change (S12.2.16); an admin changes the rest.
 PROFILE_FIELDS = (
+    "shownProjectionIds",
     "displayName",
     "avatar",
     "timeZone",
@@ -174,19 +207,33 @@ PROFILE_FIELDS = (
 )
 
 
+def shown(s, user_id: str) -> list[str]:
+    """The shared active projections the user shows on their Dashboard (S6.8.3)."""
+    from ..store.entities.projections import ShownProjection
+
+    rows = s.scalars(
+        select(ShownProjection.projectionId).where(
+            ShownProjection.userId == user_id, ShownProjection.deleted == false()
+        )
+    )
+    return sorted(rows)
+
+
 def current(s, u: User) -> dict:
     """The profile's fields as a draft holds them."""
     me = people.of_user(s, u.id)
     return {"displayName": u.displayName, "avatar": u.avatar, "timeZone": u.timeZone,
             "theme": u.theme, "sex": me.sex, "birthMonth": me.birthMonth,
             "birthDay": me.birthDay, "birthYear": me.birthYear, "alertEmails": u.alertEmails,
-            "bitcoinUnit": u.bitcoinUnit}  # fmt: skip
+            "bitcoinUnit": u.bitcoinUnit, "shownProjectionIds": shown(s, u.id)}  # fmt: skip
 
 
 def change(s, u: User, body, sent: set[str]) -> None:
     """The fields `sent` set on the user's own profile, each checked."""
     me = people.of_user(s, u.id)
     fields = []
+    if "shownProjectionIds" in sent:
+        _show(s, u, body.shownProjectionIds)
     if "displayName" in sent:
         name = (body.displayName or "").strip()
         if not name or len(name) > 80:

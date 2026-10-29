@@ -3,7 +3,6 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import Response
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, sharing
@@ -72,10 +71,6 @@ class ShareView(Model):
     links: list[LinkedPeople]
     hidden: dict[str, list[str]]
     accounts: list[AccountName]
-
-
-class Counted(Model):
-    counted: bool
 
 
 def view(s, owner: User, kind: str, item_id: str) -> ShareView:
@@ -418,28 +413,66 @@ class ShareOut(ShareRecord):
         )
 
 
-@router.put("/accounts/{account_id}/counted", status_code=204)
-def set_counted(account_id: str, body: Counted, request: Request, c: Caller = Depends(caller)):
-    """A receiver's Count in my totals (S10.7); off by default."""
-    with server(request).db.tx() as s:
-        a, level = access.account(s, c.id, account_id)
-        if level == "owner":
-            raise Problem(
-                409, "owner-counts", "Your own accounts count by their Count in net worth setting."
-            )
-        row = by_key(s, CountedAccount, userId=c.id, accountId=a.id)
-        if row is None:
-            s.add(
-                CountedAccount(
-                    userId=c.id,
-                    accountId=a.id,
-                    counted=body.counted,
-                    createdAt=clock.now(),
-                )
-            )
-        else:
-            row.counted = body.counted
-    return Response(status_code=204)
+class CountedRecord(Model):
+    """A receiver's Count in my totals on an account shared with them (S10.7), off until they
+    tick it; their own, as its record of the save."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    counted: bool
+
+
+def _counted_create(ctx, record_id: str, body: CountedRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    a, level = access.account(s, c.id, body.accountId)
+    if level == "owner":
+        raise refuse(
+            None,
+            "owner-counts",
+            "Your own accounts count by their Count in net worth setting.",
+            409,
+        )
+    have = by_key(s, CountedAccount, userId=c.id, accountId=a.id)
+    if have is not None and not have.deleted:
+        raise refuse("accountId", "counted-set", "It is set: change it.", 409)
+    s.add(CountedAccount(id=record_id, userId=c.id, accountId=a.id, counted=body.counted))
+
+
+def _counted_editable(ctx, record_id: str) -> CountedAccount:
+    row = ctx.s.get(CountedAccount, record_id)
+    if row is None or row.deleted or row.userId != ctx.caller.id:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _counted_update(ctx, row: CountedAccount, body: CountedRecord) -> None:
+    if body.accountId != row.accountId:
+        raise refuse("accountId", "counted-fixed", "It stays with its account.")
+    row.counted = body.counted
+
+
+class CountedOut(CountedRecord):
+    id: str
+    version: int
+
+
+save.register(
+    save.Kind(
+        prefix="CntAc",
+        entity=CountedAccount,
+        fields=CountedRecord,
+        create=_counted_create,
+        editable=_counted_editable,
+        current=lambda ctx, row: {"accountId": row.accountId, "counted": row.counted},
+        update=_counted_update,
+        delete=lambda ctx, row: row.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: CountedOut(
+            id=record_id,
+            version=ctx.s.get(CountedAccount, record_id).version,
+            accountId=ctx.s.get(CountedAccount, record_id).accountId,
+            counted=ctx.s.get(CountedAccount, record_id).counted,
+        ),
+    )
+)
 
 
 def counted_for(s, user_id: str) -> set[str]:

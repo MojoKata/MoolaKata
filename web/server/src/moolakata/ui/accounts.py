@@ -95,6 +95,9 @@ class AccountDetail(AccountRow):
     # A self-custody wallet's keys and addresses, one a line, and its gap limit (S1.6.1).
     walletKeys: str | None = None
     gapLimit: int = 20
+    # A receiver's Count in my totals, a record of the save (CountedAccount): none until set.
+    countedId: str | None = None
+    countedVersion: int = 0
 
 
 class NewAccount(Model):
@@ -400,7 +403,20 @@ def row(
         withdrawalsAMonth=a.withdrawalsAMonth,
         **_options_risk(s, a, ledger),
         **wallets.current(s, a),
+        **_counted_ref(s, ctx.userId, a, level),
     )
+
+
+def _counted_ref(s, user_id: str, a: Account, level: str) -> dict:
+    if level == "owner":
+        return {}
+    from ..store.entities.sharing import CountedAccount
+    from ..store.rows import by_key
+
+    row = by_key(s, CountedAccount, userId=user_id, accountId=a.id)
+    if row is None or row.deleted:
+        return {}
+    return {"countedId": row.id, "countedVersion": row.version}
 
 
 def _options_risk(s, a, ledger) -> dict:

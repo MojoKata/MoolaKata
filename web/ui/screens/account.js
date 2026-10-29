@@ -45,7 +45,14 @@ import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
 import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
-import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
+import {
+  DraftDialog,
+  DraftForm,
+  RecField,
+  saveNow,
+  saveOne,
+  useDraft,
+} from '../components/draft-form.js';
 import { TransactionDialog, Txn } from './transaction-dialog.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
@@ -608,6 +615,14 @@ function Mismatch({ a, check, all, again }) {
   `;
 }
 
+/** Whether a receiver counts an account shared with them in their own totals (S10.7). */
+class CountedRec extends Rec {
+  /** @override */
+  static prefix = 'CntAc';
+  /** @override */
+  static fields = FIELDS.CountedRecord;
+}
+
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function TypeBalance({ close, a }) {
   useDialogGuide('dialog-type-balance');
@@ -853,8 +868,12 @@ function Settings({ a, reload }) {
     if (terms) draft.load(LoanRec, { ...terms, accountId: a.id });
     else draft.add(LoanRec, newTerms(a.type, a.id), { optional: true });
   }, [a.id]);
+  // A receiver's Count in my totals: a record of their own (S10.7).
   const counted = useSubmit(async (/** @type {boolean} */ v) => {
-    await api.put(`/accounts/${a.id}/counted`, { counted: v });
+    const row = a.countedId
+      ? { id: a.countedId, version: a.countedVersion, accountId: a.id, counted: a.counted }
+      : null;
+    await saveOne(CountedRec, row, { accountId: a.id, counted: v });
     toast(v ? 'Counted in your totals' : 'Left out of your totals');
     reload();
   });

@@ -219,6 +219,9 @@ class AccountRef(Model):
     name: str
     type: str
     ownerName: str
+    # Its change in this book (TaxBookAccount), a record of the save: added or left out.
+    rowId: str | None = None
+    rowVersion: int = 0
 
 
 class Payment(Model):
@@ -375,9 +378,16 @@ def _dependent(d: dependents.Dependent) -> DependentOut:
     )
 
 
-def _acct(s, a: Account) -> AccountRef:
+def _acct(s, a: Account, book_id: str | None = None) -> AccountRef:
+    row = by_key(s, TaxBookAccount, bookId=book_id, accountId=a.id) if book_id else None
+    live = row is not None and not row.deleted
     return AccountRef(
-        id=a.id, name=a.name, type=a.type, ownerName=s.get(User, a.ownerId).displayName
+        id=a.id,
+        name=a.name,
+        type=a.type,
+        ownerName=s.get(User, a.ownerId).displayName,
+        rowId=row.id if live else None,
+        rowVersion=row.version if live else 0,
     )
 
 
@@ -487,9 +497,9 @@ def detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
             Form8615Out(**f.__dict__) for f in dependents.form_8615(s, b, deps, cnt.accounts)
         ],
         claimedElsewhere=[p.name for p in dependents.filers_claimed_elsewhere(s, b)],
-        accounts=[_acct(s, a) for a in cnt.accounts],
-        leftOut=[_acct(s, a) for a in cnt.leftOut],
-        addable=[_acct(s, a) for a in addable],
+        accounts=[_acct(s, a, b.id) for a in cnt.accounts],
+        leftOut=[_acct(s, a, b.id) for a in cnt.leftOut],
+        addable=[_acct(s, a, b.id) for a in addable],
         filings=[_filing(s, f, docs, today) for f in books.filings(s, b)],
         expected=[
             ExpectedOut(
@@ -523,41 +533,78 @@ def get_book(book_id: str, request: Request, c: Caller = Depends(caller)):
         return detail(s, c, b, lvl)
 
 
-class CountIn(Model):
-    counted: bool | None  # None: as the filers' ownership says
+class BookAccountRecord(Model):
+    """An account a tax book counts or leaves out beyond what its filers' own say (S8.14.2):
+    one the caller can see added (a custodial account in a child's name), or one of the
+    filers' own left out. Deleted, the book counts it as its filers' accounts say."""
+
+    bookId: IdOf("TaxBk")  # type: ignore[valid-type]
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    counted: bool
 
 
-@router.put("/tax-books/{book_id}/accounts/{account_id}", response_model=BookDetail)
-def count_account(
-    book_id: str, account_id: str, body: CountIn, request: Request, c: Caller = Depends(caller)
-):
-    """Add an account the caller can see (a custodial account in a child's name), or leave
-    one of the filers' own out (S8.14.2)."""
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "read")
-        if lvl != "owner":  # a helper edits filings, never what the book counts (S8.14.3)
-            raise Problem(403, "filers-only", "Only its filers add or leave out accounts.")
-        access.account(s, c.id, account_id)
-        row = by_key(s, TaxBookAccount, bookId=b.id, accountId=account_id)
-        if body.counted is None:
-            if row is not None and not row.deleted:
-                row.mark_deleted(c.id, clock.now())
-        elif row is None:
-            s.add(
-                TaxBookAccount(
-                    bookId=b.id,
-                    accountId=account_id,
-                    counted=body.counted,
-                    addedById=c.id,
-                    createdAt=clock.now(),
-                )
-            )
-        else:
-            row.counted = body.counted
-            row.addedById = c.id
-            row.restore()
-        s.flush()
-        return detail(s, c, b, lvl)
+def _book_account_filer(ctx, book_id: str):
+    b, lvl = books.get(ctx.s, ctx.caller.id, book_id, "read")
+    if lvl != "owner":  # a helper edits filings, never what the book counts (S8.14.3)
+        raise refuse(None, "filers-only", "Only its filers add or leave out accounts.", 403)
+    return b
+
+
+def _book_account_create(ctx, record_id: str, body: BookAccountRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    b = _book_account_filer(ctx, body.bookId)
+    access.account(s, c.id, body.accountId)
+    have = by_key(s, TaxBookAccount, bookId=b.id, accountId=body.accountId)
+    if have is not None and not have.deleted:
+        raise refuse("accountId", "account-in-book", "It is in the book: change it.", 409)
+    s.add(
+        TaxBookAccount(
+            id=record_id,
+            bookId=b.id,
+            accountId=body.accountId,
+            counted=body.counted,
+            addedById=c.id,
+        )
+    )
+
+
+def _book_account_editable(ctx, record_id: str) -> TaxBookAccount:
+    row = ctx.s.get(TaxBookAccount, record_id)
+    if row is None or row.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _book_account_filer(ctx, row.bookId)
+    return row
+
+
+def _book_account_update(ctx, row: TaxBookAccount, body: BookAccountRecord) -> None:
+    if (body.bookId, body.accountId) != (row.bookId, row.accountId):
+        raise refuse("accountId", "account-fixed", "It stays with its book and account.")
+    row.counted, row.addedById = body.counted, ctx.caller.id
+
+
+def _book_account_read(ctx, record_id: str) -> BookDetail:
+    row = ctx.s.get(TaxBookAccount, record_id)
+    b, lvl = books.get(ctx.s, ctx.caller.id, row.bookId, "read")
+    return detail(ctx.s, ctx.caller, b, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="TxBkA",
+        entity=TaxBookAccount,
+        fields=BookAccountRecord,
+        create=_book_account_create,
+        editable=_book_account_editable,
+        current=lambda ctx, row: {
+            "bookId": row.bookId,
+            "accountId": row.accountId,
+            "counted": row.counted,
+        },
+        update=_book_account_update,
+        delete=lambda ctx, row: row.mark_deleted(ctx.caller.id),
+        read=_book_account_read,
+    )
+)
 
 
 # ---- Dependents (S8.14.5) ----

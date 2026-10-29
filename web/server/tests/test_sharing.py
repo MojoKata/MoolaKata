@@ -1,7 +1,7 @@
 import re
 
 from conftest import make_user, sign_in
-from edits import change, remove, saved, tag
+from edits import change, create, remove, saved, tag
 from edits import share as shared
 from test_accounts import add, new_account
 
@@ -101,17 +101,12 @@ def test_count_in_my_totals_and_all_my_accounts(server):
     everything = c["bob"].get("/ui/api/portfolios").json()["items"][0]
     assert everything["implicit"] and everything["accountIds"] == [mine["id"]]
     assert everything["value"] == "10.00"
-    assert (
-        c["bob"].put(f"/ui/api/accounts/{hers['id']}/counted", json={"counted": True}).status_code
-        == 204
-    )
+    saved(create(c["bob"], "CntAc", accountId=hers["id"], counted=True))
     everything = c["bob"].get("/ui/api/portfolios/all").json()
     assert sorted(everything["accountIds"]) == sorted([mine["id"], hers["id"]])
     assert everything["value"] == "1010.00"
-    assert (
-        c["alice"].put(f"/ui/api/accounts/{hers['id']}/counted", json={"counted": True}).status_code
-        == 409
-    )
+    r = create(c["alice"], "CntAc", accountId=hers["id"], counted=True)
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "owner-counts"
 
 
 def test_portfolio_viewers_see_only_their_accounts(server):

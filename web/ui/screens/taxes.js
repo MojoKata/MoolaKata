@@ -20,7 +20,7 @@ import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
 import { Record as Rec, TYPES } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
+import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 
 export const TABS = /** @type {[string, string][]} */ ([
   ['summary', 'Summary'],
@@ -139,10 +139,26 @@ function Book({ id, tab }) {
   `;
 }
 
+/** An account a tax book adds or leaves out (S8.14.2). */
+class BookAccountRec extends Rec {
+  /** @override */
+  static prefix = 'TxBkA';
+  /** @override */
+  static fields = FIELDS.BookAccountRecord;
+}
+
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Summary({ b, done }) {
-  const count = useSubmit(async (/** @type {string} */ acct, /** @type {boolean | null} */ on) => {
-    done(await api.put(`/tax-books/${b.id}/accounts/${acct}`, { counted: on }));
+  // An account added or left out is a record of its own (S8.14.2); Count it again takes it
+  // back to what the filers' accounts say.
+  const count = useSubmit(async (/** @type {any} */ a, /** @type {boolean | null} */ on) => {
+    const row = a.rowId
+      ? { id: a.rowId, version: a.rowVersion, bookId: b.id, accountId: a.id }
+      : null;
+    const out = on === null && row
+      ? await saveNow((d) => d.remove(d.load(BookAccountRec, row)))
+      : await saveOne(BookAccountRec, row, { bookId: b.id, accountId: a.id, counted: !!on });
+    done(out[0]?.record || true);
   });
   const [adding, setAdding] = useState('');
   const missing = b.expected.filter((/** @type {any} */ e) => !e.document).length;
@@ -195,7 +211,7 @@ function Summary({ b, done }) {
             class="list-item"><div class="grow">${a.name}<div class="small dim">${a
               .ownerName}</div></div>${b.canWrite
               ? html`<button class="btn sm" onClick=${() =>
-                count.run(a.id, false).catch(() => {})}>Leave out</button>`
+                count.run(a, false).catch(() => {})}>Leave out</button>`
               : null}</div>
         `
       )}
@@ -207,7 +223,7 @@ function Summary({ b, done }) {
               html`<div class="list-item"><span class="grow dim">${a.name}</span>${
                 b.canWrite
                   ? html`<button class="btn sm" onClick=${() =>
-                    count.run(a.id, null).catch(() => {})}>Count it</button>`
+                    count.run(a, null).catch(() => {})}>Count it</button>`
                   : null
               }</div>`
             )}<p
@@ -228,9 +244,10 @@ function Summary({ b, done }) {
                           alignSelf: 'end',
                         }} disabled=${!adding}
                         onClick=${() =>
-                          count.run(adding, true).then(() => setAdding('')).catch(
-                            () => {},
-                          )}>Add</button></div>
+                          count.run(b.addable.find((/** @type {any} */ x) => x.id === adding), true)
+                            .then(() => setAdding('')).catch(
+                              () => {},
+                            )}>Add</button></div>
           `
           : null}
       </div>

@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import asked, change, remove, saved, share
+from edits import asked, change, create, remove, saved, share
 from test_accounts import add, new_account
 from test_save import made_at
 
@@ -74,10 +74,8 @@ def test_accounts_left_out_and_added(couple):
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
     share(bob, "account", kid["id"], users={a_id: "read"})
     b = book(alice, 2026, [a_id])
-    alice.put(f"/ui/api/tax-books/{b['id']}/accounts/{mine['id']}", json={"counted": False})
-    d = alice.put(
-        f"/ui/api/tax-books/{b['id']}/accounts/{kid['id']}", json={"counted": True}
-    ).json()
+    saved(create(alice, "TxBkA", bookId=b["id"], accountId=mine["id"], counted=False))
+    d = saved(create(alice, "TxBkA", bookId=b["id"], accountId=kid["id"], counted=True))
     assert [a["name"] for a in d["accounts"]] == ["Emma's custodial"]
     assert [a["name"] for a in d["leftOut"]] == ["Mine"]
     assert bob_id
@@ -319,8 +317,8 @@ def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adde
     kid = new_account(alice, name="Emma's custodial", type="brokerage")
     share(alice, "account", kid["id"], users={b_id: "read"})
     last = book(bob, 2025, [b_id])
-    r = bob.put(f"/ui/api/tax-books/{last['id']}/accounts/{kid['id']}", json={"counted": True})
-    assert [a["name"] for a in r.json()["accounts"]] == ["Emma's custodial"]
+    r = create(bob, "TxBkA", bookId=last["id"], accountId=kid["id"], counted=True)
+    assert [a["name"] for a in saved(r)["accounts"]] == ["Emma's custodial"]
     # Alice names Bob; until he accepts, the book has nothing of his 2025.
     joint = book(alice, 2026, [a_id, b_id], fromLastYear=True)
     from moolakata.store.entities.taxes import TaxBook, TaxBookAccount
@@ -351,8 +349,8 @@ def test_a_helper_edits_but_never_changes_what_the_book_counts(server, couple):
     # Bob, a filer who didn't make it, changes its sharing.
     r = share(bob, "tax-book", b["id"], users={g_id: "write"})
     assert r.status_code == 200, r.text
-    r = gail.put(f"/ui/api/tax-books/{b['id']}/accounts/{acct['id']}", json={"counted": True})
-    assert r.status_code == 403 and r.json()["code"] == "filers-only"
+    r = create(gail, "TxBkA", bookId=b["id"], accountId=acct["id"], counted=True)
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "filers-only"
     r = gail.post(f"/ui/api/tax-books/{b['id']}/filings", json={"form": "Form 1040"})
     assert r.status_code == 201, r.text
 

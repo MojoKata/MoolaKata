@@ -274,6 +274,9 @@ class UserRecord(Model):
     birthYear: int | None = None
     alertEmails: str = "each"
     bitcoinUnit: str = "btc"
+    shownProjectionIds: list[IdOf("Prjct")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
 
 
 class GroupRecord(Model):

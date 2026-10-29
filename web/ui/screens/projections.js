@@ -17,7 +17,7 @@ import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
 import { num } from '../app/dec.js';
 import { Record as Rec } from '../app/draft.js';
-import { DraftForm, saveNow, useDraft } from '../components/draft-form.js';
+import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
@@ -152,7 +152,7 @@ function Detail({ id, reloadList }) {
           alignItems: 'center',
         }}>
           <input type="checkbox" id="f-show-on-dashboard" checked=${x.shown} onChange=${() =>
-          api.put(`/projections/${x.id}/shown`, { shown: !x.shown }).then(reload)} /> Show on my
+          showOnDashboard(x).then(reload, (e) => toast(e.message))} /> Show on my
           Dashboard</label>`}
       ${owner && !x.active
         ? html`<button type="button" class="btn primary" onClick=${activate}>Make active</button>`
@@ -289,6 +289,27 @@ function Tracking({ x }) {
         it, behind below it. Falling behind raises an alert, checked at each month's end.</p>
     </div>
   `;
+}
+
+/** The person's own record, as Show on my Dashboard changes its shown projections. */
+class ShownRec extends Rec {
+  /** @override */
+  static prefix = 'User';
+  /** @override */
+  static fields = FIELDS.UserRecord;
+}
+
+/**
+ * A shared active projection shown on the receiver's Dashboard, or no longer (S6.8.3): a set
+ * of their own record's.
+ * @param {any} x
+ */
+async function showOnDashboard(x) {
+  const me = await api.get('/profile');
+  const ids = /** @type {string[]} */ (me.shownProjectionIds);
+  await saveOne(ShownRec, { id: me.id, version: me.version, shownProjectionIds: ids }, {
+    shownProjectionIds: x.shown ? ids.filter((i) => i !== x.id) : [...ids, x.id],
+  });
 }
 
 /** A projection (S6.6), as its drafts make it and change its inputs. */

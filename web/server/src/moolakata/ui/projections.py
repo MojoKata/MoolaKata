@@ -63,10 +63,6 @@ class Activated(Model):
     replaced: str | None
 
 
-class Shown(Model):
-    shown: bool
-
-
 def _shown(s, user_id: str, projection_id: str) -> bool:
     row = s.get(ShownProjection, (user_id, projection_id))
     return row is not None and not row.deleted
@@ -414,27 +410,6 @@ save.register(
         read=_projection_read,
     )
 )
-
-
-@router.put("/projections/{projection_id}/shown", response_model=Shown)
-def show_on_dashboard(
-    projection_id: str, body: Shown, request: Request, c: Caller = Depends(caller)
-):
-    """A shared active projection shows on a receiver's Dashboard only when they ask (S6.8.3)."""
-    with server(request).db.tx() as s:
-        p, lvl = _get(s, c.id, projection_id)
-        if lvl == "owner":
-            raise Problem(409, "owner-sees-it", "Your own active projections always show.")
-        row_ = s.get(ShownProjection, (c.id, p.id))
-        if row_ is None:
-            if body.shown:
-                s.add(ShownProjection(userId=c.id, projectionId=p.id, createdAt=clock.now()))
-        else:
-            if body.shown:
-                row_.restore()
-            else:
-                row_.mark_deleted(c.id)
-    return body
 
 
 # ---------- the Dashboard's Plans card (S6.8.1) ----------

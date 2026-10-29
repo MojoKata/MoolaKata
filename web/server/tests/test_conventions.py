@@ -10,10 +10,6 @@ from moolakata.ui.conventions import Deleted, if_match
 # secrets, which are replaced outright, and the key files outside the database (S15). Signing
 # out ends a session, not a record.
 NO_VERSION = {
-    ("PUT", "/ui/api/linked/{link_id}/colour"): "a pair: the user's colour for a household",
-    ("PUT", "/ui/api/tax-books/{book_id}/accounts/{account_id}"): "a pair: a book counts it",
-    ("PUT", "/ui/api/accounts/{account_id}/counted"): "a pair: counted in the user's totals",
-    ("PUT", "/ui/api/projections/{projection_id}/shown"): "a pair: shown on the user's Dashboard",
     ("DELETE", "/ui/api/receipts/{receipt_id}/links/{transaction_id}"): "a pair",
     ("DELETE", "/ui/api/items/{item_id}/documents/{receipt_id}"): "a pair",
     ("DELETE", "/ui/api/receipts/{receipt_id}/kept/{kind}/{item_id}"): "a pair",
@@ -56,7 +52,7 @@ def test_every_change_sends_the_version_it_was_made_against(store, keyed_config)
     missing, needless = [], []
     walked = list(_routes(store, keyed_config))
     # Fewer as the kinds the save takes lose their own (S13.8.1); never none.
-    assert len(walked) > 8, "the app's routes, those of included routers too"
+    assert len(walked) > 4, "the app's routes, those of included routers too"
     for method, r in walked:
         has = if_match in _calls(r.dependant)
         exempt = (method, r.path) in NO_VERSION
