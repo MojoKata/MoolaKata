@@ -22,6 +22,7 @@ from ..store.entities.taxes import (
     TaxDocument,
 )
 from ..store.entities.users import User
+from ..store.rows import by_key
 from ..taxes import books, closed, dependents
 from . import save
 from .conventions import ExactRoute, IdOf, Model, Money
@@ -537,7 +538,7 @@ def count_account(
         if lvl != "owner":  # a helper edits filings, never what the book counts (S8.14.3)
             raise Problem(403, "filers-only", "Only its filers add or leave out accounts.")
         access.account(s, c.id, account_id)
-        row = s.get(TaxBookAccount, (b.id, account_id))
+        row = by_key(s, TaxBookAccount, bookId=b.id, accountId=account_id)
         if body.counted is None:
             if row is not None and not row.deleted:
                 row.mark_deleted(c.id, clock.now())

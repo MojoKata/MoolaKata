@@ -11,7 +11,7 @@ from sqlalchemy import (
     text,
 )
 
-from ._base import pairs, record
+from ._base import pairs, record, unique_live
 
 Portfolio = record(
     "Portfolio",
@@ -58,10 +58,11 @@ Share = record(
 )
 
 # A receiver's "Count in my totals" on an account shared with them (S10.7).
-CountedAccounts = pairs(
-    "CountedAccounts",
+CountedAccount = record(
+    "CountedAccount",
+    "CntAc",
     Column("userId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
     Column("counted", Boolean, nullable=False, server_default=text("1")),
-    PrimaryKeyConstraint("userId", "accountId"),
 )
+unique_live(CountedAccount, "userId", "accountId")

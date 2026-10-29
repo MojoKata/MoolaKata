@@ -18,7 +18,6 @@ once, with what is known about them in the database.
 import datetime as dt
 import hashlib
 import io
-import json
 import logging
 import secrets
 from collections.abc import Iterator
@@ -36,6 +35,7 @@ from ..store.entities.accounts import Account, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
 from ..store.entities.receipts import Receipt, ReceiptLink
+from ..store.rows import by_key
 from .ocr import MAX_PIXELS
 
 log = logging.getLogger("moolakata.receipts")
@@ -397,7 +397,7 @@ def attach(s: Session, user_id: str, r: Receipt, transaction_id: str) -> Receipt
     if t is None or t.deleted:
         raise refuse("transactionId", "not-found", "That transaction is not there.", 404)
     access.account(s, user_id, t.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, "transaction", t.id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind="transaction", itemId=t.id)
     now = clock.now()
     if row is None:
         row = ReceiptLink(
@@ -414,7 +414,7 @@ def attach(s: Session, user_id: str, r: Receipt, transaction_id: str) -> Receipt
 def attach_account(s: Session, user_id: str, r: Receipt, account_id: str) -> None:
     """A statement kept as a receipt on its account (S1.3.3)."""
     access.account(s, user_id, account_id, "write")
-    if s.get(ReceiptLink, (r.id, "account", account_id)) is None:
+    if by_key(s, ReceiptLink, receiptId=r.id, kind="account", itemId=account_id) is None:
         s.add(
             ReceiptLink(
                 receiptId=r.id,
@@ -431,7 +431,7 @@ def attach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") 
     """A photo or document of a physical-asset item (S1.10.1), or a qualified expense's
     receipt (S1.8.3): kept with it, in the item's account."""
     access.account(s, user_id, item.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, kind, item.id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
     if row is None:
         s.add(
             ReceiptLink(
@@ -449,7 +449,7 @@ def attach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") 
 
 def detach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") -> None:
     access.account(s, user_id, item.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, kind, item.id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
     if row is None or row.deleted:
         raise Problem(404, "not-found", "The receipt is not kept with that.")
     row.mark_deleted(user_id, clock.now())
@@ -473,7 +473,7 @@ def of_item(s: Session, item_id: str, kind: str = "item") -> list[Receipt]:
 
 def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -> None:
     """A receipt's link to a gift or a donation, by someone who can change that (S9.6)."""
-    row = s.get(ReceiptLink, (r.id, kind, item_id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if row is None or row.deleted or kind not in ("gift", "donation"):
         raise Problem(404, "not-found", "The receipt is not kept with that.")
     if _kept_level(s, user_id, row) != "write":
@@ -486,7 +486,7 @@ def keep_set(s: Session, user_id: str, kind: str, item_id: str, was, now) -> Non
     attached, those taken away detached."""
     for receipt_id in sorted(set(now) - set(was)):
         r = to_attach(s, user_id, receipt_id, "receiptIds")
-        row = s.get(ReceiptLink, (r.id, kind, item_id))
+        row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
         if row is None:
             s.add(
                 ReceiptLink(
@@ -508,7 +508,7 @@ def detach(s: Session, user_id: str, r: Receipt, transaction_id: str) -> None:
     t = s.get(Transaction, transaction_id)
     if t is not None:
         access.account(s, user_id, t.accountId, "write")
-    row = s.get(ReceiptLink, (r.id, "transaction", transaction_id))
+    row = by_key(s, ReceiptLink, receiptId=r.id, kind="transaction", itemId=transaction_id)
     if row is None or row.deleted:
         raise Problem(404, "not-found", "The receipt is not attached to that transaction.")
     row.mark_deleted(user_id, clock.now())
@@ -594,7 +594,3 @@ def _alike(a: str | None, b: str | None) -> float:
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / min(len(wa), len(wb))
-
-
-def tags_of(r: Receipt) -> list[str]:
-    return json.loads(r.tags or "[]")

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
 
-from .. import activity, clock, exactjson, parsing, receipts, settings
+from .. import activity, clock, exactjson, parsing, receipts, settings, tags
 from ..errors import Problem, new_error_id, refuse
 from ..keys.files import FileError
 from ..receipts import reading, retention
@@ -21,7 +21,7 @@ from ..store.entities.education import QualifiedExpense
 from ..store.entities.receipts import Receipt
 from ..store.entities.users import User
 from . import save
-from .conventions import Deleted, ExactRoute, Gone, Model, Money
+from .conventions import Deleted, ExactRoute, Gone, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["receipts"])
@@ -57,7 +57,8 @@ class ReceiptRow(Model):
     amount: Money | None
     payee: str | None
     notes: str | None
-    tags: list[str]
+    tags: list[str]  # the reader's own, by name (S2.6)
+    tagIds: list[str]
     links: list[LinkOut]
     hasThumbnail: bool
     readStatus: str
@@ -210,6 +211,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
 
 def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
     owner = s.get(User, r.ownerId)
+    tagged = tags.of(s, "receipt", user_id, [r.id]).get(r.id, []) if user_id else []
     return ReceiptRow(
         id=r.id,
         fileName=r.fileName,
@@ -223,7 +225,8 @@ def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
         amount=r.amount,
         payee=r.payee,
         notes=r.notes,
-        tags=receipts.tags_of(r),
+        tags=[t.name for t in tagged],
+        tagIds=[t.id for t in tagged],
         links=_links(s, r, user_id),
         hasThumbnail=r.thumbnail is not None,
         readStatus=r.readStatus,
@@ -362,7 +365,9 @@ class ReceiptRecord(Model):
     amount: Money | None = None
     payee: str | None = None
     notes: str | None = None
-    tags: list[str] = Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+    tagIds: list[IdOf("Tag")] = Field(  # type: ignore[valid-type]  # the saver's own
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
     keep: bool = False
 
 
@@ -374,8 +379,11 @@ def _receipt_create(ctx, record_id: str, body: ReceiptRecord) -> None:
 
 
 def _receipt_current(ctx, r: Receipt) -> dict:
-    return {**{f: getattr(r, f) for f in RECEIPT_FIELDS}, "tags": json.loads(r.tags or "[]"),
-            "keep": bool(r.keep)}  # fmt: skip
+    return {
+        **{f: getattr(r, f) for f in RECEIPT_FIELDS},
+        "tagIds": tags.ids_of(ctx.s, "receipt", ctx.caller.id, r.id),
+        "keep": bool(r.keep),
+    }
 
 
 def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
@@ -397,7 +405,8 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
             filled.discard(f)
             setattr(r, f, value)
     r.filled = exactjson.dumps(sorted(filled))
-    r.tags = exactjson.dumps(sorted({t.strip().lower() for t in body.tags if t.strip()}))
+    tags.owned(ctx.s, ctx.caller.id, body.tagIds)
+    tags.set_on(ctx.s, "receipt", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)
     r.keep = body.keep
     r.updatedAt = clock.now()
 

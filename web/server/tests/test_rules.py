@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, remove
+from edits import change, remove, tag
 from PIL import Image
 from test_accounts import FIX, add, new_account, upload
 from test_receipts import upload as upload_receipt
@@ -136,7 +136,8 @@ def test_a_rule_changed_keeps_its_place_and_sets_what_it_says(server, alice):
     for payee in ("acme", "shop"):
         alice.post("/ui/api/rules", json={"payeeMatch": payee, "categoryId": c["Income › Salary"]})
     first, second = alice.get("/ui/api/rules").json()["items"]
-    r = change(alice, "Rule", first, payee="Acme Corp", tags={"add": ["Work"], "remove": []})
+    work = tag(alice, "Work")
+    r = change(alice, "Rule", first, payee="Acme Corp", tagIds={"add": [work], "remove": []})
     assert r.status_code == 200, r.text
     items = alice.get("/ui/api/rules").json()["items"]
     assert [x["id"] for x in items] == [first["id"], second["id"]]

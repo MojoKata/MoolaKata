@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from . import access, clock
 from .errors import Problem
-from .store.entities.accounts import Account, Transaction, TransactionTag
+from .store.entities.accounts import Account, Tag, Transaction, TransactionTag
 from .store.entities.sharing import Portfolio, PortfolioAccount, Share
 from .store.entities.users import User
 
@@ -94,9 +94,10 @@ def drop_annotations(s: Session, user_id: str, account_id: str) -> None:
     for tag in s.scalars(
         select(TransactionTag)
         .join(Transaction, Transaction.id == TransactionTag.transactionId)
+        .join(Tag, Tag.id == TransactionTag.tagId)
         .where(
             Transaction.accountId == account_id,
-            TransactionTag.userId == user_id,
+            Tag.ownerId == user_id,
             TransactionTag.deleted == false(),
         )
     ):

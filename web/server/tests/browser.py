@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import pytest
-from edits import edit, giving_plan, save_settings, saved, share, terms, wallet
+from edits import edit, giving_plan, save_settings, saved, share, tag, terms, wallet
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -437,10 +437,10 @@ def transactions(h: Household) -> dict:
     from test_receipts import png
 
     receipt = made(c.post("/ui/api/receipts", files={"file": ("coffee.png", png(), "image/png")}))
+    coffee = {"add": [tag(c, "coffee")], "remove": []}
     receipt = saved(
         edit(c, "Rcpt", f"/ui/api/receipts/{receipt['id']}", date=f"{months_back(1)}-12",
-             amount="6.40", payee="Blue Bottle", notes="with Emma", tags={"add": ["coffee"],
-             "remove": []}, keep=True)
+             amount="6.40", payee="Blue Bottle", notes="with Emma", tagIds=coffee, keep=True)
     )  # fmt: skip
     retire = made(
         c.post(

@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, UtcTimestamp
-from ._base import pairs, record
+from ._base import pairs, record, unique_live
 
 Receipt = record(
     "Receipt",
@@ -33,7 +33,6 @@ Receipt = record(
     Column("amount", Cents),
     Column("payee", Text),
     Column("notes", Text),
-    Column("tags", Text, nullable=False, server_default=text("'[]'")),
     # Reading it (S9.8): where it stands, how and with what it was read, the full text (also
     # in ReceiptSearch for search), the suggested fields with their confidences, and which of
     # its fields still hold a suggestion rather than what a person typed.
@@ -62,23 +61,32 @@ Receipt = record(
     Index("ix_Receipt_sha256", "sha256"),
 )
 
+# A receipt's tags (S9.1), each its tagger's own (Tag).
+ReceiptTags = pairs(
+    "ReceiptTags",
+    Column("receiptId", Text, ForeignKey("Receipt.id", ondelete="CASCADE"), nullable=False),
+    Column("tagId", Text, ForeignKey("Tag.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("receiptId", "tagId"),
+)
+
 # What a receipt is attached to (S9.3): transactions, an account (a statement kept as a
 # receipt, S1.3.3), a physical-asset item's photos and documents (S1.10.1), a 529's qualified
 # expenses (S1.8.3), gifts (S7.8.1), donations' acknowledgements (S8.9), and other kinds as
 # they are built.
-ReceiptLinks = pairs(
-    "ReceiptLinks",
+ReceiptLink = record(
+    "ReceiptLink",
+    "RcLnk",
     Column("receiptId", Text, ForeignKey("Receipt.id", ondelete="CASCADE"), nullable=False),
     Column("kind", Text, nullable=False),
     Column("itemId", Text, nullable=False),
     Column("linkedById", Text, ForeignKey("User.id")),
-    PrimaryKeyConstraint("receiptId", "kind", "itemId"),
     CheckConstraint(
         "kind IN ('transaction', 'account', 'item', 'expense', 'gift', 'donation')",
         name="kind",
     ),
-    Index("ix_ReceiptLinks_item", "kind", "itemId"),
+    Index("ix_ReceiptLink_item", "kind", "itemId"),
 )
+unique_live(ReceiptLink, "receiptId", "kind", "itemId")
 
 # The full-text index of what was read (SQLite FTS5), kept by the reader, searched by the
 # Receipts screen. A virtual table, made by revision 0007 rather than declared here.

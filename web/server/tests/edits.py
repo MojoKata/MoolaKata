@@ -186,3 +186,12 @@ def save_settings(c, values: dict):
                   "fields": {"key": key, "value": value}}  # fmt: skip
         ops.append(op)
     return c.post("/ui/api/save", json={"ops": ops})
+
+
+def tag(c, name: str) -> str:
+    """The caller's tag of this name (S2.6): its id, the tag made through the save when new."""
+    have = {t["name"]: t["id"] for t in c.get("/ui/api/tags").json()["items"]}
+    if name.lower() in have:
+        return have[name.lower()]
+    op = {"op": "create", "entity": "Tag", "id": new_id("Tag"), "fields": {"name": name}}
+    return saved(c.post("/ui/api/save", json={"ops": [op]}))["id"]

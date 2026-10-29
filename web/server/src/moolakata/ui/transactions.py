@@ -10,7 +10,7 @@ from pydantic import Field
 from sqlalchemy import and_, false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
-from .. import access, activity, clock, ids, reimbursements, washes
+from .. import access, activity, clock, ids, reimbursements, tags, washes
 from ..errors import FieldError, Problem, refuse
 from ..ledger import lots
 from ..ledger import types as atypes
@@ -22,6 +22,7 @@ from ..store.entities.accounts import (
     LotPick,
     Reconciliation,
     Split,
+    Tag,
     Transaction,
     TransactionTag,
 )
@@ -119,7 +120,8 @@ class TxnOut(Model):
     costBasis: Money | None = None  # a transfer-in's, as typed with it (S2.6)
     leftOutOf: list[str] | None = None  # the budgets it is left out of: on one read alone
     splits: list[SplitOut]
-    tags: list[str]
+    tags: list[str]  # the reader's own, by name
+    tagIds: list[str]
     receipts: int
     level: str
     version: int
@@ -191,22 +193,9 @@ class Done(Model):
 # ---------- reading ----------
 
 
-def _tags(s: Session, user_id: str, txn_ids: list[str]) -> dict[str, list[str]]:
+def _tags(s: Session, user_id: str, txn_ids: list[str]) -> dict[str, list]:
     """A user's own tags on transactions (S10.4: annotations are the user's own)."""
-    out: dict[str, list[str]] = {}
-    if not txn_ids:
-        return out
-    for tag in s.scalars(
-        select(TransactionTag)
-        .where(
-            TransactionTag.transactionId.in_(txn_ids),
-            TransactionTag.userId == user_id,
-            TransactionTag.deleted == false(),
-        )
-        .order_by(TransactionTag.tag)
-    ):
-        out.setdefault(tag.transactionId, []).append(tag.tag)
-    return out
+    return tags.of(s, "transaction", user_id, txn_ids)
 
 
 def shape(
@@ -255,7 +244,7 @@ def shape(
             .order_by(Split.id)
         ):
             splits.setdefault(sp.transactionId, []).append(sp)
-    tags = _tags(s, user_id, ids_)
+    tagged = _tags(s, user_id, ids_)
     paid = reimbursements.paid_back(s, ids_)
     moved_in = [t.id for t in rows if t.kind == "transfer-in"]
     bases = {
@@ -306,7 +295,8 @@ def shape(
                 paidBack=paid.get(t.id, Decimal(0)),
                 costBasis=bases.get(t.id),
                 splits=[_split_read(x) for x in splits.get(t.id, [])],
-                tags=tags.get(t.id, []),
+                tags=[x.name for x in tagged.get(t.id, [])],
+                tagIds=[x.id for x in tagged.get(t.id, [])],
                 receipts=len(attached.get(t.id, [])),
                 level=levels[t.accountId],
                 version=t.version,
@@ -384,9 +374,12 @@ def list_transactions(
         if tag:
             q = q.where(
                 Transaction.id.in_(
-                    select(TransactionTag.transactionId).where(
-                        TransactionTag.userId == c.id,
-                        TransactionTag.tag == tag,
+                    select(TransactionTag.transactionId)
+                    .join(Tag, Tag.id == TransactionTag.tagId)
+                    .where(
+                        Tag.ownerId == c.id,
+                        Tag.name == tag.strip().lower(),
+                        Tag.deleted == false(),
                         TransactionTag.deleted == false(),
                     )
                 )
@@ -526,28 +519,10 @@ def _set_splits(s: Session, t: Transaction, splits: list[SplitIn], by: str) -> N
         t.categoryId = None
 
 
-def _set_tags(s: Session, t: Transaction, user_id: str, tags: list[str]) -> None:
-    wanted = {x.strip().lower() for x in tags if x.strip()}
-    if any(len(x) > 40 for x in wanted):
-        raise refuse("tags", "tag-too-long", "Tags are at most 40 characters.")
-    current = {
-        x.tag: x
-        for x in s.scalars(
-            select(TransactionTag).where(
-                TransactionTag.transactionId == t.id, TransactionTag.userId == user_id
-            )
-        )
-    }
-    now = clock.now()
-    for tag in wanted:
-        if tag in current:
-            if current[tag].deleted:
-                current[tag].restore()
-        else:
-            s.add(TransactionTag(transactionId=t.id, userId=user_id, tag=tag, createdAt=now))
-    for tag, row in current.items():
-        if tag not in wanted and not row.deleted:
-            row.mark_deleted(user_id, now)
+def _set_tags(s: Session, t: Transaction, user_id: str, names: list[str]) -> None:
+    """Tags given by name (a new transaction's): each the user's own, made when new."""
+    tag_ids = [tags.make(s, user_id, n).id for n in dict.fromkeys(names) if n.strip()]
+    tags.set_on(s, "transaction", t.id, user_id, tag_ids, user_id)
 
 
 def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
@@ -640,7 +615,11 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
                 )
             )
     _set_splits(s, t, getattr(body, "splits", None) or [], c.id)
-    _set_tags(s, t, c.id, body.tags)
+    if getattr(body, "tagIds", None):
+        tags.owned(s, c.id, body.tagIds)
+        tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
+    elif getattr(body, "tags", None):
+        _set_tags(s, t, c.id, body.tags)
     repo.match_transfer(s, t, a.ownerId)
     s.flush()
     if t.kind == "split" and inst_id:
@@ -771,8 +750,9 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
     if getattr(body, "splits", None) is not None and "splits" in sent:
         _set_splits(s, t, body.splits, c.id)
         changed.append("splits")
-    if body.tags is not None and "tags" in sent:
-        _set_tags(s, t, c.id, body.tags)
+    if getattr(body, "tagIds", None) is not None and "tagIds" in sent:
+        tags.owned(s, c.id, body.tagIds)
+        tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
     return changed
 
 
@@ -1121,7 +1101,7 @@ class TxnRecord(Model):
     reimbursable: Money | None = None
     owedBy: str | None = None
     cleared: bool = False
-    tags: list[str] = _set_of()
+    tagIds: list[IdOf("Tag")] = _set_of()  # type: ignore[valid-type]  # the saver's own (S2.6)
     leftOutOf: list[IdOf("Bdgt")] = _set_of()  # type: ignore[valid-type]
 
 
@@ -1247,7 +1227,7 @@ def _txn_current(ctx, t: Transaction) -> dict:
         "symbol": inst.symbol if inst else None,
         "instrumentId": t.instrumentId,
         "costBasis": lot.costBasis if lot is not None and t.kind == "transfer-in" else None,
-        "tags": _tags(ctx.s, ctx.caller.id, [t.id]).get(t.id, []),
+        "tagIds": tags.ids_of(ctx.s, "transaction", ctx.caller.id, t.id),
         "leftOutOf": _left_out_of(ctx.s, ctx.caller, t),
         **{f: getattr(t, f) for f in CHANGED},
     }

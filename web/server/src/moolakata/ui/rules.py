@@ -1,19 +1,17 @@
 """Categorisation and payee rules (requirements S2.7): a user's own ordered list, edited on
 Transactions › Rules, applied on import and on demand to the uncategorised."""
 
-import json
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, ids
+from .. import access, activity, ids, tags
 from ..errors import FieldError, Problem, refuse
 from ..ledger import rules as match
 from ..store.entities.accounts import Account, Category, Rule, Transaction
 from ..store.repos import rules as repo
 from . import save
-from .conventions import ExactRoute, Model, Money
+from .conventions import ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["rules"])
@@ -21,7 +19,7 @@ router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["rules"])
 DIRECTIONS = ("any", "in", "out")
 
 
-class RuleIn(Model):
+class RuleFields(Model):
     payeeMatch: str
     amountMin: Money | None = None
     amountMax: Money | None = None
@@ -29,7 +27,10 @@ class RuleIn(Model):
     accountId: str | None = None
     categoryId: str | None = None
     payee: str | None = None  # the payee shown: Rename to
-    tags: list[str] = Field(default_factory=list)
+
+
+class RuleIn(RuleFields):
+    tags: list[str] = Field(default_factory=list)  # by name, made the owner's when new
 
 
 class RuleOut(Model):
@@ -46,7 +47,8 @@ class RuleOut(Model):
     categoryPath: str | None
     categoryDeleted: bool
     payee: str | None
-    tags: list[str]
+    tags: list[str]  # by name
+    tagIds: list[str]
     version: int
 
 
@@ -89,7 +91,8 @@ def _out(s, r: Rule, paths: dict) -> RuleOut:
         categoryPath=path,
         categoryDeleted=cat_deleted,
         payee=r.payee,
-        tags=json.loads(r.tags or "[]"),
+        tags=[t.name for t in _rule_tags(s, r)],
+        tagIds=[t.id for t in _rule_tags(s, r)],
         version=r.version,
     )
 
@@ -128,7 +131,11 @@ def _list(s, user_id: str) -> RuleList:
     )
 
 
-def _check(s, c: Caller, body: RuleIn) -> list[FieldError]:
+def _rule_tags(s, r: Rule) -> list:
+    return tags.of(s, "rule", r.ownerId, [r.id]).get(r.id, [])
+
+
+def _check(s, c: Caller, body: RuleFields, tagged: int) -> list[FieldError]:
     e: list[FieldError] = []
     try:
         match.compile_pattern(body.payeeMatch)
@@ -154,18 +161,13 @@ def _check(s, c: Caller, body: RuleIn) -> list[FieldError]:
             e.append(FieldError("categoryId", "category-unknown", "Choose a category."))
     if body.payee is not None and len(body.payee.strip()) > 200:
         e.append(FieldError("payee", "payee-too-long", "At most 200 characters."))
-    tags = _tags(body.tags)
-    if len(tags) > match.MAX_TAGS or any(len(t) > 40 for t in tags):
-        e.append(FieldError("tags", "tags-invalid", "Up to 10 tags of at most 40 characters."))
-    if not body.categoryId and not (body.payee or "").strip() and not tags:
+    if tagged > match.MAX_TAGS:
+        e.append(FieldError("tagIds", "tags-invalid", "Up to 10 tags."))
+    if not body.categoryId and not (body.payee or "").strip() and not tagged:
         e.append(
             FieldError("categoryId", "rule-sets-nothing", "A category, a payee or a tag to set.")
         )
     return e
-
-
-def _tags(tags: list[str]) -> list[str]:
-    return sorted({t.strip().lower() for t in tags if t.strip()})
 
 
 def _raise(e: list[FieldError]) -> None:
@@ -173,14 +175,13 @@ def _raise(e: list[FieldError]) -> None:
         raise Problem(422, e[0].code, e[0].message, e)
 
 
-def _fill(r: Rule, body: RuleIn) -> None:
+def _fill(r: Rule, body: RuleFields) -> None:
     r.payeeMatch = body.payeeMatch.strip()
     r.amountMin, r.amountMax = body.amountMin, body.amountMax
     r.direction = body.direction
     r.accountId = body.accountId or None
     r.categoryId = body.categoryId or None
     r.payee = (body.payee or "").strip() or None
-    r.tags = json.dumps(_tags(body.tags))
 
 
 def _record(s, kind: str, c: Caller, count: int | None = None) -> None:
@@ -211,7 +212,8 @@ def list_rules(request: Request, c: Caller = Depends(caller)):
 def add_rule(body: RuleIn, request: Request, c: Caller = Depends(caller)):
     """A new rule, last in the list."""
     with server(request).db.tx() as s:
-        _raise(_check(s, c, body))
+        names = list(dict.fromkeys(n for n in body.tags if n.strip()))
+        _raise(_check(s, c, body, len(names)))
         rules = repo.of_user(s, c.id)
         if len(rules) >= 500:
             raise refuse(None, "too-many-rules", "At most 500 rules.")
@@ -219,6 +221,8 @@ def add_rule(body: RuleIn, request: Request, c: Caller = Depends(caller)):
         _fill(r, body)
         s.add(r)
         s.flush()
+        made = [tags.make(s, c.id, n).id for n in names]
+        tags.set_on(s, "rule", r.id, c.id, made, c.id)
         _record(s, "rule.created", c)
         return _list(s, c.id)
 
@@ -243,15 +247,19 @@ def move_rule(rule_id: str, body: Move, request: Request, c: Caller = Depends(ca
         return _list(s, c.id)
 
 
-class RuleRecord(RuleIn):
-    """A rule as a draft saves it (S2.7): a new one goes last in the list."""
+class RuleRecord(RuleFields):
+    """A rule as a draft saves it (S2.7): a new one goes last in the list; the tags it sets
+    are its owner's."""
 
-    tags: list[str] = Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+    tagIds: list[IdOf("Tag")] = Field(  # type: ignore[valid-type]
+        default_factory=list, json_schema_extra={"uniqueItems": True}
+    )
 
 
 def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
     s, c = ctx.s, ctx.caller
-    _raise(_check(s, c, body))
+    _raise(_check(s, c, body, len(body.tagIds)))
+    tags.owned(s, c.id, body.tagIds)
     rules = repo.of_user(s, c.id)
     if len(rules) >= 500:
         raise refuse(None, "too-many-rules", "At most 500 rules.")
@@ -259,18 +267,21 @@ def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
     _fill(r, body)
     s.add(r)
     s.flush()
+    tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)
     _record(s, "rule.created", c)
 
 
 def _rule_current(ctx, r: Rule) -> dict:
-    return {f: getattr(r, f) for f in RuleIn.model_fields if f != "tags"} | {
-        "tags": json.loads(r.tags or "[]")
+    return {f: getattr(r, f) for f in RuleFields.model_fields} | {
+        "tagIds": [t.id for t in _rule_tags(ctx.s, r)]
     }
 
 
 def _rule_update(ctx, r: Rule, body: RuleRecord) -> None:
-    _raise(_check(ctx.s, ctx.caller, body))
+    _raise(_check(ctx.s, ctx.caller, body, len(body.tagIds)))
+    tags.owned(ctx.s, ctx.caller.id, body.tagIds)
     _fill(r, body)
+    tags.set_on(ctx.s, "rule", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)
     _record(ctx.s, "rule.updated", ctx.caller)
 
 

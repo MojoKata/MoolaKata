@@ -1,8 +1,9 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
-from . import Record, SoftDeleted
+from ...ids import new_id
+from . import Record, SoftDeleted, _now
 
 
 @dataclass(kw_only=True, eq=False)
@@ -68,7 +69,6 @@ class Rule(Record):
     accountId: str | None = None
     categoryId: str | None = None
     payee: str | None = None
-    tags: str = "[]"
 
 
 @dataclass(kw_only=True, eq=False)
@@ -154,11 +154,19 @@ class Reimbursement(Record):
 
 
 @dataclass(kw_only=True, eq=False)
+class Tag(Record):
+    """A user's own tag (S2.6): transactions, receipts and rules refer to it by its id."""
+
+    id: str
+    ownerId: str
+    name: str
+
+
+@dataclass(kw_only=True, eq=False)
 class TransactionTag(SoftDeleted):
     transactionId: str
-    userId: str
-    tag: str
-    createdAt: dt.datetime
+    tagId: str
+    createdAt: dt.datetime = field(default_factory=_now)
     deletedAt: dt.datetime | None = None
     deletedById: str | None = None
 
@@ -176,13 +184,18 @@ class Lot(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class LotPick(SoftDeleted):
+class RuleTag(SoftDeleted):
+    ruleId: str
+    tagId: str
+    createdAt: dt.datetime = field(default_factory=_now)
+
+
+@dataclass(kw_only=True, eq=False)
+class LotPick(Record):
+    id: str = field(default_factory=lambda: new_id("LotPk"))
     saleId: str
     lotId: str
     quantity: Decimal
-    createdAt: dt.datetime
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)
@@ -302,14 +315,12 @@ class Strategy(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class StrategyLeg(SoftDeleted):
+class StrategyLeg(Record):
+    id: str = field(default_factory=lambda: new_id("StLeg"))
     strategyId: str
     instrumentId: str
     addedOn: dt.date
-    createdAt: dt.datetime
     quantity: Decimal | None = None
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

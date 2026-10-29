@@ -1,7 +1,8 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
+from ...ids import new_id
 from . import Record, SoftDeleted
 
 
@@ -20,24 +21,20 @@ class TaxBook(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class TaxBookFiler(SoftDeleted):
+class TaxBookFiler(Record):
+    id: str = field(default_factory=lambda: new_id("TxBkF"))
     bookId: str
     userId: str
-    createdAt: dt.datetime
     acceptedAt: dt.datetime | None = None
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)
-class TaxBookAccount(SoftDeleted):
+class TaxBookAccount(Record):
+    id: str = field(default_factory=lambda: new_id("TxBkA"))
     bookId: str
     accountId: str
     counted: bool
-    createdAt: dt.datetime
     addedById: str | None = None
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

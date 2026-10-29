@@ -17,6 +17,7 @@ import { toast } from '../components/toast.js';
 import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
 import { BY_TYPE } from '../account-types/index.js';
+import { TagsField } from '../components/tags.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -55,7 +56,7 @@ export class Txn extends Record {
     payee: null,
     memo: null,
     categoryId: null,
-    tags: [],
+    tagIds: [],
     leftOutOf: [],
     cleared: false,
   };
@@ -281,7 +282,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               `
               : null}
             <${RecField} rec=${t} name="memo" label="Memo" />
-            <${RecField} rec=${t} name="tags" label="Tags" hint="Yours only, separated by commas." />
+            ${draft
+              ? html`<${TagsField} rec=${t} draft=${draft} hint="Yours only, separated by commas." />`
+              : null}
             ${!type.investing && !parts.length
               ? html`
                 <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."

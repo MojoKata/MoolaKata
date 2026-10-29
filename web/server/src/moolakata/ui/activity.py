@@ -95,6 +95,7 @@ TEXT = {
     "transaction.categorised": "{actor} changed the category of {count_txns} in {subject}",
     "account.corporate-action": "{actor} recorded a {name} in {subject}",
     "rule.created": "{actor} added a categorisation rule",
+    "tag.renamed": "{actor} renamed a tag",
     "rule.updated": "{actor} changed a categorisation rule",
     "rule.moved": "{actor} reordered their categorisation rules",
     "rule.deleted": "{actor} deleted a categorisation rule",

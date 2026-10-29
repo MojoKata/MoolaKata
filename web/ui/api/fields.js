@@ -344,7 +344,7 @@ export const FIELDS = {
     amount: {"type": "money", "nullable": true},
     payee: {"type": "text", "nullable": true},
     notes: {"type": "text", "nullable": true},
-    tags: {"type": "list", "items": {"type": "text"}, "set": true},
+    tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     keep: {"type": "bool"},
   },
   ReconciliationRecord: {
@@ -378,7 +378,7 @@ export const FIELDS = {
     accountId: {"type": "text", "nullable": true},
     categoryId: {"type": "text", "nullable": true},
     payee: {"type": "text", "nullable": true},
-    tags: {"type": "list", "items": {"type": "text"}, "set": true},
+    tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
   },
   SettingRecord: {
     key: {"type": "text"},
@@ -411,6 +411,9 @@ export const FIELDS = {
     cashSecured: {"type": "bool"},
     marginRequirement: {"type": "money", "nullable": true},
   },
+  TagRecord: {
+    name: {"type": "text"},
+  },
   TokenItem: {
     kind: {"type": "text"},
     id: {"type": "text"},
@@ -441,7 +444,7 @@ export const FIELDS = {
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
     cleared: {"type": "bool"},
-    tags: {"type": "list", "items": {"type": "text"}, "set": true},
+    tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},
   },
   UserRecord: {

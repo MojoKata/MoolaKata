@@ -14,6 +14,7 @@ import { FIELDS } from '../api/fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { TagsField } from './tags.js';
 
 const DIRECTIONS = [['any', 'Money in or out'], ['out', 'Money out'], ['in', 'Money in']];
 
@@ -155,7 +156,7 @@ class RuleRec extends Record {
   /** @override */
   static fields = FIELDS.RuleRecord;
   /** @override */
-  static defaults = { direction: 'any', tags: [] };
+  static defaults = { direction: 'any', tagIds: [] };
 }
 
 /** @param {{ close: (v?: any) => void, rule: any, fill?: any }} p */
@@ -201,8 +202,12 @@ function RuleDialog({ close, rule, fill }) {
           ]} />
           <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
             hint="The payee shown; the bank's text is kept beside it." />
-          <${RecField} rec=${rec} name="tags" label="Tags" placeholder="coffee, work"
-            hint="Your own, separated by commas." />
+          ${f.draft
+            ? html`
+              <${TagsField} rec=${rec} draft=${f.draft} placeholder="coffee, work"
+                hint="Your own, separated by commas." />
+            `
+            : null}
         `
         : null}
     </${DraftDialog}>

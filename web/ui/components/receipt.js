@@ -12,6 +12,7 @@ import { toast } from './toast.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
+import { TagsField } from './tags.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -256,8 +257,12 @@ export function ReceiptDialog({ close, id }) {
             hint=${hint('payee', 'merchant')} disabled=${!canEdit} />
           <${RecField} rec=${rec} name="notes" label="Notes" id="receipt-notes"
             disabled=${!canEdit} />
-          <${RecField} rec=${rec} name="tags" label="Tags" id="receipt-tags"
-            hint="Separated by commas." disabled=${!canEdit} />
+          ${f.draft
+            ? html`
+              <${TagsField} rec=${rec} draft=${f.draft} id="receipt-tags"
+                hint="Yours only, separated by commas." disabled=${!canEdit} />
+            `
+            : null}
           <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached to</h4>
           ${r.links.length
             ? r.links.map((/** @type {any} */ l) =>

@@ -1,14 +1,12 @@
 """A user's categorisation and payee rules (requirements S2.7): loaded in order, applied to
 transactions on import and on demand, and to the merchant a receipt names."""
 
-import json
-
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
-from ... import clock
+from ... import tags
 from ...ledger import rules as match
-from ..entities.accounts import Category, Rule, Transaction, TransactionTag
+from ..entities.accounts import Category, Rule, Transaction
 
 
 def of_user(s: Session, user_id: str) -> list[Rule]:
@@ -67,8 +65,8 @@ class Rules:
             t.categoryId, changed = rule.categoryId, True
         if rule.payee and t.payee != rule.payee:
             t.payee, changed = rule.payee, True
-        for tag in json.loads(rule.tags or "[]"):
-            changed = self._tag(t, tag) or changed
+        for tag_id in self._rule_tags(rule.id):
+            changed = tags.add_on(self.s, "transaction", t.id, tag_id) or changed
         return changed
 
     def rename(self, payee: str | None) -> str | None:
@@ -93,16 +91,12 @@ class Rules:
             is not None
         )
 
-    def _tag(self, t: Transaction, tag: str) -> bool:
-        row = self.s.get(TransactionTag, (t.id, self.user_id, tag))
-        if row is not None and not row.deleted:
-            return False
-        if row is not None:
-            row.restore()
-        else:
-            self.s.add(
-                TransactionTag(
-                    transactionId=t.id, userId=self.user_id, tag=tag, createdAt=clock.now()
-                )
+    def _rule_tags(self, rule_id: str) -> list[str]:
+        """The tags a rule sets, its owner's (S2.7)."""
+        from ..entities.accounts import RuleTag
+
+        return list(
+            self.s.scalars(
+                select(RuleTag.tagId).where(RuleTag.ruleId == rule_id, RuleTag.deleted == false())
             )
-        return True
+        )

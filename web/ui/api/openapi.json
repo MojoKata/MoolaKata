@@ -16488,6 +16488,37 @@
         "title": "Page[SignupRow]",
         "type": "object"
       },
+      "Page_TagOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/moolakata__ui__tags__TagOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[TagOut]",
+        "type": "object"
+      },
       "Page_TokenOut_": {
         "properties": {
           "items": {
@@ -16883,7 +16914,7 @@
           },
           "deductions": {
             "items": {
-              "$ref": "#/components/schemas/TagOut"
+              "$ref": "#/components/schemas/moolakata__ui__taxpanels__TagOut"
             },
             "title": "Deductions",
             "type": "array"
@@ -19296,7 +19327,9 @@
               "symbol-invalid",
               "symbol-missing",
               "sync-account-missing",
-              "tag-too-long",
+              "tag-invalid",
+              "tag-taken",
+              "tag-unknown",
               "tagged",
               "tags-invalid",
               "target-invalid",
@@ -19725,7 +19758,9 @@
                   "symbol-invalid",
                   "symbol-missing",
                   "sync-account-missing",
-                  "tag-too-long",
+                  "tag-invalid",
+                  "tag-taken",
+                  "tag-unknown",
                   "tagged",
                   "tags-invalid",
                   "target-invalid",
@@ -20800,6 +20835,13 @@
             "title": "Suggested",
             "type": "object"
           },
+          "tagIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tagids",
+            "type": "array"
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -20842,6 +20884,7 @@
           "payee",
           "notes",
           "tags",
+          "tagIds",
           "links",
           "hasThumbnail",
           "readStatus",
@@ -20927,11 +20970,13 @@
             "default": null,
             "title": "Payee"
           },
-          "tags": {
+          "tagIds": {
             "items": {
-              "type": "string"
+              "pattern": "^Tag_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Tag"
             },
-            "title": "Tags",
+            "title": "Tagids",
             "type": "array",
             "uniqueItems": true
           }
@@ -21069,6 +21114,13 @@
             "title": "Size",
             "type": "integer"
           },
+          "tagIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tagids",
+            "type": "array"
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -21100,6 +21152,7 @@
           "payee",
           "notes",
           "tags",
+          "tagIds",
           "links",
           "hasThumbnail",
           "readStatus",
@@ -22676,6 +22729,13 @@
             "title": "Position",
             "type": "integer"
           },
+          "tagIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tagids",
+            "type": "array"
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -22703,6 +22763,7 @@
           "categoryDeleted",
           "payee",
           "tags",
+          "tagIds",
           "version"
         ],
         "title": "RuleOut",
@@ -22710,7 +22771,7 @@
       },
       "RuleRecord": {
         "additionalProperties": false,
-        "description": "A rule as a draft saves it (S2.7): a new one goes last in the list.",
+        "description": "A rule as a draft saves it (S2.7): a new one goes last in the list; the tags it sets\nare its owner's.",
         "properties": {
           "accountId": {
             "anyOf": [
@@ -22789,11 +22850,13 @@
             "title": "Payeematch",
             "type": "string"
           },
-          "tags": {
+          "tagIds": {
             "items": {
-              "type": "string"
+              "pattern": "^Tag_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Tag"
             },
-            "title": "Tags",
+            "title": "Tagids",
             "type": "array",
             "uniqueItems": true
           }
@@ -25076,43 +25139,21 @@
         "title": "SyncedAccount",
         "type": "object"
       },
-      "TagOut": {
+      "TagRecord": {
         "additionalProperties": false,
+        "description": "A tag as a draft saves it: its name, lower case, once its owner's.",
         "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "label": {
-            "title": "Label",
+          "name": {
+            "title": "Name",
             "type": "string"
-          },
-          "tag": {
-            "title": "Tag",
-            "type": "string"
-          },
-          "total": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Total",
-            "type": "number"
-          },
-          "withReceipts": {
-            "title": "Withreceipts",
-            "type": "integer"
           }
         },
         "required": [
-          "tag",
-          "label",
-          "total",
-          "count",
-          "withReceipts"
+          "name"
         ],
-        "title": "TagOut",
-        "type": "object"
+        "title": "TagRecord",
+        "type": "object",
+        "x-entity": "Tag"
       },
       "TaxRow": {
         "additionalProperties": false,
@@ -26479,6 +26520,13 @@
             ],
             "title": "Symbol"
           },
+          "tagIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tagids",
+            "type": "array"
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -26544,6 +26592,7 @@
           "paidBack",
           "splits",
           "tags",
+          "tagIds",
           "receipts",
           "level",
           "version"
@@ -26786,11 +26835,13 @@
             "default": null,
             "title": "Symbol"
           },
-          "tags": {
+          "tagIds": {
             "items": {
-              "type": "string"
+              "pattern": "^Tag_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Tag"
             },
-            "title": "Tags",
+            "title": "Tagids",
             "type": "array",
             "uniqueItems": true
           }
@@ -29548,6 +29599,30 @@
         "title": "SecretSet",
         "type": "object"
       },
+      "moolakata__ui__tags__TagOut": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version"
+        ],
+        "title": "TagOut",
+        "type": "object"
+      },
       "moolakata__ui__taxes__DocumentIn": {
         "additionalProperties": false,
         "properties": {
@@ -29808,6 +29883,44 @@
           "collectable"
         ],
         "title": "RowOut",
+        "type": "object"
+      },
+      "moolakata__ui__taxpanels__TagOut": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          },
+          "total": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Total",
+            "type": "number"
+          },
+          "withReceipts": {
+            "title": "Withreceipts",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tag",
+          "label",
+          "total",
+          "count",
+          "withReceipts"
+        ],
+        "title": "TagOut",
         "type": "object"
       },
       "moolakata__ui__transactions__SplitOut": {
@@ -39877,6 +39990,59 @@
         "summary": "Roll",
         "tags": [
           "strategies"
+        ]
+      }
+    },
+    "/ui/api/tags": {
+      "get": {
+        "description": "The caller's own tags, by name.",
+        "operationId": "list_tags_ui_api_tags_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TagOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "List Tags",
+        "tags": [
+          "tags"
         ]
       }
     },

@@ -14,6 +14,7 @@ from ..links.changes import waiting
 from ..links.copy import CopyError
 from ..store.entities.links import Link, LinkedItem
 from ..store.entities.users import User
+from ..store.rows import by_key
 from .conventions import ExactRoute, Model
 from .deps import Caller, caller, server
 
@@ -178,7 +179,7 @@ def set_colour(link_id: str, body: Colour, request: Request, c: Caller = Depends
     srv = server(request)
     with srv.db.tx() as s:
         _state(srv, s, c, link_id)
-        row = s.get(LinkColour, (c.id, link_id))
+        row = by_key(s, LinkColour, userId=c.id, linkId=link_id)
         if row is None:
             s.add(
                 LinkColour(userId=c.id, linkId=link_id, colour=body.colour, createdAt=clock.now())

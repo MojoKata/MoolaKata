@@ -1,6 +1,7 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from ...ids import new_id
 from . import Record, SoftDeleted
 
 
@@ -35,10 +36,8 @@ class Share(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class CountedAccount(SoftDeleted):
+class CountedAccount(Record):
+    id: str = field(default_factory=lambda: new_id("CntAc"))
     userId: str
     accountId: str
-    createdAt: dt.datetime
     counted: bool = True
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None

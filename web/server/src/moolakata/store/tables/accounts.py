@@ -193,12 +193,16 @@ Rule = record(
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE")),
     Column("categoryId", Text, ForeignKey("Category.id")),
     Column("payee", Text),
-    Column("tags", Text, nullable=False, server_default=text("'[]'")),
     CheckConstraint("direction IN ('any', 'in', 'out')", name="direction"),
-    CheckConstraint(
-        "\"categoryId\" IS NOT NULL OR payee IS NOT NULL OR tags != '[]'", name="sets_something"
-    ),
     Index("ix_Rule_owner", "ownerId", "position"),
+)
+
+# The tags a rule sets on what it matches, its owner's (Tag).
+RuleTags = pairs(
+    "RuleTags",
+    Column("ruleId", Text, ForeignKey("Rule.id", ondelete="CASCADE"), nullable=False),
+    Column("tagId", Text, ForeignKey("Tag.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("ruleId", "tagId"),
 )
 
 # What statement import has learned of one institution's layout (S1.3.3): which section
@@ -325,12 +329,23 @@ Reimbursement = record(
     Index("ix_Reimbursement_paybackId", "paybackId"),
 )
 
+# A user's own tag (S2.6): its name, lower case, once a user; transactions, receipts and the
+# tags a rule sets refer to it, so a rename reaches them all.
+Tag = record(
+    "Tag",
+    "Tag",
+    Column("ownerId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
+    Column("name", Text, nullable=False),
+)
+unique_live(Tag, "ownerId", "name")
+
+# A transaction tagged: each tag its owner's, so each person sees only their own (S2.6).
 TransactionTags = pairs(
     "TransactionTags",
     Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
-    Column("userId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
-    Column("tag", Text, nullable=False),
-    PrimaryKeyConstraint("transactionId", "userId", "tag"),
+    Column("tagId", Text, ForeignKey("Tag.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("transactionId", "tagId"),
+    Index("ix_TransactionTags_tag", "tagId"),
 )
 
 Lot = record(
@@ -347,13 +362,14 @@ Lot = record(
     Index("ix_Lot_account_instrument", "accountId", "instrumentId"),
 )
 
-LotPicks = pairs(
-    "LotPicks",
+LotPick = record(
+    "LotPick",
+    "LotPk",
     Column("saleId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("lotId", Text, ForeignKey("Lot.id", ondelete="CASCADE"), nullable=False),
     Column("quantity", Dec, nullable=False),
-    PrimaryKeyConstraint("saleId", "lotId"),
 )
+unique_live(LotPick, "saleId", "lotId")
 
 Holding = record(
     "Holding",

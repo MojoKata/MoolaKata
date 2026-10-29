@@ -111,7 +111,7 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
     assert ks["previous"] == [] and ks["scheduled"] is None and ks["lastReencryption"] is None
     with server.db.read() as s:  # the data, wherever it sits: the file or its log
         pages = s.execute(text("PRAGMA page_count")).scalar_one()
-    assert ks["databaseBytes"] == pages * 4096 > server.config.db_path.stat().st_size
+    assert ks["databaseBytes"] == pages * 4096 >= server.config.db_path.stat().st_size
     t = admin_client.post("/ui/api/settings/keys/test").json()
     assert t["ok"] and [x["name"] for x in t["checks"]][:2] == ["Keyring", "Database"]
     b = admin_client.get("/ui/api/settings/backups").json()

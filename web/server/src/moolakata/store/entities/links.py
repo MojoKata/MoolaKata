@@ -2,7 +2,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from ...ids import new_id
-from . import Record, SoftDeleted
+from . import Record
 
 
 @dataclass(kw_only=True, eq=False)
@@ -80,10 +80,8 @@ class LinkFile:
 
 
 @dataclass(kw_only=True, eq=False)
-class LinkColour(SoftDeleted):
+class LinkColour(Record):
+    id: str = field(default_factory=lambda: new_id("LkCol"))
     userId: str
     linkId: str
     colour: str
-    createdAt: dt.datetime
-    deletedAt: dt.datetime | None = None
-    deletedById: str | None = None

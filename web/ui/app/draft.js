@@ -723,8 +723,16 @@ export class Draft {
       seen.add(r.id);
       if (r.state === 'new') {
         for (const [name, spec] of Object.entries(r.cls.fields)) {
-          const to = spec.type === 'ref' ? byId.get(r.get(name)) : undefined;
-          if (to && to.state === 'new') visit(to);
+          // A reference, or a list of them (a transaction's tags).
+          const refs = spec.type === 'ref'
+            ? [r.get(name)]
+            : spec.type === 'list' && spec.items?.type === 'ref'
+            ? r.get(name) || []
+            : [];
+          for (const id of refs) {
+            const to = byId.get(id);
+            if (to && to.state === 'new') visit(to);
+          }
         }
       }
       out.push(r);

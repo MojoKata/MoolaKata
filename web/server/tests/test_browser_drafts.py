@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
-from edits import edit, save_settings
+from edits import change, edit, save_settings, saved
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -890,5 +890,30 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
     assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "none"
+    assert problems == []
+    page.close()
+
+
+def test_tags_typed_are_made_with_the_save_and_a_rename_reaches_them(browser, household):
+    h = household
+    path = f"/ui/accounts/{h.checking['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Grand Hotel")')
+    page.click('button.linklike:has-text("Grand Hotel")')
+    wait(page, "#f-tags", problems)
+    page.fill("#f-tags", "Travel, work trip")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    t = next(
+        x
+        for x in h.c.get("/ui/api/transactions", params={"account": h.checking["id"]}).json()[
+            "items"
+        ]
+        if x["payee"] == "Grand Hotel"
+    )
+    assert t["tags"] == ["travel", "work trip"]
+    mine = {x["name"]: x for x in h.c.get("/ui/api/tags").json()["items"]}
+    saved(change(h.c, "Tag", mine["work trip"], name="conference"))
+    t = h.c.get(f"/ui/api/transactions/{t['id']}").json()
+    assert t["tags"] == ["conference", "travel"]
     assert problems == []
     page.close()

@@ -11,6 +11,7 @@ from ..errors import Problem, refuse
 from ..store.entities.accounts import Account
 from ..store.entities.sharing import CountedAccount, Share
 from ..store.entities.users import Group, User, UserGroup
+from ..store.rows import by_key
 from . import save
 from .conventions import ExactRoute, IdOf, Model
 from .deps import Caller, caller, recent_auth, server
@@ -426,7 +427,7 @@ def set_counted(account_id: str, body: Counted, request: Request, c: Caller = De
             raise Problem(
                 409, "owner-counts", "Your own accounts count by their Count in net worth setting."
             )
-        row = s.get(CountedAccount, (c.id, a.id))
+        row = by_key(s, CountedAccount, userId=c.id, accountId=a.id)
         if row is None:
             s.add(
                 CountedAccount(

@@ -30,8 +30,9 @@ Budget = record(
     Index("ix_Budget_ownerId", "ownerId"),
 )
 
-BudgetAccounts = pairs(
-    "BudgetAccounts",
+BudgetAccount = record(
+    "BudgetAccount",
+    "BdgAc",
     Column("budgetId", Text, ForeignKey("Budget.id", ondelete="CASCADE"), nullable=False),
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
     # Where money comes from (S7.1.6): for an account reserves are held in, the account to move
@@ -39,8 +40,8 @@ BudgetAccounts = pairs(
     # worked out when not set.
     Column("movedFromId", Text, ForeignKey("Account.id")),
     Column("paidFromId", Text, ForeignKey("Account.id")),
-    PrimaryKeyConstraint("budgetId", "accountId"),
 )
+unique_live(BudgetAccount, "budgetId", "accountId")
 
 # One category's plan from a month on. A change to the plan starts a new line from the month
 # it is made in, so past months keep the plan they had.
