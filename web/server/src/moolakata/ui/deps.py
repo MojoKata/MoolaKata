@@ -59,7 +59,7 @@ def _resolve(request: Request, allow_setup: bool, touch: bool) -> Caller:
             elif gone:
                 sessions.end_all(s, row.userId)
             else:
-                live = s.get(Session, row.tokenHash)
+                live = sessions.by_hash(s, row.tokenHash)
                 if live is not None and rotate:
                     # A change of privilege: a new token; the old one never works again.
                     new = sessions.rotate(s, live, admin, user.needsSetup)

@@ -306,9 +306,14 @@ def _issue(s: Db, user: User, purpose: str, lifetime: dt.timedelta, data: str | 
     return token
 
 
+def token_by_hash(s: Db, token_hash: str) -> OneTimeToken | None:
+    """The one-time token its hash names: the token itself is never stored."""
+    return s.scalars(select(OneTimeToken).where(OneTimeToken.tokenHash == token_hash)).first()
+
+
 def _take(s: Db, token: str, purpose: str) -> OneTimeToken:
     """A token is used once: found, checked and removed."""
-    row = s.get(OneTimeToken, digest(token or ""))
+    row = token_by_hash(s, digest(token or ""))
     if row is None or row.purpose != purpose or row.expiresAt <= now():
         if row is not None and row.expiresAt <= now():
             s.delete(row)
@@ -317,7 +322,7 @@ def _take(s: Db, token: str, purpose: str) -> OneTimeToken:
 
 
 def peek_invitation(s: Db, token: str) -> User:
-    row = s.get(OneTimeToken, digest(token or ""))
+    row = token_by_hash(s, digest(token or ""))
     if row is None or row.purpose != "invitation" or row.expiresAt <= now():
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
     return s.get(User, row.userId)

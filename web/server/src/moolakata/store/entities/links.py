@@ -1,6 +1,7 @@
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from ...ids import new_id
 from . import Record, SoftDeleted
 
 
@@ -59,6 +60,7 @@ class LinkedItem:
 
 @dataclass(kw_only=True, eq=False)
 class LinkSent:
+    id: str = field(default_factory=lambda: new_id("LkSnt"))
     linkId: str
     itemId: str
     path: str
@@ -68,6 +70,7 @@ class LinkSent:
 
 @dataclass(kw_only=True, eq=False)
 class LinkFile:
+    id: str = field(default_factory=lambda: new_id("LkFil"))
     linkId: str
     fileId: str
     missedAt: dt.datetime

@@ -78,6 +78,7 @@ The prefixes of the tables that exist.
 |--------|------------------|-------------------------------------------------------------------------------------------------------|
 | Acct   | Account          | One place money is held, owned by one user, with an account type.                                     |
 | Actv   | Activity         | A change worth showing: who made it and what it is about, never an amount.                            |
+| AlSt   | AlertState       | One person's state of an alert: when they saw it, dismissed it, were emailed it.                      |
 | Alert  | Alert            | Something that needs a user's attention, one per cause, open until the cause clears.                  |
 | Anchr  | Anchor           | A balance the institution reported on a date, that the account's balance is checked against.          |
 | Asmpt  | AssumptionSet    | A user's expected returns, volatility and inflation for projections.                                  |
@@ -106,24 +107,30 @@ The prefixes of the tables that exist.
 | Item   | Item             | A physical asset: metals, a collectable, a property or a vehicle, with how it is valued.              |
 | LItem  | LinkedItem       | An item a link brings in, as the main database knows it: kind, owner and who it names.                |
 | Link   | Link             | A link with another MoolaKata server: its state, address and key.                                     |
+| LkFil  | LinkFile         | A receipt file a linked server's change named that hasn't reached the copy yet.                       |
+| LkSnt  | LinkSent         | What this server last sent a linked server of a shared item, as a hash: a cache.                      |
 | Loan   | Loan             | A loan account's terms: principal, rate, term, escrow, PMI, resets and recasts.                       |
 | Lot    | Lot              | One acquisition of an instrument, and what remains open.                                              |
 | Lyout  | StatementLayout  | What statement import learned of an institution's layout: section signs, lines to skip.               |
 | Map    | ImportMapping    | A saved column mapping for one institution's CSV files.                                               |
+| OTTkn  | OneTimeToken     | An emailed link's token, as its hash: an invitation, a reset, an email change.                        |
 | Occsn  | Occasion         | A dated occasion in a gift plan: an anniversary, a holiday, a custom date.                            |
 | OptCt  | OptionContract   | An option's contract: underlying, call or put, strike, expiry, multiplier, root and deliverable.      |
 | Orgzn  | Organisation     | An organisation given to: its EIN, whether gifts to it are deductible, causes, pledges.               |
 | Persn  | Person           | Someone in the household's life: every user, and people who never sign in.                            |
 | Portf  | Portfolio        | A named set of accounts, or parts of them, charted as one.                                            |
+| Price  | Price            | One instrument's close on one market day, from a source, kept for ever.                               |
 | Prjct  | Projection       | How money will grow toward a goal; an active one is tracked against its baseline.                     |
 | Pyoff  | PayoffPlan       | A saved overpayment plan for a loan; one may be the plan being followed.                              |
 | QExpn  | QualifiedExpense | A qualified education expense a 529's withdrawals are matched with.                                   |
+| RCode  | RecoveryCode     | A two-step recovery code, as its hash, usable once.                                                   |
 | Rcpt   | Receipt          | An uploaded file, encrypted on disk, with a date, an amount and what it is attached to.               |
 | Recon  | Reconciliation   | A statement's closing date and balance, ticked off against the transactions.                          |
 | Rltn   | Relationship     | A dated link between two people: spouse, couple, child, friend, colleague, family.                    |
 | Rmbrs  | Reimbursement    | A deposit paired with reimbursable spending: how much of it pays that spending back.                 |
 | Rule   | Rule             | One of a user's categorisation and payee rules: what a transaction matches and what the rule sets.    |
 | Secr   | Secret           | A secret sealed on its own: an API key, a password or a private key.                                  |
+| Sessn  | Session          | A signed-in browser's session, its token kept as a hash.                                              |
 | Setng  | Setting          | One setting an admin saved, by its key; a key with none stands at its default.                        |
 | Sgnup  | SignupRequest    | A person's request for an account, from confirming the email to an admin's decision.                  |
 | Share  | Share            | A grant of an account or portfolio to a user, group or linked server.                                 |
@@ -137,6 +144,7 @@ The prefixes of the tables that exist.
 | TxDep  | TaxBookDependent | A person a tax book's filers claim for the year: how claimed, months lived with them, student.        |
 | TxDoc  | TaxDocument      | A tax document received (W-2, 1099) or filed (a return, a notice), with its file.                     |
 | Txn    | Transaction      | One dated movement in an account.                                                                     |
+| TyPrc  | TypedPrice       | A price a user typed for an instrument on a day: it values their own accounts only.                   |
 | User   | User             | A person who signs in here, or a user of a linked server (with `linkId`).                             |
 | Valtn  | ItemValuation    | A dated value of an item, with its source.                                                            |
 | WAddr  | WalletAddress    | An address a bitcoin wallet watches, typed or derived from its key; worked out again.                 |

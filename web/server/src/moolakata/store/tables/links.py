@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     PrimaryKeyConstraint,
     Text,
+    UniqueConstraint,
     text,
 )
 
@@ -109,7 +110,8 @@ LinkSent = exception(
     Column("path", Text, nullable=False),  # the item's own row is "", its documents their path
     Column("viewer", Text, nullable=False),  # the peer's user id
     Column("hash", Text, nullable=False),
-    PrimaryKeyConstraint("linkId", "itemId", "path", "viewer"),
+    UniqueConstraint("linkId", "itemId", "path", "viewer"),
+    prefix="LkSnt",
 )
 
 # A receipt a change named that hasn't reached the copy yet (S11.4): asked for again at each
@@ -124,7 +126,8 @@ LinkFile = exception(
     Column("tries", Integer, nullable=False, server_default=text("0")),
     Column("missedAt", UtcTimestamp, nullable=False),
     Column("error", Text),  # why the last try failed, in this server's words
-    PrimaryKeyConstraint("linkId", "fileId"),
+    UniqueConstraint("linkId", "fileId"),
+    prefix="LkFil",
 )
 
 # The colour each user chose for a linked household's window (S12.10.3.2), from a fixed palette.

@@ -352,7 +352,14 @@ def type_price(instrument_id: str, body: TypedPrice, request: Request, c: Caller
         if inst is None or inst.deleted or not _held_writable(s, c.id, inst.id):
             raise Problem(404, "not-found", "Not found")
         # Its typer's alone: it values their own accounts, never another user's (S4.10).
-        row = s.get(Typed, (inst.id, c.id, body.date))
+        row = s.scalars(
+            select(Typed).where(
+                Typed.instrumentId == inst.id,
+                Typed.userId == c.id,
+                Typed.date == body.date,
+                Typed.deleted == false(),
+            )
+        ).first()
         if row is None:
             s.add(Typed(instrumentId=inst.id, userId=c.id, date=body.date, close=body.price))
         else:

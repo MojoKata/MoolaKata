@@ -16,6 +16,15 @@ from . import changes
 from .keys import unb64
 
 
+def _missing(s, link_id: str, file_id: str):
+    """The row saying a receipt's file hasn't reached the copy yet, if there is one."""
+    from ..store.entities.links import LinkFile
+
+    return s.scalars(
+        select(LinkFile).where(LinkFile.linkId == link_id, LinkFile.fileId == file_id)
+    ).first()
+
+
 def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = None) -> set[str]:
     """Take a change from the peer. Out of sequence, the next exchange asks for everything.
     `delivered`: the receipts the peer sent with it (their ids and the names they were kept
@@ -40,13 +49,11 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
         link = s.get(Link, link_id)
         now = clock.now()
         for fid in names:
-            row = s.get(LinkFile, (link_id, fid))
+            row = _missing(s, link_id, fid)
             if row is not None:
                 s.delete(row)
         for fid, why in failed.items():
-            row = s.get(LinkFile, (link_id, fid)) or LinkFile(
-                linkId=link_id, fileId=fid, missedAt=now
-            )
+            row = _missing(s, link_id, fid) or LinkFile(linkId=link_id, fileId=fid, missedAt=now)
             row.fileName, row.tries, row.error = None, row.tries + 1, why
             s.add(row)
         local = set(s.scalars(select(User.id).where(User.linkId.is_(None))))
@@ -212,9 +219,9 @@ def fetch_missing(srv, link_id: str, tried: set[str] = frozenset()) -> int:
     fetched, failed = fetch_files(srv, link_id, [r.fileId for r in rows])
     with srv.db.tx() as s:
         for fid, name in fetched.items():
-            s.get(LinkFile, (link_id, fid)).fileName = name
+            _missing(s, link_id, fid).fileName = name
         for fid, why in failed.items():
-            row = s.get(LinkFile, (link_id, fid))
+            row = _missing(s, link_id, fid)
             row.tries, row.error = row.tries + 1, why
     place_arrived(srv, link_id)
     return len(fetched)
@@ -257,7 +264,7 @@ def place_arrived(srv, link_id: str) -> int:
                 placed.append(r.fileId)
     with srv.db.tx() as s:
         for fid in placed:
-            row = s.get(LinkFile, (link_id, fid))
+            row = _missing(s, link_id, fid)
             if row is not None:
                 s.delete(row)
     return len(placed)
