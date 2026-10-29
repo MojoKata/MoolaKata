@@ -241,6 +241,10 @@ export const FIELDS = {
     saleFees: {"type": "money", "nullable": true},
     receiptIds: {"type": "list", "items": {"type": "ref", "prefix": "Rcpt"}, "set": true},
   },
+  LegIn: {
+    instrumentId: {"type": "text"},
+    quantity: {"type": "quantity", "nullable": true},
+  },
   LineIn: {
     budgetId: {"type": "ref", "prefix": "Bdgt"},
     categoryId: {"type": "ref", "prefix": "Cat"},
@@ -437,6 +441,9 @@ export const FIELDS = {
     owedBy: {"type": "text", "nullable": true},
   },
   StrategyRecord: {
+    accountId: {"type": "ref", "prefix": "Acct"},
+    legs: {"type": "list", "items": {"type": "json", "schema": "LegIn"}},
+    dismissed: {"type": "bool"},
     name: {"type": "text", "nullable": true},
     cashSecured: {"type": "bool"},
     marginRequirement: {"type": "money", "nullable": true},

@@ -13,7 +13,7 @@ import { Empty, Failed, Loading } from './bits.js';
 import { Dialog, openDialog } from './dialog.js';
 import { errAt, Field, FormError, Input, Select } from './fields.js';
 import { Record as Rec } from '../app/draft.js';
-import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
@@ -39,16 +39,19 @@ export function Strategies() {
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} lines=${4} />`;
-  const group = (/** @type {any} */ p, /** @type {boolean} */ dismiss) =>
+  // Grouped as proposed, or the proposal turned down: a strategy made, dismissed or not.
+  const group = (/** @type {any} */ p, /** @type {boolean} */ dismissed) =>
     act.run(() =>
-      api.post('/strategies', {
-        accountId: p.accountId,
-        legs: p.legs.map((/** @type {any} */ l) => ({
-          instrumentId: l.instrumentId,
-          ...(l.quantity ? { quantity: l.quantity } : {}),
-        })),
-        dismiss,
-      }).then(() => toast(dismiss ? 'Left as they are' : `Grouped as a ${p.shape.toLowerCase()}`))
+      saveNow((d) =>
+        d.add(StrategyRec, {
+          accountId: p.accountId,
+          legs: p.legs.map((/** @type {any} */ l) => ({
+            instrumentId: l.instrumentId,
+            quantity: l.quantity || null,
+          })),
+          dismissed,
+        })
+      ).then(() => toast(dismissed ? 'Left as they are' : `Grouped as a ${p.shape.toLowerCase()}`))
     ).catch((e) => toast(e.message));
   const roll = (/** @type {any} */ p, /** @type {boolean} */ keep) => {
     const st = v.strategies.find((/** @type {any} */ x) => x.id === p.strategyId);
@@ -350,6 +353,13 @@ class StrategyRec extends Rec {
   static prefix = 'Strat';
   /** @override */
   static fields = FIELDS.StrategyRecord;
+  /** @override */
+  static defaults = {
+    dismissed: false,
+    name: null,
+    cashSecured: false,
+    marginRequirement: null,
+  };
 }
 
 /** A strategy's name, cash-secured tick and margin, or undo it. @param {{ close: (v?: any) => void, x: any }} p */
@@ -406,13 +416,15 @@ function StrategyDialog({ close, x }) {
  */
 export function GroupButton({ rows, done }) {
   const act = useSubmit(async () => {
-    await api.post('/strategies', {
-      accountId: rows[0].accountId,
-      legs: rows.map((r) => ({
-        instrumentId: r.instrumentId,
-        ...(r.instrumentClass === 'option' ? {} : { quantity: r.quantity }),
-      })),
-    });
+    await saveNow((d) =>
+      d.add(StrategyRec, {
+        accountId: rows[0].accountId,
+        legs: rows.map((r) => ({
+          instrumentId: r.instrumentId,
+          quantity: r.instrumentClass === 'option' ? null : r.quantity,
+        })),
+      })
+    );
     toast('Grouped as a strategy');
     done();
   });

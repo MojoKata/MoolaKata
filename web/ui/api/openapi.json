@@ -13874,45 +13874,6 @@
         "title": "NewSource",
         "type": "object"
       },
-      "NewStrategy": {
-        "additionalProperties": false,
-        "properties": {
-          "accountId": {
-            "title": "Accountid",
-            "type": "string"
-          },
-          "dismiss": {
-            "default": false,
-            "title": "Dismiss",
-            "type": "boolean"
-          },
-          "legs": {
-            "items": {
-              "$ref": "#/components/schemas/LegIn"
-            },
-            "minItems": 1,
-            "title": "Legs",
-            "type": "array"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          }
-        },
-        "required": [
-          "accountId",
-          "legs"
-        ],
-        "title": "NewStrategy",
-        "type": "object"
-      },
       "NewToken": {
         "additionalProperties": false,
         "properties": {
@@ -18997,6 +18958,7 @@
               "leg-grouped",
               "leg-not-held",
               "legs-differ",
+              "legs-missing",
               "legs-twice",
               "limit-invalid",
               "line-fixed",
@@ -19191,7 +19153,7 @@
               "statement-kept-already",
               "statements-off",
               "status-invalid",
-              "strategy-grouped",
+              "strategy-fixed",
               "strike-invalid",
               "symbol-invalid",
               "symbol-missing",
@@ -19440,6 +19402,7 @@
                   "leg-grouped",
                   "leg-not-held",
                   "legs-differ",
+                  "legs-missing",
                   "legs-twice",
                   "limit-invalid",
                   "line-fixed",
@@ -19634,7 +19597,7 @@
                   "statement-kept-already",
                   "statements-off",
                   "status-invalid",
-                  "strategy-grouped",
+                  "strategy-fixed",
                   "strike-invalid",
                   "symbol-invalid",
                   "symbol-missing",
@@ -24728,12 +24691,30 @@
       },
       "StrategyRecord": {
         "additionalProperties": false,
-        "description": "A strategy as a draft saves it (S3.5): its name, cash-secured tick and margin; grouped\nfrom its legs, and undone by deleting it, its legs standing on their own again.",
+        "description": "A strategy as a draft saves it (S3.5): grouped from legs held in its account, by hand or\nas proposed, or a proposal turned down (`dismissed`, kept so it isn't proposed again); then\nits name, cash-secured tick and margin. Undone by deleting it, its legs standing on their\nown again.",
         "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
           "cashSecured": {
             "default": false,
             "title": "Cashsecured",
             "type": "boolean"
+          },
+          "dismissed": {
+            "default": false,
+            "title": "Dismissed",
+            "type": "boolean"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/LegIn"
+            },
+            "title": "Legs",
+            "type": "array"
           },
           "marginRequirement": {
             "anyOf": [
@@ -24764,6 +24745,9 @@
             "title": "Name"
           }
         },
+        "required": [
+          "accountId"
+        ],
         "title": "StrategyRecord",
         "type": "object",
         "x-entity": "Strat"
@@ -39399,52 +39383,6 @@
         "summary": "Signup Confirm",
         "tags": [
           "session"
-        ]
-      }
-    },
-    "/ui/api/strategies": {
-      "post": {
-        "description": "Group legs by hand or as proposed, or turn a proposal down.",
-        "operationId": "group_ui_api_strategies_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewStrategy"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StrategiesView"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Group",
-        "tags": [
-          "strategies"
         ]
       }
     },

@@ -16,7 +16,7 @@ from ..options import strategies as strat
 from ..store.entities.accounts import Instrument, Strategy, StrategyLeg
 from ..store.repos import ledger as repo
 from . import save
-from .conventions import ExactRoute, Model, Money, Quantity, Ratio
+from .conventions import ExactRoute, IdOf, Model, Money, Quantity, Ratio
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["strategies"])
@@ -180,13 +180,6 @@ class LegIn(Model):
     quantity: Quantity | None = None  # shares, for a stock leg
 
 
-class NewStrategy(Model):
-    accountId: str
-    legs: list[LegIn] = Field(min_length=1)
-    name: str | None = None
-    dismiss: bool = False  # a proposal turned down: kept so it isn't made again
-
-
 def _check_legs(s, account, legs: list[LegIn]) -> tuple[str, dt.date]:
     """The legs are held in the account, all on one underlying; their underlying and the day
     the earliest opened."""
@@ -210,74 +203,28 @@ def _check_legs(s, account, legs: list[LegIn]) -> tuple[str, dt.date]:
     return under, first or clock.today()
 
 
-@router.post("/strategies", response_model=StrategiesView, status_code=201)
-def group(body: NewStrategy, request: Request, c: Caller = Depends(caller)):
-    """Group legs by hand or as proposed, or turn a proposal down."""
-    with server(request).db.tx() as s:
-        a, level = access.account(s, c.id, body.accountId, "write")
-        if len({x.instrumentId for x in body.legs}) != len(body.legs):
-            raise refuse("legs", "legs-twice", "Each leg once.")
-        if not body.dismiss:
-            taken = {
-                r.instrumentId
-                for st in strat.of_account(s, a.id)
-                for r in strat.legs_of(s, st)
-                if contract_of(s, r.instrumentId) is not None
-            }
-            if any(x.instrumentId in taken for x in body.legs):
-                raise refuse("legs", "leg-grouped", "A leg is already in a strategy.")
-        under, opened = _check_legs(s, a, body.legs)
-        st = Strategy(
-            id=ids.new_id("Strat"),
-            accountId=a.id,
-            underlyingId=under,
-            openedOn=opened,
-            name=(body.name or "").strip()[:80] or None,
-            dismissed=body.dismiss,
-        )
-        s.add(st)
-        s.flush()
-        for x in body.legs:
-            s.add(
-                StrategyLeg(
-                    strategyId=st.id,
-                    instrumentId=x.instrumentId,
-                    quantity=x.quantity,
-                    addedOn=opened,
-                    createdAt=clock.now(),
-                )
-            )
-        s.flush()
-        if not body.dismiss:
-            activity.record(
-                s,
-                "strategy.grouped",
-                actor=c.id,
-                subject_kind="account",
-                subject_id=a.id,
-                owner=a.ownerId,
-            )
-        views, props = account_view(s, a, level)
-        return StrategiesView(strategies=views, proposals=props)
-
-
 class Rolled(Model):
     roll: list[LegIn] = Field(default_factory=list)  # legs rolled into it
     declineRoll: list[str] = Field(default_factory=list)  # a roll's new legs turned down
 
 
 class StrategyRecord(Model):
-    """A strategy as a draft saves it (S3.5): its name, cash-secured tick and margin; grouped
-    from its legs, and undone by deleting it, its legs standing on their own again."""
+    """A strategy as a draft saves it (S3.5): grouped from legs held in its account, by hand or
+    as proposed, or a proposal turned down (`dismissed`, kept so it isn't proposed again); then
+    its name, cash-secured tick and margin. Undone by deleting it, its legs standing on their
+    own again."""
 
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    legs: list[LegIn] = Field(default_factory=list)
+    dismissed: bool = False
     name: str | None = None
     cashSecured: bool = False
     marginRequirement: Money | None = None
 
 
-def _own(s, c: Caller, strategy_id: str):
+def _own(s, c: Caller, strategy_id: str, dismissed: bool = False):
     st = s.get(Strategy, strategy_id)
-    if st is None or st.deleted or st.dismissed:
+    if st is None or st.deleted or (st.dismissed and not dismissed):
         raise Problem(404, "not-found", "Not found")
     a, level = access.account(s, c.id, st.accountId, "write")
     return st, a, level
@@ -327,10 +274,78 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
 
 
 def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
-    raise refuse(None, "strategy-grouped", "A strategy is grouped from the legs it holds.")
+    """Legs grouped by hand or as proposed, or a proposal turned down."""
+    s, c = ctx.s, ctx.caller
+    a, _ = access.account(s, c.id, body.accountId, "write")
+    if not body.legs:
+        raise refuse("legs", "legs-missing", "The legs it groups.")
+    if len({x.instrumentId for x in body.legs}) != len(body.legs):
+        raise refuse("legs", "legs-twice", "Each leg once.")
+    if not body.dismissed:
+        taken = {
+            r.instrumentId
+            for st in strat.of_account(s, a.id)
+            for r in strat.legs_of(s, st)
+            if contract_of(s, r.instrumentId) is not None
+        }
+        if any(x.instrumentId in taken for x in body.legs):
+            raise refuse("legs", "leg-grouped", "A leg is already in a strategy.")
+    under, opened = _check_legs(s, a, body.legs)
+    if body.marginRequirement is not None and body.marginRequirement < 0:
+        raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
+    st = Strategy(
+        id=record_id,
+        accountId=a.id,
+        underlyingId=under,
+        openedOn=opened,
+        name=(body.name or "").strip()[:80] or None,
+        cashSecured=body.cashSecured,
+        marginRequirement=body.marginRequirement,
+        dismissed=body.dismissed,
+    )
+    s.add(st)
+    s.flush()
+    for x in body.legs:
+        s.add(
+            StrategyLeg(
+                strategyId=st.id,
+                instrumentId=x.instrumentId,
+                quantity=x.quantity,
+                addedOn=opened,
+                createdAt=clock.now(),
+            )
+        )
+    s.flush()
+    if not body.dismissed:
+        activity.record(
+            s,
+            "strategy.grouped",
+            actor=c.id,
+            subject_kind="account",
+            subject_id=a.id,
+            owner=a.ownerId,
+        )
+
+
+def _strategy_current(ctx, st: Strategy) -> dict:
+    return {
+        "accountId": st.accountId,
+        "legs": [
+            LegIn(instrumentId=r.instrumentId, quantity=r.quantity)
+            for r in strat.legs_of(ctx.s, st)
+        ],
+        "dismissed": bool(st.dismissed),
+        "name": st.name,
+        "cashSecured": bool(st.cashSecured),
+        "marginRequirement": st.marginRequirement,
+    }
 
 
 def _strategy_update(ctx, st: Strategy, body: StrategyRecord) -> None:
+    current = _strategy_current(ctx, st)
+    for fixed in ("accountId", "legs", "dismissed"):
+        if getattr(body, fixed) != current[fixed]:
+            raise refuse(fixed, "strategy-fixed", "Its legs change by a roll; undo it to regroup.")
     if body.marginRequirement is not None and body.marginRequirement < 0:
         raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
     st.name = (body.name or "").strip()[:80] or None
@@ -340,7 +355,7 @@ def _strategy_update(ctx, st: Strategy, body: StrategyRecord) -> None:
 
 
 def _strategy_read(ctx, record_id: str) -> StrategyOut:
-    st, a, level = _own(ctx.s, ctx.caller, record_id)
+    st, a, level = _own(ctx.s, ctx.caller, record_id, dismissed=True)
     book = strat.Book(ctx.s, repo.load(ctx.s, a))
     return _out(a, strat.view(book, st), level)
 
@@ -352,11 +367,7 @@ save.register(
         fields=StrategyRecord,
         create=_strategy_create,
         editable=lambda ctx, record_id: _own(ctx.s, ctx.caller, record_id)[0],
-        current=lambda ctx, st: {
-            "name": st.name,
-            "cashSecured": bool(st.cashSecured),
-            "marginRequirement": st.marginRequirement,
-        },
+        current=_strategy_current,
         update=_strategy_update,
         # Undone: its legs stand on their own again (S3.5.1).
         delete=lambda ctx, st: st.mark_deleted(ctx.caller.id),

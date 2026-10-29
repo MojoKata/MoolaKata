@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
-from edits import change, create, edit, save_settings, saved, terms
+from edits import change, create, edit, option_trade, save_settings, saved, terms
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -1036,5 +1036,33 @@ def test_a_corporate_action_is_a_record_its_transactions_made_from(browser, hous
     assert sorted(x["kind"] for x in items) == ["buy", "symbol-change", "symbol-change"]
     held = h.c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
     assert [x["symbol"] for x in held] == ["NEWCO"]
+    assert problems == []
+    page.close()
+
+
+def test_legs_proposed_together_are_grouped_or_turned_down_as_a_strategy(browser, household):
+    # S3.5: Group them makes a strategy of the proposal's legs; Not a strategy keeps the
+    # proposal turned down, so it isn't proposed again.
+    h = household
+    acct = made(h.c.post("/ui/api/accounts", json={"name": "Spreads", "type": "brokerage"}))
+    expiry = f"{int(months_back(0)[:4]) + 1}-03-19"
+    day = f"{months_back(0)}-01"
+    for sym, action, strike, premium in (
+        ("QQQ", "sell-to-open", "540", "2.00"), ("QQQ", "buy-to-open", "530", "1.20"),
+        ("IWM", "sell-to-open", "240", "2.00"), ("IWM", "buy-to-open", "230", "1.20"),
+    ):  # fmt: skip
+        saved(option_trade(h.c, acct["id"], day, action, sym, "put", strike, expiry, "1",
+                           premium))  # fmt: skip
+    page, problems = signed_in(
+        browser, h, "/ui/positions/strategies", 'button:has-text("Group them")'
+    )
+    page.locator('.notice:has-text("on QQQ")').locator('button:has-text("Group them")').click()
+    wait(page, '.toast:has-text("Grouped")', problems)
+    page.locator('.notice:has-text("on IWM")').locator('button:has-text("Not a strategy")').click()
+    wait(page, '.toast:has-text("Left as they are")', problems)
+    v = h.c.get("/ui/api/positions/strategies").json()
+    mine = [x for x in v["strategies"] if x["accountId"] == acct["id"]]
+    assert [x["underlying"] for x in mine] == ["QQQ"]
+    assert not [p for p in v["proposals"] if p["accountId"] == acct["id"]]
     assert problems == []
     page.close()
