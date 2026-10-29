@@ -122,6 +122,7 @@ def map_all() -> None:
         (asx.Improvement, assets.Improvement),
         (acc.Import, accounts.Import),
         (acc.Transaction, accounts.Transaction),
+        (acc.CorporateAction, accounts.CorporateAction),
         (acc.Split, accounts.Split),
         (acc.Reimbursement, accounts.Reimbursement),
         (acc.Lot, accounts.Lot),

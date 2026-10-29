@@ -1013,3 +1013,28 @@ def test_an_option_trade_is_saved_as_a_transaction_with_its_contract(browser, ho
     assert t["amount"] == 639.35, "100 × 6.40 less 0.65"
     assert problems == []
     page.close()
+
+
+def test_a_corporate_action_is_a_record_its_transactions_made_from(browser, household):
+    # S2.4: a symbol change typed in its dialog, its pair of transactions made from it.
+    h = household
+    acct = made(h.c.post("/ui/api/accounts", json={"name": "Renamed", "type": "brokerage"}))
+    saved(create(h.c, "Txn", accountId=acct["id"], date=f"{months_back(2)}-03", kind="buy",
+                 symbol="OLDCO", quantity="5", price="10", amount="-50.00"))  # fmt: skip
+    page, problems = signed_in(
+        browser, h, "/ui/positions/open", 'button:has-text("Corporate action")'
+    )
+    page.click('button:has-text("Corporate action")')
+    wait(page, "#f-holding", problems)
+    page.select_option("#f-holding", label="OLDCO in Renamed")
+    page.select_option("#f-action", "symbol-change")
+    wait(page, "#f-new-symbol", problems)
+    page.fill("#f-new-symbol", "NEWCO")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    items = h.c.get("/ui/api/transactions", params={"account": acct["id"]}).json()["items"]
+    assert sorted(x["kind"] for x in items) == ["buy", "symbol-change", "symbol-change"]
+    held = h.c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
+    assert [x["symbol"] for x in held] == ["NEWCO"]
+    assert problems == []
+    page.close()

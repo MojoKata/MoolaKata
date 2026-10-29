@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, remove
+from edits import change, create, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -162,9 +162,8 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, alice):
 
 
 def _ca(c, acct, inst_id, **body):
-    r = c.post(f"/ui/api/accounts/{acct}/corporate-actions", json={"instrumentId": inst_id} | body)
-    assert r.status_code == 201, r.text
-    return r.json()
+    """The corporate action, recorded through the save, its transactions with it."""
+    return saved(create(c, "CorpA", accountId=acct, instrumentId=inst_id, **body))
 
 
 def _lots(server, acct):
@@ -241,20 +240,20 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, alice):
     _ca(alice, a, held["TWTR"], kind="merger", date="2026-10-13", cashPerShare="54.20")
     lots, disposals = _lots(server, a)
     assert "TWTR" not in lots and disposals[0].proceeds == Decimal("2710.00")
-    _, new = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    action = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    _, new = action["transactions"]
     r = remove(alice, "Txn", new)
     assert r.status_code == 200, r.text
     lots, _ = _lots(server, a)
     assert "FB" in lots and "META" not in lots
-    r = alice.post(
-        f"/ui/api/accounts/{a}/corporate-actions",
-        json={
-            "instrumentId": held["FB"],
-            "kind": "spin-off",
-            "date": "2026-06-09",
-            "newSymbol": "X",
-            "ratio": "1",
-            "basisShare": "150",
-        },
-    )
+    r = remove(alice, "CorpA", action)
+    assert r.status_code == 404, "the action went with its transaction"
+    # Deleting the action undoes it, its transactions with it.
+    action = _ca(alice, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    assert "META" in _lots(server, a)[0]
+    assert remove(alice, "CorpA", action).status_code == 200
+    lots, _ = _lots(server, a)
+    assert "FB" in lots and "META" not in lots
+    r = create(alice, "CorpA", accountId=a, instrumentId=held["FB"], kind="spin-off",
+               date="2026-06-09", newSymbol="X", ratio="1", basisShare="150")  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "basisShare"

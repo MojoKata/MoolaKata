@@ -234,6 +234,25 @@ Import = record(
     Index("ix_Import_accountId", "accountId"),
 )
 
+# A corporate action on a holding (S2.4): a split, a symbol change, a spin-off or a merger, as
+# typed; the transactions that reshape or move its lots are made from it, and go with it.
+CorporateAction = record(
+    "CorporateAction",
+    "CorpA",
+    Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
+    Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("date", Day, nullable=False),
+    Column("ratio", Dec),  # new shares for each one held
+    Column("newSymbol", Text),
+    Column("basisShare", Dec),  # a spin-off: the percent of basis that moves
+    Column("cashPerShare", Cents),  # a merger's cash for each share held
+    Column("newPrice", Dec),  # a new share's price that day, for a merger's cash
+    Column("createdById", Text, ForeignKey("User.id")),
+    _in("kind", ("split", "symbol-change", "spin-off", "merger"), "kind"),
+    Index("ix_CorporateAction_accountId", "accountId"),
+)
+
 Transaction = record(
     "Transaction",
     "Txn",
@@ -279,6 +298,8 @@ Transaction = record(
     # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
     Column("reimbursable", Cents),
     Column("owedBy", Text),
+    # The corporate action it was made from (S2.4), deleted with it.
+    Column("corporateActionId", Text, ForeignKey("CorporateAction.id")),
     _in("kind", TXN_KINDS, "kind"),
     CheckConstraint(
         '"dividendType" IS NULL OR "dividendType" IN (\'ordinary\', '
@@ -298,6 +319,7 @@ Transaction = record(
         '"duplicateAnswer" IS NULL OR "duplicateAnswer" = \'both-real\'', name="duplicate_answer"
     ),
     Index("ix_Transaction_account_date", "accountId", "date"),
+    Index("ix_Transaction_corporateActionId", "corporateActionId"),
     Index("ix_Transaction_instrument", "instrumentId"),
 )
 unique_live(Transaction, "accountId", "fitId")

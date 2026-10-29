@@ -85,6 +85,17 @@ export const FIELDS = {
     contributor: {"type": "text"},
     fiveYear: {"type": "bool"},
   },
+  CorporateActionRecord: {
+    accountId: {"type": "ref", "prefix": "Acct"},
+    instrumentId: {"type": "ref", "prefix": "Instr"},
+    kind: {"type": "text"},
+    date: {"type": "date"},
+    ratio: {"type": "quantity", "nullable": true},
+    newSymbol: {"type": "text", "nullable": true},
+    basisShare: {"type": "quantity", "nullable": true},
+    cashPerShare: {"type": "money", "nullable": true},
+    newPrice: {"type": "quantity", "nullable": true},
+  },
   CountedRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
     counted: {"type": "bool"},

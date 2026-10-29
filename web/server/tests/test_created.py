@@ -21,7 +21,6 @@ READ_NOWHERE = [
     "/ui/api/settings/connector/pairings",
     "/ui/api/strategies",
     "/ui/api/accounts/{account_id}/options/{instrument_id}/settle",
-    "/ui/api/accounts/{account_id}/corporate-actions",
     "/ui/api/accounts/{account_id}/expenses",
     "/ui/api/reimbursements",
 ]
@@ -158,11 +157,6 @@ def calls(i: dict[str, str]):
             "alice",
             lambda made: {"account_id": brk, "instrument_id": made["option"]},
             {"how": "expired", "date": "2026-12-18"},
-        ),
-        "/ui/api/accounts/{account_id}/corporate-actions": (
-            "alice",
-            {"account_id": brk},
-            {"kind": "split", "date": day, "instrumentId": i["instrument"], "ratio": 2},
         ),
         "/ui/api/budgets": ("alice", None, {"name": "Home", "accountIds": [chk]}),
         "/ui/api/receipts": ("alice", None, "receipt"),

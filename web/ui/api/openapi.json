@@ -4470,9 +4470,16 @@
         "title": "CopyState",
         "type": "object"
       },
-      "CorporateAction": {
+      "CorporateActionRecord": {
         "additionalProperties": false,
+        "description": "A corporate action as its dialog's draft saves it (S2.4).",
         "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
           "basisShare": {
             "anyOf": [
               {
@@ -4486,6 +4493,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Basisshare"
           },
           "cashPerShare": {
@@ -4501,6 +4509,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Cashpershare"
           },
           "date": {
@@ -4509,8 +4518,10 @@
             "type": "string"
           },
           "instrumentId": {
+            "pattern": "^Instr_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
             "title": "Instrumentid",
-            "type": "string"
+            "type": "string",
+            "x-prefix": "Instr"
           },
           "kind": {
             "title": "Kind",
@@ -4529,6 +4540,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Newprice"
           },
           "newSymbol": {
@@ -4540,6 +4552,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Newsymbol"
           },
           "ratio": {
@@ -4555,16 +4568,19 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Ratio"
           }
         },
         "required": [
+          "accountId",
+          "instrumentId",
           "kind",
-          "date",
-          "instrumentId"
+          "date"
         ],
-        "title": "CorporateAction",
-        "type": "object"
+        "title": "CorporateActionRecord",
+        "type": "object",
+        "x-entity": "CorpA"
       },
       "CountedRecord": {
         "additionalProperties": false,
@@ -18839,6 +18855,7 @@
               "account-not-counted",
               "account-unknown",
               "accounts-unknown",
+              "action-fixed",
               "admin-exists",
               "admins-only",
               "already-joined",
@@ -19281,6 +19298,7 @@
                   "account-not-counted",
                   "account-unknown",
                   "accounts-unknown",
+                  "action-fixed",
                   "admin-exists",
                   "admins-only",
                   "already-joined",
@@ -30201,77 +30219,6 @@
         "summary": "Add Contribution",
         "tags": [
           "education"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/corporate-actions": {
-      "post": {
-        "description": "A split, symbol change, spin-off or merger: lots reshaped or moved, never sold and\nbought again; a merger's cash is a gain only as far as the gain goes.",
-        "operationId": "corporate_action_ui_api_accounts__account_id__corporate_actions_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirm",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CorporateAction"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TxnOut"
-                  },
-                  "title": "Response Corporate Action Ui Api Accounts  Account Id  Corporate Actions Post",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Corporate Action",
-        "tags": [
-          "options"
         ]
       }
     },

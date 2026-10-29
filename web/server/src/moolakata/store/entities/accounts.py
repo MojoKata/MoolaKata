@@ -130,6 +130,22 @@ class Transaction(Record):
     offChainKeptAt: dt.datetime | None = None
     reimbursable: Decimal | None = None
     owedBy: str | None = None
+    corporateActionId: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
+class CorporateAction(Record):
+    id: str
+    accountId: str
+    instrumentId: str
+    kind: str
+    date: dt.date
+    ratio: Decimal | None = None
+    newSymbol: str | None = None
+    basisShare: Decimal | None = None
+    cashPerShare: Decimal | None = None
+    newPrice: Decimal | None = None
+    createdById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

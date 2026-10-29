@@ -17,6 +17,7 @@ from ..ledger import types as atypes
 from ..store.entities.accounts import (
     Account,
     Category,
+    CorporateAction,
     Instrument,
     Lot,
     LotPick,
@@ -772,9 +773,9 @@ def _changed(s: Session, c: Caller, a: Account, fields: list[str]) -> None:
         )
 
 
-def _remove(s: Session, c: Caller, t: Transaction, a: Account) -> None:
+def delete_txn(s: Session, c: Caller, t: Transaction, a: Account) -> None:
     """A transaction deleted, with what goes with it: an assignment's stock trades, a split's
-    or a corporate action's adjustments undone."""
+    or a corporate action's adjustments undone, the action it was made from."""
     if t.kind in ("split", "option-adjust"):
         from ..options import adjust
 
@@ -783,6 +784,11 @@ def _remove(s: Session, c: Caller, t: Transaction, a: Account) -> None:
         from .. import corporate
 
         corporate.undo(s, c.id, t)
+    if t.corporateActionId:
+        # The action it was made from goes with it (S2.4).
+        action = s.get(CorporateAction, t.corporateActionId)
+        if action is not None and not action.deleted:
+            action.mark_deleted(c.id)
     end = s.get(Transaction, t.optionTransactionId) if t.optionTransactionId else None
     if end is not None and end.kind in ("assign", "exercise") and not end.deleted:
         raise refuse(
@@ -1308,7 +1314,7 @@ def _txn_delete(ctx, t: Transaction) -> None:
     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
     _reconciled(ctx, t)
     guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
-    _remove(ctx.s, ctx.caller, t, a)
+    delete_txn(ctx.s, ctx.caller, t, a)
     guard.check()
 
 
