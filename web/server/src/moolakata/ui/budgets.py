@@ -155,14 +155,6 @@ class WhereView(Model):
     cards: list[CardOut]
 
 
-class GiveIn(Model):
-    """Landed money given to a reserve, spread among those held there, or kept (S7.10.5)."""
-
-    transactionId: str
-    to: str  # a reserve's category id, "spread" or "own"
-    amount: Money
-
-
 class CopyIn(Model):
     name: str
     method: str  # tracking or envelope
@@ -1220,80 +1212,50 @@ def _card_month(s, a: Account, month: dt.date) -> dict:
     }
 
 
-@router.post("/budgets/{budget_id}/landed", response_model=WhereView)
-def give_landed(
-    budget_id: str,
-    body: GiveIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    month: str | None = None,
-):
-    """Landed money given to a reserve, spread among those held where it landed by balance,
-    or kept as the account's own (S7.10.5): moves the budget keeps, recorded in Activity."""
+def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
+    """Landed money given to a reserve held where it landed, or kept as the account's own
+    (S7.10.5): a move the budget keeps, of no more than is unassigned of it, in its month."""
     from ..budgets import reserves
 
-    with server(request).db.tx() as s:
-        b, _ = access.budget(s, c.id, budget_id, "write")
-        t = s.get(Transaction, body.transactionId)
-        accts = budgets.account_ids(s, b, c.id)
-        if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
-            raise refuse("transactionId", "not-found", "No such money landed.")
-        m = budgets.month_of(t.date)
-        tr = budgets.tree(s, b)
-        held = {
-            h.accountId: h
-            for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
-        }
-        h = held.get(t.accountId)
-        free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
-        if free is None and h and body.to == "own":
-            # A transfer in from the budget's accounts, kept as the account's own (S7.10.4).
-            free = next(
-                (x.free for x, kept in h.transfers if x.transactionId == t.id and not kept), None
-            )
-        if free is None or body.amount <= 0 or body.amount > free:
-            raise refuse("amount", "amount-invalid", "No more than is unassigned of it.")
-        if body.to == "own":
-            parts = [(None, body.amount)]
-        elif body.to == "spread":
-            weights = [(k, max(v, Decimal(0))) for k, v in h.reserves]
-            total = sum((w for _, w in weights), Decimal(0)) or Decimal(len(weights))
-            parts, left = [], body.amount
-            for i, (k, w) in enumerate(weights):
-                share = (
-                    left
-                    if i == len(weights) - 1
-                    else (body.amount * (w if total else 1) / total).quantize(Decimal("0.01"))
-                )
-                parts.append((k, share))
-                left -= share
-        elif body.to in {k for k, _ in h.reserves}:
-            parts = [(body.to, body.amount)]
-        else:
-            raise refuse("to", "reserve-unknown", "One of the reserves held there.")
-        for cat, amount in parts:
-            if amount > 0:
-                s.add(
-                    BudgetMove(
-                        id=ids.new_id("BdgMv"),
-                        budgetId=b.id,
-                        month=m,
-                        toCategoryId=cat,
-                        amount=amount,
-                        transactionId=t.id,
-                        createdById=c.id,
-                    )
-                )
-        activity.record(
-            s,
-            "budget.landed",
-            actor=c.id,
-            subject_kind="budget",
-            subject_id=b.id,
-            owner=b.ownerId,
+    t = s.get(Transaction, body.transactionId)
+    accts = budgets.account_ids(s, b, c.id)
+    if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
+        raise refuse("transactionId", "not-found", "No such money landed.")
+    if body.fromCategoryId is not None or body.cardId is not None:
+        raise refuse("fromCategoryId", "move-invalid", "Landed money comes from where it landed.")
+    m = budgets.month_of(t.date)
+    tr = budgets.tree(s, b)
+    held = {
+        h.accountId: h
+        for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+    }
+    h = held.get(t.accountId)
+    own = body.toCategoryId is None
+    free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
+    if free is None and h and own:
+        # A transfer in from the budget's accounts, kept as the account's own (S7.10.4).
+        free = next(
+            (x.free for x, kept in h.transfers if x.transactionId == t.id and not kept), None
         )
-        s.flush()
-    return where(budget_id, request, c, month or m.isoformat()[:7])
+    if free is None or body.amount <= 0 or body.amount > free:
+        raise refuse("amount", "amount-invalid", "No more than is unassigned of it.")
+    if not own and body.toCategoryId not in {k for k, _ in h.reserves}:
+        raise refuse("toCategoryId", "reserve-unknown", "One of the reserves held there.")
+    mv = BudgetMove(
+        id=move_id,
+        budgetId=b.id,
+        month=m,
+        toCategoryId=body.toCategoryId,
+        amount=body.amount,
+        transactionId=t.id,
+        createdById=c.id,
+    )
+    s.add(mv)
+    s.flush()
+    activity.record(
+        s, "budget.landed", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
+    )
+    return mv
 
 
 @router.post("/budgets/{budget_id}/active", response_model=BudgetRow)
@@ -1718,9 +1680,12 @@ class BudgetRecord(Model):
 
 
 class MoveRecord(MoveIn):
-    """A move as a draft makes it (S7.11): made, or deleted to undo it."""
+    """A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
+    landed money given to a reserve held where it landed, or to no category: kept as the
+    account's own (S7.10.5); its month is the transaction's."""
 
     budgetId: IdOf("Bdgt")  # type: ignore[valid-type]
+    transactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
 
 
 def _budget_create(ctx, record_id: str, body: BudgetRecord) -> None:
@@ -1781,7 +1746,10 @@ def _budget_read(ctx, record_id: str) -> BudgetRow:
 
 def _move_create(ctx, record_id: str, body: MoveRecord) -> None:
     b, _ = access.budget(ctx.s, ctx.caller.id, body.budgetId, "write")
-    _move(ctx.s, ctx.caller, b, body, record_id)
+    if body.transactionId:
+        _give_landed(ctx.s, ctx.caller, b, body, record_id)
+    else:
+        _move(ctx.s, ctx.caller, b, body, record_id)
 
 
 def _move_editable(ctx, record_id: str) -> BudgetMove:

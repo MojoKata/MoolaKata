@@ -926,13 +926,17 @@ function WhereMoneyIs({ b, month }) {
     return html`<${Empty}>No reserve is held in an account, and no card is among the budget's
       accounts. Give a reserve an account it's held in with <b>Edit plan</b>.</${Empty}>`;
   }
+  // A transfer in kept as the account's own: a move to no category (S7.10.4).
   const keepOwn = async (/** @type {any} */ x) => {
     try {
-      await api.post(`/budgets/${b.id}/landed`, {
-        transactionId: x.transactionId,
-        to: 'own',
-        amount: String(x.amount),
-      }, { params: { month } });
+      await saveNow((d) =>
+        d.add(LandedRec, {
+          budgetId: b.id,
+          month: x.date,
+          transactionId: x.transactionId,
+          amount: String(x.amount),
+        })
+      );
       toast("Kept as the account's own");
       res.reload();
     } catch (e) {
@@ -940,7 +944,7 @@ function WhereMoneyIs({ b, month }) {
     }
   };
   const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
-    openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
+    openDialog(AssignDialog, { b, h, landed: x }).then((y) => y && res.reload());
   return html`
     <div class="grid g2">${w.heldIn.map((/** @type {any} */ h) =>
       html`
@@ -1055,45 +1059,106 @@ function WhereMoneyIs({ b, month }) {
 }
 
 /**
- * Landed money given to the reserves held where it landed, or kept as the account's own
- * (S7.10.5).
- * @param {{ close: (v?: any) => void, b: any, h: any, landed: any, month: string }} p
+ * Landed money given as a move (S7.10.5): to a reserve held where it landed, or to no
+ * category, kept as the account's own. Its month is the transaction's.
  */
-function AssignDialog({ close, b, h, landed, month }) {
-  useDialogGuide('dialog-assign');
-  const [to, setTo] = useState('spread');
-  const [amount, setAmount] = useState(String(landed.free));
-  const save = useSubmit(async () => {
-    await api.post(`/budgets/${b.id}/landed`, {
-      transactionId: landed.transactionId,
-      to,
-      amount: amount.replace(/[$,\s]/g, ''),
-    }, { params: { month } });
-    toast('Assigned');
-    close(true);
+class LandedRec extends Record {
+  /** @override */
+  static prefix = 'BdgMv';
+  /** @override */
+  static fields = FIELDS.MoveRecord;
+  /** @override */
+  static defaults = { fromCategoryId: null, toCategoryId: null, cardId: null, note: null };
+}
+
+/**
+ * An amount spread among reserves by their balances, the last taking what rounding leaves;
+ * evenly when none has a balance.
+ * @param {string} amount @param {any[]} reserves @returns {string[]}
+ */
+function spreadByBalance(amount, reserves) {
+  const weights = reserves.map((r) => (dec(r.balance).gt(0) ? dec(r.balance) : dec(0)));
+  const total = Dec.sum(weights);
+  let left = dec(amount);
+  return reserves.map((_, i) => {
+    if (i === reserves.length - 1) return String(left);
+    const share = total.isZero()
+      ? dec(amount).div(reserves.length, 2)
+      : dec(amount).mul(weights[i]).div(total, 2);
+    left = left.sub(share);
+    return String(share);
   });
+}
+
+/** Whether a line gives nothing: empty, or zero. @param {any} v */
+const nothing = (v) => {
+  try {
+    return v == null || v === '' || dec(v).isZero();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Landed money given to the reserves held where it landed, a line each, or kept as the
+ * account's own (S7.10.5): a move for each line given something, saved together.
+ * @param {{ close: (v?: any) => void, b: any, h: any, landed: any }} p
+ */
+function AssignDialog({ close, b, h, landed }) {
+  useDialogGuide('dialog-assign');
+  const free = String(landed.free);
+  const f = useDraft((draft) => {
+    const base = { budgetId: b.id, month: landed.date, transactionId: landed.transactionId };
+    const shares = spreadByBalance(free, h.reserves);
+    h.reserves.forEach((/** @type {any} */ r, /** @type {number} */ i) =>
+      draft.add(LandedRec, { ...base, toCategoryId: r.categoryId, amount: shares[i] })
+    );
+    draft.add(LandedRec, { ...base, toCategoryId: null, amount: '0' });
+  }, [landed.transactionId]);
+  const lines = /** @type {LandedRec[]} */ (f.draft?.records || []);
+  const spread = () => {
+    const shares = spreadByBalance(free, h.reserves);
+    lines.forEach((r, i) => r.set('amount', i < shares.length ? shares[i] : '0'));
+  };
+  // A line given nothing makes no move.
+  const before = () => {
+    for (const r of lines) {
+      if (nothing(r.get('amount'))) {
+        if (!r.removed) f.draft?.remove(r);
+      } else if (r.removed) f.draft?.unremove(r);
+    }
+    if (lines.every((r) => r.removed)) return false;
+  };
+  let given = dec(0);
+  for (const r of lines) {
+    try {
+      given = given.add(dec(r.get('amount') || 0));
+    } catch { /* typed, not yet a number */ }
+  }
   return html`
-    <${Dialog} title="Assign landed money" close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Assign</button>`}>
-      <p
-        style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
-          .accountName} on ${date(
-            landed.date,
-          )}. In the budget it counts as it always does; this says
-        whose it is.</p>
-      <${Field} label="Give it to" error=${errAt(save.error, 'to')}>
-        <${Select} value=${to} onChange=${setTo} options=${[
-          ['spread', 'Spread among the reserves held here, by balance'],
-          ...h.reserves.map((/** @type {any} */ r) => [r.categoryId, r.label]),
-          ['own', "Keep it as the account's own"],
-        ]} />
-        </${Field}>
-        <${Field} label="Amount to assign" error=${errAt(save.error, 'amount')}>
-          <${Input} value=${amount} onInput=${setAmount} inputmode="decimal" required />
-          </${Field}>
-          <${FormError} error=${save.error} shown=${['to', 'amount']} />
-          </${Dialog}>
+    <${DraftDialog} f=${f} title="Assign landed money" close=${close} what="This assignment"
+      label="Assign" done="Assigned" before=${before}>
+      <p style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
+        .accountName} on ${date(landed.date)}. In the budget it counts as it always does; this
+        says whose it is.</p>
+      ${lines.length
+        ? html`
+          ${h.reserves.map((/** @type {any} */ r, /** @type {number} */ i) =>
+            html`
+              <${RecField} rec=${lines[i]} name="amount" label=${r.label}
+                id=${'assign-' + r.categoryId} help="reserve" />
+            `
+          )}
+          <${RecField} rec=${lines[lines.length - 1]} name="amount"
+            label="Kept as the account's own" id="assign-own" help="own" />
+          <div
+            class="toolbar"><span class="small dim">${money(String(given))} of ${money(
+              free,
+            )} given; the rest stays unassigned.</span><span class="spacer"></span><button
+            type="button" class="btn sm" onClick=${spread}>Spread by balance</button></div>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 

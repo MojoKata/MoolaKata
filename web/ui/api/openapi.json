@@ -7933,35 +7933,6 @@
         "title": "GiftYearOut",
         "type": "object"
       },
-      "GiveIn": {
-        "additionalProperties": false,
-        "description": "Landed money given to a reserve, spread among those held there, or kept (S7.10.5).",
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "to": {
-            "title": "To",
-            "type": "string"
-          },
-          "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "transactionId",
-          "to",
-          "amount"
-        ],
-        "title": "GiveIn",
-        "type": "object"
-      },
       "GivingOut": {
         "additionalProperties": false,
         "properties": {
@@ -13307,7 +13278,7 @@
       },
       "MoveRecord": {
         "additionalProperties": false,
-        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it.",
+        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,\nlanded money given to a reserve held where it landed, or to no category: kept as the\naccount's own (S7.10.5); its month is the transaction's.",
         "properties": {
           "amount": {
             "examples": [
@@ -13375,6 +13346,20 @@
             ],
             "default": null,
             "title": "Tocategoryid"
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Txn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transactionid"
           }
         },
         "required": [
@@ -32104,71 +32089,6 @@
           }
         },
         "summary": "Estimate",
-        "tags": [
-          "budgets"
-        ]
-      }
-    },
-    "/ui/api/budgets/{budget_id}/landed": {
-      "post": {
-        "description": "Landed money given to a reserve, spread among those held where it landed by balance,\nor kept as the account's own (S7.10.5): moves the budget keeps, recorded in Activity.",
-        "operationId": "give_landed_ui_api_budgets__budget_id__landed_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "month",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Month"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GiveIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WhereView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Give Landed",
         "tags": [
           "budgets"
         ]

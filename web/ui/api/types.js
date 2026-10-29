@@ -1354,14 +1354,6 @@
  */
 
 /**
- * Landed money given to a reserve, spread among those held there, or kept (S7.10.5).
- * @typedef {Object} GiveIn
- * @property {string} transactionId
- * @property {string} to
- * @property {import('../app/dec.js').Dec} amount
- */
-
-/**
  * @typedef {Object} GivingOut
  * @property {Array<DonationRow>} deductible
  * @property {Array<DonationRow>} apart
@@ -2189,7 +2181,9 @@
  */
 
 /**
- * A move as a draft makes it (S7.11): made, or deleted to undo it.
+ * A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
+ * landed money given to a reserve held where it landed, or to no category: kept as the
+ * account's own (S7.10.5); its month is the transaction's.
  * @typedef {Object} MoveRecord
  * @property {string} month
  * @property {(string | null)} [fromCategoryId]
@@ -2198,6 +2192,7 @@
  * @property {import('../app/dec.js').Dec} amount
  * @property {(string | null)} [note]
  * @property {string} budgetId
+ * @property {(string | null)} [transactionId]
  */
 
 /**

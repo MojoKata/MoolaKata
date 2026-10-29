@@ -288,6 +288,7 @@ export const FIELDS = {
     amount: {"type": "money"},
     note: {"type": "text", "nullable": true},
     budgetId: {"type": "ref", "prefix": "Bdgt"},
+    transactionId: {"type": "ref", "prefix": "Txn", "nullable": true},
   },
   OccasionRecord: {
     giftPlanId: {"type": "ref", "prefix": "GfPln"},

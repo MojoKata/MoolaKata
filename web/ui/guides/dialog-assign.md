@@ -2,12 +2,13 @@
 
 Money that landed in an account reserves are held in, other than by a transfer from the budget's
 accounts. In the budget it counts as it always does, interest as income; this says whose it is.
+All of it, or part: what no line takes stays unassigned.
 
-## Give it to
+## A reserve's line {#reserve}
 
-One reserve held there, all of them by their balances, or the account's own: savings that aren't
-the reserves'.
+What goes to each reserve held there. The lines start spread among the reserves by their
+balances; **Spread by balance** spreads it so again. Change any line, or empty it.
 
-## Amount to assign
+## Kept as the account's own {#own}
 
-All of it, or part; the rest stays unassigned.
+Savings that aren't the reserves'.
