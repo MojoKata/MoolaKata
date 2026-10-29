@@ -6,6 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -186,3 +187,21 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
         assert path.exists()
         assert retention.prune_files(s, server.config.receipts_dir, [a], a.ownerId) > 0
     assert not path.exists()
+
+
+def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_client):
+    make_user(server, "alice")
+    alice = sign_in(server, "alice")
+    food = next(
+        x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
+    )
+    r = change(alice, "Cat", food, keepReceiptsYears=7)
+    assert r.status_code == 403 and r.json()["errors"][0]["field"] == "keepReceiptsYears"
+    r = change(admin_client, "Cat", food, keepReceiptsYears=0)
+    assert r.json()["errors"][0]["code"] == "years-invalid"
+    assert saved(change(admin_client, "Cat", food, keepReceiptsYears=7))["keepReceiptsYears"] == 7
+    food = next(
+        x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
+    )
+    r = change(admin_client, "Cat", food, name="Eating")
+    assert r.json()["errors"][0]["code"] == "category-fixed"

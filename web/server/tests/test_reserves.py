@@ -26,9 +26,7 @@ def put_plan(c, b, month_, lines, confirm=False):
 
 
 def reserves_on(c, b):
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    r = c.patch(f"/ui/api/budgets/{b['id']}", json={"reserves": True}, headers={"If-Match": str(v)})
-    assert r.status_code == 200, r.text
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
 
 
 def test_a_reserve_puts_in_up_to_its_target_and_spending_takes_from_it(server, frozen):
@@ -87,13 +85,8 @@ def test_where_the_money_is(server, frozen):
     c, acct, cat, b = setup_budget(server)
     savings = new_account(c, name="Ally", type="savings", mask="2222")
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()
-    r = c.patch(
-        f"/ui/api/budgets/{b['id']}",
-        json={"reserves": True, "accountIds": [acct["id"], savings["id"], card["id"]]},
-        headers={"If-Match": str(v["version"])},
-    )
-    assert r.status_code == 200, r.text
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True,
+               accountIds=[acct["id"], savings["id"], card["id"]]))  # fmt: skip
     roof, repair = cat["Housing › Maintenance"], cat["Transportation › Car maintenance"]
     lines = [
         {"categoryId": roof, "amount": "150", "target": "5000", "heldInId": savings["id"]},

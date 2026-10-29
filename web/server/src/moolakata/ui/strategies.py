@@ -15,7 +15,8 @@ from ..options import contract_of
 from ..options import strategies as strat
 from ..store.entities.accounts import Instrument, Strategy, StrategyLeg
 from ..store.repos import ledger as repo
-from .conventions import Deleted, ExactRoute, Model, Money, Quantity, Ratio, check, gone, if_match
+from . import save
+from .conventions import ExactRoute, Model, Money, Quantity, Ratio
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["strategies"])
@@ -260,12 +261,18 @@ def group(body: NewStrategy, request: Request, c: Caller = Depends(caller)):
         return StrategiesView(strategies=views, proposals=props)
 
 
-class StrategyChange(Model):
-    name: str | None = None
-    cashSecured: bool | None = None
-    marginRequirement: Money | None = None
+class Rolled(Model):
     roll: list[LegIn] = Field(default_factory=list)  # legs rolled into it
     declineRoll: list[str] = Field(default_factory=list)  # a roll's new legs turned down
+
+
+class StrategyRecord(Model):
+    """A strategy as a draft saves it (S3.5): its name, cash-secured tick and margin; grouped
+    from its legs, and undone by deleting it, its legs standing on their own again."""
+
+    name: str | None = None
+    cashSecured: bool = False
+    marginRequirement: Money | None = None
 
 
 def _own(s, c: Caller, strategy_id: str):
@@ -276,26 +283,11 @@ def _own(s, c: Caller, strategy_id: str):
     return st, a, level
 
 
-@router.patch("/strategies/{strategy_id}", response_model=StrategyOut)
-def change(
-    strategy_id: str,
-    body: StrategyChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    sent = body.model_fields_set
+@router.post("/strategies/{strategy_id}/roll", response_model=StrategyOut)
+def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(caller)):
+    """A roll proposed for it taken in, or turned down so it isn't offered again (S3.5.3)."""
     with server(request).db.tx() as s:
         st, a, level = _own(s, c, strategy_id)
-        check(st, version, {"id": st.id, "version": st.version})
-        if "name" in sent:
-            st.name = (body.name or "").strip()[:80] or None
-        if "cashSecured" in sent and body.cashSecured is not None:
-            st.cashSecured = body.cashSecured
-        if "marginRequirement" in sent:
-            if body.marginRequirement is not None and body.marginRequirement < 0:
-                raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
-            st.marginRequirement = body.marginRequirement
         have = {r.instrumentId for r in strat.legs_of(s, st)}
         today = clock.today()
         for x in body.roll:
@@ -334,17 +326,40 @@ def change(
         return _out(a, strat.view(book, st), level)
 
 
-@router.delete("/strategies/{strategy_id}", response_model=Deleted[None])
-def undo(
-    strategy_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """The group undone: its legs stand on their own again (S3.5.1)."""
-    with server(request).db.tx() as s:
-        st, _, _ = _own(s, c, strategy_id)
-        check(st, version, {"id": st.id, "version": st.version})
-        st.mark_deleted(c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(st))
+def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
+    raise refuse(None, "strategy-grouped", "A strategy is grouped from the legs it holds.")
+
+
+def _strategy_update(ctx, st: Strategy, body: StrategyRecord) -> None:
+    if body.marginRequirement is not None and body.marginRequirement < 0:
+        raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
+    st.name = (body.name or "").strip()[:80] or None
+    st.cashSecured = body.cashSecured
+    st.marginRequirement = body.marginRequirement
+    st.updatedAt = clock.now()
+
+
+def _strategy_read(ctx, record_id: str) -> StrategyOut:
+    st, a, level = _own(ctx.s, ctx.caller, record_id)
+    book = strat.Book(ctx.s, repo.load(ctx.s, a))
+    return _out(a, strat.view(book, st), level)
+
+
+save.register(
+    save.Kind(
+        prefix="Strat",
+        entity=Strategy,
+        fields=StrategyRecord,
+        create=_strategy_create,
+        editable=lambda ctx, record_id: _own(ctx.s, ctx.caller, record_id)[0],
+        current=lambda ctx, st: {
+            "name": st.name,
+            "cashSecured": bool(st.cashSecured),
+            "marginRequirement": st.marginRequirement,
+        },
+        update=_strategy_update,
+        # Undone: its legs stand on their own again (S3.5.1).
+        delete=lambda ctx, st: st.mark_deleted(ctx.caller.id),
+        read=_strategy_read,
+    )
+)

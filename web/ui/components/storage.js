@@ -12,6 +12,9 @@ import { Dialog, openDialog } from './dialog.js';
 import { errAt, Field, FormError, Input } from './fields.js';
 import { useDialogGuide } from './help.js';
 import { toast } from './toast.js';
+import { Record } from '../app/draft.js';
+import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 
 const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 
@@ -239,34 +242,33 @@ function CategoryPeriods({ reload }) {
   `;
 }
 
+/** A category (S2.5), as its dialog's draft edits how long its receipts are kept. */
+class CategoryRec extends Record {
+  /** @override */
+  static prefix = 'Cat';
+  /** @override */
+  static fields = FIELDS.CategoryRecord;
+}
+
 /** @param {{ close: (v?: any) => void, c: any, cats: any[] }} p */
 function CategoryDialog({ close, c }) {
   useDialogGuide('dialog-category');
-  const [years, setYears] = useState(
-    c.keepReceiptsYears == null ? '' : String(c.keepReceiptsYears),
-  );
-  const save = useSubmit(async () => {
-    const out = await api.patch(
-      `/categories/${c.id}`,
-      { keepReceiptsYears: years ? Number(years) : null },
-      c.version,
-    );
-    toast('Saved');
-    close(out);
-  });
-  const n = Number(years);
+  const f = useDraft((draft) => {
+    draft.load(CategoryRec, c);
+  }, [c.id]);
+  const rec = /** @type {CategoryRec | undefined} */ (f.draft?.records[0]);
+  const years = rec?.get('keepReceiptsYears');
   return html`
-    <${Dialog} title=${c.path} close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Keep receipts for" id="keep-receipts-years"
-        error=${errAt(save.error, 'keepReceiptsYears')}
-        hint=${years && n < 7
-          ? html`<b>Under 7 years:</b> 7 covers every IRS audit window.`
-          : 'Years after the record a receipt is attached to ended. Empty keeps them for ever, or as its parent says.'}>
-        <${Input} value=${years} onInput=${setYears} inputmode="numeric" placeholder="for ever" />
-        </${Field}>
-        <${FormError} error=${save.error} shown=${['keepReceiptsYears']} />
-        </${Dialog}>
+    <${DraftDialog} f=${f} title=${c.path} close=${close} what="This category" done="Saved">
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="keepReceiptsYears" label="Keep receipts for"
+            id="keep-receipts-years" placeholder="for ever" hint=${years != null && years < 7
+              ? html`<b>Under 7 years:</b> 7 covers every IRS audit window.`
+              : 'Years after the record a receipt is attached to ended. Empty keeps them for ever, or as its parent says.'} />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 

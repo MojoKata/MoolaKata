@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
+from edits import edit
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -93,6 +94,11 @@ def home(h: Household) -> dict:
     return h.c.get(f"/ui/api/items/{h.extra['home']['id']}").json()
 
 
+def budget_of(h: Household) -> dict:
+    """The budget as read: its accounts, options and roles."""
+    return h.c.get(f"/ui/api/budgets/{h.budget['id']}").json()
+
+
 FORMS = [
     Form(
         "the plan, tracking with reserves and moves",
@@ -109,6 +115,13 @@ FORMS = [
         lambda h: plan_of(h, h.envelope),
     ),
     Form(
+        "a budget's settings, with its accounts and their roles",
+        lambda h: f"/ui/budgets/{h.budget['id']}/month",
+        'button:has-text("Settings")',
+        'button:has-text("Settings")',
+        budget_of,
+    ),
+    Form(
         "a transaction split, a part paid back (CR3-29)",
         lambda h: f"/ui/accounts/{h.checking['id']}/transactions",
         'button.linklike:has-text("Grand Hotel")',
@@ -121,6 +134,13 @@ FORMS = [
         'button.linklike:has-text("transfer-in VTI")',
         'button.linklike:has-text("transfer-in VTI")',
         holding,
+    ),
+    Form(
+        "a portfolio of a brokerage account on a 60/40 benchmark",
+        lambda h: f"/ui/portfolios/{h.extra['portfolio']['id']}/holdings",
+        'button:has-text("Edit")',
+        'button:has-text("Edit")',
+        lambda h: h.c.get(f"/ui/api/portfolios/{h.extra['portfolio']['id']}").json(),
     ),
     Form(
         "a gift plan with a graduation and a gift for it (CR3-43)",
@@ -263,12 +283,7 @@ def fresh_budget(h: Household, name: str) -> dict:
     """A budget of the test's own, so what it saves touches no other test: a reserve planned
     from two months back (it holds money now), and a line for dining out."""
     b = made(h.c.post("/ui/api/budgets", json={"name": name, "accountIds": [h.checking["id"]]}))
-    v = h.c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    made(
-        h.c.patch(
-            f"/ui/api/budgets/{b['id']}", json={"reserves": True}, headers={"If-Match": str(v)}
-        )
-    )
+    made(edit(h.c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
     b = h.c.get(f"/ui/api/budgets/{b['id']}").json()
     repair, dining = h.cats["Transportation › Car maintenance"], h.cats["Food › Dining out"]
     lines = [{"categoryId": repair, "amount": "100.00", "target": "1000.00"},

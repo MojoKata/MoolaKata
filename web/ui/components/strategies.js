@@ -11,7 +11,10 @@ import { Amt } from './amount.js';
 import { Dec, dec } from '../app/dec.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { Dialog, openDialog } from './dialog.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
+import { errAt, Field, FormError, Input, Select } from './fields.js';
+import { Record as Rec } from '../app/draft.js';
+import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
@@ -51,12 +54,11 @@ export function Strategies() {
     const st = v.strategies.find((/** @type {any} */ x) => x.id === p.strategyId);
     if (!st) return;
     act.run(() =>
-      api.patch(
-        `/strategies/${st.id}`,
+      api.post(
+        `/strategies/${st.id}/roll`,
         keep ? { roll: [{ instrumentId: p.legs[0].instrumentId }] } : {
           declineRoll: [p.legs[0].instrumentId],
         },
-        st.version,
       ).then(() => toast(keep ? 'Rolled into the strategy' : 'Left on its own'))
     ).catch((e) => toast(e.message));
   };
@@ -342,64 +344,59 @@ function AdjustDialog({ close }) {
   `;
 }
 
+/** A strategy (S3.5), as its dialog's draft edits it: deleted, it is ungrouped. */
+class StrategyRec extends Rec {
+  /** @override */
+  static prefix = 'Strat';
+  /** @override */
+  static fields = FIELDS.StrategyRecord;
+}
+
 /** A strategy's name, cash-secured tick and margin, or undo it. @param {{ close: (v?: any) => void, x: any }} p */
 function StrategyDialog({ close, x }) {
   useDialogGuide('dialog-strategy');
-  const [f, setF] = useState({
-    name: x.name === x.shape ? '' : x.name,
-    cashSecured: x.cashSecured,
-    margin: x.marginRequirement || '',
-  });
-  const save = useSubmit(async () => {
-    await api.patch(`/strategies/${x.id}`, {
-      name: f.name || null,
-      cashSecured: f.cashSecured,
-      marginRequirement: f.margin ? String(f.margin).replace(/[$,\s]/g, '') : null,
-    }, x.version);
-    toast('Saved');
-    close(true);
-  });
+  // Its name as given: none when it goes by its shape.
+  const f = useDraft((draft) => {
+    draft.load(StrategyRec, { ...x, name: x.name === x.shape ? null : x.name });
+  }, [x.id]);
+  const rec = /** @type {StrategyRec | undefined} */ (f.draft?.records[0]);
   const [armed, setArmed] = useState(false);
-  const undo = useSubmit(async () => {
-    if (!armed) return setArmed(true);
-    await api.del(`/strategies/${x.id}`, x.version);
-    toast('Ungrouped: the legs stand on their own');
-    close(true);
-  });
   const shortPut = x.legs.some((/** @type {any} */ l) =>
     l.kind === 'put' && dec(l.quantity).isNegative()
   );
   return html`
-    <${Dialog} title=${`${x.name} · ${x.underlying}`} close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`
-        <button type="button" class="btn danger" disabled=${undo.busy}
-          onClick=${() => undo.run().catch(() => {})}>${armed
-            ? 'Ungroup it?'
-            : 'Ungroup'}</button><span
-          class="spacer"></span><button class="btn primary" disabled=${save.busy}>Save</button>
-      `}>
-      <${Field} label="Name" id="strategy-name" hint=${`Empty: its shape, ${x.shape.toLowerCase()}.`}>
-        <${Input} value=${f.name} onInput=${(/** @type {string} */ v) => setF({ ...f, name: v })} />
-      </${Field}>
-      ${shortPut
+    <${DraftDialog} f=${f} title=${`${x.name} · ${x.underlying}`} close=${close}
+      what="This strategy"
+      done=${rec?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
+      extra=${({ save }) =>
+        html`
+          <button type="button" class="btn danger" disabled=${save.busy || !rec}
+            onClick=${async () => {
+              const draft = f.draft;
+              if (!armed || !rec || !draft) return setArmed(true);
+              draft.remove(rec);
+              const r = await save.run().catch(() => null);
+              if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
+            }}>${armed ? 'Ungroup it?' : 'Ungroup'}</button><span class="spacer"></span>
+        `}>
+      ${rec
         ? html`
-          <${SwitchRow} label="Cash-secured" hint="The cash to buy the shares is set aside."
-            on=${f.cashSecured} onChange=${(/** @type {boolean} */ v) =>
-              setF({ ...f, cashSecured: v })} />
+          <${RecField} rec=${rec} name="name" label="Name" id="strategy-name"
+            hint=${`Empty: its shape, ${x.shape.toLowerCase()}.`} />
+          ${shortPut
+            ? html`
+              <${RecField} rec=${rec} name="cashSecured" label="Cash-secured"
+                hint="The cash to buy the shares is set aside." />
+            `
+            : null}
+          <${RecField} rec=${rec} name="marginRequirement" label="Margin requirement"
+            id="margin-requirement" placeholder="unlimited"
+            hint="Your broker's, for a strategy whose loss has no limit: its capital at risk." />
+          <p class="small dim">Ungrouping leaves each leg as it is: its lots, gains and history
+            don't change.</p>
         `
         : null}
-      <${Field} label="Margin requirement" id="margin-requirement"
-        error=${errAt(save.error, 'marginRequirement')}
-        hint="Your broker's, for a strategy whose loss has no limit: its capital at risk.">
-        <${Input} value=${f.margin} onInput=${(/** @type {string} */ v) =>
-          setF({ ...f, margin: v })}
-          inputmode="decimal" placeholder="unlimited" />
-      </${Field}>
-      <p class="small dim">Ungrouping leaves each leg as it is: its lots, gains and history don't
-        change.</p>
-      <${FormError} error=${save.error || undo.error} shown=${['marginRequirement']} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 

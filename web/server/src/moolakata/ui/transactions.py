@@ -38,11 +38,10 @@ from .conventions import (
     Page,
     Paging,
     Quantity,
-    check,
     if_match,
     stale,
 )
-from .deps import Caller, admin, caller, server
+from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["transactions"])
 INSTRUMENT_KINDS = (
@@ -169,10 +168,6 @@ class CategoryOut(Model):
     path: str
     keepReceiptsYears: int | None  # its own; none: its parent's, or for ever (S14.10.1.1)
     version: int
-
-
-class CategoryChange(Model):
-    keepReceiptsYears: int | None = None
 
 
 class NewCategory(Model):
@@ -950,89 +945,122 @@ def list_categories(request: Request, c: Caller = Depends(caller)):
         )
 
 
-@router.patch("/categories/{category_id}", response_model=CategoryOut)
-def change_category(
-    category_id: str,
-    body: CategoryChange,
-    request: Request,
-    c: Caller = Depends(admin),
-    version: int = Depends(if_match),
-):
-    """How long receipts in it are kept after their record ended: an admin's, since it decides
-    what file pruning may remove (S14.10.1.1)."""
-    years = body.keepReceiptsYears
-    if years is not None and not 1 <= years <= 100:
-        raise refuse("keepReceiptsYears", "years-invalid", "A whole number of years from 1.")
-    with server(request).db.tx() as s:
-        cat = s.get(Category, category_id)
-        if cat is None or cat.deleted:
-            raise Problem(404, "not-found", "Not found")
-        check(cat, version, {"id": cat.id, "version": cat.version})
-        cat.keepReceiptsYears = years
-        cat.updatedAt = clock.now()
-        s.flush()
-        cats = list(s.scalars(select(Category).where(Category.deleted == false())))
-        return CategoryOut(
-            id=cat.id,
-            name=cat.name,
-            kind=cat.kind,
-            parentId=cat.parentId,
-            taxTag=cat.taxTag,
-            path=_paths(cats)[cat.id],
-            keepReceiptsYears=cat.keepReceiptsYears,
-            version=cat.version,
-        )
+def _category_out(s, cat: Category) -> CategoryOut:
+    paths = _paths(list(s.scalars(select(Category).where(Category.deleted == false()))))
+    return CategoryOut(
+        id=cat.id,
+        name=cat.name,
+        kind=cat.kind,
+        parentId=cat.parentId,
+        taxTag=cat.taxTag,
+        path=paths[cat.id],
+        keepReceiptsYears=cat.keepReceiptsYears,
+        version=cat.version,
+    )
 
 
-@router.post("/categories", response_model=CategoryOut, status_code=201)
-def create_category(body: NewCategory, request: Request, c: Caller = Depends(caller)):
+def _make_category(s, c: Caller, body: NewCategory, cat_id: str) -> Category:
     name = body.name.strip()
     if not name or len(name) > 60 or "›" in name:
         raise refuse("name", "name-invalid", "Enter a name of up to 60 characters.")
     if body.kind not in ("expense", "income", "savings", "transfer"):
         raise refuse("kind", "kind-invalid", "Expense, income, savings or transfer.")
-    with server(request).db.tx() as s:
-        if body.parentId:
-            parent = s.get(Category, body.parentId)
-            if parent is None or parent.deleted or parent.parentId:
-                raise refuse(
-                    "parentId",
-                    "parent-invalid",
-                    "Categories have two levels: choose a top-level one.",
-                )
-        same = s.scalars(
-            select(Category).where(
-                Category.deleted == false(),
-                func.lower(Category.name) == name.lower(),
-                Category.parentId.is_(body.parentId)
-                if body.parentId is None
-                else Category.parentId == body.parentId,
+    if body.parentId:
+        parent = s.get(Category, body.parentId)
+        if parent is None or parent.deleted or parent.parentId:
+            raise refuse(
+                "parentId",
+                "parent-invalid",
+                "Categories have two levels: choose a top-level one.",
             )
-        ).first()
-        if same:
-            raise refuse("name", "name-taken", "There is already a category with this name.")
-        cat = Category(
-            id=ids.new_id("Cat"),
-            name=name,
-            kind=body.kind,
-            parentId=body.parentId,
-            taxTag=body.taxTag,
-            createdById=c.id,
+    same = s.scalars(
+        select(Category).where(
+            Category.deleted == false(),
+            func.lower(Category.name) == name.lower(),
+            Category.parentId.is_(body.parentId)
+            if body.parentId is None
+            else Category.parentId == body.parentId,
         )
-        s.add(cat)
-        s.flush()
-        paths = _paths(list(s.scalars(select(Category).where(Category.deleted == false()))))
-        out = CategoryOut(
-            id=cat.id,
-            name=cat.name,
-            kind=cat.kind,
-            parentId=cat.parentId,
-            taxTag=cat.taxTag,
-            path=paths[cat.id],
-            keepReceiptsYears=None,
-            version=cat.version,
-        )
+    ).first()
+    if same:
+        raise refuse("name", "name-taken", "There is already a category with this name.")
+    cat = Category(
+        id=cat_id,
+        name=name,
+        kind=body.kind,
+        parentId=body.parentId,
+        taxTag=body.taxTag,
+        createdById=c.id,
+    )
+    s.add(cat)
+    s.flush()
+    return cat
+
+
+@router.post("/categories", response_model=CategoryOut, status_code=201)
+def create_category(body: NewCategory, request: Request, c: Caller = Depends(caller)):
+    with server(request).db.tx() as s:
+        out = _category_out(s, _make_category(s, c, body, ids.new_id("Cat")))
     return JSONResponse(out.model_dump(mode="json"), status_code=201)
+
+
+class CategoryRecord(NewCategory):
+    """A category as a draft saves it (S2.5): made with its name, kind and parent; afterwards
+    only how long receipts in it are kept, an admin's, since it decides what file pruning may
+    remove (S14.10.1.1)."""
+
+    keepReceiptsYears: int | None = None
+
+
+def _category_create(ctx, record_id: str, body: CategoryRecord) -> None:
+    cat = _make_category(ctx.s, ctx.caller, body, record_id)
+    if body.keepReceiptsYears is not None:
+        _category_update(ctx, cat, body)
+
+
+def _category_editable(ctx, record_id: str) -> Category:
+    cat = ctx.s.get(Category, record_id)
+    if cat is None or cat.deleted:
+        raise Problem(404, "not-found", "Not found")
+    return cat
+
+
+def _category_current(ctx, cat: Category) -> dict:
+    return {f: getattr(cat, f) for f in CategoryRecord.model_fields}
+
+
+def _category_update(ctx, cat: Category, body: CategoryRecord) -> None:
+    fixed = [f for f in NewCategory.model_fields if getattr(body, f) != getattr(cat, f)]
+    if fixed:
+        raise refuse(fixed[0], "category-fixed", "Only how long its receipts are kept changes.")
+    years = body.keepReceiptsYears
+    if years == cat.keepReceiptsYears:
+        return
+    if not ctx.caller.admin:
+        raise refuse("keepReceiptsYears", "admins-only", "Only admins can do this.", 403)
+    if years is not None and not 1 <= years <= 100:
+        raise refuse("keepReceiptsYears", "years-invalid", "A whole number of years from 1.")
+    cat.keepReceiptsYears = years
+    cat.updatedAt = clock.now()
+
+
+def _category_delete(ctx, cat: Category) -> None:
+    raise refuse(None, "category-kept", "A category stays: transactions and plans name it.")
+
+
+save.register(
+    save.Kind(
+        prefix="Cat",
+        entity=Category,
+        fields=CategoryRecord,
+        create=_category_create,
+        editable=_category_editable,
+        current=_category_current,
+        update=_category_update,
+        delete=_category_delete,
+        read=lambda ctx, record_id: _category_out(ctx.s, ctx.s.get(Category, record_id)),
+    )
+)
 
 
 @router.get("/instruments", response_model=list[InstrumentOut])

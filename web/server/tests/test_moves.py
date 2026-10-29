@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import change, saved
+from edits import change, edit, remove, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 
@@ -20,9 +20,7 @@ def frozen():
 
 
 def moves_on(c, b):
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    r = c.patch(f"/ui/api/budgets/{b['id']}", json={"moves": True}, headers={"If-Match": str(v)})
-    assert r.status_code == 200, r.text
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", moves=True))
 
 
 def move(c, b, **body):
@@ -69,10 +67,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
     )
     assert row(month(c, b, "2026-10"), "Childcare")["carried"] == "150.00"
     # Deleting a move undoes it.
-    r = c.delete(
-        f"/ui/api/budgets/{b['id']}/moves/{made['id']}", headers={"If-Match": str(made["version"])}
-    )
-    assert r.status_code == 200, r.text
+    saved(remove(c, "BdgMv", made))
     assert row(month(c, b, "2026-10"), "Food")["planned"] == "300.00"
     # To Budget is an envelope budget's alone.
     r = move(c, b, month="2026-10-01", toCategoryId=food, amount="10")

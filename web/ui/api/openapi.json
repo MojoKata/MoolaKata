@@ -2102,73 +2102,57 @@
         "title": "BudgetCard",
         "type": "object"
       },
-      "BudgetChange": {
+      "BudgetRecord": {
         "additionalProperties": false,
+        "description": "A budget as a draft saves it (S7.1): its method chosen when it is made; its accounts\nits owner's choice; its roles a card's paying account or where reserves' money moves from,\nchosen (none: as the history says).",
         "properties": {
           "accountIds": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
+            "items": {
+              "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Acct"
+            },
+            "title": "Accountids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "method": {
+            "default": "tracking",
+            "enum": [
+              "tracking",
+              "envelope"
             ],
-            "title": "Accountids"
+            "title": "Method",
+            "type": "string"
           },
           "moves": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Moves"
+            "default": false,
+            "title": "Moves",
+            "type": "boolean"
           },
           "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
+            "title": "Name",
+            "type": "string"
           },
           "reserves": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reserves"
+            "default": false,
+            "title": "Reserves",
+            "type": "boolean"
           },
           "roles": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/RoleIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Roles"
+            "items": {
+              "$ref": "#/components/schemas/RoleIn"
+            },
+            "title": "Roles",
+            "type": "array"
           }
         },
-        "title": "BudgetChange",
-        "type": "object"
+        "required": [
+          "name"
+        ],
+        "title": "BudgetRecord",
+        "type": "object",
+        "x-entity": "Bdgt"
       },
       "BudgetRow": {
         "additionalProperties": false,
@@ -2790,24 +2774,6 @@
         "title": "Categorise",
         "type": "object"
       },
-      "CategoryChange": {
-        "additionalProperties": false,
-        "properties": {
-          "keepReceiptsYears": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Keepreceiptsyears"
-          }
-        },
-        "title": "CategoryChange",
-        "type": "object"
-      },
       "CategoryOut": {
         "additionalProperties": false,
         "properties": {
@@ -2877,6 +2843,63 @@
         ],
         "title": "CategoryOut",
         "type": "object"
+      },
+      "CategoryRecord": {
+        "additionalProperties": false,
+        "description": "A category as a draft saves it (S2.5): made with its name, kind and parent; afterwards\nonly how long receipts in it are kept, an admin's, since it decides what file pruning may\nremove (S14.10.1.1).",
+        "properties": {
+          "keepReceiptsYears": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Keepreceiptsyears"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parentid"
+          },
+          "taxTag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Taxtag"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "CategoryRecord",
+        "type": "object",
+        "x-entity": "Cat"
       },
       "CategorySize": {
         "additionalProperties": false,
@@ -13003,6 +13026,87 @@
         "title": "MoveOut",
         "type": "object"
       },
+      "MoveRecord": {
+        "additionalProperties": false,
+        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "budgetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Budgetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "cardId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cardid"
+          },
+          "fromCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fromcategoryid"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "toCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tocategoryid"
+          }
+        },
+        "required": [
+          "month",
+          "amount",
+          "budgetId"
+        ],
+        "title": "MoveRecord",
+        "type": "object",
+        "x-entity": "BdgMv"
+      },
       "MovedRow": {
         "additionalProperties": false,
         "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2).",
@@ -16563,6 +16667,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Splitid"
           }
         },
@@ -16572,7 +16677,8 @@
           "amount"
         ],
         "title": "PairIn",
-        "type": "object"
+        "type": "object",
+        "x-entity": "Rmbrs"
       },
       "PairOut": {
         "additionalProperties": false,
@@ -18242,60 +18348,6 @@
         "title": "PlanView",
         "type": "object"
       },
-      "PortfolioChange": {
-        "additionalProperties": false,
-        "properties": {
-          "accountIds": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accountids"
-          },
-          "benchmark": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Benchmark"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          }
-        },
-        "title": "PortfolioChange",
-        "type": "object"
-      },
       "PortfolioHoldings": {
         "additionalProperties": false,
         "properties": {
@@ -18367,6 +18419,49 @@
         ],
         "title": "PortfolioHoldings",
         "type": "object"
+      },
+      "PortfolioRecord": {
+        "additionalProperties": false,
+        "description": "A portfolio as a draft saves it (S5.1): its accounts are its owner's choice.",
+        "properties": {
+          "accountIds": {
+            "items": {
+              "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+              "type": "string",
+              "x-prefix": "Acct"
+            },
+            "title": "Accountids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "benchmark": {
+            "default": "VT",
+            "title": "Benchmark",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PortfolioRecord",
+        "type": "object",
+        "x-entity": "Portf"
       },
       "PortfolioRow": {
         "additionalProperties": false,
@@ -18776,6 +18871,8 @@
               "card-unknown",
               "cash-invalid",
               "cash-missing",
+              "category-fixed",
+              "category-kept",
               "category-twice",
               "category-unknown",
               "choice-invalid",
@@ -18892,11 +18989,13 @@
               "margin-invalid",
               "mask-invalid",
               "metal-invalid",
+              "method-fixed",
               "method-invalid",
               "method-not-allowed",
               "month-earlier",
               "month-invalid",
               "months-invalid",
+              "move-fixed",
               "move-invalid",
               "moves-needed",
               "moves-off",
@@ -18955,6 +19054,7 @@
               "owner-counts",
               "owner-only",
               "owner-sees-it",
+              "pairing-fixed",
               "pairing-unconfirmed",
               "parent-invalid",
               "part-unknown",
@@ -19052,6 +19152,7 @@
               "statement-kept-already",
               "statements-off",
               "status-invalid",
+              "strategy-grouped",
               "strike-invalid",
               "symbol-invalid",
               "symbol-missing",
@@ -19178,6 +19279,8 @@
                   "card-unknown",
                   "cash-invalid",
                   "cash-missing",
+                  "category-fixed",
+                  "category-kept",
                   "category-twice",
                   "category-unknown",
                   "choice-invalid",
@@ -19294,11 +19397,13 @@
                   "margin-invalid",
                   "mask-invalid",
                   "metal-invalid",
+                  "method-fixed",
                   "method-invalid",
                   "method-not-allowed",
                   "month-earlier",
                   "month-invalid",
                   "months-invalid",
+                  "move-fixed",
                   "move-invalid",
                   "moves-needed",
                   "moves-off",
@@ -19357,6 +19462,7 @@
                   "owner-counts",
                   "owner-only",
                   "owner-sees-it",
+                  "pairing-fixed",
                   "pairing-unconfirmed",
                   "parent-invalid",
                   "part-unknown",
@@ -19454,6 +19560,7 @@
                   "statement-kept-already",
                   "statements-off",
                   "status-invalid",
+                  "strategy-grouped",
                   "strike-invalid",
                   "symbol-invalid",
                   "symbol-missing",
@@ -22076,6 +22183,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Movedfromid"
           },
           "paidFromId": {
@@ -22087,6 +22195,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Paidfromid"
           }
         },
@@ -22143,6 +22252,27 @@
           "movedFromProposed"
         ],
         "title": "RoleOut",
+        "type": "object"
+      },
+      "Rolled": {
+        "additionalProperties": false,
+        "properties": {
+          "declineRoll": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Declineroll",
+            "type": "array"
+          },
+          "roll": {
+            "items": {
+              "$ref": "#/components/schemas/LegIn"
+            },
+            "title": "Roll",
+            "type": "array"
+          }
+        },
+        "title": "Rolled",
         "type": "object"
       },
       "RolloverOut": {
@@ -22457,6 +22587,103 @@
         ],
         "title": "RuleOut",
         "type": "object"
+      },
+      "RuleRecord": {
+        "additionalProperties": false,
+        "description": "A rule as a draft saves it (S2.7): a new one goes last in the list.",
+        "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Accountid"
+          },
+          "amountMax": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amountmax"
+          },
+          "amountMin": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amountmin"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Categoryid"
+          },
+          "direction": {
+            "default": "any",
+            "title": "Direction",
+            "type": "string"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Payee"
+          },
+          "payeeMatch": {
+            "title": "Payeematch",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "payeeMatch"
+        ],
+        "title": "RuleRecord",
+        "type": "object",
+        "x-entity": "Rule"
       },
       "Sale": {
         "additionalProperties": false,
@@ -24075,64 +24302,6 @@
         "title": "StrategiesView",
         "type": "object"
       },
-      "StrategyChange": {
-        "additionalProperties": false,
-        "properties": {
-          "cashSecured": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cashsecured"
-          },
-          "declineRoll": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Declineroll",
-            "type": "array"
-          },
-          "marginRequirement": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Marginrequirement"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "roll": {
-            "items": {
-              "$ref": "#/components/schemas/LegIn"
-            },
-            "title": "Roll",
-            "type": "array"
-          }
-        },
-        "title": "StrategyChange",
-        "type": "object"
-      },
       "StrategyOut": {
         "additionalProperties": false,
         "properties": {
@@ -24376,6 +24545,48 @@
         ],
         "title": "StrategyOut",
         "type": "object"
+      },
+      "StrategyRecord": {
+        "additionalProperties": false,
+        "description": "A strategy as a draft saves it (S3.5): its name, cash-secured tick and margin; grouped\nfrom its legs, and undone by deleting it, its legs standing on their own again.",
+        "properties": {
+          "cashSecured": {
+            "default": false,
+            "title": "Cashsecured",
+            "type": "boolean"
+          },
+          "marginRequirement": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Marginrequirement"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          }
+        },
+        "title": "StrategyRecord",
+        "type": "object",
+        "x-entity": "Strat"
       },
       "StudentOut": {
         "additionalProperties": false,
@@ -31719,42 +31930,6 @@
       }
     },
     "/ui/api/budgets/{budget_id}": {
-      "delete": {
-        "operationId": "delete_budget_ui_api_budgets__budget_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Budget",
-        "tags": [
-          "budgets"
-        ]
-      },
       "get": {
         "description": "One budget, as its list shows it: where a new one's Location leads (S13.8.4).",
         "operationId": "get_budget_ui_api_budgets__budget_id__get",
@@ -31788,52 +31963,6 @@
           }
         },
         "summary": "Get Budget",
-        "tags": [
-          "budgets"
-        ]
-      },
-      "patch": {
-        "operationId": "change_budget_ui_api_budgets__budget_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BudgetChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Budget",
         "tags": [
           "budgets"
         ]
@@ -32259,7 +32388,7 @@
     },
     "/ui/api/budgets/{budget_id}/moves": {
       "post": {
-        "description": "An amount put from one category, a reserve among them, to another for one month; in an\nenvelope budget, from or to To Budget (S7.11). Made by hand, recorded in Activity.",
+        "description": "A move made (S7.11).",
         "operationId": "make_move_ui_api_budgets__budget_id__moves_post",
         "parameters": [
           {
@@ -32309,54 +32438,6 @@
           }
         },
         "summary": "Make Move",
-        "tags": [
-          "budgets"
-        ]
-      }
-    },
-    "/ui/api/budgets/{budget_id}/moves/{move_id}": {
-      "delete": {
-        "description": "Deleting a move undoes it.",
-        "operationId": "delete_move_ui_api_budgets__budget_id__moves__move_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "move_id",
-            "required": true,
-            "schema": {
-              "title": "Move Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Move",
         "tags": [
           "budgets"
         ]
@@ -32942,55 +33023,6 @@
           }
         },
         "summary": "Create Category",
-        "tags": [
-          "transactions"
-        ]
-      }
-    },
-    "/ui/api/categories/{category_id}": {
-      "patch": {
-        "description": "How long receipts in it are kept after their record ended: an admin's, since it decides\nwhat file pruning may remove (S14.10.1.1).",
-        "operationId": "change_category_ui_api_categories__category_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "category_id",
-            "required": true,
-            "schema": {
-              "title": "Category Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CategoryChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Category",
         "tags": [
           "transactions"
         ]
@@ -35913,42 +35945,6 @@
       }
     },
     "/ui/api/portfolios/{portfolio_id}": {
-      "delete": {
-        "operationId": "delete_portfolio_ui_api_portfolios__portfolio_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "portfolio_id",
-            "required": true,
-            "schema": {
-              "title": "Portfolio Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Portfolio",
-        "tags": [
-          "portfolios"
-        ]
-      },
       "get": {
         "operationId": "get_portfolio_ui_api_portfolios__portfolio_id__get",
         "parameters": [
@@ -35981,52 +35977,6 @@
           }
         },
         "summary": "Get Portfolio",
-        "tags": [
-          "portfolios"
-        ]
-      },
-      "patch": {
-        "operationId": "change_portfolio_ui_api_portfolios__portfolio_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "portfolio_id",
-            "required": true,
-            "schema": {
-              "title": "Portfolio Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PortfolioChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PortfolioRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Portfolio",
         "tags": [
           "portfolios"
         ]
@@ -38039,7 +37989,6 @@
     },
     "/ui/api/reimbursements": {
       "post": {
-        "description": "A deposit paired with reimbursable spending: that much of it pays the spending back and\nisn't income (S2.9.2).",
         "operationId": "pair_ui_api_reimbursements_post",
         "requestBody": {
           "content": {
@@ -38078,44 +38027,6 @@
           }
         },
         "summary": "Pair",
-        "tags": [
-          "reimbursements"
-        ]
-      }
-    },
-    "/ui/api/reimbursements/{pair_id}": {
-      "delete": {
-        "operationId": "unpair_ui_api_reimbursements__pair_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "pair_id",
-            "required": true,
-            "schema": {
-              "title": "Pair Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Unpair",
         "tags": [
           "reimbursements"
         ]
@@ -38444,90 +38355,6 @@
           }
         },
         "summary": "Apply Rules",
-        "tags": [
-          "rules"
-        ]
-      }
-    },
-    "/ui/api/rules/{rule_id}": {
-      "delete": {
-        "operationId": "delete_rule_ui_api_rules__rule_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "rule_id",
-            "required": true,
-            "schema": {
-              "title": "Rule Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Rule",
-        "tags": [
-          "rules"
-        ]
-      },
-      "patch": {
-        "operationId": "change_rule_ui_api_rules__rule_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "rule_id",
-            "required": true,
-            "schema": {
-              "title": "Rule Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RuleIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RuleList"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Rule",
         "tags": [
           "rules"
         ]
@@ -40716,46 +40543,10 @@
         ]
       }
     },
-    "/ui/api/strategies/{strategy_id}": {
-      "delete": {
-        "description": "The group undone: its legs stand on their own again (S3.5.1).",
-        "operationId": "undo_ui_api_strategies__strategy_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "strategy_id",
-            "required": true,
-            "schema": {
-              "title": "Strategy Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Undo",
-        "tags": [
-          "strategies"
-        ]
-      },
-      "patch": {
-        "operationId": "change_ui_api_strategies__strategy_id__patch",
+    "/ui/api/strategies/{strategy_id}/roll": {
+      "post": {
+        "description": "A roll proposed for it taken in, or turned down so it isn't offered again (S3.5.3).",
+        "operationId": "roll_ui_api_strategies__strategy_id__roll_post",
         "parameters": [
           {
             "in": "path",
@@ -40771,7 +40562,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StrategyChange"
+                "$ref": "#/components/schemas/Rolled"
               }
             }
           },
@@ -40795,7 +40586,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "summary": "Change",
+        "summary": "Roll",
         "tags": [
           "strategies"
         ]

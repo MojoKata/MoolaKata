@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import giving_plan
+from edits import edit, giving_plan, saved
 from test_accounts import add, new_account
 from test_budgets import month, plan, row, save_plan, setup_budget
 
@@ -20,8 +20,7 @@ def frozen():
 
 
 def change(c, b, **body):
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    return c.patch(f"/ui/api/budgets/{b['id']}", json=body, headers={"If-Match": str(v)})
+    return edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", **body)
 
 
 def test_a_method_and_options_chosen_when_made(server, frozen):
@@ -41,8 +40,7 @@ def test_a_method_and_options_chosen_when_made(server, frozen):
     env = r.json()
     assert env["method"] == "envelope" and env["moves"]
     assert change(c, env, moves=False).status_code == 422
-    r = change(c, b, reserves=True)
-    assert r.status_code == 200 and r.json()["reserves"]
+    assert saved(change(c, b, reserves=True))["reserves"]
 
 
 def test_where_money_comes_from_is_worked_out(server, frozen):
@@ -59,13 +57,11 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
     add(c, acct["id"], "-250.00", "2026-09-10", payee="To Ally")
     add(c, savings["id"], "250.00", "2026-09-10", payee="From checking", kind="deposit")
     ids = [acct["id"], other["id"], card["id"], savings["id"]]
-    r = change(c, b, accountIds=ids)
-    assert r.status_code == 200, r.text
-    roles = {x["accountId"]: x for x in r.json()["roles"]}
+    roles = {x["accountId"]: x for x in saved(change(c, b, accountIds=ids))["roles"]}
     assert roles[card["id"]]["paidFromId"] == other["id"] and roles[card["id"]]["paidFromLearned"]
     assert roles[savings["id"]]["movedFromId"] == acct["id"]
     r = change(c, b, roles=[{"accountId": savings["id"], "movedFromId": other["id"]}])
-    roles = {x["accountId"]: x for x in r.json()["roles"]}
+    roles = {x["accountId"]: x for x in saved(r)["roles"]}
     assert roles[savings["id"]]["movedFromId"] == other["id"]
     assert not roles[savings["id"]]["movedFromProposed"]
     bad = change(c, b, roles=[{"accountId": savings["id"], "movedFromId": "Acct_nope"}])

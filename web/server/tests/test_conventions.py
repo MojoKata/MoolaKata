@@ -62,7 +62,7 @@ def test_every_change_sends_the_version_it_was_made_against(store, keyed_config)
     missing, needless = [], []
     walked = list(_routes(store, keyed_config))
     # Fewer as the kinds the save takes lose their own (S13.8.1); never none.
-    assert len(walked) > 40, "the app's routes, those of included routers too"
+    assert len(walked) > 8, "the app's routes, those of included routers too"
     for method, r in walked:
         has = if_match in _calls(r.dependant)
         exempt = (method, r.path) in NO_VERSION

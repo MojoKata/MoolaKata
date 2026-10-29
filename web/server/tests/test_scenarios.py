@@ -4,6 +4,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import drop, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 
@@ -54,8 +55,7 @@ def test_one_active_budget_and_scenarios_beside_it(server, frozen):
     assert listed == {"Household": False, "Household, envelope": True}
     assert row(month(c, b, "2026-10"), "Food")["planned"] == "300.00"
     # Active is each user's own choice; deleting it leaves none active.
-    v = c.get(f"/ui/api/budgets/{copy['id']}").json()["version"]
-    c.delete(f"/ui/api/budgets/{copy['id']}", headers={"If-Match": str(v)})
+    saved(drop(c, "Bdgt", f"/ui/api/budgets/{copy['id']}"))
     assert c.get("/ui/api/dashboard").json()["budget"] is None
     make_user(server, "bob")
     bob = sign_in(server, "bob")

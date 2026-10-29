@@ -27,6 +27,14 @@ export const FIELDS = {
     fromLastYear: {"type": "bool"},
     bitcoinFees: {"type": "choice", "choices": ["sale", "not-taxed"]},
   },
+  BudgetRecord: {
+    name: {"type": "text"},
+    method: {"type": "choice", "choices": ["tracking", "envelope"]},
+    accountIds: {"type": "list", "items": {"type": "ref", "prefix": "Acct"}, "set": true},
+    reserves: {"type": "bool"},
+    moves: {"type": "bool"},
+    roles: {"type": "list", "items": {"type": "json", "schema": "RoleIn"}},
+  },
   Carried: {
     agi: {"type": "money", "nullable": true},
     totalTax: {"type": "money", "nullable": true},
@@ -35,6 +43,13 @@ export const FIELDS = {
     capitalLossLong: {"type": "money", "nullable": true},
     basis8606: {"type": "money", "nullable": true},
     charitableCarryover: {"type": "money", "nullable": true},
+  },
+  CategoryRecord: {
+    name: {"type": "text"},
+    kind: {"type": "text"},
+    parentId: {"type": "text", "nullable": true},
+    taxTag: {"type": "text", "nullable": true},
+    keepReceiptsYears: {"type": "int", "nullable": true},
   },
   DependentRecord: {
     personId: {"type": "text"},
@@ -199,6 +214,15 @@ export const FIELDS = {
     date: {"type": "date"},
     amount: {"type": "money"},
   },
+  MoveRecord: {
+    month: {"type": "date"},
+    fromCategoryId: {"type": "text", "nullable": true},
+    toCategoryId: {"type": "text", "nullable": true},
+    cardId: {"type": "text", "nullable": true},
+    amount: {"type": "money"},
+    note: {"type": "text", "nullable": true},
+    budgetId: {"type": "ref", "prefix": "Bdgt"},
+  },
   OccasionRecord: {
     giftPlanId: {"type": "ref", "prefix": "GfPln"},
     kind: {"type": "choice", "choices": ["anniversary", "holiday", "custom"]},
@@ -217,6 +241,12 @@ export const FIELDS = {
     pledge: {"type": "money", "nullable": true},
     pledgeEvery: {"type": "text", "nullable": true},
     notes: {"type": "text", "nullable": true},
+  },
+  PairIn: {
+    spendingId: {"type": "text"},
+    splitId: {"type": "text", "nullable": true},
+    paybackId: {"type": "text"},
+    amount: {"type": "money"},
   },
   PaymentRecord: {
     filingId: {"type": "ref", "prefix": "Filng"},
@@ -260,6 +290,12 @@ export const FIELDS = {
     leadDays: {"type": "int"},
     notes: {"type": "text", "nullable": true},
   },
+  PortfolioRecord: {
+    name: {"type": "text"},
+    accountIds: {"type": "list", "items": {"type": "ref", "prefix": "Acct"}, "set": true},
+    benchmark: {"type": "text"},
+    notes: {"type": "text", "nullable": true},
+  },
   Recast: {
     date: {"type": "date"},
     fee: {"type": "money"},
@@ -268,6 +304,21 @@ export const FIELDS = {
     date: {"type": "date"},
     rate: {"type": "quantity"},
   },
+  RoleIn: {
+    accountId: {"type": "text"},
+    paidFromId: {"type": "text", "nullable": true},
+    movedFromId: {"type": "text", "nullable": true},
+  },
+  RuleRecord: {
+    payeeMatch: {"type": "text"},
+    amountMin: {"type": "money", "nullable": true},
+    amountMax: {"type": "money", "nullable": true},
+    direction: {"type": "text"},
+    accountId: {"type": "text", "nullable": true},
+    categoryId: {"type": "text", "nullable": true},
+    payee: {"type": "text", "nullable": true},
+    tags: {"type": "list", "items": {"type": "text"}, "set": true},
+  },
   SplitRecord: {
     transactionId: {"type": "ref", "prefix": "Txn"},
     categoryId: {"type": "ref", "prefix": "Cat", "nullable": true},
@@ -275,6 +326,11 @@ export const FIELDS = {
     memo: {"type": "text", "nullable": true},
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
+  },
+  StrategyRecord: {
+    name: {"type": "text", "nullable": true},
+    cashSecured: {"type": "bool"},
+    marginRequirement: {"type": "money", "nullable": true},
   },
   TokenItem: {
     kind: {"type": "text"},

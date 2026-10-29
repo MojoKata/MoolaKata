@@ -142,11 +142,7 @@ def test_portfolio_viewers_see_only_their_accounts(server):
     assert saved["alsoShared"] == 1 and saved["view"]["hidden"] == {}
     seen = c["bob"].get(f"/ui/api/portfolios/{p['id']}").json()
     assert seen["value"] == "600.00"
-    r = c["bob"].patch(
-        f"/ui/api/portfolios/{p['id']}",
-        json={"name": "Mine now"},
-        headers={"If-Match": str(seen["version"])},
-    )
+    r = change(c["bob"], "Portf", seen, name="Mine now")
     assert r.status_code == 403
     r = c["alice"].post(
         "/ui/api/portfolios", json={"name": "Not mine", "accountIds": ["Acct_nope"]}

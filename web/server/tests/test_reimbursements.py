@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, saved
+from edits import change, remove, saved
 from test_accounts import add, new_account
 from test_budgets import month, setup_budget
 
@@ -77,9 +77,7 @@ def test_awaited_spending_isnt_counted_and_a_payback_isnt_income(server, frozen)
     assert c.get(f"/ui/api/transactions/{flight['id']}").json()["paidBack"] == "412.60"
     # Unpaired again: awaited again, and the deposit is income again.
     pairing = r.json()
-    r = c.delete(
-        f"/ui/api/reimbursements/{pairing['id']}", headers={"If-Match": str(pairing["version"])}
-    )
+    r = remove(c, "Rmbrs", pairing)
     assert r.status_code == 200, r.text
     assert month(c, b, "2026-10")["income"] == "5232.60"
 

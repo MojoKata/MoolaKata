@@ -4,6 +4,7 @@ the lines read as stored, and saved from a month on, earlier months keeping thei
 import datetime as dt
 
 import pytest
+from edits import edit, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 from test_reserves import reserves_on
@@ -43,8 +44,7 @@ def test_the_plan_is_read_as_stored_not_as_the_months_figures(server, frozen):
     plan(c, b, "2026-11-01", [{"categoryId": dining, "amount": "300.00", "rollover": True},
                               {"categoryId": fun, "amount": "200.00"}])  # fmt: skip
     add(c, acct["id"], "-100.00", "2026-11-05", payee="Bistro", categoryId=dining)
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    c.patch(f"/ui/api/budgets/{b['id']}", json={"moves": True}, headers={"If-Match": str(v)})
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", moves=True))
     r = c.post(
         f"/ui/api/budgets/{b['id']}/moves",
         json={"month": "2026-12-01", "fromCategoryId": fun, "toCategoryId": dining,

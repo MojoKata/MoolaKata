@@ -5,6 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, remove
 from PIL import Image
 from test_accounts import FIX, add, new_account, upload
 from test_receipts import upload as upload_receipt
@@ -125,9 +126,23 @@ def test_a_rule_is_its_owners_alone_and_can_be_deleted(server, alice):
         "/ui/api/rules", json={"payeeMatch": "acme", "categoryId": c["Income › Salary"]}
     ).json()["items"]
     assert bob.get("/ui/api/rules").json()["items"] == []
-    assert bob.delete(f"/ui/api/rules/{r['id']}", headers={"If-Match": "1"}).status_code == 404
-    assert alice.delete(f"/ui/api/rules/{r['id']}", headers={"If-Match": "1"}).status_code == 200
+    assert remove(bob, "Rule", r).status_code == 404
+    assert remove(alice, "Rule", r).status_code == 200
     assert alice.get("/ui/api/rules").json()["items"] == []
+
+
+def test_a_rule_changed_keeps_its_place_and_sets_what_it_says(server, alice):
+    c = cats(alice)
+    for payee in ("acme", "shop"):
+        alice.post("/ui/api/rules", json={"payeeMatch": payee, "categoryId": c["Income › Salary"]})
+    first, second = alice.get("/ui/api/rules").json()["items"]
+    r = change(alice, "Rule", first, payee="Acme Corp", tags={"add": ["Work"], "remove": []})
+    assert r.status_code == 200, r.text
+    items = alice.get("/ui/api/rules").json()["items"]
+    assert [x["id"] for x in items] == [first["id"], second["id"]]
+    assert (items[0]["payee"], items[0]["tags"]) == ("Acme Corp", ["work"])
+    r = change(alice, "Rule", items[1], categoryId=None)
+    assert r.json()["errors"][0]["code"] == "rule-sets-nothing"
 
 
 def test_a_receipts_merchant_is_renamed_by_the_rules(server, alice):

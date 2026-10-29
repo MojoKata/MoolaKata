@@ -12,7 +12,8 @@ from ..errors import FieldError, Problem, refuse
 from ..ledger import rules as match
 from ..store.entities.accounts import Account, Category, Rule, Transaction
 from ..store.repos import rules as repo
-from .conventions import Deleted, ExactRoute, Model, Money, check, gone, if_match
+from . import save
+from .conventions import ExactRoute, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["rules"])
@@ -229,24 +230,6 @@ def _own(s, c: Caller, rule_id: str) -> Rule:
     return r
 
 
-@router.patch("/rules/{rule_id}", response_model=RuleList)
-def change_rule(
-    rule_id: str,
-    body: RuleIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        r = _own(s, c, rule_id)
-        check(r, version, lambda: _out(s, r, _paths(s)))
-        _raise(_check(s, c, body))
-        _fill(r, body)
-        s.flush()
-        _record(s, "rule.updated", c)
-        return _list(s, c.id)
-
-
 @router.post("/rules/{rule_id}/move", response_model=RuleList)
 def move_rule(rule_id: str, body: Move, request: Request, c: Caller = Depends(caller)):
     """Up or down the list: first match wins, so the order is what a rule means."""
@@ -260,18 +243,57 @@ def move_rule(rule_id: str, body: Move, request: Request, c: Caller = Depends(ca
         return _list(s, c.id)
 
 
-@router.delete("/rules/{rule_id}", response_model=Deleted[None])
-def delete_rule(
-    rule_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        r = _own(s, c, rule_id)
-        check(r, version, lambda: _out(s, r, _paths(s)))
-        r.mark_deleted(c.id)
-        _renumber([x for x in repo.of_user(s, c.id) if x.id != r.id])
-        s.flush()
-        _record(s, "rule.deleted", c)
-        return Deleted[None](deleted=gone(r))
+class RuleRecord(RuleIn):
+    """A rule as a draft saves it (S2.7): a new one goes last in the list."""
+
+    tags: list[str] = Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+
+
+def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    _raise(_check(s, c, body))
+    rules = repo.of_user(s, c.id)
+    if len(rules) >= 500:
+        raise refuse(None, "too-many-rules", "At most 500 rules.")
+    r = Rule(id=record_id, ownerId=c.id, position=len(rules), payeeMatch="")
+    _fill(r, body)
+    s.add(r)
+    s.flush()
+    _record(s, "rule.created", c)
+
+
+def _rule_current(ctx, r: Rule) -> dict:
+    return {f: getattr(r, f) for f in RuleIn.model_fields if f != "tags"} | {
+        "tags": json.loads(r.tags or "[]")
+    }
+
+
+def _rule_update(ctx, r: Rule, body: RuleRecord) -> None:
+    _raise(_check(ctx.s, ctx.caller, body))
+    _fill(r, body)
+    _record(ctx.s, "rule.updated", ctx.caller)
+
+
+def _rule_delete(ctx, r: Rule) -> None:
+    s, c = ctx.s, ctx.caller
+    r.mark_deleted(c.id)
+    _renumber([x for x in repo.of_user(s, c.id) if x.id != r.id])
+    _record(s, "rule.deleted", c)
+
+
+save.register(
+    save.Kind(
+        prefix="Rule",
+        entity=Rule,
+        fields=RuleRecord,
+        create=_rule_create,
+        editable=lambda ctx, record_id: _own(ctx.s, ctx.caller, record_id),
+        current=_rule_current,
+        update=_rule_update,
+        delete=_rule_delete,
+        read=lambda ctx, record_id: _out(ctx.s, ctx.s.get(Rule, record_id), _paths(ctx.s)),
+    )
+)
 
 
 @router.post("/rules/apply", response_model=Applied)

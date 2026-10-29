@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import pytest
+from edits import edit, giving_plan, saved, terms
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -211,14 +212,7 @@ def seed(base: str) -> Household:
             )
         )  # fmt: skip
     b = made(c.post("/ui/api/budgets", json={"name": "Household", "accountIds": [acct["id"]]}))
-    v = c.get(f"/ui/api/budgets/{b['id']}").json()["version"]
-    made(
-        c.patch(
-            f"/ui/api/budgets/{b['id']}",
-            json={"reserves": True, "moves": True},
-            headers={"If-Match": str(v)},
-        )
-    )
+    made(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True, moves=True))
     b = c.get(f"/ui/api/budgets/{b['id']}").json()
     lines = [{"categoryId": dining, "amount": "300.00", "rollover": True},
              {"categoryId": fun, "amount": "200.00"},
@@ -269,7 +263,6 @@ def people(h: Household) -> dict:
 def accounts(h: Household) -> dict:
     """A savings account limited to six withdrawals a month; a home with a valuation and an
     improvement; a mortgage secured by it, with a rate reset."""
-    from edits import saved, terms
 
     c = h.c
     savings = made(c.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}))
@@ -386,7 +379,6 @@ def gift_plans(h: Household) -> dict:
                   "amount": "300", "notes": "the harvest appeal"},
         )
     )  # fmt: skip
-    from edits import giving_plan, saved
 
     saved(giving_plan(h.c, int(months_back(0)[:4]), percent="10", incomeBasis="gross",
                       income="185000", dafCounted="granted"))  # fmt: skip
@@ -431,7 +423,13 @@ def transactions(h: Household) -> dict:
                   "costBasis": "2400.00"},
         )
     )  # fmt: skip
-    return {"bill": bill, "brokerage": brokerage, "moved": moved}
+    portfolio = made(
+        c.post(
+            "/ui/api/portfolios",
+            json={"name": "Retirement", "accountIds": [brokerage["id"]], "benchmark": "60-40"},
+        )
+    )
+    return {"bill": bill, "brokerage": brokerage, "moved": moved, "portfolio": portfolio}
 
 
 @pytest.fixture(scope="session")

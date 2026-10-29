@@ -4,6 +4,8 @@ mockup's worked numbers; then grouping, proposals, rolls and undo through the AP
 import datetime as dt
 from decimal import Decimal as D
 
+from edits import change, remove, saved
+
 from moolakata.options.strategies import Leg, capital_at_risk, figures, shape
 
 EXP = dt.date(2026, 11, 20)
@@ -145,10 +147,9 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
     v = alice.get("/ui/api/positions/strategies").json()
     [roll] = v["proposals"]
     assert (roll["kind"], roll["strategyId"]) == ("roll", st["id"])
-    r = alice.patch(
-        f"/ui/api/strategies/{st['id']}",
+    r = alice.post(
+        f"/ui/api/strategies/{st['id']}/roll",
         json={"roll": [{"instrumentId": roll["legs"][0]["instrumentId"]}]},
-        headers={"If-Match": f'"{st["version"]}"'},
     )
     assert r.status_code == 200, r.text
     st = r.json()
@@ -162,7 +163,11 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
     assert (closed["capitalAtRisk"], closed["returnPct"]) == (920, 10.87)
     assert alice.get("/ui/api/positions/strategies").json()["proposals"] == []
     # Undone: the legs stand alone again.
-    r = alice.delete(f"/ui/api/strategies/{st['id']}", headers={"If-Match": f'"{st["version"]}"'})
+    r = change(alice, "Strat", st, marginRequirement="1000.00", name="Rolled spread")
+    assert (saved(r)["name"], saved(r)["marginRequirement"]) == ("Rolled spread", "1000.00")
+    r = change(alice, "Strat", saved(r), marginRequirement="-1")
+    assert r.json()["errors"][0]["code"] == "margin-invalid"
+    r = remove(alice, "Strat", alice.get("/ui/api/positions/strategies").json()["strategies"][0])
     assert r.status_code == 200, r.text
     assert alice.get("/ui/api/positions/strategies").json()["strategies"] == []
 
