@@ -23,6 +23,12 @@ export const FIELDS = {
     walletKeys: {"type": "text", "nullable": true},
     gapLimit: {"type": "int"},
   },
+  AnchorRecord: {
+    accountId: {"type": "ref", "prefix": "Acct"},
+    date: {"type": "date"},
+    balance: {"type": "money"},
+    note: {"type": "text", "nullable": true},
+  },
   AssumptionsRecord: {
     figures: {"type": "json"},
   },
@@ -446,6 +452,11 @@ export const FIELDS = {
     cleared: {"type": "bool"},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},
+  },
+  TypedPriceRecord: {
+    instrumentId: {"type": "ref", "prefix": "Instr"},
+    date: {"type": "date"},
+    close: {"type": "quantity"},
   },
   UserRecord: {
     displayName: {"type": "text"},

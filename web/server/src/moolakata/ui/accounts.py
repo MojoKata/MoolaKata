@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import false, func, select
 
@@ -251,18 +251,6 @@ class ReconcileView(Model):
     needsAnchor: bool
     openingStandIn: bool
     reconciliations: list[ReconciliationRow]
-
-
-class NewAnchor(Model):
-    date: dt.date
-    balance: Money
-    note: str | None = None
-
-
-class NewAdjustment(Model):
-    date: dt.date
-    amount: Money
-    note: str
 
 
 class NewReconciliation(Model):
@@ -809,65 +797,100 @@ def account_reconcile(account_id: str, request: Request, c: Caller = Depends(cal
         )
 
 
-@router.post("/accounts/{account_id}/anchors", status_code=201)
-def add_anchor(account_id: str, body: NewAnchor, request: Request, c: Caller = Depends(caller)):
-    """A balance typed from the institution's site (S1.11.2)."""
+class AnchorRecord(Model):
+    """A balance typed from the institution's site (S1.11.2), as its dialog's draft saves it."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    date: dt.date
+    balance: Money
+    note: str | None = None
+
+
+class AnchorOut(AnchorRecord):
+    id: str
+    source: str  # typed, or the import or statement it came from
+    version: int
+
+
+def _anchor_check(body: AnchorRecord) -> None:
     if body.date > clock.today():
         raise refuse("date", "date-in-future", "A reported balance can't be in the future.")
-    with server(request).db.tx() as s:
-        a, _ = access.account(s, c.id, account_id, "write")
-        s.add(
-            Anchor(
-                id=ids.new_id("Anchr"),
-                accountId=a.id,
-                date=body.date,
-                balance=body.balance,
-                source="typed",
-                note=body.note,
-                createdById=c.id,
-            )
-        )
-        activity.record(
-            s,
-            "account.balance-typed",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-    return Response(status_code=201)
 
 
-@router.post("/accounts/{account_id}/adjustments", status_code=201)
-def add_adjustment(
-    account_id: str, body: NewAdjustment, request: Request, c: Caller = Depends(caller)
-):
-    """Accepting a difference as a balance adjustment, with a note (S1.11.4)."""
-    if not body.note.strip():
-        raise refuse("note", "note-required", "Say why the balance is adjusted.")
-    with server(request).db.tx() as s:
-        a, _ = access.account(s, c.id, account_id, "write")
-        s.add(
-            Transaction(
-                id=ids.new_id("Txn"),
-                accountId=a.id,
-                date=body.date,
-                kind="adjustment",
-                amount=body.amount,
-                payee="Balance adjustment",
-                memo=body.note.strip(),
-                createdById=c.id,
-            )
+def _anchor_create(ctx, record_id: str, body: AnchorRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    _anchor_check(body)
+    a, _ = access.account(s, c.id, body.accountId, "write")
+    s.add(
+        Anchor(
+            id=record_id,
+            accountId=a.id,
+            date=body.date,
+            balance=body.balance,
+            source="typed",
+            note=(body.note or "").strip() or None,
+            createdById=c.id,
         )
-        activity.record(
-            s,
-            "account.balance-adjusted",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-    return Response(status_code=201)
+    )
+    activity.record(
+        s,
+        "account.balance-typed",
+        actor=c.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+    )
+
+
+def _anchor_editable(ctx, record_id: str) -> Anchor:
+    an = ctx.s.get(Anchor, record_id)
+    if an is None or an.deleted:
+        raise Problem(404, "not-found", "Not found")
+    access.account(ctx.s, ctx.caller.id, an.accountId, "write")
+    if an.source != "typed":
+        raise refuse(None, "anchor-imported", "A balance from a file changes with the file.")
+    return an
+
+
+def _anchor_update(ctx, an: Anchor, body: AnchorRecord) -> None:
+    if body.accountId != an.accountId:
+        raise refuse("accountId", "anchor-fixed", "A balance stays with its account.")
+    _anchor_check(body)
+    an.date, an.balance = body.date, body.balance
+    an.note = (body.note or "").strip() or None
+
+
+def _anchor_read(ctx, record_id: str) -> AnchorOut:
+    an = ctx.s.get(Anchor, record_id)
+    return AnchorOut(
+        id=an.id,
+        accountId=an.accountId,
+        date=an.date,
+        balance=an.balance,
+        note=an.note,
+        source=an.source,
+        version=an.version,
+    )
+
+
+save.register(
+    save.Kind(
+        prefix="Anchr",
+        entity=Anchor,
+        fields=AnchorRecord,
+        create=_anchor_create,
+        editable=_anchor_editable,
+        current=lambda ctx, an: {
+            "accountId": an.accountId,
+            "date": an.date,
+            "balance": an.balance,
+            "note": an.note,
+        },
+        update=_anchor_update,
+        delete=lambda ctx, an: an.mark_deleted(ctx.caller.id),
+        read=_anchor_read,
+    )
+)
 
 
 class ReconciliationRecord(NewReconciliation):

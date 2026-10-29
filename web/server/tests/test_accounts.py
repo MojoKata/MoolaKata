@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
-from edits import asked, change, reconcile, remove, saved
+from edits import asked, change, create, reconcile, remove, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -294,24 +294,18 @@ def test_typed_balance_mismatch_and_adjustment(server):
     a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
-    r = c.post(
-        f"/ui/api/accounts/{a['id']}/anchors", json={"date": "2026-09-10", "balance": "980.00"}
-    )
-    assert r.status_code == 201
+    r = create(c, "Anchr", accountId=a["id"], date="2026-09-10", balance="980.00")
+    assert r.status_code == 200, r.text
     view = c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()
     check = view["checks"][-1]
     assert not check["ok"] and check["difference"] == "20.00"
     assert len(check["suspects"]["duplicates"]) == 1
     assert c.get(f"/ui/api/accounts/{a['id']}").json()["mismatch"] is True
-    r = c.post(
-        f"/ui/api/accounts/{a['id']}/adjustments",
-        json={"date": "2026-09-10", "amount": "20.00", "note": ""},
-    )
-    assert r.json()["errors"][0]["field"] == "note"
-    c.post(
-        f"/ui/api/accounts/{a['id']}/adjustments",
-        json={"date": "2026-09-10", "amount": "20.00", "note": "Bank fee refunded"},
-    )
+    fix = {"accountId": a["id"], "date": "2026-09-10", "amount": "20.00", "kind": "adjustment",
+           "payee": "Balance adjustment"}  # fmt: skip
+    r = create(c, "Txn", **fix, memo="")
+    assert r.json()["errors"][0]["field"] == "memo"
+    saved(create(c, "Txn", **fix, memo="Bank fee refunded"))
     assert c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["checks"][-1]["ok"]
 
 

@@ -4,7 +4,14 @@ import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
-import { LoanRec, LoanSummary, newTerms, Schedule, TermsCard } from '../components/loan.js';
+import {
+  AnchorRec,
+  LoanRec,
+  LoanSummary,
+  newTerms,
+  Schedule,
+  TermsCard,
+} from '../components/loan.js';
 import { Payoff } from '../components/payoff.js';
 import { OptionTrade } from '../components/optiontrade.js';
 import { Items, ItemsSummary } from '../components/items.js';
@@ -38,13 +45,13 @@ import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
 import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
-import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
+import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { TransactionDialog, Txn } from './transaction-dialog.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../components/pager.js';
 import { pageSize } from '../store/prefs.js';
-import { dec } from '../app/dec.js';
+import { Dec, dec } from '../app/dec.js';
 
 /** @param {{ id: string, tab?: string }} p */
 export default function Account({ id, tab }) {
@@ -604,64 +611,57 @@ function Mismatch({ a, check, all, again }) {
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function TypeBalance({ close, a }) {
   useDialogGuide('dialog-type-balance');
-  const [balance, setBalance] = useState('');
-  const [day, setDay] = useState(today());
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/anchors`, {
-      date: day,
-      balance: balance.replace(/[$,\s]/g, '').replace('−', '-'),
-    });
-    toast('Balance recorded and checked');
-    close(true);
-  });
+  const f = useDraft((draft) => {
+    draft.add(AnchorRec, { accountId: a.id, date: today() });
+  }, [a.id]);
+  const rec = /** @type {AnchorRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title="Type today's balance" close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Check</button>`}>
+    <${DraftDialog} f=${f} title="Type today's balance" close=${close} what="This balance"
+      label="Check" done="Balance recorded and checked">
       <p class="small dim" style=${{ marginTop: 0 }}>Copy the balance from ${a.institution ||
         'the institution'}'s site or app.
           MoolaKata checks it against its own for the same day.</p>
-      <div class="row">
-        <${Field} label="Balance" error=${errAt(save.error, 'balance')}>
-          <${Input} value=${balance} onInput=${setBalance}
-            inputmode="decimal" required />
-          </${Field}>
-          <${Field} label="As of" id="as-of" error=${errAt(save.error, 'date')}>
-            <${Input} type="date" value=${day} onInput=${setDay} />
-            </${Field}>
-            </div>
-            <${FormError} error=${save.error} shown=${['balance', 'date']} />
-            </${Dialog}>
+      ${rec
+        ? html`
+          <div class="row">
+            <${RecField} rec=${rec} name="balance" label="Balance" />
+            <${RecField} rec=${rec} name="date" label="As of" id="as-of" type="date" />
+          </div>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
 /** @param {{ close: (v?: any) => void, a: any, check: any }} p */
 function Adjust({ close, a, check }) {
   useDialogGuide('dialog-adjustment');
-  const [note, setNote] = useState('');
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/adjustments`, {
+  // The difference, as a transaction marked an adjustment (S1.11.4): the note says why.
+  const f = useDraft((draft) => {
+    draft.add(Txn, {
+      accountId: a.id,
       date: check.date,
-      amount: check.difference,
-      note,
-    });
-    toast('Recorded as a balance adjustment');
-    close(true);
-  });
+      kind: 'adjustment',
+      payee: 'Balance adjustment',
+      memo: '',
+    }).set('amount', Dec.of(check.difference));
+  }, [a.id, check.date]);
+  const rec = /** @type {Txn | undefined} */ (f.draft?.records[0]);
   return html`
-    <${Dialog} title="Accept as a balance adjustment" close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Record the adjustment</button>`}>
+    <${DraftDialog} f=${f} title="Accept as a balance adjustment" close=${close}
+      what="This adjustment" label="Record the adjustment"
+      done="Recorded as a balance adjustment">
       <p class="small dim"
         style=${{ marginTop: 0 }}>A transaction of <${Amt} v=${check
           .difference} signed /> on ${date(check.date)},
           marked as an adjustment, in the account and in Activity.</p>
-      <${Field} label="Why" id="note" error=${errAt(save.error, 'note')}>
-        <${Input} value=${note} onInput=${setNote} required
-          placeholder="A fee the bank refunded" />
-        </${Field}>
-        <${FormError} error=${save.error} shown=${['note']} />
-        </${Dialog}>
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="memo" label="Why" id="note"
+            placeholder="A fee the bank refunded" />
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 

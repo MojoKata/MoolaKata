@@ -1210,6 +1210,51 @@
         "title": "Amount",
         "type": "object"
       },
+      "AnchorRecord": {
+        "additionalProperties": false,
+        "description": "A balance typed from the institution's site (S1.11.2), as its dialog's draft saves it.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "balance": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Balance",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          }
+        },
+        "required": [
+          "accountId",
+          "date",
+          "balance"
+        ],
+        "title": "AnchorRecord",
+        "type": "object",
+        "x-entity": "Anchr"
+      },
       "Applied": {
         "additionalProperties": false,
         "properties": {
@@ -3180,9 +3225,25 @@
             "title": "Date",
             "type": "string"
           },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
           "source": {
             "title": "Source",
             "type": "string"
+          },
+          "version": {
+            "default": 0,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -13453,70 +13514,6 @@
         "title": "NewAccount",
         "type": "object"
       },
-      "NewAdjustment": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "note": {
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "required": [
-          "date",
-          "amount",
-          "note"
-        ],
-        "title": "NewAdjustment",
-        "type": "object"
-      },
-      "NewAnchor": {
-        "additionalProperties": false,
-        "properties": {
-          "balance": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Balance",
-            "type": "number"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "required": [
-          "date",
-          "balance"
-        ],
-        "title": "NewAnchor",
-        "type": "object"
-      },
       "NewBook": {
         "additionalProperties": false,
         "properties": {
@@ -19003,6 +19000,8 @@
               "amount-mismatch",
               "amount-negative",
               "ancestor-loop",
+              "anchor-fixed",
+              "anchor-imported",
               "assumption-invalid",
               "assumptions-exist",
               "avatar-invalid",
@@ -19243,8 +19242,10 @@
               "planned-elsewhere",
               "portfolio-unknown",
               "premium-invalid",
+              "price-fixed",
               "price-missing",
               "price-negative",
+              "price-typed",
               "principal-invalid",
               "progress-invalid",
               "projection-unknown",
@@ -19434,6 +19435,8 @@
                   "amount-mismatch",
                   "amount-negative",
                   "ancestor-loop",
+                  "anchor-fixed",
+                  "anchor-imported",
                   "assumption-invalid",
                   "assumptions-exist",
                   "avatar-invalid",
@@ -19674,8 +19677,10 @@
                   "planned-elsewhere",
                   "portfolio-unknown",
                   "premium-invalid",
+                  "price-fixed",
                   "price-missing",
                   "price-negative",
+                  "price-typed",
                   "principal-invalid",
                   "progress-invalid",
                   "projection-unknown",
@@ -26855,29 +26860,38 @@
         "type": "object",
         "x-entity": "Txn"
       },
-      "TypedPrice": {
+      "TypedPriceRecord": {
         "additionalProperties": false,
+        "description": "A price from a statement, or typed, with its date (S4.3), as its dialog's draft saves\nit: its typer's alone, valuing their own accounts and never another user's (S4.10), one a\nday.",
         "properties": {
+          "close": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Close",
+            "type": "number"
+          },
           "date": {
             "format": "date",
             "title": "Date",
             "type": "string"
           },
-          "price": {
-            "examples": [
-              12.5
-            ],
-            "format": "decimal",
-            "title": "Price",
-            "type": "number"
+          "instrumentId": {
+            "pattern": "^Instr_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Instrumentid",
+            "type": "string",
+            "x-prefix": "Instr"
           }
         },
         "required": [
+          "instrumentId",
           "date",
-          "price"
+          "close"
         ],
-        "title": "TypedPrice",
-        "type": "object"
+        "title": "TypedPriceRecord",
+        "type": "object",
+        "x-entity": "TyPrc"
       },
       "Unlock": {
         "additionalProperties": false,
@@ -30136,116 +30150,6 @@
           }
         },
         "summary": "Get Account",
-        "tags": [
-          "accounts"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/adjustments": {
-      "post": {
-        "description": "Accepting a difference as a balance adjustment, with a note (S1.11.4).",
-        "operationId": "add_adjustment_ui_api_accounts__account_id__adjustments_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewAdjustment"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Adjustment",
-        "tags": [
-          "accounts"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/anchors": {
-      "post": {
-        "description": "A balance typed from the institution's site (S1.11.2).",
-        "operationId": "add_anchor_ui_api_accounts__account_id__anchors_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewAnchor"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Anchor",
         "tags": [
           "accounts"
         ]
@@ -34494,59 +34398,6 @@
           }
         },
         "summary": "Closes",
-        "tags": [
-          "prices"
-        ]
-      },
-      "post": {
-        "description": "A price from a statement, or typed, with its date (S4.3).",
-        "operationId": "type_price_ui_api_instruments__instrument_id__prices_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "instrument_id",
-            "required": true,
-            "schema": {
-              "title": "Instrument Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TypedPrice"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Type Price",
         "tags": [
           "prices"
         ]

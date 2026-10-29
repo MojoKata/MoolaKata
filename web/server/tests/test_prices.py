@@ -4,7 +4,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, remove, saved
+from edits import change, create, remove, saved
 from sqlalchemy import func, select
 
 from moolakata import clock, figures, ids, valuation
@@ -279,16 +279,14 @@ def test_typed_prices_win_and_only_for_holders(server):
     _account_id, inst_id = _book(server, user)
     alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
     day = (TODAY - dt.timedelta(days=1)).isoformat()
-    assert (
-        bob.post(
-            f"/ui/api/instruments/{inst_id}/prices", json={"date": day, "price": "300"}
-        ).status_code
-        == 404
-    )
-    r = alice.post(f"/ui/api/instruments/{inst_id}/prices", json={"date": day, "price": "300"})
-    assert r.status_code == 201
+    assert create(bob, "TyPrc", instrumentId=inst_id, date=day, close="300").status_code == 404
+    typed = saved(create(alice, "TyPrc", instrumentId=inst_id, date=day, close="300"))
     closes = alice.get(f"/ui/api/instruments/{inst_id}/prices").json()["items"]
-    assert closes[-1] == {"date": day, "close": "300.0", "source": "manual"}
+    assert closes[-1] == {"date": day, "close": "300.0", "source": "manual", "id": typed["id"],
+                          "version": typed["version"]}  # fmt: skip
+    again = create(alice, "TyPrc", instrumentId=inst_id, date=day, close="301")
+    assert again.json()["errors"][0]["code"] == "price-typed"
+    assert saved(change(alice, "TyPrc", typed, close="301"))["close"] == "301.0"
     status = alice.get("/ui/api/prices/status").json()
     assert status["stale"] is False and status["running"] is False
     assert alice.post("/ui/api/prices/refresh").status_code in (202, 503)
@@ -304,8 +302,7 @@ def test_a_typed_price_values_only_its_typers_accounts(server):
     assert same == inst_id
     alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
     day = (TODAY - dt.timedelta(days=1)).isoformat()
-    r = alice.post(f"/ui/api/instruments/{inst_id}/prices", json={"date": day, "price": "300"})
-    assert r.status_code == 201
+    saved(create(alice, "TyPrc", instrumentId=inst_id, date=day, close="300"))
     mine = alice.get(f"/ui/api/accounts/{a_id}/holdings").json()["holdings"][0]
     assert mine["value"] == "1200.00" and mine["priceSource"] == "manual"
     theirs = bob.get(f"/ui/api/accounts/{b_id}/holdings").json()["holdings"][0]

@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import remove, saved, terms
+from edits import create, remove, saved, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -158,11 +158,8 @@ def test_the_servicers_balance_against_the_computed_one(server, frozen):
     c = sign_in(server, "alice")
     loan = new_account(c, name="Car", type="auto-loan")
     saved(terms(c, loan["id"], principal="20000", startDate="2026-01-01", termMonths=60, rate="5"))
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/anchors",
-        json={"date": "2026-10-01", "balance": "-19950.00"},
-    )
-    assert r.status_code == 201
+    r = create(c, "Anchr", accountId=loan["id"], date="2026-10-01", balance="-19950.00")
+    assert r.status_code == 200, r.text
     v = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
     assert v["servicer"]["difference"] == "-50.00"
 

@@ -424,6 +424,9 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
     errors = []
     if kind not in TXN_KINDS:
         errors.append(FieldError("kind", "kind-invalid", "Choose a kind of transaction."))
+    elif kind == "adjustment" and not (getattr(body, "memo", None) or "").strip():
+        # A difference accepted as an adjustment says why (S1.11.4).
+        errors.append(FieldError("memo", "note-required", "Say why the balance is adjusted."))
     elif kind in OPTION_KINDS[:3]:
         errors.append(
             FieldError("kind", "corporate-kind", "Record it as a corporate action on Positions.")

@@ -4,7 +4,7 @@
 import { useState } from 'preact/hooks';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { RecField } from './draft-form.js';
+import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -446,37 +446,46 @@ export function PaymentDialog({ close, a, v }) {
   `;
 }
 
+/** A balance typed from the institution's site (S1.11.2), as its dialog's draft makes it. */
+export class AnchorRec extends Record {
+  /** @override */
+  static prefix = 'Anchr';
+  /** @override */
+  static fields = FIELDS.AnchorRecord;
+  /** @override */
+  static defaults = { note: null };
+}
+
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function ServicerDialog({ close, a }) {
   useDialogGuide('dialog-servicer-balance');
-  const [balance, setBalance] = useState('');
-  const [day, setDay] = useState(today());
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/anchors`, {
-      date: day,
-      balance: '-' + clean(balance).replace(/^-/, ''),
-    });
-    toast('Balance recorded and checked');
-    close(true);
-  });
+  // Typed as the principal owed; kept as the loan's balance, below zero.
+  const [owed, setOwed] = useState('');
+  const f = useDraft((draft) => {
+    draft.add(AnchorRec, { accountId: a.id, date: today() });
+  }, [a.id]);
+  const rec = f.draft?.records[0];
   return html`
-    <${Dialog} title="Type the servicer's balance" close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Check</button>`}>
+    <${DraftDialog} f=${f} title="Type the servicer's balance" close=${close}
+      what="This balance" label="Check" done="Balance recorded and checked">
       <p class="small dim"
         style=${{ marginTop: 0 }}>The principal still owed, from ${a
           .institution || 'the servicer'}'s statement or site. A difference from the schedule's
         balance shows until it is explained.</p>
-      <div class="row">
-        <${Field} label="Principal owed" id="owed" error=${errAt(save.error, 'balance')}>
-          <${Input} value=${balance} onInput=${setBalance} inputmode="decimal" required />
-          </${Field}>
-          <${Field} label="As of" id="as-of" error=${errAt(save.error, 'date')}>
-            <${Input} type="date" value=${day} onInput=${setDay} />
-            </${Field}>
-            </div>
-            <${FormError} error=${save.error} shown=${['balance', 'date']} />
-            </${Dialog}>
+      ${rec
+        ? html`
+          <div class="row">
+            <${Field} label="Principal owed" id="owed" error=${rec.error('balance')}>
+              <${Input} value=${owed} inputmode="decimal" onInput=${(/** @type {string} */ v) => {
+                setOwed(v);
+                rec.input('balance', v.trim() ? '-' + v.trim().replace(/^[-−]/, '') : '');
+              }} />
+              </${Field}>
+              <${RecField} rec=${rec} name="date" label="As of" id="as-of" type="date" />
+              </div>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 

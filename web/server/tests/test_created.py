@@ -18,8 +18,6 @@ NOT_WALKED = {
 READ_NOWHERE = [
     "/ui/api/settings/links/invitations",
     "/ui/api/settings/connector/pairings",
-    "/ui/api/accounts/{account_id}/anchors",
-    "/ui/api/accounts/{account_id}/adjustments",
     "/ui/api/accounts/{account_id}/options",
     "/ui/api/strategies",
     "/ui/api/accounts/{account_id}/options/{instrument_id}/settle",
@@ -123,16 +121,6 @@ def calls(i: dict[str, str]):
             {"driver": "schwab", "label": "Schwab", "settings": {"appKey": "an-app-key"}},
         ),
         "/ui/api/accounts": ("alice", None, {"name": "Extra", "type": "checking"}),
-        "/ui/api/accounts/{account_id}/anchors": (
-            "alice",
-            {"account_id": chk},
-            {"date": day, "balance": 100},
-        ),
-        "/ui/api/accounts/{account_id}/adjustments": (
-            "alice",
-            {"account_id": chk},
-            {"date": day, "amount": 1, "note": "Bank fee refunded"},
-        ),
         "/ui/api/transactions": (
             "alice",
             None,
@@ -161,11 +149,6 @@ def calls(i: dict[str, str]):
         "/ui/api/categories": ("alice", None, {"name": "Hobbies", "kind": "expense"}),
         "/ui/api/rules": ("alice", None, {"payeeMatch": "COFFEE", "payee": "Coffee shop"}),
         "/ui/api/price-sources": ("admin", None, {"name": "tiingo"}),
-        "/ui/api/instruments/{instrument_id}/prices": (
-            "alice",
-            {"instrument_id": i["instrument"]},
-            {"date": day, "price": 10},
-        ),
         "/ui/api/portfolios": ("alice", None, {"name": "Mine", "accountIds": [brk]}),
         "/ui/api/accounts/{account_id}/options": (
             "alice",

@@ -195,3 +195,10 @@ def tag(c, name: str) -> str:
         return have[name.lower()]
     op = {"op": "create", "entity": "Tag", "id": new_id("Tag"), "fields": {"name": name}}
     return saved(c.post("/ui/api/save", json={"ops": [op]}))["id"]
+
+
+def create(c, entity: str, confirm: bool = False, **fields):
+    """A record made as a form's draft makes it: an id made the browser's way, through the
+    save; the save's answer."""
+    op = {"op": "create", "entity": entity, "id": new_id(entity), "fields": fields}
+    return _save(c, op, confirm)
