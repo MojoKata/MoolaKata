@@ -1220,20 +1220,6 @@ def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
     return mv
 
 
-@router.post("/budgets/{budget_id}/active", response_model=BudgetRow)
-def make_active(budget_id: str, request: Request, c: Caller = Depends(caller)):
-    """The budget the caller follows from now on; the one before becomes a scenario. Nothing
-    is rewritten (S7.12.1)."""
-    with server(request).db.tx() as s:
-        b, lvl = access.budget(s, c.id, budget_id)
-        s.get(User, c.id).activeBudgetId = b.id
-        activity.record(
-            s, "budget.activated", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
-        )
-        s.flush()
-        return shape(s, b, lvl, c.id)
-
-
 @router.post("/budgets/{budget_id}/copy", response_model=BudgetRow, status_code=201)
 def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depends(caller)):
     """Copy as scenario (S7.12.4): the same accounts and plan from this month, in the method

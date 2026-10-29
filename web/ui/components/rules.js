@@ -9,7 +9,7 @@ import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
 import { FormError } from './fields.js';
 import { Record } from '../app/draft.js';
-import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
+import { DraftDialog, RecField, saveNow, saveOne, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
@@ -78,8 +78,9 @@ function RulesDialog({ close }) {
     toast(r.changed === 1 ? 'Set 1 transaction' : `Set ${r.changed} transactions`);
     close();
   });
+  // Up or down the list: its position, the others closing up around it (S2.7).
   const move = (/** @type {any} */ r, /** @type {number} */ to) =>
-    act.run(() => api.post(`/rules/${r.id}/move`, { to })).catch(() => {});
+    act.run(() => saveOne(RuleRec, r, { position: to })).catch((e) => toast(e.message));
   const rows = v ? /** @type {any[]} */ (v.items) : null;
   return html`
     <${Dialog} title="Categorisation rules" wide close=${close}

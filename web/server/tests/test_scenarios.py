@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import drop, saved
+from edits import change, drop, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 
@@ -48,8 +48,10 @@ def test_one_active_budget_and_scenarios_beside_it(server, frozen):
     assert (f["available"], f["spent"], f["otherAvailable"]) == ("300.00", "120.00", "300.00")
     # The Dashboard follows the active budget; Make active swaps them, rewriting nothing.
     assert c.get("/ui/api/dashboard").json()["budget"]["name"] == "Household"
-    r = c.post(f"/ui/api/budgets/{copy['id']}/active")
-    assert r.status_code == 200 and r.json()["active"]
+    me = c.get("/ui/api/profile").json()
+    r = change(c, "User", me, activeBudgetId=None)
+    assert r.json()["errors"][0]["code"] == "budget-required"
+    assert saved(change(c, "User", me, activeBudgetId=copy["id"]))["activeBudgetId"] == copy["id"]
     assert c.get("/ui/api/dashboard").json()["budget"]["name"] == "Household, envelope"
     listed = {x["name"]: x["active"] for x in c.get("/ui/api/budgets").json()["items"]}
     assert listed == {"Household": False, "Household, envelope": True}

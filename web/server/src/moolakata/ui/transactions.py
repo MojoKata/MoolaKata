@@ -157,10 +157,6 @@ class Categorise(Model):
     categoryId: str | None
 
 
-class TransferLink(Model):
-    otherId: str | None
-
-
 class CategoryOut(Model):
     id: str
     name: str
@@ -834,32 +830,6 @@ def categorise(body: Categorise, request: Request, c: Caller = Depends(caller)):
         return Done(changed=sum(per_account.values()))
 
 
-@router.post("/transactions/{txn_id}/transfer", response_model=TxnOut)
-def link_transfer(txn_id: str, body: TransferLink, request: Request, c: Caller = Depends(caller)):
-    """Match a transfer by hand, or undo a match (S1.7)."""
-    with server(request).db.tx() as s:
-        t = s.get(Transaction, txn_id)
-        if t is None or t.deleted:
-            raise Problem(404, "not-found", "Not found")
-        a, level = access.account(s, c.id, t.accountId, "write")
-        repo.unlink_transfer(s, t)
-        if body.otherId:
-            o = s.get(Transaction, body.otherId)
-            if o is None or o.deleted:
-                raise refuse("otherId", "not-found", "Choose a transaction.")
-            access.account(s, c.id, o.accountId, "write")
-            if o.accountId == t.accountId or o.amount != -t.amount:
-                raise refuse(
-                    "otherId",
-                    "not-a-transfer",
-                    "The other half is the same amount the other way, in another account.",
-                )
-            repo.unlink_transfer(s, o)
-            t.transferId, o.transferId = o.id, t.id
-        s.flush()
-        return shape(s, c.id, [t], {a.id: level})[0]
-
-
 @router.post("/transactions/{txn_id}/both-real", response_model=TxnOut)
 def both_real(txn_id: str, request: Request, c: Caller = Depends(caller)):
     """Two identical rows on one day, or two a file gave one id: the answer *both real* is
@@ -1091,8 +1061,9 @@ class TxnRecord(Model):
     strike: Quantity | None = None
     expiry: dt.date | None = None
     multiplier: int | None = None  # shares a contract: 100 unless typed
-    # The other half of a transfer made with it (S1.7): one of the same save, or a free one
-    # already recorded, such as a loan payment's bank transaction (S1.9.3).
+    # The other half of a transfer (S1.7): one of the same save, or a free one already
+    # recorded, such as a loan payment's bank transaction (S1.9.3); changed, a match made by
+    # hand, or none to undo one.
     transferWithId: IdOf("Txn") | None = None  # type: ignore[valid-type]
 
 
@@ -1216,7 +1187,7 @@ def _transfer_with(ctx, t: Transaction, other_id: str) -> None:
     already matched elsewhere stays as it is."""
 
     def pair() -> None:
-        made = ctx.notes["transactions-made"]
+        made = ctx.notes.get("transactions-made", set())
         other = ctx.s.get(Transaction, other_id)
         if other is None or other.deleted or other.id == t.id:
             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
@@ -1269,10 +1240,12 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
         if fixed in sent:
             raise refuse(fixed, "transaction-fixed", "A transaction keeps its account and holding.")
     if "transferWithId" in sent:
-        raise refuse(
-            "transferWithId", "transfer-fixed", "Match a transfer or undo one from its Transfer."
-        )
-    if sent - {"leftOutOf"}:
+        access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+        if body.transferWithId:
+            _transfer_with(ctx, t, body.transferWithId)
+        else:
+            repo.unlink_transfer(ctx.s, t)
+    if sent - {"leftOutOf", "transferWithId"}:
         a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
         _reconciled(ctx, t)
         guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)

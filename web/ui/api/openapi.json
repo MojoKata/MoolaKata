@@ -12196,20 +12196,6 @@
         "title": "MonthView",
         "type": "object"
       },
-      "Move": {
-        "additionalProperties": false,
-        "properties": {
-          "to": {
-            "title": "To",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "to"
-        ],
-        "title": "Move",
-        "type": "object"
-      },
       "MoveOut": {
         "additionalProperties": false,
         "description": "An amount put from one category to another for the month (S7.11).",
@@ -17095,6 +17081,7 @@
               "birthday-incomplete",
               "bitcoin-not-set",
               "book-fixed",
+              "budget-required",
               "budget-unknown",
               "built-in",
               "built-on-invalid",
@@ -17435,7 +17422,6 @@
               "trade-incomplete",
               "transaction-fixed",
               "transaction-unknown",
-              "transfer-fixed",
               "transfer-taken",
               "two-step-expired",
               "two-step-not-started",
@@ -17541,6 +17527,7 @@
                   "birthday-incomplete",
                   "bitcoin-not-set",
                   "book-fixed",
+                  "budget-required",
                   "budget-unknown",
                   "built-in",
                   "built-on-invalid",
@@ -17881,7 +17868,6 @@
                   "trade-incomplete",
                   "transaction-fixed",
                   "transaction-unknown",
-                  "transfer-fixed",
                   "transfer-taken",
                   "two-step-expired",
                   "two-step-not-started",
@@ -17947,6 +17933,17 @@
       "Profile": {
         "additionalProperties": false,
         "properties": {
+          "activeBudgetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activebudgetid"
+          },
           "alertEmails": {
             "title": "Alertemails",
             "type": "string"
@@ -18103,6 +18100,7 @@
           "alertEmails",
           "bitcoinUnit",
           "shownProjectionIds",
+          "activeBudgetId",
           "twoStep",
           "relations",
           "spouse",
@@ -20774,7 +20772,7 @@
       },
       "RuleRecord": {
         "additionalProperties": false,
-        "description": "A rule as a draft saves it (S2.7): a new one goes last in the list; the tags it sets\nare its owner's.",
+        "description": "A rule as a draft saves it (S2.7): a new one goes last in the list, and one moved goes\nto its `position` (from 0), the others closing up around it; the tags it sets are its\nowner's.",
         "properties": {
           "accountId": {
             "anyOf": [
@@ -20852,6 +20850,18 @@
           "payeeMatch": {
             "title": "Payeematch",
             "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Position"
           },
           "tagIds": {
             "items": {
@@ -23647,27 +23657,6 @@
         "title": "TransferIn",
         "type": "object"
       },
-      "TransferLink": {
-        "additionalProperties": false,
-        "properties": {
-          "otherId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Otherid"
-          }
-        },
-        "required": [
-          "otherId"
-        ],
-        "title": "TransferLink",
-        "type": "object"
-      },
       "TransferPair": {
         "additionalProperties": false,
         "properties": {
@@ -24839,6 +24828,20 @@
             "default": true,
             "title": "Active",
             "type": "boolean"
+          },
+          "activeBudgetId": {
+            "anyOf": [
+              {
+                "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Bdgt"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Activebudgetid"
           },
           "alertEmails": {
             "default": "each",
@@ -28994,45 +28997,6 @@
           }
         },
         "summary": "Get Budget",
-        "tags": [
-          "budgets"
-        ]
-      }
-    },
-    "/ui/api/budgets/{budget_id}/active": {
-      "post": {
-        "description": "The budget the caller follows from now on; the one before becomes a scenario. Nothing\nis rewritten (S7.12.1).",
-        "operationId": "make_active_ui_api_budgets__budget_id__active_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetRow"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Make Active",
         "tags": [
           "budgets"
         ]
@@ -33568,55 +33532,6 @@
         ]
       }
     },
-    "/ui/api/rules/{rule_id}/move": {
-      "post": {
-        "description": "Up or down the list: first match wins, so the order is what a rule means.",
-        "operationId": "move_rule_ui_api_rules__rule_id__move_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "rule_id",
-            "required": true,
-            "schema": {
-              "title": "Rule Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Move"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RuleList"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Move Rule",
-        "tags": [
-          "rules"
-        ]
-      }
-    },
     "/ui/api/save": {
       "post": {
         "description": "A dialog's draft, saved all or nothing (S13.8.11).",
@@ -36505,55 +36420,6 @@
           }
         },
         "summary": "Keep Off Chain",
-        "tags": [
-          "transactions"
-        ]
-      }
-    },
-    "/ui/api/transactions/{txn_id}/transfer": {
-      "post": {
-        "description": "Match a transfer by hand, or undo a match (S1.7).",
-        "operationId": "link_transfer_ui_api_transactions__txn_id__transfer_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "txn_id",
-            "required": true,
-            "schema": {
-              "title": "Txn Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TransferLink"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TxnOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Link Transfer",
         "tags": [
           "transactions"
         ]

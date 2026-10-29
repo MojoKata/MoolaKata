@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, remove, tag
+from edits import change, make, remove, saved, tag
 from PIL import Image
 from test_accounts import FIX, add, new_account, upload
 from test_receipts import upload as upload_receipt
@@ -70,8 +70,12 @@ def test_rules_are_kept_in_order_and_first_match_wins(alice):
     assert r.status_code == 200, r.text
     first, second = alice.get("/ui/api/rules").json()["items"]
     assert (first["position"], second["position"]) == (0, 1)
-    r = alice.post(f"/ui/api/rules/{second['id']}/move", json={"to": 0})
-    assert [x["id"] for x in r.json()["items"]] == [second["id"], first["id"]]
+    # Moved up, through the save: the other closes up behind it.
+    assert saved(change(alice, "Rule", second, position=0))["position"] == 0
+    assert [x["id"] for x in alice.get("/ui/api/rules").json()["items"]] == [
+        second["id"],
+        first["id"],
+    ]
     a = new_account(alice)
     job = upload(alice, a["id"], "bank.ofx", (FIX / "bank.ofx").read_bytes())
     assert job["result"]["categorised"] == 1, job

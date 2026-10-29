@@ -53,10 +53,6 @@ class RuleList(Model):
     uncategorised: int  # in the accounts the user can change, that a rule could set
 
 
-class Move(Model):
-    to: int  # the place it goes, from 0
-
-
 class Applied(Model):
     changed: int
 
@@ -211,26 +207,15 @@ def _own(s, c: Caller, rule_id: str) -> Rule:
     return r
 
 
-@router.post("/rules/{rule_id}/move", response_model=RuleList)
-def move_rule(rule_id: str, body: Move, request: Request, c: Caller = Depends(caller)):
-    """Up or down the list: first match wins, so the order is what a rule means."""
-    with server(request).db.tx() as s:
-        r = _own(s, c, rule_id)
-        rules = [x for x in repo.of_user(s, c.id) if x.id != r.id]
-        rules.insert(max(0, min(body.to, len(rules))), r)
-        _renumber(rules)
-        s.flush()
-        _record(s, "rule.moved", c)
-        return _list(s, c.id)
-
-
 class RuleRecord(RuleFields):
-    """A rule as a draft saves it (S2.7): a new one goes last in the list; the tags it sets
-    are its owner's."""
+    """A rule as a draft saves it (S2.7): a new one goes last in the list, and one moved goes
+    to its `position` (from 0), the others closing up around it; the tags it sets are its
+    owner's."""
 
     tagIds: list[IdOf("Tag")] = Field(  # type: ignore[valid-type]
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
+    position: int | None = None
 
 
 def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
@@ -250,16 +235,26 @@ def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
 
 def _rule_current(ctx, r: Rule) -> dict:
     return {f: getattr(r, f) for f in RuleFields.model_fields} | {
-        "tagIds": [t.id for t in _rule_tags(ctx.s, r)]
+        "tagIds": [t.id for t in _rule_tags(ctx.s, r)],
+        "position": r.position,
     }
 
 
 def _rule_update(ctx, r: Rule, body: RuleRecord) -> None:
-    _raise(_check(ctx.s, ctx.caller, body, len(body.tagIds)))
-    tags.owned(ctx.s, ctx.caller.id, body.tagIds)
-    _fill(r, body)
-    tags.set_on(ctx.s, "rule", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)
-    _record(ctx.s, "rule.updated", ctx.caller)
+    s, c = ctx.s, ctx.caller
+    current = _rule_current(ctx, r)
+    if body.position is not None and body.position != r.position:
+        # Up or down the list: first match wins, so the order is what a rule means.
+        rules = [x for x in repo.of_user(s, c.id) if x.id != r.id]
+        rules.insert(max(0, min(body.position, len(rules))), r)
+        _renumber(rules)
+        _record(s, "rule.moved", c)
+    if any(getattr(body, f) != current[f] for f in (*RuleFields.model_fields, "tagIds")):
+        _raise(_check(s, c, body, len(body.tagIds)))
+        tags.owned(s, c.id, body.tagIds)
+        _fill(r, body)
+        tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)
+        _record(s, "rule.updated", c)
 
 
 def _rule_delete(ctx, r: Rule) -> None:

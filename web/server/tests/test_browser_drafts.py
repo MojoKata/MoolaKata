@@ -10,7 +10,17 @@ from decimal import Decimal
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
-from edits import change, create, edit, make, option_trade, save_settings, saved, terms
+from edits import (
+    change,
+    create,
+    edit,
+    make,
+    option_trade,
+    remove,
+    save_settings,
+    saved,
+    terms,
+)
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -749,6 +759,62 @@ def test_a_receipt_added_to_a_transaction_is_attached_on_save(browser, household
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     assert [x["fileName"] for x in receipts()] == ["bakery.pdf"]
+    assert problems == []
+    page.close()
+
+
+# ---------- what is saved at once, a record's field changed ----------
+
+
+def test_a_rule_moved_and_a_budget_made_active_are_saved_at_once(browser, household):
+    """↑ moves a rule to its new position, and Make active sets the budget followed, each a
+    change of a record through the save."""
+    h = household
+    first = made(make(h.c, "Rule", payeeMatch="bakery", categoryId=h.cats["Food › Groceries"]))
+    second = made(make(h.c, "Rule", payeeMatch="bagel", categoryId=h.cats["Food › Groceries"]))
+    order = lambda: [x["id"] for x in h.c.get("/ui/api/rules").json()["items"]]  # noqa: E731
+    page, problems = signed_in(browser, h, "/ui/transactions", 'button:has-text("Rules")')
+    page.click('main button:has-text("Rules")')
+    up = f'button[aria-label="Move rule {order().index(second["id"]) + 1} up"]'
+    wait(page, up, problems)
+    page.click(up)
+    wait(page, f"{up}:enabled", problems)
+    assert order().index(second["id"]) < order().index(first["id"])
+    page.click('.dialog footer button:has-text("Close")')
+    for gone in (first["id"], second["id"]):  # each read anew: a delete renumbers the rest
+        r = next(x for x in h.c.get("/ui/api/rules").json()["items"] if x["id"] == gone)
+        saved(remove(h.c, "Rule", r))
+    page.goto(f"{h.base}/ui/budgets/{h.budget['id']}/list")
+    item = '.list-item:has-text("Envelopes")'
+    wait(page, f'{item} button:has-text("Make active")', problems)
+    page.click(f'{item} button:has-text("Make active")')
+    page.click('.dialog footer button:has-text("Make active")')
+    wait(page, ".dialog", problems, state="detached")
+    assert h.c.get("/ui/api/profile").json()["activeBudgetId"] == h.envelope["id"]
+    saved(change(h.c, "User", h.c.get("/ui/api/profile").json(), activeBudgetId=h.budget["id"]))
+    assert problems == []
+    page.close()
+
+
+def test_not_a_transfer_undoes_the_match_through_the_save(browser, household):
+    """The match undone is a change of the transaction's draft: both halves let go."""
+    h = household
+    savings = made(make(h.c, "Acct", name="Rainy day", type="savings"))
+    day = f"{months_back(1)}-20"
+    out = made(make(h.c, "Txn", accountId=h.checking["id"], date=day, amount="-250.00",
+                    payee="To Rainy day"))  # fmt: skip
+    into = made(make(h.c, "Txn", accountId=savings["id"], date=day, amount="250.00",
+                     payee="From checking", kind="deposit"))  # fmt: skip
+    pair = lambda: h.c.get(f"/ui/api/transactions/{into['id']}").json()["transferId"]  # noqa: E731
+    assert pair() == out["id"], "matched when it was added"
+    path = f"/ui/accounts/{savings['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("From checking")')
+    page.click('button.linklike:has-text("From checking")')
+    wait(page, '.dialog button:has-text("Not a transfer")', problems)
+    page.click('.dialog button:has-text("Not a transfer")')
+    wait(page, ".dialog", problems, state="detached")
+    assert pair() is None
+    assert h.c.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] is None
     assert problems == []
     page.close()
 

@@ -13,7 +13,6 @@ import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
 import { Field, Switch, SwitchRow } from '../components/fields.js';
-import { toast } from '../components/toast.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
@@ -107,7 +106,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   };
   const f = useDraft(async (draft) => {
     if (editing) {
-      draft.load(Txn, await api.get(`/transactions/${txn.id}`));
+      const got = await api.get(`/transactions/${txn.id}`);
+      draft.load(Txn, { ...got, transferWithId: got.transferId });
       const t = /** @type {Txn} */ (draft.records[0]);
       for (const sp of t.get('splits') || []) draft.load(Part, { ...sp, transactionId: t.id });
       return;
@@ -172,10 +172,12 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               `
               : null}
             ${editing && txn.transferId
-              ? html`<button type="button" class="btn" onClick=${async () => {
-                await api.post(`/transactions/${txn.id}/transfer`, { otherId: null });
-                toast('No longer a transfer');
-                close(true);
+              ? html`<button type="button" class="btn" disabled=${save.busy} onClick=${async () => {
+                if (!t) return;
+                // The match undone through the save, with whatever else was changed here.
+                t.set('transferWithId', null);
+                const r = await save.run().catch(() => null);
+                if (r?.status !== 'asks' && r?.status !== 'saved') t.revert('transferWithId');
               }}>Not a transfer</button>`
               : null}
             ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)

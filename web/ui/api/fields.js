@@ -419,6 +419,7 @@ export const FIELDS = {
     categoryId: {"type": "text", "nullable": true},
     payee: {"type": "text", "nullable": true},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
+    position: {"type": "int", "nullable": true},
   },
   SettingRecord: {
     key: {"type": "text"},
@@ -517,6 +518,7 @@ export const FIELDS = {
     alertEmails: {"type": "text"},
     bitcoinUnit: {"type": "text"},
     shownProjectionIds: {"type": "list", "items": {"type": "ref", "prefix": "Prjct"}, "set": true},
+    activeBudgetId: {"type": "ref", "prefix": "Bdgt", "nullable": true},
   },
   ValuationRecord: {
     date: {"type": "date"},

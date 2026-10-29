@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from sqlalchemy import false, select
 
-from .. import activity, clock, people, settings, timezones
+from .. import access, activity, clock, people, settings, timezones
 from ..auth import sessions, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
@@ -83,6 +83,7 @@ class Profile(Model):
     alertEmails: str
     bitcoinUnit: str  # how bitcoin amounts are shown: btc or sats (S1.6.4)
     shownProjectionIds: list[str]  # shared projections shown on their Dashboard (S6.8.3)
+    activeBudgetId: str | None  # the budget they follow (S7.12.1)
     twoStep: TwoStep
     relations: list[Relation]
     spouse: Spouse | None
@@ -136,6 +137,7 @@ def profile(s, u: User) -> Profile:
         alertEmails=u.alertEmails,
         bitcoinUnit=u.bitcoinUnit,
         shownProjectionIds=shown(s, u.id),
+        activeBudgetId=u.activeBudgetId,
         twoStep=TwoStep(
             on=twostep.is_on(u),
             since=u.twoStepAt,
@@ -204,6 +206,7 @@ PROFILE_FIELDS = (
     "birthYear",
     "alertEmails",
     "bitcoinUnit",
+    "activeBudgetId",
 )
 
 
@@ -225,7 +228,8 @@ def current(s, u: User) -> dict:
     return {"displayName": u.displayName, "avatar": u.avatar, "timeZone": u.timeZone,
             "theme": u.theme, "sex": me.sex, "birthMonth": me.birthMonth,
             "birthDay": me.birthDay, "birthYear": me.birthYear, "alertEmails": u.alertEmails,
-            "bitcoinUnit": u.bitcoinUnit, "shownProjectionIds": shown(s, u.id)}  # fmt: skip
+            "bitcoinUnit": u.bitcoinUnit, "shownProjectionIds": shown(s, u.id),
+            "activeBudgetId": u.activeBudgetId}  # fmt: skip
 
 
 def change(s, u: User, body, sent: set[str]) -> None:
@@ -283,6 +287,15 @@ def change(s, u: User, body, sent: set[str]) -> None:
             raise refuse("bitcoinUnit", "choice-invalid", "BTC or sats.")
         u.bitcoinUnit = body.bitcoinUnit
         fields.append("bitcoinUnit")
+    if "activeBudgetId" in sent:
+        # The budget they follow from now on; the one before becomes a scenario, and nothing
+        # is rewritten (S7.12.1).
+        if body.activeBudgetId is None:
+            raise refuse("activeBudgetId", "budget-required", "Choose a budget to follow.")
+        b, _ = access.budget(s, u.id, body.activeBudgetId)
+        u.activeBudgetId = b.id
+        activity.record(s, "budget.activated", actor=u.id, subject_kind="budget",
+                        subject_id=b.id, owner=u.id)  # fmt: skip
     if fields:
         # The person's fields are the user's profile too: its version moves with them.
         u.updatedAt = clock.now()

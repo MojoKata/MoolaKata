@@ -18,7 +18,14 @@ import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
 import { Record } from '../app/draft.js';
-import { DraftDialog, RecField, RowErrors, saveNow, useDraft } from '../components/draft-form.js';
+import {
+  DraftDialog,
+  RecField,
+  RowErrors,
+  saveNow,
+  saveOne,
+  useDraft,
+} from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
@@ -654,6 +661,14 @@ function BudgetList({ budgets, reload }) {
   `;
 }
 
+/** The user's own record, as Make active sets the budget they follow (S7.12.1). */
+class FollowRec extends Record {
+  /** @override */
+  static prefix = 'User';
+  /** @override */
+  static fields = FIELDS.UserRecord;
+}
+
 /**
  * Make a budget the one the user follows (S7.12.1): nothing is rewritten.
  * @param {{ close: (v?: any) => void, b: any, from?: any }} p
@@ -661,7 +676,9 @@ function BudgetList({ budgets, reload }) {
 function MakeActiveDialog({ close, b, from }) {
   useDialogGuide('dialog-make-active');
   const save = useSubmit(async () => {
-    await api.post(`/budgets/${b.id}/active`, {});
+    const me = await api.get('/profile');
+    const was = { id: me.id, version: me.version, activeBudgetId: me.activeBudgetId };
+    await saveOne(FollowRec, was, { activeBudgetId: b.id });
     toast(`${b.name} is the budget you follow`);
     close(true);
   });

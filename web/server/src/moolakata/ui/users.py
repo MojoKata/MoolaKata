@@ -222,6 +222,7 @@ class UserRecord(Model):
     shownProjectionIds: list[IdOf("Prjct")] = Field(  # type: ignore[valid-type]
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
+    activeBudgetId: IdOf("Bdgt") | None = None  # type: ignore[valid-type]  # S7.12.1
 
 
 class GroupRecord(Model):

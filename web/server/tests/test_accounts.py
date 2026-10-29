@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
-from edits import asked, change, create, make, new_id, reconcile, remove, saved
+from edits import asked, change, create, edit, make, new_id, reconcile, remove, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -152,10 +152,15 @@ def test_transfers_are_matched_and_can_be_undone(server):
     out = add(c, checking["id"], "-500.00", "2026-09-15", payee="Card payment")
     paid = add(c, card["id"], "500.00", "2026-09-16", payee="Payment thank you", kind="deposit")
     assert paid["transferId"] == out["id"] and paid["transferAccountName"] == "Checking"
-    r = c.post(f"/ui/api/transactions/{paid['id']}/transfer", json={"otherId": None})
-    assert r.json()["transferId"] is None
-    r = c.post(f"/ui/api/transactions/{paid['id']}/transfer", json={"otherId": out["id"]})
-    assert r.json()["transferId"] == out["id"]
+    path = f"/ui/api/transactions/{paid['id']}"
+    assert saved(edit(c, "Txn", path, transferWithId=None))["transferId"] is None
+    assert c.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] is None
+    # Matched by hand: the same amount the other way, in another account.
+    other = add(c, checking["id"], "-499.00", "2026-09-15", payee="Not it")
+    r = edit(c, "Txn", path, transferWithId=other["id"])
+    assert r.json()["errors"][0]["code"] == "amount-mismatch"
+    assert saved(edit(c, "Txn", path, transferWithId=out["id"]))["transferId"] == out["id"]
+    assert c.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] == paid["id"]
 
 
 def test_idempotency_key_returns_the_first_answer(server):
