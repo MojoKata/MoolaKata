@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import pytest
-from edits import edit, giving_plan, saved, terms
+from edits import edit, giving_plan, saved, terms, wallet
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -262,7 +262,7 @@ def people(h: Household) -> dict:
 
 def accounts(h: Household) -> dict:
     """A savings account limited to six withdrawals a month; a home with a valuation and an
-    improvement; a mortgage secured by it, with a rate reset."""
+    improvement; a mortgage secured by it, with a rate reset; a wallet watching a key."""
 
     c = h.c
     savings = made(c.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}))
@@ -295,7 +295,11 @@ def accounts(h: Household) -> dict:
               rate="6.875", escrowTax="300", securedById=home["id"],
               resets=[{"date": "2030-04-01", "rate": "7.125"}])
     )  # fmt: skip
-    return {"savings": savings, "homes": homes, "home": home, "mortgage": mortgage}
+    from test_wallets import ZPUB
+
+    cold = made(c.post("/ui/api/accounts", json={"name": "Cold storage", "type": "crypto-wallet"}))
+    saved(wallet(c, cold["id"], ZPUB, 25))
+    return {"savings": savings, "homes": homes, "home": home, "mortgage": mortgage, "cold": cold}
 
 
 def tax_book(h: Household) -> dict:
@@ -429,7 +433,30 @@ def transactions(h: Household) -> dict:
             json={"name": "Retirement", "accountIds": [brokerage["id"]], "benchmark": "60-40"},
         )
     )
-    return {"bill": bill, "brokerage": brokerage, "moved": moved, "portfolio": portfolio}
+    from test_receipts import png
+
+    receipt = made(c.post("/ui/api/receipts", files={"file": ("coffee.png", png(), "image/png")}))
+    receipt = saved(
+        edit(c, "Rcpt", f"/ui/api/receipts/{receipt['id']}", date=f"{months_back(1)}-12",
+             amount="6.40", payee="Blue Bottle", notes="with Emma", tags={"add": ["coffee"],
+             "remove": []}, keep=True)
+    )  # fmt: skip
+    retire = made(
+        c.post(
+            "/ui/api/projections",
+            json={"name": "Retire at 62", "goal": "retirement",
+                  "builtOn": {"kind": "portfolio", "id": portfolio["id"]},
+                  "inputs": {"people": [{"name": "Admin", "birthYear": 1979, "retireAge": 62}],
+                             "contribution": {"amount": 30000, "growth": 3},
+                             "withdrawal": {"method": "fixed", "amount": 60000},
+                             "income": [{"label": "Social Security", "person": 0,
+                                         "fromAge": 67, "monthly": 2900}],
+                             "fees": 0.2}},
+        )
+    )  # fmt: skip
+    made(c.post(f"/ui/api/projections/{retire['id']}/activate"))
+    return {"bill": bill, "brokerage": brokerage, "moved": moved, "portfolio": portfolio,
+            "receipt": receipt, "retire": retire}  # fmt: skip
 
 
 @pytest.fixture(scope="session")

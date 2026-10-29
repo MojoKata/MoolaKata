@@ -20,6 +20,11 @@ export const FIELDS = {
     withdrawalsAMonth: {"type": "int", "nullable": true},
     connectionId: {"type": "ref", "prefix": "Conn", "nullable": true},
     syncAccount: {"type": "text", "nullable": true},
+    walletKeys: {"type": "text", "nullable": true},
+    gapLimit: {"type": "int"},
+  },
+  AssumptionsRecord: {
+    figures: {"type": "json"},
   },
   BookRecord: {
     year: {"type": "int"},
@@ -50,6 +55,20 @@ export const FIELDS = {
     parentId: {"type": "text", "nullable": true},
     taxTag: {"type": "text", "nullable": true},
     keepReceiptsYears: {"type": "int", "nullable": true},
+  },
+  ConnectionRecord: {
+    driver: {"type": "text"},
+    label: {"type": "text"},
+    settings: {"type": "json"},
+  },
+  ContributionRecord: {
+    accountId: {"type": "ref", "prefix": "Acct"},
+    transactionId: {"type": "ref", "prefix": "Txn", "nullable": true},
+    date: {"type": "date", "nullable": true},
+    amount: {"type": "money", "nullable": true},
+    fromAccountId: {"type": "ref", "prefix": "Acct", "nullable": true},
+    contributor: {"type": "text"},
+    fiveYear: {"type": "bool"},
   },
   DependentRecord: {
     personId: {"type": "text"},
@@ -92,6 +111,14 @@ export const FIELDS = {
     beneficiaryId: {"type": "ref", "prefix": "Persn", "nullable": true},
     openedOn: {"type": "date", "nullable": true},
     stateDeduction: {"type": "money", "nullable": true},
+  },
+  ExpenseRecord: {
+    date: {"type": "date"},
+    year: {"type": "int", "nullable": true},
+    kind: {"type": "text"},
+    description: {"type": "text", "nullable": true},
+    amount: {"type": "money"},
+    accountId: {"type": "ref", "prefix": "Acct"},
   },
   FilingRecord: {
     bookId: {"type": "ref", "prefix": "TaxBk"},
@@ -296,9 +323,32 @@ export const FIELDS = {
     benchmark: {"type": "text"},
     notes: {"type": "text", "nullable": true},
   },
+  ProjectionRecord: {
+    name: {"type": "text"},
+    goal: {"type": "text"},
+    builtOn: {"type": "json"},
+    inputs: {"type": "json"},
+    rebaseline: {"type": "bool"},
+  },
   Recast: {
     date: {"type": "date"},
     fee: {"type": "money"},
+  },
+  ReceiptRecord: {
+    date: {"type": "date", "nullable": true},
+    amount: {"type": "money", "nullable": true},
+    payee: {"type": "text", "nullable": true},
+    notes: {"type": "text", "nullable": true},
+    tags: {"type": "list", "items": {"type": "text"}, "set": true},
+    keep: {"type": "bool"},
+  },
+  RelationshipRecord: {
+    person1Id: {"type": "ref", "prefix": "Persn"},
+    person2Id: {"type": "ref", "prefix": "Persn"},
+    relation: {"type": "text"},
+    label: {"type": "text", "nullable": true},
+    fromDate: {"type": "date", "nullable": true},
+    toDate: {"type": "date", "nullable": true},
   },
   Reset: {
     date: {"type": "date"},
@@ -318,6 +368,12 @@ export const FIELDS = {
     categoryId: {"type": "text", "nullable": true},
     payee: {"type": "text", "nullable": true},
     tags: {"type": "list", "items": {"type": "text"}, "set": true},
+  },
+  SourceRecord: {
+    name: {"type": "text"},
+    enabled: {"type": "bool"},
+    preference: {"type": "json"},
+    apiKey: {"type": "text", "nullable": true},
   },
   SplitRecord: {
     transactionId: {"type": "ref", "prefix": "Txn"},
@@ -368,10 +424,18 @@ export const FIELDS = {
   UserRecord: {
     displayName: {"type": "text"},
     username: {"type": "text"},
-    email: {"type": "text"},
+    email: {"type": "text", "nullable": true},
     sex: {"type": "text", "nullable": true},
     active: {"type": "bool"},
     groupIds: {"type": "list", "items": {"type": "ref", "prefix": "Group"}, "set": true},
+    avatar: {"type": "text", "nullable": true},
+    timeZone: {"type": "text"},
+    theme: {"type": "text"},
+    birthMonth: {"type": "int", "nullable": true},
+    birthDay: {"type": "int", "nullable": true},
+    birthYear: {"type": "int", "nullable": true},
+    alertEmails: {"type": "text"},
+    bitcoinUnit: {"type": "text"},
   },
   ValuationRecord: {
     date: {"type": "date"},

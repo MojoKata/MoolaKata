@@ -313,7 +313,10 @@
        (a category's path, a date), the order they were made in, or a position the person sets
        where a screen lets them arrange the order.
     4. **One save, all or nothing.** **Save** sends the whole draft in one request (S13.8.11),
-       applied in one database transaction or not at all. A refusal changes nothing; each
+       applied in one database transaction or not at all. A Settings section's keys and a
+       year's tax tables are the server's own, not records, so their forms' drafts go to
+       their own routes (`PATCH /ui/api/settings`, `PUT /ui/api/settings/tax-tables`) the same
+       way: only what changed, against the version read. A refusal changes nothing; each
        reason is shown at its field, or on its row for a record the dialog shows as a row, or
        above the buttons when it belongs to no field. A save that asks first (a transaction in
        a reconciled period, an edit to a year whose return is filed, a reserve that stops being

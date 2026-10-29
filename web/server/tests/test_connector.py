@@ -161,7 +161,7 @@ def test_an_unconfirmed_pairing_gets_no_credential_and_posts_no_file(server, adm
     assert r.status_code == 403 and r.json()["code"] == "not-confirmed"
     c = sign_in(server, "alice")
     assert c.get("/ui/api/connector").json()["confirmed"] is False
-    r = c.put(f"/ui/api/profile/connections/{cid}/credential", json={"sealed": "x" * 100})
+    r = c.post(f"/ui/api/profile/connections/{cid}/credential", json={"sealed": "x" * 100})
     assert r.status_code == 409 and r.json()["code"] == "pairing-unconfirmed"
     assert admin.post("/ui/api/settings/connector/confirm").status_code == 200
     view = admin.get("/ui/api/settings/connector").json()

@@ -691,7 +691,7 @@ function TickOff({ close, a }) {
     setRec(all.reconciliations.find((/** @type {any} */ r) => r.id === rec.id));
   };
   const finish = useSubmit(async () => {
-    await api.patch(`/reconciliations/${rec.id}`, { finish: true }, rec.version);
+    await api.post(`/reconciliations/${rec.id}/finish`);
     toast('The period is reconciled');
     close(true);
   });
@@ -935,7 +935,7 @@ function Settings({ a, reload }) {
                 </div>
               `
               : wallet
-              ? null
+              ? html`<${WalletCard} a=${a} rec=${rec} />`
               : physical
               ? html`
                 <div class="card">
@@ -976,13 +976,6 @@ function Settings({ a, reload }) {
         `
         : null}
     </${DraftForm}>
-    ${wallet
-      ? html`
-        <div class="grid g2 mt">
-          <${WalletCard} a=${a} />
-        </div>
-      `
-      : null}
   `;
 }
 

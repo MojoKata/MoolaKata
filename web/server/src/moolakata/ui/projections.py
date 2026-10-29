@@ -11,20 +11,18 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, ids, projections
-from ..errors import FieldError, Problem
+from ..errors import FieldError, Problem, refuse
 from ..projections import assumptions, bitcoin, taxtables
-from ..store.entities.projections import Projection, ShownProjection, TaxFigure
+from ..store.entities.projections import AssumptionSet, Projection, ShownProjection, TaxFigure
 from ..store.entities.users import User
+from . import save
 from .conventions import (
-    Deleted,
     ExactRoute,
     Loose,
     Model,
     Money,
     Ratio,
-    check,
     check_version,
-    gone,
     if_match,
     version_of,
 )
@@ -62,14 +60,6 @@ class NewProjection(Model):
     goal: str
     builtOn: Loose
     inputs: Loose = Field(default_factory=dict)
-
-
-class ProjectionChange(Model):
-    name: str | None = None
-    builtOn: Loose | None = None
-    inputs: Loose | None = None
-    # An active projection's new inputs become its baseline only when asked (S6.7.4).
-    rebaseline: bool = False
 
 
 class Activated(Model):
@@ -310,48 +300,6 @@ def get_projection(projection_id: str, request: Request, c: Caller = Depends(cal
         return detail(s, c.id, p, lvl)
 
 
-@router.patch("/projections/{projection_id}", response_model=ProjectionDetail)
-def change_projection(
-    projection_id: str,
-    body: ProjectionChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        p, lvl = _get(s, c.id, projection_id, "write")
-        check(p, version, lambda: detail(s, c.id, p, lvl))
-        _raise(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
-        fields = []
-        if body.name is not None and body.name.strip() != p.name:
-            p.name = body.name.strip()
-            fields.append("name")
-        if body.builtOn is not None:
-            p.builtOn = exactjson.dumps(body.builtOn)
-            fields.append("builtOn")
-        if body.inputs is not None:
-            p.inputs = exactjson.dumps(body.inputs)
-            fields.append("inputs")
-        if p.active and body.rebaseline:
-            s.flush()
-            p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, c.id)))
-            p.baselineAt = clock.now()
-            fields.append("baseline")
-        p.updatedAt = clock.now()
-        if fields:
-            activity.record(
-                s,
-                "projection.updated",
-                actor=c.id,
-                subject_kind="projection",
-                subject_id=p.id,
-                owner=p.ownerId,
-                detail={"fields": fields},
-            )
-        s.flush()
-        return detail(s, c.id, p, lvl)
-
-
 @router.post("/projections/{projection_id}/activate", response_model=Activated)
 def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
     """At most one active per subject: the one it replaces goes back to being a scenario.
@@ -391,27 +339,84 @@ def deactivate(projection_id: str, request: Request, c: Caller = Depends(caller)
     return Response(status_code=204)
 
 
-@router.delete("/projections/{projection_id}", response_model=Deleted[None])
-def delete_projection(
-    projection_id: str,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        p, lvl = _get(s, c.id, projection_id, "owner")
-        check(p, version, lambda: detail(s, c.id, p, lvl))
-        p.mark_deleted(c.id)
-        activity.record(
-            s,
-            "projection.deleted",
-            actor=c.id,
-            subject_kind="projection",
-            subject_id=p.id,
-            owner=c.id,
-        )
+class ProjectionRecord(NewProjection):
+    """A projection as a draft saves it (S6.6): its goal chosen when it is made. An active
+    one's new inputs become its baseline only when `rebaseline` asks it (S6.7.4); it is an
+    instruction, never kept."""
+
+    rebaseline: bool = False
+
+
+def _projection_create(ctx, record_id: str, body: ProjectionRecord) -> None:
+    """It starts as a scenario; making it active is a step of its own (S6.7)."""
+    s, c = ctx.s, ctx.caller
+    _raise(_check(s, c.id, body.name, body.goal, body.builtOn, body.inputs))
+    p = Projection(
+        id=record_id,
+        ownerId=c.id,
+        name=body.name.strip(),
+        goal=body.goal,
+        builtOn=exactjson.dumps(body.builtOn),
+        inputs=exactjson.dumps(body.inputs),
+    )
+    s.add(p)
+    s.flush()
+    activity.record(s, "projection.created", actor=c.id, subject_kind="projection",
+                    subject_id=p.id, owner=c.id)  # fmt: skip
+
+
+def _projection_current(ctx, p: Projection) -> dict:
+    return {"name": p.name, "goal": p.goal, "builtOn": json.loads(p.builtOn or "null"),
+            "inputs": json.loads(p.inputs or "{}"), "rebaseline": False}  # fmt: skip
+
+
+def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if body.goal != p.goal:
+        raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
+    _raise(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
+    current = _projection_current(ctx, p)
+    fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
+    p.name = body.name.strip()
+    p.builtOn = exactjson.dumps(body.builtOn)
+    p.inputs = exactjson.dumps(body.inputs)
+    if p.active and body.rebaseline:
         s.flush()
-        return Deleted[None](deleted=gone(p))
+        p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, c.id)))
+        p.baselineAt = clock.now()
+        fields.append("baseline")
+    p.updatedAt = clock.now()
+    if fields:
+        activity.record(s, "projection.updated", actor=c.id, subject_kind="projection",
+                        subject_id=p.id, owner=p.ownerId, detail={"fields": fields})  # fmt: skip
+
+
+def _projection_delete(ctx, p: Projection) -> None:
+    s, c = ctx.s, ctx.caller
+    _get(s, c.id, p.id, "owner")
+    p.mark_deleted(c.id)
+    activity.record(s, "projection.deleted", actor=c.id, subject_kind="projection",
+                    subject_id=p.id, owner=c.id)  # fmt: skip
+
+
+def _projection_read(ctx, record_id: str) -> ProjectionDetail:
+    p, lvl = _get(ctx.s, ctx.caller.id, record_id)
+    return detail(ctx.s, ctx.caller.id, p, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="Prjct",
+        entity=Projection,
+        fields=ProjectionRecord,
+        create=_projection_create,
+        editable=lambda ctx, record_id: _get(ctx.s, ctx.caller.id, record_id, "write")[0],
+        current=_projection_current,
+        update=_projection_update,
+        delete=_projection_delete,
+        read=_projection_read,
+    )
+)
 
 
 @router.put("/projections/{projection_id}/shown", response_model=Shown)
@@ -483,35 +488,78 @@ class AssumptionsView(Model):
     figures: dict
     classes: list[tuple[str, str]]
     bitcoinModels: list[tuple[str, str]]
-    version: int = 0  # the user's own figures: 0 while they keep the shipped ones
+    id: str | None = None  # the user's own figures: none while they keep the shipped ones
+    version: int = 0
+
+
+def assumptions_view(s, user_id: str) -> AssumptionsView:
+    row = assumptions.row_of(s, user_id)
+    return AssumptionsView(
+        figures=assumptions.load(s, user_id),
+        classes=[(k, label) for k, label, _, _ in assumptions.CLASSES],
+        bitcoinModels=assumptions.BITCOIN_MODELS,
+        id=row.id if row else None,
+        version=row.version if row else 0,
+    )
 
 
 @router.get("/assumptions", response_model=AssumptionsView)
 def get_assumptions(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
-        row = assumptions.row_of(s, c.id)
-        return AssumptionsView(
-            figures=assumptions.load(s, c.id),
-            classes=[(k, label) for k, label, _, _ in assumptions.CLASSES],
-            bitcoinModels=assumptions.BITCOIN_MODELS,
-            version=row.version if row else 0,
-        )
+        return assumptions_view(s, c.id)
 
 
-@router.put("/assumptions", response_model=AssumptionsView)
-def put_assumptions(
-    body: Loose, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    problems = assumptions.check(body)
+class AssumptionsRecord(Model):
+    """A user's own assumptions as a draft saves them (S6.3): every figure, checked together;
+    made when they first change the shipped ones, deleted to go back to them."""
+
+    figures: Loose
+
+
+def _assumptions_check(body: AssumptionsRecord) -> None:
+    problems = assumptions.check(body.figures)
     if problems:
-        errors = [FieldError(f, "assumption-invalid", m) for f, m in problems]
+        errors = [FieldError(f"figures.{f}", "assumption-invalid", m) for f, m in problems]
         raise Problem(422, "assumption-invalid", errors[0].message, errors)
-    with server(request).db.tx() as s:
-        check(assumptions.row_of(s, c.id), version, lambda: {"version": 0})
-        assumptions.save(s, c.id, body)
-        activity.record(s, "profile.assumptions", actor=c.id, owner=c.id)
-        s.flush()
-    return get_assumptions(request, c)
+
+
+def _assumptions_create(ctx, record_id: str, body: AssumptionsRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    if assumptions.row_of(s, c.id) is not None:
+        raise refuse(None, "assumptions-exist", "Your assumptions are here: change them.", 409)
+    _assumptions_check(body)
+    figures = json.dumps(body.figures, sort_keys=True)
+    s.add(AssumptionSet(id=record_id, ownerId=c.id, figures=figures))
+    activity.record(s, "profile.assumptions", actor=c.id, owner=c.id)
+
+
+def _assumptions_editable(ctx, record_id: str) -> AssumptionSet:
+    row = ctx.s.get(AssumptionSet, record_id)
+    if row is None or row.deleted or row.ownerId != ctx.caller.id:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _assumptions_update(ctx, row: AssumptionSet, body: AssumptionsRecord) -> None:
+    _assumptions_check(body)
+    row.figures = json.dumps(body.figures, sort_keys=True)
+    activity.record(ctx.s, "profile.assumptions", actor=ctx.caller.id, owner=ctx.caller.id)
+
+
+save.register(
+    save.Kind(
+        prefix="Asmpt",
+        entity=AssumptionSet,
+        fields=AssumptionsRecord,
+        create=_assumptions_create,
+        editable=_assumptions_editable,
+        current=lambda ctx, row: {"figures": json.loads(row.figures or "{}")},
+        update=_assumptions_update,
+        # Deleted, the shipped figures stand again.
+        delete=lambda ctx, row: row.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: assumptions_view(ctx.s, ctx.caller.id),
+    )
+)
 
 
 class ModelRow(Model):

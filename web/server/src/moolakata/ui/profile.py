@@ -15,7 +15,7 @@ from ..auth import users as accounts
 from ..errors import Problem, refuse
 from ..people import tree
 from ..store.entities.users import OneTimeToken, User
-from .conventions import Deleted, ExactRoute, Gone, Model, check, if_match, stale
+from .conventions import ExactRoute, Model
 from .deps import Caller, caller, recent_auth, server, set_cookie
 from .session import count_failure, guarded
 
@@ -86,19 +86,6 @@ class Profile(Model):
     relations: list[Relation]
     spouse: Spouse | None
     version: int
-
-
-class ProfileChange(Model):
-    displayName: str | None = None
-    avatar: str | None = None
-    timeZone: str | None = None
-    theme: str | None = None
-    sex: str | None = None
-    birthMonth: int | None = None
-    birthDay: int | None = None
-    birthYear: int | None = None
-    alertEmails: str | None = None
-    bitcoinUnit: str | None = None
 
 
 class PasswordChange(Model):
@@ -172,87 +159,88 @@ def get_profile(request: Request, c: Caller = Depends(caller)):
         return profile(s, s.get(User, c.id))
 
 
-@router.patch("/profile", response_model=Profile)
-def change_profile(
-    body: ProfileChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    sent = body.model_fields_set
-    with server(request).db.tx() as s:
-        u = s.get(User, c.id)
-        if u.version != version:
-            raise stale(profile(s, u))
-        me = people.of_user(s, u.id)
-        fields = []
-        if "displayName" in sent:
-            name = (body.displayName or "").strip()
-            if not name or len(name) > 80:
-                raise refuse("displayName", "name-invalid", "Enter a name of up to 80 characters.")
-            people.change(s, me, {"name": name})
-            fields.append("displayName")
-        if "avatar" in sent:
-            if body.avatar is not None and (
-                not AVATAR.match(body.avatar) or len(body.avatar) > AVATAR_MAX
-            ):
-                raise refuse(
-                    "avatar", "avatar-invalid", "Use a PNG, JPEG or WebP image under 192 KB."
-                )
-            u.avatar = body.avatar
-            fields.append("avatar")
-        if "timeZone" in sent:
-            tz = body.timeZone or "auto"
-            if tz != "auto" and not timezones.valid(tz):
-                raise refuse("timeZone", "zone-invalid", "Choose a time zone from the list.")
-            u.timeZone = tz
-            fields.append("timeZone")
-        if "theme" in sent:
-            if body.theme not in ("dark", "light", "system"):
-                raise refuse("theme", "theme-invalid", "Dark, light or the system's.")
-            u.theme = body.theme
-            fields.append("theme")
-        if "sex" in sent:
-            if body.sex not in people.SEXES:
-                raise refuse("sex", "sex-invalid", "Female or male.")
-            people.change(s, me, {"sex": body.sex})
-            u.updatedAt = clock.now()
-            fields.append("sex")
-        if sent & {"birthMonth", "birthDay", "birthYear"}:
-            month, day, year = body.birthMonth, body.birthDay, body.birthYear
-            if (month is None) != (day is None):
-                raise refuse("birthDay", "birthday-incomplete", "A month and a day.")
-            if month is not None and not (1 <= month <= 12 and 1 <= day <= 31):
-                raise refuse("birthDay", "day-invalid", "A day of the year.")
-            if year is not None and not 1900 <= year <= 2100:
-                raise refuse("birthYear", "year-invalid", "Enter a year such as 1979.")
-            people.change(s, me, {"birthMonth": month, "birthDay": day, "birthYear": year})
-            u.updatedAt = clock.now()
-            fields.append("birthday")
-        if "alertEmails" in sent:
-            if body.alertEmails not in ("each", "daily", "none"):
-                raise refuse(
-                    "alertEmails", "choice-invalid", "Each alert, a daily summary or none."
-                )
-            u.alertEmails = body.alertEmails
-            fields.append("alertEmails")
-        if "bitcoinUnit" in sent:
-            if body.bitcoinUnit not in ("btc", "sats"):
-                raise refuse("bitcoinUnit", "choice-invalid", "BTC or sats.")
-            u.bitcoinUnit = body.bitcoinUnit
-            fields.append("bitcoinUnit")
-        if fields:
-            activity.record(
-                s,
-                "profile.updated",
-                actor=u.id,
-                subject_kind="user",
-                subject_id=u.id,
-                owner=u.id,
-                detail={"fields": fields},
-            )
-        s.flush()
-        return profile(s, u)
+# A user's own profile, theirs alone to change (S12.2.16); an admin changes the rest.
+PROFILE_FIELDS = (
+    "displayName",
+    "avatar",
+    "timeZone",
+    "theme",
+    "sex",
+    "birthMonth",
+    "birthDay",
+    "birthYear",
+    "alertEmails",
+    "bitcoinUnit",
+)
+
+
+def current(s, u: User) -> dict:
+    """The profile's fields as a draft holds them."""
+    me = people.of_user(s, u.id)
+    return {"displayName": u.displayName, "avatar": u.avatar, "timeZone": u.timeZone,
+            "theme": u.theme, "sex": me.sex, "birthMonth": me.birthMonth,
+            "birthDay": me.birthDay, "birthYear": me.birthYear, "alertEmails": u.alertEmails,
+            "bitcoinUnit": u.bitcoinUnit}  # fmt: skip
+
+
+def change(s, u: User, body, sent: set[str]) -> None:
+    """The fields `sent` set on the user's own profile, each checked."""
+    me = people.of_user(s, u.id)
+    fields = []
+    if "displayName" in sent:
+        name = (body.displayName or "").strip()
+        if not name or len(name) > 80:
+            raise refuse("displayName", "name-invalid", "Enter a name of up to 80 characters.")
+        people.change(s, me, {"name": name})
+        fields.append("displayName")
+    if "avatar" in sent:
+        if body.avatar is not None and (
+            not AVATAR.match(body.avatar) or len(body.avatar) > AVATAR_MAX
+        ):
+            raise refuse("avatar", "avatar-invalid", "Use a PNG, JPEG or WebP image under 192 KB.")
+        u.avatar = body.avatar
+        fields.append("avatar")
+    if "timeZone" in sent:
+        tz = body.timeZone or "auto"
+        if tz != "auto" and not timezones.valid(tz):
+            raise refuse("timeZone", "zone-invalid", "Choose a time zone from the list.")
+        u.timeZone = tz
+        fields.append("timeZone")
+    if "theme" in sent:
+        if body.theme not in ("dark", "light", "system"):
+            raise refuse("theme", "theme-invalid", "Dark, light or the system's.")
+        u.theme = body.theme
+        fields.append("theme")
+    if "sex" in sent:
+        if body.sex not in people.SEXES:
+            raise refuse("sex", "sex-invalid", "Female or male.")
+        people.change(s, me, {"sex": body.sex})
+        fields.append("sex")
+    if sent & {"birthMonth", "birthDay", "birthYear"}:
+        month, day, year = body.birthMonth, body.birthDay, body.birthYear
+        if (month is None) != (day is None):
+            raise refuse("birthDay", "birthday-incomplete", "A month and a day.")
+        if month is not None and not (1 <= month <= 12 and 1 <= day <= 31):
+            raise refuse("birthDay", "day-invalid", "A day of the year.")
+        if year is not None and not 1900 <= year <= 2100:
+            raise refuse("birthYear", "year-invalid", "Enter a year such as 1979.")
+        people.change(s, me, {"birthMonth": month, "birthDay": day, "birthYear": year})
+        fields.append("birthday")
+    if "alertEmails" in sent:
+        if body.alertEmails not in ("each", "daily", "none"):
+            raise refuse("alertEmails", "choice-invalid", "Each alert, a daily summary or none.")
+        u.alertEmails = body.alertEmails
+        fields.append("alertEmails")
+    if "bitcoinUnit" in sent:
+        if body.bitcoinUnit not in ("btc", "sats"):
+            raise refuse("bitcoinUnit", "choice-invalid", "BTC or sats.")
+        u.bitcoinUnit = body.bitcoinUnit
+        fields.append("bitcoinUnit")
+    if fields:
+        # The person's fields are the user's profile too: its version moves with them.
+        u.updatedAt = clock.now()
+        activity.record(s, "profile.updated", actor=u.id, subject_kind="user", subject_id=u.id,
+                        owner=u.id, detail={"fields": fields})  # fmt: skip
 
 
 @router.post("/profile/password", status_code=204)
@@ -314,20 +302,17 @@ def two_step_codes(request: Request, c: Caller = Depends(caller)):
         return RecoveryCodes(codes=twostep.new_recovery_codes(s, s.get(User, c.id)))
 
 
-@router.delete("/profile/two-step", response_model=Deleted[Profile])
-def two_step_off(request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)):
-    """Two-step sign-in off: it belongs to the user, so it is made against their version."""
+@router.post("/profile/two-step/off", response_model=Profile)
+def two_step_off(request: Request, c: Caller = Depends(caller)):
+    """Two-step sign-in off, with the password again (S13.7.2): an action on the user."""
     recent_auth(c)
     srv = server(request)
     with srv.db.tx() as s:
         u = s.get(User, c.id)
-        check(u, version, lambda: profile(s, u))
         twostep.turn_off(s, srv.services, u, u)
         u.updatedAt = clock.now()
         s.flush()
-        return Deleted[Profile](
-            deleted=Gone(id=f"{u.id}/two-step", deletedAt=clock.now()), parent=profile(s, u)
-        )
+        return profile(s, u)
 
 
 @router.get("/timezones", response_model=Zones)

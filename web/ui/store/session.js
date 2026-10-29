@@ -59,7 +59,10 @@ export function setSession(info) {
 export async function saveTheme(theme) {
   try {
     const profile = await api.get('/profile');
-    if (profile.theme !== theme) await api.patch('/profile', { theme }, profile.version);
+    if (profile.theme === theme) return;
+    // One field of the user's own record, through the save as every change (S13.8.11).
+    const op = { op: 'update', entity: 'User', id: profile.id, version: profile.version };
+    await api.post('/save', { ops: [{ ...op, fields: { theme } }] }, { idempotent: true });
   } catch {
     // the browser still remembers it
   }

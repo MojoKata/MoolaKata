@@ -517,8 +517,7 @@ def test_a_tax_documents_file_opens_for_the_books_filers(server, couple):
         ("tax-document", "W-2 in the 2026 tax book")
     ]
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
-    r = alice.delete(f"/ui/api/receipts/{up['id']}", headers={"If-Match": str(got["version"])})
-    assert r.status_code == 409
+    assert remove(alice, "Rcpt", got).status_code == 409
 
 
 def test_a_document_changed_removed_and_given_its_file_by_a_co_filer(couple):

@@ -4,6 +4,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, remove, saved
 from sqlalchemy import func, select
 
 from moolakata import clock, figures, ids, valuation
@@ -254,29 +255,17 @@ def test_price_sources_in_settings(admin_client, server):
     assert r.status_code == 201
     src = r.json()["sources"][0]
     assert src["enabled"] is False and src["needsKey"] and src["key"] is None
-    r = admin_client.patch(
-        f"/ui/api/price-sources/{src['id']}",
-        json={"enabled": True},
-        headers={"If-Match": str(src["version"])},
-    )
-    assert r.json()["code"] == "key-needed"
-    r = admin_client.patch(
-        f"/ui/api/price-sources/{src['id']}",
-        json={"apiKey": "abcdef0123456789", "enabled": True},
-        headers={"If-Match": str(src["version"])},
-    )
-    assert r.status_code == 200, r.text
-    row = r.json()["sources"][0]
+    r = change(admin_client, "Src", src, enabled=True)
+    assert r.json()["errors"][0]["code"] == "key-needed"
+    r = change(admin_client, "Src", src, apiKey="abcdef0123456789", enabled=True)
+    row = saved(r)
     assert row["enabled"] and row["key"]["setBy"] == "Ada Admin"
     assert "abcdef0123456789" not in r.text
     with pytest.raises(Exception, match="not a host"):
         server.guard.check("api.exchange.coinbase.com", 443)
     assert admin_client.post("/ui/api/price-sources", json={"name": "tiingo"}).status_code == 409
     assert admin_client.post("/ui/api/price-sources", json={"name": "stub"}).status_code == 422
-    r = admin_client.delete(
-        f"/ui/api/price-sources/{src['id']}", headers={"If-Match": str(row["version"])}
-    )
-    assert r.status_code == 200
+    assert remove(admin_client, "Src", row).status_code == 200
     from moolakata.store.repos import secrets as secret_repo
 
     with server.db.read() as s:

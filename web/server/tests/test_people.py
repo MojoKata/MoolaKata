@@ -55,12 +55,9 @@ def test_every_user_is_a_person_with_their_sex_and_birthday(two):
     alice, _ = two
     p = alice.get("/ui/api/profile").json()
     assert p["personId"].startswith("Persn_") and p["sex"] == "female"
-    r = alice.patch(
-        "/ui/api/profile",
-        json={"displayName": "Alice Griffin", "birthMonth": 4, "birthDay": 12, "birthYear": 1979},
-        headers={"If-Match": f'"{p["version"]}"'},
-    )
-    assert r.status_code == 200, r.text
+    r = change(alice, "User", p, displayName="Alice Griffin", birthMonth=4, birthDay=12,
+               birthYear=1979)  # fmt: skip
+    assert saved(r)["displayName"] == "Alice Griffin"
     row = next(x for x in alice.get("/ui/api/persons").json()["items"] if x["id"] == p["personId"])
     assert (row["name"], row["birthYear"], row["relation"]) == ("Alice Griffin", 1979, "you")
 
@@ -269,13 +266,8 @@ def test_wash_sales_count_the_spouse_on_the_day_of_the_sale(server, two):
     assert bob.post(f"/ui/api/relationships/{made['id']}/confirm").json()["confirmed"] is True
     assert realized() == "-500.00", "married after the sale"
     rel = alice.get("/ui/api/relationships").json()["items"][0]
-    r = alice.patch(
-        f"/ui/api/relationships/{rel['id']}",
-        json={"person1Id": a, "person2Id": b, "relation": "spouse", "fromDate": "2009-06-14"},
-        headers={"If-Match": f'"{rel["version"]}"'},
-    )
-    assert r.status_code == 200, r.text
-    assert r.json()["confirmed"] is False, "a changed marriage is confirmed again"
+    r = change(alice, "Rltn", rel, fromDate="2009-06-14")
+    assert saved(r)["confirmed"] is False, "a changed marriage is confirmed again"
     assert realized() == "-500.00", "Alice alone can't make Bob's trades hers"
     waiting = bob.get("/ui/api/relationships").json()["items"][0]
     assert waiting["canConfirm"]
@@ -339,24 +331,12 @@ def test_a_relationship_is_changed_and_removed_with_its_version(two):
     alice, bob = two
     a, b = me(alice), me(bob)
     r = relate(alice, a, b, "spouse", fromDate="2009-06-14")
-    r2 = alice.patch(
-        f"/ui/api/relationships/{r['id']}",
-        json={
-            "person1Id": a,
-            "person2Id": b,
-            "relation": "spouse",
-            "fromDate": "2009-06-14",
-            "toDate": "2015-03-02",
-        },
-        headers={"If-Match": str(r["version"])},
-    )
-    assert r2.status_code == 200, r2.text
-    assert r2.json()["endsOn"] == "2015-03-02"
+    r2 = saved(change(alice, "Rltn", r, toDate="2015-03-02"))
+    assert r2["endsOn"] == "2015-03-02"
     rows = alice.get("/ui/api/relationships").json()["items"]
     assert [x["toDate"] for x in rows] == ["2015-03-02"]
-    r3 = alice.delete(
-        f"/ui/api/relationships/{r['id']}", headers={"If-Match": str(r2.json()["version"])}
-    )
+    assert remove(alice, "Rltn", r).status_code == 412, "the version it was read at"
+    r3 = remove(alice, "Rltn", r2)
     assert r3.status_code == 200, r3.text
     assert alice.get("/ui/api/relationships").json()["items"] == []
 

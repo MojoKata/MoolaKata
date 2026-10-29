@@ -429,27 +429,33 @@ def test_profile_changes_are_checked_and_versioned(server):
     c = sign_in(server, "joy")
     p = c.get("/ui/api/profile").json()
     assert p["timeZone"] == "auto" and p["zone"]
-    r = c.patch(
-        "/ui/api/profile",
-        json={"timeZone": "America/Denver", "theme": "light", "birthYear": 1979},
-        headers={"If-Match": str(p["version"])},
-    )
-    assert r.status_code == 200
-    assert r.json()["zone"] == "America/Denver" and r.json()["version"] == p["version"] + 1
-    r = c.patch("/ui/api/profile", json={"theme": "dark"}, headers={"If-Match": str(p["version"])})
+    r = change(c, "User", p, timeZone="America/Denver", theme="light", birthYear=1979)
+    assert saved(r)["zone"] == "America/Denver" and saved(r)["version"] == p["version"] + 1
+    r = change(c, "User", p, theme="dark")
     assert r.status_code == 412
-    no_version = {"If-Match": ""}
-    assert c.patch("/ui/api/profile", json={"theme": "dark"}, headers=no_version).status_code == 428
-    v = r.json()["current"]["version"]
+    v = r.json()["current"][0]["current"]["version"]
     for bad in (
         {"timeZone": "Mars/Base"},
         {"avatar": "javascript:alert(1)"},
         {"theme": "neon"},
         {"birthYear": 1200},
     ):
-        r = c.patch("/ui/api/profile", json=bad, headers={"If-Match": str(v)})
+        r = change(c, "User", {"id": p["id"], "version": v}, **bad)
         assert r.status_code == 422, bad
         assert r.json()["errors"][0]["field"] == next(iter(bad))
+
+
+def test_a_users_profile_is_theirs_and_their_email_changes_by_request(server, admin_client):
+    make_user(server, "kit")
+    kit = sign_in(server, "kit")
+    row = next(
+        u for u in admin_client.get("/ui/api/users").json()["items"] if u["username"] == "kit"
+    )
+    r = change(admin_client, "User", row, theme="light")
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "own-profile"
+    p = kit.get("/ui/api/profile").json()
+    assert change(kit, "User", p, email="kit@else.lan").status_code == 403
+    assert change(kit, "User", p, active=False).status_code == 403
 
 
 # ---------- settings ----------

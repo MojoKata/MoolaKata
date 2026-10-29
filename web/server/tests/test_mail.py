@@ -68,11 +68,13 @@ def set_up_smtp(admin_client, password="app password"):
             "smtpHost": "smtp.home.lan",
             "smtpUsername": "money@home.lan",
             "smtpFrom": "MoolaKata <money@home.lan>",
+            "smtpPassword": password,
         },
     )
     assert r.status_code == 200, r.text
-    r = admin_client.put("/ui/api/settings/email/password", json={"password": password})
-    assert r.status_code == 200 and r.json()["password"]["setBy"] == "Ada Admin"
+    assert "smtpPassword" not in r.json()["values"], "never read back"
+    r = admin_client.get("/ui/api/settings/email")
+    assert r.json()["password"]["setBy"] == "Ada Admin"
 
 
 def test_settings_check_the_smtp_fields(admin_client):
@@ -133,7 +135,7 @@ def test_a_failure_keeps_the_email_and_says_why(admin_client, server, smtp):
     assert len(server.services.mailer.waiting()) == 1
     # A recipient the server will never take is set aside, and the rest go on.
     smtp.fail = smtplib.SMTPRecipientsRefused({"dave@x.lan": (550, b"no such user")})
-    admin_client.put("/ui/api/settings/email/password", json={"password": "right"})
+    admin_client.patch("/ui/api/settings", json={"smtpPassword": "right"})
     assert server.services.mailer.send_waiting(_smtp(server), server.guard) == 0
     assert admin_client.get("/ui/api/settings/email").json()["setAside"] == 1
 

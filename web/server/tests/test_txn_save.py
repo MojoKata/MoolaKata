@@ -105,11 +105,7 @@ def test_deleting_a_transaction_in_a_reconciled_period_asks_first(server, frozen
         f"/ui/api/accounts/{acct['id']}/reconciliations",
         json={"statementDate": "2026-10-31", "statementBalance": "-100.00"},
     ).json()
-    r = c.patch(
-        f"/ui/api/reconciliations/{rec['id']}",
-        json={"finish": True},
-        headers={"If-Match": str(rec["version"])},
-    )
+    r = c.post(f"/ui/api/reconciliations/{rec['id']}/finish")
     assert r.status_code == 200, r.text
     t = c.get(f"/ui/api/transactions/{txn}").json()
     r = remove(c, "Txn", t)

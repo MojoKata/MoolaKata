@@ -21,7 +21,10 @@ import { toast } from './toast.js';
  * `deps` change, and on `reload` (after a 412, S12.15.5), which drops the changes made.
  * @param {(draft: Draft) => Promise<any> | any} load
  * @param {any[]} [deps]
- * @param {{ newId?: (prefix: string) => string }} [o]
+ * `post` sends the save elsewhere than the save's route: Settings' keys, which are no record
+ * of the save's (S12.15).
+ * @param {{ newId?: (prefix: string) => string,
+ *   post?: (body: any, key: string) => Promise<any> }} [o]
  * @returns {{ draft: Draft | null, error: any, reload: () => void }}
  */
 export function useDraft(load, deps = [], o = {}) {
@@ -33,7 +36,10 @@ export function useDraft(load, deps = [], o = {}) {
   loadRef.current = load;
   useEffect(() => {
     let live = true;
-    const draft = new Draft(o.newId ? { newId: o.newId } : {});
+    const draft = new Draft({
+      ...(o.newId ? { newId: o.newId } : {}),
+      ...(o.post ? { post: o.post } : {}),
+    });
     setState({ draft: null, error: null });
     Promise.resolve(loadRef.current(draft)).then(
       () => {

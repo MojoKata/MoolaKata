@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, saved
+from edits import change, edit, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -61,8 +61,7 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
     loose = add(c, acct["id"], "-5.00", "2020-01-01", payee="Shop")
     assert kept(c, receipt_on(c, loose["id"], png((7, 8, 9))))[0] == "forever"
     assert kept(c, upload(c, png((9, 9, 9))).json()["id"])[0] == "forever"
-    v = c.get(f"/ui/api/receipts/{rid}").json()["version"]
-    c.patch(f"/ui/api/receipts/{rid}", json={"keep": True}, headers={"If-Match": f'"{v}"'})
+    saved(edit(c, "Rcpt", f"/ui/api/receipts/{rid}", keep=True))
     assert kept(c, rid) == ("forever", "Kept for ever")
 
 

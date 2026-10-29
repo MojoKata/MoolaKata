@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from pydantic import Field
 
 from .. import activity, clock, exactjson, parsing, receipts, settings
 from ..errors import Problem, new_error_id, refuse
@@ -19,7 +20,8 @@ from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
 from ..store.entities.receipts import Receipt
 from ..store.entities.users import User
-from .conventions import Deleted, ExactRoute, Gone, Model, Money, check, gone, if_match, stale
+from . import save
+from .conventions import Deleted, ExactRoute, Gone, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["receipts"])
@@ -93,15 +95,6 @@ class ReceiptDetail(ReceiptRow):
     keptUntil: dt.date | None
     keptSoon: bool  # within 90 days
     keptWhy: str | None  # Groceries keeps receipts 3 years
-
-
-class ReceiptChange(Model):
-    date: dt.date | None = None
-    amount: Money | None = None
-    payee: str | None = None
-    notes: str | None = None
-    tags: list[str] | None = None
-    keep: bool | None = None
 
 
 class Attach(Model):
@@ -344,47 +337,6 @@ def get_receipt(receipt_id: str, request: Request, c: Caller = Depends(caller)):
         return detail(s, c.id, r, lvl)
 
 
-@router.patch("/receipts/{receipt_id}", response_model=ReceiptDetail)
-def change_receipt(
-    receipt_id: str,
-    body: ReceiptChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Its date, amount, payee, notes and tags: by its owner, or by anyone who can write to
-    an account it is attached in."""
-    with server(request).db.tx() as s:
-        r, lvl = receipts.get(s, c.id, receipt_id, "write")
-        if r.version != version:
-            raise stale(detail(s, c.id, r, lvl))
-        sent = body.model_fields_set
-        if "payee" in sent and body.payee is not None and len(body.payee) > 200:
-            raise refuse("payee", "payee-too-long", "At most 200 characters.")
-        if "notes" in sent and body.notes is not None and len(body.notes) > 2000:
-            raise refuse("notes", "notes-too-long", "At most 2,000 characters.")
-        filled = set(json.loads(r.filled or "[]"))
-        for f in ("date", "amount", "payee", "notes"):
-            if f in sent:
-                # A value a person gives is theirs: reading again won't replace it.
-                filled.discard(f)
-                value = getattr(body, f)
-                if isinstance(value, str):
-                    value = value.strip() or None
-                if f == "amount" and value is not None:
-                    value = abs(Decimal(value))
-                setattr(r, f, value)
-        r.filled = exactjson.dumps(sorted(filled))
-        if "tags" in sent and body.tags is not None:
-            tags = sorted({t.strip().lower() for t in body.tags if t.strip()})
-            r.tags = exactjson.dumps(tags)
-        if "keep" in sent and body.keep is not None:
-            r.keep = body.keep
-        r.updatedAt = dt.datetime.now(dt.UTC)
-        s.flush()
-        return detail(s, c.id, r, lvl)
-
-
 @router.post("/receipts/{receipt_id}/read", response_model=ReceiptDetail)
 def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     """Read it again (S9.8.6): only empty or suggested fields are replaced."""
@@ -401,17 +353,80 @@ def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     return out
 
 
-@router.delete("/receipts/{receipt_id}", response_model=Deleted[None])
-def delete_receipt(
-    receipt_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        r, lvl = receipts.get(s, c.id, receipt_id, "owner")
-        check(r, version, lambda: detail(s, c.id, r, lvl))
-        receipts.delete(s, c.id, r)
-        activity.record(s, "receipt.deleted", actor=c.id, owner=c.id)
-        s.flush()
-        return Deleted[None](deleted=gone(r))
+class ReceiptRecord(Model):
+    """A receipt as a draft saves it (S9.8): what was read from it, or typed, and whether it is
+    kept for ever. It is made by uploading its file; what it is attached to are pairs of their
+    own (S13.8.6)."""
+
+    date: dt.date | None = None
+    amount: Money | None = None
+    payee: str | None = None
+    notes: str | None = None
+    tags: list[str] = Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+    keep: bool = False
+
+
+RECEIPT_FIELDS = ("date", "amount", "payee", "notes")
+
+
+def _receipt_create(ctx, record_id: str, body: ReceiptRecord) -> None:
+    raise refuse(None, "receipt-uploaded", "A receipt is made by uploading its file.")
+
+
+def _receipt_current(ctx, r: Receipt) -> dict:
+    return {**{f: getattr(r, f) for f in RECEIPT_FIELDS}, "tags": json.loads(r.tags or "[]"),
+            "keep": bool(r.keep)}  # fmt: skip
+
+
+def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
+    """Its date, amount, payee, notes and tags: by its owner, or by anyone who can write to
+    an account it is attached in."""
+    if body.payee is not None and len(body.payee) > 200:
+        raise refuse("payee", "payee-too-long", "At most 200 characters.")
+    if body.notes is not None and len(body.notes) > 2000:
+        raise refuse("notes", "notes-too-long", "At most 2,000 characters.")
+    filled = set(json.loads(r.filled or "[]"))
+    for f in RECEIPT_FIELDS:
+        value = getattr(body, f)
+        if isinstance(value, str):
+            value = value.strip() or None
+        if f == "amount" and value is not None:
+            value = abs(Decimal(value))
+        if value != getattr(r, f):
+            # A value a person gives is theirs: reading again won't replace it.
+            filled.discard(f)
+            setattr(r, f, value)
+    r.filled = exactjson.dumps(sorted(filled))
+    r.tags = exactjson.dumps(sorted({t.strip().lower() for t in body.tags if t.strip()}))
+    r.keep = body.keep
+    r.updatedAt = clock.now()
+
+
+def _receipt_delete(ctx, r: Receipt) -> None:
+    s, c = ctx.s, ctx.caller
+    receipts.get(s, c.id, r.id, "owner")
+    receipts.delete(s, c.id, r)
+    activity.record(s, "receipt.deleted", actor=c.id, owner=c.id)
+
+
+def _receipt_read(ctx, record_id: str) -> ReceiptDetail:
+    r, lvl = receipts.get(ctx.s, ctx.caller.id, record_id)
+    return detail(ctx.s, ctx.caller.id, r, lvl)
+
+
+save.register(
+    save.Kind(
+        prefix="Rcpt",
+        entity=Receipt,
+        fields=ReceiptRecord,
+        create=_receipt_create,
+        editable=lambda ctx, record_id: receipts.get(ctx.s, ctx.caller.id, record_id, "write")[0],
+        current=_receipt_current,
+        update=_receipt_update,
+        delete=_receipt_delete,
+        read=_receipt_read,
+    )
+)
 
 
 @router.post("/receipts/{receipt_id}/links", response_model=ReceiptDetail)

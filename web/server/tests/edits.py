@@ -90,3 +90,9 @@ def giving_plan(c, year: int, **values):
               "fields": {"year": year, **values}}  # fmt: skip
         return _save(c, op, False)
     return change(c, "GvPln", have, **values)
+
+
+def wallet(c, account_id: str, text: str, gap_limit: int | None = None):
+    """A wallet's keys and addresses set as its account's draft sets them (S1.6.1)."""
+    fields = {"walletKeys": text} | ({"gapLimit": gap_limit} if gap_limit else {})
+    return edit(c, "Acct", f"/ui/api/accounts/{account_id}", **fields)

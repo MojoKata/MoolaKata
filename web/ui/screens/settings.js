@@ -18,6 +18,10 @@ import { LinksSection } from '../components/links.js';
 import { ConnectorSection } from '../components/connector.js';
 import { withReauth } from '../components/reauth.js';
 import { StorageSection } from '../components/storage.js';
+import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-form.js';
+import { Record as Rec } from '../app/draft.js';
+import { FIELDS } from '../api/fields.js';
+import { useSectionDraft, useSettingsDraft } from '../components/settings-draft.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -77,34 +81,49 @@ export default function Settings({ section }) {
   `;
 }
 
-/** The sections that are plain settings: a form over their keys. @param {{ section: string }} p */
+/** Each plain section's keys. */
+const KEYS = /** @type {{ [section: string]: string[] }} */ ({
+  general: ['serverName', 'householdName', 'householdAvatar', 'publicUrl'],
+  sessions: ['sessionIdleHours', 'sessionAbsoluteDays', 'lockoutFailures', 'lockoutMinutes'],
+  signup: ['signupEnabled', 'signupDomains'],
+  network: ['networkAppRanges', 'networkLinkRanges', 'networkConnectorRanges'],
+  receipts: ['receiptMaxMb', 'readReceipts', 'receiptReadJobs'],
+  alerts: ['alertSourceHours', 'alertSummaryTime'],
+  passwords: ['passwordMinLength'],
+  imports: ['importMaxMb', 'readStatements'],
+});
+
+/**
+ * The sections that are plain settings: a form over their keys, a draft of them saved with
+ * the section's Save (S12.15).
+ * @param {{ section: string }} p
+ */
 function Plain({ section }) {
   const res = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const [f, setF] = useState(/** @type {Record<string, any>} */ ({}));
-  useEffect(() => {
-    if (v) setF(v.values);
-  }, [v]);
-  const save = useSubmit(async (/** @type {string[]} */ keys) => {
-    const body = Object.fromEntries(keys.map((k) => [k, f[k]]));
-    await withReauth(() => api.patch('/settings', body, v.version));
-    toast('Saved');
-    res.reload();
-    if (keys.includes('householdName') || keys.includes('householdAvatar')) loadSession();
-  });
+  const keys = KEYS[section] || KEYS.imports;
+  const fd = useSettingsDraft(v, keys);
+  const rec = fd.draft?.records[0];
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v || !f.passwordMinLength) return html`<${Loading} />`;
+  if (!v || !rec) return html`<${Loading} />`;
+  /** @type {Record<string, any>} */
+  const f = Object.fromEntries(keys.map((k) => [k, rec.get(k)]));
+  const setF = (/** @type {Record<string, any>} */ next) => {
+    for (const k of keys) if (next[k] !== f[k]) rec.set(k, next[k]);
+  };
   const set = (/** @type {string} */ k, num = false) => (/** @type {string} */ x) =>
-    setF({ ...f, [k]: num ? (x === '' ? '' : Number(x)) : x });
-  const e = save.error;
-  const form = (/** @type {string[]} */ keys, /** @type {any} */ body) =>
+    rec.set(k, num ? (x === '' ? '' : Number(x)) : x);
+  // The refusals at their keys, as errAt reads them.
+  const e = { errors: rec.errors };
+  const label = SECTIONS.find(([k]) => k === section)?.[1] || 'Imports';
+  const form = (/** @type {string[]} */ _keys, /** @type {any} */ body) =>
     html`
-      <form class="card content-narrow"
-        onSubmit=${(/** @type {Event} */ ev) => {
-          ev.preventDefault();
-          save.run(keys).catch(() => {});
-        }}>${body}<${FormError} error=${e} shown=${keys} /><button class="btn primary" disabled=${save
-          .busy}>Save</button></form>
+      <${DraftForm} f=${fd} class="card content-narrow" where=${`Settings › ${label}`}
+        what="These settings" saved=${() => {
+          toast('Saved');
+          res.reload();
+          if (keys.includes('householdName')) loadSession();
+        }}>${body}</${DraftForm}>
     `;
   if (section === 'general') {
     const av = f.householdAvatar || { kind: 'initials', initials: '', color: '#3b7a57' };
@@ -366,33 +385,30 @@ function Prices() {
   const res = useApi('/price-sources', {}, ['prices']);
   const all = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const [time, setTime] = useState('');
-  useEffect(() => {
-    if (v) setTime(v.refreshTime);
-  }, [v]);
-  const saveTime = useSubmit(async () => {
-    await api.patch(
-      '/settings',
-      { priceRefreshTime: time },
-      /** @type {any} */ (all.data)?.version,
-    );
-    all.reload();
-    toast('Saved');
-  });
+  const fd = useSettingsDraft(all.data, ['priceRefreshTime']);
+  const time = fd.draft?.records[0];
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v) return html`<${Loading} />`;
+  if (!v || !time) return html`<${Loading} />`;
+  // A switch or a Remove saves at once, as a draft of one change (S12.15).
   const change = async (/** @type {any} */ src, /** @type {any} */ body) => {
     try {
-      await api.patch(`/price-sources/${src.id}`, body, src.version);
+      await saveNow((d) => {
+        const r = d.load(SrcRec, src);
+        for (const [k, x] of Object.entries(body)) r.set(k, x);
+      });
       res.reload();
     } catch (e) {
       toast(/** @type {any} */ (e).message);
     }
   };
   const remove = async (/** @type {any} */ src) => {
-    await api.del(`/price-sources/${src.id}`, src.version);
-    toast(`${src.label} removed`);
-    res.reload();
+    try {
+      await saveNow((d) => d.remove(d.load(SrcRec, src)));
+      toast(`${src.label} removed`);
+      res.reload();
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    }
   };
   return html`<div class="card"><h3>Price sources<span class="spacer"></span><button type="button" class="btn sm"
     onClick=${() =>
@@ -468,18 +484,29 @@ function Prices() {
                 the brokers' files and the last trade.</p>
       `
   }
-    <form class="mt" style=${{ maxWidth: '360px' }} onSubmit=${(/** @type {Event} */ ev) => {
-    ev.preventDefault();
-    saveTime.run().catch(() => {});
-  }}><${Field} label="Daily refresh at" error=${errAt(saveTime.error, 'priceRefreshTime')}
-      hint=${`${v.refreshZone} time, after the US market close.`}><${Input} type="time" value=${time} onInput=${setTime} /></${Field}>
-      <button class="btn sm" disabled=${saveTime.busy}>Save the time</button></form>
+    <${DraftForm} f=${fd} class="draft-form mt" where="Settings › Prices"
+      what="The refresh time" saved=${() => {
+    toast('Saved');
+    all.reload();
+  }}><div style=${{ maxWidth: '360px' }}><${Field} label="Daily refresh at"
+      error=${time.error('priceRefreshTime')}
+      hint=${`${v.refreshZone} time, after the US market close.`}><${Input} type="time"
+      value=${time.get('priceRefreshTime')} onInput=${(/** @type {string} */ x) =>
+    time.set('priceRefreshTime', x)} /></${Field}></div></${DraftForm}>
     <div class="toolbar"><button type="button" class="btn" onClick=${() =>
     api.post('/prices/refresh').then(
       () => toast('Refreshing prices: the header shows when it is done'),
       (e) => toast(e.message),
     )}><${Icon} name="refresh" /> Refresh prices</button></div>
   </div>`;
+}
+
+/** A price source (S4.2), as a draft adds, changes or removes it. */
+class SrcRec extends Rec {
+  /** @override */
+  static prefix = 'Src';
+  /** @override */
+  static fields = FIELDS.SourceRecord;
 }
 
 /** @param {{ close: (v?: any) => void, sources: any }} p */
@@ -490,7 +517,7 @@ function AddSource({ close, sources }) {
   const [name, setName] = useState(options[0]?.name || '');
   const chosen = options.find((/** @type {any} */ s) => s.name === name);
   const save = useSubmit(async () => {
-    close(await api.post('/price-sources', { name }));
+    close(await saveNow((d) => void d.add(SrcRec, { name })));
     toast(`${chosen.label} added${chosen.needsKey ? ': set its key to enable it' : ''}`);
   });
   return html`
@@ -586,31 +613,35 @@ function VerifyKey({ close }) {
 
 function SetKey({ close, src }) {
   useDialogGuide('dialog-source-key');
-  const [key, setKey] = useState('');
-  const save = useSubmit(async () => {
-    close(
-      await withReauth(() =>
-        api.patch(`/price-sources/${src.id}`, { apiKey: key, enabled: true }, src.version)
-      ),
-    );
-    toast(`${src.label}'s key is set and the source is on`);
-  });
+  const f = useDraft((draft) => {
+    draft.load(SrcRec, src);
+  }, [src.id]);
+  const rec = f.draft?.records[0];
   return html`
-    <${Dialog} title=${`${src.label}'s key`} close=${close} onSubmit=${() =>
-      save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Save the key</button>`}>
-      <${Field} label="API key" error=${errAt(save.error, 'apiKey')}
-        hint="Stored encrypted and never shown again; Settings shows only that it is set, when and by whom.">
-          <${Input} type="password" value=${key} onInput=${setKey} autocomplete="off" required /></${Field}>
-        ${src.keyUrl
-          ? html`
-            <p
-              class="small"><a href=${src
-                .keyUrl} target="_blank" rel="noopener noreferrer">Get a free key</a></p>
-          `
-          : null}
-        <${FormError} error=${save.error} shown=${['apiKey']} />
-      </${Dialog}>
+    <${DraftDialog} f=${f} title=${`${src.label}'s key`} close=${close} what="This source"
+      label="Save the key" done=${`${src.label}'s key is set and the source is on`}>
+      ${rec
+        ? html`
+          <${Field} label="API key" error=${rec.error('apiKey')}
+            hint="Stored encrypted and never shown again; Settings shows only that it is set, when and by whom.">
+            <${Input} type="password" value=${rec.get('apiKey') || ''} autocomplete="off"
+              onInput=${(/** @type {string} */ x) => {
+                // A key turns the source on with it.
+                if (x) {
+                  rec.set('apiKey', x);
+                  rec.set('enabled', true);
+                } else rec.revertAll();
+              }} />
+          </${Field}>
+          ${src.keyUrl
+            ? html`
+              <p class="small"><a href=${src.keyUrl} target="_blank" rel="noopener noreferrer"
+                >Get a free key</a></p>
+            `
+            : null}
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 
@@ -622,30 +653,36 @@ function TaxTables() {
   const [year, setYear] = useState(/** @type {number | null} */ (null));
   const res = useApi('/settings/tax-tables', year ? { year } : {});
   const v = /** @type {any} */ (res.data);
-  const [f, setF] = useState(/** @type {Record<string, string>} */ ({}));
-  useEffect(() => {
-    if (v) {
-      setF(Object.fromEntries(v.rows.map((/** @type {any} */ r) => [r.key, show(r.value)])));
-    }
-  }, [v]);
-  const save = useSubmit(async () => {
-    const values = Object.fromEntries(
-      v.rows.map((/** @type {any} */ r) => [r.key, parse(r, f[r.key])]),
-    );
-    await api.put('/settings/tax-tables', { year: v.year, values }, v.version);
-    toast('Saved');
-    res.reload();
-  });
+  // The year's figures as one record of a draft, saved by the tables' route.
+  const fd = useSectionDraft(
+    `tax-tables-${v?.year}`,
+    v
+      ? {
+        version: v.version,
+        values: Object.fromEntries(v.rows.map((/** @type {any} */ r) => [r.key, r.value])),
+      }
+      : null,
+    (values, version) => api.put('/settings/tax-tables', { year: v.year, values }, version),
+  );
+  const rec = fd.draft?.records[0];
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v) return html`<${Loading} />`;
+  if (!v || !rec) return html`<${Loading} />`;
+  const read = (/** @type {any} */ r) => (/** @type {string} */ text) => {
+    const x = parse(r, text);
+    return [x].flat().some((n) => Number.isNaN(n))
+      ? { error: r.kind === 'numbers' ? 'Numbers, separated by commas.' : 'A number.' }
+      : { value: { [r.key]: x } };
+  };
   const groups = [...new Set(v.rows.map((/** @type {any} */ r) => r.group))];
   return html`
-    <form class="card content-narrow" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Tax tables"
+      what=${`The ${v.year} tables`} saved=${() => {
+        toast('Saved');
+        res.reload();
+      }}>
       <h3>Tax tables<span class="spacer"></span><select class="in" style=${{ maxWidth: '100px' }}
-        aria-label="Year" id="f-year" value=${v.year}
+        aria-label="Year" id="f-year" value=${v.year} disabled=${fd.draft?.changed}
+        title=${fd.draft?.changed ? 'Save or put back the changes first' : undefined}
         onChange=${(/** @type {any} */ ev) => setYear(Number(ev.currentTarget.value))}>${v.years
           .map((/** @type {number} */ y) => html`<option value=${y}>${y}</option>`)}</select></h3>
       <p class="small dim" style=${{
@@ -671,13 +708,13 @@ function TaxTables() {
                   <td class="num"><input class="in num" style=${{
                     maxWidth: '200px',
                   }} data-help="figure"
-                                aria-label=${r.label} value=${f[r.key] ?? ''} onInput=${(
-                                  /** @type {any} */ ev,
-                                ) => setF({ ...f, [r.key]: ev.currentTarget.value })} />${errAt(
-                                    save.error,
-                                    r.key,
-                                  )
-                                  ? html`<div class="err">${errAt(save.error, r.key)}</div>`
+                                aria-label=${r.label} value=${rec.typed(r.key) ??
+                                  show(rec.get(r.key))} onInput=${(/** @type {any} */ ev) =>
+                                  rec.inputAs(r.key, ev.currentTarget.value, read(r))} />${rec
+                                    .error(
+                                      r.key,
+                                    )
+                                  ? html`<div class="err">${rec.error(r.key)}</div>`
                                   : null}</td>
                 </tr>
               `
@@ -685,9 +722,7 @@ function TaxTables() {
           </table>
         `
       )}
-      <${FormError} error=${save.error} shown=${v.rows.map((/** @type {any} */ r) => r.key)} />
-      <button class="btn primary mt" disabled=${save.busy}>Save</button>
-    </form>
+    </${DraftForm}>
   `;
 }
 
@@ -743,48 +778,44 @@ function ReadingQueue() {
 }
 
 /** Email (S16.2): the SMTP server, its password as a secret, a test, and the queue. */
+const EMAIL_KEYS = ['smtpHost', 'smtpPort', 'smtpSecurity', 'smtpUsername', 'smtpFrom'];
+
 function EmailSection() {
   const res = useApi('/settings/email', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   const values = /** @type {any} */ (s.data)?.values;
-  const [f, setF] = useState(/** @type {any} */ (null));
-  const [password, setPassword] = useState('');
-  useEffect(() => {
-    if (values) {
-      setF({
-        smtpHost: values.smtpHost || '',
-        smtpPort: values.smtpPort,
-        smtpSecurity: values.smtpSecurity,
-        smtpUsername: values.smtpUsername || '',
-        smtpFrom: values.smtpFrom || '',
-      });
-    }
-  }, [values]);
-  const save = useSubmit(async () => {
-    await withReauth(() => api.patch('/settings', f, /** @type {any} */ (s.data)?.version));
-    s.reload();
-    if (password) await withReauth(() => api.put('/settings/email/password', { password }));
-    setPassword('');
-    toast('Saved');
-    res.reload();
-    s.reload();
-  });
+  // The password is a key of the draft too, written and never read back (S14.4).
+  const fd = useSettingsDraft(s.data, EMAIL_KEYS);
+  const rec = fd.draft?.records[0];
   const test = useSubmit(async () => {
     const r = await api.post('/settings/email/test');
     toast(`Test email sent to ${r.to}`);
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v || !f) return html`<${Loading} />`;
+  if (!v || !rec) return html`<${Loading} />`;
+  const f = Object.fromEntries(EMAIL_KEYS.map((k) => [k, rec.get(k) ?? '']));
+  // An empty box is no value, as the key was read.
   const set = (/** @type {string} */ k, num = false) => (/** @type {string} */ x) =>
-    setF({ ...f, [k]: num ? (x === '' ? '' : Number(x)) : x });
-  const e = save.error;
-  const keys = ['smtpHost', 'smtpPort', 'smtpSecurity', 'smtpUsername', 'smtpFrom', 'password'];
+    rec.set(k, num ? (x === '' ? '' : Number(x)) : x || null);
+  const password = rec.get('smtpPassword') || '';
+  const setPassword = (/** @type {string} */ x) =>
+    x ? rec.set('smtpPassword', x) : rec.revert('smtpPassword');
+  const e = {
+    errors: rec.errors.map((x) => (x.field === 'smtpPassword' ? { ...x, field: 'password' } : x)),
+  };
   return html`
-    <form class="card content-narrow" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Email (SMTP)"
+      what="These settings" saved=${() => {
+        toast('Saved');
+        res.reload();
+        s.reload();
+      }} extra=${() =>
+        html`
+          <button type="button" class="btn" disabled=${test.busy ||
+            !values.smtpHost}
+            onClick=${() => test.run().catch(() => {})}>Send a test email</button>
+        `}>
       <h3>Email (SMTP)</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>${values.smtpHost
         ? 'Emails go out through this server, waiting in the database, which is encrypted, until sent or until their link expires.'
@@ -829,14 +860,9 @@ function EmailSection() {
           v.setAside ? `, ${v.setAside} set aside (refused by the SMTP server)` : ''
         }${v.lastError ? html`. Last try ${ago(v.lastRun)}: ${v.lastError}` : ''}</div>`
         : null}
-      <${FormError} error=${e} shown=${keys} />
       <${FormError} error=${test.error} />
-      <div class="toolbar mt"><button type="button" class="btn" disabled=${test.busy ||
-        !values.smtpHost} onClick=${() => test.run().catch(() => {})}>Send a test email</button>
-        <span class="spacer"></span>
-        <button class="btn primary" disabled=${save.busy}>Save</button></div>
       ${values.smtpHost ? null : html`<${WrittenEmails} />`}
-    </form>
+    </${DraftForm}>
   `;
 }
 
@@ -854,58 +880,23 @@ const NODES = /** @type {[string, string][]} */ ([
     : []),
 ]);
 
+const BITCOIN_KEYS = [
+  'bitcoinSource',
+  'bitcoinEsploraUrl',
+  'bitcoinNodeHost',
+  'bitcoinNodePort',
+  'bitcoinNodeTls',
+  'bitcoinRpcUser',
+];
+
 /** Settings › Bitcoin (S16.7, S1.6.2): where self-custody wallets are read. */
 function BitcoinSection() {
   const res = useApi('/settings/bitcoin', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const values = /** @type {any} */ (s.data)?.values;
-  const [f, setF] = useState(/** @type {any} */ (null));
-  const [password, setPassword] = useState('');
-  useEffect(() => {
-    if (values) {
-      const url = values.bitcoinEsploraUrl || MEMPOOL;
-      setF({
-        node: values.bitcoinSource !== 'esplora'
-          ? values.bitcoinSource
-          : url === MEMPOOL
-          ? 'mempool'
-          : url === BLOCKSTREAM
-          ? 'blockstream'
-          : 'esplora',
-        url: url === MEMPOOL || url === BLOCKSTREAM ? '' : url,
-        host: values.bitcoinNodeHost || '',
-        port: values.bitcoinNodePort,
-        tls: values.bitcoinNodeTls,
-        rpcUser: values.bitcoinRpcUser || '',
-      });
-    }
-  }, [values]);
-  const save = useSubmit(async () => {
-    const esplora = ['mempool', 'blockstream', 'esplora'].includes(f.node);
-    await withReauth(() =>
-      api.patch('/settings', {
-        bitcoinSource: esplora ? 'esplora' : f.node,
-        bitcoinEsploraUrl: f.node === 'mempool'
-          ? MEMPOOL
-          : f.node === 'blockstream'
-          ? BLOCKSTREAM
-          : f.node === 'esplora'
-          ? f.url
-          : values.bitcoinEsploraUrl,
-        bitcoinNodeHost: f.host || null,
-        bitcoinNodePort: f.port,
-        bitcoinNodeTls: f.tls,
-        bitcoinRpcUser: f.rpcUser || null,
-      }, /** @type {any} */ (s.data)?.version)
-    );
-    s.reload();
-    if (password) await withReauth(() => api.put('/settings/bitcoin/password', { password }));
-    setPassword('');
-    toast('Saved');
-    res.reload();
-    s.reload();
-  });
+  // The password is a key of the draft too, written and never read back (S14.4).
+  const fd = useSettingsDraft(s.data, BITCOIN_KEYS);
+  const rec = fd.draft?.records[0];
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
   const test = useSubmit(async () => {
     const r = await api.post('/settings/bitcoin/test');
@@ -921,7 +912,45 @@ function BitcoinSection() {
     res.reload();
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v || !f) return html`<${Loading} />`;
+  if (!v || !rec) return html`<${Loading} />`;
+  // The form's choices, read from the keys and put back into them.
+  const url = rec.get('bitcoinEsploraUrl') || MEMPOOL;
+  const source = rec.get('bitcoinSource');
+  const f = {
+    node: source !== 'esplora'
+      ? source
+      : url === MEMPOOL
+      ? 'mempool'
+      : url === BLOCKSTREAM
+      ? 'blockstream'
+      : 'esplora',
+    url: url === MEMPOOL || url === BLOCKSTREAM ? '' : url,
+    host: rec.get('bitcoinNodeHost') || '',
+    port: rec.get('bitcoinNodePort'),
+    tls: rec.get('bitcoinNodeTls'),
+    rpcUser: rec.get('bitcoinRpcUser') || '',
+  };
+  const setF = (/** @type {any} */ next) => {
+    const esplora = ['mempool', 'blockstream', 'esplora'].includes(next.node);
+    rec.set('bitcoinSource', esplora ? 'esplora' : next.node);
+    rec.set(
+      'bitcoinEsploraUrl',
+      next.node === 'mempool'
+        ? MEMPOOL
+        : next.node === 'blockstream'
+        ? BLOCKSTREAM
+        : next.node === 'esplora'
+        ? next.url
+        : rec.get('bitcoinEsploraUrl'),
+    );
+    rec.set('bitcoinNodeHost', next.host || null);
+    rec.set('bitcoinNodePort', next.port);
+    rec.set('bitcoinNodeTls', next.tls);
+    rec.set('bitcoinRpcUser', next.rpcUser || null);
+  };
+  const password = rec.get('bitcoinPassword') || '';
+  const setPassword = (/** @type {string} */ x) =>
+    x ? rec.set('bitcoinPassword', x) : rec.revert('bitcoinPassword');
   const set = (/** @type {string} */ k, num = false) => (/** @type {any} */ x) =>
     setF({ ...f, [k]: num ? (x === '' ? '' : Number(x)) : x });
   const pick = (/** @type {string} */ node) =>
@@ -931,13 +960,21 @@ function BitcoinSection() {
       port: node === 'core' ? 8332 : node === 'electrum' ? 50002 : f.port,
       tls: node === 'core' ? false : node === 'electrum' ? true : f.tls,
     });
-  const e = save.error;
+  const e = {
+    errors: rec.errors.map((
+      x,
+    ) => (x.field === 'bitcoinPassword' ? { ...x, field: 'password' } : x)),
+  };
   const own = ['electrum', 'core'].includes(f.node);
   return html`
-    <form class="card content-narrow" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Bitcoin"
+      what="These settings" saved=${() => {
+        toast('Saved');
+        res.reload();
+        s.reload();
+      }} extra=${() =>
+        html`<button type="button" class="btn" disabled=${test.busy} onClick=${() =>
+          test.run().catch(() => {})}>Test</button>`}>
       <h3>Bitcoin</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>Where self-custody wallets' balances and
         history come from. Your own node keeps your addresses private.</p>
@@ -1023,21 +1060,10 @@ function BitcoinSection() {
           : 's'} · ${v.lastRun
           ? html`last checked ${ago(v.lastRun)}${v.lastError ? html`: ${v.lastError}` : ''}`
           : 'not checked yet'}. Checked every hour.</div></div>
-      <${FormError} error=${e} shown=${[
-        'bitcoinSource',
-        'bitcoinEsploraUrl',
-        'bitcoinNodeHost',
-        'bitcoinNodePort',
-        'bitcoinRpcUser',
-        'password',
-      ]} />
       <${FormError} error=${test.error} />
-      <div class="toolbar mt"><button type="button" class="btn" disabled=${test
-        .busy} onClick=${() => test.run().catch(() => {})}>Test</button><span class="spacer"></span>
-        <button class="btn primary" disabled=${save.busy}>Save</button></div>
       <p class="small dim">Test asks the saved explorer or node for the chain's height: save
         first. Other coins and chains come later.</p>
-    </form>
+    </${DraftForm}>
   `;
 }
 
@@ -1045,46 +1071,37 @@ function Backups() {
   const res = useApi('/settings/backups', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const values = /** @type {any} */ (s.data)?.values;
-  const [f, setF] = useState(/** @type {any} */ (null));
-  useEffect(() => {
-    if (values) setF({ backupTime: values.backupTime, backupCopies: values.backupCopies });
-  }, [values]);
-  const save = useSubmit(async () => {
-    await api.patch('/settings', f, /** @type {any} */ (s.data)?.version);
-    s.reload();
-    toast('Saved');
-    res.reload();
-  });
+  const fd = useSettingsDraft(s.data, ['backupTime', 'backupCopies']);
+  const rec = fd.draft?.records[0];
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v || !f) return html`<${Loading} />`;
+  if (!v || !rec) return html`<${Loading} />`;
   const mb = (/** @type {number} */ n) => (n / 1048576).toFixed(n < 1048576 * 10 ? 1 : 0) + ' MB';
   return html`
-    <form class="card content-narrow" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Backups"
+      what="These settings" saved=${() => {
+        toast('Saved');
+        s.reload();
+        res.reload();
+      }} extra=${() =>
+        html`
+          <button type="button" class="btn" disabled=${v.running}
+            onClick=${() =>
+              api.post('/settings/backups/run').then(() => {
+                toast('Backing up now');
+                res.reload(); // shows it running; the live stream says when it ends
+              }, (e) => toast(e.message))}><${Icon} name="refresh" /> Back up now</button>
+        `}>
       <h3>Backups</h3>
       <div class="row">
-        <${Field} label="Time of day" error=${errAt(save.error, 'backupTime')}>
-          <${Input} type="time"
-            value=${f.backupTime} onInput=${(/** @type {string} */ x) =>
-              setF({ ...f, backupTime: x })} />
+        <${Field} label="Time of day" error=${rec.error('backupTime')}>
+          <${Input} type="time" value=${rec.get('backupTime')} onInput=${(
+            /** @type {string} */ x,
+          ) => rec.set('backupTime', x)} />
           </${Field}>
-          <${Field} label="Copies kept" error=${errAt(
-            save.error,
-            'backupCopies',
-          )}><${Input} value=${f.backupCopies}
-            inputmode="numeric" onInput=${(/** @type {string} */ x) =>
-              setF({ ...f, backupCopies: Number(x) })} /></${Field}></div>
-        <${FormError} error=${save.error} shown=${['backupTime', 'backupCopies']} />
-        <div class="toolbar"><button class="btn primary" disabled=${save
-          .busy}>Save</button><span class="spacer"></span>
-          <button type="button" class="btn" disabled=${v.running} onClick=${() =>
-            api.post('/settings/backups/run').then(() => {
-              toast('Backing up now');
-              res.reload(); // shows it running; the live stream says when it ends
-            }, (e) => toast(e.message))}><${Icon} name="refresh" /> Back up now</button></div>
+          <${Field} label="Copies kept" error=${rec.error('backupCopies')}><${Input}
+          value=${rec.get('backupCopies')} inputmode="numeric" onInput=${(
+            /** @type {string} */ x,
+          ) => rec.set('backupCopies', x === '' ? '' : Number(x))} /></${Field}></div>
         <div class=${'notice ' + (v.lastError ? 'bad' : '')}><${Icon} name=${v.lastError
           ? 'alert'
           : 'check'} /><div>${v.lastRun
@@ -1118,7 +1135,7 @@ function Backups() {
             </table>
           `
           : null}
-      </form>
+    </${DraftForm}>
   `;
 }
 

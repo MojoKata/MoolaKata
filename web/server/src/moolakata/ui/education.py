@@ -17,7 +17,7 @@ from ..store.entities.education import Contribution, EducationPlan, Person, Qual
 from ..store.entities.projections import Projection
 from ..store.entities.users import User
 from . import save
-from .conventions import Deleted, ExactRoute, IdOf, Model, Money, check, gone, if_match
+from .conventions import ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 from .projections import ProjectionDetail
 from .projections import detail as projection_detail
@@ -233,6 +233,7 @@ save.register(
 
 
 class ContributionOut(Model):
+    id: str | None = None  # its tag's: none until it is tagged
     transactionId: str
     date: dt.date
     amount: Money
@@ -267,11 +268,6 @@ class ContributionIn(Model):
     fromAccountId: str | None = None  # its half of the transfer is made too
 
 
-class TagIn(Model):
-    contributor: str = "owner"
-    fiveYear: bool = False
-
-
 def _contributor(s, c: Caller, key: str, owner_id: str) -> str | None:
     if key == "owner":
         return None
@@ -293,7 +289,7 @@ def _tag_of(s, txn_id: str) -> Contribution | None:
 def contributions_view(s, a: Account, lvl: str) -> ContributionsView:
     rows = education.contributions(s, a)
     tags = {
-        t.transactionId: t.version
+        t.transactionId: t
         for t in s.scalars(
             select(Contribution).where(
                 Contribution.transactionId.in_([r.transactionId for r in rows]),
@@ -303,7 +299,11 @@ def contributions_view(s, a: Account, lvl: str) -> ContributionsView:
     }
     return ContributionsView(
         rows=[
-            ContributionOut(**r.__dict__, version=tags.get(r.transactionId, 0))
+            ContributionOut(
+                **r.__dict__,
+                id=tags[r.transactionId].id if r.transactionId in tags else None,
+                version=tags[r.transactionId].version if r.transactionId in tags else 0,
+            )
             for r in reversed(rows)
         ],
         years=[GiftYearOut(**g.__dict__) for g in education.gift_years(s, rows)],
@@ -334,6 +334,43 @@ def list_contributions(account_id: str, request: Request, c: Caller = Depends(ca
         return contributions_view(s, a, lvl)
 
 
+def _new_deposit(s, c: Caller, a: Account, body) -> Transaction:
+    """A deposit into the 529, with who made it; from a bank account, both halves."""
+    if body.amount is None or body.amount <= 0:
+        raise refuse("amount", "amount-invalid", "More than zero.")
+    if body.date is None:
+        raise refuse("date", "date-missing", "The day it was paid in.")
+    other = None
+    if body.fromAccountId:
+        access.account(s, c.id, body.fromAccountId, "write")
+        other = Transaction(
+            id=ids.new_id("Txn"),
+            accountId=body.fromAccountId,
+            date=body.date,
+            kind="transfer",
+            amount=-body.amount,
+            payee=a.name,
+            createdById=c.id,
+        )
+        s.add(other)
+    txn = Transaction(
+        id=ids.new_id("Txn"),
+        accountId=a.id,
+        date=body.date,
+        kind="transfer" if other else "deposit",
+        amount=body.amount,
+        payee="Contribution",
+        createdById=c.id,
+    )
+    s.add(txn)
+    s.flush()
+    if other is not None:
+        txn.transferId, other.transferId = other.id, txn.id
+    activity.record(s, "529.contribution", actor=c.id, subject_kind="account",
+                    subject_id=a.id, owner=a.ownerId)  # fmt: skip
+    return txn
+
+
 @router.post(
     "/accounts/{account_id}/contributions", response_model=ContributionsView, status_code=201
 )
@@ -341,70 +378,93 @@ def add_contribution(
     account_id: str, body: ContributionIn, request: Request, c: Caller = Depends(caller)
 ):
     """A deposit into the 529, with who made it; from a bank account, both halves."""
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "More than zero.")
     with server(request).db.tx() as s:
         a, lvl = _account(s, c, account_id, "write")
         from_person = _contributor(s, c, body.contributor, a.ownerId)
-        other = None
-        if body.fromAccountId:
-            access.account(s, c.id, body.fromAccountId, "write")
-            other = Transaction(
-                id=ids.new_id("Txn"),
-                accountId=body.fromAccountId,
-                date=body.date,
-                kind="transfer",
-                amount=-body.amount,
-                payee=a.name,
-                createdById=c.id,
-            )
-            s.add(other)
-        txn = Transaction(
-            id=ids.new_id("Txn"),
-            accountId=a.id,
-            date=body.date,
-            kind="transfer" if other else "deposit",
-            amount=body.amount,
-            payee="Contribution",
-            createdById=c.id,
-        )
-        s.add(txn)
-        s.flush()
-        if other is not None:
-            txn.transferId, other.transferId = other.id, txn.id
+        txn = _new_deposit(s, c, a, body)
         _tag(s, txn.id, from_person, body.fiveYear)
         s.flush()
-        activity.record(
-            s,
-            "529.contribution",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
         return contributions_view(s, a, lvl)
 
 
-@router.put("/contributions/{transaction_id}", response_model=ContributionsView)
-def tag_contribution(
-    transaction_id: str,
-    body: TagIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """Who an existing deposit (an imported one) came from, and whether it is a five-year
-    election."""
-    with server(request).db.tx() as s:
-        t = s.get(Transaction, transaction_id)
-        if t is None or t.deleted or t.amount <= 0:
-            raise Problem(404, "not-found", "No such contribution.")
-        a, lvl = _account(s, c, t.accountId, "write")
-        check(_tag_of(s, t.id), version, lambda: contributions_view(s, a, lvl))
-        from_person = _contributor(s, c, body.contributor, a.ownerId)
-        _tag(s, t.id, from_person, body.fiveYear)
-        s.flush()
-        return contributions_view(s, a, lvl)
+class ContributionRecord(Model):
+    """A contribution's tag as a draft saves it (S1.8.2): who made a deposit into the 529 and
+    whether it is a five-year election. Made for a deposit already there (an imported one), or
+    with the deposit it records, from a bank account with both halves."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    transactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]
+    date: dt.date | None = None  # a new deposit's
+    amount: Money | None = None
+    fromAccountId: IdOf("Acct") | None = None  # type: ignore[valid-type]
+    contributor: str = "owner"  # owner, person:<id>, or user:<id> for their person
+    fiveYear: bool = False
+
+
+def _contribution_create(ctx, record_id: str, body: ContributionRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    a, _ = _account(s, c, body.accountId, "write")
+    from_person = _contributor(s, c, body.contributor, a.ownerId)
+    if body.transactionId is None:
+        txn = _new_deposit(s, c, a, body)
+    else:
+        txn = s.get(Transaction, body.transactionId)
+        if txn is None or txn.deleted or txn.accountId != a.id or txn.amount <= 0:
+            raise refuse("transactionId", "not-found", "No such contribution.")
+        if _tag_of(s, txn.id) is not None:
+            raise refuse("transactionId", "tagged", "It is tagged: change its tag.", 409)
+    s.add(Contribution(id=record_id, transactionId=txn.id, fromPersonId=from_person,
+                       fiveYear=body.fiveYear))  # fmt: skip
+
+
+def _contribution_editable(ctx, record_id: str) -> Contribution:
+    t = ctx.s.get(Contribution, record_id)
+    if t is None or t.deleted:
+        raise Problem(404, "not-found", "No such contribution.")
+    _account(ctx.s, ctx.caller, ctx.s.get(Transaction, t.transactionId).accountId, "write")
+    return t
+
+
+def _contribution_current(ctx, t: Contribution) -> dict:
+    txn = ctx.s.get(Transaction, t.transactionId)
+    return {"accountId": txn.accountId, "transactionId": txn.id, "date": None, "amount": None,
+            "fromAccountId": None, "fiveYear": t.fiveYear,
+            "contributor": f"person:{t.fromPersonId}" if t.fromPersonId else "owner"}  # fmt: skip
+
+
+def _contribution_update(ctx, t: Contribution, body: ContributionRecord) -> None:
+    """Who it came from and the election; the deposit itself is changed as a transaction."""
+    current = _contribution_current(ctx, t)
+    fixed = [f for f in ("accountId", "transactionId", "date", "amount", "fromAccountId")
+             if getattr(body, f) != current[f]]  # fmt: skip
+    if fixed:
+        raise refuse(fixed[0], "contribution-fixed", "Change the deposit on the Transactions tab.")
+    a = ctx.s.get(Account, body.accountId)
+    t.fromPersonId = _contributor(ctx.s, ctx.caller, body.contributor, a.ownerId)
+    t.fiveYear = body.fiveYear
+    t.updatedAt = clock.now()
+
+
+def _contribution_read(ctx, record_id: str) -> ContributionOut:
+    t = ctx.s.get(Contribution, record_id)
+    a, lvl = _account(ctx.s, ctx.caller, ctx.s.get(Transaction, t.transactionId).accountId)
+    return next(x for x in contributions_view(ctx.s, a, lvl).rows if x.id == record_id)
+
+
+save.register(
+    save.Kind(
+        prefix="Cntrb",
+        entity=Contribution,
+        fields=ContributionRecord,
+        create=_contribution_create,
+        editable=_contribution_editable,
+        current=_contribution_current,
+        update=_contribution_update,
+        # Untagged, the deposit stays: it counts as the owner's.
+        delete=lambda ctx, t: t.mark_deleted(ctx.caller.id),
+        read=_contribution_read,
+    )
+)
 
 
 # ---- Withdrawals and qualified expenses (S1.8.3) ----
@@ -480,25 +540,26 @@ def list_withdrawals(account_id: str, request: Request, c: Caller = Depends(call
         return withdrawals_view(s, c, a, lvl)
 
 
-@router.post("/accounts/{account_id}/expenses", response_model=WithdrawalsView, status_code=201)
-def add_expense(account_id: str, body: ExpenseIn, request: Request, c: Caller = Depends(caller)):
+def _expense_values(body) -> dict:
     if body.kind not in education.KINDS:
         raise refuse("kind", "kind-invalid", "One of the qualified expenses.")
     if body.amount <= 0:
         raise refuse("amount", "amount-invalid", "More than zero.")
+    return {
+        "date": body.date,
+        "year": body.year or body.date.year,
+        "kind": body.kind,
+        "description": (body.description or "").strip() or None,
+        "amount": body.amount,
+    }
+
+
+@router.post("/accounts/{account_id}/expenses", response_model=WithdrawalsView, status_code=201)
+def add_expense(account_id: str, body: ExpenseIn, request: Request, c: Caller = Depends(caller)):
+    values = _expense_values(body)
     with server(request).db.tx() as s:
         a, lvl = _account(s, c, account_id, "write")
-        s.add(
-            QualifiedExpense(
-                id=ids.new_id("QExpn"),
-                accountId=a.id,
-                date=body.date,
-                year=body.year or body.date.year,
-                kind=body.kind,
-                description=(body.description or "").strip() or None,
-                amount=body.amount,
-            )
-        )
+        s.add(QualifiedExpense(id=ids.new_id("QExpn"), accountId=a.id, **values))
         s.flush()
         return withdrawals_view(s, c, a, lvl)
 
@@ -511,16 +572,45 @@ def _expense(s, c: Caller, expense_id: str) -> tuple[QualifiedExpense, Account, 
     return e, a, lvl
 
 
-@router.delete("/expenses/{expense_id}", response_model=Deleted[WithdrawalsView])
-def delete_expense(
-    expense_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        e, a, lvl = _expense(s, c, expense_id)
-        check(e, version, lambda: withdrawals_view(s, c, a, lvl))
-        e.mark_deleted(c.id)
-        s.flush()
-        return Deleted[WithdrawalsView](deleted=gone(e), parent=withdrawals_view(s, c, a, lvl))
+class ExpenseRecord(ExpenseIn):
+    """A qualified expense as a draft saves it (S1.8.3), in its 529's account."""
+
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+
+
+def _expense_create(ctx, record_id: str, body: ExpenseRecord) -> None:
+    values = _expense_values(body)
+    a, _ = _account(ctx.s, ctx.caller, body.accountId, "write")
+    ctx.s.add(QualifiedExpense(id=record_id, accountId=a.id, **values))
+
+
+def _expense_update(ctx, e: QualifiedExpense, body: ExpenseRecord) -> None:
+    if body.accountId != e.accountId:
+        raise refuse("accountId", "expense-fixed", "An expense stays with its 529.")
+    for k, v in _expense_values(body).items():
+        setattr(e, k, v)
+    e.updatedAt = clock.now()
+
+
+def _expense_read(ctx, record_id: str) -> ExpenseOut:
+    e = ctx.s.get(QualifiedExpense, record_id)
+    a, lvl = _account(ctx.s, ctx.caller, e.accountId)
+    return next(x for x in withdrawals_view(ctx.s, ctx.caller, a, lvl).expenses if x.id == e.id)
+
+
+save.register(
+    save.Kind(
+        prefix="QExpn",
+        entity=QualifiedExpense,
+        fields=ExpenseRecord,
+        create=_expense_create,
+        editable=lambda ctx, record_id: _expense(ctx.s, ctx.caller, record_id)[0],
+        current=lambda ctx, e: {"accountId": e.accountId, **_expense_values(e)},
+        update=_expense_update,
+        delete=lambda ctx, e: e.mark_deleted(ctx.caller.id),
+        read=_expense_read,
+    )
+)
 
 
 @router.post("/expenses/{expense_id}/documents", response_model=WithdrawalsView)

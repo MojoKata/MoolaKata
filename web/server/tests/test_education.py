@@ -5,7 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import plan529, saved
+from edits import change, new_id, plan529, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -103,9 +103,17 @@ def test_contributions_against_the_gift_exclusion(server, alice):
     assert owner["counted"] == "6000.00" and not owner["over"]
     # An imported deposit is tagged afterwards.
     t = add(alice, acct["id"], "1000.00", "2026-09-01")
-    r = alice.put(f"/ui/api/contributions/{t['id']}", json={"contributor": f"person:{gran['id']}"})
-    names = {x["transactionId"]: x["name"] for x in r.json()["rows"]}
-    assert names[t["id"]] == "Margaret Griffin"
+    tag = {"accountId": acct["id"], "transactionId": t["id"], "contributor": f"person:{gran['id']}"}
+    r = alice.post(
+        "/ui/api/save",
+        json={"ops": [{"op": "create", "entity": "Cntrb", "id": new_id("Cntrb"), "fields": tag}]},
+    )
+    assert saved(r)["name"] == "Margaret Griffin"
+    # Told again, it was the owner's; its deposit can't change from here.
+    mine = saved(change(alice, "Cntrb", saved(r), contributor="owner"))
+    assert mine["contributor"] == "owner"
+    r = change(alice, "Cntrb", mine, amount="5")
+    assert r.json()["errors"][0]["code"] == "contribution-fixed"
 
 
 def test_withdrawals_against_qualified_expenses(alice):
@@ -134,6 +142,9 @@ def test_withdrawals_against_qualified_expenses(alice):
         json={"date": "2026-08-15", "kind": "car", "amount": "1"},
     )
     assert bad.status_code == 422
+    e = alice.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"][0]
+    assert remove(alice, "QExpn", e).status_code == 200
+    assert alice.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"] == []
 
 
 def test_the_roth_rollover_after_fifteen_years(alice):
@@ -158,11 +169,7 @@ def test_the_goal_tab_starts_an_education_projection(alice):
     assert a["funded"] < 100 and a["neededMonthly"] > 0
     assert p["headline"].endswith("funded for Emma Griffin's 4 years")
     # More saved each month funds more of it.
-    more = alice.patch(
-        f"/ui/api/projections/{p['id']}",
-        json={"inputs": {**p["inputs"], "monthly": 2000}},
-        headers={"If-Match": f'"{p["version"]}"'},
-    ).json()
+    more = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "monthly": 2000}))
     assert more["result"]["answer"]["funded"] > a["funded"]
     again = alice.get(f"/ui/api/accounts/{acct['id']}/goal").json()
     assert again["projection"]["id"] == p["id"]

@@ -122,7 +122,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
         public,
         conn["id"],
     )
-    c.put(f"/ui/api/profile/connections/{conn['id']}/credential", json={"sealed": box})
+    c.post(f"/ui/api/profile/connections/{conn['id']}/credential", json={"sealed": box})
     core.tick()
     assert core.vault.locked and core.connections[conn["id"]].label == "Credit union"
     assert c.get("/ui/api/profile/connections").json()["items"][0]["credentialWaiting"] is True

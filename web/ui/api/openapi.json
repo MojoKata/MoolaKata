@@ -82,6 +82,11 @@
             "title": "Counted",
             "type": "boolean"
           },
+          "gapLimit": {
+            "default": 20,
+            "title": "Gaplimit",
+            "type": "integer"
+          },
           "group": {
             "title": "Group",
             "type": "string"
@@ -323,6 +328,17 @@
             "title": "Version",
             "type": "integer"
           },
+          "walletKeys": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walletkeys"
+          },
           "withdrawalsAMonth": {
             "anyOf": [
               {
@@ -438,6 +454,11 @@
             ],
             "default": null,
             "title": "Countinnetworth"
+          },
+          "gapLimit": {
+            "default": 20,
+            "title": "Gaplimit",
+            "type": "integer"
           },
           "institution": {
             "anyOf": [
@@ -559,6 +580,18 @@
           "type": {
             "title": "Type",
             "type": "string"
+          },
+          "walletKeys": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Walletkeys"
           },
           "withdrawalsAMonth": {
             "anyOf": [
@@ -1219,6 +1252,23 @@
         "title": "Asked",
         "type": "object"
       },
+      "AssumptionsRecord": {
+        "additionalProperties": false,
+        "description": "A user's own assumptions as a draft saves them (S6.3): every figure, checked together;\nmade when they first change the shipped ones, deleted to go back to them.",
+        "properties": {
+          "figures": {
+            "additionalProperties": true,
+            "title": "Figures",
+            "type": "object"
+          }
+        },
+        "required": [
+          "figures"
+        ],
+        "title": "AssumptionsRecord",
+        "type": "object",
+        "x-entity": "Asmpt"
+      },
       "AssumptionsView": {
         "additionalProperties": false,
         "properties": {
@@ -1260,6 +1310,17 @@
             "additionalProperties": true,
             "title": "Figures",
             "type": "object"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
           },
           "version": {
             "default": 0,
@@ -1580,27 +1641,6 @@
           "birthYear"
         ],
         "title": "BeneficiaryOut",
-        "type": "object"
-      },
-      "BitcoinPassword": {
-        "additionalProperties": false,
-        "properties": {
-          "password": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password"
-          }
-        },
-        "required": [
-          "password"
-        ],
-        "title": "BitcoinPassword",
         "type": "object"
       },
       "BitcoinTest": {
@@ -3524,36 +3564,6 @@
         "title": "Confirmed",
         "type": "object"
       },
-      "ConnectionChange": {
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
-          "settings": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Settings"
-          }
-        },
-        "title": "ConnectionChange",
-        "type": "object"
-      },
       "ConnectionMade": {
         "additionalProperties": false,
         "properties": {
@@ -3702,6 +3712,32 @@
         ],
         "title": "ConnectionOut",
         "type": "object"
+      },
+      "ConnectionRecord": {
+        "additionalProperties": false,
+        "description": "A Connection as a draft saves it (S18.6): its driver chosen when it is made; its name\nand settings its owner's to change, the institution's address only with the password\nagain. Its sign-in is never here: it is sealed apart (S18.7).",
+        "properties": {
+          "driver": {
+            "title": "Driver",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "title": "Settings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "driver",
+          "label"
+        ],
+        "title": "ConnectionRecord",
+        "type": "object",
+        "x-entity": "Conn"
       },
       "ConnectorInfo": {
         "additionalProperties": false,
@@ -4067,6 +4103,91 @@
         ],
         "title": "ContributionIn",
         "type": "object"
+      },
+      "ContributionRecord": {
+        "additionalProperties": false,
+        "description": "A contribution's tag as a draft saves it (S1.8.2): who made a deposit into the 529 and\nwhether it is a five-year election. Made for a deposit already there (an imported one), or\nwith the deposit it records, from a bank account with both halves.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amount"
+          },
+          "contributor": {
+            "default": "owner",
+            "title": "Contributor",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Date"
+          },
+          "fiveYear": {
+            "default": false,
+            "title": "Fiveyear",
+            "type": "boolean"
+          },
+          "fromAccountId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fromaccountid"
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Txn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transactionid"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "ContributionRecord",
+        "type": "object",
+        "x-entity": "Cntrb"
       },
       "ContributionsView": {
         "additionalProperties": false,
@@ -4486,44 +4607,6 @@
         "title": "Deleted",
         "type": "object"
       },
-      "Deleted_NoneType_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "title": "Parent",
-            "type": "null"
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[NoneType]",
-        "type": "object"
-      },
-      "Deleted_Profile_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Profile"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[Profile]",
-        "type": "object"
-      },
       "Deleted_ReceiptDetail_": {
         "properties": {
           "deleted": {
@@ -4544,28 +4627,6 @@
           "deleted"
         ],
         "title": "Deleted[ReceiptDetail]",
-        "type": "object"
-      },
-      "Deleted_WithdrawalsView_": {
-        "properties": {
-          "deleted": {
-            "$ref": "#/components/schemas/Gone"
-          },
-          "parent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/WithdrawalsView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "Deleted[WithdrawalsView]",
         "type": "object"
       },
       "DeliverablePart": {
@@ -5773,27 +5834,6 @@
         "title": "EmailChange",
         "type": "object"
       },
-      "EmailPassword": {
-        "additionalProperties": false,
-        "properties": {
-          "password": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password"
-          }
-        },
-        "required": [
-          "password"
-        ],
-        "title": "EmailPassword",
-        "type": "object"
-      },
       "EmailView": {
         "additionalProperties": false,
         "properties": {
@@ -6109,6 +6149,68 @@
         ],
         "title": "ExpenseOut",
         "type": "object"
+      },
+      "ExpenseRecord": {
+        "additionalProperties": false,
+        "description": "A qualified expense as a draft saves it (S1.8.3), in its 529's account.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "amount",
+          "accountId"
+        ],
+        "title": "ExpenseRecord",
+        "type": "object",
+        "x-entity": "QExpn"
       },
       "Expiring": {
         "additionalProperties": false,
@@ -18854,6 +18956,7 @@
               "amount-negative",
               "ancestor-loop",
               "assumption-invalid",
+              "assumptions-exist",
               "avatar-invalid",
               "bad-credentials",
               "basis-invalid",
@@ -18885,6 +18988,7 @@
               "confirm-needed",
               "contracts-invalid",
               "contracts-missing",
+              "contribution-fixed",
               "contributor-invalid",
               "copy-locked",
               "corporate-kind",
@@ -18894,6 +18998,7 @@
               "date-ahead",
               "date-in-future",
               "date-invalid",
+              "date-missing",
               "date-past",
               "dates-invalid",
               "day-invalid",
@@ -18909,6 +19014,7 @@
               "document-fixed",
               "donation-fixed",
               "draw-invalid",
+              "driver-fixed",
               "driver-invalid",
               "duration-invalid",
               "ein-invalid",
@@ -18918,6 +19024,7 @@
               "email-taken",
               "entity-unknown",
               "every-invalid",
+              "expense-fixed",
               "expired",
               "fees-invalid",
               "figure-invalid",
@@ -18934,6 +19041,7 @@
               "form-missing",
               "fund-missing",
               "gap-invalid",
+              "goal-fixed",
               "goal-invalid",
               "group-built-in",
               "group-delete",
@@ -19051,6 +19159,7 @@
               "origin-refused",
               "overspend-invalid",
               "owed-by-too-long",
+              "own-profile",
               "owner-counts",
               "owner-only",
               "owner-sees-it",
@@ -19058,6 +19167,7 @@
               "pairing-unconfirmed",
               "parent-invalid",
               "part-unknown",
+              "password-invalid",
               "password-is-default",
               "password-wrong",
               "pattern-invalid",
@@ -19104,6 +19214,7 @@
               "receipt-type",
               "receipt-unreadable",
               "receipt-unshowable",
+              "receipt-uploaded",
               "reconciled-period",
               "reencrypt-pending",
               "reencrypt-running",
@@ -19140,6 +19251,7 @@
               "sold-before-bought",
               "source-added",
               "source-failed",
+              "source-fixed",
               "source-invalid",
               "source-unknown",
               "split-does-not-add-up",
@@ -19158,6 +19270,7 @@
               "symbol-missing",
               "sync-account-missing",
               "tag-too-long",
+              "tagged",
               "tags-invalid",
               "target-invalid",
               "term-invalid",
@@ -19262,6 +19375,7 @@
                   "amount-negative",
                   "ancestor-loop",
                   "assumption-invalid",
+                  "assumptions-exist",
                   "avatar-invalid",
                   "bad-credentials",
                   "basis-invalid",
@@ -19293,6 +19407,7 @@
                   "confirm-needed",
                   "contracts-invalid",
                   "contracts-missing",
+                  "contribution-fixed",
                   "contributor-invalid",
                   "copy-locked",
                   "corporate-kind",
@@ -19302,6 +19417,7 @@
                   "date-ahead",
                   "date-in-future",
                   "date-invalid",
+                  "date-missing",
                   "date-past",
                   "dates-invalid",
                   "day-invalid",
@@ -19317,6 +19433,7 @@
                   "document-fixed",
                   "donation-fixed",
                   "draw-invalid",
+                  "driver-fixed",
                   "driver-invalid",
                   "duration-invalid",
                   "ein-invalid",
@@ -19326,6 +19443,7 @@
                   "email-taken",
                   "entity-unknown",
                   "every-invalid",
+                  "expense-fixed",
                   "expired",
                   "fees-invalid",
                   "figure-invalid",
@@ -19342,6 +19460,7 @@
                   "form-missing",
                   "fund-missing",
                   "gap-invalid",
+                  "goal-fixed",
                   "goal-invalid",
                   "group-built-in",
                   "group-delete",
@@ -19459,6 +19578,7 @@
                   "origin-refused",
                   "overspend-invalid",
                   "owed-by-too-long",
+                  "own-profile",
                   "owner-counts",
                   "owner-only",
                   "owner-sees-it",
@@ -19466,6 +19586,7 @@
                   "pairing-unconfirmed",
                   "parent-invalid",
                   "part-unknown",
+                  "password-invalid",
                   "password-is-default",
                   "password-wrong",
                   "pattern-invalid",
@@ -19512,6 +19633,7 @@
                   "receipt-type",
                   "receipt-unreadable",
                   "receipt-unshowable",
+                  "receipt-uploaded",
                   "reconciled-period",
                   "reencrypt-pending",
                   "reencrypt-running",
@@ -19548,6 +19670,7 @@
                   "sold-before-bought",
                   "source-added",
                   "source-failed",
+                  "source-fixed",
                   "source-invalid",
                   "source-unknown",
                   "split-does-not-add-up",
@@ -19566,6 +19689,7 @@
                   "symbol-missing",
                   "sync-account-missing",
                   "tag-too-long",
+                  "tagged",
                   "tags-invalid",
                   "target-invalid",
                   "term-invalid",
@@ -19800,170 +19924,6 @@
         "title": "Profile",
         "type": "object"
       },
-      "ProfileChange": {
-        "additionalProperties": false,
-        "properties": {
-          "alertEmails": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Alertemails"
-          },
-          "avatar": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avatar"
-          },
-          "birthDay": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthday"
-          },
-          "birthMonth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthmonth"
-          },
-          "birthYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthyear"
-          },
-          "bitcoinUnit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bitcoinunit"
-          },
-          "displayName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Displayname"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          },
-          "theme": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Theme"
-          },
-          "timeZone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timezone"
-          }
-        },
-        "title": "ProfileChange",
-        "type": "object"
-      },
-      "ProjectionChange": {
-        "additionalProperties": false,
-        "properties": {
-          "builtOn": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Builton"
-          },
-          "inputs": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inputs"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "rebaseline": {
-            "default": false,
-            "title": "Rebaseline",
-            "type": "boolean"
-          }
-        },
-        "title": "ProjectionChange",
-        "type": "object"
-      },
       "ProjectionDetail": {
         "additionalProperties": false,
         "properties": {
@@ -20083,6 +20043,43 @@
         ],
         "title": "ProjectionDetail",
         "type": "object"
+      },
+      "ProjectionRecord": {
+        "additionalProperties": false,
+        "description": "A projection as a draft saves it (S6.6): its goal chosen when it is made. An active\none's new inputs become its baseline only when `rebaseline` asks it (S6.7.4); it is an\ninstruction, never kept.",
+        "properties": {
+          "builtOn": {
+            "additionalProperties": true,
+            "title": "Builton",
+            "type": "object"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rebaseline": {
+            "default": false,
+            "title": "Rebaseline",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "goal",
+          "builtOn"
+        ],
+        "title": "ProjectionRecord",
+        "type": "object",
+        "x-entity": "Prjct"
       },
       "ProjectionRow": {
         "additionalProperties": false,
@@ -20554,87 +20551,6 @@
         "title": "RecastView",
         "type": "object"
       },
-      "ReceiptChange": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Date"
-          },
-          "keep": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Keep"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "payee": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payee"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tags"
-          }
-        },
-        "title": "ReceiptChange",
-        "type": "object"
-      },
       "ReceiptDetail": {
         "additionalProperties": false,
         "properties": {
@@ -20912,6 +20828,81 @@
         "title": "ReceiptDetail",
         "type": "object"
       },
+      "ReceiptRecord": {
+        "additionalProperties": false,
+        "description": "A receipt as a draft saves it (S9.8): what was read from it, or typed, and whether it is\nkept for ever. It is made by uploading its file; what it is attached to are pairs of their\nown (S13.8.6).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Amount"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Date"
+          },
+          "keep": {
+            "default": false,
+            "title": "Keep",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Payee"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "title": "ReceiptRecord",
+        "type": "object",
+        "x-entity": "Rcpt"
+      },
       "ReceiptRow": {
         "additionalProperties": false,
         "properties": {
@@ -21178,20 +21169,6 @@
           "reconciliations"
         ],
         "title": "ReconcileView",
-        "type": "object"
-      },
-      "ReconciliationChange": {
-        "additionalProperties": false,
-        "properties": {
-          "finish": {
-            "title": "Finish",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "finish"
-        ],
-        "title": "ReconciliationChange",
         "type": "object"
       },
       "ReconciliationRow": {
@@ -21727,6 +21704,74 @@
         ],
         "title": "RelationshipOut",
         "type": "object"
+      },
+      "RelationshipRecord": {
+        "additionalProperties": false,
+        "description": "A relationship as a draft saves it (S10.10.4): a marriage changed in any way is\nconfirmed again by the other.",
+        "properties": {
+          "fromDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fromdate"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Label"
+          },
+          "person1Id": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Person1Id",
+            "type": "string",
+            "x-prefix": "Persn"
+          },
+          "person2Id": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Person2Id",
+            "type": "string",
+            "x-prefix": "Persn"
+          },
+          "relation": {
+            "title": "Relation",
+            "type": "string"
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Todate"
+          }
+        },
+        "required": [
+          "person1Id",
+          "person2Id",
+          "relation"
+        ],
+        "title": "RelationshipRecord",
+        "type": "object",
+        "x-entity": "Rltn"
       },
       "ReserveHeld": {
         "additionalProperties": false,
@@ -23551,50 +23596,6 @@
         "title": "Size",
         "type": "object"
       },
-      "SourceChange": {
-        "additionalProperties": false,
-        "properties": {
-          "apiKey": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "the source's key; null removes it",
-            "title": "Apikey"
-          },
-          "enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Enabled"
-          },
-          "preference": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "integer"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preference"
-          }
-        },
-        "title": "SourceChange",
-        "type": "object"
-      },
       "SourceKind": {
         "additionalProperties": false,
         "properties": {
@@ -23673,6 +23674,47 @@
         ],
         "title": "SourceKind",
         "type": "object"
+      },
+      "SourceRecord": {
+        "additionalProperties": false,
+        "description": "A price source as a draft saves it (S4.2): added by name; on or off, its place for\neach class it serves, and its key, a secret written and never read back (S14.4).",
+        "properties": {
+          "apiKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "the source's key, written, never read back",
+            "title": "Apikey"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preference": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Preference",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SourceRecord",
+        "type": "object",
+        "x-entity": "Src"
       },
       "SourceRow": {
         "additionalProperties": false,
@@ -24834,23 +24876,6 @@
           "syncAccount"
         ],
         "title": "SyncedAccount",
-        "type": "object"
-      },
-      "TagIn": {
-        "additionalProperties": false,
-        "properties": {
-          "contributor": {
-            "default": "owner",
-            "title": "Contributor",
-            "type": "string"
-          },
-          "fiveYear": {
-            "default": false,
-            "title": "Fiveyear",
-            "type": "boolean"
-          }
-        },
-        "title": "TagIn",
         "type": "object"
       },
       "TagOut": {
@@ -26791,20 +26816,86 @@
       },
       "UserRecord": {
         "additionalProperties": false,
-        "description": "A user as an admin's draft saves them (S10.1): invited when made; their email changes\nonly while the invitation is pending.",
+        "description": "A user as a draft saves them: an admin's (S10.1), invited when made, their email\nchanged only while the invitation is pending; and the user's own Profile (S12.2.16),\ntheirs alone, their sex and birthday their person's (S10.10.1).",
         "properties": {
           "active": {
             "default": true,
             "title": "Active",
             "type": "boolean"
           },
+          "alertEmails": {
+            "default": "each",
+            "title": "Alertemails",
+            "type": "string"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Avatar"
+          },
+          "birthDay": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthday"
+          },
+          "birthMonth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthmonth"
+          },
+          "birthYear": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthyear"
+          },
+          "bitcoinUnit": {
+            "default": "btc",
+            "title": "Bitcoinunit",
+            "type": "string"
+          },
           "displayName": {
             "title": "Displayname",
             "type": "string"
           },
           "email": {
-            "title": "Email",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Email"
           },
           "groupIds": {
             "items": {
@@ -26828,6 +26919,16 @@
             "default": null,
             "title": "Sex"
           },
+          "theme": {
+            "default": "system",
+            "title": "Theme",
+            "type": "string"
+          },
+          "timeZone": {
+            "default": "auto",
+            "title": "Timezone",
+            "type": "string"
+          },
           "username": {
             "title": "Username",
             "type": "string"
@@ -26835,8 +26936,7 @@
         },
         "required": [
           "displayName",
-          "username",
-          "email"
+          "username"
         ],
         "title": "UserRecord",
         "type": "object",
@@ -27255,25 +27355,6 @@
           "checkedAt"
         ],
         "title": "WalletAddressOut",
-        "type": "object"
-      },
-      "WalletIn": {
-        "additionalProperties": false,
-        "properties": {
-          "gapLimit": {
-            "default": 20,
-            "title": "Gaplimit",
-            "type": "integer"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "title": "WalletIn",
         "type": "object"
       },
       "WalletKeyOut": {
@@ -27798,6 +27879,17 @@
           "fiveYear": {
             "title": "Fiveyear",
             "type": "boolean"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
           },
           "name": {
             "title": "Name",
@@ -31331,53 +31423,6 @@
         "tags": [
           "wallets"
         ]
-      },
-      "put": {
-        "description": "The wallet's keys and addresses, replaced whole.",
-        "operationId": "put_wallet_ui_api_accounts__account_id__wallet_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WalletIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Put Wallet",
-        "tags": [
-          "wallets"
-        ]
       }
     },
     "/ui/api/accounts/{account_id}/wallet/sync": {
@@ -31674,43 +31719,6 @@
           }
         },
         "summary": "Get Assumptions",
-        "tags": [
-          "projections"
-        ]
-      },
-      "put": {
-        "operationId": "put_assumptions_ui_api_assumptions_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssumptionsView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Put Assumptions",
         "tags": [
           "projections"
         ]
@@ -33052,55 +33060,6 @@
         ]
       }
     },
-    "/ui/api/contributions/{transaction_id}": {
-      "put": {
-        "description": "Who an existing deposit (an imported one) came from, and whether it is a five-year\nelection.",
-        "operationId": "tag_contribution_ui_api_contributions__transaction_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "title": "Transaction Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TagIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContributionsView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Tag Contribution",
-        "tags": [
-          "education"
-        ]
-      }
-    },
     "/ui/api/dashboard": {
       "get": {
         "operationId": "dashboard_ui_api_dashboard_get",
@@ -33266,44 +33225,6 @@
         "summary": "Events",
         "tags": [
           "session"
-        ]
-      }
-    },
-    "/ui/api/expenses/{expense_id}": {
-      "delete": {
-        "operationId": "delete_expense_ui_api_expenses__expense_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "expense_id",
-            "required": true,
-            "schema": {
-              "title": "Expense Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_WithdrawalsView_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Expense",
-        "tags": [
-          "education"
         ]
       }
     },
@@ -36384,90 +36305,6 @@
         ]
       }
     },
-    "/ui/api/price-sources/{source_id}": {
-      "delete": {
-        "operationId": "remove_source_ui_api_price_sources__source_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "source_id",
-            "required": true,
-            "schema": {
-              "title": "Source Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Remove Source",
-        "tags": [
-          "prices"
-        ]
-      },
-      "patch": {
-        "operationId": "change_source_ui_api_price_sources__source_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "source_id",
-            "required": true,
-            "schema": {
-              "title": "Source Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SourceChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourcesView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Source",
-        "tags": [
-          "prices"
-        ]
-      }
-    },
     "/ui/api/prices/refresh": {
       "post": {
         "description": "Refresh prices: the daily task, now (S4.4), followed as a job (S13.8.7).",
@@ -36536,41 +36373,6 @@
           }
         },
         "summary": "Get Profile",
-        "tags": [
-          "profile"
-        ]
-      },
-      "patch": {
-        "operationId": "change_profile_ui_api_profile_patch",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProfileChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Profile"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Profile",
         "tags": [
           "profile"
         ]
@@ -36671,95 +36473,10 @@
         ]
       }
     },
-    "/ui/api/profile/connections/{connection_id}": {
-      "delete": {
-        "description": "Remove (S18.6.4): its accounts' sync turns off, and the connector deletes its\ncredentials at its next report.",
-        "operationId": "remove_connection_ui_api_profile_connections__connection_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "connection_id",
-            "required": true,
-            "schema": {
-              "title": "Connection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Remove Connection",
-        "tags": [
-          "connections"
-        ]
-      },
-      "patch": {
-        "operationId": "change_connection_ui_api_profile_connections__connection_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "connection_id",
-            "required": true,
-            "schema": {
-              "title": "Connection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConnectionChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConnectionOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Connection",
-        "tags": [
-          "connections"
-        ]
-      }
-    },
     "/ui/api/profile/connections/{connection_id}/credential": {
-      "put": {
-        "description": "The credential sealed in the browser (S18.7.1): kept as it is until the connector\ncollects it on its next report. A secret, replaced outright: no version (S13.8.6). The\npassword again (S13.7.2), and only once an admin confirmed the pairing (S18.4.3).",
-        "operationId": "put_credential_ui_api_profile_connections__connection_id__credential_put",
+      "post": {
+        "description": "The credential sealed in the browser (S18.7.1): kept as it is until the connector\ncollects it on its next report. A secret, replaced outright: an action, with no version\n(S13.8.6). The\npassword again (S13.7.2), and only once an admin confirmed the pairing (S18.4.3).",
+        "operationId": "put_credential_ui_api_profile_connections__connection_id__credential_post",
         "parameters": [
           {
             "in": "path",
@@ -36962,29 +36679,6 @@
       }
     },
     "/ui/api/profile/two-step": {
-      "delete": {
-        "description": "Two-step sign-in off: it belongs to the user, so it is made against their version.",
-        "operationId": "two_step_off_ui_api_profile_two_step_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_Profile_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Two Step Off",
-        "tags": [
-          "profile"
-        ]
-      },
       "post": {
         "description": "Turning two-step on starts here; it is on once a code from the app is confirmed.",
         "operationId": "two_step_begin_ui_api_profile_two_step_post",
@@ -37041,6 +36735,31 @@
           }
         },
         "summary": "Two Step Confirm",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/ui/api/profile/two-step/off": {
+      "post": {
+        "description": "Two-step sign-in off, with the password again (S13.7.2): an action on the user.",
+        "operationId": "two_step_off_ui_api_profile_two_step_off_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Two Step Off",
         "tags": [
           "profile"
         ]
@@ -37168,42 +36887,6 @@
       }
     },
     "/ui/api/projections/{projection_id}": {
-      "delete": {
-        "operationId": "delete_projection_ui_api_projections__projection_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projection_id",
-            "required": true,
-            "schema": {
-              "title": "Projection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Projection",
-        "tags": [
-          "projections"
-        ]
-      },
       "get": {
         "operationId": "get_projection_ui_api_projections__projection_id__get",
         "parameters": [
@@ -37236,52 +36919,6 @@
           }
         },
         "summary": "Get Projection",
-        "tags": [
-          "projections"
-        ]
-      },
-      "patch": {
-        "operationId": "change_projection_ui_api_projections__projection_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projection_id",
-            "required": true,
-            "schema": {
-              "title": "Projection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectionChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectionDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Projection",
         "tags": [
           "projections"
         ]
@@ -37564,42 +37201,6 @@
       }
     },
     "/ui/api/receipts/{receipt_id}": {
-      "delete": {
-        "operationId": "delete_receipt_ui_api_receipts__receipt_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "receipt_id",
-            "required": true,
-            "schema": {
-              "title": "Receipt Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Receipt",
-        "tags": [
-          "receipts"
-        ]
-      },
       "get": {
         "operationId": "get_receipt_ui_api_receipts__receipt_id__get",
         "parameters": [
@@ -37632,53 +37233,6 @@
           }
         },
         "summary": "Get Receipt",
-        "tags": [
-          "receipts"
-        ]
-      },
-      "patch": {
-        "description": "Its date, amount, payee, notes and tags: by its owner, or by anyone who can write to\nan account it is attached in.",
-        "operationId": "change_receipt_ui_api_receipts__receipt_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "receipt_id",
-            "required": true,
-            "schema": {
-              "title": "Receipt Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReceiptChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReceiptDetail"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Receipt",
         "tags": [
           "receipts"
         ]
@@ -37939,9 +37493,10 @@
         ]
       }
     },
-    "/ui/api/reconciliations/{rec_id}": {
-      "patch": {
-        "operationId": "finish_reconciliation_ui_api_reconciliations__rec_id__patch",
+    "/ui/api/reconciliations/{rec_id}/finish": {
+      "post": {
+        "description": "The period reconciled once the ticked transactions leave no difference (S1.11.6).",
+        "operationId": "finish_reconciliation_ui_api_reconciliations__rec_id__finish_post",
         "parameters": [
           {
             "in": "path",
@@ -37953,16 +37508,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReconciliationChange"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "content": {
@@ -38139,90 +37684,6 @@
           }
         },
         "summary": "Add Relationship",
-        "tags": [
-          "people"
-        ]
-      }
-    },
-    "/ui/api/relationships/{rel_id}": {
-      "delete": {
-        "operationId": "delete_relationship_ui_api_relationships__rel_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "rel_id",
-            "required": true,
-            "schema": {
-              "title": "Rel Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Deleted_NoneType_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Delete Relationship",
-        "tags": [
-          "people"
-        ]
-      },
-      "patch": {
-        "operationId": "change_relationship_ui_api_relationships__rel_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "rel_id",
-            "required": true,
-            "schema": {
-              "title": "Rel Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RelationshipIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RelationshipOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Change Relationship",
         "tags": [
           "people"
         ]
@@ -38677,7 +38138,7 @@
         ]
       },
       "patch": {
-        "description": "Every key is checked before any is saved; a refusal names each field (R3.7).",
+        "description": "Every key is checked before any is saved; a refusal names each field (R3.7). The SMTP\nand Bitcoin Core passwords come with their sections' keys, written, never read back: set\nby a value, removed by null (S14.4).",
         "operationId": "change_settings_ui_api_settings_patch",
         "requestBody": {
           "content": {
@@ -38821,44 +38282,6 @@
           }
         },
         "summary": "Bitcoin Certificate",
-        "tags": [
-          "settings"
-        ]
-      }
-    },
-    "/ui/api/settings/bitcoin/password": {
-      "put": {
-        "description": "Bitcoin Core's RPC password is a secret (S14.4): set or removed, never read back; the\nadmin's password again (S13.7.2).",
-        "operationId": "bitcoin_password_ui_api_settings_bitcoin_password_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BitcoinPassword"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BitcoinView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Bitcoin Password",
         "tags": [
           "settings"
         ]
@@ -39040,44 +38463,6 @@
           }
         },
         "summary": "Email Status",
-        "tags": [
-          "settings"
-        ]
-      }
-    },
-    "/ui/api/settings/email/password": {
-      "put": {
-        "description": "The SMTP password is a secret (S14.4): the admin's password again (S13.7.2).",
-        "operationId": "email_password_ui_api_settings_email_password_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EmailPassword"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EmailView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Email Password",
         "tags": [
           "settings"
         ]

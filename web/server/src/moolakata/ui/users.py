@@ -254,17 +254,26 @@ def create_group(body: NewGroup, request: Request, c: Caller = Depends(admin)):
 
 
 class UserRecord(Model):
-    """A user as an admin's draft saves them (S10.1): invited when made; their email changes
-    only while the invitation is pending."""
+    """A user as a draft saves them: an admin's (S10.1), invited when made, their email
+    changed only while the invitation is pending; and the user's own Profile (S12.2.16),
+    theirs alone, their sex and birthday their person's (S10.10.1)."""
 
     displayName: str
     username: str
-    email: str
-    sex: str | None = None  # their person's, when they are made (S10.10.1)
+    email: str | None = None
+    sex: str | None = None
     active: bool = True
     groupIds: list[IdOf("Group")] = Field(  # type: ignore[valid-type]
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
+    avatar: str | None = None
+    timeZone: str = "auto"
+    theme: str = "system"
+    birthMonth: int | None = None
+    birthDay: int | None = None
+    birthYear: int | None = None
+    alertEmails: str = "each"
+    bitcoinUnit: str = "btc"
 
 
 class GroupRecord(Model):
@@ -292,22 +301,34 @@ def _user_create(ctx, record_id: str, body: UserRecord) -> None:
 
 
 def _user_editable(ctx, record_id: str) -> User:
-    _admin_ctx(ctx)
+    if record_id != ctx.caller.id:
+        _admin_ctx(ctx)
     return _user(ctx.s, record_id)
 
 
 def _user_current(ctx, u: User) -> dict:
-    return {"displayName": u.displayName, "username": u.username, "email": u.email,
-            "sex": None, "active": u.active,
-            "groupIds": accounts.group_ids(ctx.s, u.id)}  # fmt: skip
+    from . import profile
+
+    return {**profile.current(ctx.s, u), "username": u.username, "email": u.email,
+            "active": u.active, "groupIds": accounts.group_ids(ctx.s, u.id)}  # fmt: skip
 
 
 def _user_update(ctx, u: User, body: UserRecord) -> None:
+    from . import profile
+
+    current = _user_current(ctx, u)
+    sent = {f for f in UserRecord.model_fields if getattr(body, f) != current[f]}
+    if "username" in sent:
+        raise refuse("username", "username-fixed", "A user keeps their username.")
+    if u.id == ctx.caller.id and not sent & {"email", "active", "groupIds"}:
+        # Their own Profile: their name among it.
+        profile.change(ctx.s, u, body, sent & set(profile.PROFILE_FIELDS))
+        return
+    if sent & (set(profile.PROFILE_FIELDS) - {"displayName"}):
+        field = sorted(sent & set(profile.PROFILE_FIELDS))[0]
+        raise refuse(field, "own-profile", "A user's profile is theirs to change.", 403)
     c, s = _admin_ctx(ctx), ctx.s
     srv = server(ctx.request)
-    current = _user_current(ctx, u)
-    if body.username != current["username"]:
-        raise refuse("username", "username-fixed", "A user keeps their username.")
     groups = body.groupIds if set(body.groupIds) != set(current["groupIds"]) else None
     _admin_change(s, c, groups, u.id)
     email = body.email if body.email != current["email"] else None
@@ -321,6 +342,14 @@ def _user_update(ctx, u: User, body: UserRecord) -> None:
     if ended:
         # Switched off: their sessions end now, and their pages are told (S10.1.5).
         ctx.after(f"user.ended:{u.id}", lambda: srv.events.end_user(u.id, "disabled"))
+
+
+def _user_read(ctx, record_id: str):
+    """The user as their own Profile reads them, or as the Users screen does."""
+    from . import profile
+
+    u = ctx.s.get(User, record_id)
+    return profile.profile(ctx.s, u) if u.id == ctx.caller.id else user_row(ctx.s, u)
 
 
 def _user_delete(ctx, u: User) -> None:
@@ -367,7 +396,7 @@ save.register(
         current=_user_current,
         update=_user_update,
         delete=_user_delete,
-        read=lambda ctx, record_id: user_row(ctx.s, ctx.s.get(User, record_id)),
+        read=_user_read,
     )
 )
 save.register(

@@ -14,12 +14,6 @@ NO_VERSION = {
     ("PUT", "/ui/api/tax-books/{book_id}/accounts/{account_id}"): "a pair: a book counts it",
     ("PUT", "/ui/api/accounts/{account_id}/counted"): "a pair: counted in the user's totals",
     ("PUT", "/ui/api/projections/{projection_id}/shown"): "a pair: shown on the user's Dashboard",
-    ("PUT", "/ui/api/settings/email/password"): "a secret, replaced outright",
-    ("PUT", "/ui/api/settings/bitcoin/password"): "a secret, replaced outright",
-    (
-        "PUT",
-        "/ui/api/profile/connections/{connection_id}/credential",
-    ): "a secret, replaced outright",
     ("DELETE", "/ui/api/receipts/{receipt_id}/links/{transaction_id}"): "a pair",
     ("DELETE", "/ui/api/items/{item_id}/documents/{receipt_id}"): "a pair",
     ("DELETE", "/ui/api/receipts/{receipt_id}/kept/{kind}/{item_id}"): "a pair",
@@ -136,7 +130,7 @@ def test_every_201_names_what_it_made_and_every_202_is_a_job(store, keyed_config
 
     app = create_app(Server(config=keyed_config, store=store, ready=True))
     routes = list(api_routes(app.routes))
-    assert len(routes) > 300, "the app's routes, those of included routers too"
+    assert len(routes) > 250, "the app's routes, those of included routers too"
     not_jobs = [r.path for r in routes if r.status_code == 202 and r.response_model is not JobOut]
     assert not_jobs == []
     doc = contract.openapi_document()

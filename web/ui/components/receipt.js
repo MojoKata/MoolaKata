@@ -5,11 +5,13 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { date, day, money } from '../app/format.js';
-import { Dialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, SwitchRow } from './fields.js';
+import { FormError } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { Record as Rec } from '../app/draft.js';
+import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -93,37 +95,31 @@ export function ReceiptCard({ r, onOpen }) {
   `;
 }
 
+/** A receipt (S9.8), as its dialog's draft edits it: what was read or typed, and Keep. */
+class ReceiptRec extends Rec {
+  /** @override */
+  static prefix = 'Rcpt';
+  /** @override */
+  static fields = FIELDS.ReceiptRecord;
+}
+
 /**
- * One receipt: the picture or PDF, its fields, and what it is attached to.
+ * One receipt: the picture or PDF, its fields, and what it is attached to. The fields and Keep
+ * are a draft, saved together; attaching and detaching are pairs, done at once (S13.8.6).
  * @param {{ close: (v?: any) => void, id: string }} p
  */
 export function ReceiptDialog({ close, id }) {
   useDialogGuide('dialog-receipt');
   const res = useApi(`/receipts/${id}`, {}, ['receipt']);
   const r = /** @type {any} */ (res.data);
-  const [f, setF] = useState(/** @type {any} */ (null));
+  const f = useDraft(async (draft) => {
+    draft.load(ReceiptRec, await api.get(`/receipts/${id}`));
+  }, [id]);
+  const rec = /** @type {ReceiptRec | undefined} */ (f.draft?.records[0]);
+  // What reading fills in comes into the draft while nothing in it has changed.
   useEffect(() => {
-    if (r) {
-      setF({
-        date: r.date || '',
-        amount: r.amount || '',
-        payee: r.payee || '',
-        notes: r.notes || '',
-        tags: r.tags.join(', '),
-      });
-    }
+    if (r && rec && !f.draft?.changed && rec.version !== r.version) f.reload();
   }, [r?.version]);
-  const save = useSubmit(async () => {
-    await api.patch(`/receipts/${id}`, {
-      date: f.date || null,
-      amount: f.amount ? String(f.amount).trim() : null,
-      payee: f.payee || null,
-      notes: f.notes || null,
-      tags: f.tags.split(',').map((/** @type {string} */ t) => t.trim()).filter(Boolean),
-    }, r.version);
-    toast('Saved');
-    close(true);
-  });
   const attach = useSubmit(async (/** @type {string} */ tid) => {
     await api.post(`/receipts/${id}/links`, { transactionId: tid });
     toast('Attached');
@@ -144,13 +140,8 @@ export function ReceiptDialog({ close, id }) {
     toast('Queued to read again');
     res.reload();
   });
-  const remove = useSubmit(async () => {
-    await api.del(`/receipts/${id}`, r.version);
-    toast('Receipt deleted');
-    close(true);
-  });
   // The dialog opens once the receipt has come, so its first field takes the focus.
-  if (!r || !f) return null;
+  if (!r || !rec) return null;
   const canEdit = r.level === 'owner' || r.level === 'write';
   const reading = r.readStatus === 'waiting' || r.readStatus === 'reading';
   /** "Read from the receipt" under a field still holding what was read from it. */
@@ -158,25 +149,24 @@ export function ReceiptDialog({ close, id }) {
     r.filled.includes(field) && r.suggested[key]
       ? `Read from the receipt · ${r.suggested[key].confidence}% sure`
       : undefined;
-  const set = (/** @type {string} */ k) => (/** @type {string} */ v) => setF({ ...f, [k]: v });
   const file = `/ui/api/receipts/${id}/file`;
-  const keep = useSubmit(async (/** @type {boolean} */ on) => {
-    await api.patch(`/receipts/${id}`, { keep: on }, r.version);
-    res.reload();
-  });
   return html`
-    <${Dialog} title=${r.fileName} wide close=${close}
-      onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`${
+    <${DraftDialog} f=${f} title=${r.fileName} wide close=${close} what="This receipt"
+      done=${rec.removed ? 'Receipt deleted' : 'Saved'} hideSave=${!canEdit}
+      extra=${({ save }) =>
         r.level === 'owner'
           ? html`
             <button type="button" class="btn danger" style=${{ marginRight: 'auto' }}
-              disabled=${remove.busy || r.links.length > 0}
-              title=${r.links.length ? 'Detach it first' : undefined}
-              onClick=${() => remove.run().catch((e) => toast(e.message))}>Delete</button>
+              disabled=${save.busy || r.links.length > 0}
+              title=${r.links.length ? 'Detach it first' : undefined} onClick=${async () => {
+                const draft = f.draft;
+                if (!draft) return;
+                draft.remove(rec);
+                const o = await save.run().catch(() => null);
+                if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
+              }}>Delete</button>
           `
-          : null
-      }${canEdit ? html`<button class="btn primary" disabled=${save.busy}>Save</button>` : null}`}>
+          : null}>
       <div class="split" style=${{ alignItems: 'flex-start' }}>
         <div class="receipt-view">
           ${r.filePrunedAt
@@ -226,13 +216,11 @@ export function ReceiptDialog({ close, id }) {
               `
               : null}</div>
           ${r.filePrunedAt ? null : html`
-            <${SwitchRow} label="Keep" hint=${r.keep
+            <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'
               : html`${r.keptSoon ? html`<b>${r.kept}</b>` : r.kept}${
                 r.keptWhy ? ` · ${r.keptWhy}` : ''
-              }`} on=${r.keep} disabled=${!canEdit || keep.busy}
-              onChange=${(/** @type {boolean} */ on) => keep.run(on).catch((e) => toast(e.message))}
-            />
+              }`} disabled=${!canEdit} />
           `}
           <p class="small dim">${KIND[r.mediaType]} · ${(r.size / 1024).toFixed(
             0,
@@ -259,26 +247,17 @@ export function ReceiptDialog({ close, id }) {
             `
             : null}
           <div class="row">
-            <${Field} label="Date" id="receipt-date" error=${errAt(save.error, 'date')}
-              hint=${hint('date', 'date')}>
-              <${Input} type="date" value=${f.date} onInput=${set('date')} disabled=${!canEdit} />
-              </${Field}>
-              <${Field} label="Amount" id="receipt-amount" error=${errAt(save.error, 'amount')}
-              hint=${hint('amount', 'total')}>
-                <${Input} value=${f.amount} onInput=${set('amount')} inputmode="decimal"
-                  disabled=${!canEdit} />
-                </${Field}>
-                </div>
-                <${Field} label="Payee" id="receipt-payee" error=${errAt(save.error, 'payee')}
-            hint=${hint('payee', 'merchant')}>
-                  <${Input} value=${f.payee} onInput=${set('payee')} disabled=${!canEdit} />
-                  </${Field}>
-                  <${Field} label="Notes" id="receipt-notes" error=${errAt(save.error, 'notes')}>
-                    <${Input} value=${f.notes} onInput=${set('notes')} disabled=${!canEdit} />
-                    </${Field}>
-                    <${Field} label="Tags" id="receipt-tags" hint="Separated by commas.">
-            <${Input} value=${f.tags} onInput=${set('tags')} disabled=${!canEdit} />
-          </${Field}>
+            <${RecField} rec=${rec} name="date" label="Date" id="receipt-date" type="date"
+              hint=${hint('date', 'date')} disabled=${!canEdit} />
+            <${RecField} rec=${rec} name="amount" label="Amount" id="receipt-amount"
+              hint=${hint('amount', 'total')} disabled=${!canEdit} />
+          </div>
+          <${RecField} rec=${rec} name="payee" label="Payee" id="receipt-payee"
+            hint=${hint('payee', 'merchant')} disabled=${!canEdit} />
+          <${RecField} rec=${rec} name="notes" label="Notes" id="receipt-notes"
+            disabled=${!canEdit} />
+          <${RecField} rec=${rec} name="tags" label="Tags" id="receipt-tags"
+            hint="Separated by commas." disabled=${!canEdit} />
           <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached to</h4>
           ${r.links.length
             ? r.links.map((/** @type {any} */ l) =>
@@ -332,14 +311,9 @@ export function ReceiptDialog({ close, id }) {
                 : 'Give it a date and amount to find the transaction it belongs to, or attach it from the transaction itself.'
             }</p>`
             : null}
-          <${FormError} error=${save.error || attach.error || detach.error} shown=${[
-            'date',
-            'amount',
-            'payee',
-            'notes',
-          ]} />
+          <${FormError} error=${attach.error || detach.error || detachKept.error} />
         </div>
       </div>
-    </${Dialog}>
+      </${DraftDialog}>
   `;
 }

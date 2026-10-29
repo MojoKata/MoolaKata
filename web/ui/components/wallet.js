@@ -6,11 +6,11 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { ago } from '../app/format.js';
-import { errAt, Field, FormError, Input } from './fields.js';
+import { Field, FormError } from './fields.js';
+import { RecField } from './draft-form.js';
 import { Failed, Loading } from './bits.js';
 import { toast } from './toast.js';
 
-export const WALLET_FIELDS = ['text', 'gapLimit'];
 const SCRIPT = /** @type {Record<string, string>} */ ({
   p2pkh: 'legacy (1…)',
   'p2sh-p2wpkh': 'nested segwit (3…)',
@@ -48,46 +48,55 @@ const refusal = (what) =>
   `That looks like a ${what}. MoolaKata never accepts one, and nothing was saved: enter an extended public key (xpub, ypub or zpub), a public descriptor or addresses instead.`;
 
 /**
- * The keys box and gap limit, in the New account form and the wallet's Settings.
- * @param {{ f: any, set: (k: string) => (v: any) => void, e: any }} p
+ * The keys box and gap limit, fields of the account's draft in the New account form and the
+ * wallet's Settings. A secret is cleared from the box at once, never put in the draft.
+ * @param {{ rec: import('../app/draft.js').Record }} p
  */
-export function WalletFields({ f, set, e }) {
+export function WalletFields({ rec }) {
   const [refused, setRefused] = useState(/** @type {string | null} */ (null));
   const onText = (/** @type {any} */ ev) => {
     const v = ev.currentTarget.value;
     const what = looksSecret(v);
     if (what) {
       ev.currentTarget.value = '';
-      set('walletText')('');
+      rec.input('walletKeys', '');
       setRefused(refusal(what));
     } else {
       setRefused(null);
-      set('walletText')(v);
+      rec.input('walletKeys', v);
     }
   };
   return html`
     <${Field} label="Extended public keys or addresses" id="wallet-keys" error=${refused ||
-      errAt(e, 'text')}
+      rec.error('walletKeys')}
       hint="An xpub, ypub or zpub, a descriptor (wpkh, tr, wsh multisig…), or addresses, one a line. Public data only.">
-      <textarea class="in mono" rows="3" value=${f.walletText} onInput=${onText}
+      <textarea class="in mono" rows="3" value=${rec.shown('walletKeys')} onInput=${onText}
         placeholder="zpub6r…, wpkh([…]xpub…/<0;1>/*)#…, or bc1q… one a line" spellcheck="false"
         autocomplete="off"></textarea>
       </${Field}>
-      <${Field} label="Gap limit" error=${errAt(e, 'gapLimit')}
-        hint="Addresses derived past the last one used. 20 suits most wallets.">
-        <${Input} value=${f.gapLimit} onInput=${set('gapLimit')} inputmode="numeric" />
-        </${Field}>
+      <${RecField} rec=${rec} name="gapLimit" label="Gap limit"
+        hint="Addresses derived past the last one used. 20 suits most wallets." />
   `;
 }
 
-/** @param {any} f */
-export const walletBody = (f) => ({ text: f.walletText, gapLimit: Number(f.gapLimit) || 20 });
-
-/** The wallet's keys and the addresses it watches, on its Settings tab. */
-/** @param {{ a: any }} p */
-export function WalletCard({ a }) {
+/**
+ * The wallet's keys and the addresses it watches, on its Settings tab: the keys box is a field
+ * of the Settings form's draft, saved with its Save.
+ * @param {{ a: any, rec: import('../app/draft.js').Record }} p
+ */
+export function WalletCard({ a, rec }) {
   const res = useApi(`/accounts/${a.id}/wallet`);
   const v = /** @type {any} */ (res.data);
+  const owner = ['owner', 'write'].includes(a.level);
+  const check = useSubmit(async () => {
+    const r = await api.post(`/accounts/${a.id}/wallet/sync`);
+    toast(
+      r.recorded
+        ? `${r.recorded} transaction${r.recorded === 1 ? '' : 's'} recorded`
+        : 'Checked: nothing new',
+    );
+    res.reload();
+  });
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) {
     return html`
@@ -96,40 +105,10 @@ export function WalletCard({ a }) {
       </div>
     `;
   }
-  return html`<${WalletForm} a=${a} v=${v} reload=${res.reload} />`;
-}
-
-/** @param {{ a: any, v: any, reload: () => void }} p */
-function WalletForm({ a, v, reload }) {
-  const owner = ['owner', 'write'].includes(a.level);
-  const [f, setF] = useState({
-    walletText: v.keys.map((/** @type {any} */ k) => k.value).join('\n'),
-    gapLimit: String(v.keys[0]?.gapLimit || 20),
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) =>
-    setF((o) => ({ ...o, [k]: x }));
-  const save = useSubmit(async () => {
-    await api.put(`/accounts/${a.id}/wallet`, walletBody(f), v.version);
-    toast('Saved');
-    reload();
-  });
-  const check = useSubmit(async () => {
-    const r = await api.post(`/accounts/${a.id}/wallet/sync`);
-    toast(
-      r.recorded
-        ? `${r.recorded} transaction${r.recorded === 1 ? '' : 's'} recorded`
-        : 'Checked: nothing new',
-    );
-    reload();
-  });
-  const e = save.error;
   return html`
-    <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <div class="card">
       <h3>Keys and addresses</h3>
-      ${owner ? html`<${WalletFields} f=${f} set=${set} e=${e} />` : null}
+      ${owner ? html`<${WalletFields} rec=${rec} />` : null}
       <p class="small dim" data-help="watched">${v.watched} addresses watched, ${v.used} used${v
           .checkedAt
         ? `, last checked ${ago(v.checkedAt)}`
@@ -181,17 +160,14 @@ function WalletForm({ a, v, reload }) {
           </details>
         `
         : null}
-      <${FormError} error=${e} shown=${WALLET_FIELDS} />
       <${FormError} error=${check.error} />
       ${owner
         ? html`
           <div
             class="toolbar mt"><button type="button" class="btn" disabled=${check.busy ||
-              !v.keys.length} onClick=${() => check.run().catch(() => {})}>Check now</button>
-                    <span class="spacer"></span><button class="btn primary"
-                    disabled=${save.busy}>Save</button></div>
+              !v.keys.length} onClick=${() => check.run().catch(() => {})}>Check now</button></div>
         `
         : null}
-    </form>
+    </div>
   `;
 }

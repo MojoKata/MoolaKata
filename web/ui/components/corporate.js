@@ -37,6 +37,7 @@ export function CorporateAction({ close, accountId }) {
     cashPerShare: '',
     newPrice: '',
   });
+  const [start] = useState(() => JSON.stringify(f));
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
   const pick = held.find((p) => p.accountId + p.instrumentId === f.holding) || held[0];
   const save = useSubmit(async (/** @type {boolean} */ confirm = false) => {
@@ -59,9 +60,9 @@ export function CorporateAction({ close, accountId }) {
   return html`
     <${Dialog} title="Record a corporate action" close=${close}
       onSubmit=${() => save.run(ask).catch(() => {})}
+      changed=${() => JSON.stringify(f) !== start}
       footer=${html`
-        <button type="button" class="btn" onClick=${() =>
-          close()}>Cancel</button><button class="btn primary"
+        <button type="button" class="btn" data-cancel>Cancel</button><button class="btn primary"
           disabled=${save.busy || !pick}
         >${ask ? 'Record it anyway' : 'Record it'}</button>
       `}>

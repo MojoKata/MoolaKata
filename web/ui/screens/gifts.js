@@ -361,7 +361,7 @@ class OccasionRec extends Rec {
 }
 
 /** A day as typed, "2018-10-20" or "10-20" without the year, shown back the same way. */
-const DAY = {
+export const DAY = {
   /** @param {string} s */
   read(s) {
     if (!s.trim()) return { value: { month: null, day: null, year: null } };
@@ -375,7 +375,7 @@ const DAY = {
 };
 
 /** @param {string} prefix */
-const asFields = (/** @type {any} */ v, /** @type {string} */ prefix) =>
+export const asFields = (/** @type {any} */ v, /** @type {string} */ prefix) =>
   Object.fromEntries(
     Object.entries(v).map(([k, x]) => [prefix + k[0].toUpperCase() + k.slice(1), x]),
   );

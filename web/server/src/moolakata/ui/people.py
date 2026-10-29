@@ -14,7 +14,7 @@ from ..people import tree
 from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
 from . import save
-from .conventions import Deleted, ExactRoute, Model, check, gone, if_match
+from .conventions import ExactRoute, IdOf, Model
 from .deps import Caller, caller, server
 from .gifts import check_person_fields, refuse_clash
 
@@ -353,22 +353,23 @@ def _rewash(s, *rels: tuple[str, str, str]) -> None:
         washes.recompute(s, uid)
 
 
+def _relate(s, c: Caller, body, rel_id: str) -> Relationship:
+    r = Relationship(
+        id=rel_id, person1Id=body.person1Id, person2Id=body.person2Id, relation=body.relation
+    )
+    _apply(s, c, r, body)
+    people.confirm(s, c.id, r, fresh=True)
+    s.add(r)
+    s.flush()
+    _rewash(s, (r.relation, r.person1Id, r.person2Id))
+    activity.record(s, "relationship.saved", actor=c.id, owner=c.id)
+    return r
+
+
 @router.post("/relationships", response_model=RelationshipOut, status_code=201)
 def add_relationship(body: RelationshipIn, request: Request, c: Caller = Depends(caller)):
     with server(request).db.tx() as s:
-        r = Relationship(
-            id=ids.new_id("Rltn"),
-            person1Id=body.person1Id,
-            person2Id=body.person2Id,
-            relation=body.relation,
-        )
-        _apply(s, c, r, body)
-        people.confirm(s, c.id, r, fresh=True)
-        s.add(r)
-        s.flush()
-        _rewash(s, (r.relation, r.person1Id, r.person2Id))
-        activity.record(s, "relationship.saved", actor=c.id, owner=c.id)
-        return _rel_out(s, c, r)
+        return _rel_out(s, c, _relate(s, c, body, ids.new_id("Rltn")))
 
 
 def _editable(s, c: Caller, rel_id: str) -> Relationship:
@@ -380,32 +381,6 @@ def _editable(s, c: Caller, rel_id: str) -> Relationship:
     if not people.may_relate(s, c.id, r.person1Id, r.person2Id):
         raise Problem(403, "not-in-it", "You change relationships you are in; an admin any.")
     return r
-
-
-@router.patch("/relationships/{rel_id}", response_model=RelationshipOut)
-def change_relationship(
-    rel_id: str,
-    body: RelationshipIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    with server(request).db.tx() as s:
-        r = _editable(s, c, rel_id)
-        check(r, version, lambda: _rel_out(s, c, r))
-        before = (r.relation, r.person1Id, r.person2Id)
-        dates = (r.fromDate, r.toDate)
-        _apply(s, c, r, body)
-        # A marriage changed in any way is confirmed again by the other (S10.10.4).
-        changed = before != (r.relation, r.person1Id, r.person2Id) or dates != (
-            r.fromDate,
-            r.toDate,
-        )
-        people.confirm(s, c.id, r, fresh=changed)
-        r.updatedAt = clock.now()
-        s.flush()
-        _rewash(s, before, (r.relation, r.person1Id, r.person2Id))
-        return _rel_out(s, c, r)
 
 
 @router.post("/relationships/{rel_id}/confirm", response_model=RelationshipOut)
@@ -429,17 +404,45 @@ def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(call
         return _rel_out(s, c, r)
 
 
-@router.delete("/relationships/{rel_id}", response_model=Deleted[None])
-def delete_relationship(
-    rel_id: str, request: Request, c: Caller = Depends(caller), version: int = Depends(if_match)
-):
-    with server(request).db.tx() as s:
-        r = _editable(s, c, rel_id)
-        check(r, version, lambda: _rel_out(s, c, r))
-        r.mark_deleted(c.id)
-        s.flush()
-        _rewash(s, (r.relation, r.person1Id, r.person2Id))
-        return Deleted[None](deleted=gone(r))
+class RelationshipRecord(RelationshipIn):
+    """A relationship as a draft saves it (S10.10.4): a marriage changed in any way is
+    confirmed again by the other."""
+
+    person1Id: IdOf("Persn")  # type: ignore[valid-type]
+    person2Id: IdOf("Persn")  # type: ignore[valid-type]
+
+
+def _relationship_update(ctx, r: Relationship, body: RelationshipRecord) -> None:
+    s, c = ctx.s, ctx.caller
+    before = (r.relation, r.person1Id, r.person2Id)
+    dates = (r.fromDate, r.toDate)
+    _apply(s, c, r, body)
+    changed = before != (r.relation, r.person1Id, r.person2Id) or dates != (r.fromDate, r.toDate)
+    people.confirm(s, c.id, r, fresh=changed)
+    r.updatedAt = clock.now()
+    s.flush()
+    _rewash(s, before, (r.relation, r.person1Id, r.person2Id))
+
+
+def _relationship_delete(ctx, r: Relationship) -> None:
+    r.mark_deleted(ctx.caller.id)
+    ctx.s.flush()
+    _rewash(ctx.s, (r.relation, r.person1Id, r.person2Id))
+
+
+save.register(
+    save.Kind(
+        prefix="Rltn",
+        entity=Relationship,
+        fields=RelationshipRecord,
+        create=lambda ctx, record_id, body: _relate(ctx.s, ctx.caller, body, record_id),
+        editable=lambda ctx, record_id: _editable(ctx.s, ctx.caller, record_id),
+        current=lambda ctx, r: {f: getattr(r, f) for f in RelationshipIn.model_fields},
+        update=_relationship_update,
+        delete=_relationship_delete,
+        read=lambda ctx, record_id: _rel_out(ctx.s, ctx.caller, ctx.s.get(Relationship, record_id)),
+    )
+)
 
 
 # ---------- a person in a dialog's draft (S12.15, S13.8.11) ----------

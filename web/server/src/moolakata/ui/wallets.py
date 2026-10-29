@@ -11,7 +11,7 @@ from ..bitcoin import keys as bk
 from ..bitcoin import wallet
 from ..errors import Problem, refuse
 from ..store.entities.accounts import WalletKey
-from .conventions import ExactRoute, Model, check_version, if_match, version_of
+from .conventions import ExactRoute, Model, if_match, version_of
 from .deps import Caller, caller, server
 from .prices import apply_egress
 
@@ -47,16 +47,11 @@ class WalletView(Model):
     used: int
     balanceSats: int
     checkedAt: dt.datetime | None
-    version: int  # its keys together: replacing them is made against it (S13.8.6)
+    version: int  # its keys together
 
 
 MAX_TEXT = 200_000  # characters: well over a thousand addresses
 MAX_ENTRIES = 1000  # keys, descriptors and addresses
-
-
-class WalletIn(Model):
-    text: str  # extended public keys and addresses, one a line
-    gapLimit: int = 20
 
 
 def _wallet_account(s, c: Caller, account_id: str, level: str):
@@ -131,45 +126,46 @@ def get_wallet(account_id: str, request: Request, c: Caller = Depends(caller)):
         return _view(s, account_id)
 
 
-@router.put("/accounts/{account_id}/wallet", response_model=WalletView)
-def put_wallet(
-    account_id: str,
-    body: WalletIn,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
-    """The wallet's keys and addresses, replaced whole."""
-    if len(body.text) > MAX_TEXT:
-        raise refuse("text", "too-long", "At most 200,000 characters of keys and addresses.")
-    what = bk.secret_kind(body.text)
+def checked(text: str, gap_limit: int) -> list:
+    """The keys and addresses typed for a wallet, refused at once when anything looks like a
+    private key or seed phrase; the refusal never repeats it."""
+    if len(text) > MAX_TEXT:
+        raise refuse("walletKeys", "too-long", "At most 200,000 characters of keys and addresses.")
+    what = bk.secret_kind(text)
     if what:
-        raise refuse("text", "secret-refused", bk.REFUSAL.format(what=what))
+        raise refuse("walletKeys", "secret-refused", bk.REFUSAL.format(what=what))
     try:
-        entries = bk.parse(body.text)
+        entries = bk.parse(text)
     except bk.Refused as e:
-        raise refuse("text", e.code, e.message) from None
+        raise refuse("walletKeys", e.code, e.message) from None
     if len(entries) > MAX_ENTRIES:
-        raise refuse("text", "too-many", f"At most {MAX_ENTRIES:,} keys and addresses a wallet.")
-    if not 1 <= body.gapLimit <= 200:
+        raise refuse(
+            "walletKeys", "too-many", f"At most {MAX_ENTRIES:,} keys and addresses a wallet."
+        )
+    if not 1 <= gap_limit <= 200:
         raise refuse("gapLimit", "gap-invalid", "From 1 to 200 unused addresses: 20 is usual.")
-    with server(request).db.tx() as s:
-        a, _ = _wallet_account(s, c, account_id, "write")
-        check_version(
-            version_of(s, WalletKey, WalletKey.accountId == a.id), version, lambda: _view(s, a.id)
+    return entries
+
+
+def replace(ctx, a, text: str | None, gap_limit: int) -> None:
+    """A wallet's keys and addresses, replaced whole as its account's draft saves them."""
+    if a.type != "crypto-wallet":
+        raise refuse(
+            "walletKeys", "not-a-wallet", "Only a self-custody wallet holds keys and addresses."
         )
-        wallet.replace(s, a.id, entries, body.gapLimit, c.id)
-        activity.record(
-            s,
-            "wallet.changed",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        out = _view(s, a.id)
-    apply_egress(server(request))
-    return out
+    entries = checked(text or "", gap_limit)
+    wallet.replace(ctx.s, a.id, entries, gap_limit, ctx.caller.id)
+    activity.record(ctx.s, "wallet.changed", actor=ctx.caller.id, subject_kind="account",
+                    subject_id=a.id, owner=a.ownerId)  # fmt: skip
+    srv = server(ctx.request)
+    ctx.after("egress", lambda: apply_egress(srv))
+
+
+def current(s, a) -> dict:
+    """The wallet's keys, one a line, and its gap limit, as its account's draft holds them."""
+    keys = wallet.keys_of(s, a.id) if a.type == "crypto-wallet" else []
+    return {"walletKeys": "\n".join(k.value for k in keys) or None,
+            "gapLimit": keys[0].gapLimit if keys else 20}  # fmt: skip
 
 
 class SyncOut(Model):

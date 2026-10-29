@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change
 from PIL import Image
 from test_receipts import upload
 
@@ -184,11 +185,7 @@ def test_reading_fills_empty_fields_never_typed_ones(server):
     rid = upload(c, _png(img)).json()["id"]
     v = c.get(f"/ui/api/receipts/{rid}").json()
     assert v["readStatus"] == "waiting"
-    r = c.patch(
-        f"/ui/api/receipts/{rid}",
-        json={"payee": "My café"},
-        headers={"If-Match": f'"{v["version"]}"'},
-    )
+    r = change(c, "Rcpt", v, payee="My café")
     reader = Reader(server, workers=1)
     w = Worker()
     try:

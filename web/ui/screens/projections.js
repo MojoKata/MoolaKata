@@ -1,7 +1,7 @@
 // Projections (requirements S6): the active plans being followed and the scenarios, one at a
 // time below them with its fan or paths, its answer, the assumptions in full, and its inputs.
 // A model, not a forecast.
-import { useEffect, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -16,6 +16,9 @@ import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
 import { num } from '../app/dec.js';
+import { Record as Rec } from '../app/draft.js';
+import { DraftForm, saveNow, useDraft } from '../components/draft-form.js';
+import { FIELDS } from '../api/fields.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -288,30 +291,48 @@ function Tracking({ x }) {
   `;
 }
 
+/** A projection (S6.6), as its drafts make it and change its inputs. */
+class ProjRec extends Rec {
+  /** @override */
+  static prefix = 'Prjct';
+  /** @override */
+  static fields = FIELDS.ProjectionRecord;
+  /** @override */
+  static defaults = { rebaseline: false };
+}
+
 /**
  * The inputs, saved with Run. An active projection asks whether its baseline should move to
  * the new inputs (S6.7.4).
  * @param {{ x: any, reload: () => void }} p
  */
 function Inputs({ x, reload }) {
-  const [f, setF] = useState(() => structuredClone(x.inputs));
-  const [built, setBuilt] = useState(() => structuredClone(x.builtOn));
-  useEffect(() => {
-    setF(structuredClone(x.inputs));
-    setBuilt(structuredClone(x.builtOn));
-  }, [x.version]);
-  const run = useSubmit(async () => {
-    let rebaseline = false;
-    if (x.active) {
-      const answer = await openDialog(Rebaseline, { name: x.name });
-      if (answer === undefined) return;
-      rebaseline = answer;
+  const fd = useDraft((draft) => {
+    draft.load(ProjRec, { ...x, rebaseline: false });
+  }, [x.id, x.version]);
+  const rec = /** @type {ProjRec | undefined} */ (fd.draft?.records[0]);
+  const f = rec?.get('inputs') || {};
+  const built = rec?.get('builtOn') || { kind: 'typed', amount: 100000 };
+  const setF = (/** @type {any} */ v) => rec?.set('inputs', v);
+  const setBuilt = (/** @type {any} */ v) => rec?.set('builtOn', v);
+  // The refusals at their inputs, as errAt reads them.
+  const e = { errors: rec?.errors || [] };
+  // An active projection asks first whether its baseline moves to the new inputs (S6.7.4).
+  const asked = useRef(false);
+  const runRef = useRef(/** @type {any} */ (null));
+  const before = () => {
+    if (!x.active || asked.current || !fd.draft?.changed) {
+      asked.current = false;
+      return;
     }
-    await api.patch(`/projections/${x.id}`, { inputs: f, builtOn: built, rebaseline }, x.version);
-    toast('Recomputed');
-    reload();
-  });
-  const e = run.error;
+    openDialog(Rebaseline, { name: x.name }).then((answer) => {
+      if (answer === undefined || !rec) return;
+      rec.set('rebaseline', answer);
+      asked.current = true;
+      runRef.current?.run().catch(() => {});
+    });
+    return false;
+  };
   const set = (/** @type {string} */ path, num = true) => (/** @type {string} */ v) => {
     const next = structuredClone(f);
     const keys = path.split('.');
@@ -322,10 +343,14 @@ function Inputs({ x, reload }) {
   };
   const people = f.people || [];
   return html`
-    <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      run.run().catch(() => {});
-    }}><h3>Inputs</h3>
+    <${DraftForm} f=${fd} class="card" where="the projection's inputs" what="This projection"
+      label="Run" before=${before} saved=${() => {
+        toast('Recomputed');
+        reload();
+      }} extra=${({ save }) => {
+        runRef.current = save;
+        return null;
+      }}><h3>Inputs</h3>
       <${BuiltOn} value=${built} onChange=${setBuilt} error=${errAt(e, 'builtOn')} />
       ${x.goal === 'retirement'
         ? html`
@@ -437,9 +462,7 @@ function Inputs({ x, reload }) {
             ]} />
         </${Field}>
       </div>
-      <${FormError} error=${e} />
-      <button class="btn primary" disabled=${run.busy}>Run</button>
-    </form>
+    </${DraftForm}>
   `;
 }
 
@@ -623,11 +646,14 @@ function NewProjection({ close }) {
         fees: 0.1,
       }
       : { target: 50000, date: `${year + 3}-06-01`, monthly: 500, fees: 0.1 };
-    const out = await api.post('/projections', { name, goal, builtOn: built, inputs });
-    close(out);
+    const out = await saveNow((d) => {
+      d.add(ProjRec, { name, goal, builtOn: built, inputs });
+    });
+    close(out[0].record);
   });
   return html`
     <${Dialog} title="New projection" close=${close} onSubmit=${() => save.run().catch(() => {})}
+      changed=${() => !!name || goal !== 'retirement' || built.kind !== 'typed' || !!child}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Create</button>`}>
       <div class="field" data-help="goal" id="x-goal"><label>Goal type</label>
         <${Seg} label="Goal type" value=${goal} onChange=${setGoal}

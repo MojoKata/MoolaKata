@@ -184,13 +184,13 @@ def test_changing_two_step_needs_the_password_within_ten_minutes(server, frozen)
     turn_on(c)
     later(11 * 60)
     for method, path in (
-        ("delete", "/ui/api/profile/two-step"),
+        ("post", "/ui/api/profile/two-step/off"),
         ("post", "/ui/api/profile/two-step/recovery-codes"),
     ):
         r = getattr(c, method)(path)
         assert r.status_code == 403 and r.json()["code"] == "reauth-required", path
     assert c.post("/ui/api/session/reauth", json={"password": PW}).status_code == 204
-    assert c.delete("/ui/api/profile/two-step").status_code == 200
+    assert c.post("/ui/api/profile/two-step/off").status_code == 200
     assert c.get("/ui/api/profile").json()["twoStep"] == {
         "on": False,
         "since": None,

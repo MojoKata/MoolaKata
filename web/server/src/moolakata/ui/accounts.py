@@ -36,8 +36,6 @@ from .conventions import (
     Model,
     Money,
     Quantity,
-    if_match,
-    stale,
 )
 from .deps import Caller, caller, server
 from .sharing import counted_for
@@ -94,6 +92,9 @@ class AccountDetail(AccountRow):
     # institution accounts this is; shown to the owner only.
     connectionId: str | None
     syncAccount: str | None
+    # A self-custody wallet's keys and addresses, one a line, and its gap limit (S1.6.1).
+    walletKeys: str | None = None
+    gapLimit: int = 20
 
 
 class NewAccount(Model):
@@ -133,6 +134,13 @@ class AccountRecord(Model):
     # the institution account; null turns it off.
     connectionId: IdOf("Conn") | None = None  # type: ignore[valid-type]
     syncAccount: str | None = None
+    # A self-custody wallet's extended public keys, descriptors and addresses, one a line, and
+    # how far past the last address used it looks (S1.6.1): public data only.
+    walletKeys: str | None = None
+    gapLimit: int = 20
+
+
+WALLET_FIELDS = ("walletKeys", "gapLimit")
 
 
 class Point(Model):
@@ -262,10 +270,6 @@ class NewReconciliation(Model):
     statementBalance: Money
 
 
-class ReconciliationChange(Model):
-    finish: bool
-
-
 # ---------- shaping ----------
 
 
@@ -347,6 +351,8 @@ def context(s, user_id: str, account_ids: list[str]) -> Context:
 def row(
     s, a: Account, level: str, ctx: Context, detail: bool = False
 ) -> AccountRow | AccountDetail:
+    from . import wallets
+
     today = ctx.today
     owner = ctx.owners.get(a.ownerId)
     ledger = repo.load(s, a)
@@ -405,6 +411,7 @@ def row(
         statementIntervalDismissed=a.statementIntervalDismissed,
         withdrawalsAMonth=a.withdrawalsAMonth,
         **_options_risk(s, a, ledger),
+        **wallets.current(s, a),
     )
 
 
@@ -883,23 +890,16 @@ def start_reconciliation(
         return _reconciliation_row(s, r)
 
 
-@router.patch("/reconciliations/{rec_id}", response_model=ReconciliationRow)
-def finish_reconciliation(
-    rec_id: str,
-    body: ReconciliationChange,
-    request: Request,
-    c: Caller = Depends(caller),
-    version: int = Depends(if_match),
-):
+@router.post("/reconciliations/{rec_id}/finish", response_model=ReconciliationRow)
+def finish_reconciliation(rec_id: str, request: Request, c: Caller = Depends(caller)):
+    """The period reconciled once the ticked transactions leave no difference (S1.11.6)."""
     with server(request).db.tx() as s:
         r = s.get(Reconciliation, rec_id)
         if r is None or r.deleted:
             raise Problem(404, "not-found", "Not found")
         a, _ = access.account(s, c.id, r.accountId, "write")
-        if r.version != version:
-            raise stale(_reconciliation_row(s, r))
         current = _reconciliation_row(s, r)
-        if body.finish and r.finishedAt is None:
+        if r.finishedAt is None:
             if current.difference != 0:
                 raise refuse(
                     None, "not-balanced", "Tick transactions until the difference is zero.", 409
@@ -940,6 +940,10 @@ def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
     }
     if later:
         _change(ctx.s, ctx.caller, a, "owner", body, later)
+    if body.walletKeys:
+        from . import wallets
+
+        wallets.replace(ctx, a, body.walletKeys, body.gapLimit)
 
 
 def _account_editable(ctx, record_id: str) -> Account:
@@ -947,6 +951,8 @@ def _account_editable(ctx, record_id: str) -> Account:
 
 
 def _account_current(ctx, a: Account) -> dict:
+    from . import wallets
+
     return {
         "type": a.type,
         "keptBy": json.loads(a.keptBy or "[]"),
@@ -956,17 +962,23 @@ def _account_current(ctx, a: Account) -> dict:
         "connectionId": a.connectionId,
         "syncAccount": a.syncAccount,
         **{f: getattr(a, f) for f in ACCOUNT_FIELDS},
+        **wallets.current(ctx.s, a),
     }
 
 
 def _account_update(ctx, a: Account, body: AccountRecord) -> None:
+    from . import wallets
+
     current = _account_current(ctx, a)
     sent = {f for f in AccountRecord.model_fields if getattr(body, f) != current[f]}
     if "type" in sent:
         raise refuse("type", "type-fixed", "An account keeps its type.")
     _raise(_check(body, new=False))
     level = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
-    _change(ctx.s, ctx.caller, a, level, body, sent)
+    _change(ctx.s, ctx.caller, a, level, body, sent - set(WALLET_FIELDS))
+    if sent & set(WALLET_FIELDS):
+        wallets.replace(ctx, a, body.walletKeys, body.gapLimit)
+        a.updatedAt = clock.now()  # its keys are the account's: its version moves with them
 
 
 def _account_delete(ctx, a: Account) -> None:

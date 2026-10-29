@@ -227,21 +227,13 @@ def test_reconciled_periods_ask_before_an_edit(server):
         json={"statementDate": "2026-09-30", "statementBalance": "70.00"},
     ).json()
     assert rec["difference"] == "10.00"
-    r = c.patch(
-        f"/ui/api/reconciliations/{rec['id']}",
-        json={"finish": True},
-        headers={"If-Match": str(rec["version"])},
-    )
+    r = c.post(f"/ui/api/reconciliations/{rec['id']}/finish")
     assert r.json()["code"] == "not-balanced"
     rec = c.post(
         f"/ui/api/accounts/{a['id']}/reconciliations",
         json={"statementDate": "2026-09-30", "statementBalance": "60.00"},
     ).json()
-    r = c.patch(
-        f"/ui/api/reconciliations/{rec['id']}",
-        json={"finish": True},
-        headers={"If-Match": str(rec["version"])},
-    )
+    r = c.post(f"/ui/api/reconciliations/{rec['id']}/finish")
     assert r.status_code == 200 and r.json()["finishedAt"]
     current = c.get("/ui/api/transactions").json()["items"]
     t = next(x for x in current if x["id"] == t["id"])

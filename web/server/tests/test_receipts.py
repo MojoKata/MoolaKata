@@ -4,6 +4,7 @@ import io
 
 import pytest
 from conftest import make_user, sign_in
+from edits import drop, edit, saved
 from PIL import Image
 from test_accounts import add, new_account
 
@@ -94,15 +95,9 @@ def test_attach_suggest_and_share_through_the_transaction(server, alice):
     add(alice, acct["id"], "-42.18", "2026-09-01", payee="Too early")
     tipped = add(alice, acct["id"], "-50.00", "2026-10-03", payee="Blue Bottle Coffee")
     rid = upload(alice, png()).json()["id"]
-    r = alice.get(f"/ui/api/receipts/{rid}")
-    v = r.json()["version"]
-    r = alice.patch(
-        f"/ui/api/receipts/{rid}",
-        json={"date": "2026-10-02", "amount": "42.18", "payee": "Blue Bottle"},
-        headers={"If-Match": f'"{v}"'},
-    )
-    assert r.status_code == 200, r.text
-    assert [m["transactionId"] for m in r.json()["matches"]] == [t["id"], tipped["id"]]
+    r = edit(alice, "Rcpt", f"/ui/api/receipts/{rid}", date="2026-10-02", amount="42.18",
+             payee="Blue Bottle")  # fmt: skip
+    assert [m["transactionId"] for m in saved(r)["matches"]] == [t["id"], tipped["id"]]
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"][0]["id"] == rid
     r = alice.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": t["id"]})
     assert r.status_code == 200 and r.json()["links"][0]["transactionId"] == t["id"]
@@ -123,16 +118,16 @@ def test_attach_suggest_and_share_through_the_transaction(server, alice):
     assert r.status_code == 200, r.text
     assert bob.get(f"/ui/api/receipts/{rid}").json()["level"] == "read"
     assert bob.get(f"/ui/api/receipts/{rid}/file").status_code == 200
-    assert bob.delete(f"/ui/api/receipts/{rid}").status_code == 403
+    assert drop(bob, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 403
     # A read share shows it and attaches it nowhere: not to Bob's own transaction (S9.6, P3).
     his = add(bob, new_account(bob, name="Bob's")["id"], "-42.18", "2026-10-02")
     r = bob.post(f"/ui/api/receipts/{rid}/links", json={"transactionId": his["id"]})
     assert r.status_code == 403 and r.json()["code"] == "receipt-read-only"
     # Deleted only by its owner, and only once nothing links to it.
-    r = alice.delete(f"/ui/api/receipts/{rid}")
-    assert r.status_code == 409 and r.json()["code"] == "receipt-linked"
+    r = drop(alice, "Rcpt", f"/ui/api/receipts/{rid}")
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "receipt-linked"
     alice.delete(f"/ui/api/receipts/{rid}/links/{t['id']}")
-    assert alice.delete(f"/ui/api/receipts/{rid}").status_code == 200
+    assert drop(alice, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 200
     assert alice.get(f"/ui/api/receipts/{rid}").status_code == 404
     assert list(server.config.receipts_dir.glob("*.mkr")), "the file stays while a row names it"
 

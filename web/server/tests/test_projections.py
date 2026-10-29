@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
+from edits import change, new_id, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -129,12 +130,15 @@ def test_one_active_plan_per_subject_and_its_baseline(alice):
     assert got["tracking"]["status"] == "untracked", "a typed amount has nothing to track"
     # Changing inputs keeps the baseline unless asked to re-baseline.
     base = got["result"]["percentiles"]["50"]
-    r = alice.patch(
-        f"/ui/api/projections/{b['id']}",
-        json={"inputs": {**got["inputs"], "fees": 1.0}},
-        headers={"If-Match": f'"{got["version"]}"'},
+    r = change(alice, "Prjct", got, inputs={**got["inputs"], "fees": 1.0})
+    assert saved(r)["result"]["percentiles"]["50"] != base
+    assert saved(r)["baselineAt"] == got["baselineAt"]
+    clock.fix(dt.datetime(2026, 10, 13, 12, 5, tzinfo=dt.UTC))
+    r = change(alice, "Prjct", saved(r), inputs={**got["inputs"], "fees": 0.5}, rebaseline=True)
+    assert saved(r)["baselineAt"] == "2026-10-13T12:05:00Z"
+    assert change(alice, "Prjct", saved(r), goal="education").json()["errors"][0]["code"] == (
+        "goal-fixed"
     )
-    assert r.status_code == 200 and r.json()["result"]["percentiles"]["50"] != base
 
 
 def test_tracking_against_the_band_and_the_alert_when_behind(server, alice):
@@ -168,13 +172,15 @@ def test_assumptions_are_each_users_and_checked(alice):
     figures = got["figures"]
     assert figures["inflation"] == 2.5 and figures["classes"]["usStocks"]["return"] == 7.0
     figures["classes"]["usStocks"]["return"] = 6.0
-    assert alice.put("/ui/api/assumptions", json=figures).status_code == 200
-    assert (
-        alice.get("/ui/api/assumptions").json()["figures"]["classes"]["usStocks"]["return"] == 6.0
-    )
-    figures["inflation"] = 40
-    r = alice.put("/ui/api/assumptions", json=figures)
-    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "inflation"
+    op = {"op": "create", "entity": "Asmpt", "id": new_id("Asmpt"), "fields": {"figures": figures}}
+    mine = saved(alice.post("/ui/api/save", json={"ops": [op]}))
+    assert mine["figures"]["classes"]["usStocks"]["return"] == 6.0
+    r = change(alice, "Asmpt", mine, figures={**figures, "inflation": 40})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "figures.inflation"
+    # Deleted, the shipped figures stand again.
+    assert remove(alice, "Asmpt", mine).status_code == 200
+    got = alice.get("/ui/api/assumptions").json()
+    assert got["id"] is None and got["figures"]["classes"]["usStocks"]["return"] == 7.0
 
 
 def test_bitcoin_models_compare(alice):
@@ -220,18 +226,8 @@ def test_a_bitcoin_model_with_cases_gives_three_paths(server, alice):
         bitcoinModel="ark",
     )
     # A typed amount with some crypto in it.
-    r = alice.patch(
-        f"/ui/api/projections/{p['id']}",
-        json={
-            "builtOn": {
-                "kind": "typed",
-                "amount": 100000,
-                "allocation": {"usStocks": 80, "crypto": 20},
-            }
-        },
-        headers={"If-Match": f'"{p["version"]}"'},
-    )
-    sc = r.json()["result"]["scenarios"]
+    typed = {"kind": "typed", "amount": 100000, "allocation": {"usStocks": 80, "crypto": 20}}
+    sc = saved(change(alice, "Prjct", p, builtOn=typed))["result"]["scenarios"]
     assert set(sc) == {"bear", "base", "bull"}
     assert sc["bear"][-1] < sc["base"][-1] < sc["bull"][-1]
 

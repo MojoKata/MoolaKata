@@ -8,7 +8,7 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { date, money, today } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
+import { Field, Select } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
@@ -17,9 +17,7 @@ import { EducationAnswer } from '../screens/projections.js';
 import { num } from '../app/dec.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { RecField } from './draft-form.js';
-
-const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
+import { DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
 
 /** A 529's plan (S1.8.1), in its account's draft. */
 export class EduPlanRec extends Record {
@@ -289,96 +287,85 @@ export function Contributions({ a }) {
   `;
 }
 
+/** A contribution's tag (S1.8.2): who made a deposit, and the five-year election. */
+class ContribRec extends Record {
+  /** @override */
+  static prefix = 'Cntrb';
+  /** @override */
+  static fields = FIELDS.ContributionRecord;
+  /** @override */
+  static defaults = { transactionId: null, fromAccountId: null, fiveYear: false };
+}
+
 /** @param {{ a: any, done: () => void }} p */
 function AddContribution({ a, done }) {
   const people = useList('/persons');
   const accounts = useList('/accounts');
-  const [f, setF] = useState({
-    date: today(),
-    amount: '',
-    contributor: 'owner',
-    fiveYear: false,
-    from: '',
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
     x.group === 'banking' && x.active && ['owner', 'write'].includes(x.level)
   );
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/contributions`, {
-      date: f.date,
-      amount: clean(f.amount),
-      contributor: f.contributor,
-      fiveYear: f.fiveYear,
-      fromAccountId: f.from || null,
-    }, { idempotent: true });
-    toast('Contribution recorded');
-    setF({ ...f, amount: '', fiveYear: false });
-    done();
-  });
-  const e = save.error;
+  const f = useDraft((draft) => {
+    draft.add(ContribRec, { accountId: a.id, date: today(), contributor: 'owner' });
+  }, [a.id]);
+  const rec = /** @type {ContribRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <form class="card" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${f} class="card" where="the contribution" what="This contribution"
+      label="Record" saved=${() => {
+        toast('Contribution recorded');
+        f.reload();
+        done();
+      }}>
       <h3>Record a contribution</h3>
-      <div class="row">
-        <${Field} label="Date" error=${errAt(e, 'date')}>
-          <${Input} type="date" value=${f.date}
-            onInput=${set('date')} />
-          </${Field}>
-          <${Field} label="Amount" error=${errAt(e, 'amount')}>
-            <${Input} value=${f.amount}
-              onInput=${set('amount')} inputmode="decimal" required />
-            </${Field}>
-            <${Field} label="From" id="contributor" error=${errAt(e, 'contributor')}>
-              <${Select} value=${f.contributor} onChange=${set('contributor')} options=${[
+      ${rec
+        ? html`
+          <div class="row">
+            <${RecField} rec=${rec} name="date" label="Date" type="date" />
+            <${RecField} rec=${rec} name="amount" label="Amount" />
+            <${RecField} rec=${rec} name="contributor" label="From" id="contributor"
+              options=${[
                 ['owner', 'You'],
                 ...(/** @type {any[]} */ (people.data) || []).map((
                   p,
                 ) => [`person:${p.id}`, p.name]),
               ]} />
-              </${Field}>
-              <${Field} label="Paid from" id="from-account" error=${errAt(e, 'fromAccountId')}>
-                <${Select} value=${f.from} onChange=${set('from')} options=${[
-                  ['', 'Not recorded here'],
-                  ...banks.map((b) => [b.id, b.name]),
-                ]} />
-                </${Field}>
-                </div>
-                <${SwitchRow} label="Five-year election"
-                  hint="Superfunding: counted as a fifth in each of five years against the gift exclusion."
-                  on=${f.fiveYear} onChange=${set('fiveYear')} />
-                <${FormError} error=${e} shown=${[
-                  'date',
-                  'amount',
-                  'contributor',
-                  'fromAccountId',
-                ]} />
-                <div class="toolbar mt"><span class="spacer"></span><button class="btn primary"
-        disabled=${save.busy}>Record</button></div>
-                </form>
+            <${RecField} rec=${rec} name="fromAccountId" label="Paid from" id="from-account"
+              options=${[['', 'Not recorded here'], ...banks.map((b) => [b.id, b.name])]} />
+          </div>
+          <${RecField} rec=${rec} name="fiveYear" label="Five-year election"
+            hint="Superfunding: counted as a fifth in each of five years against the gift exclusion." />
+        `
+        : null}
+    </${DraftForm}>
   `;
 }
 
-/** Who an existing deposit came from. */
+/** Who an existing deposit came from: its tag made, or changed, at once. */
 /** @param {{ a: any, c: any, done: () => void }} p */
 function Retag({ a, c, done }) {
   const people = useList('/persons');
   const save = useSubmit(async (/** @type {string} */ who) => {
-    await api.put(
-      `/contributions/${c.transactionId}`,
-      { contributor: who, fiveYear: c.fiveYear },
-      c.version,
-    );
+    await saveNow((d) => {
+      if (c.id) {
+        d.load(ContribRec, { ...c, accountId: a.id, date: null, amount: null }).set(
+          'contributor',
+          who,
+        );
+      } else {
+        d.add(ContribRec, {
+          accountId: a.id,
+          transactionId: c.transactionId,
+          contributor: who,
+          fiveYear: c.fiveYear,
+        });
+      }
+    });
     toast('Saved');
     done();
   });
   return html`
     <${Select} aria-label=${`Who the ${date(c.date)} contribution was from`}
       data-help="from" value=${c.contributor} onChange=${(/** @type {string} */ v) =>
-        save.run(v).catch(() => {})} options=${[
+        save.run(v).catch((e) => toast(e.message))} options=${[
         ['owner', a.ownerName],
         ...(/** @type {any[]} */ (people.data) || []).map((p) => [`person:${p.id}`, p.name]),
       ]} />
@@ -445,51 +432,42 @@ export function Withdrawals({ a }) {
   `;
 }
 
+/** A qualified expense (S1.8.3) in its 529. */
+class ExpenseRec extends Record {
+  /** @override */
+  static prefix = 'QExpn';
+  /** @override */
+  static fields = FIELDS.ExpenseRecord;
+  /** @override */
+  static defaults = { year: null, description: null };
+}
+
 /** @param {{ a: any, kinds: [string, string][], done: () => void }} p */
 function AddExpense({ a, kinds, done }) {
-  const [f, setF] = useState({ date: today(), kind: 'tuition', description: '', amount: '' });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const save = useSubmit(async () => {
-    await api.post(`/accounts/${a.id}/expenses`, {
-      date: f.date,
-      kind: f.kind,
-      description: f.description || null,
-      amount: clean(f.amount),
-    });
-    toast('Expense added');
-    setF({ ...f, description: '', amount: '' });
-    done();
-  });
-  const e = save.error;
+  const f = useDraft((draft) => {
+    draft.add(ExpenseRec, { accountId: a.id, date: today(), kind: 'tuition' });
+  }, [a.id]);
+  const rec = /** @type {ExpenseRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <form class="card mt" onSubmit=${(/** @type {Event} */ ev) => {
-      ev.preventDefault();
-      save.run().catch(() => {});
-    }}>
+    <${DraftForm} f=${f} class="card mt" where="the expense" what="This expense" label="Add"
+      saved=${() => {
+        toast('Expense added');
+        f.reload();
+        done();
+      }}>
       <h3>Add a qualified expense</h3>
-      <div class="row">
-        <${Field} label="Paid on" id="paid-on" error=${errAt(e, 'date')}>
-          <${Input} type="date"
-            value=${f.date} onInput=${set('date')} />
-          </${Field}>
-          <${Field} label="Kind" error=${errAt(e, 'kind')}>
-            <${Select} value=${f.kind}
-              onChange=${set('kind')} options=${kinds} />
-            </${Field}>
-            <${Field} label="Amount" error=${errAt(e, 'amount')}>
-              <${Input} value=${f.amount}
-                onInput=${set('amount')} inputmode="decimal" required />
-              </${Field}>
-              </div>
-              <${Field} label="Description" error=${errAt(e, 'description')}>
-                <${Input}
-                  value=${f.description} onInput=${set('description')}
-                  placeholder="Fall tuition, State University" />
-                </${Field}>
-                <${FormError} error=${e} shown=${['date', 'kind', 'amount', 'description']} />
-                <div class="toolbar"><span class="spacer"></span><button class="btn primary"
-        disabled=${save.busy}>Add</button></div>
-                </form>
+      ${rec
+        ? html`
+          <div class="row">
+            <${RecField} rec=${rec} name="date" label="Paid on" id="paid-on" type="date" />
+            <${RecField} rec=${rec} name="kind" label="Kind" options=${kinds} />
+            <${RecField} rec=${rec} name="amount" label="Amount" />
+          </div>
+          <${RecField} rec=${rec} name="description" label="Description"
+            placeholder="Fall tuition, State University" />
+        `
+        : null}
+    </${DraftForm}>
   `;
 }
 
@@ -505,7 +483,7 @@ function Expense({ x, canWrite, done }) {
     done();
   };
   const remove = useSubmit(async () => {
-    await api.del(`/expenses/${x.id}`, x.version);
+    await saveNow((d) => d.remove(d.load(ExpenseRec, x)));
     toast('Expense removed');
     done();
   });

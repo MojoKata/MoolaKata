@@ -99,6 +99,33 @@ def budget_of(h: Household) -> dict:
     return h.c.get(f"/ui/api/budgets/{h.budget['id']}").json()
 
 
+def receipt_of(h: Household) -> dict:
+    """The receipt's fields as read; what reading it adds is the server's, not the form's."""
+    r = h.c.get(f"/ui/api/receipts/{h.extra['receipt']['id']}").json()
+    return {k: r[k] for k in ("date", "amount", "payee", "notes", "tags", "keep", "links")}
+
+
+def profile_of(h: Household) -> dict:
+    """The profile as read, but its version, which each sign-in moves."""
+    return {k: v for k, v in h.c.get("/ui/api/profile").json().items() if k != "version"}
+
+
+def settings_of(h: Household) -> dict:
+    """The settings as read: every key, at the version they share."""
+    return h.c.get("/ui/api/settings").json()
+
+
+def settings_form(name: str, section: str, ready: str, also: str | None = None) -> Form:
+    """A Settings section's form, saved untouched: its keys, and what its route reads."""
+    return Form(
+        name,
+        lambda h: f"/ui/settings/{section}",
+        ready,
+        "",
+        lambda h: (settings_of(h), also and h.c.get(f"/ui/api{also}").json()),
+    )
+
+
 FORMS = [
     Form(
         "the plan, tracking with reserves and moves",
@@ -141,6 +168,24 @@ FORMS = [
         'button:has-text("Edit")',
         'button:has-text("Edit")',
         lambda h: h.c.get(f"/ui/api/portfolios/{h.extra['portfolio']['id']}").json(),
+    ),
+    Form(
+        "a receipt kept for ever, with its notes and tags",
+        lambda h: "/ui/receipts",
+        'button[aria-label="Receipt Blue Bottle"]',
+        'button[aria-label="Receipt Blue Bottle"]',
+        receipt_of,
+    ),
+    Form(
+        "an active retirement projection's inputs, a fixed withdrawal among them",
+        lambda h: f"/ui/projections/{h.extra['retire']['id']}",
+        'form.card:has-text("Inputs")',
+        "",
+        lambda h: {
+            k: v
+            for k, v in h.c.get(f"/ui/api/projections/{h.extra['retire']['id']}").json().items()
+            if k in ("name", "inputs", "builtOn", "baselineAt", "version")
+        },
     ),
     Form(
         "a gift plan with a graduation and a gift for it (CR3-43)",
@@ -227,12 +272,57 @@ FORMS = [
         lambda h: account(h, "mortgage"),
     ),
     Form(
+        "a wallet's settings, its key watched past a gap of 25",
+        lambda h: f"/ui/accounts/{h.extra['cold']['id']}/settings",
+        'form.draft-form:has-text("Keys and addresses")',
+        "",
+        lambda h: (
+            account(h, "cold"),
+            h.c.get(f"/ui/api/accounts/{h.extra['cold']['id']}/wallet").json(),
+        ),
+    ),
+    Form(
         "a home with its valuation and improvement",
         lambda h: f"/ui/accounts/{h.extra['homes']['id']}/items",
         'tr.click:has-text("1428 Elm St")',
         'tr.click:has-text("1428 Elm St")',
         home,
     ),
+    Form(
+        "the profile, a birthday and a time zone among it",
+        lambda h: "/ui/profile",
+        'form.card:has-text("Display name")',
+        "",
+        profile_of,
+    ),
+    Form(
+        "the assumptions, the shipped figures still",
+        lambda h: "/ui/profile",
+        'form.card:has-text("Expected return")',
+        "",
+        lambda h: h.c.get("/ui/api/assumptions").json(),
+    ),
+    settings_form("Settings › General", "general", 'form.card:has-text("Household name")'),
+    settings_form("Settings › Sign-up", "signup", 'form.card:has-text("Allowed email domains")'),
+    settings_form(
+        "Settings › Email, its password kept",
+        "email",
+        'form.card:has-text("From address")',
+        "/settings/email",
+    ),
+    settings_form(
+        "Settings › Bitcoin", "bitcoin", 'form.card:has-text("Test asks")', "/settings/bitcoin"
+    ),
+    settings_form("Settings › Prices' refresh time", "prices", 'form:has-text("Daily refresh")'),
+    settings_form(
+        "Settings › Tax tables",
+        "tax-tables",
+        'form.card:has-text("Tax tables")',
+        "/settings/tax-tables",
+    ),
+    settings_form("Settings › Backups", "backups", 'form.card:has-text("Copies kept")'),
+    settings_form("Settings › Storage", "storage", 'form.card:has-text("Keep statements for")'),
+    settings_form("Settings › Linked servers' address", "links", 'form:has-text("link address")'),
 ]
 
 
@@ -555,6 +645,25 @@ def test_a_new_mortgage_is_made_with_its_terms_in_one_save(browser, household):
     page.close()
 
 
+def test_a_new_wallet_is_made_with_its_keys_in_one_save(browser, household):
+    from test_wallets import ZPUB
+
+    h = household
+    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New account")')
+    page.click('button:has-text("New account")')
+    page.click('button.type-card:has-text("Self-custody")')
+    page.fill("#f-name", "Hardware wallet")
+    page.fill("#f-wallet-keys", ZPUB)
+    page.click(".dialog footer button.primary")
+    page.wait_for_url("**/ui/accounts/Acct_*")
+    a = next(
+        x for x in h.c.get("/ui/api/accounts").json()["items"] if x["name"] == "Hardware wallet"
+    )
+    assert h.c.get(f"/ui/api/accounts/{a['id']}/wallet").json()["watched"] == 40
+    assert problems == []
+    page.close()
+
+
 def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     h = household
     coll = h.c.post("/ui/api/accounts", json={"name": "Watches", "type": "collectables"}).json()
@@ -653,5 +762,72 @@ def test_a_new_access_token_shows_its_secret_once(browser, household):
     assert page.locator(".dialog code.mono").inner_text().startswith("mkt_")
     names = [t["name"] for t in h.c.get("/ui/api/profile/tokens").json()["items"]]
     assert "Reports" in names
+    assert problems == []
+    page.close()
+
+
+def test_a_529s_contribution_and_expense_recorded_and_tagged(browser, household):
+    h = household
+    a = made(h.c.post("/ui/api/accounts", json={"name": "Emma's 529", "type": "529"}))
+    path = f"/ui/accounts/{a['id']}/contributions"
+    page, problems = signed_in(browser, h, path, 'form:has-text("Record a contribution")')
+    page.fill("#f-amount", "2500")
+    page.click('form:has-text("Record a contribution") button.primary')
+    wait(page, '.toast:has-text("Contribution recorded")', problems)
+    url = f"/ui/api/accounts/{a['id']}/contributions"
+    (row,) = h.c.get(url).json()["rows"]
+    assert (row["amount"], row["contributor"]) == (2500, "owner")
+    wait(page, 'select[aria-label^="Who the"]', problems)
+    page.select_option('select[aria-label^="Who the"]', label="Emma Griffin")
+    wait(page, '.toast:has-text("Saved")', problems)
+    assert h.c.get(url).json()["rows"][0]["name"] == "Emma Griffin"
+    page.goto(page.url.replace("/contributions", "/withdrawals"))
+    wait(page, 'form:has-text("Add a qualified expense")', problems)
+    page.fill("#f-amount", "800")
+    page.fill("#f-description", "Books")
+    page.click('form:has-text("Add a qualified expense") button.primary')
+    wait(page, '.toast:has-text("Expense added")', problems)
+    (e,) = h.c.get(f"/ui/api/accounts/{a['id']}/withdrawals").json()["expenses"]
+    assert (e["amount"], e["description"], e["kind"]) == (800, "Books", "tuition")
+    assert problems == []
+    page.close()
+
+
+def test_an_active_projections_new_inputs_ask_about_its_baseline(browser, household):
+    h = household
+    p = h.extra["retire"]
+    was = h.c.get(f"/ui/api/projections/{p['id']}").json()
+    page, problems = signed_in(browser, h, f"/ui/projections/{p['id']}", "#f-fees")
+    page.fill("#f-fees", "0.3")
+    page.click('form.card:has-text("Inputs") button.primary')
+    wait(page, '.dialog:has-text("Re-baseline?")', problems)
+    page.click('.dialog button:has-text("Keep the baseline")')
+    wait(page, '.toast:has-text("Recomputed")', problems)
+    now = h.c.get(f"/ui/api/projections/{p['id']}").json()
+    assert now["inputs"]["fees"] == 0.3 and now["baselineAt"] == was["baselineAt"]
+    assert problems == []
+    page.close()
+
+
+def test_a_settings_section_saves_its_keys_and_a_password_with_them(browser, household):
+    h = household
+    page, problems = signed_in(
+        browser, h, "/ui/settings/email", 'form.card:has-text("From address")'
+    )
+    page.fill("#f-smtp-host", "smtp.home.lan")
+    page.fill("#f-smtp-password", "app password")
+    page.click('form.card:has-text("From address") button.primary')
+    wait(page, '.toast:has-text("Saved")', problems)
+    values = h.c.get("/ui/api/settings").json()["values"]
+    assert values["smtpHost"] == "smtp.home.lan" and "smtpPassword" not in values
+    assert h.c.get("/ui/api/settings/email").json()["password"]["setBy"]
+    # Put back as it was, so other tests' emails are written to the folder.
+    v = h.c.get("/ui/api/settings").json()["version"]
+    r = h.c.patch(
+        "/ui/api/settings",
+        json={"smtpHost": None, "smtpPassword": None},
+        headers={"If-Match": str(v)},
+    )
+    assert r.status_code == 200, r.text
     assert problems == []
     page.close()

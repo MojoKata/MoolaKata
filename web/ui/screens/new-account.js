@@ -2,7 +2,6 @@
 import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
-import { api } from '../api/client.js';
 import { Dialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
 import { Field, Select } from '../components/fields.js';
@@ -14,7 +13,7 @@ import { toast } from '../components/toast.js';
 import { BY_TYPE, TYPES } from '../account-types/index.js';
 import { LoanRec, newTerms, TermsFields } from '../components/loan.js';
 import { EduPlanRec, PlanFields } from '../components/edu.js';
-import { walletBody, WalletFields } from '../components/wallet.js';
+import { WalletFields } from '../components/wallet.js';
 
 export const LOT_METHODS = /** @type {[string, string][]} */ ([
   ['fifo', 'FIFO (first in, first out)'],
@@ -73,6 +72,8 @@ export class AcctRec extends Record {
     withdrawalsAMonth: null,
     connectionId: null,
     syncAccount: null,
+    walletKeys: null,
+    gapLimit: 20,
   };
 }
 
@@ -80,9 +81,6 @@ export class AcctRec extends Record {
 function AccountForm({ type, close, back }) {
   const { route } = useLocation();
   const t = BY_TYPE[type];
-  // The wallet's keys are saved once the account is made.
-  const [f, setF] = useState({ walletText: '', gapLimit: '20' });
-  const set = (/** @type {string} */ k) => (/** @type {string} */ v) => setF({ ...f, [k]: v });
   const d = useDraft((draft) => {
     const kept = t.loan || t.physical ? ['manual'] : t.wallet ? ['bitcoin'] : ['file'];
     const a = draft.add(AcctRec, { name: '', type, keptBy: kept });
@@ -97,24 +95,16 @@ function AccountForm({ type, close, back }) {
   const plan = /** @type {EduPlanRec | undefined} */ (
     draft?.records.find((r) => r instanceof EduPlanRec)
   );
-  /** The account made: its keys or its plan, then its page. */
-  const made = async (/** @type {any} */ o) => {
+  /** The account made, with its terms, plan or keys: then its page. */
+  const made = (/** @type {any} */ o) => {
     const a = o.saved.find((/** @type {any} */ x) => x.entity === 'Acct').record;
-    try {
-      if (t.wallet && f.walletText.trim()) {
-        await api.put(`/accounts/${a.id}/wallet`, walletBody(f), 0);
-      }
-      toast(`${a.name} made`);
-    } catch (e) {
-      // Made, with what failed to finish in its Settings.
-      toast(`${a.name} made; ${/** @type {any} */ (e).message}`);
-    }
+    toast(`${a.name} made`);
     close(a);
     route(`/ui/accounts/${a.id}`);
   };
   return html`
     <${DraftDialog} f=${d} title=${`New ${t.label} account`} close=${close} what="This account"
-      label="Create" saved=${made} changed=${() => !!draft?.changed || !!f.walletText}
+      label="Create" saved=${made}
       extra=${() => html`<button type="button" class="btn" onClick=${back}>Back</button>`}>
       ${acct
         ? html`
@@ -135,7 +125,7 @@ function AccountForm({ type, close, back }) {
           ${t.wallet
             ? html`
               <p class="small dim">Bitcoin. Other coins come later.</p>
-              <${WalletFields} f=${f} set=${set} e=${null} />
+              <${WalletFields} rec=${acct} />
               <${RecField} rec=${acct} name="lotMethod" label="Lot method" options=${LOT_METHODS}
                 hint="How sales pick lots. The method in force at a sale is recorded with it." />
             `

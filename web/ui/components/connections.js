@@ -14,6 +14,9 @@ import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { connectionState, DRIVERS } from './connector.js';
+import { Record } from '../app/draft.js';
+import { saveNow } from './draft-form.js';
+import { FIELDS } from '../api/fields.js';
 
 const DRIVER_OPTIONS = /** @type {[string, string][]} */ ([
   ['schwab', 'Schwab'],
@@ -43,7 +46,7 @@ export function Connections() {
   const paired = /** @type {any} */ (info.data)?.paired;
   const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const remove = useSubmit(async (/** @type {any} */ c) => {
-    await api.del(`/profile/connections/${c.id}`, c.version);
+    await saveNow((d) => d.remove(d.load(ConnRec, c)));
     toast(`${c.label}: removed; its accounts' sync is off`);
     setArmed(null);
     res.reload();
@@ -98,9 +101,18 @@ export function Connections() {
   `;
 }
 
+/** A Connection (S18.6), as a draft makes it or takes it away. */
+class ConnRec extends Record {
+  /** @override */
+  static prefix = 'Conn';
+  /** @override */
+  static fields = FIELDS.ConnectionRecord;
+}
+
 /**
  * New connection, or new credentials for one (S18.7). What is typed is sealed here to the
- * connector's key; or an admin types it on the connector's host.
+ * connector's key; or an admin types it on the connector's host. The connection is made with
+ * a draft's save, so a seal that fails after it leaves it made, to seal again.
  * @param {{ close: (v?: any) => void, connection?: any }} p
  */
 export function ConnectionDialog({ close, connection }) {
@@ -128,11 +140,13 @@ export function ConnectionDialog({ close, connection }) {
     canSeal().then(setSealable);
   }, []);
   const [made, setMade] = useState(/** @type {any} */ (null));
+  const [start] = useState(() => JSON.stringify(f));
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
   const save = useSubmit(async () => {
     const key = /** @type {any} */ (info.data)?.sealingKey;
-    let c = existing;
+    let c = made?.connection || existing;
     if (!c) {
+      // The connection is a record, made with the draft's save; its sign-in never is one.
       const settings = f.driver === 'ofx-direct'
         ? {
           url: f.url,
@@ -143,16 +157,14 @@ export function ConnectionDialog({ close, connection }) {
           bankId: f.bankId,
         }
         : { appKey: f.appKey };
-      const out = await api.post('/profile/connections', {
-        driver: f.driver,
-        label: f.label,
-        settings,
+      const out = await saveNow((d) => {
+        d.add(ConnRec, { driver: f.driver, label: f.label, settings });
       });
-      c = out.connection;
-      setMade(out);
+      c = out[0].record;
+      setMade({ connection: c });
     }
     if (f.how === 'host') {
-      setMade({ connection: c, command: made?.command || command(c) });
+      setMade({ connection: c, command: command(c) });
       return;
     }
     // The box holds the host the credentials are for and when they were sealed, so the
@@ -169,7 +181,7 @@ export function ConnectionDialog({ close, connection }) {
       );
     }
     const box = await seal(plain, key, c.id);
-    await withReauth(() => api.put(`/profile/connections/${c.id}/credential`, { sealed: box }));
+    await withReauth(() => api.post(`/profile/connections/${c.id}/credential`, { sealed: box }));
     toast(`${c.label}: sealed for the connector`);
     close(c);
   });
@@ -203,7 +215,8 @@ export function ConnectionDialog({ close, connection }) {
   }
   return html`
     <${Dialog} title=${existing ? `${existing.label}: credentials` : 'New connection'}
-      close=${close} onSubmit=${() => save.run().catch(() => {})}
+      close=${() => close(made?.connection)} onSubmit=${() => save.run().catch(() => {})}
+      changed=${() => JSON.stringify(f) !== start}
       note=${v.fingerprint ? `Sealed with the connector's key ${v.fingerprint}.` : ''}
       footer=${html`<button class="btn primary" disabled=${save.busy}>${
         f.how === 'host' ? 'Show the command' : 'Seal and send'

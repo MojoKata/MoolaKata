@@ -64,6 +64,28 @@ def _clear_moved_secrets(s, changed: list[str]) -> list[str]:
     return cleared
 
 
+def _secrets():
+    from ..bitcoin.sync import PASSWORD
+    from ..mail import SMTP_SECRET
+
+    return {"smtpPassword": SMTP_SECRET, "bitcoinPassword": PASSWORD}
+
+
+# The secrets a section saves with its keys.
+SECRETS = ("smtpPassword", "bitcoinPassword")
+
+
+def _put_secrets(s, srv, c: Caller, given: dict) -> None:
+    from ..store.repos import secrets as secret_repo
+
+    where = _secrets()
+    for k, v in given.items():
+        if v:
+            secret_repo.put(s, srv.keys.secrets, *where[k], v, c.id)
+        else:
+            secret_repo.remove(s, *where[k])
+
+
 @router.get("/settings", response_model=SettingsView)
 def get_settings(request: Request, c: Caller = Depends(admin)):
     with server(request).db.read() as s:
@@ -74,9 +96,12 @@ def get_settings(request: Request, c: Caller = Depends(admin)):
 def change_settings(
     body: Loose, request: Request, c: Caller = Depends(admin), version: int = Depends(if_match)
 ):
-    """Every key is checked before any is saved; a refusal names each field (R3.7)."""
+    """Every key is checked before any is saved; a refusal names each field (R3.7). The SMTP
+    and Bitcoin Core passwords come with their sections' keys, written, never read back: set
+    by a value, removed by null (S14.4)."""
     errors: list[FieldError] = []
     clean = {}
+    secrets = {k: body.pop(k) for k in list(body) if k in SECRETS}
     for key, value in body.items():
         try:
             clean[key] = settings.coerce(key, value)
@@ -89,9 +114,14 @@ def change_settings(
         )
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
+    for k, v in secrets.items():
+        if v is not None and (not isinstance(v, str) or not v or len(v) > 500):
+            errors.append(FieldError(k, "password-invalid", "A password, or none."))
+    if errors:
+        raise Problem(422, errors[0].code, errors[0].message, errors)
     with srv.db.tx() as s:
         check_version(version_of(s, Setting), version, lambda: view(s))
-        if any(
+        if secrets or any(
             k in REAUTH or k.startswith("network")
             for k, v in clean.items()
             if settings.get(s, k) != v
@@ -119,6 +149,8 @@ def change_settings(
         for k in changed:
             settings.put(s, k, clean[k], c.id)
         cleared = _clear_moved_secrets(s, changed)
+        _put_secrets(s, srv, c, secrets)
+        changed += list(secrets)
         if changed:
             activity.record(
                 s,
@@ -152,10 +184,6 @@ class EmailView(Model):
     setAside: int
     lastRun: dt.datetime | None
     lastError: str | None
-
-
-class EmailPassword(Model):
-    password: str | None
 
 
 class TestEmail(Model):
@@ -244,33 +272,6 @@ def written_email(name: str, request: Request, c: Caller = Depends(admin)):
     return WrittenEmailText(name=name, text=text)
 
 
-@router.put("/settings/email/password", response_model=EmailView)
-def email_password(body: EmailPassword, request: Request, c: Caller = Depends(admin)):
-    """The SMTP password is a secret (S14.4): the admin's password again (S13.7.2)."""
-    from .deps import recent_auth
-
-    recent_auth(c)
-    """The SMTP password is a secret (S14.4): set or removed, never read back."""
-    from ..mail import SMTP_SECRET
-    from ..store.repos import secrets as secret_repo
-
-    srv = server(request)
-    with srv.db.tx() as s:
-        if body.password:
-            secret_repo.put(s, srv.keys.secrets, *SMTP_SECRET, body.password, c.id)
-        else:
-            secret_repo.remove(s, *SMTP_SECRET)
-        activity.record(
-            s,
-            "settings.changed",
-            actor=c.id,
-            for_admins=True,
-            detail={"fields": ["smtpPassword"]},
-        )
-        s.flush()
-        return _email_view(srv, s)
-
-
 # ---------- Bitcoin (S16.7, S1.6.2) ----------
 
 
@@ -281,10 +282,6 @@ class BitcoinView(Model):
     lastError: str | None
     certificate: str | None  # the Electrum server's, trusted (S1.6.2.4): its SHA-256
     certificateOffered: str | None  # another one it presented since, waiting to be confirmed
-
-
-class BitcoinPassword(Model):
-    password: str | None
 
 
 class BitcoinTest(Model):
@@ -322,33 +319,6 @@ def _bitcoin_view(s) -> BitcoinView:
 @router.get("/settings/bitcoin", response_model=BitcoinView)
 def bitcoin_status(request: Request, c: Caller = Depends(admin)):
     with server(request).db.read() as s:
-        return _bitcoin_view(s)
-
-
-@router.put("/settings/bitcoin/password", response_model=BitcoinView)
-def bitcoin_password(body: BitcoinPassword, request: Request, c: Caller = Depends(admin)):
-    """Bitcoin Core's RPC password is a secret (S14.4): set or removed, never read back; the
-    admin's password again (S13.7.2)."""
-    from ..bitcoin.sync import PASSWORD
-    from ..store.repos import secrets as secret_repo
-    from .deps import recent_auth
-
-    recent_auth(c)
-
-    srv = server(request)
-    with srv.db.tx() as s:
-        if body.password:
-            secret_repo.put(s, srv.keys.secrets, *PASSWORD, body.password, c.id)
-        else:
-            secret_repo.remove(s, *PASSWORD)
-        activity.record(
-            s,
-            "settings.changed",
-            actor=c.id,
-            for_admins=True,
-            detail={"fields": ["bitcoinPassword"]},
-        )
-        s.flush()
         return _bitcoin_view(s)
 
 
