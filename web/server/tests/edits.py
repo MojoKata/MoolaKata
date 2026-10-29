@@ -235,3 +235,19 @@ def loan_payment(c, loan_id: str, date: str, amount, from_account: str | None = 
                         "fields": {"transactionId": tid, "amount": str(value),
                                    "categoryId": split["categories"].get(part)}})  # fmt: skip
     return c.post("/ui/api/save", json={"ops": ops})
+
+
+def option_trade(c, account_id: str, day: str, action: str, underlying: str, right: str,
+                 strike, expiry: str, contracts, premium, fees="0", multiplier=None,
+                 confirm: bool = False):  # fmt: skip
+    """An option trade as its dialog's draft records it (S3.2): a transaction of the trade's
+    kind with its contract, its amount the cash the trade comes to. The save's answer."""
+    from moolakata import options
+
+    amount = options.cash(action, Decimal(str(contracts)), Decimal(str(premium)),
+                          Decimal(str(fees or 0)), int(multiplier or 100))  # fmt: skip
+    fields = {"accountId": account_id, "date": day, "kind": action, "symbol": underlying,
+              "right": right, "strike": str(strike), "expiry": expiry,
+              "quantity": str(contracts), "price": str(premium), "fees": str(fees or 0),
+              "amount": str(amount), "multiplier": multiplier}  # fmt: skip
+    return create(c, "Txn", confirm, **fields)

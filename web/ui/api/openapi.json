@@ -14735,83 +14735,6 @@
         "title": "OpenRow",
         "type": "object"
       },
-      "OptionTrade": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "title": "Action",
-            "type": "string"
-          },
-          "contracts": {
-            "examples": [
-              12.5
-            ],
-            "format": "decimal",
-            "title": "Contracts",
-            "type": "number"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "expiry": {
-            "format": "date",
-            "title": "Expiry",
-            "type": "string"
-          },
-          "fees": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Fees",
-            "type": "number"
-          },
-          "multiplier": {
-            "default": 100,
-            "title": "Multiplier",
-            "type": "integer"
-          },
-          "premium": {
-            "examples": [
-              12.5
-            ],
-            "format": "decimal",
-            "title": "Premium",
-            "type": "number"
-          },
-          "right": {
-            "title": "Right",
-            "type": "string"
-          },
-          "strike": {
-            "examples": [
-              12.5
-            ],
-            "format": "decimal",
-            "title": "Strike",
-            "type": "number"
-          },
-          "underlying": {
-            "title": "Underlying",
-            "type": "string"
-          }
-        },
-        "required": [
-          "date",
-          "action",
-          "underlying",
-          "right",
-          "strike",
-          "expiry",
-          "contracts",
-          "premium"
-        ],
-        "title": "OptionTrade",
-        "type": "object"
-      },
       "OptionTradeRow": {
         "additionalProperties": false,
         "properties": {
@@ -18916,7 +18839,6 @@
               "account-not-counted",
               "account-unknown",
               "accounts-unknown",
-              "action-invalid",
               "admin-exists",
               "admins-only",
               "already-joined",
@@ -19002,6 +18924,7 @@
               "every-invalid",
               "expense-fixed",
               "expired",
+              "expiry-required",
               "fees-invalid",
               "figure-corrected",
               "figure-fixed",
@@ -19358,7 +19281,6 @@
                   "account-not-counted",
                   "account-unknown",
                   "accounts-unknown",
-                  "action-invalid",
                   "admin-exists",
                   "admins-only",
                   "already-joined",
@@ -19444,6 +19366,7 @@
                   "every-invalid",
                   "expense-fixed",
                   "expired",
+                  "expiry-required",
                   "fees-invalid",
                   "figure-corrected",
                   "figure-fixed",
@@ -26630,6 +26553,19 @@
             "default": null,
             "title": "Dividendtype"
           },
+          "expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expiry"
+          },
           "fees": {
             "anyOf": [
               {
@@ -26686,6 +26622,18 @@
             ],
             "default": null,
             "title": "Memo"
+          },
+          "multiplier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Multiplier"
           },
           "owedBy": {
             "anyOf": [
@@ -26758,6 +26706,34 @@
             ],
             "default": null,
             "title": "Reimbursable"
+          },
+          "right": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Right"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strike"
           },
           "symbol": {
             "anyOf": [
@@ -31057,72 +31033,6 @@
         "summary": "Suggest Split",
         "tags": [
           "loans"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/options": {
-      "post": {
-        "operationId": "record_trade_ui_api_accounts__account_id__options_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirm",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OptionTrade"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TxnOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Record Trade",
-        "tags": [
-          "options"
         ]
       }
     },

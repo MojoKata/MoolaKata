@@ -1,6 +1,6 @@
 // Recording an option trade (requirements S3.2): buy or sell, to open or to close, a contract
 // by its underlying, call or put, strike and expiry.
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { Record } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
@@ -10,7 +10,7 @@ import { useList, useSubmit } from '../app/hooks.js';
 import { money, today } from '../app/format.js';
 import { Dialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Seg, Select } from './fields.js';
+import { errAt, Field, FormError, Input, Seg } from './fields.js';
 import { toast } from './toast.js';
 import { dec } from '../app/dec.js';
 
@@ -22,6 +22,31 @@ export const ACTIONS = /** @type {[string, string][]} */ ([
 ]);
 const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 
+/**
+ * An option trade as its dialog's draft makes it (S3.2): a transaction of the trade's kind,
+ * `symbol` the underlying, `quantity` the contracts and `price` the premium a share, with the
+ * contract's right, strike and expiry; its amount the cash the trade comes to.
+ */
+class OptionTxn extends Record {
+  /** @override */
+  static prefix = 'Txn';
+  /** @override */
+  static fields = FIELDS.TxnRecord;
+  /** @override */
+  static defaults = { payee: null, memo: null, multiplier: null };
+}
+
+/** What a trade does to the account's cash: paid out to buy, received to sell, less fees. */
+function cashOf(/** @type {OptionTxn} */ r) {
+  try {
+    const gross = dec(r.get('quantity') || 0).mul(dec(r.get('price') || 0)).mul(100).round(2);
+    const fees = dec(r.get('fees') || 0);
+    return String(r.get('kind').startsWith('buy') ? gross.neg().sub(fees) : gross.sub(fees));
+  } catch {
+    return null;
+  }
+}
+
 /** @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p */
 export function OptionTrade({ close, accountId, start }) {
   useDialogGuide('dialog-option-trade');
@@ -29,116 +54,65 @@ export function OptionTrade({ close, accountId, start }) {
   const list = (/** @type {any[]} */ (accounts.data) || []).filter((a) =>
     a.investing && a.active && ['owner', 'write'].includes(a.level)
   );
-  const [f, setF] = useState({
-    accountId: accountId || '',
-    date: today(),
-    action: start?.action || 'sell-to-open',
-    underlying: start?.underlying || '',
-    right: start?.right || 'put',
-    strike: start?.strike || '',
-    expiry: start?.expiry || '',
-    contracts: start?.contracts || '1',
-    premium: '',
-    fees: '0.65',
-  });
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const account = f.accountId || list[0]?.id || '';
-  const gross = Number(clean(f.contracts)) * Number(clean(f.premium)) * 100;
-  const cash = f.action.startsWith('buy')
-    ? -gross - Number(clean(f.fees) || 0)
-    : gross - Number(clean(f.fees) || 0);
-  const save = useSubmit(async (/** @type {boolean} */ confirm = false) => {
-    const out = await api.post(`/accounts/${account}/options`, {
-      date: f.date,
-      action: f.action,
-      underlying: f.underlying,
-      right: f.right,
-      strike: clean(f.strike),
-      expiry: f.expiry,
-      contracts: clean(f.contracts),
-      premium: clean(f.premium),
-      fees: clean(f.fees) || '0',
-    }, { idempotent: true, ...(confirm ? { params: { confirm: true } } : {}) });
-    toast(`${out.payee} recorded`);
-    close(out);
-  });
-  const e = save.error;
-  const ask = e?.code === 'closed-year'; // a year whose return is filed (S2.8)
+  const f = useDraft((draft) => {
+    draft.add(OptionTxn, {
+      accountId: accountId || null,
+      date: today(),
+      kind: start?.action || 'sell-to-open',
+      symbol: start?.underlying || '',
+      right: start?.right || 'put',
+      strike: start?.strike || null,
+      expiry: start?.expiry || null,
+      quantity: start?.contracts || '1',
+      price: null,
+      fees: '0.65',
+    });
+  }, [accountId]);
+  const rec = /** @type {OptionTxn | undefined} */ (f.draft?.records[0]);
+  // The first account the list offers, until another is chosen.
+  const first = list[0]?.id;
+  useEffect(() => {
+    if (rec && !rec.get('accountId') && first) rec.set('accountId', first);
+  }, [rec, first]);
+  const cash = rec ? cashOf(rec) : null;
+  const before = () => {
+    if (!rec || cash === null) return false;
+    rec.set('amount', cash);
+  };
   return html`
-    <${Dialog} title="Record an option trade" close=${close} onSubmit=${() =>
-      save.run(ask).catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy || !account}>${
-        ask ? 'Record it anyway' : 'Record'
-      }</button>`}>
-      <div class="field" data-help="action" id="x-action"><label>Trade</label>
-        <${Seg} label="Trade" value=${f.action} onChange=${set(
-          'action',
-        )} options=${ACTIONS} /></div>
-      <div class="row">
-        <${Field} label="Account" id="account" error=${errAt(e, 'accountId')}>
-          <${Select}
-            value=${account} onChange=${set('accountId')} options=${list.map((
-              a,
-            ) => [a.id, a.name])} />
-          </${Field}>
-          <${Field} label="Date" error=${errAt(e, 'date')}>
-            <${Input} type="date" value=${f.date}
-              onInput=${set('date')} />
-            </${Field}>
-            </div>
-            <div class="row">
-              <${Field} label="Underlying" error=${errAt(e, 'underlying')}>
-                <${Input} value=${f.underlying}
-                  onInput=${set('underlying')} placeholder="MSFT" required />
-                </${Field}>
-                <${Field} label="Call or put" id="right" error=${errAt(e, 'right')}>
-                  <${Select} value=${f.right}
-                    onChange=${set('right')} options=${[['call', 'Call'], ['put', 'Put']]} />
-                  </${Field}>
-                  <${Field} label="Strike" error=${errAt(e, 'strike')}>
-                    <${Input} value=${f.strike}
-                      onInput=${set('strike')} inputmode="decimal" placeholder="480" required />
-                    </${Field}>
-                    <${Field} label="Expiry" error=${errAt(e, 'expiry')}>
-                      <${Input} type="date" value=${f.expiry}
-                        onInput=${set('expiry')} required />
-                      </${Field}>
-                      </div>
-                      <div class="row">
-                        <${Field} label="Contracts" error=${errAt(
-                          e,
-                          'contracts',
-                        )} hint="100 shares each.">
-                          <${Input} value=${f.contracts} onInput=${set(
-                            'contracts',
-                          )} inputmode="numeric" />
-                          </${Field}>
-                          <${Field} label="Premium" error=${errAt(
-                            e,
-                            'premium',
-                          )} hint="A share, as quoted.">
-                            <${Input} value=${f.premium} onInput=${set(
-                              'premium',
-                            )} inputmode="decimal"
-                              required />
-                            </${Field}>
-                            <${Field} label="Fees and commission" id="fees" error=${errAt(
-                              e,
-                              'fees',
-                            )}>
-                              <${Input}
-                                value=${f.fees} onInput=${set('fees')} inputmode="decimal" />
-                              </${Field}>
-                              </div>
-                              <p class="small dim">${Number.isFinite(cash) && gross
-                                ? `${cash < 0 ? 'Paid' : 'Received'}: ${
-                                  money(String(Math.abs(cash)))
-                                }.`
-                                : ''} ${f.action === 'sell-to-open'
-                                ? 'A short option is a negative lot: the credit is its basis, realized at close or expiry.'
-                                : ''}</p>
-                              <${FormError} error=${e} />
-                              </${Dialog}>
+    <${DraftDialog} f=${f} title="Record an option trade" close=${close} what="This trade"
+      label="Record" done="Option trade recorded" before=${before}
+      disabled=${!rec?.get('accountId')}>
+      ${rec
+        ? html`
+          <div class="field" data-help="action" id="x-action"><label>Trade</label>
+            <${Seg} label="Trade" value=${rec.get('kind')} onChange=${(/** @type {string} */ v) =>
+              rec.set('kind', v)} options=${ACTIONS} /></div>
+          <div class="row">
+            <${RecField} rec=${rec} name="accountId" label="Account" id="account"
+              options=${list.map((a) => [a.id, a.name])} />
+            <${RecField} rec=${rec} name="date" label="Date" type="date" />
+          </div>
+          <div class="row">
+            <${RecField} rec=${rec} name="symbol" label="Underlying" placeholder="MSFT" />
+            <${RecField} rec=${rec} name="right" label="Call or put" id="right"
+              options=${[['call', 'Call'], ['put', 'Put']]} />
+            <${RecField} rec=${rec} name="strike" label="Strike" placeholder="480" />
+            <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
+          </div>
+          <div class="row">
+            <${RecField} rec=${rec} name="quantity" label="Contracts" hint="100 shares each." />
+            <${RecField} rec=${rec} name="price" label="Premium" hint="A share, as quoted." />
+            <${RecField} rec=${rec} name="fees" label="Fees and commission" id="fees" />
+          </div>
+          <p class="small dim">${cash !== null && !dec(rec.get('price') || 0).isZero()
+            ? `${dec(cash).isNegative() ? 'Paid' : 'Received'}: ${money(String(dec(cash).abs()))}.`
+            : ''} ${rec.get('kind') === 'sell-to-open'
+            ? 'A short option is a negative lot: the credit is its basis, realized at close or expiry.'
+            : ''}</p>
+        `
+        : null}
+    </${DraftDialog}>
   `;
 }
 

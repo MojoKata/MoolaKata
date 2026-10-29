@@ -108,7 +108,7 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
         ("buy-to-open", "530", "1.20"),
     ):
         r = option(alice, a, action, "2026-10-02", premium, strike=strike, fees="0")
-        assert r.status_code == 201, r.text
+        assert r.status_code == 200, r.text
     v = alice.get("/ui/api/positions/strategies").json()
     [p] = v["proposals"]
     assert (p["kind"], p["shape"], len(p["legs"])) == ("group", "Bull put spread", 2)
@@ -209,7 +209,7 @@ def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(alice):
     a = new_account(alice, type="brokerage")["id"]
     for right, premium in (("call", "3.00"), ("put", "2.50")):
         r = option(alice, a, "sell-to-open", "2026-10-02", premium, right=right, fees="0")
-        assert r.status_code == 201, r.text
+        assert r.status_code == 200, r.text
     [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
     assert p["shape"] == "Short straddle"
     r = alice.post(
@@ -222,7 +222,7 @@ def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(alice):
     assert acct["capitalAtRiskUnlimited"] and acct["capitalAtRisk"] is None
     _, put = sorted(p["legs"], key=lambda x: x["symbol"])
     r = option(alice, a, "buy-to-close", "2026-10-09", "1.00", right="call", fees="0")
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     r = alice.post(
         f"/ui/api/accounts/{a}/options/{put['instrumentId']}/settle",
         json={"how": "assign", "date": "2026-10-12"},

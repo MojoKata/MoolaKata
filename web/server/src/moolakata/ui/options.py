@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 
-from .. import access, activity, ids, options, washes
+from .. import access, activity, options, washes
 from ..errors import FieldError, Problem, refuse
 from ..ledger import types as atypes
 from ..store.entities.accounts import Instrument, Transaction
@@ -19,96 +19,83 @@ from .transactions import TxnOut, shape
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["options"])
 
 
-class OptionTrade(Model):
-    date: dt.date
-    action: str  # buy-to-open, sell-to-open, buy-to-close, sell-to-close
-    underlying: str
-    right: str  # call or put
-    strike: Quantity
-    expiry: dt.date
-    contracts: Quantity
-    premium: Quantity  # a share
-    fees: Money = Decimal(0)
-    multiplier: int = 100
-
-
-@router.post("/accounts/{account_id}/options", response_model=TxnOut, status_code=201)
-def record_trade(
-    account_id: str,
-    body: OptionTrade,
-    request: Request,
-    c: Caller = Depends(caller),
-    confirm: bool = False,
-):
+def make_trade(ctx, record_id: str, body) -> Transaction:
+    """An option trade (S3.2) as a transaction's draft makes it: its kind the trade, `symbol`
+    the underlying, `quantity` the contracts and `price` the premium a share, with the
+    contract's right, strike, expiry and multiplier; its amount the cash the trade comes to."""
+    s, c = ctx.s, ctx.caller
     e: list[FieldError] = []
-    if body.action not in options.ACTIONS:
-        e.append(FieldError("action", "action-invalid", "Buy or sell, to open or to close."))
     if body.right not in ("call", "put"):
         e.append(FieldError("right", "right-invalid", "A call or a put."))
-    underlying = body.underlying.strip().upper()
+    underlying = (body.symbol or "").strip().upper()
     if not underlying or len(underlying) > 12:
-        e.append(FieldError("underlying", "symbol-invalid", "The underlying's symbol: MSFT."))
-    if body.strike <= 0:
+        e.append(FieldError("symbol", "symbol-invalid", "The underlying's symbol: MSFT."))
+    if body.strike is None or body.strike <= 0:
         e.append(FieldError("strike", "strike-invalid", "More than zero."))
-    if body.contracts <= 0 or body.contracts != body.contracts.to_integral_value():
-        e.append(FieldError("contracts", "contracts-invalid", "A whole number of contracts."))
-    if body.premium < 0:
-        e.append(FieldError("premium", "premium-invalid", "Zero or more, a share."))
-    if body.fees < 0:
+    contracts = body.quantity
+    if contracts is None or contracts <= 0 or contracts != contracts.to_integral_value():
+        e.append(FieldError("quantity", "contracts-invalid", "A whole number of contracts."))
+    if body.price is None or body.price < 0:
+        e.append(FieldError("price", "premium-invalid", "Zero or more, a share."))
+    fees = body.fees or Decimal(0)
+    if fees < 0:
         e.append(FieldError("fees", "fees-invalid", "Zero or more."))
-    if body.action.endswith("to-open") and body.expiry < body.date:
+    if body.expiry is None:
+        e.append(FieldError("expiry", "expiry-required", "The day it expires."))
+    elif body.kind.endswith("to-open") and body.expiry < body.date:
         e.append(FieldError("expiry", "expired", "It expired before the trade."))
-    if not 1 <= body.multiplier <= 10000:
+    multiplier = body.multiplier or 100
+    if not 1 <= multiplier <= 10000:
         e.append(FieldError("multiplier", "multiplier-invalid", "Shares a contract: 100."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    with server(request).db.tx() as s:
-        a, level = access.account(s, c.id, account_id, "write")
-        if not atypes.investing(a.type):
+    a, _ = access.account(s, c.id, body.accountId, "write")
+    if not atypes.investing(a.type):
+        raise refuse("kind", "kind-not-for-account", "Options belong in an investing account.")
+    guard = closed.Guard(s, a, False, c.id, ask=ctx.ask)
+    inst, contract = options.contract(
+        s, underlying, body.right, body.strike, body.expiry, multiplier
+    )
+    if body.kind.endswith("to-close"):
+        held = repo.load(s, a).replay().quantity(inst.id)
+        want_long = body.kind == "sell-to-close"
+        if (want_long and held < contracts) or (not want_long and -held < contracts):
             raise refuse(
-                "action", "kind-not-for-account", "Options belong in an investing account."
+                "quantity",
+                "nothing-to-close",
+                f"The account holds {abs(held)} {'long' if held >= 0 else 'short'} "
+                "contracts of it.",
             )
-        guard = closed.Guard(s, a, confirm, c.id)
-        inst, contract = options.contract(
-            s, underlying, body.right, body.strike, body.expiry, body.multiplier
-        )
-        if body.action.endswith("to-close"):
-            held = repo.load(s, a).replay().quantity(inst.id)
-            want_long = body.action == "sell-to-close"
-            if (want_long and held < body.contracts) or (not want_long and -held < body.contracts):
-                raise refuse(
-                    "contracts",
-                    "nothing-to-close",
-                    f"The account holds {abs(held)} {'long' if held >= 0 else 'short'} "
-                    "contracts of it.",
-                )
-        t = Transaction(
-            id=ids.new_id("Txn"),
-            accountId=a.id,
-            date=body.date,
-            kind=body.action,
-            amount=options.cash(
-                body.action, body.contracts, body.premium, body.fees, contract.multiplier
-            ),
-            payee=f"{body.action.replace('-', ' ').capitalize()} {inst.symbol}",
-            instrumentId=inst.id,
-            quantity=body.contracts,
-            price=body.premium,
-            fees=body.fees or None,
-            createdById=c.id,
-        )
-        s.add(t)
-        s.flush()
-        guard.check()
-        activity.record(
-            s,
-            "option.traded",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        return shape(s, c.id, [t], {a.id: level})[0]
+    amount = options.cash(body.kind, contracts, body.price, fees, contract.multiplier)
+    if body.amount != amount:
+        raise refuse("amount", "amount-mismatch", f"The trade comes to {amount:,.2f}.")
+    t = Transaction(
+        id=record_id,
+        accountId=a.id,
+        date=body.date,
+        kind=body.kind,
+        amount=amount,
+        payee=(body.payee or "").strip()
+        or f"{body.kind.replace('-', ' ').capitalize()} {inst.symbol}",
+        memo=body.memo,
+        instrumentId=inst.id,
+        quantity=contracts,
+        price=body.price,
+        fees=fees or None,
+        createdById=c.id,
+    )
+    s.add(t)
+    s.flush()
+    guard.check()
+    activity.record(
+        s,
+        "option.traded",
+        actor=c.id,
+        subject_kind="account",
+        subject_id=a.id,
+        owner=a.ownerId,
+    )
+    return t
 
 
 class Settle(Model):

@@ -54,8 +54,8 @@ INSTRUMENT_KINDS = (
     "split",
     "return-of-capital",
 )
-# Recorded through the option-trade endpoint (S3.2), which knows the contract, and the
-# corporate-action one (S2.4), which makes their pairs.
+# Made only with what they need: an option trade with its contract (S3.2, a create that names
+# it), an option's end by settling it, and a corporate action's pairs from the action (S2.4).
 OPTION_KINDS = (
     "symbol-change",
     "spin-off",
@@ -1106,6 +1106,11 @@ class TxnRecord(Model):
     cleared: bool = False
     tagIds: list[IdOf("Tag")] = _set_of()  # type: ignore[valid-type]  # the saver's own (S2.6)
     leftOutOf: list[IdOf("Bdgt")] = _set_of()  # type: ignore[valid-type]
+    # An option trade's contract (S3.2), `symbol` its underlying: made with the trade.
+    right: str | None = None  # call or put
+    strike: Quantity | None = None
+    expiry: dt.date | None = None
+    multiplier: int | None = None  # shares a contract: 100 unless typed
     # The other half of a transfer made with it (S1.7): one of the same save, or a free one
     # already recorded, such as a loan payment's bank transaction (S1.9.3).
     transferWithId: IdOf("Txn") | None = None  # type: ignore[valid-type]
@@ -1209,7 +1214,14 @@ def _parts_add_up(ctx, t: Transaction) -> None:
 
 
 def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
-    t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False, ask=ctx.ask)
+    from .. import options
+
+    if body.kind in options.ACTIONS:
+        from .options import make_trade
+
+        t = make_trade(ctx, record_id, body)
+    else:
+        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False, ask=ctx.ask)
     ctx.notes.setdefault("transactions-made", set()).add(t.id)
     if body.leftOutOf:
         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
@@ -1270,7 +1282,7 @@ def _txn_current(ctx, t: Transaction) -> dict:
 def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     current = _txn_current(ctx, t)
     sent = {f for f in TxnRecord.model_fields if getattr(body, f) != current.get(f)}
-    for fixed in ("accountId", "symbol", "instrumentId"):
+    for fixed in ("accountId", "symbol", "instrumentId", "right", "strike", "expiry", "multiplier"):
         if fixed in sent:
             raise refuse(fixed, "transaction-fixed", "A transaction keeps its account and holding.")
     if "transferWithId" in sent:

@@ -990,3 +990,26 @@ def test_a_loan_payment_is_recorded_split_with_its_bank_half(browser, household)
     assert paid["transferAccountName"] == "Boat loan"
     assert problems == []
     page.close()
+
+
+def test_an_option_trade_is_saved_as_a_transaction_with_its_contract(browser, household):
+    # S3.2: the trade's kind, the contract and the cash it comes to, one record of the save.
+    h = household
+    acct = h.extra["brokerage"]["id"]
+    page, problems = signed_in(
+        browser, h, f"/ui/accounts/{acct}/holdings", 'button:has-text("Record an option")'
+    )
+    page.click('button:has-text("Record an option")')
+    wait(page, "#f-underlying", problems)
+    page.fill("#f-underlying", "MSFT")
+    page.fill("#f-strike", "480")
+    page.fill("#f-expiry", f"{int(months_back(0)[:4]) + 1}-01-15")
+    page.fill("#f-premium", "6.40")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    items = h.c.get("/ui/api/transactions", params={"account": acct}).json()["items"]
+    (t,) = [x for x in items if x["kind"] == "sell-to-open"]
+    assert t["symbol"].startswith("MSFT ") and t["symbol"].endswith(" 480 P")
+    assert t["amount"] == 639.35, "100 × 6.40 less 0.65"
+    assert problems == []
+    page.close()

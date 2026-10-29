@@ -6,7 +6,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import remove
+from edits import create, option_trade, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -40,36 +40,20 @@ def opt(
     fees="0.65",
     **kw,
 ):
-    r = c.post(
-        f"/ui/api/accounts/{acct}/options",
-        json={
-            "date": day,
-            "action": action,
-            "underlying": "msft",
-            "right": right,
-            "strike": strike,
-            "expiry": expiry,
-            "contracts": contracts,
-            "premium": premium,
-            "fees": fees,
-            **kw,
-        },
-    )
-    return r
+    return option_trade(c, acct, day, action, "msft", right, strike, expiry, contracts, premium,
+                        fees, **kw)  # fmt: skip
 
 
 def test_a_short_put_is_a_negative_lot_and_realizes_at_close(alice):
     brk = new_account(alice, name="Brokerage", type="brokerage")
-    r = opt(alice, brk["id"], "sell-to-open", "2026-09-02", "6.40", contracts="2")
-    assert r.status_code == 201, r.text
-    t = r.json()
+    t = saved(opt(alice, brk["id"], "sell-to-open", "2026-09-02", "6.40", contracts="2"))
     assert t["amount"] == "1279.35", "2 × 100 × 6.40 less 0.65"
     v = alice.get("/ui/api/positions").json()
     row = v["open"][0]
     assert row["symbol"] == "MSFT 20NOV26 480 P" and row["side"] == "short"
     assert row["quantity"] == "-2.0" and row["cost"] == "-1279.35"
     r = opt(alice, brk["id"], "buy-to-close", "2026-10-01", "2.10", contracts="2")
-    assert r.status_code == 201 and r.json()["amount"] == "-420.65"
+    assert saved(r)["amount"] == "-420.65"
     v = alice.get("/ui/api/positions").json()
     assert v["open"] == []
     closed = v["closed"][0]
@@ -117,24 +101,19 @@ def test_a_long_call_closes_or_expires(alice):
     assert too_many.json()["errors"][0]["code"] == "nothing-to-close"
 
 
-def test_option_kinds_go_through_their_own_endpoint(alice):
+def test_an_option_trade_is_made_with_its_contract_and_an_end_by_settling(alice):
     brk = new_account(alice, name="Brokerage", type="brokerage")
-    r = alice.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": brk["id"],
-            "date": "2026-09-01",
-            "amount": "100",
-            "kind": "sell-to-open",
-            "symbol": "MSFT",
-            "quantity": "1",
-        },
-    )
+    r = create(alice, "Txn", accountId=brk["id"], date="2026-09-01", amount="100",
+               kind="expire", symbol="MSFT", quantity="1")  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "option-kind"
     bad = opt(
         alice, brk["id"], "sell-to-open", "2026-09-02", "1", contracts="1.5", right="straddle"
     )
-    assert {e["field"] for e in bad.json()["errors"]} == {"contracts", "right"}
+    assert {e["field"] for e in bad.json()["errors"]} == {"quantity", "right"}
+    r = create(alice, "Txn", accountId=brk["id"], date="2026-09-02", amount="100",
+               kind="sell-to-open", symbol="MSFT", right="put", strike="480",
+               expiry="2026-11-20", quantity="1", price="6.40")  # fmt: skip
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "amount-mismatch"
 
 
 def _held(c, acct, symbol):
@@ -172,7 +151,7 @@ def test_an_assignment_follows_its_opening_trade_and_goes_with_its_stock_trade(s
     from moolakata.store.entities.accounts import Transaction
 
     brk = new_account(alice, name="Brokerage", type="brokerage")
-    sold = opt(alice, brk["id"], "sell-to-open", "2026-09-02", "6.40", fees="0").json()
+    sold = saved(opt(alice, brk["id"], "sell-to-open", "2026-09-02", "6.40", fees="0"))
     put = _held(alice, brk["id"], "MSFT 20NOV26 480 P")
     end, stock = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle",
@@ -278,7 +257,7 @@ def test_each_option_trade_has_its_premium_pl_and_return(alice):
     opt(alice, brk["id"], "sell-to-open", "2026-09-01", "5.00", contracts="2")
     opt(alice, brk["id"], "buy-to-close", "2026-09-15", "2.00")
     assert (
-        opt(alice, brk["id"], "sell-to-open", "2026-09-02", "3.00", right="call").status_code == 201
+        opt(alice, brk["id"], "sell-to-open", "2026-09-02", "3.00", right="call").status_code == 200
     )
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/"

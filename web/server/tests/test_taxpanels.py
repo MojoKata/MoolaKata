@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import loan_payment, saved, sell, terms
+from edits import loan_payment, option_trade, saved, sell, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -241,18 +241,8 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(alice):
     add(alice, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     trade(alice, brk["id"], "2026-08-03", "buy", "100", "500", "MSFT")
     trade(alice, brk["id"], "2026-09-01", "sell", "100", "450", "MSFT")  # a 5,000 loss
-    put = {
-        "action": "sell-to-open",
-        "underlying": "MSFT",
-        "right": "put",
-        "strike": "455",
-        "expiry": "2026-09-18",
-        "contracts": "1",
-        "premium": "4.00",
-        "fees": "0",
-    }
-    r = alice.post(f"/ui/api/accounts/{brk['id']}/options", json={**put, "date": "2026-08-20"})
-    assert r.status_code == 201, r.text
+    saved(option_trade(alice, brk["id"], "2026-08-20", "sell-to-open", "MSFT", "put", "455",
+                       "2026-09-18", "1", "4.00"))  # fmt: skip
     held = alice.get("/ui/api/positions", params={"kind": "options"}).json()["open"][0]
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",

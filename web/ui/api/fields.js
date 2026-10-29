@@ -465,6 +465,10 @@ export const FIELDS = {
     cleared: {"type": "bool"},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},
+    right: {"type": "text", "nullable": true},
+    strike: {"type": "quantity", "nullable": true},
+    expiry: {"type": "date", "nullable": true},
+    multiplier: {"type": "int", "nullable": true},
     transferWithId: {"type": "ref", "prefix": "Txn", "nullable": true},
   },
   TypedPriceRecord: {

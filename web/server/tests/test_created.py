@@ -3,6 +3,7 @@ makes something is called, and the `Location` it answers, if any, reads what was
 
 import pytest
 from conftest import sign_in
+from edits import option_trade, saved
 from sqlalchemy import select
 from test_receipts import png
 
@@ -18,7 +19,6 @@ NOT_WALKED = {
 READ_NOWHERE = [
     "/ui/api/settings/links/invitations",
     "/ui/api/settings/connector/pairings",
-    "/ui/api/accounts/{account_id}/options",
     "/ui/api/strategies",
     "/ui/api/accounts/{account_id}/options/{instrument_id}/settle",
     "/ui/api/accounts/{account_id}/corporate-actions",
@@ -149,20 +149,6 @@ def calls(i: dict[str, str]):
         "/ui/api/rules": ("alice", None, {"payeeMatch": "COFFEE", "payee": "Coffee shop"}),
         "/ui/api/price-sources": ("admin", None, {"name": "tiingo"}),
         "/ui/api/portfolios": ("alice", None, {"name": "Mine", "accountIds": [brk]}),
-        "/ui/api/accounts/{account_id}/options": (
-            "alice",
-            {"account_id": brk},
-            {
-                "date": day,
-                "action": "buy-to-open",
-                "underlying": "AAPL",
-                "right": "call",
-                "strike": 300,
-                "expiry": "2026-12-18",
-                "contracts": 1,
-                "premium": 3,
-            },
-        ),
         "/ui/api/strategies": (
             "alice",
             None,
@@ -261,7 +247,12 @@ def test_every_201_answers_a_location_that_reads_what_it_made(seeded):
     assert len(routes) > 30
     assert sorted(set(routes) - set(todo) - set(NOT_WALKED)) == [], "walk every 201 route"
     clients = {who: sign_in(srv, who, pw) for who in ("admin", "alice")}
+    # An option trade is a transaction of the save's (S3.2): the option made ahead.
     made: dict[str, str] = {}
+    trade = saved(option_trade(clients["alice"], i["acct:brokerage"], "2026-10-01", "buy-to-open",
+                               "AAPL", "call",
+                               300, "2026-12-18", 1, 3))  # fmt: skip
+    made["option"] = trade["instrumentId"]
     failed, unnamed = [], []
     for path, (who, params, body) in todo.items():
         params = params(made) if callable(params) else params or {}
@@ -277,8 +268,6 @@ def test_every_201_answers_a_location_that_reads_what_it_made(seeded):
         if r.status_code != 201:
             failed.append((path, r.status_code, r.text[:200]))
             continue
-        if path.endswith("/options"):
-            made["option"] = r.json()["instrumentId"]
         if path == "/ui/api/persons":
             made["person"] = r.json()["id"]
         if path == "/ui/api/transactions":
