@@ -22,7 +22,6 @@ READ_NOWHERE = [
     "/ui/api/strategies",
     "/ui/api/accounts/{account_id}/options/{instrument_id}/settle",
     "/ui/api/accounts/{account_id}/corporate-actions",
-    "/ui/api/accounts/{account_id}/loan/payments",
     "/ui/api/accounts/{account_id}/expenses",
     "/ui/api/reimbursements",
 ]
@@ -186,11 +185,6 @@ def calls(i: dict[str, str]):
             None,
             {"name": "Later", "goal": "retirement", "builtOn": {"kind": "typed", "amount": 1000}},
         ),
-        "/ui/api/accounts/{account_id}/loan/payments": (
-            "alice",
-            {"account_id": loan},
-            {"date": day, "amount": 400},
-        ),
         "/ui/api/accounts/{account_id}/loan/plans": (
             "alice",
             {"account_id": loan},
@@ -264,7 +258,7 @@ def test_every_201_answers_a_location_that_reads_what_it_made(seeded):
         for path, ops in contract.openapi_document()["paths"].items()
         if "201" in ops.get("post", {}).get("responses", {})
     ]
-    assert len(routes) > 40
+    assert len(routes) > 30
     assert sorted(set(routes) - set(todo) - set(NOT_WALKED)) == [], "walk every 201 route"
     clients = {who: sign_in(srv, who, pw) for who in ("admin", "alice")}
     made: dict[str, str] = {}

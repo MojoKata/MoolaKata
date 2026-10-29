@@ -6,10 +6,11 @@ after a 412) is tested once, on the shared form pieces, through the budget's pla
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
-from edits import change, edit, save_settings, saved
+from edits import change, create, edit, save_settings, saved, terms
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -951,5 +952,41 @@ def test_a_choice_that_takes_effect_when_made_saves_its_record(browser, househol
     page.select_option("#f-link-release", "240")
     wait(page, '.toast:has-text("Saved")', problems)
     assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 240
+    assert problems == []
+    page.close()
+
+
+def test_a_loan_payment_is_recorded_split_with_its_bank_half(browser, household):
+    # S1.9.3: the loan's transaction, its parts and the bank's half, in one save; a bank
+    # transaction that looks like a payment linked as the other half.
+    h = household
+    loan = made(h.c.post("/ui/api/accounts", json={"name": "Boat loan", "type": "auto-loan"}))
+    saved(terms(h.c, loan["id"], principal="20000", startDate=f"{months_back(3)}-01",
+                termMonths=60, rate="6"))  # fmt: skip
+    due = h.c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
+    page, problems = signed_in(
+        browser, h, f"/ui/accounts/{loan['id']}", 'button:has-text("Record a payment")'
+    )
+    page.click('button:has-text("Record a payment")')
+    wait(page, "#f-from-account", problems)
+    page.select_option("#f-from-account", label=h.checking["name"])
+    page.click('button:has-text("Show the split")')
+    wait(page, "#x-part-principal", problems)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    (t,) = h.c.get("/ui/api/transactions", params={"account": loan["id"]}).json()["items"]
+    assert t["transferAccountName"] == h.checking["name"]
+    assert t["amount"] == due["total"] and len(t["splits"]) >= 2
+    assert sum(Decimal(str(x["amount"])) for x in t["splits"]) == Decimal(str(due["total"]))
+    day = f"{months_back(0)}-02"
+    owed = f"-{due['total']}"
+    bill = saved(create(h.c, "Txn", accountId=h.checking["id"], date=day, amount=owed,
+                        kind="withdrawal", payee="BOAT LOAN"))  # fmt: skip
+    page.reload()
+    wait(page, 'button:has-text("Link")', problems)
+    page.click('button:has-text("Link")')
+    wait(page, '.toast:has-text("Linked")', problems)
+    paid = h.c.get(f"/ui/api/transactions/{bill['id']}").json()
+    assert paid["transferAccountName"] == "Boat loan"
     assert problems == []
     page.close()

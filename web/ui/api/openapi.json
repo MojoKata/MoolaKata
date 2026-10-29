@@ -17234,142 +17234,6 @@
         "title": "Payment",
         "type": "object"
       },
-      "PaymentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "escrowInsurance": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Escrowinsurance"
-          },
-          "escrowTax": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Escrowtax"
-          },
-          "fees": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fees"
-          },
-          "fromAccountId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fromaccountid"
-          },
-          "interest": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Interest"
-          },
-          "pmi": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pmi"
-          },
-          "principal": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Principal"
-          },
-          "transactionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transactionid"
-          }
-        },
-        "required": [
-          "date",
-          "amount"
-        ],
-        "title": "PaymentIn",
-        "type": "object"
-      },
       "PaymentRecord": {
         "additionalProperties": false,
         "description": "An estimated tax payment of a filing (S8.15), matched to its transaction.",
@@ -19378,7 +19242,6 @@
               "source-fixed",
               "source-invalid",
               "source-unknown",
-              "split-does-not-add-up",
               "split-fixed",
               "split-trade",
               "splits-unbalanced",
@@ -19411,6 +19274,8 @@
               "trade-incomplete",
               "transaction-fixed",
               "transaction-unknown",
+              "transfer-fixed",
+              "transfer-taken",
               "two-step-expired",
               "two-step-not-started",
               "two-step-off",
@@ -19819,7 +19684,6 @@
                   "source-fixed",
                   "source-invalid",
                   "source-unknown",
-                  "split-does-not-add-up",
                   "split-fixed",
                   "split-trade",
                   "splits-unbalanced",
@@ -19852,6 +19716,8 @@
                   "trade-incomplete",
                   "transaction-fixed",
                   "transaction-unknown",
+                  "transfer-fixed",
+                  "transfer-taken",
                   "two-step-expired",
                   "two-step-not-started",
                   "two-step-off",
@@ -26914,6 +26780,20 @@
             "title": "Tagids",
             "type": "array",
             "uniqueItems": true
+          },
+          "transferWithId": {
+            "anyOf": [
+              {
+                "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Txn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transferwithid"
           }
         },
         "required": [
@@ -29306,7 +29186,15 @@
       },
       "moolakata__ui__loans__SplitOut": {
         "additionalProperties": false,
+        "description": "How the schedule splits a payment (S1.9.3), and the category each part is recorded in;\nthe overpayment is principal beyond the schedule's, part of `principal`.",
         "properties": {
+          "categories": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "object"
+          },
           "escrowInsurance": {
             "examples": [
               1234.5
@@ -29371,7 +29259,8 @@
           "escrowInsurance",
           "pmi",
           "fees",
-          "overpayment"
+          "overpayment",
+          "categories"
         ],
         "title": "SplitOut",
         "type": "object"
@@ -30887,63 +30776,6 @@
         ]
       }
     },
-    "/ui/api/accounts/{account_id}/loan/payments": {
-      "post": {
-        "description": "A payment on the loan, split into its parts. With a bank account, its half of the\ntransfer is made as well; with a bank transaction, that one is linked (S1.9.3).",
-        "operationId": "add_payment_ui_api_accounts__account_id__loan_payments_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PaymentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoanView"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Payment",
-        "tags": [
-          "loans"
-        ]
-      }
-    },
     "/ui/api/accounts/{account_id}/loan/payoff": {
       "post": {
         "description": "A plan's overpayments against the schedule: the new payoff date, months and interest\nsaved, a recast after its lump sums, and the same money invested instead.",
@@ -31167,9 +30999,9 @@
       }
     },
     "/ui/api/accounts/{account_id}/loan/split": {
-      "post": {
-        "description": "How the schedule would split a payment of this amount on this day.",
-        "operationId": "suggest_split_ui_api_accounts__account_id__loan_split_post",
+      "get": {
+        "description": "How the schedule would split a payment of this amount on this day: the parts a payment's\ndraft records, a split of its transaction (S1.9.3).",
+        "operationId": "suggest_split_ui_api_accounts__account_id__loan_split_get",
         "parameters": [
           {
             "in": "path",
@@ -31179,18 +31011,31 @@
               "title": "Account Id",
               "type": "string"
             }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PaymentIn"
-              }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
             }
           },
-          "required": true
-        },
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "examples": [
+                1234.5
+              ],
+              "format": "money",
+              "title": "Amount",
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

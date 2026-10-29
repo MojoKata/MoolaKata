@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, remove, saved, terms
+from edits import create, loan_payment, remove, saved, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -124,12 +124,9 @@ def test_payments_through_the_api(server, frozen):
                     rate="6", escrowTax="300", escrowInsurance="100"))  # fmt: skip
     assert v["terms"]["computedPayment"] == "1798.65" and v["balance"] == "300000.00"
     # A payment from the checking account: both halves, split by the schedule.
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-02-01", "amount": "2198.65", "fromAccountId": bank["id"]},
-    )
-    assert r.status_code == 201, r.text
-    v = r.json()
+    r = loan_payment(c, loan["id"], "2026-02-01", "2198.65", from_account=bank["id"])
+    assert r.status_code == 200, r.text
+    v = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
     assert v["balance"] == "299701.35" and v["interestPaid"] == "1500.00"
     # The loan counts in net worth as what is owed.
     acct = c.get(f"/ui/api/accounts/{loan['id']}").json()
@@ -139,18 +136,18 @@ def test_payments_through_the_api(server, frozen):
     t = add(c, bank["id"], "-2198.65", "2026-10-01", payee="ROCKET MORTGAGE")
     cands = c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"]
     assert [x["transactionId"] for x in cands] == [t["id"]]
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-10-01", "amount": "2198.65", "transactionId": t["id"]},
-    )
-    assert r.status_code == 201
+    r = loan_payment(c, loan["id"], "2026-10-01", "2198.65", transaction=t["id"])
+    assert r.status_code == 200, r.text
     assert c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"] == []
+    paid = c.get(f"/ui/api/transactions/{t['id']}").json()
+    assert paid["transferAccountName"] == "Home"
+    # A bank transaction already paired is no other payment's half.
+    r = loan_payment(c, loan["id"], "2026-10-01", "2198.65", transaction=t["id"])
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "transfer-taken"
     # A split typed from the servicer's statement must add up.
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-11-01", "amount": "2198.65", "principal": "10", "interest": "10"},
-    )
-    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "split-does-not-add-up"
+    r = loan_payment(c, loan["id"], "2026-11-01", "2198.65", parts={"principal": "10",
+                                                                     "interest": "10"})  # fmt: skip
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "splits-unbalanced"
 
 
 def test_the_servicers_balance_against_the_computed_one(server, frozen):
@@ -255,10 +252,7 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
     assert r.json()["following"] and r.json()["followingSince"] == "2026-10-13"
     clock.fix(dt.datetime(2026, 12, 20, 12, tzinfo=dt.UTC))
     c = sign_in(server, "alice")
-    c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-11-01", "amount": "1898.65"},
-    )
+    saved(loan_payment(c, loan["id"], "2026-11-01", "1898.65"))
     f = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["following"]
     assert f["name"] == "Extra $300" and f["expected"] == "600.00"
     assert f["actual"] == "100.00" and f["ahead"] == "-500.00"

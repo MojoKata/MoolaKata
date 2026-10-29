@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, drop, edit, saved, share, terms
+from edits import change, drop, edit, loan_payment, saved, share, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -336,11 +336,7 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
     saved(terms(c, loan["id"], principal="300000", startDate="2026-09-01", termMonths=360,
                 rate="6", escrowTax="300", escrowInsurance="100"))  # fmt: skip
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-10-01", "amount": "2198.65", "fromAccountId": acct["id"]},
-    )
-    assert r.status_code == 201, r.text
+    saved(loan_payment(c, loan["id"], "2026-10-01", "2198.65", from_account=acct["id"]))
     plan(c, b, "2026-10-01", [{"categoryId": cat["Loan payments"], "amount": "2200.00"}])
     v = month(c, b, "2026-10")
     lp = row(v, "Loan payments")
@@ -356,10 +352,7 @@ def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "budgetCounting"
     whole = car | {"budgetCounting": "whole", "budgetCategoryId": cat["Transportation"]}
     assert saved(terms(c, loan["id"], **whole))["terms"]["budgetCounting"] == "whole"
-    c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/payments",
-        json={"date": "2026-10-01", "amount": "386.66", "fromAccountId": acct["id"]},
-    )
+    saved(loan_payment(c, loan["id"], "2026-10-01", "386.66", from_account=acct["id"]))
     v = month(c, b, "2026-10")
     assert v["spent"] == "386.66" and v["saved"] == "0.00"
     assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [("Transportation", "386.66")]

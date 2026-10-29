@@ -465,6 +465,7 @@ export const FIELDS = {
     cleared: {"type": "bool"},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},
+    transferWithId: {"type": "ref", "prefix": "Txn", "nullable": true},
   },
   TypedPriceRecord: {
     instrumentId: {"type": "ref", "prefix": "Instr"},

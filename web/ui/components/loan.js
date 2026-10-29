@@ -1,17 +1,17 @@
 // A loan's parts of its account page (requirements S1.9): the summary on the Overview, the
 // Schedule tab, the payment dialog that splits a payment by the schedule, the servicer's
 // balance against the computed one, and the terms form shared by New account and Settings.
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { date, today } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
-import { Dialog, openDialog } from './dialog.js';
+import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
 import { errAt, Field, FormError, Input, Select } from './fields.js';
 import { Icon } from './icon.js';
@@ -269,11 +269,12 @@ export function LoanSummary({ a, reload }) {
 function Candidates({ a, again }) {
   const res = useList(`/accounts/${a.id}/loan/candidates`, {}, ['import']);
   const rows = /** @type {any[]} */ (res.data) || [];
+  // The payment on the loan made and paired with the bank's transaction (S1.9.3).
   const link = useSubmit(async (/** @type {any} */ c) => {
-    await api.post(`/accounts/${a.id}/loan/payments`, {
-      date: c.date,
-      amount: c.amount,
-      transactionId: c.transactionId,
+    const split = await splitOf(a, c.date, c.amount);
+    await saveNow((d) => {
+      const loan = d.add(PayTxn, { accountId: a.id, date: c.date, amount: c.amount });
+      fillPayment(d, a, loan, { parts: {} }, { pairedWith: c.transactionId, split });
     });
     toast('Linked and split by the schedule');
     res.reload();
@@ -363,6 +364,66 @@ const PARTS = /** @type {[string, string][]} */ ([
   ['fees', 'Fees'],
 ]);
 
+/** A payment's transaction, on the loan or its bank half, as the payment's draft makes it. */
+class PayTxn extends Record {
+  /** @override */
+  static prefix = 'Txn';
+  /** @override */
+  static fields = FIELDS.TxnRecord;
+  /** @override */
+  static defaults = { payee: 'Payment', transferWithId: null };
+}
+
+/** A part of a payment (S1.9.3): a split of its transaction, in the part's category. */
+class PayPart extends Record {
+  /** @override */
+  static prefix = 'Split';
+  /** @override */
+  static fields = FIELDS.SplitRecord;
+  /** @override */
+  static defaults = { memo: null, reimbursable: null, owedBy: null };
+  /** @override */
+  static ownedBy = ['transactionId'];
+}
+
+/** How the schedule splits a payment of this amount on this day, each part's category with it. */
+const splitOf = (/** @type {any} */ a, /** @type {string} */ day, /** @type {string} */ amount) =>
+  api.get(`/accounts/${a.id}/loan/split`, { date: day, amount });
+
+/**
+ * The payment's records put into its draft (S1.9.3): the loan's transaction, its bank half
+ * from `from` (or the bank transaction `pairedWith`), and a split for each part not zero.
+ * Made once and changed after, so a question confirmed stays with its record.
+ * @param {import('../app/draft.js').Draft} draft @param {any} a @param {PayTxn} loan
+ * @param {{ bank?: PayTxn, parts: { [k: string]: PayPart } }} own
+ * @param {{ from?: string, pairedWith?: string, split: any }} o
+ */
+function fillPayment(draft, a, loan, own, { from, pairedWith, split }) {
+  const amount = clean(loan.get('amount'));
+  if (from) {
+    own.bank ||= draft.add(PayTxn, { kind: 'transfer', payee: a.name });
+    if (own.bank.removed) draft.unremove(own.bank);
+    own.bank.set('accountId', from);
+    own.bank.set('date', loan.get('date'));
+    own.bank.set('amount', amount ? String(dec(amount).neg()) : null);
+  } else if (own.bank && !own.bank.removed) draft.remove(own.bank);
+  const other = from ? own.bank?.id : pairedWith;
+  loan.set('kind', other ? 'transfer' : 'deposit');
+  loan.set('transferWithId', other || null);
+  for (const [k] of PARTS) {
+    const v = clean(split[k]);
+    let r = own.parts[k];
+    if (v && !dec(v).isZero()) {
+      r ||= own.parts[k] = draft.add(PayPart, {
+        transactionId: loan.id,
+        categoryId: split.categories[k] ?? null,
+      });
+      if (r.removed) draft.unremove(r);
+      r.set('amount', v);
+    } else if (r && !r.removed) draft.remove(r);
+  }
+}
+
 /** @param {{ close: (v?: any) => void, a: any, v: any }} p */
 export function PaymentDialog({ close, a, v }) {
   useDialogGuide('dialog-loan-payment');
@@ -370,79 +431,79 @@ export function PaymentDialog({ close, a, v }) {
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
     x.group === 'banking' && x.active && ['owner', 'write'].includes(x.level)
   );
-  const [f, setF] = useState({
-    date: v.nextDate || today(),
-    amount: v.total,
-    from: '',
-  });
+  const f = useDraft((draft) => {
+    draft.add(PayTxn, { accountId: a.id, date: v.nextDate || today(), amount: v.total });
+  }, [a.id]);
+  const loan = /** @type {PayTxn | undefined} */ (f.draft?.records[0]);
+  const own = useRef(new WeakMap());
+  const [from, setFrom] = useState('');
+  // The schedule's split, read again as the day or the amount changes; shown on asking.
   const [split, setSplit] = useState(/** @type {any} */ (null));
+  const [shown, setShown] = useState(false);
   const [typed, setTyped] = useState(false);
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => {
-    setF({ ...f, [k]: x });
-    if (k !== 'from') setSplit(null);
+  const [failed, setFailed] = useState(/** @type {any} */ (null));
+  const day = loan?.get('date');
+  const amount = clean(loan?.get('amount'));
+  useEffect(() => {
+    setSplit(null);
+    setShown(false);
+    setTyped(false);
+    setFailed(null);
+    if (!day || !amount || !(Number(amount) > 0)) return;
+    let gone = false;
+    splitOf(a, day, amount).then((s) => !gone && setSplit(s), (e) => !gone && setFailed(e));
+    return () => {
+      gone = true;
+    };
+  }, [day, amount]);
+  const before = () => {
+    if (!f.draft || !loan || !split) return false;
+    if (!own.current.has(f.draft)) own.current.set(f.draft, { parts: {} });
+    fillPayment(f.draft, a, loan, own.current.get(f.draft), { from, split });
   };
-  const suggest = useSubmit(async () => {
-    const s = await api.post(`/accounts/${a.id}/loan/split`, {
-      date: f.date,
-      amount: clean(f.amount),
-    });
-    setSplit({ ...s, principal: String(dec(s.principal).add(dec(s.overpayment))) });
-  });
-  const save = useSubmit(async () => {
-    /** @type {any} */
-    const body = { date: f.date, amount: clean(f.amount), fromAccountId: f.from || null };
-    if (typed && split) { for (const [k] of PARTS) body[k] = clean(split[k]) || '0'; }
-    await api.post(`/accounts/${a.id}/loan/payments`, body, { idempotent: true });
-    toast('Payment recorded and split');
-    close(true);
-  });
-  const e = save.error || suggest.error;
+  const e = failed;
   return html`
-    <${Dialog} title="Record a payment" close=${close} onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Record</button>`}>
-      <div class="row">
-        <${Field} label="Paid on" id="paid-on" error=${errAt(e, 'date')}>
-          <${Input} type="date" value=${f.date} onInput=${set('date')} required />
-          </${Field}>
-          <${Field} label="Amount" id="amount" error=${errAt(e, 'amount')}>
-            <${Input} value=${f.amount} onInput=${set('amount')} inputmode="decimal" required />
-            </${Field}>
-            </div>
-            <${Field} label="From account" id="from-account" error=${errAt(e, 'fromAccountId')}
-              hint="Its half of the transfer is recorded too. None: the payment is recorded here only.">
-        <${Select} value=${f.from} onChange=${set('from')} options=${[
-          ['', 'None'],
-          ...banks.map((b) => [b.id, b.name]),
-        ]} /></${Field}>
-      <div class="toolbar"><span class="small dim">${split
-        ? 'Split by the schedule. Correct it from the servicer’s statement if it differs.'
-        : 'The schedule splits it into principal, interest, escrow and PMI.'}</span><span
-        class="spacer"></span><button type="button" class="btn sm" disabled=${suggest.busy}
-          onClick=${() =>
-            suggest.run().then(() => setTyped(false)).catch(() => {})}>Show the split</button></div>
-      ${split
-        ? html`<div class="row" style=${{ flexWrap: 'wrap' }}>${
-          PARTS.map(([k, label]) =>
-            html`
-              <${Field} label=${label} id=${'part-' + k} help="split" error=${errAt(e, k)}>
-                <${Input} value=${split[k]} inputmode="decimal" onInput=${(
-                  /** @type {string} */ x,
-                ) => {
-                  setSplit({ ...split, [k]: x });
-                  setTyped(true);
-                }} />
-                </${Field}>
-            `
-          )
-        }</div>`
+    <${DraftDialog} f=${f} title="Record a payment" close=${close} what="This payment"
+      label="Record" done="Payment recorded and split" before=${before}
+      disabled=${!split}>
+      ${loan
+        ? html`
+          <div class="row">
+            <${RecField} rec=${loan} name="date" label="Paid on" id="paid-on" type="date" />
+            <${RecField} rec=${loan} name="amount" label="Amount" id="amount" />
+          </div>
+          <${Field} label="From account" id="from-account"
+            hint="Its half of the transfer is recorded too. None: the payment is recorded here only.">
+            <${Select} value=${from} onChange=${setFrom} options=${[
+              ['', 'None'],
+              ...banks.map((b) => [b.id, b.name]),
+            ]} /></${Field}>
+          <div class="toolbar"><span class="small dim">${shown
+            ? 'Split by the schedule. Correct it from the servicer’s statement if it differs.'
+            : 'The schedule splits it into principal, interest, escrow and PMI.'}</span><span
+            class="spacer"></span><button type="button" class="btn sm" disabled=${!split}
+              onClick=${() => setShown(true)}>Show the split</button></div>
+          ${shown && split
+            ? html`<div class="row" style=${{ flexWrap: 'wrap' }}>${
+              PARTS.map(([k, label]) =>
+                html`
+                  <${Field} label=${label} id=${'part-' + k} help="split"
+                    error=${typed ? errAt(e, k) : null}>
+                    <${Input} value=${split[k]} inputmode="decimal" onInput=${(
+                      /** @type {string} */ x,
+                    ) => {
+                      setSplit({ ...split, [k]: x });
+                      setTyped(true);
+                    }} />
+                    </${Field}>
+                `
+              )
+            }</div>`
+            : null}
+          ${e ? html`<${FormError} error=${e} />` : null}
+        `
         : null}
-      <${FormError} error=${e} shown=${[
-        'date',
-        'amount',
-        'fromAccountId',
-        ...PARTS.map(([k]) => k),
-      ]} />
-    </${Dialog}>
+    </${DraftDialog}>
   `;
 }
 

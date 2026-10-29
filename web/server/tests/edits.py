@@ -1,6 +1,8 @@
 """Changes made as a dialog's draft makes them (requirements S13.8.11): one record changed or
 deleted through the save, for tests of what a change does rather than of the save itself."""
 
+from decimal import Decimal
+
 
 def _save(c, op: dict, confirm: bool):
     r = c.post("/ui/api/save", json={"ops": [op]})
@@ -202,3 +204,34 @@ def create(c, entity: str, confirm: bool = False, **fields):
     save; the save's answer."""
     op = {"op": "create", "entity": entity, "id": new_id(entity), "fields": fields}
     return _save(c, op, confirm)
+
+
+def loan_payment(c, loan_id: str, date: str, amount, from_account: str | None = None,
+                 transaction: str | None = None, parts: dict | None = None):  # fmt: skip
+    """A loan payment as its dialog's draft records it (S1.9.3): the loan's transaction split
+    by the schedule (or by `parts`), with its bank half made from `from_account`, or paired
+    with the bank `transaction` already recorded. The save's answer."""
+    amount = str(amount)
+    split = c.get(f"/ui/api/accounts/{loan_id}/loan/split",
+                  params={"date": date, "amount": amount}).json()  # fmt: skip
+    values = parts or {k: split[k] for k in split["categories"]}
+    txn = {"accountId": loan_id, "date": date, "amount": amount, "payee": "Payment",
+           "kind": "transfer" if from_account or transaction else "deposit"}  # fmt: skip
+    ops = []
+    if from_account:
+        name = c.get(f"/ui/api/accounts/{loan_id}").json()["name"]
+        bank = {"op": "create", "entity": "Txn", "id": new_id("Txn"),
+                "fields": {"accountId": from_account, "date": date, "amount": f"-{amount}",
+                           "kind": "transfer", "payee": name}}  # fmt: skip
+        ops.append(bank)
+        txn["transferWithId"] = bank["id"]
+    elif transaction:
+        txn["transferWithId"] = transaction
+    tid = new_id("Txn")
+    ops.insert(0, {"op": "create", "entity": "Txn", "id": tid, "fields": txn})
+    for part, value in values.items():
+        if Decimal(str(value or 0)):
+            ops.append({"op": "create", "entity": "Split", "id": new_id("Split"),
+                        "fields": {"transactionId": tid, "amount": str(value),
+                                   "categoryId": split["categories"].get(part)}})  # fmt: skip
+    return c.post("/ui/api/save", json={"ops": ops})

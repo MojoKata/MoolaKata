@@ -1106,6 +1106,9 @@ class TxnRecord(Model):
     cleared: bool = False
     tagIds: list[IdOf("Tag")] = _set_of()  # type: ignore[valid-type]  # the saver's own (S2.6)
     leftOutOf: list[IdOf("Bdgt")] = _set_of()  # type: ignore[valid-type]
+    # The other half of a transfer made with it (S1.7): one of the same save, or a free one
+    # already recorded, such as a loan payment's bank transaction (S1.9.3).
+    transferWithId: IdOf("Txn") | None = None  # type: ignore[valid-type]
 
 
 class SplitRecord(Model):
@@ -1207,9 +1210,36 @@ def _parts_add_up(ctx, t: Transaction) -> None:
 
 def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
     t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False, ask=ctx.ask)
+    ctx.notes.setdefault("transactions-made", set()).add(t.id)
     if body.leftOutOf:
         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+    if body.transferWithId:
+        _transfer_with(ctx, t, body.transferWithId)
     _parts_add_up(ctx, t)
+
+
+def _transfer_with(ctx, t: Transaction, other_id: str) -> None:
+    """Once every op is in: the transaction paired with the other half it names, in place of
+    any match made by itself (S1.7). The other is one of this save's, or free: a transfer
+    already matched elsewhere stays as it is."""
+
+    def pair() -> None:
+        made = ctx.notes["transactions-made"]
+        other = ctx.s.get(Transaction, other_id)
+        if other is None or other.deleted or other.id == t.id:
+            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+        access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+        if other.transferId not in (None, t.id) and other.id not in made:
+            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+        if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+        if other.amount != -t.amount:
+            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+        repo.unlink_transfer(ctx.s, t)
+        repo.unlink_transfer(ctx.s, other)
+        t.transferId, other.transferId = other.id, t.id
+
+    ctx.verify(f"transfer:{t.id}", pair)
 
 
 def _txn_editable(ctx, record_id: str) -> Transaction:
@@ -1232,6 +1262,7 @@ def _txn_current(ctx, t: Transaction) -> dict:
         "costBasis": lot.costBasis if lot is not None and t.kind == "transfer-in" else None,
         "tagIds": tags.ids_of(ctx.s, "transaction", ctx.caller.id, t.id),
         "leftOutOf": _left_out_of(ctx.s, ctx.caller, t),
+        "transferWithId": t.transferId,
         **{f: getattr(t, f) for f in CHANGED},
     }
 
@@ -1242,6 +1273,10 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     for fixed in ("accountId", "symbol", "instrumentId"):
         if fixed in sent:
             raise refuse(fixed, "transaction-fixed", "A transaction keeps its account and holding.")
+    if "transferWithId" in sent:
+        raise refuse(
+            "transferWithId", "transfer-fixed", "Match a transfer or undo one from its Transfer."
+        )
     if sent - {"leftOutOf"}:
         a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
         _reconciled(ctx, t)

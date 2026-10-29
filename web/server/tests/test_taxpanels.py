@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import saved, sell, terms
+from edits import loan_payment, saved, sell, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -176,10 +176,7 @@ def test_deductions_loans_and_issues(alice):
     home = new_account(alice, name="Mortgage", type="mortgage")
     saved(terms(alice, home["id"], principal="300000", startDate="2026-01-01", termMonths=360,
                 rate="6"))  # fmt: skip
-    alice.post(
-        f"/ui/api/accounts/{home['id']}/loan/payments",
-        json={"date": "2026-02-01", "amount": "1798.65"},
-    )
+    saved(loan_payment(alice, home["id"], "2026-02-01", "1798.65"))
     brk = new_account(alice, name="Brokerage", type="brokerage")
     trade(alice, brk["id"], "2026-05-01", "sell", "3", "100", "MSFT")  # nothing to sell
     p = panels(alice, book(alice))

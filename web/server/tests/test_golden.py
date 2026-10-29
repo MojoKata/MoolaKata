@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from conftest import make_user, sign_in
-from edits import saved, terms
+from edits import loan_payment, saved, terms
 from test_accounts import add, new_account
 from test_budgets import save_plan
 
@@ -210,10 +210,7 @@ def budget_household(c):
             payee="Kroger",
             categoryId=cat["Food › Groceries"],
         )
-        c.post(
-            f"/ui/api/accounts/{loan['id']}/loan/payments",
-            json={"date": f"2026-{m}-15", "amount": "1000.00", "fromAccountId": chk["id"]},
-        )
+        saved(loan_payment(c, loan["id"], f"2026-{m}-15", "1000.00", from_account=chk["id"]))
         add(
             c,
             chk["id"],

@@ -19,7 +19,6 @@ from ..store.entities.accounts import (
     Category,
     Loan,
     PayoffPlan,
-    Split,
     Transaction,
 )
 from ..store.entities.assets import Item
@@ -164,21 +163,10 @@ class LoanView(Model):
     version: int = 0  # the loan's terms: 0 until they are set (S13.8.6)
 
 
-class PaymentIn(Model):
-    date: dt.date
-    amount: Money
-    fromAccountId: str | None = None  # a bank account: its half of the transfer is made too
-    transactionId: str | None = None  # or an existing bank transaction to link
-    # A split typed from the servicer's statement; else the schedule's.
-    principal: Money | None = None
-    interest: Money | None = None
-    escrowTax: Money | None = None
-    escrowInsurance: Money | None = None
-    pmi: Money | None = None
-    fees: Money | None = None
-
-
 class SplitOut(Model):
+    """How the schedule splits a payment (S1.9.3), and the category each part is recorded in;
+    the overpayment is principal beyond the schedule's, part of `principal`."""
+
     principal: Money
     interest: Money
     escrowTax: Money
@@ -186,6 +174,7 @@ class SplitOut(Model):
     pmi: Money
     fees: Money
     overpayment: Money
+    categories: dict[str, str]
 
 
 class Candidate(Model):
@@ -410,16 +399,26 @@ def _categories(s) -> dict[str, str]:
     return {c.builtIn: c.id for c in s.scalars(select(Category).where(Category.builtIn.in_(keys)))}
 
 
-@router.post("/accounts/{account_id}/loan/split", response_model=SplitOut)
-def suggest_split(account_id: str, body: PaymentIn, request: Request, c: Caller = Depends(caller)):
-    """How the schedule would split a payment of this amount on this day."""
+@router.get("/accounts/{account_id}/loan/split", response_model=SplitOut)
+def suggest_split(
+    account_id: str,
+    request: Request,
+    date: dt.date,
+    amount: Money,
+    c: Caller = Depends(caller),
+):
+    """How the schedule would split a payment of this amount on this day: the parts a payment's
+    draft records, a split of its transaction (S1.9.3)."""
+    if amount <= 0:
+        raise refuse("amount", "amount-invalid", "A payment is more than zero.")
     with server(request).db.read() as s:
         a, _ = _account(s, c, account_id)
         row = loans.loan_of(s, a)
         if row is None:
             raise Problem(409, "no-terms", "Set the loan's terms first.")
         payments, draws = loans.history(s, a)
-        p = loans.split_for(loans.terms_of(row), payments, draws, body.date, body.amount)
+        p = loans.split_for(loans.terms_of(row), payments, draws, date, amount)
+        cats = _categories(s)
         return SplitOut(
             principal=p.principal,
             interest=p.interest,
@@ -428,92 +427,8 @@ def suggest_split(account_id: str, body: PaymentIn, request: Request, c: Caller 
             pmi=p.pmi,
             fees=p.fees,
             overpayment=p.overpayment,
+            categories={part: cats[key] for part, key in loans.PARTS.items() if key in cats},
         )
-
-
-@router.post("/accounts/{account_id}/loan/payments", response_model=LoanView, status_code=201)
-def add_payment(account_id: str, body: PaymentIn, request: Request, c: Caller = Depends(caller)):
-    """A payment on the loan, split into its parts. With a bank account, its half of the
-    transfer is made as well; with a bank transaction, that one is linked (S1.9.3)."""
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "A payment is more than zero.")
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        row = loans.loan_of(s, a)
-        if row is None:
-            raise Problem(409, "no-terms", "Set the loan's terms first.")
-        payments, draws = loans.history(s, a)
-        p = loans.split_for(loans.terms_of(row), payments, draws, body.date, body.amount)
-        typed = [
-            f
-            for f in ("principal", "interest", "escrowTax", "escrowInsurance", "pmi", "fees")
-            if getattr(body, f) is not None
-        ]
-        if typed:
-            for f in ("principal", "interest", "escrowTax", "escrowInsurance", "pmi", "fees"):
-                setattr(p, f, getattr(body, f) or Decimal(0))
-            parts = p.principal + p.interest + p.escrowTax + p.escrowInsurance + p.pmi + p.fees
-            if parts != body.amount:
-                raise refuse(
-                    "principal",
-                    "split-does-not-add-up",
-                    f"The parts come to {parts:,.2f}, not {body.amount:,.2f}.",
-                )
-        other = None
-        if body.transactionId:
-            other = s.get(Transaction, body.transactionId)
-            if other is None or other.deleted or other.transferId:
-                raise refuse("transactionId", "not-found", "That bank transaction isn't free.")
-            access.account(s, c.id, other.accountId, "write")
-            if other.amount != -body.amount:
-                raise refuse("amount", "amount-mismatch", "The amounts differ.")
-        elif body.fromAccountId:
-            access.account(s, c.id, body.fromAccountId, "write")
-            other = Transaction(
-                id=ids.new_id("Txn"),
-                accountId=body.fromAccountId,
-                date=body.date,
-                kind="transfer",
-                amount=-body.amount,
-                payee=a.name,
-                createdById=c.id,
-            )
-            s.add(other)
-        txn = Transaction(
-            id=ids.new_id("Txn"),
-            accountId=a.id,
-            date=body.date,
-            kind="transfer" if other else "deposit",
-            amount=body.amount,
-            payee="Payment",
-            createdById=c.id,
-        )
-        s.add(txn)
-        s.flush()
-        if other is not None:
-            txn.transferId, other.transferId = other.id, txn.id
-        cats = _categories(s)
-        for part, key in loans.PARTS.items():
-            amount = getattr(p, part)
-            if amount:
-                s.add(
-                    Split(
-                        id=ids.new_id("Split"),
-                        transactionId=txn.id,
-                        amount=amount,
-                        categoryId=cats.get(key),
-                    )
-                )
-        activity.record(
-            s,
-            "loan.payment",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        s.flush()
-        return view(s, a, lvl)
 
 
 @router.get("/accounts/{account_id}/loan/candidates", response_model=list[Candidate])
