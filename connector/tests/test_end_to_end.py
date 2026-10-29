@@ -103,11 +103,10 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
         s.add(a)
     aid = "Acct_01m4zzbtececftrsacpbatewws"
     v = c.get(f"/ui/api/accounts/{aid}").json()["version"]
-    r = c.patch(
-        f"/ui/api/accounts/{aid}",
-        json={"connectionId": conn["id"], "syncAccount": "Checking ••4417"},
-        headers={"If-Match": f'"{v}"'},
-    )
+    # Its sync turned on as the account's Settings saves it (S13.8.11).
+    fields = {"connectionId": conn["id"], "syncAccount": "Checking ••4417"}
+    op = {"op": "update", "entity": "Acct", "id": aid, "version": v, "fields": fields}
+    r = c.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 200, r.text
     # Her sealed sign-in: collected once unlocked, then gone from MoolaKata.
     public = mk_keys.unb64(c.get("/ui/api/connector").json()["sealingKey"])
