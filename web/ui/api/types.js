@@ -662,12 +662,6 @@
  */
 
 /**
- * @typedef {Object} ConnectionMade
- * @property {ConnectionOut} connection
- * @property {string} command
- */
-
-/**
  * @typedef {Object} ConnectionOut
  * @property {string} id
  * @property {string} ownerId
@@ -738,15 +732,6 @@
  * @property {import('../app/dec.js').Dec} strike
  * @property {Array<DeliverablePart>} deliverable
  * @property {import('../app/dec.js').Dec} [cash]
- */
-
-/**
- * @typedef {Object} ContributionIn
- * @property {string} date
- * @property {import('../app/dec.js').Dec} amount
- * @property {string} [contributor]
- * @property {boolean} [fiveYear]
- * @property {(string | null)} [fromAccountId]
  */
 
 /**
@@ -867,15 +852,6 @@
  */
 
 /**
- * @typedef {Object} DependentIn
- * @property {string} personId
- * @property {string} [claimedAs]
- * @property {number} [months]
- * @property {boolean} [student]
- * @property {Array<string>} [accountIds]
- */
-
-/**
  * @typedef {Object} DependentOut
  * @property {string} id
  * @property {string} personId
@@ -905,6 +881,11 @@
  */
 
 /**
+ * @typedef {Object} DocumentIn
+ * @property {string} receiptId
+ */
+
+/**
  * @typedef {Object} DocumentOut
  * @property {string} id
  * @property {string} direction
@@ -930,23 +911,6 @@
  * @property {(string | null)} [receiptId]
  * @property {(string | null)} [notes]
  * @property {string} bookId
- */
-
-/**
- * @typedef {Object} DonationIn
- * @property {string} date
- * @property {string} kind
- * @property {(string | null)} [organisationId]
- * @property {(import('../app/dec.js').Dec | null)} [amount]
- * @property {(string | null)} [description]
- * @property {(string | null)} [transactionId]
- * @property {(string | null)} [fromAccountId]
- * @property {(string | null)} [dafAccountId]
- * @property {(string | null)} [lotId]
- * @property {(import('../app/dec.js').Dec | null)} [quantity]
- * @property {boolean} [acknowledged]
- * @property {(boolean | null)} [granted]
- * @property {(string | null)} [notes]
  */
 
 /**
@@ -1071,15 +1035,6 @@
  */
 
 /**
- * @typedef {Object} ExpenseIn
- * @property {string} date
- * @property {(number | null)} [year]
- * @property {string} kind
- * @property {(string | null)} [description]
- * @property {import('../app/dec.js').Dec} amount
- */
-
-/**
  * @typedef {Object} ExpenseOut
  * @property {string} id
  * @property {string} date
@@ -1124,28 +1079,6 @@
  * @property {string} id
  * @property {string} name
  * @property {boolean} accepted
- */
-
-/**
- * @typedef {Object} FilingIn
- * @property {string} [jurisdiction]
- * @property {(string | null)} [place]
- * @property {string} [form]
- * @property {(string | null)} [amendsId]
- * @property {(string | null)} [filingStatus]
- * @property {(string | null)} [preparedBy]
- * @property {(string | null)} [sentBy]
- * @property {string} [progress]
- * @property {(string | null)} [dueDate]
- * @property {(string | null)} [extensionFiledOn]
- * @property {(string | null)} [extendedDue]
- * @property {(string | null)} [filedOn]
- * @property {(string | null)} [confirmation]
- * @property {(string | null)} [resultKind]
- * @property {(import('../app/dec.js').Dec | null)} [resultAmount]
- * @property {(string | null)} [resultTransactionId]
- * @property {Array<Payment>} [payments]
- * @property {Carried} [carried]
  */
 
 /**
@@ -1276,22 +1209,6 @@
  * @property {(number | null)} year
  * @property {Array<GainGroup>} realized
  * @property {Array<GainGroup>} unrealized
- */
-
-/**
- * @typedef {Object} GiftIn
- * @property {Array<string>} people
- * @property {(string | null)} [occasion]
- * @property {(number | null)} [occasionYear]
- * @property {string} description
- * @property {string} [status]
- * @property {(import('../app/dec.js').Dec | null)} [cost]
- * @property {(string | null)} [transactionId]
- * @property {(string | null)} [store]
- * @property {(string | null)} [link]
- * @property {(string | null)} [notes]
- * @property {boolean} [cash]
- * @property {boolean} [thankYou]
  */
 
 /**
@@ -1552,13 +1469,6 @@
  */
 
 /**
- * @typedef {Object} ImprovementIn
- * @property {string} date
- * @property {string} description
- * @property {import('../app/dec.js').Dec} amount
- */
-
-/**
  * @typedef {Object} ImprovementOut
  * @property {string} id
  * @property {string} date
@@ -1696,34 +1606,6 @@
  * @property {Array<ReceiptRow>} documents
  * @property {Array<Array<unknown>>} history
  * @property {boolean} canWrite
- */
-
-/**
- * @typedef {Object} ItemIn
- * @property {string} name
- * @property {(string | null)} [category]
- * @property {(string | null)} [description]
- * @property {string} acquiredOn
- * @property {string} [acquiredHow]
- * @property {import('../app/dec.js').Dec} costBasis
- * @property {import('../app/dec.js').Dec} [quantity]
- * @property {(string | null)} [location]
- * @property {(string | null)} [serial]
- * @property {(string | null)} [condition]
- * @property {(import('../app/dec.js').Dec | null)} [insuredValue]
- * @property {(string | null)} [policy]
- * @property {(string | null)} [notes]
- * @property {string} [valuation]
- * @property {(string | null)} [metal]
- * @property {(import('../app/dec.js').Dec | null)} [unitWeight]
- * @property {(string | null)} [weightUnit]
- * @property {(string | null)} [purity]
- * @property {import('../app/dec.js').Dec} [sellPremium]
- * @property {(import('../app/dec.js').Dec | null)} [depreciationRate]
- * @property {(string | null)} [address]
- * @property {(import('../app/dec.js').Dec | null)} [closingCosts]
- * @property {boolean} [primaryResidence]
- * @property {boolean} [personalUse]
  */
 
 /**
@@ -2155,16 +2037,6 @@
  */
 
 /**
- * @typedef {Object} MoveIn
- * @property {string} month
- * @property {(string | null)} [fromCategoryId]
- * @property {(string | null)} [toCategoryId]
- * @property {(string | null)} [cardId]
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [note]
- */
-
-/**
  * An amount put from one category to another for the month (S7.11).
  * @typedef {Object} MoveOut
  * @property {string} id
@@ -2221,107 +2093,6 @@
  */
 
 /**
- * @typedef {Object} NewAccount
- * @property {string} name
- * @property {string} type
- * @property {(string | null)} [institution]
- * @property {(string | null)} [mask]
- * @property {(string | null)} [notes]
- * @property {Array<string>} [keptBy]
- * @property {string} [lotMethod]
- * @property {(import('../app/dec.js').Dec | null)} [openingBalance]
- * @property {(string | null)} [openingDate]
- * @property {(boolean | null)} [countInNetWorth]
- */
-
-/**
- * @typedef {Object} NewBook
- * @property {number} year
- * @property {Array<string>} filers
- * @property {boolean} [fromLastYear]
- * @property {string} [bitcoinFees]
- */
-
-/**
- * @typedef {Object} NewBookOut
- * @property {string} id
- * @property {number} year
- * @property {Array<Filer>} filers
- * @property {string} level
- * @property {string} label
- * @property {number} version
- * @property {Array<string>} dependentsLeftOut
- */
-
-/**
- * @typedef {Object} NewBudget
- * @property {string} name
- * @property {Array<string>} [accountIds]
- * @property {string} [method]
- * @property {boolean} [reserves]
- * @property {boolean} [moves]
- */
-
-/**
- * @typedef {Object} NewCategory
- * @property {string} name
- * @property {string} kind
- * @property {(string | null)} [parentId]
- * @property {(string | null)} [taxTag]
- */
-
-/**
- * @typedef {Object} NewConnection
- * @property {string} driver
- * @property {string} label
- * @property {Object<string, unknown>} [settings]
- */
-
-/**
- * @typedef {Object} NewGroup
- * @property {string} name
- * @property {Array<string>} [memberIds]
- */
-
-/**
- * @typedef {Object} NewPortfolio
- * @property {string} name
- * @property {Array<string>} [accountIds]
- * @property {string} [benchmark]
- * @property {(string | null)} [notes]
- */
-
-/**
- * @typedef {Object} NewProjection
- * @property {string} name
- * @property {string} goal
- * @property {Object<string, unknown>} builtOn
- * @property {Object<string, unknown>} [inputs]
- */
-
-/**
- * @typedef {Object} NewSource
- * @property {string} name
- */
-
-/**
- * @typedef {Object} NewToken
- * @property {string} name
- * @property {string} [scope]
- * @property {Array<TokenItem>} [items]
- * @property {number} [days]
- */
-
-/**
- * @typedef {Object} NewUser
- * @property {string} displayName
- * @property {string} username
- * @property {string} email
- * @property {(string | null)} [sex]
- * @property {Array<string>} [groupIds]
- */
-
-/**
  * @typedef {Object} Newer
  * @property {number} count
  */
@@ -2333,17 +2104,6 @@
  * @property {string} date
  * @property {number} days
  * @property {(number | null)} turns
- */
-
-/**
- * @typedef {Object} OccasionIn
- * @property {string} kind
- * @property {(string | null)} [name]
- * @property {(string | null)} [holiday]
- * @property {(number | null)} [month]
- * @property {(number | null)} [day]
- * @property {(number | null)} [year]
- * @property {(import('../app/dec.js').Dec | null)} [budget]
  */
 
 /**
@@ -2456,17 +2216,6 @@
  * @property {(import('../app/dec.js').Dec | null)} pl
  * @property {import('../app/dec.js').Dec} capitalAtRisk
  * @property {(import('../app/dec.js').Dec | null)} returnPct
- */
-
-/**
- * @typedef {Object} OrganisationIn
- * @property {string} name
- * @property {(string | null)} [ein]
- * @property {boolean} [deductible]
- * @property {Array<string>} [causes]
- * @property {(import('../app/dec.js').Dec | null)} [pledge]
- * @property {(string | null)} [pledgeEvery]
- * @property {(string | null)} [notes]
  */
 
 /**
@@ -2911,16 +2660,6 @@
  */
 
 /**
- * @typedef {Object} PairOut
- * @property {string} id
- * @property {string} spendingId
- * @property {(string | null)} splitId
- * @property {string} paybackId
- * @property {import('../app/dec.js').Dec} amount
- * @property {number} version
- */
-
-/**
  * @typedef {Object} PairingOut
  * @property {string} code
  * @property {string} expiresAt
@@ -2966,16 +2705,6 @@
 /**
  * @typedef {Object} PauseIn
  * @property {string} [for]
- */
-
-/**
- * @typedef {Object} Payment
- * @property {(string | null)} [id]
- * @property {number} quarter
- * @property {(string | null)} [dueDate]
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [paidOn]
- * @property {(string | null)} [transactionId]
  */
 
 /**
@@ -3113,12 +2842,6 @@
 /**
  * @typedef {Object} PhraseIn
  * @property {string} phrase
- */
-
-/**
- * @typedef {Object} PickIn
- * @property {string} lotId
- * @property {import('../app/dec.js').Dec} quantity
  */
 
 /**
@@ -3616,16 +3339,6 @@
  */
 
 /**
- * @typedef {Object} RelationshipIn
- * @property {string} person1Id
- * @property {string} person2Id
- * @property {string} relation
- * @property {(string | null)} [label]
- * @property {(string | null)} [fromDate]
- * @property {(string | null)} [toDate]
- */
-
-/**
  * @typedef {Object} RelationshipOut
  * @property {string} id
  * @property {Named} person1
@@ -3775,18 +3488,6 @@
  */
 
 /**
- * @typedef {Object} RuleIn
- * @property {string} payeeMatch
- * @property {(import('../app/dec.js').Dec | null)} [amountMin]
- * @property {(import('../app/dec.js').Dec | null)} [amountMax]
- * @property {string} [direction]
- * @property {(string | null)} [accountId]
- * @property {(string | null)} [categoryId]
- * @property {(string | null)} [payee]
- * @property {Array<string>} [tags]
- */
-
-/**
  * @typedef {Object} RuleList
  * @property {Array<RuleOut>} items
  * @property {number} uncategorised
@@ -3867,12 +3568,6 @@
  * @property {string} createdAt
  * @property {number} version
  * @property {string} headline
- */
-
-/**
- * @typedef {Object} SavedPlanIn
- * @property {string} name
- * @property {PlanIn} inputs
  */
 
 /**
@@ -4103,15 +3798,6 @@
  * @property {Array<Amount>} byOccasion
  * @property {Array<Amount>} byYear
  * @property {Array<Flag>} flagged
- */
-
-/**
- * @typedef {Object} SplitIn
- * @property {(string | null)} [categoryId]
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [memo]
- * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
- * @property {(string | null)} [owedBy]
  */
 
 /**
@@ -4350,12 +4036,6 @@
  */
 
 /**
- * @typedef {Object} TokenMade
- * @property {TokenOut} token
- * @property {string} secret
- */
-
-/**
  * @typedef {Object} TokenOut
  * @property {string} id
  * @property {string} name
@@ -4468,32 +4148,6 @@
  */
 
 /**
- * @typedef {Object} TxnIn
- * @property {string} accountId
- * @property {string} date
- * @property {string} [kind]
- * @property {import('../app/dec.js').Dec} amount
- * @property {(string | null)} [payee]
- * @property {(string | null)} [memo]
- * @property {(string | null)} [categoryId]
- * @property {(string | null)} [instrumentId]
- * @property {(string | null)} [symbol]
- * @property {(import('../app/dec.js').Dec | null)} [quantity]
- * @property {(import('../app/dec.js').Dec | null)} [price]
- * @property {(import('../app/dec.js').Dec | null)} [fees]
- * @property {(string | null)} [dividendType]
- * @property {(import('../app/dec.js').Dec | null)} [splitRatio]
- * @property {(number | null)} [contributionYear]
- * @property {(string | null)} [contributionSource]
- * @property {(import('../app/dec.js').Dec | null)} [costBasis]
- * @property {(import('../app/dec.js').Dec | null)} [reimbursable]
- * @property {(string | null)} [owedBy]
- * @property {Array<SplitIn>} [splits]
- * @property {Array<string>} [tags]
- * @property {Array<PickIn>} [picks]
- */
-
-/**
  * @typedef {Object} TxnOut
  * @property {string} id
  * @property {string} accountId
@@ -4559,6 +4213,7 @@
  * @property {boolean} [cleared]
  * @property {Array<string>} [tagIds]
  * @property {Array<string>} [leftOutOf]
+ * @property {(import('../app/dec.js').Dec | null)} [splitRatio]
  * @property {(string | null)} [right]
  * @property {(import('../app/dec.js').Dec | null)} [strike]
  * @property {(string | null)} [expiry]
@@ -4653,14 +4308,6 @@
  * @property {(string | null)} reactivationAskedAt
  * @property {string} createdAt
  * @property {number} version
- */
-
-/**
- * @typedef {Object} ValuationIn
- * @property {string} date
- * @property {import('../app/dec.js').Dec} value
- * @property {string} [source]
- * @property {(string | null)} [note]
  */
 
 /**
@@ -4840,11 +4487,6 @@
  */
 
 /**
- * @typedef {Object} moolakata__ui__education__DocumentIn
- * @property {string} receiptId
- */
-
-/**
  * @typedef {Object} moolakata__ui__education__PlanOut
  * @property {(string | null)} planState
  * @property {(string | null)} planName
@@ -4857,24 +4499,6 @@
  * @property {(string | null)} [id]
  * @property {(string | null)} [beneficiaryId]
  * @property {number} [version]
- */
-
-/**
- * A gift plan, and the person it is for: an existing one (`personId`) or a new one.
- * @typedef {Object} moolakata__ui__gifts__PersonIn
- * @property {(string | null)} [personId]
- * @property {string} [name]
- * @property {(string | null)} [sex]
- * @property {(number | null)} [birthMonth]
- * @property {(number | null)} [birthDay]
- * @property {(number | null)} [birthYear]
- * @property {(string | null)} [diedOn]
- * @property {(boolean | null)} [private]
- * @property {boolean} [differentPerson]
- * @property {(import('../app/dec.js').Dec | null)} [giftBudget]
- * @property {number} [leadDays]
- * @property {(string | null)} [notes]
- * @property {(Array<OccasionIn> | null)} [occasions]
  */
 
 /**
@@ -5010,18 +4634,6 @@
  */
 
 /**
- * @typedef {Object} moolakata__ui__people__PersonIn
- * @property {string} name
- * @property {(string | null)} [sex]
- * @property {(number | null)} [birthMonth]
- * @property {(number | null)} [birthDay]
- * @property {(number | null)} [birthYear]
- * @property {(string | null)} [diedOn]
- * @property {boolean} [private]
- * @property {boolean} [differentPerson]
- */
-
-/**
  * @typedef {Object} moolakata__ui__prices__SecretSet
  * @property {string} setAt
  * @property {(string | null)} setBy
@@ -5072,17 +4684,6 @@
  * @property {string} id
  * @property {string} name
  * @property {number} version
- */
-
-/**
- * @typedef {Object} moolakata__ui__taxes__DocumentIn
- * @property {string} [direction]
- * @property {string} form
- * @property {(string | null)} [issuer]
- * @property {(string | null)} [accountId]
- * @property {(string | null)} [filingId]
- * @property {(string | null)} [receiptId]
- * @property {(string | null)} [notes]
  */
 
 /**

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, gifts, ids, people, receipts
+from .. import access, activity, clock, gifts, people, receipts
 from ..errors import FieldError, Problem, refuse
 from ..gifts import holidays
 from ..people import tree
@@ -316,26 +316,6 @@ def _check_plan(body: PersonIn) -> dict:
     return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
 
 
-def _set_occasions(s, gp: GiftPlan, wanted: list[OccasionIn], user_id: str) -> None:
-    for o in gifts.occasions_of(s, [gp.id])[gp.id]:
-        o.mark_deleted(user_id)
-    for o in wanted:
-        holiday = o.kind == "holiday"
-        s.add(
-            Occasion(
-                id=ids.new_id("Occsn"),
-                giftPlanId=gp.id,
-                kind=o.kind,
-                name=None if holiday else ((o.name or "").strip() or None),
-                holiday=o.holiday if holiday else None,
-                month=None if holiday else o.month,
-                day=None if holiday else o.day,
-                year=None if holiday else o.year,
-                budget=o.budget,
-            )
-        )
-
-
 def _one(s, c: Caller, person_id: str) -> PersonOut:
     return next(p for p in people_view(s, c) if p.id == person_id)
 
@@ -354,41 +334,6 @@ def list_holidays(request: Request, c: Caller = Depends(caller)):
         HolidayOut(key=k, label=holidays.label(k), date=holidays.date_of(k, year))
         for k in holidays.HOLIDAYS
     ]
-
-
-@router.post("/people", response_model=PersonOut, status_code=201)
-def add_person(body: PersonIn, request: Request, c: Caller = Depends(caller)):
-    """A gift plan for someone: a person already here, or a new one, added once (S10.10.3)."""
-    with server(request).db.tx() as s:
-        plan = _check_plan(body)
-        if body.personId:
-            p = people.get(s, c.id, body.personId)
-        else:
-            values = check_person_fields(body)
-            if not body.differentPerson:
-                refuse_clash(s, c, values["name"], values["birthYear"])
-            elif people.clash(s, values["name"], values["birthYear"]) is not None:
-                raise refuse(
-                    "birthYear",
-                    "not-told-apart",
-                    "Give both birth years, different ones, to tell them apart.",
-                )
-            p = Person(id=ids.new_id("Persn"), ownerId=c.id, private=bool(body.private), **values)
-            s.add(p)
-            s.flush()
-        have = s.scalars(
-            select(GiftPlan).where(
-                GiftPlan.ownerId == c.id, GiftPlan.personId == p.id, GiftPlan.deleted == false()
-            )
-        ).first()
-        if have is not None:
-            raise refuse("personId", "plan-exists", f"You have a gift plan for {p.name}.", 409)
-        gp = GiftPlan(id=ids.new_id("GfPln"), ownerId=c.id, personId=p.id, **plan)
-        s.add(gp)
-        s.flush()
-        _set_occasions(s, gp, body.occasions or [], c.id)
-        s.flush()
-        return _one(s, c, p.id)
 
 
 @router.get("/people/{person_id}", response_model=PersonOut)
@@ -623,20 +568,6 @@ def list_gifts(
 ):
     with server(request).db.read() as s:
         return gifts_view(s, c, status, person)
-
-
-@router.post("/gifts", response_model=GiftOut, status_code=201)
-def add_gift(body: GiftIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        values = _check_gift(s, c, body)
-        g = Gift(id=ids.new_id("Gift"), ownerId=_owner_for(s, c, body.people), **values)
-        s.add(g)
-        s.flush()
-        _set_people(s, g, body.people, c.id)
-        _linked(s, c, None, g.transactionId)
-        s.flush()
-        activity.record(s, "gift.saved", actor=c.id, owner=c.id)
-        return _gift_for(s, c, g.id)
 
 
 def _editable(s, c: Caller, gift_id: str) -> Gift:

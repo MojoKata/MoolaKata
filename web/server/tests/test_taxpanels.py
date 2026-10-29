@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import loan_payment, option_trade, saved, sell, terms
+from edits import loan_payment, make, option_trade, saved, sell, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -29,8 +29,8 @@ def alice(server, frozen):
 
 def book(c):
     me = c.get("/ui/api/session").json()["user"]["id"]
-    r = c.post("/ui/api/tax-books", json={"year": 2026, "filers": [me]})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", year=2026, filers=[me])
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
@@ -87,13 +87,17 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
 def test_collectables_and_personal_use_losses(alice):
     coll = new_account(alice, name="Collectables", type="collectables")
     cars = new_account(alice, name="Cars", type="vehicle")
-    coin = alice.post(
-        f"/ui/api/accounts/{coll['id']}/items",
-        json={"name": "Coin", "acquiredOn": "2020-01-01", "costBasis": "1000"},
+    coin = make(
+        alice, "Item", accountId=coll["id"], name="Coin", acquiredOn="2020-01-01", costBasis="1000"
     ).json()
-    car = alice.post(
-        f"/ui/api/accounts/{cars['id']}/items",
-        json={"name": "Car", "acquiredOn": "2022-01-01", "costBasis": "30000", "personalUse": True},
+    car = make(
+        alice,
+        "Item",
+        accountId=cars["id"],
+        name="Car",
+        acquiredOn="2022-01-01",
+        costBasis="30000",
+        personalUse=True,
     ).json()
     saved(sell(alice, coin["id"], "2026-05-01", "3000"))
     saved(sell(alice, car["id"], "2026-05-01", "18000"))

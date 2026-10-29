@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, loan_payment, remove, saved, terms
+from edits import create, loan_payment, make, remove, saved, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -238,11 +238,8 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
     bad = c.post(f"/ui/api/accounts/{loan['id']}/loan/payoff", json={"monthly": "-1"})
     assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "monthly"
     # Saved, then followed: overpaying less than the plan is behind it.
-    r = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/plans",
-        json={"name": "Extra $300", "inputs": {"monthly": "300"}},
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Pyoff", accountId=loan["id"], name="Extra $300", inputs={"monthly": "300"})
+    assert r.status_code == 200, r.text
     plan = r.json()
     assert plan["headline"].startswith("Paid off ")
     r = c.post(
@@ -257,9 +254,8 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
     assert f["name"] == "Extra $300" and f["expected"] == "600.00"
     assert f["actual"] == "100.00" and f["ahead"] == "-500.00"
     # Another followed replaces it.
-    other = c.post(
-        f"/ui/api/accounts/{loan['id']}/loan/plans",
-        json={"name": "Biweekly", "inputs": {"biweekly": True}},
+    other = make(
+        c, "Pyoff", accountId=loan["id"], name="Biweekly", inputs={"biweekly": True}
     ).json()
     c.post(
         f"/ui/api/accounts/{loan['id']}/loan/plans/{other['id']}/follow",

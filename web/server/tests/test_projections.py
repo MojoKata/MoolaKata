@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, new_id, remove, saved, share
+from edits import change, make, new_id, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -40,8 +40,8 @@ def retirement(c, **inputs):
             **inputs,
         },
     }
-    r = c.post("/ui/api/projections", json=body)
-    assert r.status_code == 201, r.text
+    r = make(c, "Prjct", **body)
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -65,30 +65,28 @@ def test_retiring_later_makes_the_money_more_likely_to_last(alice):
 
 
 def test_a_savings_target_says_how_likely_and_what_would_do_it(alice):
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "House deposit",
-            "goal": "savings",
-            "builtOn": {"kind": "typed", "amount": 38200, "allocation": {"cash": 100}},
-            "inputs": {"target": 60000, "date": "2028-10-01", "monthly": 300},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="House deposit",
+        goal="savings",
+        builtOn={"kind": "typed", "amount": 38200, "allocation": {"cash": 100}},
+        inputs={"target": 60000, "date": "2028-10-01", "monthly": 300},
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     a = r.json()["result"]["answer"]
     assert a["chance"] < 0.5, "300 a month falls short"
     assert 800 < a["neededMonthly"] < 1000
 
 
 def test_inputs_are_checked(alice):
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "",
-            "goal": "lottery",
-            "builtOn": {"kind": "accounts", "ids": ["Acct_nope"]},
-            "inputs": {"fees": 9, "date": "2001-01-01"},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="",
+        goal="lottery",
+        builtOn={"kind": "accounts", "ids": ["Acct_nope"]},
+        inputs={"fees": 9, "date": "2001-01-01"},
     )
     assert r.status_code == 422
     assert {e["field"] for e in r.json()["errors"]} >= {
@@ -103,14 +101,13 @@ def test_inputs_are_checked(alice):
 def test_built_on_accounts_starts_from_their_value(alice):
     acct = new_account(alice, name="Savings", type="savings")
     add(alice, acct["id"], "12000.00", "2026-10-01")
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Car",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [acct["id"]]},
-            "inputs": {"target": 20000, "date": "2028-01-01", "monthly": 250},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="Car",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [acct["id"]]},
+        inputs={"target": 20000, "date": "2028-01-01", "monthly": 250},
     )
     res = r.json()["result"]
     assert res["start"] == 12000.0 and res["weights"] == {"cash": 1.0}
@@ -144,14 +141,13 @@ def test_one_active_plan_per_subject_and_its_baseline(alice):
 def test_tracking_against_the_band_and_the_alert_when_behind(server, alice):
     acct = new_account(alice, name="Brokerage cash", type="savings")
     add(alice, acct["id"], "100000.00", "2026-10-01")
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Nest egg",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [acct["id"]]},
-            "inputs": {"target": 150000, "date": "2030-01-01", "monthly": 500},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="Nest egg",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [acct["id"]]},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 500},
     )
     pid = r.json()["id"]
     alice.post(f"/ui/api/projections/{pid}/activate")
@@ -295,18 +291,17 @@ def test_the_tracking_floor_is_a_minimum_width():
 
 def test_the_years_a_projection_runs_are_bounded(alice):
     # A birth year centuries back, or a date a thousand years on, would stall the server.
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Far",
-            "goal": "retirement",
-            "builtOn": {"kind": "typed", "amount": "1000"},
-            "inputs": {
-                "people": [{"birthYear": 1000}, {"birthYear": 1980}, {"birthYear": 1990}],
-                "income": [{"fromAge": 900, "monthly": 10}],
-                "date": "3026-01-01",
-                "firstYear": 9999,
-            },
+    r = make(
+        alice,
+        "Prjct",
+        name="Far",
+        goal="retirement",
+        builtOn={"kind": "typed", "amount": "1000"},
+        inputs={
+            "people": [{"birthYear": 1000}, {"birthYear": 1980}, {"birthYear": 1990}],
+            "income": [{"fromAge": 900, "monthly": 10}],
+            "date": "3026-01-01",
+            "firstYear": 9999,
         },
     )
     assert r.status_code == 422
@@ -316,14 +311,13 @@ def test_the_years_a_projection_runs_are_bounded(alice):
         "inputs.date",
         "inputs.firstYear",
     }
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "Old",
-            "goal": "retirement",
-            "builtOn": {"kind": "typed", "amount": "1000"},
-            "inputs": {"people": [{"birthYear": 1800}]},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="Old",
+        goal="retirement",
+        builtOn={"kind": "typed", "amount": "1000"},
+        inputs={"people": [{"birthYear": 1800}]},
     )
     assert r.json()["errors"][0]["field"] == "inputs.people.0.birthYear"
 
@@ -334,14 +328,13 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, alice):
     own = new_account(alice, name="Alice's savings", type="savings")
     add(alice, shared["id"], "1000.00", "2026-10-01")
     add(alice, own["id"], "9000.00", "2026-10-01")
-    r = alice.post(
-        "/ui/api/projections",
-        json={
-            "name": "House",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [shared["id"], own["id"]]},
-            "inputs": {"target": 50000, "date": "2030-01-01", "monthly": 500},
-        },
+    r = make(
+        alice,
+        "Prjct",
+        name="House",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [shared["id"], own["id"]]},
+        inputs={"target": 50000, "date": "2030-01-01", "monthly": 500},
     )
     pid = r.json()["id"]
     alice.post(f"/ui/api/projections/{pid}/activate")

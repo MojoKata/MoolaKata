@@ -4,7 +4,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, create, remove, saved
+from edits import change, create, make, remove, saved
 from sqlalchemy import func, select
 
 from moolakata import clock, figures, ids, valuation
@@ -251,9 +251,9 @@ def test_price_sources_in_settings(admin_client, server):
     names = {s["name"] for s in view["available"]}
     assert {"tiingo", "coinbase", "manual"} <= names and "stub" not in names
     assert view["refreshTime"] == "18:00"
-    r = admin_client.post("/ui/api/price-sources", json={"name": "tiingo"})
-    assert r.status_code == 201
-    src = r.json()["sources"][0]
+    r = make(admin_client, "Src", name="tiingo")
+    assert r.status_code == 200
+    src = r.json()
     assert src["enabled"] is False and src["needsKey"] and src["key"] is None
     r = change(admin_client, "Src", src, enabled=True)
     assert r.json()["errors"][0]["code"] == "key-needed"
@@ -263,8 +263,8 @@ def test_price_sources_in_settings(admin_client, server):
     assert "abcdef0123456789" not in r.text
     with pytest.raises(Exception, match="not a host"):
         server.guard.check("api.exchange.coinbase.com", 443)
-    assert admin_client.post("/ui/api/price-sources", json={"name": "tiingo"}).status_code == 409
-    assert admin_client.post("/ui/api/price-sources", json={"name": "stub"}).status_code == 422
+    assert make(admin_client, "Src", name="tiingo").status_code == 409
+    assert make(admin_client, "Src", name="stub").status_code == 422
     assert remove(admin_client, "Src", row).status_code == 200
     from moolakata.store.repos import secrets as secret_repo
 

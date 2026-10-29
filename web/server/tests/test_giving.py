@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, giving_plan, saved, share
+from edits import change, giving_plan, make, saved, share
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -28,14 +28,14 @@ def alice(server, frozen):
 
 
 def org(c, name, **kw):
-    r = c.post("/ui/api/giving/organisations", json={"name": name, **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "Orgzn", **{"name": name, **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
 def donate(c, **kw):
-    r = c.post("/ui/api/giving/donations", json=kw)
-    assert r.status_code == 201, r.text
+    r = make(c, "Dnatn", **kw)
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -153,17 +153,16 @@ def test_shares_from_a_lot_without_a_gain(alice):
     h = alice.get(f"/ui/api/accounts/{brk['id']}/holdings").json()["holdings"][0]
     assert h["quantity"] == "14.0"
     assert [x["quantity"] for x in h["lots"]] == ["6.0", "8.0"]
-    too_many = alice.post(
-        "/ui/api/giving/donations",
-        json={
-            "date": "2026-10-02",
-            "kind": "securities",
-            "organisationId": food["id"],
-            "fromAccountId": brk["id"],
-            "lotId": old["lotId"],
-            "quantity": "60",
-            "amount": "1",
-        },
+    too_many = make(
+        alice,
+        "Dnatn",
+        date="2026-10-02",
+        kind="securities",
+        organisationId=food["id"],
+        fromAccountId=brk["id"],
+        lotId=old["lotId"],
+        quantity="60",
+        amount="1",
     )
     assert too_many.json()["errors"][0]["field"] == "quantity"
 

@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, edit, save_settings, saved
+from edits import change, edit, make, save_settings, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -73,35 +73,33 @@ def test_a_lots_receipt_is_kept_while_the_lot_is_open(server, frozen):
         any_cat = s.scalars(select(Category)).first()
         any_cat.keepReceiptsYears = 2
         cid = any_cat.id
-    buy = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2020-01-02",
-            "kind": "buy",
-            "symbol": "VTI",
-            "quantity": "10",
-            "price": "100",
-            "amount": "-1000.00",
-            "categoryId": cid,
-        },
+    buy = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2020-01-02",
+        kind="buy",
+        symbol="VTI",
+        quantity="10",
+        price="100",
+        amount="-1000.00",
+        categoryId=cid,
     )
-    assert buy.status_code == 201, buy.text
+    assert buy.status_code == 200, buy.text
     rid = receipt_on(c, buy.json()["id"], png((10, 20, 30)))
     assert kept(c, rid) == ("open", "Kept while the lot is open")
-    sell = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2030-02-03",
-            "kind": "sell",
-            "symbol": "VTI",
-            "quantity": "10",
-            "price": "120",
-            "amount": "1200.00",
-        },
+    sell = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2030-02-03",
+        kind="sell",
+        symbol="VTI",
+        quantity="10",
+        price="120",
+        amount="1200.00",
     )
-    assert sell.status_code == 201, sell.text
+    assert sell.status_code == 200, sell.text
     assert kept(c, rid) == ("expired", "Expired Feb 2032, prunable")
 
 

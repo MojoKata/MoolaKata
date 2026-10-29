@@ -251,3 +251,67 @@ def option_trade(c, account_id: str, day: str, action: str, underlying: str, rig
               "quantity": str(contracts), "price": str(premium), "fees": str(fees or 0),
               "amount": str(amount), "multiplier": multiplier}  # fmt: skip
     return create(c, "Txn", confirm, **fields)
+
+
+class Made:
+    """A save that made records, read as the record it was asked to make (`json()`), or as
+    the refusal: for tests of what a made record does rather than of the save itself."""
+
+    def __init__(self, r, made_id: str, read=None, parent=None):
+        self.r, self.status_code, self.text, self.headers = r, r.status_code, r.text, r.headers
+        self._id, self._read, self._parent = made_id, read, parent
+
+    def parent(self):
+        """What the record belongs to, as read after: a tax book its filing or document."""
+        assert self.status_code == 200, self.text
+        return self._parent()
+
+    def json(self):
+        if self.status_code != 200:
+            return self.r.json()
+        record = next(x for x in self.r.json()["saved"] if x["id"] == self._id)["record"]
+        return self._read(record) if self._read else record
+
+
+def _op(entity: str, fields: dict, record_id: str | None = None) -> dict:
+    return {"op": "create", "entity": entity, "id": record_id or new_id(entity), "fields": fields}
+
+
+def make(c, entity: str, confirm: bool = False, **fields) -> Made:
+    """A record made as its form's draft makes it, with the records that come with it: a
+    transaction's parts (`splits`) and tags by name (`tags`), a rule's tags by name, a filing's
+    estimated payments (`payments`), a gift plan's new person and occasions."""
+    first = new_id(entity)
+    before, after, read = [], [], None
+    if entity in ("Txn", "Rule") and "tags" in fields:
+        fields["tagIds"] = [tag(c, name) for name in fields.pop("tags") or []]
+    if entity == "Txn":
+        after += [_op("Split", {"transactionId": first, **p}) for p in fields.pop("splits", [])]
+    if entity == "Filng":
+        after += [_op("EstPy", {"filingId": first, **p}) for p in fields.pop("payments", [])]
+    if entity == "GfPln":
+        if not fields.get("personId"):
+            keys = ("name", "sex", "birthMonth", "birthDay", "birthYear", "diedOn", "private",
+                    "differentPerson")  # fmt: skip
+            person = {k: fields.pop(k) for k in keys if k in fields}
+            fields["personId"] = new_id("Persn")
+            before.append(_op("Persn", person, fields["personId"]))
+        after += [_op("Occsn", {"giftPlanId": first, **o}) for o in fields.pop("occasions", [])]
+        pid = fields["personId"]
+
+        def read(_record):
+            return c.get(f"/ui/api/people/{pid}").json()
+
+    ops = [*before, _op(entity, fields, first), *after]
+    r = c.post("/ui/api/save", json={"ops": ops})
+    if confirm and r.status_code == 409 and r.json()["code"] == "confirm-needed":
+        asks = [{"code": a["code"], "id": a["id"]} for a in r.json()["asks"]]
+        r = c.post("/ui/api/save", json={"ops": ops, "confirm": asks})
+    parent = None
+    if "bookId" in fields:
+        book = fields["bookId"]
+
+        def parent():
+            return c.get(f"/ui/api/tax-books/{book}").json()
+
+    return Made(r, first, read, parent)

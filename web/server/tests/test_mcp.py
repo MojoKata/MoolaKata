@@ -3,7 +3,7 @@ to the token's chosen items, rate limited, and recorded in Activity."""
 
 import pytest
 from conftest import make_user, new_client, sign_in
-from edits import remove, saved
+from edits import make, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import mcp
@@ -16,8 +16,8 @@ def alice(server):
 
 
 def token(c, **body) -> str:
-    r = c.post("/ui/api/profile/tokens", json={"name": "Claude", **body})
-    assert r.status_code == 201, r.text
+    r = make(c, "Token", **{"name": "Claude", **body})
+    assert r.status_code == 200, r.text
     return r.json()["secret"]
 
 

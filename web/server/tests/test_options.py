@@ -6,7 +6,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, option_trade, remove, saved
+from edits import create, make, option_trade, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -295,19 +295,18 @@ def test_assigned_a_call_with_no_shares_opens_a_short_stock_lot(alice):
     assert r.status_code == 201, r.text
     msft = _held(alice, brk["id"], "MSFT")
     assert msft["quantity"] == "-100.0" and msft["cost"] == "-48640.00"
-    r = alice.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": brk["id"],
-            "date": "2026-11-23",
-            "amount": "-47000.00",
-            "kind": "buy",
-            "symbol": "MSFT",
-            "quantity": "100",
-            "price": "470",
-        },
+    r = make(
+        alice,
+        "Txn",
+        accountId=brk["id"],
+        date="2026-11-23",
+        amount="-47000.00",
+        kind="buy",
+        symbol="MSFT",
+        quantity="100",
+        price="470",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     assert _held(alice, brk["id"], "MSFT") is None
     gains = alice.get("/ui/api/positions/gains", params={"by": "term"}).json()
     assert "1640.00" in str(gains), gains

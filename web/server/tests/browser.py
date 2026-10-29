@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import pytest
-from edits import edit, giving_plan, save_settings, saved, share, tag, terms, wallet
+from edits import edit, giving_plan, make, save_settings, saved, share, tag, terms, wallet
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -199,19 +199,23 @@ def seed(base: str) -> Household:
     if r.status_code == 409:
         r = c.post("/ui/api/session", json={"login": "admin", "password": PASSWORD})
     assert r.status_code == 200, r.text
-    acct = made(c.post("/ui/api/accounts", json={"name": "Checking", "type": "checking"}))
+    acct = made(make(c, "Acct", name="Checking", type="checking"))
     cats = {x["path"]: x["id"] for x in c.get("/ui/api/categories").json()["items"]}
     dining, fun = cats["Food › Dining out"], cats["Entertainment"]
     repair, groceries = cats["Transportation › Car maintenance"], cats["Food › Groceries"]
     for n in (1, 2, 3):
         made(
-            c.post(
-                "/ui/api/transactions",
-                json={"accountId": acct["id"], "date": f"{months_back(n)}-05",
-                      "amount": "-120.00", "payee": "Kroger", "categoryId": groceries},
+            make(
+                c,
+                "Txn",
+                accountId=acct["id"],
+                date=f"{months_back(n)}-05",
+                amount="-120.00",
+                payee="Kroger",
+                categoryId=groceries,
             )
-        )  # fmt: skip
-    b = made(c.post("/ui/api/budgets", json={"name": "Household", "accountIds": [acct["id"]]}))
+        )
+    b = made(make(c, "Bdgt", name="Household", accountIds=[acct["id"]]))
     made(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True, moves=True))
     b = c.get(f"/ui/api/budgets/{b['id']}").json()
     lines = [{"categoryId": dining, "amount": "300.00", "rollover": True},
@@ -219,18 +223,17 @@ def seed(base: str) -> Household:
              {"categoryId": repair, "amount": "100.00", "target": "1000.00"}]  # fmt: skip
     made(save_plan(c, b, f"{months_back(0)}-01", lines))
     made(
-        c.post(
-            f"/ui/api/budgets/{b['id']}/moves",
-            json={"month": f"{months_back(0)}-01", "fromCategoryId": fun,
-                  "toCategoryId": dining, "amount": "40.00"},
-        )
-    )  # fmt: skip
-    env = made(
-        c.post(
-            "/ui/api/budgets",
-            json={"name": "Envelopes", "method": "envelope", "accountIds": [acct["id"]]},
+        make(
+            c,
+            "BdgMv",
+            budgetId=b["id"],
+            month=f"{months_back(0)}-01",
+            fromCategoryId=fun,
+            toCategoryId=dining,
+            amount="40.00",
         )
     )
+    env = made(make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[acct["id"]]))
     yearly = [{"categoryId": fun, "amount": "1200.00", "cadence": "year"}]
     made(save_plan(c, env, f"{months_back(0)}-01", yearly))
     h = Household(base, c, cats, acct, b, env)
@@ -250,14 +253,12 @@ def people(h: Household) -> dict:
     r = save_settings(h.c, {"publicUrl": h.base})
     made(r)
     bob = made(
-        h.c.post(
-            "/ui/api/users",
-            json={"displayName": "Bob Griffin", "username": "bob", "email": "bob@home.lan",
-                  "sex": "male"},
+        make(
+            h.c, "User", displayName="Bob Griffin", username="bob", email="bob@home.lan", sex="male"
         )
-    )  # fmt: skip
-    group = made(h.c.post("/ui/api/groups", json={"name": "Household", "memberIds": [bob["id"]]}))
-    made(h.c.post("/ui/api/profile/tokens", json={"name": "Claude on my laptop", "days": 30}))
+    )
+    group = made(make(h.c, "Group", name="Household", memberIds=[bob["id"]]))
+    made(make(h.c, "Token", name="Claude on my laptop", days=30))
     return {"bob": bob, "group": group}
 
 
@@ -266,31 +267,45 @@ def accounts(h: Household) -> dict:
     improvement; a mortgage secured by it, with a rate reset; a wallet watching a key."""
 
     c = h.c
-    savings = made(c.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}))
+    savings = made(make(c, "Acct", name="Savings", type="savings"))
     op = {"op": "update", "entity": "Acct", "id": savings["id"], "version": savings["version"],
           "fields": {"withdrawalsAMonth": 6, "statementInterval": "quarterly"}}  # fmt: skip
     made(c.post("/ui/api/save", json={"ops": [op]}))
-    homes = made(c.post("/ui/api/accounts", json={"name": "Home", "type": "real-estate"}))
+    homes = made(make(c, "Acct", name="Home", type="real-estate"))
     home = made(
-        c.post(
-            f"/ui/api/accounts/{homes['id']}/items",
-            json={"name": "1428 Elm St", "acquiredOn": "2023-03-15", "costBasis": "560000",
-                  "closingCosts": "8400", "address": "1428 Elm St", "primaryResidence": True},
+        make(
+            c,
+            "Item",
+            accountId=homes["id"],
+            name="1428 Elm St",
+            acquiredOn="2023-03-15",
+            costBasis="560000",
+            closingCosts="8400",
+            address="1428 Elm St",
+            primaryResidence=True,
         )
-    )  # fmt: skip
+    )
     made(
-        c.post(
-            f"/ui/api/items/{home['id']}/valuations",
-            json={"date": f"{months_back(1)}-20", "value": "640000", "source": "estimate"},
+        make(
+            c,
+            "Valtn",
+            itemId=home["id"],
+            date=f"{months_back(1)}-20",
+            value="640000",
+            source="estimate",
         )
     )
     made(
-        c.post(
-            f"/ui/api/items/{home['id']}/improvements",
-            json={"date": "2025-05-20", "description": "Kitchen remodel", "amount": "38500"},
+        make(
+            c,
+            "Imprv",
+            itemId=home["id"],
+            date="2025-05-20",
+            description="Kitchen remodel",
+            amount="38500",
         )
     )
-    mortgage = made(c.post("/ui/api/accounts", json={"name": "Mortgage", "type": "mortgage"}))
+    mortgage = made(make(c, "Acct", name="Mortgage", type="mortgage"))
     saved(
         terms(c, mortgage["id"], principal="448000", startDate="2023-04-01", termMonths=360,
               rate="6.875", escrowTax="300", securedById=home["id"],
@@ -298,7 +313,7 @@ def accounts(h: Household) -> dict:
     )  # fmt: skip
     from test_wallets import ZPUB
 
-    cold = made(c.post("/ui/api/accounts", json={"name": "Cold storage", "type": "crypto-wallet"}))
+    cold = made(make(c, "Acct", name="Cold storage", type="crypto-wallet"))
     saved(wallet(c, cold["id"], ZPUB, 25))
     return {"savings": savings, "homes": homes, "home": home, "mortgage": mortgage, "cold": cold}
 
@@ -309,30 +324,40 @@ def tax_book(h: Household) -> dict:
     me = h.c.get("/ui/api/session").json()["user"]["id"]
     year = int(months_back(0)[:4]) - 1
     paid = made(
-        h.c.post(
-            "/ui/api/transactions",
-            json={"accountId": h.checking["id"], "date": f"{year}-04-14", "amount": "-1500.00",
-                  "payee": "IRS USATAXPYMT"},
-        )
-    )  # fmt: skip
-    b = made(h.c.post("/ui/api/tax-books", json={"year": year, "filers": [me]}))
-    b = made(
-        h.c.post(
-            f"/ui/api/tax-books/{b['id']}/filings",
-            json={"form": "Form 1040", "progress": "filed", "filedOn": f"{year + 1}-03-02",
-                  "filingStatus": "Single", "confirmation": "IRS-123",
-                  "payments": [{"quarter": 1, "dueDate": f"{year}-04-15", "amount": "1500",
-                                "paidOn": f"{year}-04-14", "transactionId": paid["id"]}],
-                  "carried": {"agi": "98000", "capitalLossLong": "1200"}},
-        )
-    )  # fmt: skip
-    emma = h.extra["emma"]["id"]
-    made(
-        h.c.post(
-            f"/ui/api/tax-books/{b['id']}/dependents",
-            json={"personId": emma, "claimedAs": "qualifying child", "months": 12},
+        make(
+            h.c,
+            "Txn",
+            accountId=h.checking["id"],
+            date=f"{year}-04-14",
+            amount="-1500.00",
+            payee="IRS USATAXPYMT",
         )
     )
+    b = made(make(h.c, "TaxBk", year=year, filers=[me]))
+    made(
+        make(
+            h.c,
+            "Filng",
+            bookId=b["id"],
+            form="Form 1040",
+            progress="filed",
+            filedOn=f"{year + 1}-03-02",
+            filingStatus="Single",
+            confirmation="IRS-123",
+            payments=[
+                {
+                    "quarter": 1,
+                    "dueDate": f"{year}-04-15",
+                    "amount": "1500",
+                    "paidOn": f"{year}-04-14",
+                    "transactionId": paid["id"],
+                }
+            ],
+            carried={"agi": "98000", "capitalLossLong": "1200"},
+        )
+    )
+    emma = h.extra["emma"]["id"]
+    made(make(h.c, "TxDep", bookId=b["id"], personId=emma, claimedAs="qualifying child", months=12))
     w2 = made(
         h.c.post(
             "/ui/api/receipts",
@@ -340,12 +365,16 @@ def tax_book(h: Household) -> dict:
         )
     )
     made(
-        h.c.post(
-            f"/ui/api/tax-books/{b['id']}/documents",
-            json={"form": "W-2", "issuer": "Acme Corp", "receiptId": w2["id"],
-                  "notes": "the corrected copy"},
+        make(
+            h.c,
+            "TxDoc",
+            bookId=b["id"],
+            form="W-2",
+            issuer="Acme Corp",
+            receiptId=w2["id"],
+            notes="the corrected copy",
         )
-    )  # fmt: skip
+    )
     return {"book": b}
 
 
@@ -353,37 +382,57 @@ def gift_plans(h: Household) -> dict:
     """Emma's gift plan: her birthday, Christmas, a graduation with a budget, a watch planned
     for the graduation."""
     emma = made(
-        h.c.post(
-            "/ui/api/people",
-            json={"name": "Emma Griffin", "sex": "female", "birthMonth": 10, "birthDay": 20,
-                  "birthYear": 2018, "giftBudget": "600", "notes": "likes paints",
-                  "occasions": [{"kind": "holiday", "holiday": "christmas"},
-                                {"kind": "custom", "name": "Graduation", "month": 6,
-                                 "day": 12, "budget": "200"}]},
+        make(
+            h.c,
+            "GfPln",
+            name="Emma Griffin",
+            sex="female",
+            birthMonth=10,
+            birthDay=20,
+            birthYear=2018,
+            giftBudget="600",
+            notes="likes paints",
+            occasions=[
+                {"kind": "holiday", "holiday": "christmas"},
+                {"kind": "custom", "name": "Graduation", "month": 6, "day": 12, "budget": "200"},
+            ],
         )
-    )  # fmt: skip
+    )
     grad = next(o for o in emma["occasions"] if o["kind"] == "custom")
     made(
-        h.c.post(
-            "/ui/api/gifts",
-            json={"description": "Watch", "people": [emma["id"]], "status": "planned",
-                  "occasion": f"occasion:{grad['id']}", "occasionYear": 2027, "cost": "150"},
+        make(
+            h.c,
+            "Gift",
+            description="Watch",
+            people=[emma["id"]],
+            status="planned",
+            occasion=f"occasion:{grad['id']}",
+            occasionYear=2027,
+            cost="150",
         )
-    )  # fmt: skip
+    )
     church = made(
-        h.c.post(
-            "/ui/api/giving/organisations",
-            json={"name": "St. Mark's Parish", "ein": "36-2167053", "causes": ["Faith"],
-                  "pledge": "200", "pledgeEvery": "month"},
+        make(
+            h.c,
+            "Orgzn",
+            name="St. Mark's Parish",
+            ein="36-2167053",
+            causes=["Faith"],
+            pledge="200",
+            pledgeEvery="month",
         )
-    )  # fmt: skip
+    )
     made(
-        h.c.post(
-            "/ui/api/giving/donations",
-            json={"date": f"{months_back(1)}-02", "kind": "cash", "organisationId": church["id"],
-                  "amount": "300", "notes": "the harvest appeal"},
+        make(
+            h.c,
+            "Dnatn",
+            date=f"{months_back(1)}-02",
+            kind="cash",
+            organisationId=church["id"],
+            amount="300",
+            notes="the harvest appeal",
         )
-    )  # fmt: skip
+    )
 
     saved(giving_plan(h.c, int(months_back(0)[:4]), percent="10", incomeBasis="gross",
                       income="185000", dafCounted="granted"))  # fmt: skip
@@ -395,44 +444,62 @@ def transactions(h: Household) -> dict:
     moved in from another broker with their basis."""
     c, travel = h.c, h.cats["Travel"]
     bill = made(
-        c.post(
-            "/ui/api/transactions",
-            json={"accountId": h.checking["id"], "date": f"{months_back(1)}-12",
-                  "amount": "-300.00", "payee": "Grand Hotel",
-                  "splits": [{"amount": "-200.00", "categoryId": travel},
-                             {"amount": "-100.00", "categoryId": travel,
-                              "reimbursable": "100.00", "owedBy": "Acme"}]},
+        make(
+            c,
+            "Txn",
+            accountId=h.checking["id"],
+            date=f"{months_back(1)}-12",
+            amount="-300.00",
+            payee="Grand Hotel",
+            splits=[
+                {"amount": "-200.00", "categoryId": travel},
+                {
+                    "amount": "-100.00",
+                    "categoryId": travel,
+                    "reimbursable": "100.00",
+                    "owedBy": "Acme",
+                },
+            ],
         )
-    )  # fmt: skip
+    )
     back = made(
-        c.post(
-            "/ui/api/transactions",
-            json={"accountId": h.checking["id"], "date": f"{months_back(1)}-20",
-                  "amount": "100.00", "kind": "deposit", "payee": "Acme"},
+        make(
+            c,
+            "Txn",
+            accountId=h.checking["id"],
+            date=f"{months_back(1)}-20",
+            amount="100.00",
+            kind="deposit",
+            payee="Acme",
         )
-    )  # fmt: skip
+    )
     owed = next(x for x in bill["splits"] if x["reimbursable"])
     made(
-        c.post(
-            "/ui/api/reimbursements",
-            json={"spendingId": bill["id"], "splitId": owed["id"], "paybackId": back["id"],
-                  "amount": "100.00"},
+        make(
+            c,
+            "Rmbrs",
+            spendingId=bill["id"],
+            splitId=owed["id"],
+            paybackId=back["id"],
+            amount="100.00",
         )
-    )  # fmt: skip
-    brokerage = made(c.post("/ui/api/accounts", json={"name": "Brokerage", "type": "brokerage"}))
+    )
+    brokerage = made(make(c, "Acct", name="Brokerage", type="brokerage"))
     moved = made(
-        c.post(
-            "/ui/api/transactions",
-            json={"accountId": brokerage["id"], "date": f"{months_back(2)}-03",
-                  "amount": "0", "kind": "transfer-in", "symbol": "VTI", "quantity": "10",
-                  "costBasis": "2400.00"},
+        make(
+            c,
+            "Txn",
+            accountId=brokerage["id"],
+            date=f"{months_back(2)}-03",
+            amount="0",
+            kind="transfer-in",
+            symbol="VTI",
+            quantity="10",
+            costBasis="2400.00",
         )
-    )  # fmt: skip
+    )
     portfolio = made(
-        c.post(
-            "/ui/api/portfolios",
-            json={"name": "Retirement", "accountIds": [brokerage["id"]], "benchmark": "60-40"},
-        )
+        make(c, "Portf", name="Retirement", accountIds=[brokerage["id"]], benchmark="60-40")
     )
     from test_receipts import png
 
@@ -443,18 +510,23 @@ def transactions(h: Household) -> dict:
              amount="6.40", payee="Blue Bottle", notes="with Emma", tagIds=coffee, keep=True)
     )  # fmt: skip
     retire = made(
-        c.post(
-            "/ui/api/projections",
-            json={"name": "Retire at 62", "goal": "retirement",
-                  "builtOn": {"kind": "portfolio", "id": portfolio["id"]},
-                  "inputs": {"people": [{"name": "Admin", "birthYear": 1979, "retireAge": 62}],
-                             "contribution": {"amount": 30000, "growth": 3},
-                             "withdrawal": {"method": "fixed", "amount": 60000},
-                             "income": [{"label": "Social Security", "person": 0,
-                                         "fromAge": 67, "monthly": 2900}],
-                             "fees": 0.2}},
+        make(
+            c,
+            "Prjct",
+            name="Retire at 62",
+            goal="retirement",
+            builtOn={"kind": "portfolio", "id": portfolio["id"]},
+            inputs={
+                "people": [{"name": "Admin", "birthYear": 1979, "retireAge": 62}],
+                "contribution": {"amount": 30000, "growth": 3},
+                "withdrawal": {"method": "fixed", "amount": 60000},
+                "income": [
+                    {"label": "Social Security", "person": 0, "fromAge": 67, "monthly": 2900}
+                ],
+                "fees": 0.2,
+            },
         )
-    )  # fmt: skip
+    )
     made(c.post(f"/ui/api/projections/{retire['id']}/activate"))
     return {"bill": bill, "brokerage": brokerage, "moved": moved, "portfolio": portfolio,
             "receipt": receipt, "retire": retire}  # fmt: skip

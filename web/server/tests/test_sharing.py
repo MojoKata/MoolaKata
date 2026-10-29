@@ -1,7 +1,7 @@
 import re
 
 from conftest import make_user, sign_in
-from edits import change, create, remove, saved, tag
+from edits import change, create, make, remove, saved, tag
 from edits import share as shared
 from test_accounts import add, new_account
 
@@ -33,10 +33,8 @@ def test_read_and_write_shares(server):
     assert seen[0]["counted"] is False  # Count in my totals is off by default (S10.7)
     assert c["alice"].get("/ui/api/accounts").json()["items"][0]["sharedWith"] == 1
     assert len(c["bob"].get("/ui/api/transactions").json()["items"]) == 1
-    r = c["bob"].post(
-        "/ui/api/transactions", json={"accountId": a["id"], "date": "2026-09-02", "amount": "-1.00"}
-    )
-    assert r.status_code == 403 and r.json()["code"] == "share-read-only"
+    r = make(c["bob"], "Txn", accountId=a["id"], date="2026-09-02", amount="-1.00")
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "share-read-only"
     assert c["bob"].get(f"/ui/api/shares/account/{a['id']}").status_code == 403
     share(c["alice"], "account", a["id"], users={u["bob"].id: "write"})
     add(c["bob"], a["id"], "-2.00", payee="Bob's coffee")
@@ -49,9 +47,7 @@ def test_read_and_write_shares(server):
 
 def test_groups_via_and_the_higher_level(server, admin_client):
     u, c = setup(server)
-    g = admin_client.post(
-        "/ui/api/groups", json={"name": "Household", "memberIds": [u["bob"].id, u["carol"].id]}
-    ).json()
+    g = make(admin_client, "Group", name="Household", memberIds=[u["bob"].id, u["carol"].id]).json()
     a = new_account(c["alice"])
     view = share(
         c["alice"], "account", a["id"], users={u["bob"].id: "write"}, groups={g["id"]: "read"}
@@ -120,14 +116,9 @@ def test_portfolio_viewers_see_only_their_accounts(server):
         openingBalance="500.00",
         openingDate="2026-01-01",
     )
-    p = (
-        c["alice"]
-        .post(
-            "/ui/api/portfolios",
-            json={"name": "Family", "accountIds": [checking["id"], brokerage["id"]]},
-        )
-        .json()
-    )
+    p = make(
+        c["alice"], "Portf", name="Family", accountIds=[checking["id"], brokerage["id"]]
+    ).json()
     assert p["value"] == "600.00"
     share(c["alice"], "account", checking["id"], users={u["bob"].id: "read"})
     saved = share(c["alice"], "portfolio", p["id"], users={u["bob"].id: "read"})
@@ -140,9 +131,7 @@ def test_portfolio_viewers_see_only_their_accounts(server):
     assert seen["value"] == "600.00"
     r = change(c["bob"], "Portf", seen, name="Mine now")
     assert r.status_code == 403
-    r = c["alice"].post(
-        "/ui/api/portfolios", json={"name": "Not mine", "accountIds": ["Acct_nope"]}
-    )
+    r = make(c["alice"], "Portf", name="Not mine", accountIds=["Acct_00000000000000000000000000"])
     assert r.json()["errors"][0]["field"] == "accountIds"
 
 
@@ -184,19 +173,14 @@ def test_receivers_see_what_happens_to_what_is_shared_and_its_removal(server):
     """S10.8: whoever a projection or a person is shared with sees its entries in Activity,
     and someone whose share is removed keeps the one entry that says so."""
     u, c = setup(server)
-    p = (
-        c["alice"]
-        .post(
-            "/ui/api/projections",
-            json={
-                "name": "Retire early",
-                "goal": "savings",
-                "builtOn": {"kind": "typed", "amount": "1000"},
-                "inputs": {"target": 5000, "date": "2031-01-01"},
-            },
-        )
-        .json()
-    )
+    p = make(
+        c["alice"],
+        "Prjct",
+        name="Retire early",
+        goal="savings",
+        builtOn={"kind": "typed", "amount": "1000"},
+        inputs={"target": 5000, "date": "2031-01-01"},
+    ).json()
     share(c["alice"], "projection", p["id"], users={u["bob"].id: "read"})
     texts = [e["text"] for e in c["bob"].get("/ui/api/activity").json()["items"]]
     assert any("shared Retire early with Bob" in t for t in texts), texts

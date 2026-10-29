@@ -63,14 +63,6 @@ class BudgetRow(Model):
     version: int
 
 
-class NewBudget(Model):
-    name: str
-    accountIds: list[str] = Field(default_factory=list)
-    method: str = "tracking"
-    reserves: bool = False
-    moves: bool = False
-
-
 class MonthRow(Model):
     categoryId: str
     label: str
@@ -552,19 +544,6 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
         s, "budget.created", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
     )
     return b
-
-
-@router.post("/budgets", response_model=BudgetRow, status_code=201)
-def create_budget(body: NewBudget, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b = _make_budget(s, c, body, ids.new_id("Bdgt"))
-        s.flush()
-        out = shape(s, b, "owner", c.id)
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/budgets/{b.id}"},
-    )
 
 
 def _change_budget(s, c: Caller, b: Budget, lvl: str, body, sent: set[str]) -> None:
@@ -1049,23 +1028,6 @@ def _move(s, c: Caller, b: Budget, body: MoveIn, move_id: str) -> BudgetMove:
         s, "budget.moved", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
     )
     return mv
-
-
-@router.post("/budgets/{budget_id}/moves", response_model=MoveOut, status_code=201)
-def make_move(budget_id: str, body: MoveIn, request: Request, c: Caller = Depends(caller)):
-    """A move made (S7.11)."""
-    with server(request).db.tx() as s:
-        b, _ = access.budget(s, c.id, budget_id, "write")
-        mv = _move(s, c, b, body, ids.new_id("BdgMv"))
-        s.flush()
-        month = mv.month
-        (out,) = [x for x in _moves_out(s, b, month) if x.id == mv.id]
-    # Read with its month (S13.8.4).
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/budgets/{b.id}/month?month={month.isoformat()[:7]}"},
-    )
 
 
 @router.get("/transactions/{txn_id}/budgets", response_model=list[InBudget])

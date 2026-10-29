@@ -138,7 +138,7 @@ def test_an_unreachable_peer_says_so(pair):
 # ---------- invitations, approval and the directory (S11.1, S11.3, S11.6)
 
 from conftest import make_user  # noqa: E402
-from edits import create, saved, share  # noqa: E402
+from edits import create, make, saved, share  # noqa: E402
 from linkpair import admin_of, linked  # noqa: E402
 
 
@@ -259,7 +259,7 @@ def test_an_item_is_shared_read_only_with_a_linked_servers_people(admins):
     a_id, _ = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "Brokerage", "type": "brokerage"}).json()
+    acct = make(alice, "Acct", name="Brokerage", type="brokerage").json()
     v = alice.get(f"/ui/api/shares/account/{acct['id']}").json()
     peers = v["links"]
     assert len(peers) == 1 and peers[0]["linkId"] == a_id
@@ -311,9 +311,7 @@ def test_a_shared_account_reaches_the_people_it_names_as_its_screens_show_it(adm
     a_id, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post(
-        "/ui/api/accounts", json={"name": "Mom's checking", "type": "checking"}
-    ).json()
+    acct = make(alice, "Acct", name="Mom's checking", type="checking").json()
     add(alice, acct["id"], amount="1200.00", payee="Pension")
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
@@ -384,7 +382,7 @@ def test_a_reset_copy_is_pulled_again_in_full(admins):
     _a_id, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "IRA", "type": "ira"}).json()
+    acct = make(alice, "Acct", name="IRA", type="ira").json()
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/copy-key")
@@ -409,7 +407,7 @@ def test_receipts_cross_only_when_included_and_open_through_decryption(admins):
     a_id, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "Checking", "type": "checking"}).json()
+    acct = make(alice, "Acct", name="Checking", type="checking").json()
     t = add(alice, acct["id"], amount="-12.50", payee="Blue Bottle")
     image = png()
     rid = alice.post(
@@ -459,7 +457,7 @@ def test_sharing_with_a_linked_server_needs_the_password_again(admins):
     a_id, _b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "IRA", "type": "ira"}).json()
+    acct = make(alice, "Acct", name="IRA", type="ira").json()
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     stale(a)
     to_carol = {carol_here["id"]: "read"}
@@ -509,7 +507,7 @@ def test_a_share_waiting_for_its_access_key_alerts_the_admins(admins):
     _a_id, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "Checking", "type": "checking"}).json()
+    acct = make(alice, "Acct", name="Checking", type="checking").json()
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
@@ -559,9 +557,7 @@ def test_a_large_change_arrives_in_parts_oldest_first(admins, monkeypatch):
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     ids_ = []
     for year in (2020, 2023, 2026):
-        acct = alice.post(
-            "/ui/api/accounts", json={"name": f"Account {year}", "type": "checking"}
-        ).json()
+        acct = make(alice, "Acct", name=f"Account {year}", type="checking").json()
         add(alice, acct["id"], amount="10.00", day=f"{year}-03-02", payee="Opening")
         if year == 2026:  # a long history: its transactions travel in pieces by date
             for month in range(4, 10):
@@ -611,9 +607,7 @@ def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins)
     a, b, ca, cb, _ = admins
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    plan = alice.post(
-        "/ui/api/people", json={"name": "Carol", "sex": "female", "private": True}
-    ).json()
+    plan = make(alice, "GfPln", name="Carol", sex="female", private=True).json()
     make_user(b, "carol")
     linked(ca, cb)
     with a.db.read() as s:
@@ -681,7 +675,7 @@ def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins, monkeypatch
     _a_id, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "Secret Brokerage", "type": "brokerage"})
+    acct = make(alice, "Acct", name="Secret Brokerage", type="brokerage")
     acct = acct.json()
     add(alice, acct["id"], amount="-1234.56", payee="A very private payee")
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
@@ -727,7 +721,7 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
     _a_id, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "Brokerage", "type": "brokerage"}).json()
+    acct = make(alice, "Acct", name="Brokerage", type="brokerage").json()
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
@@ -824,11 +818,9 @@ def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_l
     _, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    rose = alice.post(
-        "/ui/api/persons",
-        json={"name": "Grandma Rose", "sex": "female", "birthMonth": 5, "birthDay": 3,
-              "private": True},
-    ).json()  # fmt: skip
+    rose = make(
+        alice, "Persn", name="Grandma Rose", sex="female", birthMonth=5, birthDay=3, private=True
+    ).json()
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     r = share(alice, "person", rose["id"], users={carol_here["id"]: "read"})
     assert r.status_code == 200, r.text
@@ -884,7 +876,7 @@ def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admi
     _, b_id = linked(ca, cb)
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    acct = alice.post("/ui/api/accounts", json={"name": "Old", "type": "checking"}).json()
+    acct = make(alice, "Acct", name="Old", type="checking").json()
     carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
     words = " ".join(cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"])
@@ -948,7 +940,7 @@ def _shared_receipt(a, ca, cb):
     make_user(a, "alice")
     alice = sign_in(a, "alice")
     a_id, b_id = linked(ca, cb)
-    acct = alice.post("/ui/api/accounts", json={"name": "Checking", "type": "checking"}).json()
+    acct = make(alice, "Acct", name="Checking", type="checking").json()
     t = add(alice, acct["id"], amount="-12.50", payee="Blue Bottle")
     image = png()
     rid = alice.post(
@@ -1021,7 +1013,7 @@ def test_a_failure_after_the_exchange_call_is_recorded_on_the_link(admins):
     _a_id, b_id = linked(ca, cb)
     make_user(b, "bob")
     bob = sign_in(b, "bob")
-    acct = bob.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}).json()
+    acct = make(bob, "Acct", name="Savings", type="savings").json()
     alice_there = next(u for u in links_of(cb)["links"][0]["users"] if u["username"] == "alice")
     assert share(bob, "account", acct["id"], users={alice_there["id"]: "read"}).status_code == 200
     # This side's change can't be delivered after the exchange call went through.

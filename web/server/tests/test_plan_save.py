@@ -4,7 +4,7 @@ the lines read as stored, and saved from a month on, earlier months keeping thei
 import datetime as dt
 
 import pytest
-from edits import edit, saved
+from edits import edit, make, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 from test_reserves import reserves_on
@@ -45,12 +45,16 @@ def test_the_plan_is_read_as_stored_not_as_the_months_figures(server, frozen):
                               {"categoryId": fun, "amount": "200.00"}])  # fmt: skip
     add(c, acct["id"], "-100.00", "2026-11-05", payee="Bistro", categoryId=dining)
     saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", moves=True))
-    r = c.post(
-        f"/ui/api/budgets/{b['id']}/moves",
-        json={"month": "2026-12-01", "fromCategoryId": fun, "toCategoryId": dining,
-              "amount": "40.00"},
-    )  # fmt: skip
-    assert r.status_code == 201, r.text
+    r = make(
+        c,
+        "BdgMv",
+        budgetId=b["id"],
+        month="2026-12-01",
+        fromCategoryId=fun,
+        toCategoryId=dining,
+        amount="40.00",
+    )
+    assert r.status_code == 200, r.text
     figures = row(month(c, b, "2026-12"), "Food › Dining out")
     assert figures["planned"] != "300.00", "the month's figures carry and move"
     got = lines(c, b, "2026-12")
@@ -97,8 +101,7 @@ def test_a_line_changed_from_a_month_planned_meanwhile_is_stale(server, frozen):
 def test_a_yearly_line_saved_unchanged_but_its_month_stays_yearly(server, frozen):
     """CR3-2's envelope case: a yearly line is a year's amount, not a twelfth."""
     c, acct, cat, _ = setup_budget(server)
-    r = c.post("/ui/api/budgets", json={"name": "Envelopes", "method": "envelope",
-                                         "accountIds": [acct["id"]]})  # fmt: skip
+    r = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[acct["id"]])
     b = r.json()
     fun = cat["Entertainment"]
     plan(c, b, "2026-12-01", [{"categoryId": fun, "amount": "1200.00", "cadence": "year"}])

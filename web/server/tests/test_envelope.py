@@ -5,6 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import make
 from test_accounts import add, new_account
 from test_budgets import cats, month, plan, row
 
@@ -26,10 +27,7 @@ def test_to_budget_card_lines_and_owed_not_backed(server, frozen):
     chk = new_account(c)
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
     cat = cats(c)
-    r = c.post(
-        "/ui/api/budgets",
-        json={"name": "Envelopes", "method": "envelope", "accountIds": [chk["id"], card["id"]]},
-    )
+    r = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"], card["id"]])
     b = r.json()
     food, fun = cat["Food"], cat["Entertainment"]
     add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
@@ -78,11 +76,10 @@ def test_to_budget_card_lines_and_owed_not_backed(server, frozen):
     assert (v["toBudget"], line["setAside"], line["notBacked"]) == ("2300.00", "50.00", "60.00")
     # A move from To Budget covers the debt, and another adds to an envelope.
     for body in ({"cardId": card["id"]}, {"toCategoryId": food}):
-        r = c.post(
-            f"/ui/api/budgets/{b['id']}/moves",
-            json={"month": "2026-10-01", "amount": "60.00"} | body,
+        r = make(
+            c, "BdgMv", **{"budgetId": b["id"], **{"month": "2026-10-01", "amount": "60.00"} | body}
         )
-        assert r.status_code == 201, r.text
+        assert r.status_code == 200, r.text
     v = view()
     (line,) = v["cards"]
     assert (v["toBudget"], v["assignedByMoves"], line["notBacked"]) == ("2180.00", "120.00", "0.00")
@@ -95,10 +92,7 @@ def test_an_overspent_envelope_carried_or_taken_from_next_month(server, frozen):
     c = sign_in(server, "alice")
     chk = new_account(c)
     cat = cats(c)
-    b = c.post(
-        "/ui/api/budgets",
-        json={"name": "Envelopes", "method": "envelope", "accountIds": [chk["id"]]},
-    ).json()
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
     food, fun = cat["Food"], cat["Entertainment"]
     add(c, chk["id"], "2000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
     plan(
@@ -122,8 +116,5 @@ def test_an_overspent_envelope_carried_or_taken_from_next_month(server, frozen):
     assert row(nov, "Entertainment")["carried"] == "0.00"
     # So November's To Budget is what is left after the shortfall: 1530 cash, less 260 and 100.
     assert nov["toBudget"] == "1170.00"
-    bad = c.post(
-        f"/ui/api/budgets/{b['id']}/moves",
-        json={"month": "2026-10-01", "amount": "5", "cardId": chk["id"]},
-    )
+    bad = make(c, "BdgMv", budgetId=b["id"], month="2026-10-01", amount="5", cardId=chk["id"])
     assert bad.status_code == 422

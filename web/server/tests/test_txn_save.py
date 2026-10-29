@@ -4,7 +4,7 @@ S2.6, S2.9, S7.3.5, S12.15, S13.8.11)."""
 import datetime as dt
 
 import pytest
-from edits import asked, change, reconcile, remove, saved
+from edits import asked, change, make, reconcile, remove, saved
 from test_budgets import setup_budget
 from test_save import made_at
 
@@ -69,17 +69,19 @@ def test_a_part_changed_or_taken_away_keeps_the_others_and_their_paybacks(server
     t = c.get(f"/ui/api/transactions/{txn}").json()
     by = {str(x["amount"]): x for x in t["splits"]}
     first, second, owed = by["-50.00"], by["-30.00"], by["-20.00"]
-    deposit = c.post(
-        "/ui/api/transactions",
-        json={"accountId": acct["id"], "date": "2026-10-09", "amount": "20.00", "kind": "deposit",
-              "payee": "Acme"},
-    ).json()  # fmt: skip
-    r = c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": txn, "splitId": owed["id"], "paybackId": deposit["id"],
-              "amount": "20.00"},
-    )  # fmt: skip
-    assert r.status_code == 201, r.text
+    deposit = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2026-10-09",
+        amount="20.00",
+        kind="deposit",
+        payee="Acme",
+    ).json()
+    r = make(
+        c, "Rmbrs", spendingId=txn, splitId=owed["id"], paybackId=deposit["id"], amount="20.00"
+    )
+    assert r.status_code == 200, r.text
     ops = [
         {"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
          "fields": {"amount": "-80.00"}},
@@ -113,7 +115,7 @@ def test_deleting_a_transaction_in_a_reconciled_period_asks_first(server, frozen
 
 def test_a_transaction_keeps_its_account(server, frozen):
     c, acct, cat, _ = setup_budget(server)
-    other = c.post("/ui/api/accounts", json={"name": "Savings", "type": "savings"}).json()
+    other = make(c, "Acct", name="Savings", type="savings").json()
     _, txn = made(c, acct, cat, [])
     t = c.get(f"/ui/api/transactions/{txn}").json()
     r = change(c, "Txn", t, accountId=other["id"])
@@ -129,7 +131,7 @@ def test_left_out_of_a_budget_from_the_transactions_draft(server, frozen):
     assert t["leftOutOf"] == [b["id"]]
     (row,) = c.get(f"/ui/api/transactions/{txn}/budgets").json()["items"]
     assert row["leftOut"]
-    other = c.post("/ui/api/budgets", json={"name": "Other", "accountIds": []}).json()
+    other = make(c, "Bdgt", name="Other", accountIds=[]).json()
     r = change(c, "Txn", t, leftOutOf={"add": [other["id"]], "remove": []})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-in-budget"
 

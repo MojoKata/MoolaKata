@@ -11,6 +11,8 @@ from moolakata_connector import client
 from moolakata_connector.core import Core
 from server_conftest import ORIGIN, make_user, sign_in
 
+from moolakata import ids
+
 BANK = "ofx.cu.example"
 
 
@@ -82,20 +84,14 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     # Alice makes a Connection to her credit union and syncs her checking account to it.
     alice = make_user(server, "alice").id
     c = sign_in(server, "alice")
-    conn = c.post(
-        "/ui/api/profile/connections",
-        json={
-            "driver": "ofx-direct",
-            "label": "Credit union",
-            "settings": {
-                "url": f"https://{BANK}/ofx",
-                "org": "CU",
-                "fid": "1",
-                "accountType": "CHECKING",
-                "accountId": "4417",
-            },
-        },
-    ).json()["connection"]
+    # The connection made as the profile's dialog makes it, through the save (S13.8.11).
+    settings = {"url": f"https://{BANK}/ofx", "org": "CU", "fid": "1",
+                "accountType": "CHECKING", "accountId": "4417"}  # fmt: skip
+    fields = {"driver": "ofx-direct", "label": "Credit union", "settings": settings}
+    made = {"op": "create", "entity": "Conn", "id": ids.new_id("Conn"), "fields": fields}
+    r = c.post("/ui/api/save", json={"ops": [made]})
+    assert r.status_code == 200, r.text
+    conn = r.json()["saved"][0]["record"]
     with server.db.tx() as s:
         a = Account(
             id="Acct_01m4zzbtececftrsacpbatewws", ownerId=alice, name="Checking", type="checking"

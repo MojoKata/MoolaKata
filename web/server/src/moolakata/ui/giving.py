@@ -285,16 +285,6 @@ def list_organisations(request: Request, c: Caller = Depends(caller)):
         return _orgs_view(s, c)
 
 
-@router.post("/giving/organisations", response_model=OrganisationOut, status_code=201)
-def add_organisation(body: OrganisationIn, request: Request, c: Caller = Depends(caller)):
-    values = _org_values(body)
-    with server(request).db.tx() as s:
-        o = Organisation(id=ids.new_id("Orgzn"), ownerId=c.id, **values)
-        s.add(o)
-        s.flush()
-        return next(x for x in _orgs_view(s, c) if x.id == o.id)
-
-
 def _own_org(s, c: Caller, org_id: str) -> Organisation:
     o = s.get(Organisation, org_id)
     if o is None or o.deleted or o.ownerId != c.id:
@@ -561,14 +551,6 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
 
 def _out(s, c: Caller, d: Donation) -> DonationOut:
     return next(x for x in donations_view(s, c, d.date.year) if x.id == d.id)
-
-
-@router.post("/giving/donations", response_model=DonationOut, status_code=201)
-def add_donation(body: DonationIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        d = _record(s, c, body)
-        activity.record(s, "donation.recorded", actor=c.id, owner=c.id)
-        return _out(s, c, d)
 
 
 def _own(s, c: Caller, donation_id: str) -> Donation:

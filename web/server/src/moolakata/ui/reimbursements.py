@@ -4,10 +4,9 @@ may pay it back, and pairing them."""
 import datetime as dt
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
 from sqlalchemy import false, select
 
-from .. import access, activity, budgets, clock, ids, reimbursements
+from .. import access, activity, budgets, clock, reimbursements
 from ..errors import Problem, refuse
 from ..store.entities.accounts import Account, Reimbursement, Split, Transaction
 from . import save
@@ -174,16 +173,6 @@ def _pair(s, c: Caller, body: PairIn, pair_id: str) -> Reimbursement:
         owner=a.ownerId,
     )
     return r
-
-
-@router.post("/reimbursements", response_model=PairOut, status_code=201)
-def pair(body: PairIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        r = _pair(s, c, body, ids.new_id("Rmbrs"))
-        s.flush()
-        out = _out(r)
-    # Read only within the transactions it pairs: no route of its own (S13.8.4).
-    return JSONResponse(out.model_dump(mode="json"), status_code=201)
 
 
 def _pair_editable(ctx, record_id: str) -> Reimbursement:

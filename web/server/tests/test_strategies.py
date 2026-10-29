@@ -4,7 +4,7 @@ mockup's worked numbers; then grouping, proposals, rolls and undo through the AP
 import datetime as dt
 from decimal import Decimal as D
 
-from edits import change, create, remove, saved
+from edits import change, create, make, remove, saved
 
 from moolakata.options.strategies import Leg, capital_at_risk, figures, shape
 
@@ -161,19 +161,18 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
 
 def test_a_short_call_against_shares_is_proposed_as_a_covered_call(alice):
     a = new_account(alice, type="brokerage")["id"]
-    r = alice.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": a,
-            "date": "2026-01-05",
-            "kind": "buy",
-            "symbol": "MSFT",
-            "quantity": "100",
-            "price": "400",
-            "amount": "-40000.00",
-        },
+    r = make(
+        alice,
+        "Txn",
+        accountId=a,
+        date="2026-01-05",
+        kind="buy",
+        symbol="MSFT",
+        quantity="100",
+        price="400",
+        amount="-40000.00",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     option(alice, a, "sell-to-open", "2026-09-15", "4.12", right="call", strike="500", fees="0")
     [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
     assert (p["kind"], p["shape"]) == ("covered-call", "Covered call")

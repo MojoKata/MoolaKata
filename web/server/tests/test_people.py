@@ -7,7 +7,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, remove, saved, share
+from edits import change, make, remove, saved, share
 from test_accounts import new_account
 from test_positions import trade
 
@@ -37,17 +37,14 @@ def me(c) -> str:
 
 
 def add(c, name, sex="female", **kw):
-    r = c.post("/ui/api/persons", json={"name": name, "sex": sex, **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "Persn", **{"name": name, "sex": sex, **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
 def relate(c, a, b, relation, **kw):
-    r = c.post(
-        "/ui/api/relationships",
-        json={"person1Id": a, "person2Id": b, "relation": relation, **kw},
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Rltn", **{"person1Id": a, "person2Id": b, "relation": relation, **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -66,9 +63,11 @@ def test_one_person_once_and_asking_to_share_a_private_one(server, two):
     alice, bob = two
     priya = add(alice, "Priya Shah", private=True, birthYear=1985)
     assert "Priya Shah" not in {x["name"] for x in bob.get("/ui/api/persons").json()["items"]}
-    r = bob.post("/ui/api/persons", json={"name": "priya shah", "sex": "female"})
-    assert r.status_code == 409 and r.json()["code"] == "person-exists"
-    assert r.json()["person"] == {
+    r = make(bob, "Persn", name="priya shah", sex="female")
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "person-exists"
+    # The dialog then reads who it would be (S10.10.3).
+    clash = bob.get("/ui/api/persons/clash", params={"name": "priya shah"}).json()
+    assert clash == {
         "id": priya["id"],
         "name": "Priya Shah",
         "visible": False,
@@ -76,16 +75,12 @@ def test_one_person_once_and_asking_to_share_a_private_one(server, two):
         "createdBy": "Alice",
     }
     # A different person is told apart by both birth years.
-    r = bob.post(
-        "/ui/api/persons",
-        json={"name": "Priya Shah", "sex": "female", "differentPerson": True},
-    )
+    r = make(bob, "Persn", name="Priya Shah", sex="female", differentPerson=True)
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "birthYear"
-    other = bob.post(
-        "/ui/api/persons",
-        json={"name": "Priya Shah", "sex": "female", "birthYear": 1990, "differentPerson": True},
+    other = make(
+        bob, "Persn", name="Priya Shah", sex="female", birthYear=1990, differentPerson=True
     )
-    assert other.status_code == 201
+    assert other.status_code == 200
     # Asking to share raises an alert for whoever added her, and for the admins.
     assert bob.post(f"/ui/api/persons/{priya['id']}/ask-to-share").json() == {"asked": True}
     opened = alerts.evaluate(server)
@@ -126,23 +121,14 @@ def test_relationships_are_added_by_those_in_them_and_kept_sound(server, two):
     assert sp["person1"]["id"] < sp["person2"]["id"], "a two-way relation is kept ordered"
     relate(alice, a, emma["id"], "child")
     # Bob isn't in Emma and Carol's relationship, and isn't an admin.
-    r = bob.post(
-        "/ui/api/relationships",
-        json={"person1Id": emma["id"], "person2Id": carol["id"], "relation": "family"},
-    )
+    r = make(bob, "Rltn", person1Id=emma["id"], person2Id=carol["id"], relation="family")
     assert r.status_code == 403
     # At most one spouse at a time.
-    r = alice.post(
-        "/ui/api/relationships",
-        json={"person1Id": a, "person2Id": carol["id"], "relation": "spouse"},
-    )
-    assert r.status_code == 422 and r.json()["code"] == "one-spouse"
+    r = make(alice, "Rltn", person1Id=a, person2Id=carol["id"], relation="spouse")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "one-spouse"
     # No one is their own ancestor.
-    r = alice.post(
-        "/ui/api/relationships",
-        json={"person1Id": emma["id"], "person2Id": a, "relation": "child"},
-    )
-    assert r.status_code == 422 and r.json()["code"] == "ancestor-loop"
+    r = make(alice, "Rltn", person1Id=emma["id"], person2Id=a, relation="child")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "ancestor-loop"
     words = {x["name"]: x["word"] for x in alice.get("/ui/api/profile").json()["relations"]}
     assert words == {"Bob": "husband", "Emma Griffin": "daughter"}
 
@@ -283,26 +269,24 @@ def test_a_joint_book_needs_a_marriage_on_the_last_day_or_a_death_that_year(serv
     made = relate(alice, a, b, "spouse", fromDate="2009-06-14", toDate="2025-06-01")
 
     def joint(year):
-        return alice.post("/ui/api/tax-books", json={"year": year, "filers": [a_id, b_id]})
+        return make(alice, "TaxBk", year=year, filers=[a_id, b_id])
 
     assert joint(2024).status_code == 422, "not yet confirmed by Bob"
     assert bob.post(f"/ui/api/relationships/{made['id']}/confirm").status_code == 200
-    assert joint(2024).status_code == 201
+    assert joint(2024).status_code == 200
     assert joint(2025).status_code == 422, "divorced before the year ended"
     with server.db.tx() as s:
         rel = s.query(Relationship).one()
         rel.toDate = None
         s.get(Person, b).diedOn = dt.date(2025, 6, 1)
-    assert joint(2025).status_code == 201, "widowed in the year: still joint"
+    assert joint(2025).status_code == 200, "widowed in the year: still joint"
     assert joint(2026).status_code == 422
 
 
 def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_private(two):
     alice, bob = two
-    r = alice.post(
-        "/ui/api/people", json={"name": "Ruth Griffin", "sex": "female", "birthYear": 1940}
-    )
-    assert r.status_code == 201, r.text
+    r = make(alice, "GfPln", name="Ruth Griffin", sex="female", birthYear=1940)
+    assert r.status_code == 200, r.text
     ruth = r.json()
     assert ruth["canMakePrivate"] and not ruth["isUser"] and not ruth["private"]
     person = {"id": ruth["id"], "version": ruth["personVersion"]}
@@ -314,8 +298,8 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     pid = r["id"]
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
     assert share(alice, "person", pid, users={bob_id: "read"}).status_code == 200
-    r = bob.post("/ui/api/people", json={"personId": pid})
-    assert r.status_code == 201, r.text
+    r = make(bob, "GfPln", personId=pid)
+    assert r.status_code == 200, r.text
     assert not r.json()["canMakePrivate"]
     plan = {"id": r.json()["planId"], "version": r.json()["version"]}
     saved(change(bob, "GfPln", plan, notes="likes tea"))
@@ -344,8 +328,8 @@ def test_a_person_who_becomes_a_user_is_theirs_to_change(server, two):
     from moolakata.store.entities.users import User
 
     alice, _ = two
-    made = alice.post("/ui/api/persons", json={"name": "Dana Ortiz", "sex": "female"})
-    assert made.status_code == 201, made.text
+    made = make(alice, "Persn", name="Dana Ortiz", sex="female")
+    assert made.status_code == 200, made.text
     person = made.json()
     assert person["canChange"]
     from moolakata import settings

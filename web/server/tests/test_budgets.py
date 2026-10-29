@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, drop, edit, loan_payment, saved, share, terms
+from edits import change, drop, edit, loan_payment, make, saved, share, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -31,8 +31,8 @@ def setup_budget(server):
     c = sign_in(server, "alice")
     acct = new_account(c)
     cat = cats(c)
-    r = c.post("/ui/api/budgets", json={"name": "Household", "accountIds": [acct["id"]]})
-    assert r.status_code == 201, r.text
+    r = make(c, "Bdgt", name="Household", accountIds=[acct["id"]])
+    assert r.status_code == 200, r.text
     return c, acct, cat, r.json()
 
 
@@ -188,20 +188,19 @@ def test_a_yearly_line_compares_with_the_year_to_date(server, frozen):
 def test_matched_transfers_and_splits(server, frozen):
     c, acct, cat, b = setup_budget(server)
     plan(c, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2026-10-04",
-            "amount": "-100.00",
-            "payee": "Target",
-            "splits": [
-                {"amount": "-60.00", "categoryId": cat["Food › Groceries"]},
-                {"amount": "-40.00", "categoryId": cat["Personal › Clothing"]},
-            ],
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2026-10-04",
+        amount="-100.00",
+        payee="Target",
+        splits=[
+            {"amount": "-60.00", "categoryId": cat["Food › Groceries"]},
+            {"amount": "-40.00", "categoryId": cat["Personal › Clothing"]},
+        ],
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "60.00"
 
 
@@ -225,16 +224,15 @@ def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client)
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     assert bob.get(f"/ui/api/budgets/{b['id']}/month").status_code == 404
-    groups = admin_client.post(
-        "/ui/api/groups",
-        json={
-            "name": "Household",
-            "memberIds": [
-                u["id"]
-                for u in admin_client.get("/ui/api/users").json()["items"]
-                if u["username"] in ("alice", "bob")
-            ],
-        },
+    groups = make(
+        admin_client,
+        "Group",
+        name="Household",
+        memberIds=[
+            u["id"]
+            for u in admin_client.get("/ui/api/users").json()["items"]
+            if u["username"] in ("alice", "bob")
+        ],
     ).json()
     r = share(c, "budget", b["id"], users={}, groups={groups["id"]: "write"})
     assert r.status_code == 200, r.text

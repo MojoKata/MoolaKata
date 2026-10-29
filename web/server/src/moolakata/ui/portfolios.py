@@ -6,11 +6,10 @@ import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, figures, ids, valuation
+from .. import access, activity, clock, figures, valuation
 from ..errors import FieldError, Problem, refuse
 from ..ledger import performance as perf
 from ..ledger import types as atypes
@@ -50,13 +49,6 @@ class PortfolioRow(Model):
     sharedWith: int
     notes: str | None
     version: int
-
-
-class NewPortfolio(Model):
-    name: str
-    accountIds: list[str] = Field(default_factory=list)
-    benchmark: str = "VT"
-    notes: str | None = None
 
 
 def member_ids(s, portfolio_id: str) -> list[str]:
@@ -201,37 +193,6 @@ def list_portfolios(request: Request, c: Caller = Depends(caller)):
         return [shape(s, c.user, None, "owner")] + [
             shape(s, c.user, p, lvl) for p, lvl in access.visible_portfolios(s, c.id)
         ]
-
-
-@router.post("/portfolios", response_model=PortfolioRow, status_code=201)
-def create_portfolio(body: NewPortfolio, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        _raise(_check(s, c.id, body))
-        p = Portfolio(
-            id=ids.new_id("Portf"),
-            ownerId=c.id,
-            name=body.name.strip(),
-            benchmark=body.benchmark,
-            notes=body.notes,
-        )
-        s.add(p)
-        s.flush()
-        _set_members(s, p, body.accountIds, c.id)
-        activity.record(
-            s,
-            "portfolio.created",
-            actor=c.id,
-            subject_kind="portfolio",
-            subject_id=p.id,
-            owner=c.id,
-        )
-        s.flush()
-        out = shape(s, c.user, p, "owner")
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/portfolios/{p.id}"},
-    )
 
 
 @router.get("/portfolios/{portfolio_id}", response_model=PortfolioRow)

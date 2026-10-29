@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, people, receipts
+from .. import access, activity, clock, exactjson, people, receipts
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.taxes import (
@@ -105,13 +105,6 @@ class NewBookOut(BookRow):
     dependentsLeftOut: list[str]  # last year's, past a qualifying child's age (S8.14.5.4)
 
 
-class NewBook(Model):
-    year: int
-    filers: list[str]
-    fromLastYear: bool = True
-    bitcoinFees: str = "sale"  # or not-taxed, on transfers between the owner's accounts
-
-
 def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
     """A book for a year and its filers: the caller, alone or with their spouse. With
     *from last year*, it copies last year's accounts left out or added, and its dependents a
@@ -155,13 +148,6 @@ def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
     )
     s.flush()
     return b, left
-
-
-@router.post("/tax-books", response_model=NewBookOut, status_code=201)
-def create_book(body: NewBook, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, left = _make_book(s, c, body, ids.new_id("TaxBk"))
-        return NewBookOut(**_row(s, b, "owner").model_dump(), dependentsLeftOut=left)
 
 
 def _from_last_year(s, b: TaxBook, now: dt.datetime) -> list[str]:
@@ -674,20 +660,6 @@ def _dependent_values(s, c: Caller, b: TaxBook, body: DependentIn, row_id: str |
     }
 
 
-@router.post("/tax-books/{book_id}/dependents", response_model=BookDetail, status_code=201)
-def add_dependent(book_id: str, body: DependentIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        d = TaxBookDependent(
-            id=ids.new_id("TxDep"), bookId=b.id, **_dependent_values(s, c, b, body, None)
-        )
-        s.add(d)
-        s.flush()
-        dependents.set_accounts(s, d, list(dict.fromkeys(body.accountIds)), clock.now())
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
 def _own_dependent(s, c: Caller, dep_id: str) -> tuple[TaxBookDependent, TaxBook, str]:
     d = s.get(TaxBookDependent, dep_id)
     if d is None or d.deleted:
@@ -795,37 +767,6 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
     }
 
 
-def _set_payments(s, f: Filing, pays: list[Payment], user_id: str) -> None:
-    for p in s.scalars(select(EstimatedPayment).where(EstimatedPayment.filingId == f.id)):
-        if not p.deleted:
-            p.mark_deleted(user_id)
-    for p in pays:
-        s.add(
-            EstimatedPayment(
-                id=ids.new_id("EstPy"),
-                filingId=f.id,
-                quarter=p.quarter,
-                dueDate=p.dueDate,
-                amount=p.amount,
-                paidOn=p.paidOn,
-                transactionId=p.transactionId or None,
-            )
-        )
-
-
-@router.post("/tax-books/{book_id}/filings", response_model=BookDetail, status_code=201)
-def add_filing(book_id: str, body: FilingIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        f = Filing(id=ids.new_id("Filng"), bookId=b.id, **_filing_values(s, c, b, body))
-        s.add(f)
-        s.flush()
-        _set_payments(s, f, body.payments, c.id)
-        _amending(s, c, b, f)
-        s.flush()
-        return detail(s, c, b, lvl)
-
-
 def _amending(s, c: Caller, b: TaxBook, f: Filing) -> None:
     """A filing made an amended federal return settles the edits made anyway before it
     (S8.15); one changed afterwards settles nothing more (CR3-35)."""
@@ -881,15 +822,6 @@ def _doc_values(s, c: Caller, b: TaxBook, body: DocumentIn, had: str | None = No
         "receiptId": body.receiptId or None,
         "notes": body.notes or None,
     }
-
-
-@router.post("/tax-books/{book_id}/documents", response_model=BookDetail, status_code=201)
-def add_document(book_id: str, body: DocumentIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        b, lvl = books.get(s, c.id, book_id, "write")
-        s.add(TaxDocument(id=ids.new_id("TxDoc"), bookId=b.id, **_doc_values(s, c, b, body)))
-        s.flush()
-        return detail(s, c, b, lvl)
 
 
 def _own_doc(s, c: Caller, doc_id: str) -> tuple[TaxDocument, TaxBook, str]:

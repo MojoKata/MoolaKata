@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, assets, clock, ids, loans, receipts, valuation
+from .. import access, activity, assets, clock, loans, receipts, valuation
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation
@@ -173,12 +173,6 @@ class ImprovementIn(Model):
     date: dt.date
     description: str
     amount: Money
-
-
-class SaleIn(Model):
-    soldOn: dt.date
-    proceeds: Money
-    fees: Money = Decimal(0)
 
 
 class DocumentIn(Model):
@@ -437,73 +431,10 @@ def list_items(account_id: str, request: Request, c: Caller = Depends(caller)):
         return view(s, a, lvl)
 
 
-@router.post("/accounts/{account_id}/items", response_model=ItemDetail, status_code=201)
-def add_item(account_id: str, body: ItemIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        values = _values(body, a.type)
-        it = Item(id=ids.new_id("Item"), accountId=a.id, createdById=c.id, **values)
-        s.add(it)
-        if it.metal:
-            assets.metal_instrument(s, it.metal)  # so the refresh prices its spot
-        s.flush()
-        _record(s, "item.added", c, a)
-        return detail(s, c, it, a, lvl)
-
-
 @router.get("/items/{item_id}", response_model=ItemDetail)
 def get_item(item_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
         it, a, lvl = _item(s, c, item_id)
-        return detail(s, c, it, a, lvl)
-
-
-@router.post("/items/{item_id}/valuations", response_model=ItemDetail, status_code=201)
-def add_valuation(item_id: str, body: ValuationIn, request: Request, c: Caller = Depends(caller)):
-    if body.value < 0:
-        raise refuse("value", "amount-invalid", "Zero or more.")
-    if body.source not in SOURCES:
-        raise refuse("source", "source-invalid", "Appraisal, sale, guide or estimate.")
-    if body.date > clock.today():
-        raise refuse("date", "date-ahead", "Not after today.")
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        s.add(
-            ItemValuation(
-                id=ids.new_id("Valtn"),
-                itemId=it.id,
-                date=body.date,
-                value=body.value,
-                source=body.source,
-                note=_clean(body.note),
-                createdById=c.id,
-            )
-        )
-        s.flush()
-        return detail(s, c, it, a, lvl)
-
-
-@router.post("/items/{item_id}/improvements", response_model=ItemDetail, status_code=201)
-def add_improvement(
-    item_id: str, body: ImprovementIn, request: Request, c: Caller = Depends(caller)
-):
-    if not body.description.strip():
-        raise refuse("description", "description-missing", "What was done.")
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "More than zero.")
-    with server(request).db.tx() as s:
-        it, a, lvl = _item(s, c, item_id, "write")
-        s.add(
-            Improvement(
-                id=ids.new_id("Imprv"),
-                itemId=it.id,
-                date=body.date,
-                description=body.description.strip(),
-                amount=body.amount,
-                createdById=c.id,
-            )
-        )
-        s.flush()
         return detail(s, c, it, a, lvl)
 
 

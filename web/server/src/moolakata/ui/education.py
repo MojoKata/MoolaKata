@@ -260,14 +260,6 @@ class ContributionsView(Model):
     canWrite: bool
 
 
-class ContributionIn(Model):
-    date: dt.date
-    amount: Money
-    contributor: str = "owner"  # owner, person:<id>, or user:<id> for their person
-    fiveYear: bool = False
-    fromAccountId: str | None = None  # its half of the transfer is made too
-
-
 def _contributor(s, c: Caller, key: str, owner_id: str) -> str | None:
     if key == "owner":
         return None
@@ -309,22 +301,6 @@ def contributions_view(s, a: Account, lvl: str) -> ContributionsView:
         years=[GiftYearOut(**g.__dict__) for g in education.gift_years(s, rows)],
         canWrite=lvl in ("owner", "write"),
     )
-
-
-def _tag(s, txn_id: str, from_person, five: bool) -> None:
-    row = _tag_of(s, txn_id)
-    if row is None:
-        s.add(
-            Contribution(
-                id=ids.new_id("Cntrb"),
-                transactionId=txn_id,
-                fromPersonId=from_person,
-                fiveYear=five,
-            )
-        )
-    else:
-        row.fromPersonId, row.fiveYear = from_person, five
-        row.updatedAt = clock.now()
 
 
 @router.get("/accounts/{account_id}/contributions", response_model=ContributionsView)
@@ -369,22 +345,6 @@ def _new_deposit(s, c: Caller, a: Account, body) -> Transaction:
     activity.record(s, "529.contribution", actor=c.id, subject_kind="account",
                     subject_id=a.id, owner=a.ownerId)  # fmt: skip
     return txn
-
-
-@router.post(
-    "/accounts/{account_id}/contributions", response_model=ContributionsView, status_code=201
-)
-def add_contribution(
-    account_id: str, body: ContributionIn, request: Request, c: Caller = Depends(caller)
-):
-    """A deposit into the 529, with who made it; from a bank account, both halves."""
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        from_person = _contributor(s, c, body.contributor, a.ownerId)
-        txn = _new_deposit(s, c, a, body)
-        _tag(s, txn.id, from_person, body.fiveYear)
-        s.flush()
-        return contributions_view(s, a, lvl)
 
 
 class ContributionRecord(Model):
@@ -552,16 +512,6 @@ def _expense_values(body) -> dict:
         "description": (body.description or "").strip() or None,
         "amount": body.amount,
     }
-
-
-@router.post("/accounts/{account_id}/expenses", response_model=WithdrawalsView, status_code=201)
-def add_expense(account_id: str, body: ExpenseIn, request: Request, c: Caller = Depends(caller)):
-    values = _expense_values(body)
-    with server(request).db.tx() as s:
-        a, lvl = _account(s, c, account_id, "write")
-        s.add(QualifiedExpense(id=ids.new_id("QExpn"), accountId=a.id, **values))
-        s.flush()
-        return withdrawals_view(s, c, a, lvl)
 
 
 def _expense(s, c: Caller, expense_id: str) -> tuple[QualifiedExpense, Account, str]:

@@ -5,7 +5,7 @@ the account's Sync using MoolaKata Connector switch for its owner alone, and Rem
 import pytest
 from conftest import make_user, sign_in
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from edits import change, remove, saved, share
+from edits import change, make, remove, saved, share
 from test_connector import FakeConnector, pair_code
 
 from moolakata import ids
@@ -80,24 +80,17 @@ def test_a_user_makes_a_connection_seals_credentials_and_the_connector_collects_
 ):
     make_user(server, "alice")
     c = sign_in(server, "alice")
-    r = c.post(
-        "/ui/api/profile/connections",
-        json={"driver": "schwab", "label": "My Schwab login", "settings": {"appKey": "k1"}},
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Conn", driver="schwab", label="My Schwab login", settings={"appKey": "k1"})
+    assert r.status_code == 200, r.text
     made = r.json()
-    cid = made["connection"]["id"]
-    assert made["connection"]["state"] == "new" and made["connection"]["driver"] == "schwab"
-    assert made["command"] == f"docker compose exec connector moolakata-connector connect {cid}"
+    cid = made["id"]
+    assert made["state"] == "new" and made["driver"] == "schwab"
     # The same name twice, an unknown driver and missing settings are refused at their field.
-    r = c.post(
-        "/ui/api/profile/connections",
-        json={"driver": "schwab", "label": "My Schwab login", "settings": {"appKey": "k1"}},
-    )
+    r = make(c, "Conn", driver="schwab", label="My Schwab login", settings={"appKey": "k1"})
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "label"
-    r = c.post("/ui/api/profile/connections", json={"driver": "plaid", "label": "x"})
+    r = make(c, "Conn", driver="plaid", label="x")
     assert r.json()["errors"][0]["field"] == "driver"
-    r = c.post("/ui/api/profile/connections", json={"driver": "ofx-direct", "label": "CU"})
+    r = make(c, "Conn", driver="ofx-direct", label="CU")
     assert r.json()["errors"][0]["field"] == "settings.url"
     # The credential, sealed to the connector's key, is kept as it is and handed over.
     public = keys.unb64(c.get("/ui/api/connector").json()["sealingKey"])
@@ -139,34 +132,32 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     make_user(server, "alice")
     make_user(server, "bob")
     alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
-    cid = alice.post(
-        "/ui/api/profile/connections",
-        json={
-            "driver": "ofx-direct",
-            "label": "Credit union",
-            "settings": {
-                "url": "https://ofx.cu.example/ofx",
-                "org": "CU",
-                "fid": "1",
-                "accountType": "CHECKING",
-                "accountId": "4417",
-            },
+    cid = make(
+        alice,
+        "Conn",
+        driver="ofx-direct",
+        label="Credit union",
+        settings={
+            "url": "https://ofx.cu.example/ofx",
+            "org": "CU",
+            "fid": "1",
+            "accountType": "CHECKING",
+            "accountId": "4417",
         },
-    ).json()["connection"]["id"]
-    bobs = bob.post(
-        "/ui/api/profile/connections",
-        json={
-            "driver": "ofx-direct",
-            "label": "Credit union",
-            "settings": {
-                "url": "https://ofx.cu.example/ofx",
-                "org": "CU",
-                "fid": "1",
-                "accountType": "CHECKING",
-                "accountId": "4417",
-            },
+    ).json()["id"]
+    bobs = make(
+        bob,
+        "Conn",
+        driver="ofx-direct",
+        label="Credit union",
+        settings={
+            "url": "https://ofx.cu.example/ofx",
+            "org": "CU",
+            "fid": "1",
+            "accountType": "CHECKING",
+            "accountId": "4417",
         },
-    ).json()["connection"]["id"]
+    ).json()["id"]
     aid = account(server, alice.get("/ui/api/session").json()["user"]["id"])
     a = alice.get(f"/ui/api/accounts/{aid}").json()
     assert a["connectionId"] is None
@@ -203,10 +194,7 @@ def test_a_watched_folder_is_no_driver(server, paired):
     a folder on the server."""
     make_user(server, "alice")
     c = sign_in(server, "alice")
-    r = c.post(
-        "/ui/api/profile/connections",
-        json={"driver": "folder", "label": "Downloads", "settings": {"path": "in"}},
-    )
+    r = make(c, "Conn", driver="folder", label="Downloads", settings={"path": "in"})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "driver-invalid"
 
 
@@ -214,18 +202,17 @@ def test_a_connection_needs_a_paired_connector(server, admin_client):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     assert c.get("/ui/api/connector").json()["paired"] is False
-    r = c.post(
-        "/ui/api/profile/connections",
-        json={
-            "driver": "ofx-direct",
-            "label": "Credit union",
-            "settings": {
-                "url": "https://ofx.cu.example/ofx",
-                "org": "CU",
-                "fid": "1",
-                "accountType": "CHECKING",
-                "accountId": "4417",
-            },
+    r = make(
+        c,
+        "Conn",
+        driver="ofx-direct",
+        label="Credit union",
+        settings={
+            "url": "https://ofx.cu.example/ofx",
+            "org": "CU",
+            "fid": "1",
+            "accountType": "CHECKING",
+            "accountId": "4417",
         },
     )
-    assert r.status_code == 409 and r.json()["code"] == "no-connector"
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "no-connector"

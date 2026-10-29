@@ -484,6 +484,7 @@ export const FIELDS = {
     cleared: {"type": "bool"},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},
+    splitRatio: {"type": "quantity", "nullable": true},
     right: {"type": "text", "nullable": true},
     strike: {"type": "quantity", "nullable": true},
     expiry: {"type": "date", "nullable": true},

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import activity, clock, ids
+from .. import activity, clock
 from ..connector import manage, sealed
 from ..errors import FieldError, Problem, refuse
 from ..links import keys
@@ -67,11 +67,6 @@ class Credential(Model):
     """A credential sealed in the browser to the connector's sealing key: the box as it is."""
 
     sealed: str
-
-
-class ConnectionMade(Model):
-    connection: ConnectionOut
-    command: str  # for the stricter way: typed on the connector's host (S18.7.2)
 
 
 def _info(s) -> ConnectorInfo:
@@ -192,13 +187,6 @@ def _make(s, c: Caller, body: NewConnection, connection_id: str) -> Connection:
         detail={"driver": body.driver, "label": label},
     )
     return conn
-
-
-@router.post("/profile/connections", response_model=ConnectionMade, status_code=201)
-def new_connection(body: NewConnection, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        conn = _make(s, c, body, ids.new_id("Conn"))
-        return ConnectionMade(connection=connection_out(s, conn), command=command(conn.id))
 
 
 def command(connection_id: str) -> str:

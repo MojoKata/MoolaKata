@@ -113,16 +113,6 @@ def _made(s, c: Caller, body: NewToken, token_id: str | None = None) -> TokenMad
     return TokenMade(token=_out(t, names), secret=secret)
 
 
-@router.post("/profile/tokens", response_model=TokenMade, status_code=201)
-def make_token(body: NewToken, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        made = _made(s, c, body)
-        tokens.tell_made(
-            s, server(request).services, s.get(User, c.id), s.get(AccessToken, made.token.id)
-        )
-        return made
-
-
 # ---------- a token in a dialog's draft (S12.15, S13.8.11) ----------
 
 

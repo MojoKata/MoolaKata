@@ -7,7 +7,6 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, sharing
 from ..errors import Problem, refuse
-from ..store.entities.accounts import Account
 from ..store.entities.sharing import CountedAccount, Share
 from ..store.entities.users import Group, User, UserGroup
 from ..store.rows import by_key
@@ -485,13 +484,3 @@ def counted_for(s, user_id: str) -> set[str]:
             )
         )
     )
-
-
-def shared_counts(s, owner_id: str) -> dict[str, int]:
-    """How many people hold each of an owner's accounts besides the owner."""
-    out = {}
-    for a in s.scalars(
-        select(Account).where(Account.ownerId == owner_id, Account.deleted == false())
-    ):
-        out[a.id] = len(access.holders(s, "account", a.id, owner_id)) - 1
-    return out

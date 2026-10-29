@@ -2635,6 +2635,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Agi"
           },
           "basis8606": {
@@ -2650,6 +2651,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Basis8606"
           },
           "capitalLossLong": {
@@ -2665,6 +2667,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Capitallosslong"
           },
           "capitalLossShort": {
@@ -2680,6 +2683,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Capitallossshort"
           },
           "charitableCarryover": {
@@ -2695,6 +2699,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Charitablecarryover"
           },
           "overpaymentApplied": {
@@ -2710,6 +2715,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Overpaymentapplied"
           },
           "totalTax": {
@@ -2725,6 +2731,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Totaltax"
           }
         },
@@ -3696,24 +3703,6 @@
         "title": "Confirmed",
         "type": "object"
       },
-      "ConnectionMade": {
-        "additionalProperties": false,
-        "properties": {
-          "command": {
-            "title": "Command",
-            "type": "string"
-          },
-          "connection": {
-            "$ref": "#/components/schemas/ConnectionOut"
-          }
-        },
-        "required": [
-          "connection",
-          "command"
-        ],
-        "title": "ConnectionMade",
-        "type": "object"
-      },
       "ConnectionOut": {
         "additionalProperties": false,
         "properties": {
@@ -4189,51 +4178,6 @@
           "deliverable"
         ],
         "title": "ContractAdjustment",
-        "type": "object"
-      },
-      "ContributionIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "contributor": {
-            "default": "owner",
-            "title": "Contributor",
-            "type": "string"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "fiveYear": {
-            "default": false,
-            "title": "Fiveyear",
-            "type": "boolean"
-          },
-          "fromAccountId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fromaccountid"
-          }
-        },
-        "required": [
-          "date",
-          "amount"
-        ],
-        "title": "ContributionIn",
         "type": "object"
       },
       "ContributionRecord": {
@@ -4844,42 +4788,6 @@
         "title": "DependentAge",
         "type": "object"
       },
-      "DependentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "accountIds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Accountids",
-            "type": "array"
-          },
-          "claimedAs": {
-            "default": "qualifying child",
-            "title": "Claimedas",
-            "type": "string"
-          },
-          "months": {
-            "default": 12,
-            "title": "Months",
-            "type": "integer"
-          },
-          "personId": {
-            "title": "Personid",
-            "type": "string"
-          },
-          "student": {
-            "default": false,
-            "title": "Student",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "personId"
-        ],
-        "title": "DependentIn",
-        "type": "object"
-      },
       "DependentOut": {
         "additionalProperties": false,
         "properties": {
@@ -5024,6 +4932,20 @@
         "title": "DependentRecord",
         "type": "object",
         "x-entity": "TxDep"
+      },
+      "DocumentIn": {
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "title": "Receiptid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receiptId"
+        ],
+        "title": "DocumentIn",
+        "type": "object"
       },
       "DocumentOut": {
         "additionalProperties": false,
@@ -5225,149 +5147,6 @@
         "title": "DocumentRecord",
         "type": "object",
         "x-entity": "TxDoc"
-      },
-      "DonationIn": {
-        "additionalProperties": false,
-        "properties": {
-          "acknowledged": {
-            "default": false,
-            "title": "Acknowledged",
-            "type": "boolean"
-          },
-          "amount": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "dafAccountId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dafaccountid"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "fromAccountId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fromaccountid"
-          },
-          "granted": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Granted"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "lotId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lotid"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "organisationId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Organisationid"
-          },
-          "quantity": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quantity"
-          },
-          "transactionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transactionid"
-          }
-        },
-        "required": [
-          "date",
-          "kind"
-        ],
-        "title": "DonationIn",
-        "type": "object"
       },
       "DonationOut": {
         "additionalProperties": false,
@@ -6166,57 +5945,6 @@
         "title": "ExpectedOut",
         "type": "object"
       },
-      "ExpenseIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "year": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Year"
-          }
-        },
-        "required": [
-          "date",
-          "kind",
-          "amount"
-        ],
-        "title": "ExpenseIn",
-        "type": "object"
-      },
       "ExpenseOut": {
         "additionalProperties": false,
         "properties": {
@@ -6426,189 +6154,6 @@
           "accepted"
         ],
         "title": "Filer",
-        "type": "object"
-      },
-      "FilingIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amendsId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amendsid"
-          },
-          "carried": {
-            "$ref": "#/components/schemas/Carried"
-          },
-          "confirmation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confirmation"
-          },
-          "dueDate": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duedate"
-          },
-          "extendedDue": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Extendeddue"
-          },
-          "extensionFiledOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Extensionfiledon"
-          },
-          "filedOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filedon"
-          },
-          "filingStatus": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filingstatus"
-          },
-          "form": {
-            "default": "Form 1040",
-            "title": "Form",
-            "type": "string"
-          },
-          "jurisdiction": {
-            "default": "federal",
-            "title": "Jurisdiction",
-            "type": "string"
-          },
-          "payments": {
-            "items": {
-              "$ref": "#/components/schemas/Payment"
-            },
-            "title": "Payments",
-            "type": "array"
-          },
-          "place": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Place"
-          },
-          "preparedBy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preparedby"
-          },
-          "progress": {
-            "default": "not started",
-            "title": "Progress",
-            "type": "string"
-          },
-          "resultAmount": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resultamount"
-          },
-          "resultKind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resultkind"
-          },
-          "resultTransactionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resulttransactionid"
-          },
-          "sentBy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sentby"
-          }
-        },
-        "title": "FilingIn",
         "type": "object"
       },
       "FilingOut": {
@@ -7426,124 +6971,6 @@
           "unrealized"
         ],
         "title": "GainsView",
-        "type": "object"
-      },
-      "GiftIn": {
-        "additionalProperties": false,
-        "properties": {
-          "cash": {
-            "default": false,
-            "title": "Cash",
-            "type": "boolean"
-          },
-          "cost": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cost"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "link": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "occasion": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Occasion"
-          },
-          "occasionYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Occasionyear"
-          },
-          "people": {
-            "items": {
-              "type": "string"
-            },
-            "title": "People",
-            "type": "array"
-          },
-          "status": {
-            "default": "idea",
-            "title": "Status",
-            "type": "string"
-          },
-          "store": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Store"
-          },
-          "thankYou": {
-            "default": false,
-            "title": "Thankyou",
-            "type": "boolean"
-          },
-          "transactionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transactionid"
-          }
-        },
-        "required": [
-          "people",
-          "description"
-        ],
-        "title": "GiftIn",
         "type": "object"
       },
       "GiftOut": {
@@ -9199,35 +8626,6 @@
         "title": "ImportRow",
         "type": "object"
       },
-      "ImprovementIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          }
-        },
-        "required": [
-          "date",
-          "description",
-          "amount"
-        ],
-        "title": "ImprovementIn",
-        "type": "object"
-      },
       "ImprovementOut": {
         "additionalProperties": false,
         "properties": {
@@ -10104,254 +9502,6 @@
           "canWrite"
         ],
         "title": "ItemDetail",
-        "type": "object"
-      },
-      "ItemIn": {
-        "additionalProperties": false,
-        "properties": {
-          "acquiredHow": {
-            "default": "bought",
-            "title": "Acquiredhow",
-            "type": "string"
-          },
-          "acquiredOn": {
-            "format": "date",
-            "title": "Acquiredon",
-            "type": "string"
-          },
-          "address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address"
-          },
-          "category": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category"
-          },
-          "closingCosts": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Closingcosts"
-          },
-          "condition": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Condition"
-          },
-          "costBasis": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Costbasis",
-            "type": "number"
-          },
-          "depreciationRate": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Depreciationrate"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "insuredValue": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Insuredvalue"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location"
-          },
-          "metal": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metal"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "personalUse": {
-            "default": false,
-            "title": "Personaluse",
-            "type": "boolean"
-          },
-          "policy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy"
-          },
-          "primaryResidence": {
-            "default": false,
-            "title": "Primaryresidence",
-            "type": "boolean"
-          },
-          "purity": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Purity"
-          },
-          "quantity": {
-            "default": "1",
-            "examples": [
-              12.5
-            ],
-            "format": "decimal",
-            "title": "Quantity",
-            "type": "number"
-          },
-          "sellPremium": {
-            "default": "0",
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Sellpremium",
-            "type": "number"
-          },
-          "serial": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Serial"
-          },
-          "unitWeight": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unitweight"
-          },
-          "valuation": {
-            "default": "valuations",
-            "title": "Valuation",
-            "type": "string"
-          },
-          "weightUnit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weightunit"
-          }
-        },
-        "required": [
-          "name",
-          "acquiredOn",
-          "costBasis"
-        ],
-        "title": "ItemIn",
         "type": "object"
       },
       "ItemRecord": {
@@ -13110,74 +12260,6 @@
         "title": "Move",
         "type": "object"
       },
-      "MoveIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "cardId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cardid"
-          },
-          "fromCategoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fromcategoryid"
-          },
-          "month": {
-            "format": "date",
-            "title": "Month",
-            "type": "string"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "toCategoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tocategoryid"
-          }
-        },
-        "required": [
-          "month",
-          "amount"
-        ],
-        "title": "MoveIn",
-        "type": "object"
-      },
       "MoveOut": {
         "additionalProperties": false,
         "description": "An amount put from one category to another for the month (S7.11).",
@@ -13472,466 +12554,6 @@
         "title": "NetWorthSeries",
         "type": "object"
       },
-      "NewAccount": {
-        "additionalProperties": false,
-        "properties": {
-          "countInNetWorth": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Countinnetworth"
-          },
-          "institution": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Institution"
-          },
-          "keptBy": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Keptby",
-            "type": "array"
-          },
-          "lotMethod": {
-            "default": "fifo",
-            "title": "Lotmethod",
-            "type": "string"
-          },
-          "mask": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mask"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "openingBalance": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openingbalance"
-          },
-          "openingDate": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openingdate"
-          },
-          "type": {
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "type"
-        ],
-        "title": "NewAccount",
-        "type": "object"
-      },
-      "NewBook": {
-        "additionalProperties": false,
-        "properties": {
-          "bitcoinFees": {
-            "default": "sale",
-            "title": "Bitcoinfees",
-            "type": "string"
-          },
-          "filers": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Filers",
-            "type": "array"
-          },
-          "fromLastYear": {
-            "default": true,
-            "title": "Fromlastyear",
-            "type": "boolean"
-          },
-          "year": {
-            "title": "Year",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "year",
-          "filers"
-        ],
-        "title": "NewBook",
-        "type": "object"
-      },
-      "NewBookOut": {
-        "additionalProperties": false,
-        "properties": {
-          "dependentsLeftOut": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Dependentsleftout",
-            "type": "array"
-          },
-          "filers": {
-            "items": {
-              "$ref": "#/components/schemas/Filer"
-            },
-            "title": "Filers",
-            "type": "array"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "year": {
-            "title": "Year",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "year",
-          "filers",
-          "level",
-          "label",
-          "version",
-          "dependentsLeftOut"
-        ],
-        "title": "NewBookOut",
-        "type": "object"
-      },
-      "NewBudget": {
-        "additionalProperties": false,
-        "properties": {
-          "accountIds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Accountids",
-            "type": "array"
-          },
-          "method": {
-            "default": "tracking",
-            "title": "Method",
-            "type": "string"
-          },
-          "moves": {
-            "default": false,
-            "title": "Moves",
-            "type": "boolean"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "reserves": {
-            "default": false,
-            "title": "Reserves",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "NewBudget",
-        "type": "object"
-      },
-      "NewCategory": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "parentId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parentid"
-          },
-          "taxTag": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Taxtag"
-          }
-        },
-        "required": [
-          "name",
-          "kind"
-        ],
-        "title": "NewCategory",
-        "type": "object"
-      },
-      "NewConnection": {
-        "additionalProperties": false,
-        "properties": {
-          "driver": {
-            "title": "Driver",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "settings": {
-            "additionalProperties": true,
-            "title": "Settings",
-            "type": "object"
-          }
-        },
-        "required": [
-          "driver",
-          "label"
-        ],
-        "title": "NewConnection",
-        "type": "object"
-      },
-      "NewGroup": {
-        "additionalProperties": false,
-        "properties": {
-          "memberIds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Memberids",
-            "type": "array"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "NewGroup",
-        "type": "object"
-      },
-      "NewPortfolio": {
-        "additionalProperties": false,
-        "properties": {
-          "accountIds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Accountids",
-            "type": "array"
-          },
-          "benchmark": {
-            "default": "VT",
-            "title": "Benchmark",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "NewPortfolio",
-        "type": "object"
-      },
-      "NewProjection": {
-        "additionalProperties": false,
-        "properties": {
-          "builtOn": {
-            "additionalProperties": true,
-            "title": "Builton",
-            "type": "object"
-          },
-          "goal": {
-            "title": "Goal",
-            "type": "string"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "title": "Inputs",
-            "type": "object"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "goal",
-          "builtOn"
-        ],
-        "title": "NewProjection",
-        "type": "object"
-      },
-      "NewSource": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "NewSource",
-        "type": "object"
-      },
-      "NewToken": {
-        "additionalProperties": false,
-        "properties": {
-          "days": {
-            "default": 90,
-            "title": "Days",
-            "type": "integer"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TokenItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "scope": {
-            "default": "all",
-            "title": "Scope",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "NewToken",
-        "type": "object"
-      },
-      "NewUser": {
-        "additionalProperties": false,
-        "properties": {
-          "displayName": {
-            "title": "Displayname",
-            "type": "string"
-          },
-          "email": {
-            "title": "Email",
-            "type": "string"
-          },
-          "groupIds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Groupids",
-            "type": "array"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          },
-          "username": {
-            "title": "Username",
-            "type": "string"
-          }
-        },
-        "required": [
-          "displayName",
-          "username",
-          "email"
-        ],
-        "title": "NewUser",
-        "type": "object"
-      },
       "Newer": {
         "additionalProperties": false,
         "properties": {
@@ -13986,90 +12608,6 @@
           "turns"
         ],
         "title": "NextDate",
-        "type": "object"
-      },
-      "OccasionIn": {
-        "additionalProperties": false,
-        "properties": {
-          "budget": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget"
-          },
-          "day": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Day"
-          },
-          "holiday": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Holiday"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "month": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Month"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "year": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Year"
-          }
-        },
-        "required": [
-          "kind"
-        ],
-        "title": "OccasionIn",
         "type": "object"
       },
       "OccasionOut": {
@@ -14844,80 +13382,6 @@
           "returnPct"
         ],
         "title": "OptionTradeRow",
-        "type": "object"
-      },
-      "OrganisationIn": {
-        "additionalProperties": false,
-        "properties": {
-          "causes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Causes",
-            "type": "array"
-          },
-          "deductible": {
-            "default": true,
-            "title": "Deductible",
-            "type": "boolean"
-          },
-          "ein": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ein"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "pledge": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pledge"
-          },
-          "pledgeEvery": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pledgeevery"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "OrganisationIn",
         "type": "object"
       },
       "OrganisationOut": {
@@ -16771,56 +15235,6 @@
         "type": "object",
         "x-entity": "Rmbrs"
       },
-      "PairOut": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "paybackId": {
-            "title": "Paybackid",
-            "type": "string"
-          },
-          "spendingId": {
-            "title": "Spendingid",
-            "type": "string"
-          },
-          "splitId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Splitid"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "spendingId",
-          "splitId",
-          "paybackId",
-          "amount",
-          "version"
-        ],
-        "title": "PairOut",
-        "type": "object"
-      },
       "PairingOut": {
         "additionalProperties": false,
         "properties": {
@@ -17048,75 +15462,6 @@
           }
         },
         "title": "PauseIn",
-        "type": "object"
-      },
-      "Payment": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "dueDate": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duedate"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "paidOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Paidon"
-          },
-          "quarter": {
-            "title": "Quarter",
-            "type": "integer"
-          },
-          "transactionId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transactionid"
-          }
-        },
-        "required": [
-          "quarter",
-          "amount"
-        ],
-        "title": "Payment",
         "type": "object"
       },
       "PaymentRecord": {
@@ -17930,29 +16275,6 @@
           "phrase"
         ],
         "title": "PhraseIn",
-        "type": "object"
-      },
-      "PickIn": {
-        "additionalProperties": false,
-        "properties": {
-          "lotId": {
-            "title": "Lotid",
-            "type": "string"
-          },
-          "quantity": {
-            "examples": [
-              12.5
-            ],
-            "format": "decimal",
-            "title": "Quantity",
-            "type": "number"
-          }
-        },
-        "required": [
-          "lotId",
-          "quantity"
-        ],
-        "title": "PickIn",
         "type": "object"
       },
       "Plan": {
@@ -21500,65 +19822,6 @@
         "title": "RelationOut",
         "type": "object"
       },
-      "RelationshipIn": {
-        "additionalProperties": false,
-        "properties": {
-          "fromDate": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fromdate"
-          },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
-          "person1Id": {
-            "title": "Person1Id",
-            "type": "string"
-          },
-          "person2Id": {
-            "title": "Person2Id",
-            "type": "string"
-          },
-          "relation": {
-            "title": "Relation",
-            "type": "string"
-          },
-          "toDate": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Todate"
-          }
-        },
-        "required": [
-          "person1Id",
-          "person2Id",
-          "relation"
-        ],
-        "title": "RelationshipIn",
-        "type": "object"
-      },
       "RelationshipOut": {
         "additionalProperties": false,
         "properties": {
@@ -22345,95 +20608,6 @@
         "title": "RolloverOut",
         "type": "object"
       },
-      "RuleIn": {
-        "additionalProperties": false,
-        "properties": {
-          "accountId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accountid"
-          },
-          "amountMax": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amountmax"
-          },
-          "amountMin": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amountmin"
-          },
-          "categoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Categoryid"
-          },
-          "direction": {
-            "default": "any",
-            "title": "Direction",
-            "type": "string"
-          },
-          "payee": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payee"
-          },
-          "payeeMatch": {
-            "title": "Payeematch",
-            "type": "string"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          }
-        },
-        "required": [
-          "payeeMatch"
-        ],
-        "title": "RuleIn",
-        "type": "object"
-      },
       "RuleList": {
         "additionalProperties": false,
         "properties": {
@@ -22908,24 +21082,6 @@
           "headline"
         ],
         "title": "SavedPlan",
-        "type": "object"
-      },
-      "SavedPlanIn": {
-        "additionalProperties": false,
-        "properties": {
-          "inputs": {
-            "$ref": "#/components/schemas/PlanIn"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "inputs"
-        ],
-        "title": "SavedPlanIn",
         "type": "object"
       },
       "ScheduleDOut": {
@@ -24032,72 +22188,6 @@
           "flagged"
         ],
         "title": "SpendingOut",
-        "type": "object"
-      },
-      "SplitIn": {
-        "additionalProperties": false,
-        "properties": {
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "categoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Categoryid"
-          },
-          "memo": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Memo"
-          },
-          "owedBy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owedby"
-          },
-          "reimbursable": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reimbursable"
-          }
-        },
-        "required": [
-          "amount"
-        ],
-        "title": "SplitIn",
         "type": "object"
       },
       "SplitRecord": {
@@ -25387,24 +23477,6 @@
         "title": "TokenItemOut",
         "type": "object"
       },
-      "TokenMade": {
-        "additionalProperties": false,
-        "properties": {
-          "secret": {
-            "title": "Secret",
-            "type": "string"
-          },
-          "token": {
-            "$ref": "#/components/schemas/TokenOut"
-          }
-        },
-        "required": [
-          "token",
-          "secret"
-        ],
-        "title": "TokenMade",
-        "type": "object"
-      },
       "TokenOut": {
         "additionalProperties": false,
         "properties": {
@@ -25827,250 +23899,6 @@
           "personalUse"
         ],
         "title": "TxfLeftOut",
-        "type": "object"
-      },
-      "TxnIn": {
-        "additionalProperties": false,
-        "properties": {
-          "accountId": {
-            "title": "Accountid",
-            "type": "string"
-          },
-          "amount": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
-          },
-          "categoryId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Categoryid"
-          },
-          "contributionSource": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contributionsource"
-          },
-          "contributionYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contributionyear"
-          },
-          "costBasis": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Costbasis"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "dividendType": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dividendtype"
-          },
-          "fees": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fees"
-          },
-          "instrumentId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instrumentid"
-          },
-          "kind": {
-            "default": "withdrawal",
-            "title": "Kind",
-            "type": "string"
-          },
-          "memo": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Memo"
-          },
-          "owedBy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owedby"
-          },
-          "payee": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payee"
-          },
-          "picks": {
-            "items": {
-              "$ref": "#/components/schemas/PickIn"
-            },
-            "title": "Picks",
-            "type": "array"
-          },
-          "price": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price"
-          },
-          "quantity": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quantity"
-          },
-          "reimbursable": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reimbursable"
-          },
-          "splitRatio": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Splitratio"
-          },
-          "splits": {
-            "items": {
-              "$ref": "#/components/schemas/SplitIn"
-            },
-            "title": "Splits",
-            "type": "array"
-          },
-          "symbol": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Symbol"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          }
-        },
-        "required": [
-          "accountId",
-          "date",
-          "amount"
-        ],
-        "title": "TxnIn",
         "type": "object"
       },
       "TxnOut": {
@@ -26706,6 +24534,22 @@
             "default": null,
             "title": "Right"
           },
+          "splitRatio": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Splitratio"
+          },
           "strike": {
             "anyOf": [
               {
@@ -27246,46 +25090,6 @@
           "version"
         ],
         "title": "UserRow",
-        "type": "object"
-      },
-      "ValuationIn": {
-        "additionalProperties": false,
-        "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "source": {
-            "default": "estimate",
-            "title": "Source",
-            "type": "string"
-          },
-          "value": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Value",
-            "type": "number"
-          }
-        },
-        "required": [
-          "date",
-          "value"
-        ],
-        "title": "ValuationIn",
         "type": "object"
       },
       "ValuationOut": {
@@ -28121,20 +25925,6 @@
         "title": "ContributionOut",
         "type": "object"
       },
-      "moolakata__ui__education__DocumentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "receiptId": {
-            "title": "Receiptid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "receiptId"
-        ],
-        "title": "DocumentIn",
-        "type": "object"
-      },
       "moolakata__ui__education__PlanOut": {
         "additionalProperties": false,
         "properties": {
@@ -28251,147 +26041,6 @@
           "canWrite"
         ],
         "title": "PlanOut",
-        "type": "object"
-      },
-      "moolakata__ui__gifts__PersonIn": {
-        "additionalProperties": false,
-        "description": "A gift plan, and the person it is for: an existing one (`personId`) or a new one.",
-        "properties": {
-          "birthDay": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthday"
-          },
-          "birthMonth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthmonth"
-          },
-          "birthYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthyear"
-          },
-          "diedOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diedon"
-          },
-          "differentPerson": {
-            "default": false,
-            "title": "Differentperson",
-            "type": "boolean"
-          },
-          "giftBudget": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Giftbudget"
-          },
-          "leadDays": {
-            "default": 14,
-            "title": "Leaddays",
-            "type": "integer"
-          },
-          "name": {
-            "default": "",
-            "title": "Name",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "occasions": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/OccasionIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Occasions"
-          },
-          "personId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Personid"
-          },
-          "private": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Private"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          }
-        },
-        "title": "PersonIn",
         "type": "object"
       },
       "moolakata__ui__gifts__RemoteUser": {
@@ -29242,86 +26891,6 @@
         "title": "JoinIn",
         "type": "object"
       },
-      "moolakata__ui__people__PersonIn": {
-        "additionalProperties": false,
-        "properties": {
-          "birthDay": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthday"
-          },
-          "birthMonth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthmonth"
-          },
-          "birthYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthyear"
-          },
-          "diedOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diedon"
-          },
-          "differentPerson": {
-            "default": false,
-            "title": "Differentperson",
-            "type": "boolean"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "private": {
-            "default": false,
-            "title": "Private",
-            "type": "boolean"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "PersonIn",
-        "type": "object"
-      },
       "moolakata__ui__prices__SecretSet": {
         "additionalProperties": false,
         "properties": {
@@ -29578,80 +27147,6 @@
           "version"
         ],
         "title": "TagOut",
-        "type": "object"
-      },
-      "moolakata__ui__taxes__DocumentIn": {
-        "additionalProperties": false,
-        "properties": {
-          "accountId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accountid"
-          },
-          "direction": {
-            "default": "received",
-            "title": "Direction",
-            "type": "string"
-          },
-          "filingId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filingid"
-          },
-          "form": {
-            "title": "Form",
-            "type": "string"
-          },
-          "issuer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Issuer"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "receiptId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Receiptid"
-          }
-        },
-        "required": [
-          "form"
-        ],
-        "title": "DocumentIn",
         "type": "object"
       },
       "moolakata__ui__taxpanels__ContributionOut": {
@@ -30015,49 +27510,6 @@
         "tags": [
           "accounts"
         ]
-      },
-      "post": {
-        "operationId": "create_account_ui_api_accounts_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewAccount"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Account",
-        "tags": [
-          "accounts"
-        ]
       }
     },
     "/ui/api/accounts/{account_id}": {
@@ -30131,117 +27583,6 @@
           }
         },
         "summary": "List Contributions",
-        "tags": [
-          "education"
-        ]
-      },
-      "post": {
-        "description": "A deposit into the 529, with who made it; from a bank account, both halves.",
-        "operationId": "add_contribution_ui_api_accounts__account_id__contributions_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ContributionIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContributionsView"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Contribution",
-        "tags": [
-          "education"
-        ]
-      }
-    },
-    "/ui/api/accounts/{account_id}/expenses": {
-      "post": {
-        "operationId": "add_expense_ui_api_accounts__account_id__expenses_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExpenseIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WithdrawalsView"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Expense",
         "tags": [
           "education"
         ]
@@ -30512,60 +27853,6 @@
         "tags": [
           "items"
         ]
-      },
-      "post": {
-        "operationId": "add_item_ui_api_accounts__account_id__items_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ItemIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Item",
-        "tags": [
-          "items"
-        ]
       }
     },
     "/ui/api/accounts/{account_id}/loan": {
@@ -30773,60 +28060,6 @@
           }
         },
         "summary": "List Plans",
-        "tags": [
-          "loans"
-        ]
-      },
-      "post": {
-        "operationId": "save_plan_ui_api_accounts__account_id__loan_plans_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SavedPlanIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SavedPlan"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Save Plan",
         "tags": [
           "loans"
         ]
@@ -31646,49 +28879,6 @@
         "tags": [
           "budgets"
         ]
-      },
-      "post": {
-        "operationId": "create_budget_ui_api_budgets_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewBudget"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetRow"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Budget",
-        "tags": [
-          "budgets"
-        ]
       }
     },
     "/ui/api/budgets/left-out": {
@@ -32143,63 +29333,6 @@
           }
         },
         "summary": "Budget Month",
-        "tags": [
-          "budgets"
-        ]
-      }
-    },
-    "/ui/api/budgets/{budget_id}/moves": {
-      "post": {
-        "description": "A move made (S7.11).",
-        "operationId": "make_move_ui_api_budgets__budget_id__moves_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "budget_id",
-            "required": true,
-            "schema": {
-              "title": "Budget Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MoveIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MoveOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Make Move",
         "tags": [
           "budgets"
         ]
@@ -32745,49 +29878,6 @@
         "tags": [
           "transactions"
         ]
-      },
-      "post": {
-        "operationId": "create_category_ui_api_categories_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewCategory"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Category",
-        "tags": [
-          "transactions"
-        ]
       }
     },
     "/ui/api/connector": {
@@ -33000,7 +30090,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__education__DocumentIn"
+                "$ref": "#/components/schemas/DocumentIn"
               }
             }
           },
@@ -33109,49 +30199,6 @@
           }
         },
         "summary": "List Gifts",
-        "tags": [
-          "gifts"
-        ]
-      },
-      "post": {
-        "operationId": "add_gift_ui_api_gifts_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GiftIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GiftOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Gift",
         "tags": [
           "gifts"
         ]
@@ -33418,49 +30465,6 @@
         "tags": [
           "giving"
         ]
-      },
-      "post": {
-        "operationId": "add_donation_ui_api_giving_donations_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DonationIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DonationOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Donation",
-        "tags": [
-          "giving"
-        ]
       }
     },
     "/ui/api/giving/organisations": {
@@ -33513,49 +30517,6 @@
         "tags": [
           "giving"
         ]
-      },
-      "post": {
-        "operationId": "add_organisation_ui_api_giving_organisations_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrganisationIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganisationOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Organisation",
-        "tags": [
-          "giving"
-        ]
       }
     },
     "/ui/api/groups": {
@@ -33605,49 +30566,6 @@
           }
         },
         "summary": "List Groups",
-        "tags": [
-          "users"
-        ]
-      },
-      "post": {
-        "operationId": "create_group_ui_api_groups_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewGroup"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupRow"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Group",
         "tags": [
           "users"
         ]
@@ -34218,118 +31136,6 @@
           }
         },
         "summary": "Get Item",
-        "tags": [
-          "items"
-        ]
-      }
-    },
-    "/ui/api/items/{item_id}/improvements": {
-      "post": {
-        "operationId": "add_improvement_ui_api_items__item_id__improvements_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImprovementIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Improvement",
-        "tags": [
-          "items"
-        ]
-      }
-    },
-    "/ui/api/items/{item_id}/valuations": {
-      "post": {
-        "operationId": "add_valuation_ui_api_items__item_id__valuations_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "title": "Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ValuationIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Valuation",
         "tags": [
           "items"
         ]
@@ -34971,50 +31777,6 @@
         "tags": [
           "gifts"
         ]
-      },
-      "post": {
-        "description": "A gift plan for someone: a person already here, or a new one, added once (S10.10.3).",
-        "operationId": "add_person_ui_api_people_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__gifts__PersonIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Person",
-        "tags": [
-          "gifts"
-        ]
       }
     },
     "/ui/api/people/{person_id}": {
@@ -35104,50 +31866,6 @@
           }
         },
         "summary": "List Persons",
-        "tags": [
-          "people"
-        ]
-      },
-      "post": {
-        "description": "A person, added once (S10.10.3).",
-        "operationId": "add_person_ui_api_persons_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__people__PersonIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonRow"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Person",
         "tags": [
           "people"
         ]
@@ -35469,49 +32187,6 @@
           }
         },
         "summary": "List Portfolios",
-        "tags": [
-          "portfolios"
-        ]
-      },
-      "post": {
-        "operationId": "create_portfolio_ui_api_portfolios_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPortfolio"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PortfolioRow"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Portfolio",
         "tags": [
           "portfolios"
         ]
@@ -35912,49 +32587,6 @@
         "tags": [
           "prices"
         ]
-      },
-      "post": {
-        "operationId": "add_source_ui_api_price_sources_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewSource"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourcesView"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Source",
-        "tags": [
-          "prices"
-        ]
       }
     },
     "/ui/api/prices/refresh": {
@@ -36077,49 +32709,6 @@
           }
         },
         "summary": "List Connections",
-        "tags": [
-          "connections"
-        ]
-      },
-      "post": {
-        "operationId": "new_connection_ui_api_profile_connections_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewConnection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConnectionMade"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "New Connection",
         "tags": [
           "connections"
         ]
@@ -36285,49 +32874,6 @@
         "tags": [
           "tokens"
         ]
-      },
-      "post": {
-        "operationId": "make_token_ui_api_profile_tokens_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewToken"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenMade"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Make Token",
-        "tags": [
-          "tokens"
-        ]
       }
     },
     "/ui/api/profile/two-step": {
@@ -36489,50 +33035,6 @@
           }
         },
         "summary": "List Projections",
-        "tags": [
-          "projections"
-        ]
-      },
-      "post": {
-        "description": "It starts as a scenario; making it active is a step of its own (S6.7).",
-        "operationId": "create_projection_ui_api_projections_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewProjection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectionDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Projection",
         "tags": [
           "projections"
         ]
@@ -37096,51 +33598,6 @@
         ]
       }
     },
-    "/ui/api/reimbursements": {
-      "post": {
-        "operationId": "pair_ui_api_reimbursements_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PairIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PairOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Pair",
-        "tags": [
-          "reimbursements"
-        ]
-      }
-    },
     "/ui/api/relationships": {
       "get": {
         "description": "The stored relationships of a person (the caller's own by default).",
@@ -37208,49 +33665,6 @@
         "tags": [
           "people"
         ]
-      },
-      "post": {
-        "operationId": "add_relationship_ui_api_relationships_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RelationshipIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RelationshipOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Relationship",
-        "tags": [
-          "people"
-        ]
       }
     },
     "/ui/api/relationships/{rel_id}/confirm": {
@@ -37311,50 +33725,6 @@
           }
         },
         "summary": "List Rules",
-        "tags": [
-          "rules"
-        ]
-      },
-      "post": {
-        "description": "A new rule, last in the list.",
-        "operationId": "add_rule_ui_api_rules_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RuleIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RuleList"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Rule",
         "tags": [
           "rules"
         ]
@@ -39458,49 +35828,6 @@
         "tags": [
           "taxes"
         ]
-      },
-      "post": {
-        "operationId": "create_book_ui_api_tax_books_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewBook"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NewBookOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Book",
-        "tags": [
-          "taxes"
-        ]
       }
     },
     "/ui/api/tax-books/{book_id}": {
@@ -39642,118 +35969,6 @@
         ]
       }
     },
-    "/ui/api/tax-books/{book_id}/dependents": {
-      "post": {
-        "operationId": "add_dependent_ui_api_tax_books__book_id__dependents_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "book_id",
-            "required": true,
-            "schema": {
-              "title": "Book Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DependentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Dependent",
-        "tags": [
-          "taxes"
-        ]
-      }
-    },
-    "/ui/api/tax-books/{book_id}/documents": {
-      "post": {
-        "operationId": "add_document_ui_api_tax_books__book_id__documents_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "book_id",
-            "required": true,
-            "schema": {
-              "title": "Book Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/moolakata__ui__taxes__DocumentIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Document",
-        "tags": [
-          "taxes"
-        ]
-      }
-    },
     "/ui/api/tax-books/{book_id}/exports/8949.csv": {
       "get": {
         "operationId": "export_csv_ui_api_tax_books__book_id__exports_8949_csv_get",
@@ -39843,62 +36058,6 @@
           }
         },
         "summary": "Export Pdf",
-        "tags": [
-          "taxes"
-        ]
-      }
-    },
-    "/ui/api/tax-books/{book_id}/filings": {
-      "post": {
-        "operationId": "add_filing_ui_api_tax_books__book_id__filings_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "book_id",
-            "required": true,
-            "schema": {
-              "title": "Book Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FilingIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookDetail"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Add Filing",
         "tags": [
           "taxes"
         ]
@@ -40215,61 +36374,6 @@
           }
         },
         "summary": "List Transactions",
-        "tags": [
-          "transactions"
-        ]
-      },
-      "post": {
-        "operationId": "create_transaction_ui_api_transactions_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "confirm",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Confirm",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TxnIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TxnOut"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create Transaction",
         "tags": [
           "transactions"
         ]
@@ -40854,49 +36958,6 @@
           }
         },
         "summary": "List Users",
-        "tags": [
-          "users"
-        ]
-      },
-      "post": {
-        "operationId": "create_user_ui_api_users_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewUser"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserRow"
-                }
-              }
-            },
-            "description": "Successful Response",
-            "headers": {
-              "Location": {
-                "description": "Where what was made is read: its own path, or the list or record that holds it. Left out when nothing reads it.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Create User",
         "tags": [
           "users"
         ]

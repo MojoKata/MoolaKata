@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from conftest import make_user, sign_in
-from edits import asked, change, create, reconcile, remove, saved
+from edits import asked, change, create, make, new_id, reconcile, remove, saved
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -16,16 +16,14 @@ def new_account(c, **kw):
         "mask": "4821",
         **kw,
     }
-    r = c.post("/ui/api/accounts", json=body)
-    assert r.status_code == 201, r.text
+    r = make(c, "Acct", **body)
+    assert r.status_code == 200, r.text
     return r.json()
 
 
 def add(c, account_id, amount, day="2026-09-01", **kw):
-    r = c.post(
-        "/ui/api/transactions", json={"accountId": account_id, "date": day, "amount": amount, **kw}
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Txn", **{"accountId": account_id, "date": day, "amount": amount, **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -53,10 +51,7 @@ def test_accounts_are_checked_and_their_owners_own(server):
     make_user(server, "alice")
     make_user(server, "bob")
     alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
-    r = alice.post(
-        "/ui/api/accounts",
-        json={"name": "", "type": "yacht", "mask": "12", "openingBalance": "10.00"},
-    )
+    r = make(alice, "Acct", name="", type="yacht", mask="12", openingBalance="10.00")
     fields = {e["field"] for e in r.json()["errors"]}
     assert fields == {"name", "type", "mask", "openingDate"}
     a = new_account(alice, openingBalance="1000.00", openingDate="2026-08-31")
@@ -96,15 +91,9 @@ def test_transactions_filter_page_and_balance(server):
     assert c.get(f"/ui/api/accounts/{a['id']}").json()["balance"] == "122.00"
     # Money is an exact JSON number (S13.8.2): 12.5 is read as written, not through a float, and
     # more than two places is refused.
-    r = c.post(
-        "/ui/api/transactions",
-        json={"accountId": a["id"], "date": "2026-09-01", "amount": Decimal("12.5")},
-    )
-    assert r.status_code == 201 and r.json()["amount"] == "12.50"
-    r = c.post(
-        "/ui/api/transactions",
-        json={"accountId": a["id"], "date": "2026-09-01", "amount": Decimal("12.505")},
-    )
+    r = make(c, "Txn", accountId=a["id"], date="2026-09-01", amount=Decimal("12.5"))
+    assert r.status_code == 200 and r.json()["amount"] == "12.50"
+    r = make(c, "Txn", accountId=a["id"], date="2026-09-01", amount=Decimal("12.505"))
     assert r.status_code == 422
 
 
@@ -114,18 +103,17 @@ def test_splits_tags_and_bulk_categorise(server):
     a = new_account(c)
     cats = {x["path"]: x["id"] for x in c.get("/ui/api/categories").json()["items"]}
     groceries, dining = cats["Food › Groceries"], cats["Food › Dining out"]
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": a["id"],
-            "date": "2026-09-02",
-            "amount": "-100.00",
-            "payee": "Costco",
-            "splits": [
-                {"categoryId": groceries, "amount": "-70.00"},
-                {"categoryId": dining, "amount": "-20.00"},
-            ],
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=a["id"],
+        date="2026-09-02",
+        amount="-100.00",
+        payee="Costco",
+        splits=[
+            {"categoryId": groceries, "amount": "-70.00"},
+            {"categoryId": dining, "amount": "-20.00"},
+        ],
     )
     assert r.json()["errors"][0]["code"] == "splits-unbalanced"
     t = add(
@@ -174,10 +162,11 @@ def test_idempotency_key_returns_the_first_answer(server):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     a = new_account(c)
-    body = {"accountId": a["id"], "date": "2026-09-01", "amount": "-1.00"}
-    r1 = c.post("/ui/api/transactions", json=body, headers={"Idempotency-Key": "k1"})
-    r2 = c.post("/ui/api/transactions", json=body, headers={"Idempotency-Key": "k1"})
-    assert r1.json()["id"] == r2.json()["id"]
+    fields = {"accountId": a["id"], "date": "2026-09-01", "amount": "-1.00"}
+    ops = [{"op": "create", "entity": "Txn", "id": new_id("Txn"), "fields": fields}]
+    r1 = c.post("/ui/api/save", json={"ops": ops}, headers={"Idempotency-Key": "k1"})
+    r2 = c.post("/ui/api/save", json={"ops": ops}, headers={"Idempotency-Key": "k1"})
+    assert r1.status_code == r2.status_code == 200 and r1.json() == r2.json()
     assert len(c.get("/ui/api/transactions").json()["items"]) == 1
 
 
@@ -188,10 +177,7 @@ def test_trades_make_lots_holdings_and_gains(server):
     add(c, a["id"], "10000.00", "2025-01-02", kind="deposit")
     add(c, a["id"], "-1000.00", "2025-01-05", kind="buy", symbol="VTI", quantity="10", price="100")
     add(c, a["id"], "-3000.00", "2025-03-05", kind="buy", symbol="VTI", quantity="10", price="300")
-    r = c.post(
-        "/ui/api/transactions",
-        json={"accountId": a["id"], "date": "2025-04-01", "amount": "-1.00", "kind": "buy"},
-    )
+    r = make(c, "Txn", accountId=a["id"], date="2025-04-01", amount="-1.00", kind="buy")
     assert r.json()["errors"][0]["code"] == "trade-incomplete"
     add(c, a["id"], "2500.00", "2026-02-01", kind="sell", symbol="VTI", quantity="10", price="250")
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()
@@ -200,16 +186,15 @@ def test_trades_make_lots_holdings_and_gains(server):
     assert vti["priceSource"] == "trade" and vti["value"] == "2500.00"
     assert h["cash"] == "8500.00" and h["total"] == "11000.00"
     checking = new_account(c, name="Bank", mask="2222")
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": checking["id"],
-            "date": "2026-02-01",
-            "amount": "-1.00",
-            "kind": "buy",
-            "symbol": "VTI",
-            "quantity": "1",
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=checking["id"],
+        date="2026-02-01",
+        amount="-1.00",
+        kind="buy",
+        symbol="VTI",
+        quantity="1",
     )
     assert r.json()["errors"][0]["code"] == "kind-not-for-account"
 

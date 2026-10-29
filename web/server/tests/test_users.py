@@ -3,7 +3,7 @@ import email
 import re
 
 from conftest import make_user, new_client, sign_in
-from edits import change, save_settings, saved
+from edits import change, make, save_settings, saved
 from sqlalchemy import select
 
 from moolakata import settings
@@ -192,9 +192,8 @@ def test_a_change_of_privilege_gives_a_new_token(server, admin_client):
 
 
 def test_invitation_needs_the_public_url_outside_dev_mode(admin_client):
-    r = admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "Eve", "username": "eve", "email": "eve@home.lan", "sex": "female"},
+    r = make(
+        admin_client, "User", displayName="Eve", username="eve", email="eve@home.lan", sex="female"
     )
     assert r.status_code == 422
     assert r.json()["errors"][0]["field"] == "publicUrl"
@@ -202,17 +201,15 @@ def test_invitation_needs_the_public_url_outside_dev_mode(admin_client):
 
 def test_invite_join_and_sign_in(admin_client, server):
     set_public_url(server)
-    r = admin_client.post(
-        "/ui/api/users",
-        json={
-            "displayName": "Eve Shaw",
-            "username": "Eve",
-            "email": "eve@home.lan",
-            "sex": "female",
-        },
+    r = make(
+        admin_client,
+        "User",
+        displayName="Eve Shaw",
+        username="Eve",
+        email="eve@home.lan",
+        sex="female",
     )
-    assert r.status_code == 201, r.text
-    assert r.headers["location"] == "/ui/api/users", "no route reads one user (S13.8.4)"
+    assert r.status_code == 200, r.text
     assert r.json()["invited"] is True and r.json()["username"] == "eve"
     msg = mails(server)[-1]
     assert msg["To"] == "eve@home.lan"
@@ -243,14 +240,13 @@ def test_invite_join_and_sign_in(admin_client, server):
 def test_new_users_are_checked_field_by_field(admin_client, server):
     set_public_url(server)
     make_user(server, "taken")
-    r = admin_client.post(
-        "/ui/api/users",
-        json={
-            "displayName": "",
-            "username": "taken",
-            "email": "taken@home.lan",
-            "groupIds": ["Group_nope"],
-        },
+    r = make(
+        admin_client,
+        "User",
+        displayName="",
+        username="taken",
+        email="taken@home.lan",
+        groupIds=["Group_00000000000000000000000000"],
     )
     fields = {e["field"] for e in r.json()["errors"]}
     assert fields == {"displayName", "username", "email", "sex", "groupIds"}
@@ -407,10 +403,10 @@ def test_the_last_admin_stays(admin_client, server):
 
 def test_groups(admin_client, server):
     a, b = make_user(server, "amy"), make_user(server, "ben")
-    r = admin_client.post("/ui/api/groups", json={"name": "Household", "memberIds": [a.id]})
-    assert r.status_code == 201
+    r = make(admin_client, "Group", name="Household", memberIds=[a.id])
+    assert r.status_code == 200
     g = r.json()
-    r = admin_client.post("/ui/api/groups", json={"name": "household"})
+    r = make(admin_client, "Group", name="household")
     assert r.json()["errors"][0]["code"] == "name-taken"
     out = saved(change(admin_client, "Group", g, name="Family",
                        memberIds={"add": [b.id], "remove": []}))  # fmt: skip
@@ -525,14 +521,13 @@ def test_making_an_admin_needs_the_password_again(admin_client, server):
     ivy = saved(change(admin_client, "User", ivy, displayName="Ivy L."))
     r = change(admin_client, "User", ivy, groupIds={"add": [admins], "remove": []})
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
-    r = admin_client.post(
-        "/ui/api/users",
-        json={
-            "displayName": "Jo",
-            "username": "jo",
-            "email": "jo@home.lan",
-            "sex": "female",
-            "groupIds": [admins],
-        },
+    r = make(
+        admin_client,
+        "User",
+        displayName="Jo",
+        username="jo",
+        email="jo@home.lan",
+        sex="female",
+        groupIds=[admins],
     )
-    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"

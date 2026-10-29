@@ -8,11 +8,10 @@ from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import false, func, select
 
-from .. import access, activity, clock, exactjson, ids, valuation
+from .. import access, activity, clock, exactjson, valuation
 from ..errors import FieldError, Problem, refuse
 from ..ledger import expected, holdingcheck, reconcile
 from ..ledger import types as atypes
@@ -471,19 +470,6 @@ def _make(s, c: Caller, body, account_id: str) -> Account:
         s, "account.created", actor=c.id, subject_kind="account", subject_id=a.id, owner=c.id
     )
     return a
-
-
-@router.post("/accounts", response_model=AccountDetail, status_code=201)
-def create_account(body: NewAccount, request: Request, c: Caller = Depends(caller)):
-    _raise(_check(body))
-    with server(request).db.tx() as s:
-        a = _make(s, c, body, ids.new_id("Acct"))
-        out = row(s, a, "owner", context(s, c.id, [a.id]), detail=True)
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/accounts/{a.id}"},
-    )
 
 
 @router.get("/accounts/{account_id}", response_model=AccountDetail)

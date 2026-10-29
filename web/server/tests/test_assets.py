@@ -7,7 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import edit, saved, sell, terms
+from edits import edit, make, saved, sell, terms
 from sqlalchemy import select
 from test_accounts import new_account
 
@@ -34,8 +34,8 @@ def alice(server, frozen):
 
 def item(c, account_id, **kw):
     body = {"name": "Thing", "acquiredOn": "2024-01-10", "costBasis": "1000", **kw}
-    r = c.post(f"/ui/api/accounts/{account_id}/items", json=body)
-    assert r.status_code == 201, r.text
+    r = make(c, "Item", **{"accountId": account_id, **body})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -98,16 +98,13 @@ def test_metals_at_spot_from_the_proxy_and_by_metal(server, alice):
 def test_valuations_staleness_and_depreciation(alice):
     coll = new_account(alice, name="Collectables", type="collectables")
     watch = item(alice, coll["id"], name="Watch", costBasis="9000", category="Watch")
-    r = alice.post(
-        f"/ui/api/items/{watch['id']}/valuations",
-        json={"date": "2025-06-01", "value": "12500", "source": "appraisal"},
+    r = make(
+        alice, "Valtn", itemId=watch["id"], date="2025-06-01", value="12500", source="appraisal"
     )
-    w = r.json()
+    assert r.status_code == 200, r.text
+    w = alice.get(f"/ui/api/items/{watch['id']}").json()
     assert w["value"] == "12500.00" and w["gain"] == "3500.00" and w["stale"] is True
-    alice.post(
-        f"/ui/api/items/{watch['id']}/valuations",
-        json={"date": "2026-09-01", "value": "13000", "source": "guide"},
-    )
+    make(alice, "Valtn", itemId=watch["id"], date="2026-09-01", value="13000", source="guide")
     w = alice.get(f"/ui/api/items/{watch['id']}").json()
     assert w["value"] == "13000.00" and not w["stale"] and len(w["valuations"]) == 2
     cars = new_account(alice, name="Car", type="vehicle")
@@ -122,9 +119,14 @@ def test_valuations_staleness_and_depreciation(alice):
         personalUse=True,
     )
     assert 23000 < float(car["value"]) < 23200  # three years at 12%
-    bad = alice.post(
-        f"/ui/api/accounts/{cars['id']}/items",
-        json={"name": "", "acquiredOn": "2030-01-01", "costBasis": "-1", "valuation": "spot"},
+    bad = make(
+        alice,
+        "Item",
+        accountId=cars["id"],
+        name="",
+        acquiredOn="2030-01-01",
+        costBasis="-1",
+        valuation="spot",
     )
     assert {e["field"] for e in bad.json()["errors"]} >= {
         "name",
@@ -165,15 +167,18 @@ def test_a_home_with_improvements_a_mortgage_and_its_equity(alice):
         address="1428 Elm St",
         primaryResidence=True,
     )
-    r = alice.post(
-        f"/ui/api/items/{home['id']}/improvements",
-        json={"date": "2025-05-20", "description": "Kitchen remodel", "amount": "38500"},
+    r = make(
+        alice,
+        "Imprv",
+        itemId=home["id"],
+        date="2025-05-20",
+        description="Kitchen remodel",
+        amount="38500",
     )
-    assert r.json()["basis"] == "606900.00" and r.json()["primaryResidence"]
-    alice.post(
-        f"/ui/api/items/{home['id']}/valuations",
-        json={"date": "2026-09-20", "value": "640000", "source": "estimate"},
-    )
+    assert r.status_code == 200, r.text
+    h = alice.get(f"/ui/api/items/{home['id']}").json()
+    assert h["basis"] == "606900.00" and h["primaryResidence"]
+    make(alice, "Valtn", itemId=home["id"], date="2026-09-20", value="640000", source="estimate")
     loan = new_account(alice, name="Mortgage", type="mortgage")
     r = terms(alice, loan["id"], principal="448000", startDate="2026-09-01", termMonths=360,
               rate="6", pmi="150", originalValue="560000", securedById=home["id"])  # fmt: skip

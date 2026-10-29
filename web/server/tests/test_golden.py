@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from conftest import make_user, sign_in
-from edits import loan_payment, option_trade, saved, terms
+from edits import loan_payment, make, option_trade, saved, terms
 from test_accounts import add, new_account
 from test_budgets import save_plan
 
@@ -61,8 +61,8 @@ def portfolio(c) -> str:
     trade(c, w["id"], "2026-02-02", "buy", "0.01", "85000", "BTC")
     trade(c, w["id"], "2026-05-04", "sell", "0.01", "98000", "BTC")  # self-custody: I
     me = c.get("/ui/api/session").json()["user"]["id"]
-    r = c.post("/ui/api/tax-books", json={"year": 2026, "filers": [me]})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", year=2026, filers=[me])
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
@@ -109,8 +109,8 @@ def review_cases(c) -> str:
     option(c, written["id"], "2025-01-10", "sell-to-open", "20.00")  # 2000 - 0.65
     option(c, written["id"], "2026-03-10", "buy-to-close", "12.00")  # 1200 + 0.65
     me = c.get("/ui/api/session").json()["user"]["id"]
-    r = c.post("/ui/api/tax-books", json={"year": 2026, "filers": [me]})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", year=2026, filers=[me])
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
@@ -139,10 +139,7 @@ def budget_household(c):
     card = new_account(c, name="Visa", type="credit-card", mask="2003")
     brk = new_account(c, name="Brokerage", type="brokerage", mask="2004")
     ids = [chk["id"], sav["id"], card["id"]]
-    b = c.post(
-        "/ui/api/budgets",
-        json={"name": "Household", "accountIds": ids, "reserves": True, "moves": True},
-    ).json()
+    b = make(c, "Bdgt", name="Household", accountIds=ids, reserves=True, moves=True).json()
     food, fun, repair = cat["Food"], cat["Entertainment"], cat["Transportation › Car maintenance"]
     lines = [
         {"categoryId": cat["Income › Salary"], "amount": "4000.00"},
@@ -205,13 +202,15 @@ def budget_household(c):
         owedBy="Acme Corp",
     )
     back = add(c, chk["id"], "310.00", "2026-11-18", payee="Acme expense report")
-    c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": hotel["id"], "paybackId": back["id"], "amount": "310.00"},
-    )
-    c.post(
-        f"/ui/api/budgets/{b['id']}/moves",
-        json={"month": "2026-10-01", "fromCategoryId": food, "toCategoryId": fun, "amount": "40"},
+    make(c, "Rmbrs", spendingId=hotel["id"], paybackId=back["id"], amount="310.00")
+    make(
+        c,
+        "BdgMv",
+        budgetId=b["id"],
+        month="2026-10-01",
+        fromCategoryId=food,
+        toCategoryId=fun,
+        amount="40",
     )
     for day, amount in (("2026-10-25", "-450.00"), ("2026-11-25", "-150.00")):
         add(c, chk["id"], amount, day, payee="Visa payment")

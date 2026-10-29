@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, or_, select
 
-from .. import access, activity, assets, clock, exactjson, ids, loans
+from .. import access, activity, assets, clock, exactjson, loans
 from ..errors import FieldError, Problem, refuse
 from ..loans import payoff
 from ..projections import assumptions
@@ -742,32 +742,6 @@ def _check_name(name: str) -> str:
     if not name or len(name) > 80:
         raise refuse("name", "name-invalid", "A name, up to 80 characters.")
     return name
-
-
-@router.post("/accounts/{account_id}/loan/plans", response_model=SavedPlan, status_code=201)
-def save_plan(account_id: str, body: SavedPlanIn, request: Request, c: Caller = Depends(caller)):
-    name = _check_name(body.name)
-    _check_plan(body.inputs)
-    with server(request).db.tx() as s:
-        a, _ = _account(s, c, account_id, "write")
-        p = PayoffPlan(
-            id=ids.new_id("Pyoff"),
-            accountId=a.id,
-            name=name,
-            inputs=exactjson.unmark(body.inputs.model_dump_json()),
-            createdById=c.id,
-        )
-        s.add(p)
-        s.flush()
-        activity.record(
-            s,
-            "loan.plan-saved",
-            actor=c.id,
-            subject_kind="account",
-            subject_id=a.id,
-            owner=a.ownerId,
-        )
-        return _saved(s, c, a, p)
 
 
 def _get_plan(s, c: Caller, account_id: str, plan_id: str) -> tuple[Account, PayoffPlan]:

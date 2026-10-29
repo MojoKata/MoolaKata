@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, ids, tags
+from .. import access, activity, tags
 from ..errors import FieldError, Problem, refuse
 from ..ledger import rules as match
 from ..store.entities.accounts import Account, Category, Rule, Transaction
@@ -27,10 +27,6 @@ class RuleFields(Model):
     accountId: str | None = None
     categoryId: str | None = None
     payee: str | None = None  # the payee shown: Rename to
-
-
-class RuleIn(RuleFields):
-    tags: list[str] = Field(default_factory=list)  # by name, made the owner's when new
 
 
 class RuleOut(Model):
@@ -205,25 +201,6 @@ def _renumber(rules: list[Rule]) -> None:
 @router.get("/rules", response_model=RuleList)
 def list_rules(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
-        return _list(s, c.id)
-
-
-@router.post("/rules", response_model=RuleList, status_code=201)
-def add_rule(body: RuleIn, request: Request, c: Caller = Depends(caller)):
-    """A new rule, last in the list."""
-    with server(request).db.tx() as s:
-        names = list(dict.fromkeys(n for n in body.tags if n.strip()))
-        _raise(_check(s, c, body, len(names)))
-        rules = repo.of_user(s, c.id)
-        if len(rules) >= 500:
-            raise refuse(None, "too-many-rules", "At most 500 rules.")
-        r = Rule(id=ids.new_id("Rule"), ownerId=c.id, position=len(rules), payeeMatch="")
-        _fill(r, body)
-        s.add(r)
-        s.flush()
-        made = [tags.make(s, c.id, n).id for n in names]
-        tags.set_on(s, "rule", r.id, c.id, made, c.id)
-        _record(s, "rule.created", c)
         return _list(s, c.id)
 
 

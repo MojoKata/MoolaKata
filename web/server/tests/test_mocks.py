@@ -3,7 +3,7 @@ bitcoin/sources.py against the fake Esplora, Electrum server and Bitcoin Core ov
 sockets, reading the same chain, and a wallet synced from each through the server."""
 
 import pytest
-from edits import wallet
+from edits import make, wallet
 
 from moolakata import net
 from moolakata.bitcoin import sources
@@ -103,8 +103,8 @@ def test_a_wallet_syncs_from_the_fake_esplora_through_the_server(server, mocks):
             s, "bitcoinEsploraUrl", f"http://127.0.0.1:{mocks.ports()['esplora']}/api", None
         )
     server.guard.allow(["127.0.0.1"], ["127.0.0.1"])
-    r = c.post("/ui/api/accounts", json={"name": "Cold storage", "type": "crypto-wallet"})
-    assert r.status_code == 201, r.text
+    r = make(c, "Acct", name="Cold storage", type="crypto-wallet")
+    assert r.status_code == 200, r.text
     wid = r.json()["id"]
     assert wallet(c, wid, TEST_ZPUB).status_code == 200
     assert sync.sync_account(server, wid) == 3

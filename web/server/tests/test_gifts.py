@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, plan529, remove, saved, share
+from edits import change, make, plan529, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import alerts, clock
@@ -29,14 +29,14 @@ def alice(server, frozen):
 
 
 def person(c, **kw):
-    r = c.post("/ui/api/people", json={"name": "Emma Griffin", "sex": "female", **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "GfPln", **{"name": "Emma Griffin", "sex": "female", **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
 def gift(c, **kw):
-    r = c.post("/ui/api/gifts", json={"description": "Watercolour set", **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "Gift", **{"description": "Watercolour set", **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -70,15 +70,10 @@ def test_a_person_with_occasions_and_their_next_date(alice):
     }
     labels = {o["label"]: o["next"] for o in p["occasions"]}
     assert labels == {"Christmas": "2026-12-25", "First day of school": "2027-09-01"}
-    bad = alice.post(
-        "/ui/api/people",
-        json={
-            "name": "X",
-            "sex": "male",
-            "occasions": [{"kind": "holiday", "holiday": "festivus"}],
-        },
+    bad = make(
+        alice, "GfPln", name="X", sex="male", occasions=[{"kind": "holiday", "holiday": "festivus"}]
     )
-    assert bad.json()["errors"][0]["field"] == "occasions.0.holiday"
+    assert bad.json()["errors"][0]["field"] == "holiday"
 
 
 def test_upcoming_with_the_reminder_on_the_dashboard_and_as_an_alert(server, alice):
@@ -115,8 +110,8 @@ def test_a_gift_for_a_user_is_never_shown_to_them(server, alice):
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
     bob_person = bob.get("/ui/api/profile").json()["personId"]
     emma = person(alice)
-    him = alice.post("/ui/api/people", json={"personId": bob_person, "giftBudget": "800"})
-    assert him.status_code == 201, him.text
+    him = make(alice, "GfPln", personId=bob_person, giftBudget="800")
+    assert him.status_code == 200, him.text
     him = him.json()
     assert him["userId"] == bob_id and not him["canChangePerson"]
     gift(alice, people=[emma["id"]], description="Paints")
@@ -132,8 +127,8 @@ def test_a_gift_for_a_user_is_never_shown_to_them(server, alice):
         "A board game",
     }
     # Bob plans Emma's gifts with Alice: what he adds goes in her plan, so she sees it.
-    r = bob.post("/ui/api/gifts", json={"people": [emma["id"]], "description": "Horse book"})
-    assert r.status_code == 201, r.text
+    r = make(bob, "Gift", people=[emma["id"]], description="Horse book")
+    assert r.status_code == 200, r.text
     assert "Horse book" in {g["description"] for g in alice.get("/ui/api/gifts").json()["items"]}
     names = [p["name"] for p in bob.get("/ui/api/people").json()["items"]]
     assert names == ["Emma Griffin"]
@@ -203,10 +198,7 @@ def test_money_given_above_the_exclusion_is_flagged(alice):
     )
     acct = new_account(alice, name="Emma's 529", type="529")
     saved(plan529(alice, acct["id"], beneficiaryId=emma["id"]))
-    alice.post(
-        f"/ui/api/accounts/{acct['id']}/contributions",
-        json={"date": "2026-03-01", "amount": "6000"},
-    )
+    make(alice, "Cntrb", accountId=acct["id"], date="2026-03-01", amount="6000")
     sp = alice.get("/ui/api/gifts/spending?year=2026").json()
     assert sp["flagged"] == [
         {
@@ -220,14 +212,13 @@ def test_money_given_above_the_exclusion_is_flagged(alice):
 def test_a_529_counts_with_no_gift_plan_and_an_election_over_its_five_years(alice):
     # B16: the beneficiary has no gift plan; the owner's five-year election of 100,000 in 2024
     # is 20,000 in each of 2024-2028, over the 2026 exclusion.
-    leo = alice.post("/ui/api/people", json={"name": "Leo Griffin", "sex": "male"}).json()
+    leo = make(alice, "GfPln", name="Leo Griffin", sex="male").json()
     acct = new_account(alice, name="Leo's 529", type="529")
     saved(plan529(alice, acct["id"], beneficiaryId=leo["id"]))
-    r = alice.post(
-        f"/ui/api/accounts/{acct['id']}/contributions",
-        json={"date": "2024-03-01", "amount": "100000", "fiveYear": True},
+    r = make(
+        alice, "Cntrb", accountId=acct["id"], date="2024-03-01", amount="100000", fiveYear=True
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     sp = alice.get("/ui/api/gifts/spending?year=2026").json()
     assert [(f["person"]["id"], f["given"]) for f in sp["flagged"]] == [(leo["id"], "20000.00")]
     assert alice.get("/ui/api/gifts/spending?year=2029").json()["flagged"] == []

@@ -271,12 +271,6 @@ def version_of(s, entity, *where) -> int:
     return int(s.scalar(select(func.coalesce(func.sum(entity.version), 0)).where(*where)) or 0)
 
 
-def check_version(have: int, version: int, current: Any) -> None:
-    """`check` for something whose version is worked out (`version_of`)."""
-    if have != version:
-        raise stale(current() if callable(current) else current, have)
-
-
 def stale(current: Any, version: int | None = None) -> Problem:
     """412 with the record as it is now, so the UI can show what changed, and its version, to
     make the change again against."""

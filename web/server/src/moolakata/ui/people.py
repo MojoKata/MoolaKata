@@ -8,7 +8,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import false, select
 
-from .. import activity, clock, gifts, ids, people
+from .. import activity, clock, gifts, people
 from ..errors import Problem, refuse
 from ..people import tree
 from ..store.entities.education import Person, Relationship
@@ -125,30 +125,6 @@ def get_person(person_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
         people.get(s, c.id, person_id)
         return _row(s, c, person_id)
-
-
-@router.post("/persons", response_model=PersonRow, status_code=201)
-def add_person(body: PersonIn, request: Request, c: Caller = Depends(caller)):
-    """A person, added once (S10.10.3)."""
-    with server(request).db.tx() as s:
-        values = check_person_fields(body)
-        if not body.differentPerson:
-            refuse_clash(s, c, values["name"], values["birthYear"])
-        elif people.clash(s, values["name"], values["birthYear"]) is not None:
-            raise refuse(
-                "birthYear",
-                "not-told-apart",
-                "Give both birth years, different ones, to tell them apart.",
-            )
-        p = Person(
-            id=ids.new_id("Persn"),
-            ownerId=c.id,
-            private=body.private,
-            **values,
-        )
-        s.add(p)
-        s.flush()
-        return _row(s, c, p.id)
 
 
 class Asked(Model):
@@ -364,12 +340,6 @@ def _relate(s, c: Caller, body, rel_id: str) -> Relationship:
     _rewash(s, (r.relation, r.person1Id, r.person2Id))
     activity.record(s, "relationship.saved", actor=c.id, owner=c.id)
     return r
-
-
-@router.post("/relationships", response_model=RelationshipOut, status_code=201)
-def add_relationship(body: RelationshipIn, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        return _rel_out(s, c, _relate(s, c, body, ids.new_id("Rltn")))
 
 
 def _editable(s, c: Caller, rel_id: str) -> Relationship:

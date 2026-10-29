@@ -6,11 +6,11 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, projections
+from .. import access, activity, clock, exactjson, projections
 from ..errors import FieldError, Problem, refuse
 from ..projections import assumptions, bitcoin, taxtables
 from ..store.entities.projections import AssumptionSet, Projection, ShownProjection, TaxFigure
@@ -253,37 +253,6 @@ def _raise(errors: list[FieldError]) -> None:
 def list_projections(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read() as s:
         return [row(s, c.id, p, lvl) for p, lvl in projections.visible(s, c.id)]
-
-
-@router.post("/projections", response_model=ProjectionDetail, status_code=201)
-def create_projection(body: NewProjection, request: Request, c: Caller = Depends(caller)):
-    """It starts as a scenario; making it active is a step of its own (S6.7)."""
-    with server(request).db.tx() as s:
-        _raise(_check(s, c.id, body.name, body.goal, body.builtOn, body.inputs))
-        p = Projection(
-            id=ids.new_id("Prjct"),
-            ownerId=c.id,
-            name=body.name.strip(),
-            goal=body.goal,
-            builtOn=exactjson.dumps(body.builtOn),
-            inputs=exactjson.dumps(body.inputs),
-        )
-        s.add(p)
-        s.flush()
-        activity.record(
-            s,
-            "projection.created",
-            actor=c.id,
-            subject_kind="projection",
-            subject_id=p.id,
-            owner=c.id,
-        )
-        out = detail(s, c.id, p, "owner")
-    return JSONResponse(
-        out.model_dump(mode="json"),
-        status_code=201,
-        headers={"Location": f"/ui/api/projections/{p.id}"},
-    )
 
 
 @router.get("/projections/{projection_id}", response_model=ProjectionDetail)

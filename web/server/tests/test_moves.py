@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import change, edit, remove, saved
+from edits import change, edit, make, remove, saved
 from test_accounts import add
 from test_budgets import month, plan, row, setup_budget
 
@@ -24,7 +24,7 @@ def moves_on(c, b):
 
 
 def move(c, b, **body):
-    return c.post(f"/ui/api/budgets/{b['id']}/moves", json=body)
+    return make(c, "BdgMv", **{"budgetId": b["id"], **body})
 
 
 def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
@@ -38,7 +38,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
     plan(c, b, "2026-09-01", lines)
     add(c, acct["id"], "-340.00", "2026-10-04", payee="Kroger", categoryId=cat["Food › Groceries"])
     r = move(c, b, month="2026-10-01", fromCategoryId=fun, toCategoryId=food, amount="40.00")
-    assert r.status_code == 422 and r.json()["code"] == "moves-off"
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "moves-off"
     moves_on(c, b)
     r = move(
         c,
@@ -49,7 +49,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
         amount="40.00",
         note="Emma's dinner",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     made = r.json()
     v = month(c, b, "2026-10")
     f, e = row(v, "Food"), row(v, "Entertainment")
@@ -63,7 +63,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
         move(
             c, b, month="2026-09-01", fromCategoryId=fun, toCategoryId=kids, amount="50"
         ).status_code
-        == 201
+        == 200
     )
     assert row(month(c, b, "2026-10"), "Childcare")["carried"] == "150.00"
     # Deleting a move undoes it.
@@ -71,7 +71,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
     assert row(month(c, b, "2026-10"), "Food")["planned"] == "300.00"
     # To Budget is an envelope budget's alone.
     r = move(c, b, month="2026-10-01", toCategoryId=food, amount="10")
-    assert r.status_code == 422 and r.json()["code"] == "move-invalid"
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "move-invalid"
 
 
 def test_a_transaction_left_out_of_one_budget(server, frozen):
@@ -87,7 +87,7 @@ def test_a_transaction_left_out_of_one_budget(server, frozen):
         payee="Shell",
         categoryId=cat["Transportation › Fuel"],
     )
-    other = c.post("/ui/api/budgets", json={"name": "Mine", "accountIds": [acct["id"]]}).json()
+    other = make(c, "Bdgt", name="Mine", accountIds=[acct["id"]]).json()
     found = {
         x["name"]: x for x in c.get(f"/ui/api/transactions/{car['id']}/budgets").json()["items"]
     }

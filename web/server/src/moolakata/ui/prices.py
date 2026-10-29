@@ -5,11 +5,10 @@ import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, settings
+from .. import access, activity, clock, exactjson, settings
 from ..errors import FieldError, Problem, refuse
 from ..prices import SOURCES
 from ..prices import refresh as pricing
@@ -66,10 +65,6 @@ class SourcesView(Model):
     sources: list[SourceRow]
     refreshTime: str
     refreshZone: str
-
-
-class NewSource(Model):
-    name: str
 
 
 class Close(Model):
@@ -201,17 +196,6 @@ def _add(s, srv, c: Caller, name: str, source_id: str) -> PriceSource:
     s.add(src)
     activity.record(s, "prices.source-added", actor=c.id, for_admins=True, detail={"source": name})
     return src
-
-
-@router.post("/price-sources", response_model=SourcesView, status_code=201)
-def add_source(body: NewSource, request: Request, c: Caller = Depends(admin)):
-    srv = server(request)
-    with srv.db.tx() as s:
-        _add(s, srv, c, body.name, ids.new_id("Src"))
-        s.flush()
-        view = _view(s, srv.config.dev)
-    apply_egress(srv)
-    return JSONResponse(view.model_dump(mode="json"), status_code=201)
 
 
 class SourceRecord(Model):

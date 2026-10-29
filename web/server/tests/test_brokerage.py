@@ -4,6 +4,8 @@ cash activity, as Schwab, Fidelity and Empower lay them out; trades are not read
 import datetime as dt
 from decimal import Decimal
 
+from edits import make
+
 from moolakata.importers import brokerage
 
 TODAY = dt.date(2026, 10, 13)
@@ -161,19 +163,18 @@ def test_a_brokerage_statement_is_checked_and_saved(server):
         ("VTI", "412", "240.00", "2026-01-05"),
         ("SCHD", "598.1020", "26.00", "2026-01-05"),
     ):
-        r = c.post(
-            "/ui/api/transactions",
-            json={
-                "accountId": a["id"],
-                "date": day,
-                "kind": "buy",
-                "symbol": sym,
-                "quantity": qty,
-                "price": price,
-                "amount": str((-Decimal(qty) * Decimal(price)).quantize(Decimal("0.01"))),
-            },
+        r = make(
+            c,
+            "Txn",
+            accountId=a["id"],
+            date=day,
+            kind="buy",
+            symbol=sym,
+            quantity=qty,
+            price=price,
+            amount=str((-Decimal(qty) * Decimal(price)).quantize(Decimal("0.01"))),
         )
-        assert r.status_code == 201, r.text
+        assert r.status_code == 200, r.text
     add(c, a["id"], "1500.00", day="2026-09-15", payee="MoneyLink Transfer from Joint Household")
     review = _import(c, a["id"], text_pdf(SCHWAB.splitlines()))["result"]
     assert review["kind"] == "brokerage"

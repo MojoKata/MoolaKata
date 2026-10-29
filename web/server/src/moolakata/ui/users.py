@@ -3,7 +3,7 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import Field
 from sqlalchemy import false, select
 
@@ -36,21 +36,6 @@ class UserRow(Model):
     version: int
 
 
-class NewUser(Model):
-    displayName: str
-    username: str
-    email: str
-    sex: str | None = None  # their person's (S10.10.1); required
-    groupIds: list[str] = Field(default_factory=list)
-
-
-class UserChange(Model):
-    displayName: str | None = None
-    email: str | None = None
-    active: bool | None = None
-    groupIds: list[str] | None = None
-
-
 class GroupRow(Model):
     id: str
     name: str
@@ -59,17 +44,6 @@ class GroupRow(Model):
     memberIds: list[str]
     createdAt: dt.datetime
     version: int
-
-
-class NewGroup(Model):
-    name: str
-    memberIds: list[str] = Field(default_factory=list)
-
-
-class GroupChange(Model):
-    name: str | None = None
-    active: bool | None = None
-    memberIds: list[str] | None = None
 
 
 def user_row(s, u: User) -> UserRow:
@@ -136,26 +110,6 @@ def _admin_change(s, c: Caller, wanted: list[str] | None, user_id: str | None = 
     now = bool(user_id) and admins in accounts.group_ids(s, user_id)
     if (admins in wanted) != now:
         recent_auth(c)
-
-
-@router.post("/users", response_model=UserRow, status_code=201)
-def create_user(body: NewUser, request: Request, c: Caller = Depends(admin)):
-    srv = server(request)
-    with srv.db.tx() as s:
-        _admin_change(s, c, body.groupIds)
-        u = accounts.invite(
-            s,
-            srv.services,
-            c.user,
-            body.displayName,
-            body.username,
-            body.email,
-            body.groupIds,
-            body.sex,
-        )
-        row = user_row(s, u)
-    # No route reads one by its id: the middleware's Location is the list (S13.8.4).
-    return JSONResponse(row.model_dump(mode="json"), status_code=201)
 
 
 @router.post("/users/{user_id}/invitation", status_code=204)
@@ -239,15 +193,6 @@ def list_groups(request: Request, c: Caller = Depends(admin)):
     with server(request).db.read() as s:
         groups = s.scalars(select(Group).where(Group.deleted == false()).order_by(Group.name)).all()
         return [group_row(s, g) for g in groups]
-
-
-@router.post("/groups", response_model=GroupRow, status_code=201)
-def create_group(body: NewGroup, request: Request, c: Caller = Depends(admin)):
-    with server(request).db.tx() as s:
-        g = accounts.create_group(s, c.user, body.name, body.memberIds)
-        row = group_row(s, g)
-    # No route reads one by its id: the middleware's Location is the list (S13.8.4).
-    return JSONResponse(row.model_dump(mode="json"), status_code=201)
 
 
 # ---------- users and groups in a dialog's draft (S12.15, S13.8.11) ----------

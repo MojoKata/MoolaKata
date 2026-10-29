@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import asked, change, create, remove, saved, share
+from edits import asked, change, create, make, remove, saved, share
 from test_accounts import add, new_account
 from test_save import made_at
 
@@ -31,19 +31,16 @@ def couple(server, frozen):
     b_id = bob.get("/ui/api/session").json()["user"]["id"]
     pa = alice.get("/ui/api/profile").json()["personId"]
     pb = bob.get("/ui/api/profile").json()["personId"]
-    r = alice.post(
-        "/ui/api/relationships",
-        json={"person1Id": pa, "person2Id": pb, "relation": "spouse", "fromDate": "2009-06-14"},
-    )
-    assert r.status_code == 201, r.text
+    r = make(alice, "Rltn", person1Id=pa, person2Id=pb, relation="spouse", fromDate="2009-06-14")
+    assert r.status_code == 200, r.text
     # Bob confirms the marriage from his Profile (S10.10.4).
     assert bob.post(f"/ui/api/relationships/{r.json()['id']}/confirm").status_code == 200
     return alice, bob, a_id, b_id
 
 
 def book(c, year, filers, **kw):
-    r = c.post("/ui/api/tax-books", json={"year": year, "filers": filers, **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "TaxBk", **{"year": year, "filers": filers, **kw})
+    assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -63,7 +60,7 @@ def test_a_joint_book_counts_a_filer_once_they_accept(server, couple):
     assert {a["name"] for a in d["accounts"]} == {"Alice's brokerage", "Bob's checking"}
     make_user(server, "carol")
     c_id = sign_in(server, "carol").get("/ui/api/session").json()["user"]["id"]
-    r = alice.post("/ui/api/tax-books", json={"year": 2026, "filers": [a_id, c_id]})
+    r = make(alice, "TaxBk", year=2026, filers=[a_id, c_id])
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-married"
 
 
@@ -86,8 +83,8 @@ def test_filings_due_dates_overdue_and_results(couple):
     bank = new_account(alice, name="Checking")
     refund = add(alice, bank["id"], "1240.00", "2026-03-18", payee="IRS TREAS 310")
     last = book(alice, 2025, [a_id])
-    r = alice.post(f"/ui/api/tax-books/{last['id']}/filings", json={"form": "Form 1040"})
-    f = r.json()["filings"][0]
+    r = make(alice, "Filng", bookId=last["id"], form="Form 1040")
+    f = r.parent()["filings"][0]
     assert f["dueDate"] == "2026-04-15" and f["overdue"]
     dash = alice.get("/ui/api/dashboard").json()["attention"]
     assert any(a["text"] == "Federal return for 2025 is past its due date" for a in dash)
@@ -110,14 +107,10 @@ def test_filings_due_dates_overdue_and_results(couple):
         {"op": "create", "entity": "EstPy", "id": made_at("EstPy", clock.now()), "fields": pay},
     ]})  # fmt: skip
     assert r.status_code == 200, r.text
-    r = alice.get(f"/ui/api/tax-books/{last['id']}")
-    f = r.json()["filings"][0]
+    f = alice.get(f"/ui/api/tax-books/{last['id']}").json()["filings"][0]
     assert not f["overdue"] and f["resultPaid"].startswith("Checking · Mar 18")
     assert f["payments"][0]["amount"] == "1500.00"
-    state = alice.post(
-        f"/ui/api/tax-books/{last['id']}/filings",
-        json={"jurisdiction": "state", "form": "TC-40"},
-    )
+    state = make(alice, "Filng", bookId=last["id"], jurisdiction="state", form="TC-40")
     assert state.json()["errors"][0]["field"] == "place"
     # This year's book carries last year's figures.
     now = book(alice, 2026, [a_id])
@@ -137,25 +130,20 @@ def test_documents_expected_received_and_carried_to_next_year(couple):
     up = alice.post(
         "/ui/api/receipts", files={"file": ("w2.pdf", b"%PDF-1.4 w2", "application/pdf")}
     )
-    alice.post(
-        f"/ui/api/tax-books/{last['id']}/documents",
-        json={
-            "form": "1099 (composite)",
-            "issuer": "Fidelity",
-            "accountId": brk["id"],
-            "receiptId": up.json()["id"],
-        },
+    make(
+        alice,
+        "TxDoc",
+        bookId=last["id"],
+        form="1099 (composite)",
+        issuer="Fidelity",
+        accountId=brk["id"],
+        receiptId=up.json()["id"],
     )
-    d = alice.post(
-        f"/ui/api/tax-books/{last['id']}/documents",
-        json={"form": "W-2", "issuer": "Acme Corp"},
-    ).json()
+    d = make(alice, "TxDoc", bookId=last["id"], form="W-2", issuer="Acme Corp").parent()
     composite = next(e for e in d["expected"] if e["form"] == "1099 (composite)")
     assert composite["document"]["fileName"] == "w2.pdf"
     assert [x["form"] for x in d["received"]] == ["W-2"]
-    bad = alice.post(
-        f"/ui/api/tax-books/{last['id']}/documents", json={"direction": "filed", "form": "Reply"}
-    )
+    bad = make(alice, "TxDoc", bookId=last["id"], direction="filed", form="Reply")
     assert bad.json()["errors"][0]["field"] == "filingId"
     # Next year expects last year's W-2 again.
     now = book(alice, 2026, [a_id])
@@ -174,7 +162,7 @@ def test_a_preparer_helps_but_cannot_delete(server, couple):
     b = book(alice, 2026, [a_id])
     r = share(alice, "tax-book", b["id"], users={d_id: "write"})
     assert r.status_code == 200, r.text
-    assert dave.post(f"/ui/api/tax-books/{b['id']}/filings", json={}).status_code == 201
+    assert make(dave, "Filng", bookId=b["id"]).status_code == 200
     assert remove(dave, "TaxBk", b).status_code == 403
 
 
@@ -182,21 +170,18 @@ def test_a_preparer_helps_but_cannot_delete(server, couple):
 
 
 def person(c, name, sex="female", **kw):
-    r = c.post("/ui/api/persons", json={"name": name, "sex": sex, **kw})
-    assert r.status_code == 201, r.text
+    r = make(c, "Persn", **{"name": name, "sex": sex, **kw})
+    assert r.status_code == 200, r.text
     return r.json()["id"]
 
 
 def child_of(c, parent, kid):
-    r = c.post(
-        "/ui/api/relationships",
-        json={"person1Id": parent, "person2Id": kid, "relation": "child"},
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Rltn", person1Id=parent, person2Id=kid, relation="child")
+    assert r.status_code == 200, r.text
 
 
 def dependent(c, book_id, person_id, **kw):
-    return c.post(f"/ui/api/tax-books/{book_id}/dependents", json={"personId": person_id, **kw})
+    return make(c, "TxDep", **{"bookId": book_id, "personId": person_id, **kw})
 
 
 def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server, couple):
@@ -225,22 +210,24 @@ def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server
     assert cands["Margaret Griffin"]["suggest"] == "qualifying relative"
 
     r = dependent(alice, b["id"], carol, student=True)
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     r = dependent(alice, b["id"], emma)
-    d = {x["name"]: x for x in r.json()["dependents"]}
+    d = {x["name"]: x for x in r.parent()["dependents"]}
     assert d["Carol Griffin"]["age"] == 14 and d["Carol Griffin"]["under17"]
     assert not d["Carol Griffin"]["under13"]
     assert d["Emma Griffin"]["under13"] and d["Emma Griffin"]["agesOut"] == []
-    assert dependent(alice, b["id"], gran, claimedAs="qualifying relative").status_code == 201
-    assert dependent(alice, b["id"], carol).json()["code"] == "dependent-twice"
-    assert dependent(alice, b["id"], pa).json()["code"] == "dependent-filer"
-    assert dependent(alice, b["id"], emma, months=13).json()["code"] == "months-invalid"
+    assert dependent(alice, b["id"], gran, claimedAs="qualifying relative").status_code == 200
+    assert dependent(alice, b["id"], carol).json()["errors"][0]["code"] == "dependent-twice"
+    assert dependent(alice, b["id"], pa).json()["errors"][0]["code"] == "dependent-filer"
+    assert (
+        dependent(alice, b["id"], emma, months=13).json()["errors"][0]["code"] == "months-invalid"
+    )
 
     # Their documents: a student's 1098-T is expected.
     detail = alice.get(f"/ui/api/tax-books/{b['id']}").json()
     assert any(e["form"] == "1098-T" and "Carol" in e["why"] for e in detail["expected"])
     p = alice.get(f"/ui/api/tax-books/{b['id']}/panels").json()
-    assert [x["name"] for x in p["dependents"]] == [
+    assert sorted(x["name"] for x in p["dependents"]) == [
         "Carol Griffin",
         "Emma Griffin",
         "Margaret Griffin",
@@ -261,16 +248,16 @@ def test_a_person_claimed_on_two_books_is_flagged_on_both(server, couple):
     kid = person(alice, "Carol Griffin", birthYear=2012)
     mine = book(alice, 2026, [a_id])
     theirs = book(bob, 2026, [b_id])
-    assert dependent(alice, mine["id"], kid).status_code == 201
+    assert dependent(alice, mine["id"], kid).status_code == 200
     r = dependent(bob, theirs["id"], kid)
-    assert r.json()["dependents"][0]["claimedElsewhere"]
+    assert r.parent()["dependents"][0]["claimedElsewhere"]
     d = alice.get(f"/ui/api/tax-books/{mine['id']}").json()
     assert d["dependents"][0]["claimedElsewhere"]
     issues = alice.get(f"/ui/api/tax-books/{mine['id']}/panels").json()["issues"]
     assert "Carol Griffin is claimed on another 2026 tax book too" in [i["text"] for i in issues]
     # A dependent's own book notes that they are claimed on another.
     pb = bob.get("/ui/api/profile").json()["personId"]
-    assert dependent(alice, mine["id"], pb, claimedAs="qualifying relative").status_code == 201
+    assert dependent(alice, mine["id"], pb, claimedAs="qualifying relative").status_code == 200
     d = bob.get(f"/ui/api/tax-books/{theirs['id']}").json()
     assert d["claimedElsewhere"] == ["Bob"]
 
@@ -283,10 +270,10 @@ def test_a_dependent_childs_unearned_income_past_the_threshold_is_flagged(server
     add(alice, utma["id"], "1010.00", day="2026-06-02", kind="interest")
     b = book(alice, 2026, [a_id])
     r = dependent(alice, b["id"], kid, accountIds=["Acct_00000000000000000000000000"])
-    assert r.json()["code"] == "account-not-counted"
+    assert r.json()["errors"][0]["code"] == "account-not-counted"
     r = dependent(alice, b["id"], kid, accountIds=[utma["id"]])
-    assert r.status_code == 201, r.text
-    f = r.json()["form8615"]
+    assert r.status_code == 200, r.text
+    f = r.parent()["form8615"]
     assert f == [
         {"name": "Carol Griffin", "unearned": 2910, "threshold": 2700, "accounts": ["Carol's UTMA"]}
     ]
@@ -300,9 +287,9 @@ def test_next_years_book_copies_dependents_a_year_older(server, couple):
     sam = person(alice, "Sam Griffin", "male", birthYear=2007)  # 19 in 2026
     ruth = person(alice, "Ruth Griffin", birthYear=2003)
     old = book(alice, 2025, [a_id])
-    assert dependent(alice, old["id"], carol).status_code == 201
-    assert dependent(alice, old["id"], sam).status_code == 201
-    assert dependent(alice, old["id"], ruth, claimedAs="qualifying relative").status_code == 201
+    assert dependent(alice, old["id"], carol).status_code == 200
+    assert dependent(alice, old["id"], sam).status_code == 200
+    assert dependent(alice, old["id"], ruth, claimedAs="qualifying relative").status_code == 200
     new = book(alice, 2026, [a_id])
     assert new["dependentsLeftOut"] == ["Sam Griffin"]
     d = alice.get(f"/ui/api/tax-books/{new['id']}").json()
@@ -351,8 +338,8 @@ def test_a_helper_edits_but_never_changes_what_the_book_counts(server, couple):
     assert r.status_code == 200, r.text
     r = create(gail, "TxBkA", bookId=b["id"], accountId=acct["id"], counted=True)
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "filers-only"
-    r = gail.post(f"/ui/api/tax-books/{b['id']}/filings", json={"form": "Form 1040"})
-    assert r.status_code == 201, r.text
+    r = make(gail, "Filng", bookId=b["id"], form="Form 1040")
+    assert r.status_code == 200, r.text
 
 
 def test_a_due_date_skips_weekends_and_legal_holidays():
@@ -401,17 +388,17 @@ def test_an_edit_that_moves_a_filed_years_gains_asks_first(server, couple):
         price="150",
     )
     me = alice.get("/ui/api/session").json()["user"]["id"]
-    book = alice.post("/ui/api/tax-books", json={"year": 2025, "filers": [me]}).json()
-    r = alice.post(
-        f"/ui/api/tax-books/{book['id']}/filings",
-        json={
-            "jurisdiction": "federal",
-            "form": "1040",
-            "progress": "filed",
-            "filedOn": "2026-04-10",
-        },
+    book = make(alice, "TaxBk", year=2025, filers=[me]).json()
+    r = make(
+        alice,
+        "Filng",
+        bookId=book["id"],
+        jurisdiction="federal",
+        form="1040",
+        progress="filed",
+        filedOn="2026-04-10",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     r = change(alice, "Txn", sale, amount="1600.00")
     assert asked(r) == ["closed-year"]
     assert "gains of 2025" in r.json()["asks"][0]["message"]
@@ -434,12 +421,10 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
     sale = add(alice, brk["id"], "1500.00", "2025-03-03", kind="sell", symbol="VTI",
                quantity="10", price="150")  # fmt: skip
     me = alice.get("/ui/api/session").json()["user"]["id"]
-    b = alice.post("/ui/api/tax-books", json={"year": 2025, "filers": [me]}).json()
+    b = make(alice, "TaxBk", year=2025, filers=[me]).json()
     federal = {"jurisdiction": "federal", "form": "1040", "progress": "filed"}
-    r = alice.post(
-        f"/ui/api/tax-books/{b['id']}/filings", json={**federal, "filedOn": "2026-04-10"}
-    )
-    original = next(f for f in r.json()["filings"] if f["form"] == "1040")
+    r = make(alice, "Filng", **{"bookId": b["id"], **federal, "filedOn": "2026-04-10"})
+    original = next(f for f in r.parent()["filings"] if f["form"] == "1040")
 
     def issues():
         p = alice.get(f"/ui/api/tax-books/{b['id']}/panels").json()
@@ -464,12 +449,19 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
     ]
     assert attention() == ["2025's realized gains changed after the federal return was filed"]
     # An amended return, being prepared: the changes are settled and the year is open.
-    r = alice.post(
-        f"/ui/api/tax-books/{b['id']}/filings",
-        json={**federal, "form": "1040-X", "progress": "in progress", "amendsId": original["id"]},
+    r = make(
+        alice,
+        "Filng",
+        **{
+            "bookId": b["id"],
+            **federal,
+            "form": "1040-X",
+            "progress": "in progress",
+            "amendsId": original["id"],
+        },
     )
-    assert r.status_code == 201, r.text
-    amended = next(f for f in r.json()["filings"] if f["form"] == "1040-X")
+    assert r.status_code == 200, r.text
+    amended = next(f for f in r.parent()["filings"] if f["form"] == "1040-X")
     assert issues() == [] and attention() == []
     assert edit("1700.00", confirm=False).status_code == 200
     assert issues() == []
@@ -504,11 +496,8 @@ def test_a_tax_documents_file_opens_for_the_books_filers(server, couple):
     up = alice.post(
         "/ui/api/receipts", files={"file": ("w2.pdf", b"%PDF-1.4 w2", "application/pdf")}
     ).json()
-    r = alice.post(
-        f"/ui/api/tax-books/{b['id']}/documents",
-        json={"form": "W-2", "issuer": "Acme Corp", "receiptId": up["id"]},
-    )
-    assert r.status_code == 201, r.text
+    r = make(alice, "TxDoc", bookId=b["id"], form="W-2", issuer="Acme Corp", receiptId=up["id"])
+    assert r.status_code == 200, r.text
     assert bob.get(f"/ui/api/receipts/{up['id']}/file").status_code == 200
     got = alice.get(f"/ui/api/receipts/{up['id']}").json()
     assert [(x["kind"], x["label"]) for x in got["links"]] == [
@@ -527,18 +516,15 @@ def test_a_document_changed_removed_and_given_its_file_by_a_co_filer(couple):
     up = alice.post(
         "/ui/api/receipts", files={"file": ("w2.pdf", b"%PDF-1.4 w2", "application/pdf")}
     ).json()
-    d = alice.post(
-        f"/ui/api/tax-books/{b['id']}/documents",
-        json={"form": "1099-INT", "issuer": "Acme Corp", "receiptId": up["id"]},
-    ).json()
+    d = make(
+        alice, "TxDoc", bookId=b["id"], form="1099-INT", issuer="Acme Corp", receiptId=up["id"]
+    ).parent()
     (doc,) = d["received"]
     doc = saved(change(alice, "TxDoc", doc, form="W-2"))
     assert doc["form"] == "W-2" and doc["receiptId"] == up["id"]
     doc = saved(change(bob, "TxDoc", doc, notes="corrected copy expected"))
     assert doc["notes"] == "corrected copy expected"
-    kept = alice.post(
-        f"/ui/api/tax-books/{b['id']}/documents", json={"form": "1098", "issuer": "Rocket"}
-    ).json()
+    kept = make(alice, "TxDoc", bookId=b["id"], form="1098", issuer="Rocket").parent()
     later = next(x for x in kept["received"] if x["form"] == "1098")
     pdf = alice.post(
         "/ui/api/receipts", files={"file": ("1098.pdf", b"%PDF-1.4 1098", "application/pdf")}

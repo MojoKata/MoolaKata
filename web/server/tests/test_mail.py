@@ -6,7 +6,7 @@ from typing import ClassVar
 
 import pytest
 from conftest import make_user, new_client
-from edits import save_settings
+from edits import make, save_settings
 from test_users import kinds, mails, set_public_url
 
 from moolakata import settings
@@ -104,11 +104,10 @@ def test_with_smtp_emails_go_through_the_outbox(admin_client, server, smtp):
     set_up_smtp(admin_client)
     set_public_url(server)
     before = len(mails(server))
-    r = admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "Dave", "username": "dave", "email": "dave@x.lan", "sex": "male"},
+    r = make(
+        admin_client, "User", displayName="Dave", username="dave", email="dave@x.lan", sex="male"
     )
-    assert r.status_code == 201
+    assert r.status_code == 200
     assert len(mails(server)) == before, "not written to the mail folder"
     assert len(server.services.mailer.waiting()) == 1
     assert server.services.mailer.send_waiting(_smtp(server), server.guard) == 1
@@ -127,10 +126,7 @@ def _smtp(server):
 def test_a_failure_keeps_the_email_and_says_why(admin_client, server, smtp):
     set_up_smtp(admin_client, password="wrong")
     set_public_url(server)
-    admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "Dave", "username": "dave", "email": "dave@x.lan", "sex": "male"},
-    )
+    make(admin_client, "User", displayName="Dave", username="dave", email="dave@x.lan", sex="male")
     with pytest.raises(RuntimeError, match="refused the username or password"):
         server.services.mailer.send_waiting(_smtp(server), server.guard)
     assert len(server.services.mailer.waiting()) == 1
@@ -152,9 +148,8 @@ def test_emails_wait_in_the_database_until_sent_or_their_link_expires(admin_clie
     set_up_smtp(admin_client)
     set_public_url(server)
     for name in ("dave", "erin"):
-        admin_client.post(
-            "/ui/api/users",
-            json={"displayName": name, "username": name, "email": f"{name}@x.lan", "sex": "male"},
+        make(
+            admin_client, "User", displayName=name, username=name, email=f"{name}@x.lan", sex="male"
         )
     assert not server.config.outbox_dir.exists(), "nothing in the data directory in the clear"
     assert [w.recipient for w in server.services.mailer.waiting()] == ["dave@x.lan", "erin@x.lan"]
@@ -169,10 +164,7 @@ def test_emails_wait_in_the_database_until_sent_or_their_link_expires(admin_clie
         assert all(r.error for r in refused)
     assert server.services.mailer.waiting() == []
     smtp.fail = None
-    admin_client.post(
-        "/ui/api/users",
-        json={"displayName": "fay", "username": "fay", "email": "fay@x.lan", "sex": "female"},
-    )
+    make(admin_client, "User", displayName="fay", username="fay", email="fay@x.lan", sex="female")
     clock.fix(clock.now() + dt.timedelta(days=8))  # past even an invitation's week
     try:
         assert server.services.mailer.waiting() == []
@@ -387,16 +379,15 @@ def test_written_emails_are_listed_for_admins_and_expire(admin_client, server, t
     with server.db.tx() as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     make_user(server, "carol")
-    r = admin_client.post(
-        "/ui/api/users",
-        json={
-            "displayName": "Dave",
-            "username": "dave",
-            "email": "dave@example.com",
-            "sex": "male",
-        },
+    r = make(
+        admin_client,
+        "User",
+        displayName="Dave",
+        username="dave",
+        email="dave@example.com",
+        sex="male",
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     listed = admin_client.get("/ui/api/settings/email/written").json()["items"]
     assert (
         listed and listed[0]["to"] == "dave@example.com" and "invit" in listed[0]["subject"].lower()

@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import edit, giving_plan, saved
+from edits import edit, giving_plan, make, saved
 from test_accounts import add, new_account
 from test_budgets import month, plan, row, save_plan, setup_budget
 
@@ -31,12 +31,9 @@ def test_a_method_and_options_chosen_when_made(server, frozen):
         False,
         "2026-10-01",
     )
-    r = c.post("/ui/api/budgets", json={"name": "Try", "method": "zero"})
+    r = make(c, "Bdgt", name="Try", method="zero")
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "method"
-    r = c.post(
-        "/ui/api/budgets",
-        json={"name": "Envelopes", "method": "envelope", "accountIds": [acct["id"]]},
-    )
+    r = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[acct["id"]])
     env = r.json()
     assert env["method"] == "envelope" and env["moves"]
     assert change(c, env, moves=False).status_code == 422
@@ -70,10 +67,8 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
 
 def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
     c, acct, cat, b = setup_budget(server)
-    r = c.post(
-        "/ui/api/people", json={"name": "Emma Griffin", "sex": "female", "giftBudget": "600"}
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "GfPln", name="Emma Griffin", sex="female", giftBudget="600")
+    assert r.status_code == 200, r.text
     r = giving_plan(c, 2026, targetKind="amount", amount="1200")
     assert r.status_code == 200, r.text
     add(c, acct["id"], "-80.00", "2026-03-04", payee="Toy store", categoryId=cat["Gifts"])
@@ -92,14 +87,13 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
 
 def test_a_savings_line_shows_its_projections_monthly(server, frozen):
     c, acct, cat, b = setup_budget(server)
-    r = c.post(
-        "/ui/api/projections",
-        json={
-            "name": "Nest egg",
-            "goal": "savings",
-            "builtOn": {"kind": "accounts", "ids": [acct["id"]]},
-            "inputs": {"target": 150000, "date": "2030-01-01", "monthly": 650},
-        },
+    r = make(
+        c,
+        "Prjct",
+        name="Nest egg",
+        goal="savings",
+        builtOn={"kind": "accounts", "ids": [acct["id"]]},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 650},
     )
     pid = r.json()["id"]
     c.post(f"/ui/api/projections/{pid}/activate")

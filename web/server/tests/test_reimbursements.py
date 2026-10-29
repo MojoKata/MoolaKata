@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, remove, saved
+from edits import change, make, remove, saved
 from test_accounts import add, new_account
 from test_budgets import month, setup_budget
 
@@ -66,11 +66,8 @@ def test_awaited_spending_isnt_counted_and_a_payback_isnt_income(server, frozen)
     )
     # The deposit of the amount awaited is offered first.
     assert [o["transactionId"] for o in item["offers"]][:2] == [back["id"], payroll["id"]]
-    r = c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": flight["id"], "paybackId": back["id"], "amount": "412.60"},
-    )
-    assert r.status_code == 201, r.text
+    r = make(c, "Rmbrs", spendingId=flight["id"], paybackId=back["id"], amount="412.60")
+    assert r.status_code == 200, r.text
     assert awaiting(c, b) == []
     v = month(c, b, "2026-10")
     assert v["spent"] == "0.00" and v["income"] == "4820.00"
@@ -85,34 +82,27 @@ def test_awaited_spending_isnt_counted_and_a_payback_isnt_income(server, frozen)
 def test_a_split_part_paid_back_and_the_rest_counted_again(server, frozen):
     c, acct, cat, b = setup_budget(server)
     util = cat["Housing › Utilities"]
-    r = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2026-10-06",
-            "amount": "-175.00",
-            "payee": "City Utilities",
-            "splits": [
-                {"amount": "-87.50", "categoryId": util},
-                {"amount": "-87.50", "categoryId": util, "reimbursable": "87.50", "owedBy": "Sam"},
-            ],
-        },
+    r = make(
+        c,
+        "Txn",
+        accountId=acct["id"],
+        date="2026-10-06",
+        amount="-175.00",
+        payee="City Utilities",
+        splits=[
+            {"amount": "-87.50", "categoryId": util},
+            {"amount": "-87.50", "categoryId": util, "reimbursable": "87.50", "owedBy": "Sam"},
+        ],
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     bill = r.json()
     half = next(x for x in bill["splits"] if x["reimbursable"])
     venmo = add(c, acct["id"], "50.00", "2026-10-10", payee="Venmo from Sam")
     assert month(c, b, "2026-10")["spent"] == "87.50"
-    r = c.post(
-        "/ui/api/reimbursements",
-        json={
-            "spendingId": bill["id"],
-            "splitId": half["id"],
-            "paybackId": venmo["id"],
-            "amount": "50.00",
-        },
+    r = make(
+        c, "Rmbrs", spendingId=bill["id"], splitId=half["id"], paybackId=venmo["id"], amount="50.00"
     )
-    assert r.status_code == 201, r.text
+    assert r.status_code == 200, r.text
     (item,) = awaiting(c, b)
     assert item["awaited"] == "37.50" and item["splitId"] == half["id"]
     # Sam won't pay the rest: lowered to what was paid back, the rest counts again.
@@ -130,51 +120,27 @@ def test_a_split_part_paid_back_and_the_rest_counted_again(server, frozen):
 
 def test_marks_and_pairings_are_checked(server, frozen):
     c, acct, _, _ = setup_budget(server)
-    bad = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2026-10-03",
-            "amount": "-20.00",
-            "reimbursable": "25.00",
-        },
+    bad = make(
+        c, "Txn", accountId=acct["id"], date="2026-10-03", amount="-20.00", reimbursable="25.00"
     )
     assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "reimbursable"
-    bad = c.post(
-        "/ui/api/transactions",
-        json={
-            "accountId": acct["id"],
-            "date": "2026-10-03",
-            "amount": "20.00",
-            "reimbursable": "5.00",
-        },
+    bad = make(
+        c, "Txn", accountId=acct["id"], date="2026-10-03", amount="20.00", reimbursable="5.00"
     )
     assert bad.status_code == 422
     lunch = add(c, acct["id"], "-20.00", "2026-10-03", reimbursable="20.00")
     plain = add(c, acct["id"], "-30.00", "2026-10-03")
     deposit = add(c, acct["id"], "15.00", "2026-10-04")
-    r = c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": plain["id"], "paybackId": deposit["id"], "amount": "10.00"},
-    )
+    r = make(c, "Rmbrs", spendingId=plain["id"], paybackId=deposit["id"], amount="10.00")
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-reimbursable"
-    r = c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": lunch["id"], "paybackId": deposit["id"], "amount": "16.00"},
-    )
+    r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=deposit["id"], amount="16.00")
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "amount"
-    r = c.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": lunch["id"], "paybackId": plain["id"], "amount": "10.00"},
-    )
+    r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=plain["id"], amount="10.00")
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-a-deposit"
     # Someone else can't pair with the account's spending.
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     mine = new_account(bob, name="Bob's checking")
     theirs = add(bob, mine["id"], "20.00", "2026-10-05")
-    r = bob.post(
-        "/ui/api/reimbursements",
-        json={"spendingId": lunch["id"], "paybackId": theirs["id"], "amount": "10.00"},
-    )
+    r = make(bob, "Rmbrs", spendingId=lunch["id"], paybackId=theirs["id"], amount="10.00")
     assert r.status_code in (403, 404)

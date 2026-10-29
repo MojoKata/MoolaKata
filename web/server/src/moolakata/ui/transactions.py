@@ -5,7 +5,6 @@ import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import and_, false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
@@ -639,25 +638,6 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
     return t, a, level
 
 
-@router.post("/transactions", response_model=TxnOut, status_code=201)
-def create_transaction(
-    body: TxnIn, request: Request, c: Caller = Depends(caller), confirm: bool = False
-):
-    srv = server(request)
-    key = request.headers.get("idempotency-key")
-    again = srv.idempotency.lookup(c.id, key)
-    if again:
-        status, payload, headers = again
-        return JSONResponse(payload, status_code=status, headers=headers)
-    with srv.db.tx() as s:
-        t, a, level = _make(s, c, body, ids.new_id("Txn"), confirm)
-        out = shape(s, c.id, [t], {a.id: level})[0]
-    payload = out.model_dump(mode="json")
-    headers = {"Location": f"/ui/api/transactions/{t.id}"}
-    srv.idempotency.remember(c.id, key, 201, payload, headers)
-    return JSONResponse(payload, status_code=201, headers=headers)
-
-
 def _editable(
     s: Session, c: Caller, txn_id: str, version: int, confirm: bool
 ) -> tuple[Transaction, Account, str]:
@@ -986,13 +966,6 @@ def _make_category(s, c: Caller, body: NewCategory, cat_id: str) -> Category:
     return cat
 
 
-@router.post("/categories", response_model=CategoryOut, status_code=201)
-def create_category(body: NewCategory, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
-        out = _category_out(s, _make_category(s, c, body, ids.new_id("Cat")))
-    return JSONResponse(out.model_dump(mode="json"), status_code=201)
-
-
 class CategoryRecord(NewCategory):
     """A category as a draft saves it (S2.5): made with its name, kind and parent; afterwards
     only how long receipts in it are kept, an admin's, since it decides what file pruning may
@@ -1112,6 +1085,7 @@ class TxnRecord(Model):
     cleared: bool = False
     tagIds: list[IdOf("Tag")] = _set_of()  # type: ignore[valid-type]  # the saver's own (S2.6)
     leftOutOf: list[IdOf("Bdgt")] = _set_of()  # type: ignore[valid-type]
+    splitRatio: Quantity | None = None  # a split's new shares for each one held (S2.4)
     # An option trade's contract (S3.2), `symbol` its underlying: made with the trade.
     right: str | None = None  # call or put
     strike: Quantity | None = None
@@ -1281,6 +1255,7 @@ def _txn_current(ctx, t: Transaction) -> dict:
         "tagIds": tags.ids_of(ctx.s, "transaction", ctx.caller.id, t.id),
         "leftOutOf": _left_out_of(ctx.s, ctx.caller, t),
         "transferWithId": t.transferId,
+        "splitRatio": t.splitRatio,
         **{f: getattr(t, f) for f in CHANGED},
     }
 
@@ -1288,7 +1263,9 @@ def _txn_current(ctx, t: Transaction) -> dict:
 def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     current = _txn_current(ctx, t)
     sent = {f for f in TxnRecord.model_fields if getattr(body, f) != current.get(f)}
-    for fixed in ("accountId", "symbol", "instrumentId", "right", "strike", "expiry", "multiplier"):
+    fixed_fields = ("accountId", "symbol", "instrumentId", "splitRatio", "right", "strike",
+                    "expiry", "multiplier")  # fmt: skip
+    for fixed in fixed_fields:
         if fixed in sent:
             raise refuse(fixed, "transaction-fixed", "A transaction keeps its account and holding.")
     if "transferWithId" in sent:

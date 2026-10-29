@@ -4,6 +4,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
+from edits import make
 
 from moolakata import alerts, clock, ids, settings
 from moolakata.store.entities.accounts import Account, Import
@@ -202,11 +203,8 @@ def test_an_option_expiring_within_a_week_and_a_pledge_due(server, frozen):
     c = sign_in(server, "alice")
     brk = new_account(c, name="Brokerage", type="brokerage")
     opt(c, brk["id"], "sell-to-open", "2026-10-01", "1.00", expiry="2026-10-16", fees="0")
-    org = c.post(
-        "/ui/api/giving/organisations",
-        json={"name": "Food Bank", "deductible": True, "pledge": "50.00", "pledgeEvery": "month"},
-    )
-    assert org.status_code == 201, org.text
+    org = make(c, "Orgzn", name="Food Bank", deductible=True, pledge="50.00", pledgeEvery="month")
+    assert org.status_code == 200, org.text
     titles = sorted(a.title for a in alerts.evaluate(server))
     assert titles == ["MSFT 16OCT26 480 P expires in 3 days"], titles
     at(days=13)  # Oct 26: the month's pledge is due; the option has expired

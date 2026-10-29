@@ -2,7 +2,7 @@ import datetime as dt
 from decimal import Decimal as D
 
 from conftest import make_user, sign_in
-from edits import remove
+from edits import make, remove
 from sqlalchemy import text
 from test_accounts import add, new_account
 
@@ -87,7 +87,7 @@ def test_portfolio_series_returns_and_holdings(server):
     )
     add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
     add(c, a["id"], "-1000.00", "2026-07-01", kind="buy", symbol="VTI", quantity="10", price="100")
-    p = c.post("/ui/api/portfolios", json={"name": "Mine", "accountIds": [a["id"]]}).json()
+    p = make(c, "Portf", name="Mine", accountIds=[a["id"]]).json()
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     assert s["end"] == "1000.00" and s["contributed"] == "1000.00" and s["growth"] == "0.00"
     assert s["benchmark"] == "VT"
@@ -133,9 +133,7 @@ def test_a_portfolio_keeps_a_deleted_account_up_to_its_deletion(server):
         a = new_account(c, name=name, mask=mask, openingBalance="0.00", openingDate="2026-06-30")
         add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
         ids.append(a)
-    p = c.post(
-        "/ui/api/portfolios", json={"name": "Both", "accountIds": [x["id"] for x in ids]}
-    ).json()
+    p = make(c, "Portf", name="Both", accountIds=[x["id"] for x in ids]).json()
     gone = c.get(f"/ui/api/accounts/{ids[1]['id']}").json()
     r = remove(c, "Acct", gone)
     assert r.status_code == 200, r.text
@@ -157,9 +155,7 @@ def test_a_portfolios_returns_count_a_deleted_accounts_gain(server):
     add(c, a["id"], "100.00", "2026-08-01", kind="interest")
     keep = new_account(c, name="Kept", mask="4444", openingBalance="0.00", openingDate="2026-06-30")
     add(c, keep["id"], "1000.00", "2026-07-01", kind="deposit")
-    p = c.post(
-        "/ui/api/portfolios", json={"name": "Both", "accountIds": [a["id"], keep["id"]]}
-    ).json()
+    p = make(c, "Portf", name="Both", accountIds=[a["id"], keep["id"]]).json()
     before = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     gone = c.get(f"/ui/api/accounts/{a['id']}").json()
     remove(c, "Acct", gone)

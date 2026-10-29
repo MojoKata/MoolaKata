@@ -66,13 +66,6 @@ limit and that it came from an IRA (S7.9.3), both from the tax tables (S16.11).
 
 **Touches:** S6.1.2, S7.9.3.
 
-## L8: `Idempotency-Key` on every create
-
-**What it is:** every `POST` that creates honours `Idempotency-Key`, a repeat within 24 hours
-returning the first answer, as `POST /ui/api/transactions` does (S13.8.8).
-
-**Touches:** S13.8.8.
-
 ## L9: More price sources
 
 **What it is:** **Alpha Vantage** (free key, 25 requests a day) as the last fallback for stocks

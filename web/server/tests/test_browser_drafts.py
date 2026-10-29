@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
-from edits import change, create, edit, option_trade, save_settings, saved, terms
+from edits import change, create, edit, make, option_trade, save_settings, saved, terms
 from test_budgets import save_plan
 
 pytestmark = pytest.mark.browser
@@ -380,7 +380,7 @@ EDIT = 'button:has-text("Edit plan")'
 def fresh_budget(h: Household, name: str) -> dict:
     """A budget of the test's own, so what it saves touches no other test: a reserve planned
     from two months back (it holds money now), and a line for dining out."""
-    b = made(h.c.post("/ui/api/budgets", json={"name": name, "accountIds": [h.checking["id"]]}))
+    b = made(make(h.c, "Bdgt", name=name, accountIds=[h.checking["id"]]))
     made(edit(h.c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
     b = h.c.get(f"/ui/api/budgets/{b['id']}").json()
     repair, dining = h.cats["Transportation › Car maintenance"], h.cats["Food › Dining out"]
@@ -674,10 +674,14 @@ def test_a_new_wallet_is_made_with_its_keys_in_one_save(browser, household):
 
 def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     h = household
-    coll = h.c.post("/ui/api/accounts", json={"name": "Watches", "type": "collectables"}).json()
-    watch = h.c.post(
-        f"/ui/api/accounts/{coll['id']}/items",
-        json={"name": "Speedmaster", "acquiredOn": "2020-01-10", "costBasis": "5000"},
+    coll = make(h.c, "Acct", name="Watches", type="collectables").json()
+    watch = make(
+        h.c,
+        "Item",
+        accountId=coll["id"],
+        name="Speedmaster",
+        acquiredOn="2020-01-10",
+        costBasis="5000",
     ).json()
     path = f"/ui/accounts/{coll['id']}/items"
     page, problems = signed_in(browser, h, path, 'tr.click:has-text("Speedmaster")')
@@ -703,7 +707,7 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
     """CR3-36: a document kept is changed, then removed, from its row."""
     h = household
     b = h.extra["book"]["id"]
-    h.c.post(f"/ui/api/tax-books/{b}/documents", json={"form": "1098", "issuer": "Rocket"})
+    make(h.c, "TxDoc", bookId=b, form="1098", issuer="Rocket")
     page, problems = signed_in(browser, h, "/ui/taxes/documents", 'tr.click:has-text("Rocket")')
     page.click('tr.click:has-text("Rocket")')
     wait(page, ".dialog footer button.primary:enabled", problems)
@@ -776,7 +780,7 @@ def test_a_new_access_token_shows_its_secret_once(browser, household):
 
 def test_a_529s_contribution_and_expense_recorded_and_tagged(browser, household):
     h = household
-    a = made(h.c.post("/ui/api/accounts", json={"name": "Emma's 529", "type": "529"}))
+    a = made(make(h.c, "Acct", name="Emma's 529", type="529"))
     path = f"/ui/accounts/{a['id']}/contributions"
     page, problems = signed_in(browser, h, path, 'form:has-text("Record a contribution")')
     page.fill("#f-amount", "2500")
@@ -839,19 +843,26 @@ def test_a_settings_section_saves_its_keys_and_a_password_with_them(browser, hou
 def test_a_statement_ticked_off_and_reconciled_through_the_save(browser, household):
     h = household
     a = made(
-        h.c.post(
-            "/ui/api/accounts",
-            json={"name": "Ticked", "type": "checking", "openingBalance": "0.00",
-                  "openingDate": f"{months_back(2)}-28"},
+        make(
+            h.c,
+            "Acct",
+            name="Ticked",
+            type="checking",
+            openingBalance="0.00",
+            openingDate=f"{months_back(2)}-28",
         )
-    )  # fmt: skip
+    )
     made(
-        h.c.post(
-            "/ui/api/transactions",
-            json={"accountId": a["id"], "date": f"{months_back(1)}-03", "amount": "100.00",
-                  "kind": "deposit", "payee": "Paycheck"},
+        make(
+            h.c,
+            "Txn",
+            accountId=a["id"],
+            date=f"{months_back(1)}-03",
+            amount="100.00",
+            kind="deposit",
+            payee="Paycheck",
         )
-    )  # fmt: skip
+    )
     path = f"/ui/accounts/{a['id']}/reconcile"
     page, problems = signed_in(browser, h, path, 'button:has-text("Tick off against")')
     page.click('button:has-text("Tick off against")')
@@ -871,7 +882,7 @@ def test_a_statement_ticked_off_and_reconciled_through_the_save(browser, househo
 
 def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
     h = household
-    b = made(h.c.post("/ui/api/budgets", json={"name": "Joint", "accountIds": []}))
+    b = made(make(h.c, "Bdgt", name="Joint", accountIds=[]))
     page, problems = signed_in(
         browser, h, f"/ui/budgets/{b['id']}/month", 'button:has-text("Share")'
     )
@@ -960,7 +971,7 @@ def test_a_loan_payment_is_recorded_split_with_its_bank_half(browser, household)
     # S1.9.3: the loan's transaction, its parts and the bank's half, in one save; a bank
     # transaction that looks like a payment linked as the other half.
     h = household
-    loan = made(h.c.post("/ui/api/accounts", json={"name": "Boat loan", "type": "auto-loan"}))
+    loan = made(make(h.c, "Acct", name="Boat loan", type="auto-loan"))
     saved(terms(h.c, loan["id"], principal="20000", startDate=f"{months_back(3)}-01",
                 termMonths=60, rate="6"))  # fmt: skip
     due = h.c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
@@ -1018,7 +1029,7 @@ def test_an_option_trade_is_saved_as_a_transaction_with_its_contract(browser, ho
 def test_a_corporate_action_is_a_record_its_transactions_made_from(browser, household):
     # S2.4: a symbol change typed in its dialog, its pair of transactions made from it.
     h = household
-    acct = made(h.c.post("/ui/api/accounts", json={"name": "Renamed", "type": "brokerage"}))
+    acct = made(make(h.c, "Acct", name="Renamed", type="brokerage"))
     saved(create(h.c, "Txn", accountId=acct["id"], date=f"{months_back(2)}-03", kind="buy",
                  symbol="OLDCO", quantity="5", price="10", amount="-50.00"))  # fmt: skip
     page, problems = signed_in(
@@ -1044,7 +1055,7 @@ def test_legs_proposed_together_are_grouped_or_turned_down_as_a_strategy(browser
     # S3.5: Group them makes a strategy of the proposal's legs; Not a strategy keeps the
     # proposal turned down, so it isn't proposed again.
     h = household
-    acct = made(h.c.post("/ui/api/accounts", json={"name": "Spreads", "type": "brokerage"}))
+    acct = made(make(h.c, "Acct", name="Spreads", type="brokerage"))
     expiry = f"{int(months_back(0)[:4]) + 1}-03-19"
     day = f"{months_back(0)}-01"
     for sym, action, strike, premium in (
