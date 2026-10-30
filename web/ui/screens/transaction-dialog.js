@@ -18,6 +18,7 @@ import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
+import { confirmAction } from '../components/confirm.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -133,7 +134,6 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   const options = [['', 'Uncategorised'], ...cats.list.map((c) => [c.id, c.path])];
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
   const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
-  const [armed, setArmed] = useState(false);
   const deleting = !!t?.removed;
   /** Split…: a part, the category moving to the parts and the mark to be paid back with it. */
   const addPart = () => {
@@ -159,16 +159,19 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               ? html`
                 <button type="button" class="btn danger" disabled=${save.busy}
                   onClick=${async () => {
-                    if (!armed || !t || !draft) return setArmed(true);
+                    if (!t || !draft) return;
+                    const withStock = ['assign', 'exercise'].includes(txn.kind);
+                    const sure = await confirmAction({
+                      title: withStock
+                        ? 'Delete this transaction and its stock trade?'
+                        : 'Delete this transaction?',
+                    });
+                    if (!sure) return;
                     draft.remove(t);
                     const r = await save.run().catch(() => null);
                     // Refused or stale, it stays: only a question keeps the delete waiting.
                     if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(t);
-                  }}>${armed
-                    ? (['assign', 'exercise'].includes(txn.kind)
-                      ? 'Click again to delete it and its stock trade'
-                      : 'Click again to delete')
-                    : 'Delete'}</button>
+                  }}>Delete</button>
               `
               : null}
             ${editing && txn.transferId

@@ -819,6 +819,33 @@ def test_not_a_transfer_undoes_the_match_through_the_save(browser, household):
     page.close()
 
 
+def test_a_delete_asks_first_and_no_leaves_everything_as_it_was(browser, household):
+    """S12.16: No is focused, so Enter and Escape answer it, and the dialog stays open; Yes
+    deletes through the save."""
+    h = household
+    day = f"{months_back(1)}-21"
+    t = made(make(h.c, "Txn", accountId=h.checking["id"], date=day, amount="-12.34",
+                  payee="Corner bakery"))  # fmt: skip
+    path = f"/ui/accounts/{h.checking['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Corner bakery")')
+    page.click('button.linklike:has-text("Corner bakery")')
+    wait(page, '.dialog button:has-text("Delete")', problems)
+    for key in ("Enter", "Escape"):
+        page.click('.dialog button:has-text("Delete")')
+        wait(page, '[role=alertdialog]:has-text("Delete this transaction?")', problems)
+        wait(page, '[role=alertdialog] button:focus:has-text("No")', problems)
+        page.keyboard.press(key)
+        wait(page, "[role=alertdialog]", problems, state="detached")
+        assert page.is_visible(".dialog"), f"{key} answers No and leaves the dialog open"
+    assert h.c.get(f"/ui/api/transactions/{t['id']}").status_code == 200
+    page.click('.dialog button:has-text("Delete")')
+    page.click('[role=alertdialog] button:has-text("Yes, delete")')
+    wait(page, ".dialog", problems, state="detached")
+    assert h.c.get(f"/ui/api/transactions/{t['id']}").status_code == 404
+    assert problems == []
+    page.close()
+
+
 # ---------- what the taxes' dialogs alone do ----------
 
 
@@ -838,6 +865,7 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
     page.click('tr.click:has-text("Rocket")')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog footer button:has-text("Remove")')
+    page.click('[role=alertdialog] button:has-text("Yes, remove")')
     wait(page, ".dialog", problems, state="detached")
     assert "Rocket" not in {x["issuer"] for x in book_of(h)["received"]}
     assert problems == []

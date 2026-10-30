@@ -1489,6 +1489,16 @@
     border-radius: 14px;
     z-index: 1;
   }
+  /* The question before a delete (S12.16), over the page or a dialog. */
+  .confirm-scrim {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    z-index: 60;
+    padding: 16px;
+  }
   .dialog-ask-box {
     background: var(--bg-2);
     border: 1px solid var(--border-strong);
@@ -10472,6 +10482,7 @@ import { ended, loadSession, lostChanges, session } from '@mk/store/session.js';
 import { connect, disconnect } from '@mk/app/stream.js';
 import { PUBLIC_PATHS, PublicScreens, Screens, SetupScreen } from '@mk/app/router.js';
 import { Frame } from '@mk/components/frame.js';
+import { ConfirmHost } from '@mk/components/confirm.js';
 import { dialogHasChanges, DialogHost } from '@mk/components/dialog.js';
 import { MenuHost } from '@mk/components/menu.js';
 import { Toasts } from '@mk/components/toast.js';
@@ -10552,6 +10563,7 @@ function Root() {
     <${LocationProvider}>
       <${App} />
       <${DialogHost} />
+      <${ConfirmHost} />
       <${MenuHost} />
       <${TooltipHost} />
       <${Toasts} />
@@ -11572,6 +11584,86 @@ export function Failed({ error }) {
   `;
 }
 </script>
+<script type="text/plain" data-module="@mk/components/confirm.js">
+// The question before anything is deleted, removed, revoked, ended or reset (requirements
+// S12.16): one small box over the page or the dialog it comes from, No focused and the
+// default (Enter and Escape both answer it), Yes named for what it does.
+import { signal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
+import { html } from '@mk/app/html.js';
+
+/** @type {import('@preact/signals').Signal<{ title: string, detail?: string, yes: string,
+ *   resolve: (v: boolean) => void, back: HTMLElement | null } | null>} */
+const asked = signal(null);
+
+/**
+ * Ask before a destructive action; true only for Yes.
+ * @param {{ title: string, detail?: string, yes?: string }} q
+ * @returns {Promise<boolean>}
+ */
+export function confirmAction({ title, detail, yes = 'Yes, delete' }) {
+  return new Promise((resolve) => {
+    asked.value?.resolve(false);
+    asked.value = {
+      title,
+      detail,
+      yes,
+      resolve,
+      back: /** @type {HTMLElement | null} */ (document.activeElement),
+    };
+  });
+}
+
+/** @param {boolean} answer */
+function answer(answer) {
+  const q = asked.value;
+  if (!q) return;
+  asked.value = null;
+  q.resolve(answer);
+  setTimeout(() => q.back?.focus?.(), 0);
+}
+
+export function ConfirmHost() {
+  const q = asked.value;
+  const no = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const yes = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  useEffect(() => {
+    if (!q) return;
+    no.current?.focus();
+    // Ahead of a dialog's own keys, so Escape answers No here and leaves the dialog open.
+    const onKey = (/** @type {KeyboardEvent} */ e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        answer(false);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        (document.activeElement === no.current ? yes : no).current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [q]);
+  if (!q) return null;
+  return html`
+    <div class="confirm-scrim" onClick=${(/** @type {any} */ e) =>
+      e.target === e.currentTarget && answer(false)}>
+      <div class="dialog-ask-box" role="alertdialog" aria-modal="true"
+        aria-labelledby="confirm-title" aria-describedby=${q.detail ? 'confirm-detail' : undefined}>
+        <h3 id="confirm-title">${q.title}</h3>
+        ${q.detail ? html`<p class="small dim" id="confirm-detail">${q.detail}</p>` : null}
+        <div class="dialog-ask-buttons">
+          <button type="button" class="btn danger" ref=${yes} onClick=${() => answer(true)}>${q
+            .yes}</button>
+          <button type="button" class="btn primary" ref=${no} onClick=${() =>
+            answer(false)}>No</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+</script>
 <script type="text/plain" data-module="@mk/components/connections.js">
 // Profile › Connections and an account's sync (requirements S18.6, S18.7): a user's own
 // sign-ins at institutions, kept by the MoolaKata Connector. Credentials typed here are sealed
@@ -11582,6 +11674,7 @@ import { api } from '@mk/api/client.js';
 import { withReauth } from '@mk/components/reauth.js';
 import { useApi, useList, useSubmit } from '@mk/app/hooks.js';
 import { canSeal, seal, sealingKeyIsSigned } from '@mk/app/sealed.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { errAt, Field, FormError, Input, Select, SwitchRow } from '@mk/components/fields.js';
@@ -11619,11 +11712,9 @@ export function Connections() {
   const res = useList('/profile/connections', {}, ['task']);
   const rows = /** @type {any[]} */ (res.data);
   const paired = /** @type {any} */ (info.data)?.paired;
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const remove = useSubmit(async (/** @type {any} */ c) => {
     await saveNow((d) => d.remove(d.load(ConnRec, c)));
     toast(`${c.label}: removed; its accounts' sync is off`);
-    setArmed(null);
     res.reload();
   });
   const make = () =>
@@ -11666,10 +11757,12 @@ export function Connections() {
                 ? 'Sign in again'
                 : 'Change credentials'}</button>
               <button class="btn sm danger" disabled=${remove.busy}
-                onClick=${() =>
-                  armed === c.id ? remove.run(c).catch(() => {}) : setArmed(c.id)}>${armed === c.id
-                  ? 'Click again to remove'
-                  : 'Remove'}</button></div>
+                onClick=${async () => {
+                  if (
+                    !(await confirmAction({ title: 'Remove this connection?', yes: 'Yes, remove' }))
+                  ) return;
+                  remove.run(c).catch(() => {});
+                }}>Remove</button></div>
           `
         )}
     </div>
@@ -12018,6 +12111,7 @@ import { FormError } from '@mk/components/fields.js';
 import { Failed, Loading } from '@mk/components/bits.js';
 import { Icon } from '@mk/components/icon.js';
 import { toast } from '@mk/components/toast.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',
@@ -12046,11 +12140,9 @@ export function connectionState(c) {
 export function ConnectorSection() {
   const res = useApi('/settings/connector', {}, ['task']);
   const v = /** @type {any} */ (res.data);
-  const [armed, setArmed] = useState(false);
   const unpair = useSubmit(async () => {
     await withReauth(() => api.post('/settings/connector/unpair'));
     toast('Unpaired: every Connection stopped and every sync is off');
-    setArmed(false);
     res.reload();
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
@@ -12153,14 +12245,14 @@ export function ConnectorSection() {
           : 'Pair…'}</button>
         <span class="spacer"></span>
         ${paired || v.state === 'pairing'
-          ? armed
-            ? html`
-              <span class="small dim">Every Connection stops and every account's sync
-                              turns off.</span> <button class="btn danger" disabled=${unpair.busy}
-                onClick=${() => unpair.run().catch(() => {})}>Unpair now</button>
-                            <button class="btn" onClick=${() => setArmed(false)}>Keep</button>
-            `
-            : html`<button class="btn danger" onClick=${() => setArmed(true)}>Unpair…</button>`
+          ? html`<button class="btn danger" disabled=${unpair.busy} onClick=${async () => {
+            const sure = await confirmAction({
+              title: 'Unpair the connector?',
+              detail: "Every Connection stops and every account's sync turns off.",
+              yes: 'Yes, unpair',
+            });
+            if (sure) unpair.run().catch(() => {});
+          }}>Unpair…</button>`
           : null}
       </div>
       <${FormError} error=${unpair.error} />
@@ -14922,6 +15014,7 @@ import { useApi, useSubmit } from '@mk/app/hooks.js';
 import { ago, day, moment } from '@mk/app/format.js';
 import { parseDuration } from '@mk/app/duration.js';
 import { withReauth } from '@mk/components/reauth.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { errAt, Field, FormError, Input, Select } from '@mk/components/fields.js';
@@ -14977,7 +15070,6 @@ export function LinksSection() {
   });
   const pause = (/** @type {any} */ l) =>
     openDialog(PauseDialog, { link: l }).then((x) => x && res.reload());
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const copyAct = useSubmit(async (/** @type {string} */ id, /** @type {string} */ what) => {
     const out = await api.post(`/settings/links/${id}/${what}`);
     toast(what === 'lock' ? 'Locked' : 'Copy reset: make its new access key');
@@ -15136,16 +15228,16 @@ export function LinksSection() {
                                 act.run(l.id, 'resume')}>Resume now</button>
                             `
                             : null}<button class="btn sm danger"
-                            onClick=${() =>
-                              armed === l.id
-                                ? act.run(l.id, 'end').then(() => setArmed(null))
-                                : setArmed(
-                                  l.id,
-                                )}>${armed === l.id
-                              ? 'Click again to end'
-                              : l.state === 'invited'
-                              ? 'Withdraw'
-                              : 'End link'}</button>
+                            onClick=${async () => {
+                              const invited = l.state === 'invited';
+                              if (
+                                !(await confirmAction({
+                                  title: invited ? 'Withdraw this invitation?' : 'End this link?',
+                                  yes: invited ? 'Yes, withdraw' : 'Yes, end it',
+                                }))
+                              ) return;
+                              act.run(l.id, 'end').catch(() => {});
+                            }}>${l.state === 'invited' ? 'Withdraw' : 'End link'}</button>
                         `}</div>
                     </td>
                   </tr>
@@ -15164,7 +15256,7 @@ export function LinksSection() {
         : null}
       <${FormError} error=${act.error} />
     </div>
-    ${copies(live, values, res.reload, copyAct, release, armed, setArmed)}
+    ${copies(live, values, res.reload, copyAct, release)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
       html`<div class="card mt"><h3 data-help="outgoing">Shared from here with ${l.peerName}</h3>
         <p class="small dim" style=${{ marginTop: '-6px' }}>What this server sends at each pull,
@@ -15294,9 +15386,9 @@ const size = (n) =>
  * The Linked copies card (S11.7, S11.9): each copy's access key, size and lock, Create the
  * access key, Lock now and Reset copy, and how long an unused copy stays unlocked.
  * @param {any[]} live @param {any} values @param {() => void} reload @param {any} act
- * @param {any} release @param {string | null} armed @param {(v: string | null) => void} setArmed
+ * @param {any} release
  */
-function copies(live, values, reload, act, release, armed, setArmed) {
+function copies(live, values, reload, act, release) {
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
@@ -15323,7 +15415,6 @@ function copies(live, values, reload, act, release, armed, setArmed) {
               </thead>
               <tbody>${rows.map((l) => {
                 const c = l.linkedCopy;
-                const reset = armed === 'reset-' + l.id;
                 return html`
                   <tr>
                     <td><b>${l.peerName}</b><div class="small dim">${c.items} item${c.items === 1
@@ -15358,12 +15449,12 @@ function copies(live, values, reload, act, release, armed, setArmed) {
                               act.run(l.id, 'lock').catch(() => {})}>Lock now</button>
                           `
                           : null
-                      }<button class="btn sm danger" onClick=${() =>
-                        reset
-                          ? act.run(l.id, 'reset-copy').then(() => setArmed(null), () => {})
-                          : setArmed('reset-' + l.id)}>${
-                        reset ? 'Click again to reset' : 'Reset copy'
-                      }</button>`}</td>
+                      }<button class="btn sm danger" onClick=${async () => {
+                        if (
+                          !(await confirmAction({ title: 'Reset this copy?', yes: 'Yes, reset' }))
+                        ) return;
+                        act.run(l.id, 'reset-copy').catch(() => {});
+                      }}>Reset copy</button>`}</td>
                   </tr>
                 `;
               })}</tbody>
@@ -17287,6 +17378,7 @@ import { Record as Rec } from '@mk/app/draft.js';
 import { DraftDialog, RecField, useDraft } from '@mk/components/draft-form.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { TagsField } from '@mk/components/tags.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -17455,6 +17547,7 @@ export function ReceiptDialog({ close, id }) {
                 : undefined} onClick=${async () => {
                 const draft = f.draft;
                 if (!draft) return;
+                if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
                 draft.remove(rec);
                 const o = await save.run().catch(() => null);
                 if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
@@ -17612,11 +17705,11 @@ export function ReceiptDialog({ close, id }) {
 <script type="text/plain" data-module="@mk/components/rules.js">
 // Categorisation and payee rules (requirements S2.7): Transactions › Rules lists a user's own
 // rules, first match wins, and edits them one at a time; applied on import and on demand.
-import { useState } from 'preact/hooks';
 import { html } from '@mk/app/html.js';
 import { api } from '@mk/api/client.js';
 import { useApi, useList, useSubmit } from '@mk/app/hooks.js';
 import { money } from '@mk/app/format.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { FormError } from '@mk/components/fields.js';
@@ -17679,10 +17772,8 @@ function RulesDialog({ close }) {
   useDialogGuide('dialog-rules');
   const res = useApi('/rules');
   const v = /** @type {any} */ (res.data);
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const act = useSubmit(async (/** @type {() => Promise<any>} */ f) => {
     await f();
-    setArmed(null);
     res.reload();
   });
   const apply = useSubmit(async () => {
@@ -17743,13 +17834,11 @@ function RulesDialog({ close }) {
                       <button type="button" class="btn sm" onClick=${() =>
                         close({ rule: r })}>Edit…</button>
                       <button type="button" class="btn sm danger" disabled=${act.busy}
-                        onClick=${() =>
-                          armed === r.id
-                            ? act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
-                              .catch(() => {})
-                            : setArmed(r.id)}>${armed === r.id
-                          ? 'Click again to delete'
-                          : 'Delete'}</button>
+                        onClick=${async () => {
+                          if (!(await confirmAction({ title: 'Delete this rule?' }))) return;
+                          act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
+                            .catch(() => {});
+                        }}>Delete</button>
                     </td>
                   </tr>
                 `
@@ -18511,6 +18600,7 @@ import { FIELDS } from '@mk/api/fields.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { Icon } from '@mk/components/icon.js';
 import { toast } from '@mk/components/toast.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
@@ -18863,7 +18953,6 @@ function StrategyDialog({ close, x }) {
     draft.load(StrategyRec, { ...x, name: x.name === x.shape ? null : x.name });
   }, [x.id]);
   const rec = /** @type {StrategyRec | undefined} */ (f.draft?.records[0]);
-  const [armed, setArmed] = useState(false);
   const shortPut = x.legs.some((/** @type {any} */ l) =>
     l.kind === 'put' && dec(l.quantity).isNegative()
   );
@@ -18876,11 +18965,17 @@ function StrategyDialog({ close, x }) {
           <button type="button" class="btn danger" disabled=${save.busy || !rec}
             onClick=${async () => {
               const draft = f.draft;
-              if (!armed || !rec || !draft) return setArmed(true);
+              if (!rec || !draft) return;
+              const sure = await confirmAction({
+                title: 'Ungroup this strategy?',
+                detail: 'Its legs stay, each on its own.',
+                yes: 'Yes, ungroup',
+              });
+              if (!sure) return;
               draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
-            }}>${armed ? 'Ungroup it?' : 'Ungroup'}</button><span class="spacer"></span>
+            }}>Ungroup</button><span class="spacer"></span>
         `}>
       ${rec
         ? html`
@@ -19750,10 +19845,10 @@ export function Toasts() {
 <script type="text/plain" data-module="@mk/components/tokens.js">
 // Profile › Access tokens (requirements S10.9.1): tokens an AI assistant uses to read, never
 // change, what you can see through the MCP endpoint. Each is shown once, when it is made.
-import { useState } from 'preact/hooks';
 import { html } from '@mk/app/html.js';
 import { useList, useSubmit } from '@mk/app/hooks.js';
 import { ago, day } from '@mk/app/format.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { Field, Select } from '@mk/components/fields.js';
@@ -19769,11 +19864,9 @@ const endpoint = () => `${location.origin}/mcp`;
 export function AccessTokens() {
   const res = useList('/profile/tokens');
   const rows = /** @type {any[]} */ (res.data);
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const revoke = useSubmit(async (/** @type {any} */ t) => {
     await saveNow((d) => d.remove(d.load(TokenRec, t)));
     toast(`${t.name}: revoked`);
-    setArmed(null);
     res.reload();
   });
   const make = () =>
@@ -19805,12 +19898,15 @@ export function AccessTokens() {
                 : `expires ${day(t.expiresAt)}`} · ${t.lastUsedAt
                 ? `last used ${ago(t.lastUsedAt)}`
                 : 'never used'}</div></div><button class="btn sm danger" disabled=${revoke.busy}
-                        onClick=${() =>
-                          armed === t.id
-                            ? revoke.run(t).catch(() => {})
-                            : setArmed(t.id)}>${armed === t.id
-                          ? 'Click again to revoke'
-                          : 'Revoke'}</button></div>
+                        onClick=${async () => {
+                          if (
+                            !(await confirmAction({
+                              title: 'Revoke this token?',
+                              yes: 'Yes, revoke',
+                            }))
+                          ) return;
+                          revoke.run(t).catch(() => {});
+                        }}>Revoke</button></div>
           `
         )}
     </div>
@@ -20480,6 +20576,7 @@ import { useGuide } from '@mk/components/help.js';
 import { Amt } from '@mk/components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs, Tile } from '@mk/components/bits.js';
 import { Icon } from '@mk/components/icon.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { errAt, Field, FormError, Input, SwitchRow } from '@mk/components/fields.js';
@@ -21304,7 +21401,6 @@ function Settings({ a, reload }) {
   const physical = BY_TYPE[a.type]?.physical;
   const wallet = BY_TYPE[a.type]?.wallet;
   const education = BY_TYPE[a.type]?.education;
-  const [armed, setArmed] = useState(false);
   const f = useDraft(async (draft) => {
     draft.load(AcctRec, await api.get(`/accounts/${a.id}`));
     if (education) await loadPlan(draft, a.id);
@@ -21358,14 +21454,15 @@ function Settings({ a, reload }) {
         html`
           <button type="button" class="btn danger" disabled=${save.busy}
             onClick=${async () => {
-              if (!armed || !rec || !f.draft) return setArmed(true);
+              if (!rec || !f.draft) return;
+              if (!(await confirmAction({ title: `Delete ${a.name}?` }))) return;
               f.draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status === 'saved') {
                 toast(`${a.name} deleted`);
                 route('/ui/accounts');
               } else if (r?.status !== 'asks') f.draft.unremove(rec);
-            }}>${armed ? 'Click again to delete' : 'Delete account…'}</button>
+            }}>Delete account…</button>
         `}>
       ${rec
         ? html`
@@ -24109,6 +24206,7 @@ import { dec, num } from '@mk/app/dec.js';
 import { Record as Rec } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { DraftDialog, RecField, useDraft } from '@mk/components/draft-form.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -24543,8 +24641,6 @@ function PersonDialog({ close, p }) {
     else if (o.removed) draft.unremove(o);
     else draft.remove(o);
   };
-  // Deleting asks twice: the plan only, or the person with it (S7.8.6).
-  const [armed, setArmed] = useState('');
   const join = useSubmit(async (/** @type {any} */ r) => {
     await api.post(`/persons/${p.id}/join`, { userId: r.id });
     toast(`${r.name} on ${r.server} is ${p.name} here`);
@@ -24574,9 +24670,13 @@ function PersonDialog({ close, p }) {
         : `${who?.get('name') || 'They'} added`}
       hideSave=${!canWrite}
       extra=${({ save }) => {
-        /** Delete the plan, or the person with it: armed first, then removed and saved. */
+        /** Delete the plan, or the person with it (S7.8.6): asked first, then saved. */
         const drop = async (/** @type {string} */ what) => {
-          if (armed !== what || !draft) return setArmed(what);
+          if (!draft) return;
+          const sure = await confirmAction({
+            title: what === 'person' ? `Delete ${p.name} for everyone?` : 'Delete the plan?',
+          });
+          if (!sure) return;
           const r = /** @type {any} */ (what === 'person' ? who : plan);
           draft.remove(r);
           const out = await save.run().catch(() => null);
@@ -24595,18 +24695,14 @@ function PersonDialog({ close, p }) {
           p && p.level === 'owner'
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('plan')}>${armed === 'plan'
-                  ? 'Delete the plan?'
-                  : 'Delete plan'}</button>
+                onClick=${() => drop('plan')}>Delete plan</button>
             `
             : null
         }${
           p && p.canChangePerson && !p.isUser
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('person')}>${armed === 'person'
-                  ? `Delete ${p.name} for everyone?`
-                  : 'Delete person'}</button>
+                onClick=${() => drop('person')}>Delete person</button>
             `
             : null
         }<span class="spacer"></span>`;
@@ -24892,6 +24988,7 @@ function GiftDialog({ close, gift, start }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                if (!(await confirmAction({ title: 'Delete this gift?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -25010,6 +25107,7 @@ import { Dec, dec, num } from '@mk/app/dec.js';
 import { Record as Rec } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { DraftDialog, RecField, useDraft } from '@mk/components/draft-form.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
@@ -25668,6 +25766,7 @@ function DonationView({ close, d }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                if (!(await confirmAction({ title: 'Delete this donation?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -28823,6 +28922,7 @@ import { Record as Rec } from '@mk/app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '@mk/components/draft-form.js';
 import { asFields, DAY } from '@mk/screens/gifts.js';
 import { FIELDS } from '@mk/api/fields.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -29138,7 +29238,13 @@ function RelationshipDialog({ close, me, r }) {
         r
           ? html`
             <button type="button" class="btn danger" disabled=${remove.busy}
-              onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
+              onClick=${async () => {
+                const sure = await confirmAction({
+                  title: 'Remove this relationship?',
+                  yes: 'Yes, remove',
+                });
+                if (sure) remove.run().catch(() => {});
+              }}>Remove</button><span class="spacer"
             ></span>
           `
           : null
@@ -30452,6 +30558,7 @@ import { DraftDialog, DraftForm, saveNow, useDraft } from '@mk/components/draft-
 import { Record as Rec } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { useSettingsDraft } from '@mk/components/settings-draft.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -30832,6 +30939,8 @@ function Prices() {
     }
   };
   const remove = async (/** @type {any} */ src) => {
+    const sure = await confirmAction({ title: `Remove ${src.label}?`, yes: 'Yes, remove' });
+    if (!sure) return;
     try {
       await saveNow((d) => d.remove(d.load(SrcRec, src)));
       toast(`${src.label} removed`);
@@ -31689,6 +31798,12 @@ function Keys() {
     }
   };
   const forget = async (/** @type {string} */ fp) => {
+    const sure = await confirmAction({
+      title: `Forget ${fp}?`,
+      detail: 'A copy that needs it can no longer be opened here.',
+      yes: 'Yes, forget it',
+    });
+    if (!sure) return;
     await withReauth(() => api.del(`/settings/keys/previous/${encodeURIComponent(fp)}`));
     toast(`${fp} forgotten`);
     res.reload();
@@ -32338,6 +32453,7 @@ import { Dec } from '@mk/app/dec.js';
 import { Record as Rec, TYPES } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '@mk/components/draft-form.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 export const TABS = /** @type {[string, string][]} */ ([
   ['summary', 'Summary'],
@@ -32704,6 +32820,11 @@ function DependentDialog({ close, b, d }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                const sure = await confirmAction({
+                  title: 'Remove this dependent?',
+                  yes: 'Yes, remove',
+                });
+                if (!sure) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -33091,6 +33212,7 @@ function FilingDialog({ close, b, f: filing }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !draft) return;
+                if (!(await confirmAction({ title: 'Delete this filing?' }))) return;
                 draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
@@ -33285,6 +33407,11 @@ function DocumentDialog({ close, b, start, doc }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                const sure = await confirmAction({
+                  title: 'Remove this document?',
+                  yes: 'Yes, remove',
+                });
+                if (!sure) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -33359,6 +33486,7 @@ import { money, today } from '@mk/app/format.js';
 import { useCategories } from '@mk/components/txtable.js';
 import { BY_TYPE } from '@mk/account-types/index.js';
 import { TagsField } from '@mk/components/tags.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -33474,7 +33602,6 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   const options = [['', 'Uncategorised'], ...cats.list.map((c) => [c.id, c.path])];
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
   const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
-  const [armed, setArmed] = useState(false);
   const deleting = !!t?.removed;
   /** Split…: a part, the category moving to the parts and the mark to be paid back with it. */
   const addPart = () => {
@@ -33500,16 +33627,19 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               ? html`
                 <button type="button" class="btn danger" disabled=${save.busy}
                   onClick=${async () => {
-                    if (!armed || !t || !draft) return setArmed(true);
+                    if (!t || !draft) return;
+                    const withStock = ['assign', 'exercise'].includes(txn.kind);
+                    const sure = await confirmAction({
+                      title: withStock
+                        ? 'Delete this transaction and its stock trade?'
+                        : 'Delete this transaction?',
+                    });
+                    if (!sure) return;
                     draft.remove(t);
                     const r = await save.run().catch(() => null);
                     // Refused or stale, it stays: only a question keeps the delete waiting.
                     if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(t);
-                  }}>${armed
-                    ? (['assign', 'exercise'].includes(txn.kind)
-                      ? 'Click again to delete it and its stock trade'
-                      : 'Click again to delete')
-                    : 'Delete'}</button>
+                  }}>Delete</button>
               `
               : null}
             ${editing && txn.transferId

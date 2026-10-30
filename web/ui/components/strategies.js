@@ -18,6 +18,7 @@ import { FIELDS } from '../api/fields.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { confirmAction } from './confirm.js';
 
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
@@ -370,7 +371,6 @@ function StrategyDialog({ close, x }) {
     draft.load(StrategyRec, { ...x, name: x.name === x.shape ? null : x.name });
   }, [x.id]);
   const rec = /** @type {StrategyRec | undefined} */ (f.draft?.records[0]);
-  const [armed, setArmed] = useState(false);
   const shortPut = x.legs.some((/** @type {any} */ l) =>
     l.kind === 'put' && dec(l.quantity).isNegative()
   );
@@ -383,11 +383,17 @@ function StrategyDialog({ close, x }) {
           <button type="button" class="btn danger" disabled=${save.busy || !rec}
             onClick=${async () => {
               const draft = f.draft;
-              if (!armed || !rec || !draft) return setArmed(true);
+              if (!rec || !draft) return;
+              const sure = await confirmAction({
+                title: 'Ungroup this strategy?',
+                detail: 'Its legs stay, each on its own.',
+                yes: 'Yes, ungroup',
+              });
+              if (!sure) return;
               draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
-            }}>${armed ? 'Ungroup it?' : 'Ungroup'}</button><span class="spacer"></span>
+            }}>Ungroup</button><span class="spacer"></span>
         `}>
       ${rec
         ? html`

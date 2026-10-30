@@ -722,7 +722,7 @@ def test_every_dialog_has_its_guide(page):
     # A linked copy's access key, shown once (after a reset: the seeded copy has its key).
     visit(page, "/ui/settings/links")
     page.get_by_role("button", name="Reset copy").click()
-    page.get_by_role("button", name="Click again to reset").click()
+    page.get_by_role("button", name="Yes, reset").click()
     page.wait_for_selector("text=Copy reset")
     open_dialog(page, "/ui/settings/links", "Create the access key", "dialog-copy-key")
     page.wait_for_selector(".dialog .words")

@@ -12,6 +12,7 @@ import { Record as Rec } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TagsField } from './tags.js';
+import { confirmAction } from './confirm.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -180,6 +181,7 @@ export function ReceiptDialog({ close, id }) {
                 : undefined} onClick=${async () => {
                 const draft = f.draft;
                 if (!draft) return;
+                if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
                 draft.remove(rec);
                 const o = await save.run().catch(() => null);
                 if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);

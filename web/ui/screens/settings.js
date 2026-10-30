@@ -22,6 +22,7 @@ import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-f
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useSettingsDraft } from '../components/settings-draft.js';
+import { confirmAction } from '../components/confirm.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -402,6 +403,8 @@ function Prices() {
     }
   };
   const remove = async (/** @type {any} */ src) => {
+    const sure = await confirmAction({ title: `Remove ${src.label}?`, yes: 'Yes, remove' });
+    if (!sure) return;
     try {
       await saveNow((d) => d.remove(d.load(SrcRec, src)));
       toast(`${src.label} removed`);
@@ -1259,6 +1262,12 @@ function Keys() {
     }
   };
   const forget = async (/** @type {string} */ fp) => {
+    const sure = await confirmAction({
+      title: `Forget ${fp}?`,
+      detail: 'A copy that needs it can no longer be opened here.',
+      yes: 'Yes, forget it',
+    });
+    if (!sure) return;
     await withReauth(() => api.del(`/settings/keys/previous/${encodeURIComponent(fp)}`));
     toast(`${fp} forgotten`);
     res.reload();

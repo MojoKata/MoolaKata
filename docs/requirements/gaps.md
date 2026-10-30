@@ -42,6 +42,19 @@ addresses and card digits are replaced, and amounts are kept so the file still a
 not yet cleaned can be kept in a git-ignored folder the same tests read when it is there.
 **Waits on:** the household's exports.
 
+## G26: Seeing and recovering what was deleted — Low
+
+**What is named:** deleting, which asks first (S12.16), and the deleted rows an import still
+matches and leaves deleted (S1.3.2).
+
+**What is not:** a way to see what was deleted or to bring it back. A deleted transaction,
+gift or rule is kept, marked deleted (`schema.md`), but no screen lists such records, so one
+deleted by mistake can only be entered again, and a file that carries a deleted transaction
+never brings it back.
+
+**Settled:** nothing yet. **Waits on:** a *Show deleted* choice on the lists that delete
+(transactions first), each deleted row with **Recover**, which undeletes it through the save.
+
 ## G27: Correcting an instrument's class — Low
 
 **What is named:** S2.1's instrument classes, which decide which price source fetches an

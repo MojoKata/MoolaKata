@@ -1,9 +1,9 @@
 // Profile › Access tokens (requirements S10.9.1): tokens an AI assistant uses to read, never
 // change, what you can see through the MCP endpoint. Each is shown once, when it is made.
-import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useList, useSubmit } from '../app/hooks.js';
 import { ago, day } from '../app/format.js';
+import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
 import { Field, Select } from './fields.js';
@@ -19,11 +19,9 @@ const endpoint = () => `${location.origin}/mcp`;
 export function AccessTokens() {
   const res = useList('/profile/tokens');
   const rows = /** @type {any[]} */ (res.data);
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const revoke = useSubmit(async (/** @type {any} */ t) => {
     await saveNow((d) => d.remove(d.load(TokenRec, t)));
     toast(`${t.name}: revoked`);
-    setArmed(null);
     res.reload();
   });
   const make = () =>
@@ -55,12 +53,15 @@ export function AccessTokens() {
                 : `expires ${day(t.expiresAt)}`} · ${t.lastUsedAt
                 ? `last used ${ago(t.lastUsedAt)}`
                 : 'never used'}</div></div><button class="btn sm danger" disabled=${revoke.busy}
-                        onClick=${() =>
-                          armed === t.id
-                            ? revoke.run(t).catch(() => {})
-                            : setArmed(t.id)}>${armed === t.id
-                          ? 'Click again to revoke'
-                          : 'Revoke'}</button></div>
+                        onClick=${async () => {
+                          if (
+                            !(await confirmAction({
+                              title: 'Revoke this token?',
+                              yes: 'Yes, revoke',
+                            }))
+                          ) return;
+                          revoke.run(t).catch(() => {});
+                        }}>Revoke</button></div>
           `
         )}
     </div>

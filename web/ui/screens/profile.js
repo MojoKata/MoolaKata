@@ -22,6 +22,7 @@ import { Record as Rec } from '../app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
+import { confirmAction } from '../components/confirm.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -337,7 +338,13 @@ function RelationshipDialog({ close, me, r }) {
         r
           ? html`
             <button type="button" class="btn danger" disabled=${remove.busy}
-              onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
+              onClick=${async () => {
+                const sure = await confirmAction({
+                  title: 'Remove this relationship?',
+                  yes: 'Yes, remove',
+                });
+                if (sure) remove.run().catch(() => {});
+              }}>Remove</button><span class="spacer"
             ></span>
           `
           : null
