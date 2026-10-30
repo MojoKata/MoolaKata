@@ -371,7 +371,7 @@ def make_server(path: Path):
     from moolakata.app import Server
     from moolakata.auth import users as accounts
     from moolakata.config import Config
-    from moolakata.keys import cli as keys_cli
+    from moolakata.keys import master
     from moolakata.store.maintenance import open_store
     from moolakata.store.repos.ledger import ensure_categories
 
@@ -383,7 +383,7 @@ def make_server(path: Path):
         socket_path=path / "run" / "sock",
     )
     key = os.urandom(16)
-    keys_cli.init(config, say=lambda _: None, confirm=False, master_key=key)
+    master.create_keyring(config, key)
     srv = Server(config=config, store=open_store(config, key), ready=True)
     with srv.db.tx() as s:
         accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", ADMIN_PW)
