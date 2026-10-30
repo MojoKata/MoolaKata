@@ -27,7 +27,7 @@ SECTIONS = (
     "unpriced",
 )
 # Invariants every file waits on, by the claim that breaks them.
-KNOWN = {"deleted": "CR3-13", "zones": "CR3-170"}
+KNOWN = {"zones": "CR3-170"}
 UI = Path(__file__).parents[2] / "ui"
 
 

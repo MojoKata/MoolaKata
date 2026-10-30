@@ -296,19 +296,21 @@ def apply_import(
         cls = "crypto" if crypto and sec.instrumentClass == "other" else sec.instrumentClass
         instruments[key] = found or instrument(s, sec.symbol, sec.name, cls, sec.cusip)
 
+    # Deleted rows first, so a live row with the same identity is the one found.
     existing = s.scalars(
-        select(Transaction).where(
-            Transaction.accountId == account.id, Transaction.deleted == false()
-        )
+        select(Transaction)
+        .where(Transaction.accountId == account.id)
+        .order_by(Transaction.deleted.desc())
     ).all()
     # What is here already, by the file's id, and by date, amount and payee for the rows
-    # without one. A FITID a file repeats is another row, kept as its second (`id#2`), and
-    # both are duplicate suspects (S1.11.5).
+    # without one; rows the owner deleted too, so a file never brings one back (S1.3.2). A
+    # FITID a file repeats is another row, kept as its second (`id#2`), and both are duplicate
+    # suspects (S1.11.5).
     by_fit = {x.fitId: x for x in existing if x.fitId}
-    before = set(by_fit)
+    before = {x.fitId for x in existing if x.fitId and not x.deleted}
     seen: dict[str, int] = {}
     loose: dict[tuple, list[Transaction]] = {}
-    for x in existing:
+    for x in reversed(existing):
         if not x.fitId:
             loose.setdefault(_loose_key(x.date, x.amount, x.payeeRaw), []).append(x)
 
@@ -331,6 +333,10 @@ def apply_import(
             found = bucket.pop(0) if bucket else None
             if found is not None and row.fitId:
                 found.fitId = row.fitId
+        if found is not None and found.deleted:
+            # Deleted by its owner: matched, and left deleted as it was.
+            result.matched += 1
+            continue
         if found is not None:
             # Compared in cents, as stored: a file's sub-cent digits change nothing.
             if money.to_cents(found.amount) != money.to_cents(row.amount):
