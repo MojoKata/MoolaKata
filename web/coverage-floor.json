@@ -16,19 +16,19 @@
   },
   "browser/components": {
     "branches": 82,
-    "lines": 57
+    "lines": 58.2
   },
   "browser/screens": {
-    "branches": 74,
-    "lines": 51
+    "branches": 74.6,
+    "lines": 51.5
   },
   "browser/store": {
     "branches": 91,
     "lines": 97
   },
   "connector": {
-    "branches": 69,
-    "lines": 83
+    "branches": 69.2,
+    "lines": 84.1
   },
   "server/assets": {
     "branches": 90,
@@ -36,23 +36,23 @@
   },
   "server/auth": {
     "branches": 76,
-    "lines": 91
+    "lines": 91.4
   },
   "server/bitcoin": {
     "branches": 80,
-    "lines": 88
+    "lines": 89.0
   },
   "server/budgets": {
     "branches": 85,
-    "lines": 95
+    "lines": 95.2
   },
   "server/connector": {
     "branches": 82,
     "lines": 91
   },
   "server/core": {
-    "branches": 74,
-    "lines": 87
+    "branches": 74.9,
+    "lines": 87.6
   },
   "server/education": {
     "branches": 84,
@@ -67,20 +67,20 @@
     "lines": 96
   },
   "server/importers": {
-    "branches": 79,
-    "lines": 88
+    "branches": 79.3,
+    "lines": 89.1
   },
   "server/keys": {
     "branches": 62,
-    "lines": 80
+    "lines": 80.3
   },
   "server/ledger": {
     "branches": 88,
-    "lines": 95
+    "lines": 95.9
   },
   "server/links": {
-    "branches": 75,
-    "lines": 87
+    "branches": 75.7,
+    "lines": 87.3
   },
   "server/loans": {
     "branches": 86,
@@ -88,34 +88,34 @@
   },
   "server/options": {
     "branches": 81,
-    "lines": 91
+    "lines": 91.6
   },
   "server/people": {
-    "branches": 87,
-    "lines": 94
+    "branches": 87.5,
+    "lines": 94.5
   },
   "server/prices": {
     "branches": 75,
-    "lines": 88
+    "lines": 88.8
   },
   "server/projections": {
     "branches": 77,
-    "lines": 92
+    "lines": 92.7
   },
   "server/receipts": {
-    "branches": 69,
-    "lines": 74
+    "branches": 69.1,
+    "lines": 74.6
   },
   "server/store": {
-    "branches": 72,
-    "lines": 88
+    "branches": 72.5,
+    "lines": 89.1
   },
   "server/taxes": {
-    "branches": 84,
-    "lines": 93
+    "branches": 84.5,
+    "lines": 93.4
   },
   "server/ui": {
-    "branches": 72,
-    "lines": 89
+    "branches": 72.7,
+    "lines": 90.2
   }
 }
