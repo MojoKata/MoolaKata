@@ -810,7 +810,7 @@ def test_not_a_transfer_undoes_the_match_through_the_save(browser, household):
     path = f"/ui/accounts/{savings['id']}/transactions"
     page, problems = signed_in(browser, h, path, 'button.linklike:has-text("From checking")')
     page.click('button.linklike:has-text("From checking")')
-    wait(page, '.dialog button:has-text("Not a transfer")', problems)
+    wait(page, '.dialog button:has-text("Not a transfer"):enabled', problems)
     page.click('.dialog button:has-text("Not a transfer")')
     wait(page, ".dialog", problems, state="detached")
     assert pair() is None
@@ -829,7 +829,7 @@ def test_a_delete_asks_first_and_no_leaves_everything_as_it_was(browser, househo
     path = f"/ui/accounts/{h.checking['id']}/transactions"
     page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Corner bakery")')
     page.click('button.linklike:has-text("Corner bakery")')
-    wait(page, '.dialog button:has-text("Delete")', problems)
+    wait(page, '.dialog button:has-text("Delete"):enabled', problems)
     for key in ("Enter", "Escape"):
         page.click('.dialog button:has-text("Delete")')
         wait(page, '[role=alertdialog]:has-text("Delete this transaction?")', problems)
