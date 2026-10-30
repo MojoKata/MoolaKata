@@ -440,7 +440,7 @@ def test_held_uploads_count_against_the_users_uploads_in_flight(server, monkeypa
                            "payee": "Description"}}  # fmt: skip
     r = c.post(f"/ui/api/imports/{first}/mapping", json=mapping)
     assert r.status_code == 404 and r.json()["code"] == "upload-gone"
-    assert c.delete(f"/ui/api/imports/{second}").status_code == 204
+    assert c.delete(f"/ui/api/imports/{second}").json()["deleted"]["id"] == second
     r = c.post(f"/ui/api/imports/{second}/mapping", json=mapping)
     assert r.status_code == 404
 

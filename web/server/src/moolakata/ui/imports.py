@@ -39,7 +39,7 @@ from ..store.entities.accounts import (
 )
 from ..store.entities.users import User
 from ..store.repos import ledger as repo
-from .conventions import ExactRoute, Loose, Model, Money, Quantity, Ratio
+from .conventions import Deleted, ExactRoute, Gone, Loose, Model, Money, Quantity, Ratio
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["imports"])
@@ -1222,15 +1222,15 @@ def _learn(s, account: Account, st, body: StatementIn) -> None:
         row.layout = text
 
 
-@router.delete("/imports/{upload_id}", status_code=204)
+@router.delete("/imports/{upload_id}", response_model=Deleted)
 def let_go(upload_id: str, c: Caller = Depends(caller)):
     """An upload its dialog no longer needs (closed, or cancelled), let go at once rather than
-    when it expires."""
+    when it expires. Held in memory, it has no version; one already gone answers the same."""
     with _held_lock:
         held = _held.get(upload_id)
         if held is not None and held.userId == c.id:
             del _held[upload_id]
-    return Response(status_code=204)
+    return Deleted(deleted=Gone(id=upload_id))
 
 
 class IgnoredLine(Model):

@@ -212,3 +212,61 @@ def test_a_csv_security_is_classed_by_its_symbols_shape(symbol, cls):
     from moolakata.store.repos.ledger import class_by_symbol
 
     assert class_by_symbol(symbol) == cls
+
+
+def test_a_trades_cash_follows_its_action():
+    """CR3-19: a buy's cash goes out and a sale's comes in, whatever sign the file writes;
+    shares moved in or out move no cash; the account's own currency is cash."""
+    data = (
+        b"Date,Action,Symbol,Quantity,Amount\n"
+        b"2026-09-01,Deposit,USD,1000,1000.00\n"
+        b"2026-09-02,Buy,BTC,0.01,600.00\n"
+        b"2026-09-03,Sell,BTC,0.005,-310.00\n"
+        b"2026-09-04,Receive,ETH,1,2500.00\n"
+    )
+    m = csvfile.propose(data, trades=True)["mapping"]
+    m["payee"] = "Action"
+    p = csvfile.read(data, m)
+    got = [(r.kind, r.amount, r.security) for r in p.rows]
+    assert got == [
+        ("deposit", D("1000.00"), None),
+        ("buy", D("-600.00"), "BTC"),
+        ("sell", D("310.00"), "BTC"),
+        ("transfer-in", D(0), "ETH"),
+    ]
+
+
+def test_notes_below_a_csvs_rows_are_left_out():
+    """Walk item 13: the rows end at the first blank line after them; a blank line between the
+    header and the first row doesn't end them."""
+    data = (
+        b"Date,Description,Amount\n\n2026-09-01,Pay,100.00\n2026-09-02,Shop,-10.00\n\n"
+        b'"Downloaded 10/01/2026 9:14 am"\n"Not for distribution."\n'
+    )
+    assert csvfile.looks_like_csv(data)
+    proposal = csvfile.propose(data)
+    assert proposal["trailer"] == 2 and len(proposal["sample"]) == 2
+    assert [r.payee for r in csvfile.read(data, proposal["mapping"]).rows] == ["Pay", "Shop"]
+
+
+def test_a_single_days_rows_keep_their_order_when_the_balances_dont_tell():
+    """CR3-171: rows that chain neither way, or have no balances, stay in the file's order."""
+    data = (
+        b"Date,Description,Amount,Balance\n2026-09-01,One,-1.00,50.00\n2026-09-01,Two,-2.00,70.00\n"
+    )
+    assert [r.payee for r in csvfile.read(data, csvfile.propose(data)["mapping"]).rows] == [
+        "One",
+        "Two",
+    ]
+    bare = b"Date,Description,Amount\n2026-09-01,One,-1.00\n2026-09-01,Two,-2.00\n"
+    assert [r.payee for r in csvfile.read(bare, csvfile.propose(bare)["mapping"]).rows] == [
+        "One",
+        "Two",
+    ]
+
+
+def test_an_ofx_date_not_written_as_a_date_falls_back_to_ofxtools():
+    from moolakata.importers.ofx import _raw
+
+    assert _raw("20260930200000[-5:EST]") == dt.date(2026, 9, 30)
+    assert _raw("") is None and _raw("2026-09") is None

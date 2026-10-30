@@ -171,11 +171,13 @@ def instrument(
         found = s.scalars(
             select(Instrument).where(Instrument.cusip == cusip, Instrument.deleted == false())
         ).first()
-    if found is None and symbol:
+    # One known only by its CUSIP or name is kept under it as its symbol, and found by it.
+    wanted = symbol or cusip or name
+    if found is None and wanted:
         coin = Instrument.instrumentClass == "crypto"
         found = s.scalars(
             select(Instrument).where(
-                Instrument.symbol == symbol.upper(),
+                Instrument.symbol == wanted.upper(),
                 Instrument.deleted == false(),
                 coin if cls == "crypto" else ~coin,
             )
