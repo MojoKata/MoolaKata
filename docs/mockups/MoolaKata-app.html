@@ -33811,7 +33811,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
           : html`
             ${editing
               ? html`
-                <button type="button" class="btn danger" disabled=${save.busy}
+                <button type="button" class="btn danger" disabled=${save.busy || !t || !draft}
                   onClick=${async () => {
                     if (!t || !draft) return;
                     const withStock = ['assign', 'exercise'].includes(txn.kind);
@@ -33829,7 +33829,10 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               `
               : null}
             ${editing && txn.transferId
-              ? html`<button type="button" class="btn" disabled=${save.busy} onClick=${async () => {
+              ? html`<button type="button" class="btn" disabled=${
+                save.busy || !t
+              } onClick=${async () => {
+                // Enabled once the transaction's draft is loaded, so a click is never lost.
                 if (!t) return;
                 // The match undone through the save, with whatever else was changed here.
                 t.set('transferWithId', null);
