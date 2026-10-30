@@ -22,10 +22,10 @@ def imp(*ends):
 def test_the_default_follows_the_type():
     d = expected.default_interval
     assert d("checking", ["file"]) == "monthly"
-    assert d("credit-card", ["statement"]) == "monthly"
+    assert d("credit-card", ["file"]) == "monthly"
     assert d("roth-ira", ["file"]) == "monthly"
     assert d("401k", ["file"]) == "quarterly"
-    assert d("529", ["statement"]) == "quarterly"
+    assert d("529", ["file"]) == "quarterly"
     assert d("checking", ["manual"]) == "none"
     assert d("crypto-wallet", ["bitcoin"]) == "none"
     assert d("real-estate", ["file"]) == "none"
@@ -76,7 +76,7 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
 
     alice = make_user(server, "alice")
     c = sign_in(server, "alice")
-    a = new_account(c, keptBy=["statement"])
+    a = new_account(c, keptBy=["file"])
     assert (a["statementInterval"], a["statementIntervalDefault"]) == (None, "monthly")
     with server.db.tx() as s:
         for end in (dt.date(2026, 3, 31), dt.date(2026, 6, 30), dt.date(2026, 9, 30)):

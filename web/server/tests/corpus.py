@@ -132,9 +132,8 @@ def _brokerage(c, review: dict, ticks) -> dict:
                 "amount": x["amount"],
                 "kind": x["kind"],
                 "symbol": x["symbol"],
-                "include": ticks(x)
-                if ticks
-                else not x["present"] and not x["notRead"] and not review.get("byFile"),
+                # As the dialog ticks them: unless already in the account or not read.
+                "include": ticks(x) if ticks else not x["present"] and not x["notRead"],
             }
             for x in review["activity"]
         ],
@@ -156,7 +155,9 @@ def _statement(c, review: dict, ticks) -> dict:
                 "description": x["description"],
                 "amount": x["amount"],
                 "line": i,
-                "include": ticks(x) if ticks else not x["present"],
+                # As the dialog ticks them: every line, those already in the account shown
+                # ticked and counted, never added again (S1.3.3.3).
+                "include": ticks(x) if ticks else True,
             }
             for i, x in enumerate(review["rows"])
         ],

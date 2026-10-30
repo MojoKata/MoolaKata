@@ -157,30 +157,30 @@ Fee Detail
         for r in first.rows
         if not r.description.startswith("SERVICE")
     ]
-    left = [r for r in first.rows if r.description.startswith("SERVICE")]
-    layout = statements.learn(None, kept, left)
+    layout = statements.learn(None, kept, remember=["Service charge waived"])
     again = parse(text, layout=layout)
-    assert [r.amount for r in again.rows] == [Decimal("-10.00"), Decimal("-20.00")]
+    # The fee asked to be ignored is shown, marked, and left out of the sum.
+    assert [(r.amount, r.ignored) for r in again.rows] == [
+        (Decimal("-10.00"), None),
+        (Decimal("-20.00"), None),
+        (Decimal("-5.00"), "service charge waived"),
+    ]
     assert again.difference == 0
-    # C44, S1.3.3.4: a line left out because it was already in the account teaches nothing.
-    rent = next(r for r in first.rows if r.description == "RENT")
-    only_coffee = [r for r in kept if r.description == "COFFEE"]
-    layout = statements.learn(None, only_coffee, [rent, *left], {(rent.date, rent.amount)})
-    assert layout["skip"] == ["service charge waived"]
+    assert statements.learn(layout, kept, forget=["service charge waived"])["skip"] == []
 
 
-def test_a_skip_is_never_learned_from_a_line_kept_or_one_starting_like_a_kept_line():
-    """CR3-1: only lines left out by choice teach a skip, and not when their first words start
-    a line the person kept, which the skip would drop from the next statement."""
+def test_a_line_left_out_teaches_no_skip():
+    """CR3-16: a line is ignored next time only when the person asks (Remember…), never because
+    they left it out, or because it was already in the account."""
     row = statements.StatementRow
     day = dt.date(2026, 9, 3)
     kept = [row(day, "DEBIT CARD PURCHASE KROGER 123", Decimal("-40.00"))]
-    left = [
-        row(day, "DEBIT CARD PURCHASE AMAZN MKTP", Decimal("-60.00")),
-        row(day, "SERVICE CHARGE WAIVED", Decimal("-5.00")),
+    assert statements.learn(None, kept)["skip"] == []
+    asked = statements.learn(None, kept, remember=["  Service  Charge waived "])
+    assert asked["skip"] == ["service charge waived"]
+    assert statements.learn(asked, kept, remember=["service charge waived"])["skip"] == [
+        "service charge waived"
     ]
-    assert statements.learn(None, kept, left)["skip"] == ["service charge waived"]
-    assert statements.learn(None, kept, [])["skip"] == []
 
 
 # ---------- through the server ----------
@@ -258,9 +258,9 @@ Withdrawals and Other Debits
 
 
 def test_correcting_a_line_then_importing_the_next_statement_keeps_its_lines(server):
-    """CR3-1 (S1.3.3.3, S1.3.3.4), end to end: the person renames one line and leaves the
-    waived fee out; the next statement from the bank keeps every card purchase and drops only
-    the fee."""
+    """CR3-1, CR3-16 (S1.3.3.3, S1.3.3.4), end to end: the person renames one line, leaves
+    the waived fee out and asks to ignore lines like it; the next statement from the bank keeps
+    every card purchase and shows the fee, ignored, left out."""
     from conftest import make_user, sign_in
     from test_accounts import new_account
     from test_reading import text_pdf
@@ -281,15 +281,26 @@ def test_correcting_a_line_then_importing_the_next_statement_keeps_its_lines(ser
     ]
     rows[0]["description"] = "Amazon"
     rows[2]["include"] = False
-    body = {**_body(review), "rows": rows, "acceptDifference": True}
+    body = {
+        **_body(review),
+        "rows": rows,
+        "acceptDifference": True,
+        "remember": ["service charge waived"],
+    }
     r = c.post(f"/ui/api/imports/{review['uploadId']}/statement", json=body)
     assert r.status_code == 200, r.text
     oct_ = CARDS.format(start="10/01/26", end="10/31/26", m="10", first="TARGET 0042")
     nxt = _import(c, acct["id"], text_pdf(oct_.splitlines()))["result"]
-    assert [x["description"] for x in nxt["rows"]] == [
-        "DEBIT CARD PURCHASE TARGET 0042",
-        "DEBIT CARD PURCHASE KROGER 123",
+    assert [(x["description"], x["ignored"]) for x in nxt["rows"]] == [
+        ("DEBIT CARD PURCHASE TARGET 0042", None),
+        ("DEBIT CARD PURCHASE KROGER 123", None),
+        ("SERVICE CHARGE WAIVED", "service charge waived"),
     ]
+    # Profile lists it, and it can be taken back.
+    listed = c.get("/ui/api/statement-layouts/ignored").json()["items"]
+    assert listed == [{"institution": "UMB Bank", "kind": "bank", "start": "service charge waived"}]
+    assert c.post("/ui/api/statement-layouts/ignored/forget", json=listed[0]).status_code == 204
+    assert c.get("/ui/api/statement-layouts/ignored").json()["items"] == []
 
 
 def test_statement_reading_can_be_off(server, admin_client):

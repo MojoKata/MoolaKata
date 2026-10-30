@@ -18,8 +18,3 @@ transactions = [
 ]
 # The statement's opening and closing balances.
 checks = ["2026-08-31 5710.50 ok", "2026-09-30 6120.50 ok"]
-
-[xfail]
-# Found by the corpus, walk item 15: its lines start left out as already present, so the
-# statement no longer adds up and asks for the difference to be accepted.
-again = "walk 15: present lines left out of the sum"

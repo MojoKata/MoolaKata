@@ -81,6 +81,9 @@ class StatementRow:
     # The sign came from the statement's own figures (a sign, the running balance), which on a
     # card statement are what is owed; or from a section or the words, which are the account's.
     owedSide: bool = False
+    # The start of a line the person asked to ignore (S1.3.3.4) that this line has: it is shown,
+    # left out, never dropped unseen.
+    ignored: str | None = None
 
 
 @dataclass
@@ -98,7 +101,8 @@ class Statement:
         """What the transactions don't account for between the balances; 0 when they add up."""
         if self.opening is None or self.closing is None:
             return None
-        return self.closing - self.opening - sum((r.amount for r in self.rows), Decimal(0))
+        counted = (r.amount for r in self.rows if not r.ignored)
+        return self.closing - self.opening - sum(counted, Decimal(0))
 
 
 def parse_amount(text: str) -> Decimal | None:
@@ -247,8 +251,7 @@ def parse(
         first = AMOUNT.search(rest)
         description = rest[: first.start()].strip(" .*") if first else rest
         description = re.sub(r"\s{2,}", " ", description)
-        if any(description.lower().startswith(x) for x in skip):
-            continue
+        ignored = next((x for x in skip if description.lower().startswith(x)), None)
         values = [parse_amount(a) for a in amounts]
         values = [v for v in values if v is not None]
         if not values:
@@ -279,7 +282,9 @@ def parse(
                 amount = abs(amount) if IN_WORDS.search(description) else -abs(amount)
                 confidence, owed_side = 60, False
         st.rows.append(
-            StatementRow(day, description[:200], amount, balance, confidence, section, owed_side)
+            StatementRow(
+                day, description[:200], amount, balance, confidence, section, owed_side, ignored
+            )
         )
     if card:
         # A card statement shows what is owed: its own figures are turned to the account's side.
@@ -370,34 +375,32 @@ def name(institution: str | None, start: dt.date | None, end: dt.date | None) ->
     return f"{who}, {start:%b %-d, %Y} – {end:%b %-d, %Y}"
 
 
+def ignoring(skip: list[str], remember: list[str], forget: list[str]) -> list[str]:
+    """The starts of lines the person asked to ignore (S1.3.3.4): what they asked to remember
+    added, what they asked to stop ignoring taken away, compared without case."""
+    out = [x for x in skip if x not in {f.strip().lower() for f in forget}]
+    for x in remember:
+        x = " ".join(x.lower().split())
+        if x and x not in out:
+            out.append(x)
+    return out[-50:]
+
+
 def learn(
     layout: dict | None,
     kept: list[StatementRow],
-    left: list[StatementRow],
-    present: set = frozenset(),
+    remember: list[str] = (),
+    forget: list[str] = (),
 ) -> dict:
     """What a checked statement teaches about its institution's layout (S1.3.3.4): the sign
-    each section heading gave the rows the person kept, and the first words of the lines they
-    took out by choice. `kept` and `left` are the lines as they were read (a kept line with the
-    sign the person gave it), so a corrected description teaches nothing. A line left out
-    because it was already in the account (`present`, by date and amount) teaches nothing, and
-    neither does one whose first words start a line the person kept, which the skip would drop
-    next time."""
+    each section heading gave the rows the person kept, as they were read (a kept line with the
+    sign the person gave it); and the lines to ignore, only as the person asked, never learned
+    from what they left out."""
     out = {
         "signs": dict((layout or {}).get("signs", {})),
-        "skip": list((layout or {}).get("skip", [])),
+        "skip": ignoring(list((layout or {}).get("skip", [])), list(remember), list(forget)),
     }
     for r in kept:
         if r.section:
             out["signs"][r.section] = 1 if r.amount > 0 else -1
-    kept_text = [r.description.lower() for r in kept]
-    for r in left:
-        if (r.date, r.amount) in present or not r.description:
-            continue
-        words = " ".join(r.description.lower().split()[:3])
-        if not words or words in out["skip"]:
-            continue
-        if any(k.startswith(words) for k in kept_text):
-            continue
-        out["skip"].append(words)
     return out

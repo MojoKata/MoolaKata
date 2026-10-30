@@ -119,6 +119,9 @@ class Activity:
     symbol: str | None = None
     quantity: Decimal | None = None
     price: Decimal | None = None
+    # The start of a line the person asked to ignore (S1.3.3.4) that this line has: it is shown,
+    # left out, never dropped unseen.
+    ignored: str | None = None
 
 
 @dataclass
@@ -307,8 +310,9 @@ def parse(lines: list[str], today: dt.date, layout: dict | None = None) -> Broke
             if not lead:
                 continue
             a = _activity(line, lead, out.periodEnd, fallback_year)
-            if a is None or any(a.description.lower().startswith(x) for x in skip):
+            if a is None:
                 continue
+            a.ignored = next((x for x in skip if a.description.lower().startswith(x)), None)
             out.activity.append(a)
     if out.periodStart is None and out.activity:
         out.periodStart = min(a.date for a in out.activity)
@@ -331,17 +335,14 @@ def totals(b: Brokerage) -> dict[str, Decimal]:
     return t
 
 
-def learn(layout: dict | None, b: Brokerage, left_out: list[str]) -> dict:
-    """What is learned of an institution's brokerage statements: the first words of lines the
-    person left out that weren't trades or already present, skipped next time."""
+def learn(layout: dict | None, remember: list[str] = (), forget: list[str] = ()) -> dict:
+    """The lines of an institution's brokerage statements to ignore, only as the person asked
+    (S1.3.3.4), never learned from what they left out."""
+    from .statements import ignoring
+
     out = dict(layout or {})
     mine = dict(out.get("brokerage") or {})
-    skip = list(mine.get("skip", []))
-    for d in left_out:
-        words = " ".join(d.split()[:3]).lower()
-        if words and words not in skip:
-            skip.append(words)
-    mine["skip"] = skip[-50:]
+    mine["skip"] = ignoring(list(mine.get("skip", [])), list(remember), list(forget))
     out["brokerage"] = mine
     return out
 

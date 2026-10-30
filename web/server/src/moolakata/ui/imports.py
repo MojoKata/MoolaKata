@@ -9,13 +9,15 @@ import json
 import re
 import secrets
 import threading
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
-from pydantic import Field
+from pydantic import Field, StringConstraints
 from sqlalchemy import false, select
 
 from .. import access, clock, exactjson, ids, parsing, receipts, settings
@@ -23,16 +25,15 @@ from ..errors import Problem, refuse
 from ..importers import brokerage, csvfile, ofx, statements
 from ..importers.parsed import ParsedFile, ReadError, Row, Security
 from ..jobs import Job
-from ..ledger import holdingcheck
+from ..ledger import holdingcheck, lots
 from ..ledger import types as atypes
 from ..store.entities.accounts import (
     Account,
-    Anchor,
-    Holding,
     HoldingCheck,
     Import,
     ImportMapping,
     Instrument,
+    Lot,
     StatementLayout,
     Transaction,
 )
@@ -357,20 +358,33 @@ def _parse(s, account: Account, lines: list[str], period=None):
     return st, saved is not None
 
 
-def _present(s, account_id: str | None) -> set:
+def _present(s, account_id: str | None) -> Counter:
+    """The account's transactions by date and amount, each as many times as it is there."""
     if account_id is None:
-        return set()
-    return {
+        return Counter()
+    return Counter(
         (x.date, x.amount)
         for x in s.scalars(
             select(Transaction).where(
                 Transaction.accountId == account_id, Transaction.deleted == false()
             )
         )
-    }
+    )
 
 
-def _figures(st, have: set) -> dict:
+def _marked(rows, have: Counter) -> list[bool]:
+    """Which of a statement's lines are already in the account, by date and amount, each
+    transaction there answering for one line (S1.3.3.3)."""
+    left = Counter(have)
+    out = []
+    for r in rows:
+        k = (r.date, r.amount)
+        out.append(left[k] > 0)
+        left[k] -= 1
+    return out
+
+
+def _figures(st, have: Counter) -> dict:
     return {
         "institution": st.institution,
         "periodStart": st.periodStart.isoformat() if st.periodStart else None,
@@ -383,9 +397,10 @@ def _figures(st, have: set) -> dict:
                 "description": r.description,
                 "amount": r.amount,
                 "confidence": r.confidence,
-                "present": (r.date, r.amount) in have,
+                "present": present,
+                "ignored": r.ignored,
             }
-            for r in st.rows
+            for r, present in zip(st.rows, _marked(st.rows, have), strict=True)
         ],
     }
 
@@ -526,20 +541,23 @@ def _find_instrument(s, symbol: str | None, cusip: str | None, label: str) -> In
 
 
 def snapshot_kept(s, account: Account) -> bool:
-    """An account kept by snapshots (R3.2): kept from statements only, with no trades of its
-    own; a statement's positions are then its holdings on that date."""
-    if json.loads(account.keptBy or "[]") != ["statement"]:
-        return False
-    return (
-        s.scalar(
-            select(Transaction.id).where(
-                Transaction.accountId == account.id,
-                Transaction.deleted == false(),
-                Transaction.instrumentId.is_not(None),
-            )
+    """An account kept by snapshots (R3.2): one with no trades of its own (nothing that makes
+    or takes away a lot) and no lot typed on its own, however it is kept current; a
+    statement's positions are then its holdings on that date."""
+    traded = s.scalar(
+        select(Transaction.id).where(
+            Transaction.accountId == account.id,
+            Transaction.deleted == false(),
+            Transaction.instrumentId.is_not(None),
+            Transaction.kind.in_(lots.TRADES),
         )
-        is None
     )
+    typed = s.scalar(
+        select(Lot.id).where(
+            Lot.accountId == account.id, Lot.deleted == false(), Lot.transactionId.is_(None)
+        )
+    )
+    return traded is None and typed is None
 
 
 def _run_brokerage(srv, job, s, account, user_id, data, name, lines, method) -> bool:
@@ -572,7 +590,6 @@ def _run_brokerage(srv, job, s, account, user_id, data, name, lines, method) -> 
     ledger = repo.load(s, account)
     day = b.periodEnd or clock.today()
     have = _present(s, account.id)
-    by_file = "file" in json.loads(account.keptBy or "[]")
     rows = []
     for p in b.positions:
         inst = None if p.cash else _find_instrument(s, p.symbol, p.cusip, p.label)
@@ -611,7 +628,6 @@ def _run_brokerage(srv, job, s, account, user_id, data, name, lines, method) -> 
             "periodEnd": b.periodEnd.isoformat() if b.periodEnd else None,
             "summary": {k: _text(v) for k, v in b.summary.__dict__.items()},
             "totals": {k: _text(v) for k, v in totals.items()},
-            "byFile": by_file,
             "snapshot": snapshot_kept(s, account),
             "positions": [
                 {
@@ -640,9 +656,10 @@ def _run_brokerage(srv, job, s, account, user_id, data, name, lines, method) -> 
                     "symbol": a.symbol,
                     "quantity": _text(a.quantity),
                     "price": _text(a.price),
-                    "present": (a.date, a.amount) in have,
+                    "present": present,
+                    "ignored": a.ignored,
                 }
-                for a in b.activity
+                for a, present in zip(b.activity, _marked(b.activity, have), strict=True)
             ],
         },
     )
@@ -667,6 +684,9 @@ def holdingcheck_row(p, instrument_id: str | None) -> HoldingCheck:
         costBasis=p.cost,
         cash=p.cash,
     )
+
+
+Ignore = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 
 
 class PositionIn(Model):
@@ -695,6 +715,10 @@ class BrokerageIn(Model):
     endingValue: Money | None = None
     positions: list[PositionIn] = Field(default_factory=list)
     rows: list[ActivityIn] = Field(default_factory=list)
+    # The starts of lines to ignore in this institution's statements from now on, and those
+    # to stop ignoring, as the person asked (S1.3.3.4).
+    remember: list[Ignore] = Field(default_factory=list, max_length=20)
+    forget: list[Ignore] = Field(default_factory=list, max_length=20)
 
 
 CASH_KINDS = ("deposit", "withdrawal", "dividend", "interest", "fee")
@@ -717,10 +741,12 @@ def save_brokerage(
     bad = next((r for r in body.rows if r.include and r.kind not in CASH_KINDS), None)
     if bad is not None:
         raise refuse("rows", "row-not-cash", "Trades aren't added here: enter them as trades.")
-    kept = [r for r in body.rows if r.include]
     cash = next((p for p in body.positions if p.cash and p.marketValue is not None), None)
     with srv.db.tx() as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
+        # A line already in the account (its file brought it) is matched, never added again.
+        present = _marked(body.rows, _present(s, account.id))
+        kept = [r for r, here in zip(body.rows, present, strict=True) if r.include and not here]
         securities = {}
         rows = []
         for r in kept:
@@ -756,16 +782,14 @@ def save_brokerage(
             hashlib.sha256(held.data).hexdigest(),
         )
         if body.endingValue is not None:
-            s.add(
-                Anchor(
-                    id=ids.new_id("Anchr"),
-                    accountId=account.id,
-                    date=body.periodEnd,
-                    balance=body.endingValue,
-                    source="statement-value",
-                    importId=applied.importId,
-                    createdById=c.id,
-                )
+            repo.keep_anchor(
+                s,
+                account.id,
+                body.periodEnd,
+                body.endingValue,
+                "statement-value",
+                applied.importId,
+                c.id,
             )
         snapshot = snapshot_kept(s, account)
         for p in body.positions:
@@ -776,46 +800,30 @@ def save_brokerage(
                 inst_id = repo.instrument(
                     s, p.symbol, p.label, "mutual-fund" if p.symbol is None else "equity"
                 ).id
-            s.add(
-                HoldingCheck(
-                    id=ids.new_id("HdChk"),
-                    accountId=account.id,
-                    importId=applied.importId,
-                    asOf=body.periodEnd,
-                    instrumentId=inst_id,
-                    label=p.label[:120],
-                    quantity=p.quantity,
-                    price=p.price,
-                    marketValue=p.marketValue,
-                    costBasis=p.costBasis,
-                    cash=p.cash,
-                )
+            # The same statement again changes nothing; a figure corrected replaces the one kept.
+            repo.keep_position(
+                s,
+                account.id,
+                applied.importId,
+                body.periodEnd,
+                inst_id,
+                p.label[:120],
+                check=True,
+                quantity=p.quantity,
+                price=p.price,
+                marketValue=p.marketValue,
+                costBasis=p.costBasis,
+                cash=p.cash,
             )
-            if snapshot and not p.cash and inst_id is not None and p.quantity:
-                s.add(
-                    Holding(
-                        id=ids.new_id("Hold"),
-                        accountId=account.id,
-                        instrumentId=inst_id,
-                        asOf=body.periodEnd,
-                        quantity=p.quantity,
-                        marketValue=p.marketValue,
-                        importId=applied.importId,
-                    )
-                )
         r = _keep_file(
             s, srv, c, held, [account.id], b.institution, body.periodStart, body.periodEnd
         )
-        have = {(a.date, a.amount) for a in b.activity}
-        left = [
-            x.description
-            for x in body.rows
-            if not x.include and x.kind in CASH_KINDS and (x.date, x.amount) in have
-        ]
         key = (account.institution or b.institution or "").strip()
-        if key and left:
+        if key and (body.remember or body.forget):
             row = _layout(s, account.ownerId, key)
-            learned = brokerage.learn(json.loads(row.layout) if row else None, b, left)
+            learned = brokerage.learn(
+                json.loads(row.layout) if row else None, body.remember, body.forget
+            )
             text = exactjson.dumps(learned, sort_keys=True)
             if row is None:
                 s.add(
@@ -873,6 +881,10 @@ class StatementIn(Model):
     part: int | None = None
     accountId: str | None = None
     leftOut: bool = False
+    # The starts of lines to ignore in this institution's statements from now on, and those
+    # to stop ignoring, as the person asked (S1.3.3.4).
+    remember: list[Ignore] = Field(default_factory=list, max_length=20)
+    forget: list[Ignore] = Field(default_factory=list, max_length=20)
 
 
 class KeepIn(Model):
@@ -888,9 +900,12 @@ def _held_for(upload_id: str, c: Caller) -> Held:
     return held
 
 
-def _checked(body: StatementIn) -> list[StatementRowIn]:
-    kept = [r for r in body.rows if r.include]
-    difference = body.closing - body.opening - sum((r.amount for r in kept), Decimal(0))
+def _checked(body: StatementIn, present: list[bool]) -> list[StatementRowIn]:
+    """The lines to add: those kept that aren't in the account yet. Every line the account will
+    hold counts towards the closing balance, those already there too (S1.3.3.3)."""
+    counted = [r for r, here in zip(body.rows, present, strict=True) if r.include or here]
+    kept = [r for r, here in zip(body.rows, present, strict=True) if r.include and not here]
+    difference = body.closing - body.opening - sum((r.amount for r in counted), Decimal(0))
     if difference != 0 and not body.acceptDifference:
         raise refuse(
             "acceptDifference",
@@ -923,8 +938,6 @@ def _apply(s, c: Caller, held: Held, account: Account, st, body: StatementIn, ke
         coveredTo=body.periodEnd,
         institution=st.institution,
     )
-    # What the account already held before this import: lines left out for that teach nothing.
-    have = _present(s, account.id)
     applied = repo.apply_import(
         s,
         account,
@@ -933,7 +946,7 @@ def _apply(s, c: Caller, held: Held, account: Account, st, body: StatementIn, ke
         held.fileName or "statement",
         hashlib.sha256(held.data).hexdigest(),
     )
-    _learn(s, account, st, body.rows, have)
+    _learn(s, account, st, body)
     return applied
 
 
@@ -978,7 +991,9 @@ def save_statement(
         raise Problem(404, "upload-gone", "That upload has expired; choose the file again.")
     if held.parts is not None:
         return _save_part(srv, c, upload_id, held, body)
-    kept = _checked(body)
+    with srv.db.read() as s:
+        present = _marked(body.rows, _present(s, held.accountId))
+    kept = _checked(body, present)
     st = held.statement
     with srv.db.tx() as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
@@ -1013,11 +1028,11 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
     if body.part is None or not 0 <= body.part < n:
         raise refuse("part", "part-unknown", f"One of the statement's {n} parts.")
     if not body.leftOut:
-        _checked(body)
         if not body.accountId:
             raise refuse("accountId", "account-missing", "The account this part goes to.")
         with srv.db.read() as s:
             access.account(s, c.id, body.accountId, "write")
+            _checked(body, _marked(body.rows, _present(s, body.accountId)))
     held.decisions[body.part] = body
     left = [i for i in range(n) if i not in held.decisions]
     if left:
@@ -1027,7 +1042,8 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
     with srv.db.tx() as s:
         for i, d in saved:
             account, _ = access.account(s, c.id, d.accountId, "write")
-            applied = _apply(s, c, held, account, held.parts[i], d, _checked(d))
+            kept = _checked(d, _marked(d.rows, _present(s, account.id)))
+            applied = _apply(s, c, held, account, held.parts[i], d, kept)
             accounts.append(account.id)
             results.append({"part": i, "accountId": account.id, "added": applied.added})
         r = None
@@ -1169,9 +1185,10 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
     )
 
 
-def _learn(s, account: Account, st, rows: list[StatementRowIn], have: set = frozenset()) -> None:
-    """The layout learned from what the person kept and left out, each line as it was read:
-    found by its `line`, or, for a dialog that sends none, by its date and description."""
+def _learn(s, account: Account, st, body: StatementIn) -> None:
+    """The layout learned from the lines the person kept, each as it was read (found by its
+    `line`, or, for a dialog that sends none, by its date and description), and the lines to
+    ignore that they asked for (S1.3.3.4)."""
     by_key = {(x.date, x.description): x for x in st.rows}
 
     def read_as(r: StatementRowIn):
@@ -1179,20 +1196,21 @@ def _learn(s, account: Account, st, rows: list[StatementRowIn], have: set = froz
             return st.rows[r.line]
         return by_key.get((r.date, r.description))
 
-    kept, left = [], []
-    for r in rows:
+    kept = []
+    for r in body.rows:
+        if not r.include:
+            continue
         was = read_as(r)
-        if r.include:
-            description = was.description if was is not None else r.description
-            section = getattr(was, "section", None)
-            kept.append(statements.StatementRow(r.date, description, r.amount, section=section))
-        elif was is not None:
-            left.append(was)
+        description = was.description if was is not None else r.description
+        section = getattr(was, "section", None)
+        kept.append(statements.StatementRow(r.date, description, r.amount, section=section))
     key = _institution_key(account, st)
     if not key:
         return
     row = _layout(s, account.ownerId, key)
-    learned = statements.learn(json.loads(row.layout) if row else None, kept, left, have)
+    learned = statements.learn(
+        json.loads(row.layout) if row else None, kept, body.remember, body.forget
+    )
     text = exactjson.dumps(learned, sort_keys=True)
     if row is None:
         s.add(
@@ -1212,6 +1230,48 @@ def let_go(upload_id: str, c: Caller = Depends(caller)):
         held = _held.get(upload_id)
         if held is not None and held.userId == c.id:
             del _held[upload_id]
+    return Response(status_code=204)
+
+
+class IgnoredLine(Model):
+    institution: str
+    # A bank or card statement's lines, or a brokerage statement's.
+    kind: Literal["bank", "brokerage"]
+    start: str
+
+
+@router.get("/statement-layouts/ignored", response_model=list[IgnoredLine])
+def ignored_lines(request: Request, c: Caller = Depends(caller)):
+    """The starts of statement lines the person asked to ignore (S1.3.3.4), by institution."""
+    srv = server(request)
+    out = []
+    with srv.db.read() as s:
+        for row in s.scalars(
+            select(StatementLayout)
+            .where(StatementLayout.ownerId == c.id, StatementLayout.deleted == false())
+            .order_by(StatementLayout.institution)
+        ):
+            layout = json.loads(row.layout or "{}")
+            for start in layout.get("skip", []):
+                out.append(IgnoredLine(institution=row.institution, kind="bank", start=start))
+            for start in (layout.get("brokerage") or {}).get("skip", []):
+                out.append(IgnoredLine(institution=row.institution, kind="brokerage", start=start))
+    return out
+
+
+@router.post("/statement-layouts/ignored/forget", status_code=204)
+def forget_ignored_line(body: IgnoredLine, request: Request, c: Caller = Depends(caller)):
+    """One of them no longer ignored: its lines are read again from the next statement."""
+    srv = server(request)
+    with srv.db.tx() as s:
+        row = _layout(s, c.id, body.institution)
+        if row is not None:
+            layout = json.loads(row.layout or "{}")
+            if body.kind == "bank":
+                layout["skip"] = statements.ignoring(layout.get("skip", []), [], [body.start])
+            else:
+                layout = brokerage.learn(layout, forget=[body.start])
+            row.layout = exactjson.dumps(layout, sort_keys=True)
     return Response(status_code=204)
 
 

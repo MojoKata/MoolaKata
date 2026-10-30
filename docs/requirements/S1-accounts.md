@@ -27,33 +27,41 @@
    for history and taxes), notes, and how it is kept current (S1.3). A `savings` or
    `money-market` account also has **Withdrawals allowed a month**, the bank's limit, empty
    for none, which budgets keep moves back within (S7.10.4).
-3. **How an account is kept current**, one or more of:
+3. **How an account is kept current**, one or more of the ways below. An account's **Keep it
+   current by** setting is **Imports** (files and statements alike, and the connector's) or
+   **Manual**; it sets only whether statements are expected (S1.11.7). Whether a file's or a
+   statement's positions are the account's holdings is told by its transactions, never by the
+   setting (S1.3.2):
    1. **manual**: transactions and balance snapshots typed in;
-   2. **file import**: **OFX and QFX** files (the structured downloads most US banks and
-      brokers offer; brokers' files also carry positions and trades), read with ofxtools;
-      CSV, with a saved column mapping per institution; and brokers' and exchanges'
-      trade-history CSVs. The first CSV from an institution asks **which columns are which**,
-      its guesses checked: the date, description, amount (or debit and credit), running
-      balance, memo and id, and for an account that holds instruments the action, symbol,
-      quantity, price and fees. A trade's cash takes the sign its action gives it (a buy's
-      goes out, a sale's comes in) whatever sign the file writes, shares or coins moved in or
-      out move no cash, and an asset in the account's own currency is cash. The rows end at
-      the first blank line below them: what follows (a disclaimer, the time the file was
-      downloaded) is left out, and the step says how many lines were. A security a CSV names
-      by its symbol alone is a mutual fund when the symbol is five letters ending in X, a
-      listed share when it is any other ticker, and in an exchange's or a wallet's file a coin
-      (G27: correcting one). Imports are idempotent: a re-imported file adds only what is new,
-      matched by the file's transaction id (an OFX file's `FITID`) or by date, amount and
-      payee, amounts compared in cents as stored. A row whose id isn't here yet still matches,
-      by date, amount and payee, a row that has none (one typed by hand, or from a file
-      without ids), which takes the id. Rows the owner deleted are matched too, and stay
-      deleted: no file, nor the connector's overlapping downloads, brings one back. An id a file repeats is another row, kept beside the
-      first and flagged with it as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with several is refused, asking
-      for one account at a time. A broker's file's positions are a **holdings check** on the
-      statement's day (its as-of, whatever day their prices are from), as a statement's are (S1.3.3.8.2): the lots change only through transactions. For an
-      account kept by snapshots (R3.2), with no trades of its own (nothing that makes or takes
-      away a lot: a buy, a sale, a reinvestment, shares moved in or out, an option trade;
-      income, fees and splits on a holding don't count), they are its holdings;
+   2. **file import**: **OFX and QFX** files (the structured downloads most US banks and brokers
+      offer; brokers' files also carry positions and trades), read with ofxtools; CSV, with a
+      saved column mapping per institution; and brokers' and exchanges' trade-history CSVs. The
+      first CSV from an institution asks **which columns are which**, its guesses checked: the
+      date, description, amount (or debit and credit), running balance, memo and id, and for an
+      account that holds instruments the action, symbol, quantity, price and fees. A trade's
+      cash takes the sign its action gives it (a buy's goes out, a sale's comes in) whatever
+      sign the file writes, shares or coins moved in or out move no cash, and an asset in the
+      account's own currency is cash. The rows end at the first blank line below them: what
+      follows (a disclaimer, the time the file was downloaded) is left out, and the step says
+      how many lines were. A security a CSV names by its symbol alone is a mutual fund when the
+      symbol is five letters ending in X, a listed share when it is any other ticker, and in an
+      exchange's or a wallet's file a coin (G27: correcting one). Imports are idempotent: a
+      re-imported file adds only what is new, matched by the file's transaction id (an OFX
+      file's `FITID`) or by date, amount and payee, amounts compared in cents as stored. A row
+      whose id isn't here yet still matches, by date, amount and payee, a row that has none (one
+      typed by hand, or from a file without ids), which takes the id. Rows the owner deleted are
+      matched too, and stay deleted: no file, nor the connector's overlapping downloads, brings
+      one back. An id a file repeats is another row, kept beside the first and flagged with it
+      as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with
+      several is refused, asking for one account at a time. A broker's file's positions are a
+      **holdings check** on the statement's day (its as-of, whatever day their prices are from),
+      as a statement's are (S1.3.3.8.2): the lots change only through transactions. Every file's
+      positions are kept, dated, once per day: the same file again adds nothing, and figures
+      that differ replace the ones kept. They are the holdings of an account kept by snapshots
+      (R3.2), one with no trades of its own (nothing that makes or takes away a lot: a buy, a
+      sale, a reinvestment, shares moved in or out, an option trade; income, fees and splits on
+      a holding don't count), however it is kept current; and the statement price of an
+      instrument no price source fetches (S4);
    3. **statement import**: a **PDF statement**, read from its text layer, or a **photo or
       scan** of one, read with RapidOCR as receipts are (S9.8), all on the server. MoolaKata
       finds the statement's period, its transactions and its opening and closing balances,
@@ -80,14 +88,21 @@
          receipt's three pages and one minute are too few for a statement). Settings ›
          Imports can turn statement reading off.
       3. **Checking**: the period, both balances and each line can be corrected, and a line
-         left out; lines already in the account start left out. The opening balance becomes
+         left out. A line already in the account (the same date and amount, each transaction
+         there answering for one line) is shown ticked, *already in the account*, and can't be
+         unticked: it counts towards the closing balance and is never added again. The
+         opening balance becomes
          the account's reported balance the day before the period, the closing balance its
          balance on the last day (S1.11).
       4. **What is learned per institution** (per owner): the sign of each section heading the
-         person kept, and the first words of lines they left out, which are skipped next time.
-         A line left out because it was already in the account (S1.3.3.3) teaches nothing, nor
-         does one whose first words start a line the person kept. A line kept with its
-         description corrected is told by the line it was read as, and teaches no skip.
+         person kept, a line kept with its description corrected told by the line it was read
+         as. Lines to ignore are never learned on their own: a line the person unticks shows
+         **Remember…** at its row's end, which asks *Ignore future lines starting with:*, its
+         first three words filled in to be changed, with **OK** and **Cancel**. Taken, the row
+         shows *Ignored next time* (✕ takes it back), and the rule is saved with the
+         statement. A later statement's line a rule catches is shown, unticked and dimmed,
+         with *Ignored (starts with "…")* and **Stop ignoring**, never dropped unseen. Profile
+         lists each institution's ignored lines, each with **Remove**.
       5. **Several accounts in one statement** (a Schwab combined statement, a UMB statement
          with checking and savings): the statement is split where each account's part
          begins, at a header naming the account (*Account Number*, *Account ending*, an
@@ -143,14 +158,16 @@
             snapshots (R3.2). Being cash and holdings together, it is checked on the
             *Reconcile* tab against what the account was worth that day, at that day's
             prices, within half a percent or $1, whichever is more, apart from the cash
-            anchors. An account kept by snapshots is one kept from statements only, with no
-            trades of its own.
+            anchors. An account kept by snapshots is one with no trades of its own (S1.3.2),
+            however it is kept current.
          2. **The positions** on the last day: symbol (or CUSIP, or a fund's name),
             quantity, price and market value, a row split over two lines read as one. They
             become a **holdings check** at that date: each is matched to what MoolaKata
             holds, and a quantity that differs is shown with the difference, as an anchor
             shows a cash difference (a missed split, a dropped reinvestment). For an account
-            kept by snapshots, they are its holdings on that date. A cost basis on the
+            kept by snapshots, they are its holdings on that date; for any account they are
+            kept, as a file's are (S1.3.2), once per day: the same statement again adds
+            nothing, and a figure corrected replaces the one kept. A cost basis on the
             statement is shown beside the lots' and never written over them. A difference
             that the statement's own trade lines account for is pointed at (*the Sep 24
             reinvestment of 5.1120 isn't entered yet*). The cash or sweep line is checked
@@ -159,8 +176,9 @@
          3. **The cash activity**: deposits, withdrawals, dividends, interest and fees,
             checked against the summary's figures as bank lines are against their balances,
             for an account with no OFX, CSV or Connection to carry it. Lines already in the
-            account start left out, so a statement read beside its OFX adds nothing twice,
-            and every line does when the account is kept from files. Lines that don't add up
+            account are shown as such and never added again (S1.3.3.3), so a statement read
+            beside its OFX adds nothing twice; a line left out can be remembered, as a bank
+            statement's can (S1.3.3.4). Lines that don't add up
             to the summary's figures are flagged, not refused: a line may not have been read.
 
          **Not read**: trades (buys and sells), options activity, corporate actions and
@@ -401,7 +419,7 @@
     6. **Ticking off** (optional, for accounts kept by hand): pick a statement's closing date
        and balance, tick transactions as cleared until the difference is zero, and the period
        is marked **reconciled**. Editing a transaction inside a reconciled period asks first.
-    7. **Statements expected**: each account kept from files or statements has the interval
+    7. **Statements expected**: each account kept current by imports has the interval
        its institution issues them at, set in the account's settings:
        1. **Monthly, quarterly, yearly or none.** The default follows the account's type:
           monthly for banking, cards, brokerage, crypto exchanges, IRAs, HSAs and loans;

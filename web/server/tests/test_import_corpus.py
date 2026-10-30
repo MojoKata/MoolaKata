@@ -183,28 +183,28 @@ SEQUENCES = [
         ],
     ),
     Seq(
-        "a statement read beside the account's files teaches no skip (S1.3.3.4)",
-        "CR3-16",
+        "a broker's statement after its OFX adds nothing and teaches no skip (S1.3.3.4)",
+        None,
         [
-            ("account", "brk", {**BROKERAGE, "keptBy": ["file"]}),
+            ("account", "brk", BROKERAGE),
             ("import", "brk", "schwab-brokerage.ofx"),
+            ("count", "brk", "transactions", 6),
             ("import", "brk", "steps/schwab-brokerage-sep.statement.txt"),
-            (
-                "account",
-                "ira",
-                {"type": "ira", "institution": "Charles Schwab", "keptBy": ["statement"]},
-            ),
+            ("result", "added", 0),
+            ("count", "brk", "transactions", 6),
+            ("account", "ira", {"type": "ira", "institution": "Charles Schwab"}),
             ("import", "ira", "steps/schwab-ira-sep.statement.txt"),
             ("count", "ira", "transactions", 2),
         ],
     ),
     Seq(
-        "positions are holdings snapshots only for an account kept by snapshots (S1.3.2)",
-        "CR3-345",
+        "a file's positions are kept dated, trades or not; the lots stay the holdings (S1.3.2)",
+        None,
         [
             ("account", "brk", BROKERAGE),
             ("import", "brk", "schwab-brokerage.ofx"),
-            ("holding_rows", "brk", 0),
+            ("holding_rows", "brk", 2),
+            ("expect", "brk", "holdings", ["SCHD 100", "VTI 22"]),
         ],
     ),
     Seq(
@@ -281,7 +281,6 @@ def _js_keys(path: Path, name: str) -> set[str]:
     return set(re.findall(r"\[\s*'([^']+)'", body))
 
 
-@pytest.mark.xfail(strict=True, reason="CR3-18")
 def test_the_browser_offers_every_way_an_account_is_kept():
     from moolakata.ui import accounts
 

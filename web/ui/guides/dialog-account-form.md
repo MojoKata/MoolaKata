@@ -61,7 +61,9 @@ most wallets; raise it for one that skipped addresses.
 
 ## Keep it current by {#kept-by}
 
-From files you import, or by hand.
+**Imports**: files and statements you import, or the connector fetches; statements are then
+expected. Or **Manual**: typed by hand. Whether its positions are its holdings is told by its
+trades, not by this.
 
 ## Lot method
 

@@ -198,6 +198,113 @@ def instrument(
     return inst
 
 
+# ---------- what a file or statement reports on a day ----------
+
+
+def keep_anchor(
+    s: Session,
+    account_id: str,
+    day: dt.date,
+    balance: Decimal,
+    source: str,
+    import_id: str | None,
+    created_by: str | None = None,
+) -> None:
+    """A balance a file or statement reports, kept once for its account, day and source: the
+    same file again adds nothing, and a balance that differs replaces the one kept."""
+    found = s.scalars(
+        select(Anchor).where(
+            Anchor.accountId == account_id,
+            Anchor.date == day,
+            Anchor.source == source,
+            Anchor.deleted == false(),
+        )
+    ).first()
+    if found is None:
+        s.add(
+            Anchor(
+                id=ids.new_id("Anchr"),
+                accountId=account_id,
+                date=day,
+                balance=balance,
+                source=source,
+                importId=import_id,
+                createdById=created_by,
+            )
+        )
+    elif found.balance != balance:
+        found.balance = balance
+
+
+def keep_position(
+    s: Session,
+    account_id: str,
+    import_id: str | None,
+    day: dt.date,
+    instrument_id: str | None,
+    label: str,
+    *,
+    check: bool,
+    **figures,
+) -> None:
+    """A position a file or statement reports, kept once for its account, day and instrument
+    (or its label, for one MoolaKata doesn't know): as a holdings check when `check`, and, for a
+    known instrument, as the day's holding, which is the holdings of an account kept by
+    snapshots and the statement price of an instrument no source prices (S1.3.2). The same file
+    again adds nothing; figures that differ replace the ones kept."""
+    if check:
+        found = s.scalars(
+            select(HoldingCheck).where(
+                HoldingCheck.accountId == account_id,
+                HoldingCheck.asOf == day,
+                HoldingCheck.instrumentId == instrument_id
+                if instrument_id
+                else (HoldingCheck.instrumentId.is_(None) & (HoldingCheck.label == label)),
+                HoldingCheck.deleted == false(),
+            )
+        ).first()
+        if found is None:
+            s.add(
+                HoldingCheck(
+                    id=ids.new_id("HdChk"),
+                    accountId=account_id,
+                    importId=import_id,
+                    asOf=day,
+                    instrumentId=instrument_id,
+                    label=label,
+                    **figures,
+                )
+            )
+        else:
+            for k, v in figures.items():
+                setattr(found, k, v)
+    quantity, value = figures.get("quantity"), figures.get("marketValue")
+    if instrument_id is None or figures.get("cash") or not quantity:
+        return
+    held = s.scalars(
+        select(Holding).where(
+            Holding.accountId == account_id,
+            Holding.instrumentId == instrument_id,
+            Holding.asOf == day,
+            Holding.deleted == false(),
+        )
+    ).first()
+    if held is None:
+        s.add(
+            Holding(
+                id=ids.new_id("Hold"),
+                accountId=account_id,
+                instrumentId=instrument_id,
+                asOf=day,
+                quantity=quantity,
+                marketValue=value,
+                importId=import_id,
+            )
+        )
+    else:
+        held.quantity, held.marketValue = quantity, value
+
+
 # ---------- transfers (S1.7) ----------
 
 
@@ -401,27 +508,8 @@ def apply_import(
     # A balance the file reports: an OFX file's, or a statement's opening and closing.
     source = "statement" if parsed.format == "statement" else "ofx"
     for day, balance in parsed.balances:
-        if (
-            day
-            and not s.scalars(
-                select(Anchor).where(
-                    Anchor.accountId == account.id,
-                    Anchor.date == day,
-                    Anchor.source == source,
-                    Anchor.deleted == false(),
-                )
-            ).first()
-        ):
-            s.add(
-                Anchor(
-                    id=ids.new_id("Anchr"),
-                    accountId=account.id,
-                    date=day,
-                    balance=balance,
-                    source=source,
-                    importId=imp.id,
-                )
-            )
+        if day:
+            keep_anchor(s, account.id, day, balance, source, imp.id)
     # The file's positions: the holdings of an account kept by snapshots, and otherwise a
     # holdings check on Reconcile, the lots changing only through transactions (S1.3.3.8.2).
     s.flush()
@@ -438,48 +526,17 @@ def apply_import(
         if inst is None:
             result.warnings.append("a position names a security the file doesn't describe")
             continue
-        if (
-            checked
-            and not s.scalars(
-                select(HoldingCheck).where(
-                    HoldingCheck.accountId == account.id,
-                    HoldingCheck.instrumentId == inst.id,
-                    HoldingCheck.asOf == pos.asOf,
-                    HoldingCheck.deleted == false(),
-                )
-            ).first()
-        ):
-            s.add(
-                HoldingCheck(
-                    id=ids.new_id("HdChk"),
-                    accountId=account.id,
-                    asOf=pos.asOf,
-                    label=(inst.symbol or inst.name or "")[:200],
-                    importId=imp.id,
-                    instrumentId=inst.id,
-                    quantity=pos.quantity,
-                    marketValue=pos.marketValue,
-                )
-            )
-        if not s.scalars(
-            select(Holding).where(
-                Holding.accountId == account.id,
-                Holding.instrumentId == inst.id,
-                Holding.asOf == pos.asOf,
-                Holding.deleted == false(),
-            )
-        ).first():
-            s.add(
-                Holding(
-                    id=ids.new_id("Hold"),
-                    accountId=account.id,
-                    instrumentId=inst.id,
-                    asOf=pos.asOf,
-                    quantity=pos.quantity,
-                    marketValue=pos.marketValue,
-                    importId=imp.id,
-                )
-            )
+        keep_position(
+            s,
+            account.id,
+            imp.id,
+            pos.asOf,
+            inst.id,
+            (inst.symbol or inst.name or "")[:200],
+            check=bool(checked),
+            quantity=pos.quantity,
+            marketValue=pos.marketValue,
+        )
     for txn in added:
         if match_transfer(s, txn, account.ownerId):
             result.transfers += 1

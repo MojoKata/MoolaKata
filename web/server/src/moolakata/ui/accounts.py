@@ -40,7 +40,10 @@ from .deps import Caller, caller, server
 from .sharing import counted_for
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["accounts"])
-KEPT_BY = ("manual", "file", "statement", "bitcoin")
+# How an account is kept current (S1.3): by imports (files and statements alike), by hand, or
+# by its wallet. It sets only whether statements are expected (S1.11.7); what its positions are
+# is told by its transactions (R3.2).
+KEPT_BY = ("manual", "file", "bitcoin")
 RANGES = {"1M": 31, "3M": 92, "1Y": 366, "5Y": 1827}
 
 
@@ -283,11 +286,7 @@ def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[Fi
             )
         )
     if body.keptBy is not None and (not body.keptBy or any(k not in KEPT_BY for k in body.keptBy)):
-        errors.append(
-            FieldError(
-                "keptBy", "kept-by-invalid", "Manual, file import, statement import or bitcoin."
-            )
-        )
+        errors.append(FieldError("keptBy", "kept-by-invalid", "Imports, manual or bitcoin."))
     every = getattr(body, "statementInterval", None)
     if every is not None and every not in expected.INTERVALS:
         errors.append(

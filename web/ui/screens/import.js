@@ -84,13 +84,16 @@ export function ImportDialog({ close, accounts, accountId }) {
           ...job.result,
           activity: job.result.activity.map((/** @type {any} */ r) => ({
             ...r,
-            include: !r.present && !r.notRead && !job.result.byFile,
+            include: !r.notRead && !r.ignored,
           })),
         });
       } else if (job.result.needsReview) {
         setReview({
           ...job.result,
-          rows: job.result.rows.map((/** @type {any} */ r) => ({ ...r, include: !r.present })),
+          rows: job.result.rows.map((/** @type {any} */ r) => ({
+            ...r,
+            include: r.present || !r.ignored,
+          })),
           accept: false,
         });
       } else setResult(job.result);
@@ -372,9 +375,83 @@ function partReview(review, part) {
     ...review,
     ...part,
     accountId: part.accountId || '',
-    rows: part.rows.map((/** @type {any} */ r) => ({ ...r, include: !r.present })),
+    rows: part.rows.map((/** @type {any} */ r) => ({ ...r, include: r.present || !r.ignored })),
     accept: false,
   };
+}
+
+/** A line's first three words, what "Remember…" proposes to ignore (S1.3.3.4). */
+const firstWords = (/** @type {string} */ d) =>
+  d.trim().split(/\s+/).slice(0, 3).join(' ').toLowerCase();
+
+/** What the person asked about the lines to ignore: the starts to remember and to forget. */
+function ignoring(/** @type {any[]} */ rows) {
+  return {
+    remember: [...new Set(rows.filter((r) => r.remember).map((r) => r.remember))],
+    forget: [...new Set(rows.filter((r) => r.stop).map((r) => r.ignored))],
+  };
+}
+
+/**
+ * A statement line's state at the end of its row (S1.3.3.3, S1.3.3.4): already in the account;
+ * caught by a line to ignore, with Stop ignoring; or left out by the person, with Remember…,
+ * whose question opens beneath the row (`Asking`).
+ * @param {{ r: any, set: (v: any) => void, fresh: any }} p
+ */
+function LineState({ r, set, fresh }) {
+  if (r.present) return html`<span class="pill">already in the account</span>`;
+  if (r.ignored && !r.stop) {
+    return html`<span class="small dim">Ignored (starts with “${r.ignored}”) · <a href="#"
+      onClick=${(/** @type {Event} */ e) => {
+      e.preventDefault();
+      set({ stop: true, include: true });
+    }}>Stop ignoring</a></span>`;
+  }
+  if (r.include) return fresh;
+  if (r.remember) {
+    return html`<span class="pill">Ignored next time <button type="button" class="linklike"
+      aria-label="Don't ignore it next time" onClick=${() =>
+      set({ remember: null })}>✕</button></span>`;
+  }
+  return r.asking == null
+    ? html`<a href="#" class="small dim" onClick=${(/** @type {Event} */ e) => {
+      e.preventDefault();
+      set({ asking: firstWords(r.description) });
+    }}>Remember…</a>`
+    : null;
+}
+
+/**
+ * "Ignore future lines starting with:", beneath the row it asks about.
+ * @param {{ r: any, set: (v: any) => void, cols: number }} p
+ */
+function Asking({ r, set, cols }) {
+  if (r.asking == null || r.include || r.present) return null;
+  const ok = () => r.asking.trim() && set({ remember: r.asking.trim(), asking: null });
+  return html`
+    <tr class="asking">
+      <td colspan=${cols}>
+        <div class="ask-inline" role="group" aria-label="Remember this line">
+          <label for=${'ask-' + r.line}>Ignore future lines starting with:</label>
+          <input class="in" id=${'ask-' + r.line} value=${r.asking} data-help="remember"
+            onInput=${(/** @type {any} */ e) => set({ asking: e.currentTarget.value })}
+            onKeyDown=${(/** @type {KeyboardEvent} */ e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                ok();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                set({ asking: null });
+              }
+            }} />
+          <button type="button" class="btn sm" onClick=${() =>
+            set({ asking: null })}>Cancel</button>
+          <button type="button" class="btn sm primary" onClick=${ok}>OK</button>
+        </div>
+      </td>
+    </tr>
+  `;
 }
 
 /**
@@ -396,13 +473,15 @@ function StatementReview({ review, setReview, close, done, part = null }) {
   const diff = (cents(review.closing) ?? 0n) - (cents(review.opening) ?? 0n) - sum;
   const set = (/** @type {string} */ k) => (/** @type {string} */ v) =>
     setReview({ ...review, [k]: v });
-  const setRow = (/** @type {number} */ i, /** @type {string} */ k, /** @type {any} */ v) =>
+  const change = (/** @type {number} */ i, /** @type {any} */ v) =>
     setReview({
       ...review,
       rows: review.rows.map((/** @type {any} */ r, /** @type {number} */ j) =>
-        i === j ? { ...r, [k]: v } : r
+        i === j ? { ...r, ...v } : r
       ),
     });
+  const setRow = (/** @type {number} */ i, /** @type {string} */ k, /** @type {any} */ v) =>
+    change(i, { [k]: v });
   const save = async (/** @type {boolean} */ leftOut = false) => {
     setBusy(true);
     setError(null);
@@ -414,8 +493,9 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         opening: review.opening,
         closing: review.closing,
         acceptDifference: review.accept,
+        ...ignoring(review.rows),
         // Each row names the line it was read as, so a corrected description is told from
-        // what was read and teaches no skip (S1.3.3.4).
+        // what was read (S1.3.3.4).
         rows: review.rows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
           date: r.date,
           description: r.description,
@@ -508,10 +588,9 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         <tbody>${review.rows.map((/** @type {any} */ r, /** @type {number} */ i) =>
           html`
             <tr class=${r.include ? '' : 'dim'}>
-              <td><input type="checkbox" checked=${r.include} aria-label=${'Import ' +
-                r.description}
-                          data-help="include" onChange=${() =>
-                            setRow(i, 'include', !r.include)} /></td>
+              <td><input type="checkbox" checked=${r.include} disabled=${r.present}
+                aria-label=${'Import ' + r.description} data-help="include" onChange=${() =>
+                  change(i, { include: !r.include, asking: null })} /></td>
               <td class="dim">${date(r.date)}</td>
               <td><input class="in" value=${r
                 .description} aria-label="Description" data-help="description"
@@ -523,10 +602,13 @@ function StatementReview({ review, setReview, close, done, part = null }) {
                           data-help="amount" style=${{ maxWidth: '120px' }}
                           onInput=${(/** @type {any} */ e) =>
                             setRow(i, 'amount', e.currentTarget.value)} /></td>
-              <td>${r.present
-                ? html`<span class="pill">already here</span>`
-                : html`<span class="pill info">new</span>`}</td>
+              <td>
+                <${LineState} r=${{ ...r, line: i }} set=${(/** @type {any} */ v) =>
+                  change(i, v)} fresh=${html`<span class="pill info">new</span>`} />
+              </td>
             </tr>
+            <${Asking} r=${{ ...r, line: i }} cols=${5} set=${(/** @type {any} */ v) =>
+              change(i, v)} />
           `
         )}</tbody>
       </table></div>
@@ -556,11 +638,11 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {any} */ (null));
   const sm = review.summary;
-  const setRow = (/** @type {number} */ i) =>
+  const change = (/** @type {number} */ i, /** @type {any} */ v) =>
     setReview({
       ...review,
       activity: review.activity.map((/** @type {any} */ r, /** @type {number} */ j) =>
-        i === j ? { ...r, include: !r.include } : r
+        i === j ? { ...r, ...v } : r
       ),
     });
   const save = async () => {
@@ -589,6 +671,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           symbol: r.symbol,
           include: r.include && !r.notRead,
         })),
+        ...ignoring(review.activity),
       });
       done(job.result);
     } catch (e) {
@@ -626,7 +709,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
   );
   return html`
     <${Dialog} title="Check the statement" wide close=${close} onSubmit=${save}
-      note=${`What you leave out is remembered for the next statement from ${
+      note=${`What you ask to ignore is remembered for the next statement from ${
         review.institution || 'this institution'
       }.`}
       footer=${html`<button class="btn primary" disabled=${busy}>${
@@ -693,8 +776,9 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           html`
             <tr class=${r.include && !r.notRead ? '' : 'dim'}>
               <td>${r.notRead ? null : html`
-                <input type="checkbox" checked=${r.include}
-                  aria-label=${'Import ' + r.description} onChange=${() => setRow(i)} />
+                <input type="checkbox" checked=${r.include} disabled=${r.present}
+                  aria-label=${'Import ' + r.description} onChange=${() =>
+                    change(i, { include: !r.include, asking: null })} />
               `}</td>
               <td class="dim">${date(r.date)}</td>
               <td>${r.description}</td>
@@ -710,10 +794,12 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
                       r.kind.replace('-', ' ')
                     }: enter it by hand</span>`
                 }`
-                : r.present
-                ? html`<span class="pill">already here</span>`
-                : html`<span class="pill info">${r.kind}</span>`}</td>
+                : html`<${LineState} r=${{ ...r, line: 'b' + i }} set=${(
+                  /** @type {any} */ v,
+                ) => change(i, v)} fresh=${html`<span class="pill info">${r.kind}</span>`} />`}</td>
             </tr>
+            <${Asking} r=${{ ...r, line: 'b' + i }} cols=${5} set=${(/** @type {any} */ v) =>
+              change(i, v)} />
           `
         )}</tbody>
       </table></div>
@@ -729,10 +815,9 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           </div>
         `
         : null}
-      <p class="small dim">${review.byFile
-        ? "This account's files already carry its activity, so every cash line starts left out."
-        : 'Lines already in the account start left out.'} Trades aren't read: each opens the
-        trade dialog with its figures. The PDF is kept on the account.</p>
+      <p class="small dim">Lines already in the account are counted and never added twice.
+        Trades aren't read: each opens the trade dialog with its figures. The PDF is kept on
+        the account.</p>
       <${FormError} error=${error} />
     </${Dialog}>
   `;
