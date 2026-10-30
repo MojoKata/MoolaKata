@@ -88,13 +88,16 @@ class Worker:
 
     def _exactly(self, n: int, deadline: float) -> bytes:
         fd = self.proc.stdout.fileno()
+        # poll, not select: select refuses a descriptor past 1023, which a busy server's pipes
+        # reach, and the reader would never start.
+        waiting = select.poll()
+        waiting.register(fd, select.POLLIN)
         while len(self._buf) < n:
             if time.monotonic() > deadline:
                 raise TimeoutError
             if resident(self.proc.pid) > MEMORY_CAP:
                 raise MemoryError
-            ready, _, _ = select.select([fd], [], [], 0.25)
-            if ready:
+            if waiting.poll(250):
                 chunk = os.read(fd, 1 << 16)
                 if not chunk:
                     raise EOFError
