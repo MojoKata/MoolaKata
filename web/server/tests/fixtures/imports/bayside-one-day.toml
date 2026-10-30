@@ -14,8 +14,3 @@ transactions = [
     "2026-10-14 withdrawal -60.00 | SAFEWAY #1234",
 ]
 checks = ["2026-10-14 1435.50 ok"]
-
-[xfail]
-checks = "CR3-171"
-reversed = "CR3-171"
-overlap = "CR3-171"

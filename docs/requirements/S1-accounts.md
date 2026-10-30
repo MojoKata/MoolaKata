@@ -373,8 +373,9 @@
        between Aug 3 and Aug 14*) and an **overlap**.
     2. **Balance anchors**: a balance the institution reported, on a date, from (in order of
        preference) a CSV's **running-balance column** (every row is then an anchor, a day's
-       balance being its last row's; a newest-first file, told by its dates, is read from the
-       bottom up), an OFX file's ledger balance, a statement's closing balance (S1.3.3), or a balance the
+       balance being its last row's; a newest-first file, told by its dates, or by its running
+       balances when they are all one day, is read from the bottom up), an OFX file's ledger
+       balance, a statement's closing balance (S1.3.3), or a balance the
        user **types** from the institution's site. When an account's next statement or
        import is overdue (S1.11.7), it asks for one.
     3. **The check**: at each anchor, MoolaKata's balance for that day is compared with the

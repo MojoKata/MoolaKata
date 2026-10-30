@@ -11,6 +11,7 @@ import datetime as dt
 import io
 import re
 from decimal import Decimal, InvalidOperation
+from itertools import pairwise
 
 from .parsed import ParsedFile, ReadError, Row, Security, occ_symbol
 
@@ -299,11 +300,30 @@ def read(data: bytes, mapping: dict) -> ParsedFile:
             )
         )
     # A newest-first export (most banks') is read oldest first, so each day's last running
-    # balance is its last row's (S1.11.2), and rows go in in the order they happened.
-    if len(out.rows) > 1 and out.rows[0].date > out.rows[-1].date:
+    # balance is its last row's (S1.11.2), and rows go in in the order they happened. When the
+    # dates can't tell (a single day's), the running balances do.
+    if len(out.rows) > 1 and (
+        out.rows[0].date > out.rows[-1].date
+        or (out.rows[0].date == out.rows[-1].date and _newest_first(out.rows))
+    ):
         out.rows.reverse()
     out.cover()
     return out
+
+
+def _newest_first(rows: list[Row]) -> bool:
+    """Whether the running balances chain only from the bottom up: each row's balance, less its
+    amount, is the next row's (CR3-171)."""
+    pairs = [
+        (a, b)
+        for a, b in pairwise(rows)
+        if a.runningBalance is not None and b.runningBalance is not None
+    ]
+    if not pairs:
+        return False
+    down = all(b.runningBalance == a.runningBalance + b.amount for a, b in pairs)
+    up = all(a.runningBalance - a.amount == b.runningBalance for a, b in pairs)
+    return up and not down
 
 
 def _option_kind(action: str | None) -> str | None:
