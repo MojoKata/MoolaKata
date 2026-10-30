@@ -104,12 +104,3 @@ the month's end, with the settling transfer paired like any other (S1.7). Until 
 budget counts every transaction in its accounts, whoever paid.
 
 **Touches:** S7.1, S7.3, S10.3.
-
-## L13: Coverage's history on a site
-
-**What it is:** each push to `main` publishing its coverage reports (S17.5.8) to the
-repository's GitHub Pages site, with a page of each area's line and branch coverage over the
-merges, kept by appending each run's totals to the history the site already holds. Until then
-a run's reports are its artifact, and the floor file is the record.
-
-**Touches:** S17.5.8, S17.10.1.

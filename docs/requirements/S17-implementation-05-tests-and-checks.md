@@ -61,7 +61,7 @@
       exported files join the corpus as G25 says.
 
    8. **Coverage**: what the tests reach, measured on every run of `web/check`, with no
-      service outside the repository. coverage.py measures lines and branches in every
+      service outside the repository and its own GitHub Pages site. coverage.py measures lines and branches in every
       Python process the tests start (the server the browser tests run included; the
       reader's worker, started with no environment, is not), and the connector. For the
       browser app, `deno test --coverage` and the browser tests' pages (V8's precise
@@ -77,14 +77,35 @@
       3. **Where it is shown**: the terminal; HTML reports in `web/.dev/coverage/html/`; in
          CI, the job's summary, a notice with the headline and one on each of the nine
          largest unreached stretches of changed lines (shown on those lines in a pull
-         request), and the HTML as the run's `coverage` artifact, kept 30 days.
+         request), and the HTML as the run's `coverage` artifact, kept 30 days; after each
+         merge to `main`, the coverage site.
       4. **The floor**: `web/coverage-floor.json` holds each area's line and branch floor; an
          area below its floor fails the check. `python -m moolakata.dev.coverage floor`
          raises each to half a point under what was measured, rounded down, and never
          lowers one: a lower floor is written by hand, with its reason in the commit.
+      5. **The coverage site**: the repository's GitHub Pages site
+         (`https://mojokata.github.io/MoolaKata/`) holds the HTML reports of the last merge
+         to `main` and the history of every merge since the site began. Its page shows each
+         area's line and branch coverage and the change since the merge before, with the
+         floors; a chart of each area (and of the server's and the browser's areas as one,
+         weighted by lines) over the merges, with each merge's figures on hover; and every
+         merge in a table. `python -m moolakata.dev.coverage site` builds it into
+         `web/.dev/coverage/site/`:
+         1. **The history** is the site's `history.json`, one entry per merge: its commit,
+            date, subject, pull request (from the squash merge's subject) and totals by
+            area. It lives on the site alone. Each build reads it back from the published
+            site and adds its own entry last; a run done again for the same commit replaces
+            that commit's entry.
+         2. **Never started over**: a site that answers with no `history.json` starts an
+            empty one only while the site itself isn't there. Any other failure to read it
+            fails the build in CI, so a bad moment never loses the history.
+         3. **Published** by `check.yml` (S17.10.1) after a passing check on `main`. Run
+            anywhere else, the build is a preview of what publishing that commit would show,
+            and publishes nothing.
 
       `web/dev.sh coverage [pytest arguments]` measures the tests named (all by default) and
-      the browser modules' unit tests the same way, and reports them, without the floor.
+      the browser modules' unit tests the same way, and reports them, without the floor, with
+      a preview of the coverage site.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it.

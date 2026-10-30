@@ -5,6 +5,7 @@ browser tests' pages (tests/jscoverage.py), read through `deno coverage`.
 
     python -m moolakata.dev.coverage report [--check]   totals by area, the changed lines, HTML
     python -m moolakata.dev.coverage floor              raise web/coverage-floor.json to them
+    python -m moolakata.dev.coverage site               the site: the reports and their history
 
 `report` prints line and branch coverage by area and of the lines changed since the base (the
 merge base with main; in CI the commit before), and writes the HTML reports and summary.md.
@@ -12,7 +13,7 @@ In GitHub Actions it also writes the job summary and annotations (the headline, 
 changed lines no test reaches, inline). `--check` fails when an area falls below its floor.
 `floor` raises each area's floor to half a point under what was measured, rounded down, so
 run-to-run jitter doesn't fail; it never lowers one (that is done by hand, with the reason
-in the commit)."""
+in the commit). `site` builds the coverage site (coverage_site.py)."""
 
 import json
 import math
@@ -301,20 +302,17 @@ def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: 
     return "\n".join(out) + "\n"
 
 
+def overall(areas: dict, kind: str, prefix: str) -> float | None:
+    """The areas under `prefix` as one, each weighted by its lines."""
+    rows = [t for a, t in areas.items() if a.startswith(prefix) and t[kind] is not None]
+    return pct(sum(t[kind] * t["lineCount"] for t in rows), 100 * sum(t["lineCount"] for t in rows))
+
+
 def annotate(areas: dict, d: dict | None) -> None:
     """GitHub's workflow commands: a notice with the headline, and one on each of the largest
     stretches of changed lines no test reaches, shown on those lines in the pull request."""
-
-    def total(kind: str, prefix: str) -> str:
-        rows = [t for a, t in areas.items() if a.startswith(prefix)]
-        return show(
-            pct(
-                sum((t[kind] or 0) * t["lineCount"] for t in rows),
-                100 * sum(t["lineCount"] for t in rows),
-            )
-        )
-
-    head = f"server {total('lines', 'server')} of lines, browser {total('lines', 'browser')}"
+    server, browser = (show(overall(areas, "lines", p)) for p in ("server", "browser"))
+    head = f"server {server} of lines, browser {browser}"
     if d is not None and d["lines"]:
         head += f"; changed lines {d['covered']} of {d['lines']} reached"
     print(f"::notice title=Coverage::{head}")
@@ -395,6 +393,10 @@ def main(argv: list[str]) -> int:
     what = argv[1] if len(argv) > 1 else "report"
     if what == "floor":
         return cmd_floor()
+    if what == "site":
+        from . import coverage_site
+
+        return coverage_site.build()
     return cmd_report("--check" in argv)
 
 

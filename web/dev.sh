@@ -24,8 +24,8 @@ web/dev.sh <command>
   test [args]  run pytest (arguments pass through)
   coverage [args]
                pytest (arguments pass through) and the browser modules' tests,
-               measured: coverage by area and of the changed lines, with HTML,
-               in web/.dev/coverage/
+               measured: coverage by area and of the changed lines, with HTML
+               and a preview of the coverage site, in web/.dev/coverage/
   check        run every check: what CI runs (web/check)
   mail         list the emails dev mode has written
   mocks        fake bitcoin backends (Esplora, Electrum, Core) on local ports
@@ -113,7 +113,8 @@ case "$cmd" in
     cd "$SERVER"
     COVERAGE_FILE="$out/server/.coverage" COVERAGE_CORE=sysmon MK_JS_COVERAGE="$out/js" \
       uv run --frozen coverage run -m pytest "$@" || true
-    exec uv run --frozen python -m moolakata.dev.coverage report
+    uv run --frozen python -m moolakata.dev.coverage report
+    exec uv run --frozen python -m moolakata.dev.coverage site
     ;;
   mocks)
     # Fake bitcoin backends on local ports (S17.9.7.8); point Settings › Bitcoin at them.

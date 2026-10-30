@@ -125,6 +125,15 @@ only while no repository takes it, so `MojoKata/MoneyKata` is never used again.
    pull requests only**. It was first saved Disabled, then set to Active. GitHub's **Require an additional approval for unattributed
    Copilot pull requests**, on by default, stays on. It has no effect while 0 approvals are
    required.
+6. **GitHub Pages**, for the coverage site (S17.5.8). Go to **Settings › Pages** and, under
+   **Build and deployment › Source**, choose **GitHub Actions**. GitHub then makes the
+   `github-pages` environment, which takes deployments from `main` alone. `check.yml`'s
+   `coverage site` job publishes to it after each merge; the first one makes the site at
+   `https://mojokata.github.io/MoolaKata/`. See GitHub's
+   [publishing with a custom workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
+   **As set up:** source GitHub Actions, HTTPS enforced, and `github-pages` admitting the
+   branch `main` only.
 
 ## 4. The images on ghcr.io
 

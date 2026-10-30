@@ -6,7 +6,10 @@
        every push to `main`, after `web/dev.sh setup`, with uv installed from
        `install/build-requirements.txt` by its hashes. It fetches the commit before as well,
        for the coverage of the changed lines, and keeps the coverage reports (S17.5.8) as
-       the run's artifact.
+       the run's artifact. A newer push to a pull request cancels its older run; on `main`,
+       runs queue instead, and after a passing check the `coverage site` job publishes the
+       coverage site (S17.5.8.5) to the repository's GitHub Pages, through the
+       `github-pages` environment, which takes `main` alone.
     2. **Releases**: `.github/workflows/release.yml`, on a `v<version>` tag matching
        `web/VERSION`, builds both images on an amd64 and an arm64 runner, runs
        `smoke.sh` on each (S17.8.1), pushes the images that passed to `ghcr.io/mojokata`

@@ -96,7 +96,6 @@ Work planned for after the first release ([later.md](later.md), S17.9.11).
 | **L10** | [Learned column positions for statements](later.md#l10-learned-column-positions-for-statements) | a statement's Debit and Credit columns found, named once and learned per institution; until then a sign comes from the line itself or its words |
 | **L11** | [Miniscript wallet policies](later.md#l11-miniscript-wallet-policies) | timelocked recovery paths and decaying multisig in `wsh()`, and taproot script trees; until then refused |
 | **L12** | [Who paid in a household budget](later.md#l12-who-paid-in-a-household-budget) | each member's share of a group budget's costs, who paid what, and who owes whom |
-| **L13** | [Coverage's history on a site](later.md#l13-coverages-history-on-a-site) | each merge's coverage reports and a history of each area's figures on GitHub Pages |
 
 ## Also here
 
