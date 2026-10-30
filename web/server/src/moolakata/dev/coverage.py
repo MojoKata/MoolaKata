@@ -11,9 +11,10 @@ browser tests' pages (tests/jscoverage.py), read through `deno coverage`.
 merge base with main; in CI the commit before), and writes the HTML reports and summary.md.
 In GitHub Actions it also writes the job summary and annotations (the headline, and the
 changed lines no test reaches, inline). `--check` fails when an area falls below its floor.
-`floor` raises each area's floor to half a point under what was measured, rounded down, so
-run-to-run jitter doesn't fail; it never lowers one (that is done by hand, with the reason
-in the commit). `site` builds the coverage site (coverage_site.py)."""
+`floor` raises each area's floor to what was measured less SLACK lines and SLACK branches,
+rounded down to a tenth of a point, so run-to-run jitter doesn't fail however small the area;
+it never lowers one (that is done by hand, with the reason in the commit). `site` builds the
+coverage site (coverage_site.py)."""
 
 import json
 import math
@@ -36,6 +37,9 @@ CONNECTOR = paths.ROOT / "connector" / "moolakata_connector"
 BROWSER_DIRS = ("app", "api", "store", "screens", "components", "charts", "account-types")
 NOT_CODE = {"api/types.js"}
 ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine largest gaps
+# The lines or branches an area's measure may move by between runs, from timing in the browser
+# tests: a count, not points, since one branch is a point of a one-file area.
+SLACK = 3
 
 
 @dataclass
@@ -203,11 +207,16 @@ def totals(files: dict[str, File]) -> dict[str, dict]:
     for area in sorted(by):
         fs = by[area]
         lines = sum(len(f.covered) + len(f.missed) for f in fs)
+        reached = sum(len(f.covered) for f in fs)
+        branches, taken = sum(f.branches for f in fs), sum(f.branches_taken for f in fs)
         out[area] = {
             "files": len(fs),
-            "lines": pct(sum(len(f.covered) for f in fs), lines),
-            "branches": pct(sum(f.branches_taken for f in fs), sum(f.branches for f in fs)),
+            "lines": pct(reached, lines),
+            "branches": pct(taken, branches),
             "lineCount": lines,
+            "linesReached": reached,
+            "branchCount": branches,
+            "branchesReached": taken,
         }
     return out
 
@@ -369,20 +378,32 @@ def cmd_report(check: bool) -> int:
     return 1 if check and below else 0
 
 
+def slack_floor(reached: int, total: int) -> float:
+    """What was reached less SLACK, as a percentage rounded down to a tenth of a point."""
+    return math.floor(1000 * max(0, reached - SLACK) / total) / 10
+
+
 def cmd_floor() -> int:
     totals_file = OUT / "totals.json"
     if not totals_file.exists():
         print("nothing measured: run web/check or web/dev.sh coverage first")
         return 1
     areas = json.loads(totals_file.read_text())
+    if any("linesReached" not in t for t in areas.values()):
+        print("measured before the counts were kept: run web/check or web/dev.sh coverage again")
+        return 1
     old = floors()
     new = {}
     for area, t in areas.items():
         was = old.get(area, {})
+        counts = {
+            "lines": (t["linesReached"], t["lineCount"]),
+            "branches": (t["branchesReached"], t["branchCount"]),
+        }
         new[area] = {
-            k: max(was.get(k) or 0, math.floor(t[k] - 0.5))
-            for k in ("lines", "branches")
-            if t[k] is not None
+            k: max(was.get(k) or 0, slack_floor(reached, total))
+            for k, (reached, total) in counts.items()
+            if total
         }
     FLOOR.write_text(json.dumps(new, indent=2, sort_keys=True) + "\n")
     print(f"{FLOOR.relative_to(paths.ROOT)}: {len(new)} areas")
