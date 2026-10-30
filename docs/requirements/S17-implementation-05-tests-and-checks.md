@@ -81,10 +81,12 @@
          merge to `main`, the coverage site.
       4. **The floor**: `web/coverage-floor.json` holds each area's line and branch floor; an
          area below its floor fails the check. `python -m moolakata.dev.coverage floor`
-         raises each to what was measured less three lines and three branches (a count,
+         raises each to what was measured less a slack in lines and in branches (a count,
          not points: one branch is a point of a one-file area), as a percentage rounded down
          to a tenth, and never lowers one: a lower floor is written by hand, with its reason
-         in the commit. `totals.json` keeps each area's counts for it.
+         in the commit. The slack is 3 for the server's and the connector's areas, whose
+         tests measure the same each run, and 20 for the browser app's, whose figures move
+         with the browser tests' timing. `totals.json` keeps each area's counts for it.
       5. **The coverage site**: the repository's GitHub Pages site
          (`https://mojokata.github.io/MoolaKata/`) holds the HTML reports of the last merge
          to `main` and the history of every merge since the site began. Its page shows each

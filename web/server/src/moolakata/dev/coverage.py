@@ -11,10 +11,10 @@ browser tests' pages (tests/jscoverage.py), read through `deno coverage`.
 merge base with main; in CI the commit before), and writes the HTML reports and summary.md.
 In GitHub Actions it also writes the job summary and annotations (the headline, and the
 changed lines no test reaches, inline). `--check` fails when an area falls below its floor.
-`floor` raises each area's floor to what was measured less SLACK lines and SLACK branches,
-rounded down to a tenth of a point, so run-to-run jitter doesn't fail however small the area;
-it never lowers one (that is done by hand, with the reason in the commit). `site` builds the
-coverage site (coverage_site.py)."""
+`floor` raises each area's floor to what was measured less its side's SLACK in lines and in
+branches, rounded down to a tenth of a point, so run-to-run jitter doesn't fail however small
+the area; it never lowers one (that is done by hand, with the reason in the commit). `site`
+builds the coverage site (coverage_site.py)."""
 
 import json
 import math
@@ -37,9 +37,10 @@ CONNECTOR = paths.ROOT / "connector" / "moolakata_connector"
 BROWSER_DIRS = ("app", "api", "store", "screens", "components", "charts", "account-types")
 NOT_CODE = {"api/types.js"}
 ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine largest gaps
-# The lines or branches an area's measure may move by between runs, from timing in the browser
-# tests: a count, not points, since one branch is a point of a one-file area.
-SLACK = 3
+# The lines or branches an area's measure may move by between runs: a count, not points, since
+# one branch is a point of a one-file area. The server's and the connector's tests measure the
+# same each run; the browser's move 10 or more lines and branches with their timing.
+SLACK = {"server": 3, "connector": 3, "browser": 20}
 
 
 @dataclass
@@ -378,9 +379,10 @@ def cmd_report(check: bool) -> int:
     return 1 if check and below else 0
 
 
-def slack_floor(reached: int, total: int) -> float:
-    """What was reached less SLACK, as a percentage rounded down to a tenth of a point."""
-    return math.floor(1000 * max(0, reached - SLACK) / total) / 10
+def slack_floor(area: str, reached: int, total: int) -> float:
+    """What was reached less the area's slack, as a percentage rounded down to a tenth."""
+    slack = SLACK[area.split("/")[0]]
+    return math.floor(1000 * max(0, reached - slack) / total) / 10
 
 
 def cmd_floor() -> int:
@@ -401,7 +403,7 @@ def cmd_floor() -> int:
             "branches": (t["branchesReached"], t["branchCount"]),
         }
         new[area] = {
-            k: max(was.get(k) or 0, slack_floor(reached, total))
+            k: max(was.get(k) or 0, slack_floor(area, reached, total))
             for k, (reached, total) in counts.items()
             if total
         }
