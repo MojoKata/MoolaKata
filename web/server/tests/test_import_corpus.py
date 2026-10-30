@@ -27,7 +27,7 @@ SECTIONS = (
     "unpriced",
 )
 # Invariants every file waits on, by the claim that breaks them.
-KNOWN = {"zones": "CR3-170"}
+KNOWN: dict[str, str] = {}
 UI = Path(__file__).parents[2] / "ui"
 
 

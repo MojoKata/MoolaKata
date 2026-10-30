@@ -15,7 +15,3 @@ transactions = [
     "2026-09-20 withdrawal -12.75 | LIBRARY FINE",
 ]
 checks = ["2026-09-30 1807.25 ok"]
-
-[xfail]
-transactions = "CR3-175"
-reversed = "CR3-175"

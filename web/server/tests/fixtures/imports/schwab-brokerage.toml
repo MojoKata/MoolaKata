@@ -23,6 +23,3 @@ checks = ["2026-09-30 877.22 ok"]
 # The positions are as of the statement's day, Sep 30, the last buy of VTI with them.
 holding_checks = ["as of 2026-09-30", "SCHD 100 ok", "VTI 22 ok"]
 instruments = { SCHD = "equity", VTI = "equity" }
-
-[xfail]
-holding_checks = "CR3-170"

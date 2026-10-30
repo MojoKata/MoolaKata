@@ -41,8 +41,8 @@
       without ids), which takes the id. Rows the owner deleted are matched too, and stay
       deleted: no file, nor the connector's overlapping downloads, brings one back. An id a file repeats is another row, kept beside the
       first and flagged with it as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with several is refused, asking
-      for one account at a time. A broker's file's positions are a **holdings check** on that
-      day, as a statement's are (S1.3.3.8.2): the lots change only through transactions. For an
+      for one account at a time. A broker's file's positions are a **holdings check** on the
+      statement's day (its as-of, whatever day their prices are from), as a statement's are (S1.3.3.8.2): the lots change only through transactions. For an
       account kept by snapshots (R3.2), with no trades of its own (nothing that makes or takes
       away a lot: a buy, a sale, a reinvestment, shares moved in or out, an option trade;
       income, fees and splits on a holding don't count), they are its holdings;

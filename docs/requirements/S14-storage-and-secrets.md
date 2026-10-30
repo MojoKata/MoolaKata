@@ -81,9 +81,9 @@
    2. **Each user's time zone** is set in Profile: **Auto**, the server's time zone (from the
       host, which gives the container its `/etc/localtime` and `TZ`, S17.8; shown in Settings ›
       General), or a zone they choose by name (`America/Denver`).
-   3. **Calendar dates have no time zone**: a transaction's date, a statement's period, a
-      birthday and a due date are dates as the institution or the user wrote them, never
-      shifted.
+   3. **Calendar dates have no time zone**: a transaction's date, a statement's period, the
+      day of a balance or positions a file reports, a birthday and a due date are dates as
+      the institution or the user wrote them, never shifted.
    4. **A trading day** is the US market's, in New York time: a daily close is dated by its
       market day, whatever the viewer's zone (S4.4).
    5. **"Today" for a user** follows their time zone: the year a tax year screen opens on,
