@@ -26,6 +26,10 @@ alike, edits a draft (S12.15, `web/ui/app/draft.js`) and saves it in one request
 `mojokata/moolakata` and `mojokata/moolakata-connector`. [`docs/DEPLOY.md`](docs/DEPLOY.md)
 installs it on a Proxmox VE VM or on TrueNAS.
 
+**Coverage:** [mojokata.github.io/MoolaKata](https://mojokata.github.io/MoolaKata/) shows
+what the tests reach on `main`, by area and by file, and how it has moved over the merges
+(S17.5.8.5). Each `check` run's summary in Actions has the same table for its own commit.
+
 ## Where to start
 
 1. [`docs/requirements/`](docs/requirements/README.md): what MoolaKata is and does, in the
