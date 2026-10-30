@@ -40,12 +40,19 @@ class FakeClient:
 
 def test_stub_is_repeatable_and_waits_for_the_close():
     assert walk("VTI", dt.date(2026, 3, 2)) == walk("VTI", dt.date(2026, 3, 2))
-    rows = Stub(None, None).history(Ref("i", "VTI", "etf"), TODAY - dt.timedelta(days=10), TODAY)
+    # The clock held on TODAY: a run crossing midnight UTC would otherwise end a day later.
+    clock.fix(dt.datetime.combine(TODAY, dt.time(21), dt.UTC))
+    try:
+        rows = Stub(None, None).history(
+            Ref("i", "VTI", "etf"), TODAY - dt.timedelta(days=10), TODAY
+        )
+        crypto = Stub(None, None).history(
+            Ref("i", "BTC", "crypto"), TODAY - dt.timedelta(days=3), TODAY
+        )
+    finally:
+        clock.fix(None)
     assert rows and rows[-1][0] < TODAY
     assert all(d.weekday() < 5 for d, _ in rows)
-    crypto = Stub(None, None).history(
-        Ref("i", "BTC", "crypto"), TODAY - dt.timedelta(days=3), TODAY
-    )
     assert crypto[-1][0] == TODAY
 
 
