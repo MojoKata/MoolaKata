@@ -42,3 +42,17 @@ addresses and card digits are replaced, and amounts are kept so the file still a
 not yet cleaned can be kept in a git-ignored folder the same tests read when it is there.
 **Waits on:** the household's exports.
 
+## G27: Correcting an instrument's class — Low
+
+**What is named:** S2.1's instrument classes, which decide which price source fetches an
+instrument (S4.3) and whether average cost is offered for it (S2.3).
+
+**What is not:** a way to change one. An instrument's class comes from where it was first seen:
+an OFX file's security list, a statement, a trade typed by hand, or a CSV's symbol by its shape
+(S1.3.2), which makes an ETF a listed share and can't tell a money-market fund from a mutual
+fund. Instruments are kept once per server, so a class set wrongly is wrong for every account
+that holds it.
+
+**Settled:** nothing yet. **Waits on:** a screen that shows an instrument (its name, class,
+CUSIP and price source), where an admin corrects the class.
+

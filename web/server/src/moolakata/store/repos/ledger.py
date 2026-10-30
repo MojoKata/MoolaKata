@@ -2,6 +2,7 @@
 (requirements S1.3, S1.7, S2)."""
 
 import datetime as dt
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -143,6 +144,21 @@ def ensure_categories(s: Session) -> int:
 
 
 # ---------- instruments ----------
+
+# A US fund's symbol is five letters ending in X (FXAIX, VTSAX, SWVXX); any other ticker is a
+# listed share, an ETF among them, which the price sources fetch the same way (CR3-14).
+FUND_SYMBOL = re.compile(r"[A-Z]{4}X")
+TICKER = re.compile(r"[A-Z][A-Z0-9]{0,4}(?:[.-][A-Z])?")
+
+
+def class_by_symbol(symbol: str | None) -> str:
+    """What a security named only by its symbol most likely is: a fund, a listed share, or
+    not known."""
+    s = (symbol or "").strip().upper()
+    if FUND_SYMBOL.fullmatch(s):
+        return "mutual-fund"
+    return "equity" if TICKER.fullmatch(s) else "other"
+
 
 
 def instrument(
@@ -292,8 +308,11 @@ def apply_import(
     crypto = atypes.GROUPS.get(account.type) == "crypto"
     for key, sec in parsed.securities.items():
         found = _option(s, account, sec, result) if sec.instrumentClass == "option" else None
-        # What an exchange's or a wallet's file trades is crypto, whatever the file calls it.
+        # What an exchange's or a wallet's file trades is crypto, whatever the file calls it;
+        # a CSV names a security by its symbol alone, so its shape says what it is.
         cls = "crypto" if crypto and sec.instrumentClass == "other" else sec.instrumentClass
+        if cls == "other" and parsed.format == "csv":
+            cls = class_by_symbol(sec.symbol)
         instruments[key] = found or instrument(s, sec.symbol, sec.name, cls, sec.cusip)
 
     # Deleted rows first, so a live row with the same identity is the one found.

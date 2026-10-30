@@ -192,3 +192,23 @@ def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
     got = [(r.kind, r.amount, r.dividendType) for r in p.rows]
     assert got == [("dividend", D("100.00"), "ordinary"), ("reinvest", D("-100.00"), None)]
     assert p.rows[1].quantity == D("0.4") and p.rows[1].price == D("250.00")
+
+
+@pytest.mark.parametrize(
+    "symbol, cls",
+    [
+        ("FXAIX", "mutual-fund"),
+        ("SWVXX", "mutual-fund"),
+        ("VTI", "equity"),
+        ("BRK.B", "equity"),
+        ("GOOGL", "equity"),
+        ("912828ZT0", "other"),
+        ("TARGET 2045 TRUST", "other"),
+    ],
+)
+def test_a_csv_security_is_classed_by_its_symbols_shape(symbol, cls):
+    """CR3-14: five letters ending in X is a fund; any other ticker a listed share, which the
+    price sources fetch; anything else isn't known."""
+    from moolakata.store.repos.ledger import class_by_symbol
+
+    assert class_by_symbol(symbol) == cls

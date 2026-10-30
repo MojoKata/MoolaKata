@@ -32,7 +32,9 @@
    2. **file import**: **OFX and QFX** files (the structured downloads most US banks and
       brokers offer; brokers' files also carry positions and trades), read with ofxtools;
       CSV, with a saved column mapping per institution; and brokers' and exchanges'
-      trade-history CSVs. Imports are idempotent: a re-imported file adds only what is new,
+      trade-history CSVs. A security a CSV names by its symbol alone is a mutual fund when the
+      symbol is five letters ending in X, a listed share when it is any other ticker, and
+      in an exchange's or a wallet's file a coin (G27: correcting one). Imports are idempotent: a re-imported file adds only what is new,
       matched by the file's transaction id (an OFX file's `FITID`) or by date, amount and
       payee, amounts compared in cents as stored. A row whose id isn't here yet still matches,
       by date, amount and payee, a row that has none (one typed by hand, or from a file

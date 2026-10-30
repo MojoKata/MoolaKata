@@ -17,9 +17,5 @@ transactions = [
 ]
 holdings = ["VTI 10"]
 cash = "2080.40"
-# What the classes should be is walk item 6's (CR3-14): a listed share, and a fund by its name.
+# By their symbols' shape (CR3-14): a listed share, and a fund (five letters ending in X).
 instruments = { FXAIX = "mutual-fund", VTI = "equity" }
-
-[xfail]
-instruments = "CR3-14"
-unpriced = "CR3-14"
