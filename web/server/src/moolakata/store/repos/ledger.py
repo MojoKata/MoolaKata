@@ -160,20 +160,24 @@ def class_by_symbol(symbol: str | None) -> str:
     return "equity" if TICKER.fullmatch(s) else "other"
 
 
-
 def instrument(
     s: Session, symbol: str | None, name: str | None, cls: str, cusip: str | None = None
 ) -> Instrument:
-    """The instrument with this CUSIP or symbol, made if MoolaKata doesn't know it yet."""
+    """The instrument with this CUSIP or symbol, made if MoolaKata doesn't know it yet. A
+    symbol is looked for among the coins for a coin and among the rest otherwise: a coin and a
+    listed share may share a ticker (S2.1)."""
     found = None
     if cusip:
         found = s.scalars(
             select(Instrument).where(Instrument.cusip == cusip, Instrument.deleted == false())
         ).first()
     if found is None and symbol:
+        coin = Instrument.instrumentClass == "crypto"
         found = s.scalars(
             select(Instrument).where(
-                Instrument.symbol == symbol.upper(), Instrument.deleted == false()
+                Instrument.symbol == symbol.upper(),
+                Instrument.deleted == false(),
+                coin if cls == "crypto" else ~coin,
             )
         ).first()
     if found is not None:

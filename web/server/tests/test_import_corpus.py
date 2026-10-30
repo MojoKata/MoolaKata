@@ -209,7 +209,7 @@ SEQUENCES = [
     ),
     Seq(
         "a coin and a listed share with the same ticker stay two instruments (S2.1)",
-        "CR3-174",
+        None,
         [
             ("account", "ex", {"type": "crypto-exchange", "institution": "Coinbase"}),
             ("import", "ex", "coinbase-history.csv", COIN_TRADES),

@@ -17,7 +17,11 @@ DAYS = 3
 
 def _btc(s: Session) -> str | None:
     i = s.scalars(
-        select(Instrument.id).where(Instrument.symbol == "BTC", Instrument.deleted == false())
+        select(Instrument.id).where(
+            Instrument.symbol == "BTC",
+            Instrument.instrumentClass == "crypto",
+            Instrument.deleted == false(),
+        )
     ).first()
     return i
 

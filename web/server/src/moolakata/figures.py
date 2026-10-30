@@ -97,7 +97,11 @@ def benchmark_index(
 
     def closes(symbol: str) -> list[tuple[dt.date, Decimal]]:
         inst = s.scalars(
-            select(Instrument).where(Instrument.symbol == symbol, Instrument.deleted == false())
+            select(Instrument).where(
+                Instrument.symbol == symbol,
+                Instrument.deleted == false(),
+                Instrument.instrumentClass != "crypto",
+            )
         ).first()
         if inst is None:
             return []

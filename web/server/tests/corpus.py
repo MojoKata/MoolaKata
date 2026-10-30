@@ -200,11 +200,15 @@ def state(c, account_id: str) -> dict[str, object]:
     imports = c.get(f"/ui/api/accounts/{account_id}/imports").json()["items"]
     starts = [x["coveredFrom"] for x in imports if x["coveredFrom"]]
     ends = [x["coveredTo"] for x in imports if x["coveredTo"]]
-    symbols = {t["symbol"] for t in txns if t["symbol"]} | {x["symbol"] for x in h["holdings"]}
+    # By the instrument the account holds: a coin and a listed share may share a symbol.
+    ids = {t["symbol"]: t["instrumentId"] for t in txns if t["symbol"]} | {
+        x["symbol"]: x["instrumentId"] for x in h["holdings"]
+    }
+    symbols = set(ids)
     classes = {}
-    for sym in symbols:
+    for sym, iid in ids.items():
         found = c.get("/ui/api/instruments", params={"q": sym[:40]}).json()["items"]
-        classes[sym] = next((i["instrumentClass"] for i in found if i["symbol"] == sym), "?")
+        classes[sym] = next((i["instrumentClass"] for i in found if i["id"] == iid), "?")
     return {
         "covered": [min(starts), max(ends)] if starts else [],
         "transactions": sorted(lines),

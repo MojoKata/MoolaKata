@@ -167,7 +167,15 @@ Instrument = record(
     Column("cusip", Text),
     _in("instrumentClass", INSTRUMENT_CLASSES, "instrument_class"),
 )
-unique_live(Instrument, "symbol")
+# A coin and a listed share may share a ticker (SOL, LINK): a symbol is one instrument among the
+# coins and one among the rest (S2.1).
+Index(
+    "ux_Instrument_symbol",
+    Instrument.c.symbol,
+    text("\"instrumentClass\" = 'crypto'"),
+    unique=True,
+    sqlite_where=text("NOT deleted"),
+)
 
 ImportMapping = record(
     "ImportMapping",

@@ -495,8 +495,11 @@ def _hold_parts(srv, job, s, account, user_id, data, name, lines, method, pieces
 
 
 def _find_instrument(s, symbol: str | None, cusip: str | None, label: str) -> Instrument | None:
-    """The instrument a statement's position names, if MoolaKata knows it: never made here."""
-    q = select(Instrument).where(Instrument.deleted == false())
+    """The instrument a statement's position names, if MoolaKata knows it: never made here. A
+    broker's or a plan's statement names listed securities and funds, never coins (S2.1)."""
+    q = select(Instrument).where(
+        Instrument.deleted == false(), Instrument.instrumentClass != "crypto"
+    )
     for cond in (
         Instrument.cusip == cusip if cusip else None,
         Instrument.symbol == symbol.upper() if symbol else None,

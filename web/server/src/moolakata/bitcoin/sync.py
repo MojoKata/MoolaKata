@@ -119,7 +119,7 @@ def sync_account(server, account_id: str) -> int:
             and not s.scalars(
                 select(Price.instrumentId)
                 .join(Instrument, Instrument.id == Price.instrumentId)
-                .where(Instrument.symbol == "BTC")
+                .where(Instrument.symbol == "BTC", Instrument.instrumentClass == "crypto")
             ).first()
         )
     if unpriced:
