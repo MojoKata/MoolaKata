@@ -119,3 +119,39 @@ claims (CR3-17, CR3-169, CR3-173, CR3-343, CR3-344, CR3-360, CR3-374) and the co
     in the account.
 
 Final approval of decisions 2 to 16: Oct 29, 2026.
+
+## Applied
+
+On branch `cr3-imports` (PR #19), each with its requirements, mockup and tests; the corpus has
+no expected failure left.
+
+| Decision | Claim | Commit |
+|---|---|---|
+| 2 | CR3-13 | `b91a8be`; the delete question, G26: `0ba1337` |
+| 3 | CR3-15 | `ff4aa3a` |
+| 4 | CR3-18 | `5800025` |
+| 5 | CR3-345 (not a bug) | `5800025` |
+| 6 | CR3-16 | `5800025` |
+| 7 | CR3-14, G27 | `16915ea` |
+| 8 | CR3-19 | `8c9446d` |
+| 9 | CR3-174 (migration 0042) | `68a0eb4` |
+| 10, 11 | CR3-170, CR3-175 | `06ca8a5` |
+| 12 | CR3-171 | `48f450b` |
+| 13 | CR3-172 | `8c9446d` |
+| 14 | item 13 | `8c9446d` |
+| 15 | item 14 | `5800025` |
+| 16 | item 15 | `5800025` |
+
+Where the work differs from the decision as written, and why:
+
+1. **Decision 3**: a split or corporate action is not a trade either. It only changes the lots
+   there are, and an account kept by snapshots has none, so counting it would make the same
+   holdings vanish.
+2. **Decision 6**: the list of ignored lines is in **Profile**, not Settings › Imports. Settings
+   is the admins'; the rules are each person's, per institution.
+3. **Decision 4**: `keptBy` keeps its stored value `file` for *Imports*; `statement` is no
+   longer taken (the browser never offered it).
+4. **Decision 13**: the expired upload's dialog says the existing *That upload has expired;
+   choose the file again.*
+5. Claims that share code went into one commit (CR3-170 with CR3-175; CR3-19, CR3-172 and item
+   13; CR3-16, CR3-18, CR3-345, items 14 and 15), the claims named in each message.
