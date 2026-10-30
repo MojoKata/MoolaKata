@@ -12,7 +12,6 @@ from conftest import ADMIN_PW, LOOPBACK, ORIGIN, make_user, new_client
 from fastapi.testclient import TestClient
 
 from moolakata.app import Server, create_app
-from moolakata.keys import cli as keys_cli
 from moolakata.keys import master, phrase
 from moolakata.store.entities.core import Activity
 
@@ -85,7 +84,10 @@ def test_three_words_back_make_the_key_and_unlock(new_server):
     )
     assert r.status_code == 200, r.text
     assert srv.config.keyring_path.exists() and srv.store is not None and srv.ready
-    assert keys_cli.fingerprint_of(srv.config) == offer["fingerprint"]
+    assert (
+        master.fingerprint(master.read_keyring(srv.config.keyring_path).master_id)
+        == offer["fingerprint"]
+    )
     state = c.get("/ui/api/unlock").json()
     assert state["locked"] is False and state["uninitialised"] is False
     assert state["needsAdmin"] is True
@@ -126,10 +128,14 @@ def test_the_first_admin_is_set_up_once_and_signed_in(new_server):
         assert r.status_code == 200
 
 
-def test_a_key_made_on_the_host_turns_the_welcome_into_the_locked_screen(new_server):
+def test_a_key_made_meanwhile_turns_the_welcome_into_the_locked_screen(new_server):
+    """Another browser's welcome made the key first: this one's is refused."""
+    import os
+
     srv, c = new_server
     offer = _offer(c)
-    key = keys_cli.init(srv.config, say=lambda _: None, confirm=False)
+    key = os.urandom(16)
+    master.create_keyring(srv.config, key)
     state = c.get("/ui/api/unlock").json()
     assert state["uninitialised"] is False and state["locked"] is True
     assert state["fingerprint"] == master.fingerprint(key)
@@ -140,7 +146,7 @@ def test_a_key_made_on_the_host_turns_the_welcome_into_the_locked_screen(new_ser
     assert r.status_code == 200 and c.get("/ui/api/unlock").json()["needsAdmin"] is True
 
 
-def test_a_database_without_its_keyring_refuses_the_start_and_keys_init(config, tmp_path, capsys):
+def test_a_database_without_its_keyring_refuses_the_start_and_a_new_key(config, tmp_path, capsys):
     """A household starting a claimed server over empties its data directory: with the
     keyring alone removed, a new key would not open the database left behind (S15.4.5)."""
     from moolakata import main
@@ -158,7 +164,7 @@ def test_a_database_without_its_keyring_refuses_the_start_and_keys_init(config, 
     assert said.startswith("refusing to start: ") and "has no keyring beside it" in said
     assert "db restore" in said and str(config.data_dir) in said
     with pytest.raises(RefuseStart, match="has no keyring beside it"):
-        keys_cli.init(config, say=lambda _: None, confirm=False)
+        master.create_keyring(config, bytes(16))
     assert not config.keyring_path.exists()
 
 

@@ -199,15 +199,16 @@ def test_the_published_port_fits_each_mode():
 
 
 def test_no_service_runs_as_root_and_the_key_commands_need_none():
-    """`keys init` and `keys rotate` run as the image's own user: the keyring is in the data
-    directory, which the server's account owns (S15.4.4)."""
+    """The key commands run as the image's own user: the keyring is in the data directory,
+    which the server's account owns. The welcome makes the key, so no command shows a phrase
+    (S15.4.4, S15.4.7)."""
     for name, compose in COMPOSE.items():
         services = compose["services"]
         assert set(services) == {"moolakata", "connector"}, name
         for service, spec in services.items():
             assert "user" not in spec, f"{name}: {service} must run as the image's user"
     text = (INSTALL / "compose.yaml").read_text()
-    assert "docker compose run --rm moolakata keys init" in text
+    assert "keys init" not in text and "welcome" in text
     assert "keys unlock" in text
 
 

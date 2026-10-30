@@ -4301,6 +4301,31 @@
         "title": "ContributionsView",
         "type": "object"
       },
+      "CopiesIn": {
+        "additionalProperties": false,
+        "properties": {
+          "copies": {
+            "title": "Copies",
+            "type": "integer"
+          },
+          "phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phrase"
+          }
+        },
+        "required": [
+          "copies"
+        ],
+        "title": "CopiesIn",
+        "type": "object"
+      },
       "CopiesOut": {
         "additionalProperties": false,
         "properties": {
@@ -17342,7 +17367,6 @@
               "not-married",
               "not-physical",
               "not-reimbursable",
-              "not-scheduled",
               "not-shared",
               "not-signed-in",
               "not-told-apart",
@@ -17389,6 +17413,7 @@
               "person-unknown",
               "phrase-gone",
               "phrase-invalid",
+              "phrase-needed",
               "phrase-wrong",
               "place-missing",
               "plan-delete",
@@ -17427,7 +17452,6 @@
               "reconciled-period",
               "reconciliation-fixed",
               "reencrypt-pending",
-              "reencrypt-running",
               "reference-missing",
               "reimbursable-invalid",
               "relation-invalid",
@@ -17524,6 +17548,7 @@
               "username-taken",
               "valuation-fixed",
               "valuation-invalid",
+              "value-invalid",
               "value-missing",
               "version-required",
               "weight-invalid",
@@ -17788,7 +17813,6 @@
                   "not-married",
                   "not-physical",
                   "not-reimbursable",
-                  "not-scheduled",
                   "not-shared",
                   "not-signed-in",
                   "not-told-apart",
@@ -17835,6 +17859,7 @@
                   "person-unknown",
                   "phrase-gone",
                   "phrase-invalid",
+                  "phrase-needed",
                   "phrase-wrong",
                   "place-missing",
                   "plan-delete",
@@ -17873,7 +17898,6 @@
                   "reconciled-period",
                   "reconciliation-fixed",
                   "reencrypt-pending",
-                  "reencrypt-running",
                   "reference-missing",
                   "reimbursable-invalid",
                   "relation-invalid",
@@ -17970,6 +17994,7 @@
                   "username-taken",
                   "valuation-fixed",
                   "valuation-invalid",
+                  "value-invalid",
                   "value-missing",
                   "version-required",
                   "weight-invalid",
@@ -19727,6 +19752,17 @@
             "title": "Receiptssetaside",
             "type": "array"
           },
+          "rotationUnfinished": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotationunfinished"
+          },
           "secretsSetAside": {
             "items": {
               "type": "string"
@@ -20182,6 +20218,38 @@
           "yearsOwned"
         ],
         "title": "ResidenceOut",
+        "type": "object"
+      },
+      "Restarting": {
+        "additionalProperties": false,
+        "description": "A re-encryption or a rotation scheduled, and the server restarting for it (S15.7.2):\nthe browser waits for the locked screen, where the phrase starts it.",
+        "properties": {
+          "copies": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Copies",
+            "type": "object"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "restarting": {
+            "title": "Restarting",
+            "type": "boolean"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "restarting",
+          "why",
+          "fingerprint"
+        ],
+        "title": "Restarting",
         "type": "object"
       },
       "RestoreReport": {
@@ -20673,6 +20741,56 @@
           "available"
         ],
         "title": "RolloverOut",
+        "type": "object"
+      },
+      "RotateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "copies": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Copies",
+            "type": "object"
+          },
+          "phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phrase"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "words": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "object"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "RotateIn",
         "type": "object"
       },
       "RuleList": {
@@ -33962,6 +34080,44 @@
         ]
       }
     },
+    "/ui/api/settings/backups/copies": {
+      "post": {
+        "description": "*Copies kept* (S16.12): the days of backups kept. Fewer than the backups there are\ndeletes some at the next backup, so that takes the password again and the recovery\nphrase, as Remove does (S16.13); a wrong phrase counts toward the sign-in's lockout.",
+        "operationId": "backup_copies_ui_api_settings_backups_copies_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopiesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backups"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Backup Copies",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
     "/ui/api/settings/backups/run": {
       "post": {
         "description": "Back up now: the daily task, at once, followed as a job (S13.8.7).",
@@ -34349,7 +34505,7 @@
     },
     "/ui/api/settings/keys": {
       "get": {
-        "description": "Read only: the master key is a phrase, changed only on the host (S15.7.1).",
+        "description": "Key storage (S16.13): the master key's state, its previous keys, and the last\nre-encryption; the copies come from their own route.",
         "operationId": "key_storage_ui_api_settings_keys_get",
         "responses": {
           "200": {
@@ -34486,31 +34642,8 @@
       }
     },
     "/ui/api/settings/keys/reencrypt": {
-      "delete": {
-        "description": "A scheduled re-encryption not yet begun, cancelled.",
-        "operationId": "key_reencrypt_cancel_ui_api_settings_keys_reencrypt_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KeyStorage"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Key Reencrypt Cancel",
-        "tags": [
-          "settings"
-        ]
-      },
       "post": {
-        "description": "Re-encrypt at the next restart (S15.7.2): scheduled, with each copy's choice, for the\nnext unlock to run before the server serves, with the phrase given there. It never runs\nwhile the server serves. The password again (S13.7.2).",
+        "description": "Re-encrypt now (S15.7.2): scheduled with each copy's choice, and the server restarts at\nonce; the unlock that follows runs it before the server serves, with the phrase given\nthere. It never runs while the server serves, and once scheduled it is not withdrawn\n(CR3-61). The password again (S13.7.2).",
         "operationId": "key_reencrypt_ui_api_settings_keys_reencrypt_post",
         "requestBody": {
           "content": {
@@ -34527,7 +34660,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KeyStorage"
+                  "$ref": "#/components/schemas/Restarting"
                 }
               }
             },
@@ -34541,6 +34674,69 @@
           }
         },
         "summary": "Key Reencrypt",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/ui/api/settings/keys/rotate": {
+      "post": {
+        "description": "Rotate (S15.7.1): a new master key and phrase, and with them a new data key. The\npassword again and the current phrase, or a break-glass code from the host, so an\nadmin's session alone can't change the phrase the household holds; a wrong one counts\ntoward the sign-in's lockout. Three of the new phrase's words typed back; then the\nkeyring is wrapped under it and the server restarts, and the unlock with the new phrase\nre-encrypts (S15.7.2).",
+        "operationId": "rotate_ui_api_settings_keys_rotate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restarting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Rotate",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/ui/api/settings/keys/rotate/phrase": {
+      "post": {
+        "description": "A rotation's new phrase (S15.7.1), made and held in memory only, as the welcome's are\n(an hour each, 20 at most), until three of its words are typed back with the rotation.",
+        "operationId": "rotation_phrase_ui_api_settings_keys_rotate_phrase_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Offered"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Rotation Phrase",
         "tags": [
           "settings"
         ]

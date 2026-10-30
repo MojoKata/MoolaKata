@@ -1,8 +1,7 @@
 # Settings: Key storage
 
-Read only, but for **Verify key**. Everything the server stores is encrypted under one master
-key, which is the recovery phrase: never stored, entered when the server starts, and changed only
-on the host.
+Everything the server stores is encrypted under one master key, which is the recovery phrase:
+never stored, entered when the server starts, and changed with **Rotate**.
 
 ![Settings: Key storage](shots/settings-keys.png)
 
@@ -28,8 +27,8 @@ new one; the yearly alert opens it. `moolakata keys verify` on the host does the
 
 ## Test
 
-Checks that the keyring on disk is the one the phrase unlocked, and that the database and a
-secret open with the data key.
+Checks, writing nothing, that the keyring on disk is the one the phrase unlocked, and that the
+database and a secret open with the data key in memory. Activity records the test.
 
 ## Previous keys
 
@@ -42,22 +41,42 @@ nothing needs it; destroy its sheet and password-manager entry then.
 ## Copies on this host
 
 Every copy MoolaKata can see: the backups in the backup directory, the copies made before a
-migration (`pre-upgrade/`) and what a restore set aside (`before-restore-*/`). Each carries its
+migration (`pre-upgrade/`), what a restore set aside (`before-restore-*/`), and a new keyring a
+re-encryption left unexplained, set aside beside the keyring. Each carries its
 own keyring and says how it opens: with this phrase, with this phrase but an earlier data key,
-or only with a previous phrase. **Remove** deletes one, after your password. The host's own
-snapshots and backups are copies too, outside this list.
+or only with a previous phrase. **Remove** deletes one, after your password and the phrase. The
+host's own snapshots and backups are copies too, outside this list.
 
-## Re-encrypt at the next restart
+## Last re-encryption {#last-reencryption}
 
-Schedules a new data key for the database, the receipt files and every secret. It never runs
-while the server serves: the next unlock runs it first, after a verified backup, with the phrase
-given there wrapping the new key, its progress on the locked screen. It asks for your password
-again. Until it begins, **Cancel it** drops it; once begun, it finishes at the next unlock. A
-rotation on the host schedules one too, since a rotation always re-encrypts.
+When the last re-encryption finished and why (a rotation, Settings or the host), anything it set
+aside that opened under neither key, and what it did with each copy: a copy left under an old
+key is marked, since it still opens with the old phrase. A rotation that didn't finish (the
+keyring stayed under the old phrase) is said here: rotate again.
+
+## Rotate
+
+A new recovery phrase, and a new data key with it: for a leaked or lost phrase, or the yearly
+reminder. It asks for your password and the current phrase, or a break-glass code from the host
+when the phrase is lost, then shows the new phrase and takes three of its words back. MoolaKata
+restarts, and the unlock with the new phrase re-encrypts everything before it serves.
+
+## Re-encrypt now
+
+A new data key for the database, the receipt files and every secret, the phrase unchanged. It
+never runs while the server serves: MoolaKata restarts at once, locked, and the unlock runs it
+first, after a verified backup, with the phrase given there wrapping the new key, its progress
+on the locked screen. It asks for your password again. Once asked for, it runs at that unlock;
+a second waits until it has. A rotation re-encrypts too.
 
 ## Scheduled {#scheduled}
 
-A re-encryption waiting for the next restart, and whether it has begun.
+A re-encryption waiting for the restart: the unlock runs it before the server serves.
+
+## Remind admins to rotate after {#rotation-reminder}
+
+How old the master key may get before admins are alerted to rotate it: 12 months by default, or
+**Never**.
 
 ## After a restore {#after-restore}
 
@@ -71,9 +90,10 @@ moment, and secrets to enter again. A receipt file that opened under no key was 
 For each copy, what the re-encryption does with it: **Re-encrypt** (the default) rewrites it
 under the new data key, after the main job; **Delete** removes it; **Leave as it is** keeps it
 under its old data key, which this phrase still opens. A copy under an earlier phrase cannot be
-rewritten: leave it or delete it.
+rewritten: leave it or delete it. A backup made after the choices, the re-encryption's own
+first one among them, is re-encrypted, the first one last.
 For when the data key may have been read: a memory dump or a debugging session on the live server,
 or a master key or recovery phrase that leaked while any copy of the data directory or a backup
 could have been taken with it. It closes nothing made before it: every earlier copy still opens
 with the key it was made under, so a leak also means deleting those copies wherever they are. It
-doesn't change the master key, which is rotated on the host with `moolakata keys rotate`.
+doesn't change the master key, which **Rotate** does.

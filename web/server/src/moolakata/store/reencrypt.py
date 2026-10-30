@@ -3,11 +3,13 @@ server isn't serving: at an unlock, before it serves, or on the host with the se
 
 `reencrypt.json` in the data directory records each step before it is taken, and the copies'
 choices among them; the new data key's keyring is written beside the keyring as
-`keyring.next`, and the old one kept as `keyring.old` until the copies are done. Every step is
-safe to take again, so an interrupted run carries on from the journal at the next unlock, with
-the phrase given then, redoing nothing. A receipt that opens under neither key goes to
-`receipts-set-aside/`, a secret that opens under neither stays as it is, and both are reported,
-never fatal. A `keyring.next` the journal doesn't explain is set aside, never deleted.
+`keyring.next`, and the old one kept as `keyring.old` until the store has opened under the new
+one (`tidy`). Every step is safe to take again, so an interrupted run carries on from the journal
+at the next unlock, with the phrase given then, redoing nothing; once the journal names the new
+data key, no other is ever made (CR3-58). A receipt that opens under neither key, or is damaged
+past its first chunk, goes to `receipts-set-aside/`, a secret that opens under neither stays as
+it is, and both are reported, never fatal. A `keyring.next` the journal doesn't explain is set
+aside, never deleted.
 
 The same per-file re-wrap serves a restore (S15.6.8), whose receipts may be under the key a
 re-encryption replaced."""
@@ -86,14 +88,18 @@ def pending(config: Config) -> bool:
     return _path(config).exists() or next_keyring(config).exists()
 
 
-def schedule(config: Config, choices: dict[str, str], by: str | None, why: str) -> dict:
-    """A re-encryption for the next unlock (Settings › Key storage, or a rotation through the
-    running server), with each copy's choice. The phrase is the one given at that unlock."""
+def schedule(
+    config: Config, choices: dict[str, str], by: str | None, why: str, to: str | None = None
+) -> dict:
+    """A re-encryption for the next unlock (Settings › Key storage, or a rotation), with each
+    copy's choice; the server restarts for it at once (S15.7.2). The phrase is the one given
+    at that unlock. `to`, for a rotation, is the new master key's id, so a run that finds the
+    keyring still under the old one says the rotation didn't finish. One already pending is
+    never replaced (CR3-61)."""
     if any(v not in CHOICES for v in choices.values()):
         raise ValueError("each copy: reencrypt, delete or leave")
-    have = journal(config)
-    if have is not None and have.get("steps"):
-        raise RefuseStart("a re-encryption is under way: it finishes at the next unlock")
+    if pending(config):
+        raise RefuseStart("a re-encryption is pending: it finishes at the next unlock")
     j = {
         "why": why,
         "scheduledAt": clock.now().isoformat(),
@@ -101,17 +107,17 @@ def schedule(config: Config, choices: dict[str, str], by: str | None, why: str) 
         "copies": dict(choices),
         "steps": {},
     }
+    if to is not None:
+        j["to"] = to
     _write(_path(config), j)
     return j
 
 
-def cancel(config: Config) -> bool:
-    """A scheduled re-encryption not yet begun, cancelled; one under way can't be."""
-    j = journal(config)
-    if j is None or j.get("steps"):
-        return False
-    _path(config).unlink()
-    return True
+def tidy(config: Config) -> None:
+    """Once the store has opened under the new data key with no run pending, the old keyring
+    kept for a resume goes (CR3-58)."""
+    if not _path(config).exists():
+        (config.data_dir / OLD).unlink(missing_ok=True)
 
 
 def report(config: Config) -> dict | None:
@@ -138,8 +144,9 @@ def opens(path: Path, key, name: str) -> bool:
 
 def rewrap_files(folder: Path, old_key, new_key, progress: Progress | None = None) -> list[str]:
     """Each receipt file under the new receipts key: one already under it is left, one under
-    the old key rewritten, and one under neither moved to `receipts-set-aside/`. Returns the
-    names set aside. Safe to run again after an interruption."""
+    the old key rewritten, and one under neither, or damaged past its first chunk (CR3-59),
+    moved to `receipts-set-aside/`. Returns the names set aside. Safe to run again after an
+    interruption."""
     aside: list[str] = []
     if not folder.is_dir():
         return aside
@@ -150,14 +157,20 @@ def rewrap_files(folder: Path, old_key, new_key, progress: Progress | None = Non
         name = path.stem
         if opens(path, new_key, name):
             continue
+        why = "opens under neither key"
         if opens(path, old_key, name):
-            files.write(path, files.open_stream(path, old_key, name), new_key.public_key(), name)
-            continue
+            try:
+                files.write(
+                    path, files.open_stream(path, old_key, name), new_key.public_key(), name
+                )
+                continue
+            except files.FileError:
+                why = "is damaged past its first part"
         target = folder.parent / SET_ASIDE
         target.mkdir(mode=0o700, exist_ok=True)
         os.replace(path, target / path.name)
         aside.append(path.name)
-        log.warning("receipt file %s opens under neither key: set aside", path.name)
+        log.warning("receipt file %s %s: set aside", path.name, why)
     if progress is not None:
         progress.set("receipts", len(paths), len(paths))
     return aside
@@ -231,6 +244,20 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
     ring = master.read_keyring(config.keyring_path)
     steps = j["steps"]
     old_ring_path = config.data_dir / OLD
+    if j.get("to") and "unrotated" not in steps:
+        # A rotation whose keyring never reached the new phrase (CR3-296): the run
+        # re-encrypts under the phrase given, and the report says the rotation didn't finish.
+        _step(config, j, "unrotated", None if ring.master_id == j["to"] else ring.master_id)
+    if not steps.get("keyring") and steps.get("next") and ring.data_key_id == steps["next"]:
+        # The keyring was put in place and the run stopped before the journal said so
+        # (CR3-58): the step is done, and keyring.old holds the key it replaced.
+        if not old_ring_path.exists():
+            raise RefuseStart(
+                f"{config.keyring_path} holds the re-encryption's new data key but "
+                f"{old_ring_path.name} is missing: set {JOURNAL} aside and restore the backup "
+                f"{steps.get('backup') or 'made before it'}"
+            )
+        _step(config, j, "keyring", True)
     if steps.get("keyring"):
         old_ring = master.read_keyring(old_ring_path)
         new_ring = ring
@@ -269,6 +296,14 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
         else:
             _step(config, j, "backup", None)  # already re-keyed: the backup came before
     if new_ring is None:
+        if steps.get("next"):
+            # Never a second new data key: the database or receipts may already be under the
+            # one the journal names (CR3-58).
+            raise RefuseStart(
+                f"the re-encryption's new keyring {nxt.name} is missing, and {JOURNAL} names its "
+                f"data key: set {JOURNAL} aside and restore the backup "
+                f"{steps.get('backup') or 'made before it'}"
+            )
         new = master.new_data_key()
         new_ring = master.wrap(
             master_key, new, old_ring.master_created, master.now(), old_ring.previous
@@ -307,12 +342,20 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
         os.replace(nxt, config.keyring_path)
         _step(config, j, "keyring", True)
     outcomes = dict(steps.get("copies") or {})
-    found = copies.copies(config)
+    # The run's own first backup goes last: it is the way back until everything else is done.
+    first = steps.get("backup")
+    found = sorted(copies.copies(config), key=lambda c: c.name == first)
     progress.set("copies", 0, len(found))
+    ours = (master.data_key_id(old), master.data_key_id(new))
     for i, c in enumerate(found):
         if c.name in outcomes:
             continue
-        choice = j["copies"].get(c.name, "leave")
+        # A copy the choices don't name (the run's first backup, a daily one made since)
+        # takes the default when it holds the data key being replaced, or already the new
+        # one after a stop part-way (CR3-60).
+        choice = j["copies"].get(c.name) or (
+            "reencrypt" if c.ring is not None and c.ring.data_key_id in ours else "leave"
+        )
         outcomes[c.name] = _copy(c, choice, master_key, old, new)
         _step(config, j, "copies", outcomes)
         progress.set("copies", i + 1, len(found))
@@ -324,8 +367,10 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
         "secretsSetAside": steps.get("secrets") or [],
         "copies": outcomes,
     }
+    if steps.get("unrotated"):
+        done["rotationUnfinished"] = master.fingerprint(steps["unrotated"])
     _write(config.data_dir / REPORT, done)
-    old_ring_path.unlink(missing_ok=True)
+    # keyring.old stays until the store opens under the new key (`tidy`).
     _path(config).unlink()
     progress.set("done")
     log.info("re-encrypted under a new data key")
@@ -339,7 +384,7 @@ def _copy(c: copies.Copy, choice: str, master_key: bytes, old: bytes, new: bytes
     if choice == "delete":
         copies.remove(c)
         return "deleted"
-    if choice != "reencrypt":
+    if choice != "reencrypt" or c.kind == "keyring":  # a keyring alone holds no data
         return "left"
     if c.ring is None:
         return "left: its keyring cannot be read"
@@ -366,6 +411,8 @@ def at_once(config: Config, master_key: bytes, choices: dict[str, str], why: str
             schedule(config, choices, None, why)
         out = run(config, master_key)
         assert out is not None
+        if _opens_db(config, master.unlock_keys(config, master_key).data_key):
+            tidy(config)
         return out
     finally:
         lock.close()

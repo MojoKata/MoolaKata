@@ -72,7 +72,7 @@ reason.
     as a leaked phrase does, so a leak costs the same; and every copy of the keyring becomes an
     offline guessing target only as strong as the passphrase, where today a stolen copy is
     nothing without 128 random bits. The phrase stays the one secret, typed at the locked
-    screen or on the host, and kept out of logs and browsers (S15.4.2).
+    screen or on the host, kept out of logs, and in a browser only where S15.3.1 lists it.
 21. **A watched folder for the connector**: a downloads folder mounted into the connector, its
     new files posted to accounts by name. A driver's job is to push what it fetches from an
     institution; where nothing can be fetched, the owner downloads on their own desktop, not on

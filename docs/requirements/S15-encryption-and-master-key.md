@@ -82,8 +82,9 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       rotation or re-encryption (S15.4). MoolaKata uses the words only as a way to write the
       key down. It never applies BIP39's wallet derivation to them. The master key encrypts
       one thing: the data key. It is never stored on the host or in the database, never
-      written to a log, never sent over the network beyond the unlock request itself, never
-      shown in the UI after install, and never in a backup.
+      written to a log, never sent over the network but to the server itself (at the unlock,
+      **Verify key**, **Remove** and **Rotate**, S16.13), never shown in the UI but when it is
+      made (the welcome, **Rotate**), and never in a backup.
    2. **The data key**: 256 random bits, made at install, stored only **wrapped**
       (AES-256-GCM) under a key derived from the master key with HKDF-SHA256 (label
       `moolakata master`). The wrapped data key sits in the data directory (`keyring`), so it
@@ -161,19 +162,18 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       nothing of the key the server keeps. Three of its words typed back (S15.6.1) write the
       keyring, the data key wrapped under the master key, into the data directory, and the
       server is unlocked at once; the welcome goes on to the admin's account (S10.1.2).
-      Nothing else is written. On a terminal, `moolakata keys init` does the same: it shows
-      the phrase on the terminal, never on standard output, so that no log keeps it (it
-      refuses to run without a terminal), asks for three words back and writes the keyring,
-      which the running server finds at its next request; it is then locked and opens with
-      the phrase. Both refuse where a keyring exists: a backup brings its own keyring back
-      with `db restore`. Whoever reaches an uninitialised server first can make its key: a
-      household that finds its new server asking for words nobody wrote down empties its
-      data directory (or reinstalls) and starts again, with nothing lost.
+      Nothing else is written. The phrases on offer are held for an hour each, 20 at most, as
+      the connector's welcome holds its own (S18.11.2). The welcome is the only way to make a
+      key: no host command makes one, since a terminal, and the log Docker keeps of a
+      container's, would hold the phrase. It refuses where a keyring exists: a backup brings
+      its own keyring back with `db restore`. Whoever reaches an uninitialised server first
+      can make its key: a household that finds its new server asking for words nobody wrote
+      down empties its data directory (or reinstalls) and starts again, with nothing lost.
    5. **Uninitialised, refused and locked.** With no keyring the server is uninitialised:
       `/healthz` answers 503 `uninitialised`, `/ui` shows only the welcome, and every other
       path answers 503 (S13.6). It **refuses to start** (exit 78, S13.6) when the keyring
       cannot be read, and when the database is there without its keyring: a key made then
-      could not open it, so neither the welcome nor `keys init` makes one, and the refusal
+      could not open it, so the welcome makes none, and the refusal
       names the two ways on, `db restore` or an emptied data directory. A wrong phrase at unlock is refused and the server stays locked. A
       database the phrase opens the keyring for but the server cannot use (one from a newer
       release) is refused at the unlock, with the reason in the log, and the server stays
@@ -181,21 +181,25 @@ replica holds only the right-hand side, and the whole host can be backed up as i
    6. **Never** in a file, an environment variable, the image, the configuration or a
       script. A phrase pasted into a chat, a ticket or a screenshot is a leaked phrase
       (S15.8).
-   7. **Commands**, each asking for the phrase it needs and keeping none of it, and showing and
-      reading phrases on the terminal only: `moolakata keys init` (S15.4.4), `fingerprint` (the
-      key in use, no phrase needed), `verify` (S15.6.5), `rotate` (S15.7.1), `reencrypt`
-      (S15.7.2) and `unlock` (S15.4.2), and `moolakata db backup`, `verify-backup`, `restore`
-      (S15.6.8) and `shell` (S14.7). `unlock` and `rotate` speak to the running server over its
-      Unix socket from inside its container (`docker compose exec`), and `db backup` asks the
-      running server to make the backup the same way. The rest, and `rotate` and `db backup`
-      when the server is stopped, run as one-off containers of the same image (`docker compose
-      run --rm`) as the server's own account. Those that change the data directory (`restore`,
-      `reencrypt`, and `rotate` and `db backup` run this way) take its lock first, so none runs
-      beside the server: one that finds the server running refuses, naming the way to do it
-      through the server; `db backup` run this way opens the database read only and migrates
-      nothing. What a one-off command did is queued in the data directory and reaches Activity
-      within a quarter of an hour, or at the next unlock (S15.7.4), since a one-off container
-      cannot open the database.
+   7. **Commands**, each asking for the phrase it needs, with echo off, and keeping none of it:
+      `moolakata keys fingerprint` (the key in use, no phrase needed), `verify` (S15.6.5),
+      `reencrypt` (S15.7.2), `unlock` (S15.4.2) and `break-glass` (S15.5.2), and `moolakata db
+      backup`, `verify-backup`, `restore` (S15.6.8) and `shell` (S14.7). **None shows a
+      phrase**: a key is made and rotated in the browser (S15.4.4, S15.7.1), since Docker's log
+      keeps what a container's first process writes, its terminal included. `unlock` and
+      `break-glass` speak to the running server over its Unix socket from inside its container
+      (`docker compose exec`, whose output Docker's log doesn't keep), and `db backup` asks the
+      running server to make the backup the same way. The rest, and `db backup` when the
+      server is stopped, run as one-off containers of the same image (`docker compose run
+      --rm`) as the server's own account. Those that change the data directory (`restore`,
+      `reencrypt`, and `db backup` run this way) take its lock first, so none runs beside the
+      server: one that finds the server running refuses, naming the way to do it through the
+      server; `db backup` run this way opens the database read only and migrates nothing.
+      `db shell` shows the data itself: run as a one-off container's first process it asks
+      before going on, since Docker's log will keep what it shows, and under `exec` it
+      doesn't ask. What a one-off command did is queued in the data directory and reaches
+      Activity within a quarter of an hour, or at the next unlock (S15.7.4), since a one-off
+      container cannot open the database.
 5. **What losing it costs.** Everything this server holds is encrypted under the master
    key, which exists only as its phrase, so **losing the recovery phrase loses all of it**:
    the database, the receipts, every backup and every copy the host holds, and the server
@@ -207,17 +211,25 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       that those two kept: a receipt the restored database names and the host's backup lacks is
       reported at the unlock.
    2. **The phrase lost while the server is running**: nothing is lost yet, but the next
-      restart will lose everything. **Rotate at once** (S15.7.1): through the running server,
-      which still holds the data key, `moolakata keys rotate` needs no old phrase, shows a new
-      one and asks three words back; the keyring is wrapped under it at once, and the
-      re-encryption the rotation brings runs at the next unlock, with the new phrase. Back it
-      up before anything else. A server stopped before that is a server lost.
+      restart will lose everything. **Rotate at once** (S15.7.1), with a **break-glass code** in
+      place of the lost phrase: `docker compose exec moolakata moolakata keys break-glass`, run
+      on the host, asks the running, unlocked server over its socket for one, and Settings ›
+      Key storage › **Rotate** takes it, with an admin's password, for 15 minutes and once.
+      The server keeps only its hash, in memory, so a restart voids it; a wrong one counts
+      toward the sign-in lockout, as a wrong phrase does; and every admin is alerted that one
+      was asked for. The socket needs no phrase for it, and that proves nothing about who
+      asks: whoever reaches the socket of an unlocked server can already read its data key
+      from the process's memory (S15.6.7), so the code gives them nothing they lack. The new
+      phrase is shown in the browser, never on the host's terminal, and the server restarts
+      and re-encrypts with it. Back it up before anything else. A server stopped before that
+      is a server lost; a locked server issues no code.
    3. Linked copies are not affected either way: they open with their own access keys, and
       are pulled again from their sources (S11.9.9).
 6. **Backing up and protecting the master key.**
-   1. **Back it up as it is made.** `keys init` and `keys rotate` show the **recovery phrase**
-      on the terminal, 12 numbered words, with the fingerprint, the server's name and the date,
-      and will not finish until three words chosen at random are typed back. Nothing shows it
+   1. **Back it up as it is made.** The welcome (S15.4.4) and **Rotate** (S15.7.1) show the
+      **recovery phrase** in the browser, 12 numbered words, with the fingerprint, the server's
+      name and the date, and will not finish until three words chosen at random are typed
+      back. Nothing shows it
       again afterwards: the phrase is not stored, so a copy lost is a copy gone, and a phrase
       with no copy left is replaced by rotating (S15.5.2). Each word is recognised by its first
       four letters, and the last word's checksum catches most mistakes when the phrase is typed
@@ -280,20 +292,24 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       and every secret are re-encrypted under a new data key (S15.7.2). Re-wrapping alone would
       change only which phrase opens the keyring: an old phrase and any copy made before would
       still give the data key that opens every later copy, so a rotation always re-encrypts. It
-      is done on the host:
-      1. `moolakata keys rotate` makes a new key, shows its recovery phrase on the terminal and
-         asks for three words back, and wraps the keyring under it, recording the previous
-         key's fingerprint and the date. Run against the running server, over its socket, it
-         needs **no old phrase**, since the server holds the data key: this is the way out of a
-         lost phrase (S15.5.2), and its re-encryption waits for the next unlock, with the new
-         phrase. Run with the server stopped, it asks for the current phrase and re-encrypts at
-         once. **Then the copies on the host**, listed with their dates and sizes, are each
-         re-encrypted (the default), deleted or left, as at a re-encryption (S15.7.2);
-         `--reencrypt-all`, `--delete-old` and `--leave-all` answer for a script. The outcome
-         of each is recorded in Activity with the rotation;
+      is done in Settings › Key storage:
+      1. **Rotate** (admins) asks for the password again and **the current phrase**, or a
+         break-glass code from the host when it is lost (S15.5.2), so an admin's session alone
+         can't change the phrase the household holds; a wrong one counts toward the sign-in
+         lockout. It lists **the copies on the host**, each re-encrypted (the default), deleted
+         or left, as at a re-encryption (S15.7.2). It then makes a new key in the server's
+         memory, shows its recovery phrase as the welcome does (an hour each, 20 at most, none
+         kept until confirmed) and asks for three words back. The re-encryption is journaled
+         first, naming the new key and each copy's choice; then the keyring is wrapped under
+         the new key, recording the previous key's fingerprint and the date; and the server
+         **restarts at once** (S15.7.2), so the unlock with the new phrase re-encrypts before
+         the server serves. The rotation, and later each copy's outcome, are recorded in
+         Activity. A stop between the journal and the keyring leaves the keyring under the old
+         phrase: the unlock with it re-encrypts all the same, and Key storage says the rotation
+         didn't finish;
       2. **back up the new phrase at once** (S15.6). The server unlocks with the new phrase
-         from its next start;
-      3. verify the new phrase (`keys verify`);
+         from the restart on;
+      3. verify the new phrase (Verify key);
       4. **keep the previous phrase until every copy made under it is gone**. Settings › Key
          storage lists each previous key with how many copies on this host still need it, which
          after a rotation that re-encrypted every copy is none; the host's own snapshots and
@@ -307,20 +323,31 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       serves, with its progress on the locked screen and `/healthz` answering 503
       `re-encrypting` (S13.6), or on the host with `moolakata keys reencrypt`, the server
       stopped, which asks for the phrase. A rotation brings one. On its own, Settings › Key
-      storage › **Re-encrypt at the next restart** (admins, the password again) schedules one,
-      which the next unlock runs with the phrase given there, the master key unchanged. **A
-      verified backup is made first**, under the old key, and **no backup runs while a
-      re-encryption does**. **The copies on the host** are listed when it is scheduled, and for
-      each the admin chooses **re-encrypt** (the default: rewritten under the new data key
-      after the main job), **delete**, or **leave** (it keeps its old data key, which this
-      phrase still opens); a copy under an earlier phrase cannot be rewritten and is left or
-      deleted. **A journal** in the data directory records each step before it is taken, the
-      copies' choices among them, and the new data key's keyring, written beside the keyring as
-      `keyring.next`. **Interrupted** by a stop or a crash, the re-encryption carries on from
-      the journal at the next unlock, with the phrase given then, redoing nothing; a pending
-      one under another phrase is refused at the unlock by name, and a `keyring.next` that the
-      journal doesn't explain is set aside, never deleted. A receipt or a secret that opens
-      under neither key is set aside and reported in Settings › Key storage, never fatal. It is
+      storage › **Re-encrypt now** (admins, the password again) schedules one, the master key
+      unchanged. Once one is scheduled **the server restarts itself at once**: it stops
+      cleanly and starts again in the same process, locked, so no restart policy is relied on
+      and no key crosses the restart; the admin unlocks it with the phrase, and the
+      re-encryption runs at that unlock. The browser waits on the locked screen, and says to
+      start the server on the host if it isn't back within a minute. One scheduled is never
+      withdrawn or replaced: a second is refused until it has run. **A verified backup is made
+      first**, under the old key, and **no backup runs while a re-encryption does**. **The
+      copies on the host** are listed when it is scheduled, and for each the admin chooses
+      **re-encrypt** (the default: rewritten under the new data key after the main job),
+      **delete**, or **leave** (it keeps its old data key, which this phrase still opens); a
+      copy under an earlier phrase cannot be rewritten and is left or deleted. A copy the
+      choices don't name, the run's own first backup among them, is re-encrypted when it
+      holds the data key being replaced, the first backup last, once everything else is done.
+      **A journal** in the data directory records each step, the copies' choices among them,
+      and the new data key's keyring, written beside the keyring as `keyring.next`, with the
+      keyring it replaces kept as `keyring.old` until the store has opened under the new one.
+      **Interrupted** by a stop or a crash, even between a step and its record, the
+      re-encryption carries on from the journal at the next unlock, with the phrase given
+      then, redoing nothing and never making a second new data key once the journal names
+      one; a pending one under another phrase is refused at the unlock by name, and a
+      `keyring.next` that the journal doesn't explain is set aside, never deleted, and listed
+      among the copies on the host. A receipt or a secret that opens under neither key, or a
+      receipt damaged past its first part, is set aside and reported in Settings › Key
+      storage, never fatal; the log names it. It is
       for when **the data key may have been read**: a memory dump or a debugging session on the
       live server, and **any leak of the recovery phrase** (S15.8.1), since a leaked phrase
       opens the data key in every copy it could have been taken with. It closes nothing made
@@ -346,10 +373,10 @@ replica holds only the right-hand side, and the whole host can be backed up as i
          after rotation or re-encryption, and anyone who already read it can still use it.
       3. Neither touches passwords, which are hashed, or linked copies, which have their
          own access keys.
-   4. **Rotation is recorded** in Activity for admins: when, and the old and new
-      fingerprints, as is every `keys verify`; a command run while the server was down is
-      queued in the data directory and recorded at the next unlock. Key material is never
-      recorded.
+   4. **Rotation is recorded** in Activity for admins: when, by whom, the old and new
+      fingerprints and whether the phrase or a break-glass code allowed it, as is every `keys
+      verify`; a command run while the server was down is queued in the data directory and
+      recorded at the next unlock. Key material is never recorded.
 8. **When a key may have leaked, and rotation otherwise.**
    1. **A leaked phrase is a leaked copy.** Whoever holds the recovery phrase and any copy
       made under it (a lost recovery sheet beside a cloud bucket of backups, a snapshot of

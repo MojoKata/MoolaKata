@@ -26,9 +26,21 @@ def register(sub) -> None:
 
 
 def _shell(args) -> int:
+    import os
+
     from .maintenance import queue_host_event, shell
 
     config = configured(args.config)
+    # Run as its container's first process (`docker compose run`), what it shows goes to
+    # Docker's log; under `exec` it doesn't (CR3-369). Asked first, not refused: `run` is the
+    # way in when the server won't start.
+    if os.getpid() == 1:
+        answer = input(
+            "Docker's log will keep what this shows (run with `docker compose exec` to keep it "
+            "out); go on? [y/N] "
+        )
+        if answer.strip().lower() not in ("y", "yes"):
+            return 1
     queue_host_event(config, "db.shell", {})
     return shell(config, read_phrase())
 
@@ -85,14 +97,12 @@ def _verify_backup(args) -> int:
 
 
 def _restore(args) -> int:
-    from ..keys.cli import Terminal
     from .maintenance import queue_host_event, restore
 
     config = configured(args.config)
 
     def confirm(question: str) -> bool:
-        tty = Terminal()
-        return tty.ask(question + " [y/N] ").strip().lower() in ("y", "yes")
+        return input(question + " [y/N] ").strip().lower() in ("y", "yes")
 
     def other_phrase(prompt: str) -> bytes:
         return read_phrase(prompt=prompt)

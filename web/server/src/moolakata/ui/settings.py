@@ -3,6 +3,7 @@ own keys; secrets and the sources come with their sections' routes."""
 
 import datetime as dt
 import json
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -16,7 +17,9 @@ from . import save
 from .conventions import Deleted, ExactRoute, Model
 from .deps import Caller, admin, server
 from .imports import JobOut, accepted
+from .welcome import Offered
 
+log = logging.getLogger("moolakata.settings")
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["settings"])
 
 
@@ -148,6 +151,8 @@ def _setting_apply(ctx, row: Setting, body: SettingRecord, new: bool) -> None:
         value = settings.coerce(body.key, body.value)
         if body.key == "bitcoinSource" and value == "stub" and not srv.config.stubs:
             raise refuse("value", "source-unknown", "Only with dev mode's stubs (--stubs).")
+        if body.key == "backupCopies":
+            _fewer_copies(srv, settings.get(s, body.key), value)
         if value != settings.get(s, body.key) or new:
             if body.key in REAUTH or body.key.startswith("network"):
                 # Who reaches the app, a link or the connector, and where a secret or a link
@@ -567,7 +572,7 @@ class ReencryptScheduled(Model):
     at: dt.datetime
     why: str  # settings, rotation, host
     copies: dict[str, str]
-    started: bool  # under way: it can no longer be cancelled
+    started: bool  # under way
 
 
 class ReencryptReport(Model):
@@ -576,6 +581,8 @@ class ReencryptReport(Model):
     receiptsSetAside: list[str]
     secretsSetAside: list[str]
     copies: dict[str, str]
+    # A rotation whose keyring stayed under this old key: it re-encrypted, but didn't rotate.
+    rotationUnfinished: str | None = None
 
 
 class KeyStorage(Model):
@@ -619,7 +626,8 @@ def _database_bytes(s) -> int:
 
 @router.get("/settings/keys", response_model=KeyStorage)
 def key_storage(request: Request, c: Caller = Depends(admin)):
-    """Read only: the master key is a phrase, changed only on the host (S15.7.1)."""
+    """Key storage (S16.13): the master key's state, its previous keys, and the last
+    re-encryption; the copies come from their own route."""
     from sqlalchemy import func
 
     from ..keys import master
@@ -732,6 +740,7 @@ def _last(config) -> ReencryptReport | None:
         receiptsSetAside=r.get("receiptsSetAside") or [],
         secretsSetAside=r.get("secretsSetAside") or [],
         copies=r.get("copies") or {},
+        rotationUnfinished=r.get("rotationUnfinished"),
     )
 
 
@@ -848,45 +857,151 @@ class ReencryptIn(Model):
     copies: dict[str, str] = Field(default_factory=dict)  # name: reencrypt, delete or leave
 
 
-@router.post("/settings/keys/reencrypt", response_model=KeyStorage)
+class Restarting(Model):
+    """A re-encryption or a rotation scheduled, and the server restarting for it (S15.7.2):
+    the browser waits for the locked screen, where the phrase starts it."""
+
+    restarting: bool
+    why: str  # settings, rotation
+    fingerprint: str  # the phrase that unlocks after the restart
+    copies: dict[str, str] = Field(default_factory=dict)  # what each copy will meet
+
+
+def _copies_choices(srv, chosen: dict[str, str]) -> dict[str, str]:
+    """Each copy's choice, re-encrypt by default (S15.7.2); a choice for no copy refused."""
+    from ..store import copies, reencrypt
+
+    if any(v not in reencrypt.CHOICES for v in chosen.values()):
+        raise refuse("copies", "choice-invalid", "Each copy: reencrypt, delete or leave.")
+    return {c.name: chosen.get(c.name, "reencrypt") for c in copies.copies(srv.config)}
+
+
+@router.post("/settings/keys/reencrypt", response_model=Restarting)
 def key_reencrypt(body: ReencryptIn, request: Request, c: Caller = Depends(admin)):
-    """Re-encrypt at the next restart (S15.7.2): scheduled, with each copy's choice, for the
-    next unlock to run before the server serves, with the phrase given there. It never runs
-    while the server serves. The password again (S13.7.2)."""
+    """Re-encrypt now (S15.7.2): scheduled with each copy's choice, and the server restarts at
+    once; the unlock that follows runs it before the server serves, with the phrase given
+    there. It never runs while the server serves, and once scheduled it is not withdrawn
+    (CR3-61). The password again (S13.7.2)."""
+    from .. import runtime
     from ..config import RefuseStart
+    from ..keys import master
     from ..store import reencrypt
     from .deps import recent_auth
 
     recent_auth(c)
     srv = server(request)
-    try:
-        reencrypt.schedule(srv.config, dict(body.copies), c.id, "settings")
-    except ValueError:
-        raise refuse("copies", "choice-invalid", "Each copy: reencrypt, delete or leave.") from None
-    except RefuseStart as e:
-        raise Problem(409, "reencrypt-running", str(e)) from None
+    choices = _copies_choices(srv, dict(body.copies))
+    with srv.maintenance_lock:
+        try:
+            reencrypt.schedule(srv.config, choices, c.id, "settings")
+        except RefuseStart as e:
+            raise Problem(409, "reencrypt-pending", str(e)) from None
+    with srv.db.tx() as s:
+        activity.record(
+            s, "keys.reencrypt-scheduled", actor=c.id, for_admins=True, detail={"copies": choices}
+        )
+    runtime.restart(srv)
+    return Restarting(
+        restarting=True,
+        why="settings",
+        fingerprint=master.fingerprint(srv.store.keys.master_id),
+        copies=choices,
+    )
+
+
+@router.post("/settings/keys/rotate/phrase", response_model=Offered)
+def rotation_phrase(request: Request, c: Caller = Depends(admin)):
+    """A rotation's new phrase (S15.7.1), made and held in memory only, as the welcome's are
+    (an hour each, 20 at most), until three of its words are typed back with the rotation."""
+    from ..keys import master, phrase
+
+    srv = server(request)
+    token, made = srv.rotations.offer()
+    return Offered(
+        token=token,
+        words=phrase.to_words(made.key),
+        fingerprint=master.fingerprint(made.key),
+        serverName=srv.config.name,
+        made=dt.date.today(),
+        check=[i + 1 for i in made.picks],
+    )
+
+
+class RotateIn(Model):
+    token: str  # the new phrase on offer
+    words: dict[str, str] = Field(default_factory=dict)  # word number: the word typed back
+    phrase: str | None = None  # the current phrase
+    code: str | None = None  # or a break-glass code from the host, for a lost phrase (S15.5.2)
+    copies: dict[str, str] = Field(default_factory=dict)  # name: reencrypt, delete or leave
+
+
+@router.post("/settings/keys/rotate", response_model=Restarting)
+def rotate(body: RotateIn, request: Request, c: Caller = Depends(admin)):
+    """Rotate (S15.7.1): a new master key and phrase, and with them a new data key. The
+    password again and the current phrase, or a break-glass code from the host, so an
+    admin's session alone can't change the phrase the household holds; a wrong one counts
+    toward the sign-in's lockout. Three of the new phrase's words typed back; then the
+    keyring is wrapped under it and the server restarts, and the unlock with the new phrase
+    re-encrypts (S15.7.2)."""
+    from .. import runtime
+    from ..config import RefuseStart
+    from ..keys import master, phrase
+    from ..store import maintenance
+    from ..store.entities.users import User
+    from .deps import recent_auth
+    from .session import count_failure, guarded
+    from .welcome import words_wrong
+
+    recent_auth(c)
+    srv = server(request)
+    made = srv.rotations.get(body.token)
+    if made is None:
+        raise Problem(410, "phrase-gone", "That phrase isn't on offer now: show a new one.")
+    words_wrong(made, body.words)
+    choices = _copies_choices(srv, dict(body.copies))
+    address = guarded(request, c.user.username)
+    if body.code:
+        how, right = "break-glass", srv.break_glass.use(body.code)
+    else:
+        try:
+            given = phrase.from_words(body.phrase or "")
+            right = master.key_id(given) == srv.store.keys.master_id
+        except phrase.PhraseError:
+            right = False
+        how = "phrase"
+    if not right:
+        with srv.db.tx() as s:
+            count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+        if how == "break-glass":
+            raise refuse(
+                "code", "code-wrong", "That code isn't the one issued, or it expired.", 403
+            )
+        raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
+    old_fp = master.fingerprint(srv.store.keys.master_id)
+    with srv.maintenance_lock:
+        try:
+            srv.store, outcomes = maintenance.rotate_running(
+                srv.config, srv.store, made.key, choices, c.id
+            )
+        except RefuseStart as e:
+            raise Problem(409, "reencrypt-pending", str(e)) from None
+    srv.rotations.clear()
+    new_fp = master.fingerprint(made.key)
     with srv.db.tx() as s:
         activity.record(
             s,
-            "keys.reencrypt-scheduled",
+            "key.rotated",
             actor=c.id,
             for_admins=True,
-            detail={"copies": body.copies},
+            detail={"from": old_fp, "to": new_fp, "how": how, "copies": outcomes},
         )
-    return key_storage(request, c)
+    log.info("the master key was rotated in Settings: %s -> %s (%s)", old_fp, new_fp, how)
+    if srv.config.dev:
+        from ..dev import devmode
 
-
-@router.delete("/settings/keys/reencrypt", response_model=KeyStorage)
-def key_reencrypt_cancel(request: Request, c: Caller = Depends(admin)):
-    """A scheduled re-encryption not yet begun, cancelled."""
-    from ..store import reencrypt
-
-    srv = server(request)
-    if not reencrypt.cancel(srv.config):
-        raise Problem(409, "not-scheduled", "Nothing scheduled that can still be cancelled.")
-    with srv.db.tx() as s:
-        activity.record(s, "keys.reencrypt-cancelled", actor=c.id, for_admins=True)
-    return key_storage(request, c)
+        devmode.remember_phrase(srv.config, made.key)
+    runtime.restart(srv)
+    return Restarting(restarting=True, why="rotation", fingerprint=new_fp, copies=outcomes)
 
 
 # ---------- The copies on this host (S15.7, S16.13) ----------
@@ -1054,6 +1169,69 @@ def backups(request: Request, c: Caller = Depends(admin)):
             nextRun=status.get("nextRun"),
             running=status.get("running", False),
         )
+
+
+def _fewer_copies(srv, was: int, value: int) -> None:
+    """Fewer days of backups than are kept now deletes some at the next backup: that takes
+    the recovery phrase, as Remove does, so an admin's session alone deletes no backup
+    (CR3-63)."""
+    from ..store import maintenance
+
+    if value < was and value < maintenance.backup_days(srv.config):
+        raise refuse(
+            "value",
+            "phrase-needed",
+            "Fewer days than the backups kept deletes some: that takes the recovery phrase.",
+            403,
+        )
+
+
+class CopiesIn(Model):
+    copies: int
+    phrase: str | None = None  # needed when it is fewer days than the backups kept
+
+
+@router.post("/settings/backups/copies", response_model=Backups)
+def backup_copies(body: CopiesIn, request: Request, c: Caller = Depends(admin)):
+    """*Copies kept* (S16.12): the days of backups kept. Fewer than the backups there are
+    deletes some at the next backup, so that takes the password again and the recovery
+    phrase, as Remove does (S16.13); a wrong phrase counts toward the sign-in's lockout."""
+    from ..keys import master, phrase
+    from ..store import maintenance
+    from ..store.entities.users import User
+    from .deps import recent_auth
+    from .session import count_failure, guarded
+
+    srv = server(request)
+    try:
+        value = settings.coerce("backupCopies", body.copies)
+    except Problem:
+        raise refuse("copies", "value-invalid", "Between 3 and 365.") from None
+    with srv.db.read() as s:
+        was = settings.get(s, "backupCopies")
+    if value < was and value < maintenance.backup_days(srv.config):
+        recent_auth(c)
+        if not body.phrase:
+            raise refuse("phrase", "phrase-needed", "Fewer days than the backups kept: the phrase.")
+        address = guarded(request, c.user.username)
+        try:
+            right = master.key_id(phrase.from_words(body.phrase)) == srv.store.keys.master_id
+        except phrase.PhraseError:
+            right = False
+        if not right:
+            with srv.db.tx() as s:
+                count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+            raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
+    with srv.db.tx() as s:
+        settings.put(s, "backupCopies", value, c.id)
+        activity.record(
+            s,
+            "settings.changed",
+            actor=c.id,
+            for_admins=True,
+            detail={"fields": ["backupCopies"], "from": was, "to": value},
+        )
+    return backups(request, c)
 
 
 @router.post("/settings/backups/run", response_model=JobOut, status_code=202)

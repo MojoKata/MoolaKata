@@ -65,9 +65,19 @@ def refuse_dev(config: Config) -> None:
 
 
 def serve(config: Config, seed: bool = False) -> int:
-    from .runtime import start
+    from .runtime import RESTART, start
 
-    return asyncio.run(start(config, seed=seed))
+    code = asyncio.run(start(config, seed=seed))
+    if code == RESTART:
+        # The server asked to start again (a re-encryption, S15.7.2): the same command, in
+        # this same process, so no restart policy is relied on; it starts locked. A dev
+        # server's seed is not planted twice.
+        import atexit
+
+        atexit._run_exitfuncs()  # what an exit would flush (logs, coverage), as exec skips it
+        args = [a for a in sys.orig_argv if a != "--seed"]
+        os.execv(sys.executable, args)  # noqa: S606 - this very command, again
+    return code
 
 
 def cmd_serve(args) -> int:

@@ -1,10 +1,10 @@
 # MoolaKata behind the household's reverse proxy (requirements S17.8). Start from this file:
 #   1. make the directories:   mkdir -p data backups && sudo chown 10001:10001 data backups
-#   2. make the master key:    docker compose run --rm moolakata keys init
-#      (it shows the recovery phrase, which is the key and is never stored: write it down, S15.6)
-#   3. start:                  docker compose up -d
-#   4. unlock:                 docker compose exec moolakata moolakata keys unlock
-#      (or open the app: it asks for the phrase; after every restart, S15.4.3)
+#   2. start:                  docker compose up -d
+#   3. open the app: its welcome shows the recovery phrase, which is the master key and is
+#      never stored (write it down, S15.6), then sets up the first admin (S15.4.4)
+#   4. unlock after every restart, in the app or with
+#                              docker compose exec moolakata moolakata keys unlock
 # Put a reverse proxy (proxy/ has Caddy, nginx and haproxy examples) in front of port 37373.
 
 services:

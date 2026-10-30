@@ -8,8 +8,7 @@ import os
 
 from .. import clock
 from ..config import Config, RefuseStart
-from ..keys import cli as keys_cli
-from ..keys import phrase
+from ..keys import master, phrase
 
 log = logging.getLogger("moolakata.dev")
 
@@ -26,10 +25,8 @@ def prepare(config: Config) -> bytes:
         # The generated mockup's build (a frozen clock): a key made from fixed words, so its
         # fingerprint comes out the same every time.
         key = hashlib.sha256(b"mockup").digest()[:16] if clock.frozen() else os.urandom(16)
-        keys_cli.init(config, say=lambda _: None, confirm=False, master_key=key)
-        fd = os.open(phrase_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write(" ".join(phrase.to_words(key)) + "\n")
+        master.create_keyring(config, key)
+        remember_phrase(config, key)
         log.info("dev: made a master key; its phrase is in %s", phrase_file)
         return key
     try:
@@ -39,6 +36,14 @@ def prepare(config: Config) -> bytes:
             f"dev: {config.keyring_path} exists but {phrase_file} doesn't hold its phrase ({e}); "
             f"remove {config.data_dir.parent} to start over"
         ) from None
+
+
+def remember_phrase(config: Config, key: bytes) -> None:
+    """The dev server's phrase file, written again after a rotation in Settings, so the
+    restart that follows unlocks with the new phrase."""
+    fd = os.open(config.data_dir.parent / "phrase", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(" ".join(phrase.to_words(key)) + "\n")
 
 
 def after_start(server, seed: bool) -> None:

@@ -14,7 +14,7 @@ from moolakata.app import Server, create_app
 from moolakata.auth import passwords
 from moolakata.auth import users as accounts
 from moolakata.config import Config
-from moolakata.keys import cli as keys_cli
+from moolakata.keys import master
 from moolakata.store.maintenance import open_store
 
 measure_the_browser_app()
@@ -61,7 +61,7 @@ def bare_client(config):
 def keyed_config(config, master_key) -> Config:
     """A config whose keyring exists, wrapped under `master_key` (made without the phrase's
     three-word confirmation)."""
-    keys_cli.init(config, say=lambda _: None, confirm=False, master_key=master_key)
+    master.create_keyring(config, master_key)
     return config
 
 

@@ -102,9 +102,15 @@ def write(path: Path, chunks: Iterable[bytes], recipient: X25519PublicKey, name:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        for piece in seal(chunks, recipient, name):
-            f.write(piece)
-        f.flush()
-        os.fsync(f.fileno())
+    try:
+        with os.fdopen(fd, "wb") as f:
+            for piece in seal(chunks, recipient, name):
+                f.write(piece)
+            f.flush()
+            os.fsync(f.fileno())
+    except BaseException:
+        # A source that fails part-way (a damaged file being re-encrypted, CR3-59) leaves no
+        # half-written file behind.
+        tmp.unlink(missing_ok=True)
+        raise
     os.replace(tmp, path)

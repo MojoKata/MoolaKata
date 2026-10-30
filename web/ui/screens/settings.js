@@ -13,7 +13,8 @@ import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
 import { toast } from '../components/toast.js';
-import { loadSession } from '../store/session.js';
+import { awaitRestart, loadSession } from '../store/session.js';
+import { disconnect } from '../app/stream.js';
 import { LinksSection } from '../components/links.js';
 import { ConnectorSection } from '../components/connector.js';
 import { withReauth } from '../components/reauth.js';
@@ -1100,11 +1101,55 @@ function BitcoinSection() {
   `;
 }
 
+/**
+ * *Copies kept* (S16.12): the days of backups kept. Fewer than the backups there are deletes
+ * some at the next backup, so it asks for the recovery phrase too, as Remove does (S16.13).
+ * @param {{ close: (v?: any) => void, v: any }} p
+ */
+function CopiesKept({ close, v }) {
+  useDialogGuide('dialog-copies-kept');
+  const [n, setN] = useState(String(v.copies));
+  const [words, setWords] = useState('');
+  const days = new Set(v.backups.map((/** @type {any} */ b) => b.name.split('-')[1])).size;
+  const fewer = Number(n) < v.copies && Number(n) < days;
+  const save = useSubmit(async () => {
+    close(
+      await withReauth(() =>
+        api.post('/settings/backups/copies', {
+          copies: Number(n),
+          ...(fewer ? { phrase: words } : {}),
+        })
+      ),
+    );
+  });
+  return html`
+    <${Dialog} title="Copies kept" close=${close} onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
+      <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
+        hint="Every backup of each of these most recent days is kept: 3 to 365.">
+        <${Input} value=${n} inputmode="numeric" onInput=${setN} required />
+        </${Field}>
+      ${fewer
+        ? html`
+          <p class="small">That is fewer than the ${days} days of backups kept, so the next backup
+            deletes some, which can't be undone. The server's recovery phrase says it is you, as
+            well as your password.</p>
+          <${Field} label="Recovery phrase" error=${errAt(save.error, 'phrase')}>
+            <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+              autocorrect="off" autocapitalize="off" spellcheck=${false} required />
+            </${Field}>
+        `
+        : null}
+      <${FormError} error=${save.error} shown=${['copies', 'phrase']} />
+      </${Dialog}>
+  `;
+}
+
 function Backups() {
   const res = useApi('/settings/backups', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const fd = useSettingsDraft(s.data, ['backupTime', 'backupCopies']);
+  const fd = useSettingsDraft(s.data, ['backupTime']);
   const rec = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
@@ -1131,10 +1176,16 @@ function Backups() {
             /** @type {string} */ x,
           ) => rec.set('backupTime', x)} />
           </${Field}>
-          <${Field} label="Copies kept" error=${rec.error('backupCopies')}><${Input}
-          value=${rec.get('backupCopies')} inputmode="numeric" onInput=${(
-            /** @type {string} */ x,
-          ) => rec.set('backupCopies', x === '' ? '' : Number(x))} /></${Field}></div>
+          <div class="field" data-help="copies-kept"><label>Copies kept</label><div class="row"
+            style=${{ alignItems: 'center' }}><span>${v.copies} days</span><button type="button"
+            class="btn sm" onClick=${() =>
+              openDialog(CopiesKept, { v }).then((r) => {
+                if (r) {
+                  toast('Saved');
+                  res.reload();
+                  s.reload();
+                }
+              }, (e) => toast(e.message))}>Change</button></div></div></div>
         <div class=${'notice ' + (v.lastError ? 'bad' : '')}><${Icon} name=${v.lastError
           ? 'alert'
           : 'check'} /><div>${v.lastRun
@@ -1217,6 +1268,200 @@ function WrittenEmailDialog({ close, w, text }) {
   `;
 }
 
+/** The server restarts for a re-encryption (S15.7.2): the locked screen waits for it. The
+ * screen is loaded first, since the server stops answering for a moment. */
+async function restartNow(/** @type {() => Promise<any>} */ ask) {
+  await import('./locked.js');
+  const out = await ask();
+  disconnect();
+  awaitRestart();
+  return out;
+}
+
+/** Each copy on the host and what a re-encryption does with it (S15.7.2): re-encrypt by
+ * default; one under an earlier phrase can only be left or deleted. */
+/** @param {{ copies: any[], choices: Record<string, string>, set: (c: Record<string, string>) => void }} p */
+function CopyChoices({ copies, choices, set }) {
+  if (!copies.length) return null;
+  return html`<div class="field" data-help="copies-at-re-encryption"><label>The copies on this host</label>
+    ${
+    copies.map((/** @type {any} */ c) =>
+      html`
+        <div class="list-item">
+          <div class="grow"><code>${c.name}</code>
+            <div class="small dim">${c.what} · ${opensWith(c.opens)}</div></div>
+          <span
+            style=${{ flex: 'none', width: '180px' }}><${Select} value=${choiceOf(
+              c,
+              choices,
+            )} onChange=${(/** @type {string} */ x) => set({ ...choices, [c.name]: x })} options=${[
+              ['reencrypt', 'Re-encrypt'],
+              ['delete', 'Delete'],
+              ['leave', 'Leave as it is'],
+            ]} /></span>
+        </div>
+      `
+    )
+  }
+    <div class="small dim">A copy that needs a previous phrase can only be left or deleted.</div></div>`;
+}
+
+/** @param {any} c @param {Record<string, string>} choices */
+const choiceOf = (c, choices) =>
+  choices[c.name] ||
+  (c.kind !== 'keyring' && (c.opens === 'current' || c.opens === 'phrase') ? 'reencrypt' : 'leave');
+
+/** @param {any[]} copies @param {Record<string, string>} choices */
+const chosen = (copies, choices) =>
+  Object.fromEntries(copies.map((/** @type {any} */ c) => [c.name, choiceOf(c, choices)]));
+
+/**
+ * Rotate (S15.7.1): the current phrase, or a break-glass code from the host for a lost one
+ * (S15.5.2), and each copy's choice; then the new phrase, shown once, and three of its words
+ * typed back. The server then restarts and unlocks with the new phrase, re-encrypting first.
+ * @param {{ close: (v?: any) => void, copies: any[] }} p
+ */
+function RotateKey({ close, copies }) {
+  useDialogGuide('dialog-rotate');
+  const [step, setStep] = useState('start'); // start, phrase, check
+  const [lost, setLost] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [code, setCode] = useState('');
+  const [choices, setChoices] = useState(/** @type {Record<string, string>} */ ({}));
+  const [offer, setOffer] = useState(/** @type {any} */ (null));
+  const [typed, setTyped] = useState(/** @type {Record<string, string>} */ ({}));
+  const show = useSubmit(async () => {
+    setOffer(await api.post('/settings/keys/rotate/phrase'));
+    setTyped({});
+    setStep('phrase');
+  });
+  const rotate = useSubmit(async () => {
+    close(
+      await restartNow(() =>
+        withReauth(() =>
+          api.post('/settings/keys/rotate', {
+            token: offer.token,
+            words: typed,
+            ...(lost ? { code } : { phrase: current }),
+            copies: chosen(copies, choices),
+          })
+        )
+      ),
+    );
+  });
+  const back = /** @type {any} */ (rotate.error)?.code;
+  if (step === 'start') {
+    return html`
+      <${Dialog} title="Rotate the master key" close=${close} onSubmit=${() =>
+        show.run().catch(() => {})}
+        footer=${html`<button class="btn primary" disabled=${show.busy}>Show the new phrase</button>`}>
+        <p class="small" style=${{ marginTop: 0 }}>A new master key and recovery phrase, and with
+          them a new data key. MoolaKata then restarts; unlock it with the new phrase, and it
+          re-encrypts everything before it serves, the copies below as you choose.</p>
+        ${lost
+          ? html`
+            <${Field} label="Break-glass code" error=${errAt(rotate.error, 'code')}
+              hint="From the host: docker compose exec moolakata moolakata keys break-glass. It works once, for 15 minutes.">
+              <${Input} value=${code} onInput=${setCode} autocomplete="off" autocapitalize="characters"
+                spellcheck=${false} required />
+              </${Field}>
+          `
+          : html`
+            <${Field} label="Current recovery phrase" error=${errAt(rotate.error, 'phrase')}
+              hint="Four letters of each word are enough.">
+              <${Input} type="password" value=${current} onInput=${setCurrent} autocomplete="off"
+                autocorrect="off" autocapitalize="off" spellcheck=${false} required />
+              </${Field}>
+          `}
+        <div style=${{ marginBottom: '14px' }}><button type="button" class="btn sm"
+          data-help="lost-phrase" onClick=${() => setLost(!lost)}>${lost
+            ? 'I have the phrase'
+            : 'The phrase is lost'}</button></div>
+        <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
+        <${FormError} error=${show.error} />
+        </${Dialog}>
+    `;
+  }
+  if (step === 'phrase') {
+    return html`
+      <${Dialog} title="The new recovery phrase" close=${close} onSubmit=${() => setStep('check')}
+        footer=${html`<button class="btn primary">I've written them down</button>`}>
+        <p class="small" style=${{ marginTop: 0 }}>Write these 12 words on paper, in order. They're
+          shown here once.</p>
+        <ol class="phrase" aria-label="The new recovery phrase">${offer.words.map((
+          /** @type {string} */ w,
+        ) => html`<li><b>${w}</b></li>`)}</ol>
+        <div class="small dim">Fingerprint <code>${offer.fingerprint}</code> · ${offer
+          .serverName} · ${date(offer.made)}</div>
+        <div class="notice small mt">
+          <${Icon} name="alert" />
+          <div>Keep the old phrase too, until
+          every copy made under it is gone: the host's own snapshots and backups still need it.</div>
+        </div>
+        </${Dialog}>
+    `;
+  }
+  return html`
+    <${Dialog} title="Check what you wrote" close=${close} onSubmit=${() =>
+      rotate.run().catch(() => {})}
+      footer=${html`
+        <button type="button" class="btn" onClick=${() =>
+          setStep(
+            back === 'phrase-wrong' || back === 'code-wrong' ? 'start' : 'phrase',
+          )}>Back</button><span
+          class="spacer"></span><button class="btn primary" disabled=${rotate.busy}>${rotate.busy
+            ? 'Rotating…'
+            : 'Rotate and restart'}</button>
+      `}>
+      <p class="small" style=${{ marginTop: 0 }}>Type three of the words from your sheet. Four
+        letters of each are enough.</p>
+      ${offer.check.map((/** @type {number} */ n) =>
+        html`
+          <${Field} label=${`Word ${n}`} id=${`rotate-word-${n}`}
+            error=${errAt(rotate.error, `word${n}`)}>
+            <${Input} value=${typed[n] || ''} onInput=${(/** @type {string} */ v) =>
+              setTyped({ ...typed, [n]: v })} autocomplete="off" autocapitalize="none"
+              autocorrect="off" spellcheck=${false} required />
+            </${Field}>
+        `
+      )}
+      <${FormError} error=${rotate.error} shown=${offer.check.map((/** @type {number} */ n) =>
+        `word${n}`
+      )} />
+      </${Dialog}>
+  `;
+}
+
+/** The rotation reminder's period (S16.13, S15.8.4): months, or never. */
+function ReminderSetting() {
+  const s = useApi('/settings');
+  const fd = useSettingsDraft(s.data, ['keyReminderMonths']);
+  const rec = fd.rec;
+  if (!rec) return null;
+  const months = Number(rec.get('keyReminderMonths'));
+  const options = [0, 6, 12, 18, 24, 36, 48, 60];
+  if (!options.includes(months)) options.push(months);
+  return html`
+    <${DraftForm} f=${fd} class="card mt" where="Settings › Key storage" what="The reminder"
+      saved=${() => {
+        toast('Saved');
+        s.reload();
+      }}>
+      <${Field} label="Remind admins to rotate after" id="rotation-reminder" help="rotation-reminder"
+        error=${rec.error('keyReminderMonths')}>
+        <${Select} value=${String(months)} onChange=${(/** @type {string} */ x) =>
+          rec.set('keyReminderMonths', Number(x))} options=${options.sort((a, b) => a - b).map((
+            m,
+          ) => [String(m), m ? `${m} months` : 'Never'])} />
+        </${Field}>
+        </${DraftForm}>
+  `;
+}
+
+/** The outcome of a re-encryption's copy, marked when the copy still opens with an old key
+ * (S15.7.1.4). @param {string} o */
+const leftUnder = (o) => o.startsWith('left');
+
 function Keys() {
   const res = useApi('/settings/keys', {}, ['task']);
   const cps = useApi('/settings/keys/copies', {}, ['task']);
@@ -1238,22 +1483,12 @@ function Keys() {
     verify().catch((e) => toast(e.message));
   }, []);
   const [choices, setChoices] = useState(/** @type {Record<string, string>} */ ({}));
-  // A copy under an earlier phrase can only be left or deleted (S15.7.2).
-  const choiceOf = (/** @type {any} */ c) =>
-    choices[c.name] || (c.opens === 'current' || c.opens === 'phrase' ? 'reencrypt' : 'leave');
   const reencrypt = useSubmit(async () => {
-    const sent = Object.fromEntries(copies.map((/** @type {any} */ c) => [c.name, choiceOf(c)]));
-    await withReauth(() => api.post('/settings/keys/reencrypt', { copies: sent }));
-    toast('Scheduled for the next restart');
-    setArmed(false);
-    res.reload();
-    cps.reload();
+    await restartNow(() =>
+      withReauth(() => api.post('/settings/keys/reencrypt', { copies: chosen(copies, choices) }))
+    );
   });
-  const unschedule = useSubmit(async () => {
-    await api.del('/settings/keys/reencrypt');
-    toast('The re-encryption is cancelled');
-    res.reload();
-  });
+  const rotate = () => openDialog(RotateKey, { copies }).catch((e) => toast(e.message));
   const removeCopy = async (/** @type {any} */ c) => {
     if (await openDialog(RemoveCopy, { c })) {
       toast(`${c.name} removed`);
@@ -1277,223 +1512,207 @@ function Keys() {
   const confirmed = v.confirmations.find((/** @type {any} */ c) => c.matched);
   const needing = (/** @type {string} */ fp) =>
     copies.filter((/** @type {any} */ c) => c.masterKey === fp).length;
-  return html`<div class="card"><h3>Key storage<span class="spacer"></span>${
-    test
+  const last = v.lastReencryption;
+  const lastCopies = last ? Object.entries(last.copies) : [];
+  return html`
+    <div class="card"><h3>Key storage<span class="spacer"></span>${test
       ? test.ok
         ? html`<span class="pill ok"><${Icon} name="lock" /> everything opens</span>`
         : html`<span class="pill bad">a problem</span>`
-      : null
-  }</h3>
-    <p class="small dim" style=${{
-    marginTop: 0,
-  }}>Read only here, but for Verify key. The master key is the recovery phrase, never stored: it
-      is entered when the server starts, and changed only on the host.</p>
-    <div class="list-item"><span class="grow dim">Fingerprint</span><code>${v.fingerprint}</code></div>
-    <div class="list-item"><span class="grow dim">Made</span>${
-    day(v.created)
-  } · ${v.ageDays} days old
-      ${
-    v.reminderMonths
-      ? html`<span class="small dim"> · rotation reminder at ${v.reminderMonths} months</span>`
-      : null
-  }
-      ${
-    v.reminderDue
-      ? html`
-        <span class="pill warn">time to rotate</span>
-      `
-      : null
-  }</div>
-    <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${
-    (v.databaseBytes / 1048576).toFixed(1)
-  } MB), ${v.receipts} receipt file${v.receipts === 1 ? '' : 's'}, ${v.secrets} secret${
-    v.secrets === 1 ? '' : 's'
-  }
-      <span class="small dim">· passwords are hashed</span></div>
-    <div class="list-item"><span class="grow dim">Previous keys</span>${
-    v.previous.length
-      ? html`<span>${
-        v.previous.map((/** @type {any} */ p) =>
-          html`<div><code>${p.fingerprint}</code> <span class="small dim">· needed by ${
-            needing(p.fingerprint)
-          } ${needing(p.fingerprint) === 1 ? 'copy' : 'copies'} here${
-            p.removableAfter ? `, and by the host's snapshots until it prunes them` : ''
-          }</span>
-            <button type="button" class="btn sm" onClick=${() =>
-            forget(p.fingerprint).catch((e) => toast(e.message))}>Forget</button></div>`
-        )
-      }</span>`
-      : html`<span class="dim">none</span>`
-  }</div>
-    <div class="list-item"><div class="grow"><span class="dim">Copies on this host</span>
-      ${
-    copies.length
-      ? html`
-        <table class="t mt">
-          <caption class="sr-only">Copies on this host</caption>
-          <thead>
-            <tr>
-              <th>Copy</th>
-              <th>Made</th>
-              <th class="num">Size</th>
-              <th>Opens</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>${copies.map((/** @type {any} */ c) =>
-            html`
-              <tr>
-                <td><code>${c.name}</code><div class="small dim">${c.what}</div></td>
-                <td>${moment(c.made)}</td>
-                <td class="num">${(c.bytes / 1048576).toFixed(1)} MB</td>
-                <td class="small">${opensWith(c.opens)}${c.masterKey
-                  ? html`${' '}<code>${c.masterKey}</code>`
-                  : null}</td>
-                <td><button type="button" class="btn sm" onClick=${() =>
-                  removeCopy(c).catch((e) => toast(e.message))}>Remove</button></td>
-              </tr>
+      : null}</h3>
+        <p class="small dim" style=${{
+          marginTop: 0,
+        }}>The master key is the recovery phrase, never stored: it is entered when the server starts.
+          Rotate changes it, and re-encrypts everything under a new data key.</p>
+        <div class="list-item"><span class="grow dim">Fingerprint</span><code>${v
+          .fingerprint}</code></div>
+        <div class="list-item"><span class="grow dim">Made</span>${day(v.created)} · ${v
+          .ageDays} days old
+          ${v.reminderMonths
+            ? html`<span class="small dim"> · rotation reminder at ${v.reminderMonths} months</span>`
+            : null}
+          ${v.reminderDue
+            ? html`
+              <span class="pill warn">time to rotate</span>
             `
-          )}</tbody>
-        </table>
-      `
-      : html`<span class="small dim"> none</span>`
-  }
-      <div class="small dim">${/** @type {any} */ (cps.data)?.note || ''}</div></div></div>
-    <div class="list-item"><div class="grow">Recovery phrase<div class="small dim">${
-    confirmed
-      ? `Last confirmed ${
-        confirmed.how === 'unlock'
-          ? 'by the unlock'
-          : confirmed.how === 'app'
-          ? 'with Verify key'
-          : 'with moolakata keys verify'
-      } on ${day(confirmed.at)}.`
-      : 'Not confirmed since install. Every unlock confirms it; check each copy once a year with Verify key.'
-  }</div></div>
-      ${
-    confirmed
-      ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
-      : html`<span class="pill warn">unchecked</span>`
-  }<button type="button" class="btn sm" onClick=${() =>
-    verify().catch((e) => toast(e.message))}>Verify key</button></div>
-    <div class="notice mt"><${Icon} name="alert" /><div>Without the recovery phrase, nothing here and no backup can be
-      opened, and the server cannot even start serving. Keep the phrase in two places, one offline.</div></div>
-    ${
-    test
-      ? html`<ul class="small">${
-        test.checks.map((/** @type {any} */ c) =>
-          html`<li>${c.ok ? '✓' : '✗'} <b>${c.name}</b>: ${c.detail}</li>`
-        )
-      }</ul>`
-      : null
-  }
-    ${
-    v.scheduled
-      ? html`<div class="notice mt" role="status" data-help="scheduled"><${Icon} name="refresh" /><div
-          class="grow">A re-encryption is scheduled for the next restart${
-        v.scheduled.why ===
-            'rotation'
-          ? ', brought by a rotation on the host'
-          : ''
-      }. The next unlock runs it before the server serves, with the phrase given there,
-          its progress on the locked screen.${
-        v.scheduled.started ? ' It has begun, and finishes at the next unlock.' : ''
-      }</div>${
-        v.scheduled.started ? null : html`
-          <button type="button" class="btn sm"
-            disabled=${unschedule.busy} onClick=${() =>
-              unschedule.run().catch(() => {})}>Cancel it</button>
-        `
-      }</div>`
-      : null
-  }${
-    v.lastReencryption &&
-      (v.lastReencryption.receiptsSetAside.length || v.lastReencryption.secretsSetAside.length)
-      ? html`
-        <div class="notice small bad mt" role="status">
-          <${Icon} name="alert" />
-          <div>The last
-                  re-encryption, ${day(v.lastReencryption.finishedAt)}, set aside ${v
-                    .lastReencryption
-                    .receiptsSetAside.length} receipt files and left ${v.lastReencryption
-                    .secretsSetAside
-                    .length} secrets that opened under neither key: the files are in <code
-                  >receipts-set-aside/</code> in the data directory.</div>
-        </div>
-      `
-      : null
-  }${
-    v.lastRestore &&
-      (v.lastRestore.receiptsUnopened.length || v.lastRestore.secretsUnopened.length ||
-        v.lastRestore.receiptsSetAside.length)
-      ? html`
-        <div class="notice small bad mt" role="status" data-help="after-restore">
-          <${Icon}
-            name="alert" />
-          <div>After the restore of <code>${v.lastRestore.source}</code>:
-                  ${v.lastRestore.receiptsUnopened
-                    .length} receipts' files don't open (or are missing),
-                  ${v.lastRestore.secretsUnopened.length} secrets don't open, and
-                  ${v.lastRestore.receiptsSetAside
-                    .length} files were set aside. Put the receipts back from
-                  the host's own backup of the same moment; enter the secrets again.</div>
-        </div>
-      `
-      : null
-  }
-    <div class="toolbar mt"><button type="button" class="btn" onClick=${() =>
-    api.post('/settings/keys/test').then(setTest)}>Test</button>
-      ${
-    armed || v.scheduled
-      ? null
-      : html`<button type="button" class="btn" onClick=${() =>
-        setArmed(true)}>Re-encrypt at the next restart</button>`
-  }
-      <span class="small dim">A new data key, made at the next unlock before the server serves. For when the data key may have been read: a memory dump or a debugging session. A leaked phrase calls for a rotation, which re-encrypts too. It closes nothing made before it.</span></div>
-    ${
-    armed
-      ? html`
-        <form class="mt" onSubmit=${(/** @type {Event} */ e) => {
-          e.preventDefault();
-          reencrypt.run().catch(() => {});
-        }}>
-          <p class="small dim" style=${{ marginTop: 0 }}>At the next unlock, before the server
-            serves: a verified backup first; then the database, the receipt files and every
-            secret are rewritten under a new data key, and the copies below as you choose. The
-            phrase given at the unlock wraps the new key.</p>
-            ${copies.length
-              ? html`<div class="field" data-help="copies-at-re-encryption"><label>The copies on this host</label>
-                ${
-                copies.map((/** @type {any} */ c) =>
+            : null}</div>
+        <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${(v
+          .databaseBytes / 1048576).toFixed(1)} MB), ${v.receipts} receipt file${v.receipts === 1
+          ? ''
+          : 's'}, ${v.secrets} secret${v.secrets === 1 ? '' : 's'}
+          <span class="small dim">· passwords are hashed</span></div>
+        <div class="list-item"><span class="grow dim">Previous keys</span>${v.previous.length
+          ? html`<span>${
+            v.previous.map((/** @type {any} */ p) =>
+              html`<div><code>${p.fingerprint}</code> <span class="small dim">· needed by ${
+                needing(p.fingerprint)
+              } ${needing(p.fingerprint) === 1 ? 'copy' : 'copies'} here${
+                p.removableAfter ? `, and by the host's snapshots until it prunes them` : ''
+              }</span>
+            <button type="button" class="btn sm" onClick=${() =>
+                forget(p.fingerprint).catch((e) => toast(e.message))}>Forget</button></div>`
+            )
+          }</span>`
+          : html`<span class="dim">none</span>`}</div>
+        <div class="list-item"><div class="grow"><span class="dim">Copies on this host</span>
+          ${copies.length
+            ? html`
+              <table class="t mt">
+                <caption class="sr-only">Copies on this host</caption>
+                <thead>
+                  <tr>
+                    <th>Copy</th>
+                    <th>Made</th>
+                    <th class="num">Size</th>
+                    <th>Opens</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>${copies.map((/** @type {any} */ c) =>
                   html`
-                    <div class="list-item">
-                      <div class="grow"><code>${c.name}</code>
-                                        <div class="small dim">${c.what} · ${opensWith(
-                                          c.opens,
-                                        )}</div></div>
-                      <span
-                        style=${{ flex: 'none', width: '180px' }}><${Select} value=${choiceOf(
-                          c,
-                        )} onChange=${(/** @type {string} */ x) =>
-                          setChoices({ ...choices, [c.name]: x })} options=${[
-                          ['reencrypt', 'Re-encrypt'],
-                          ['delete', 'Delete'],
-                          ['leave', 'Leave as it is'],
-                        ]} /></span>
-                    </div>
+                    <tr>
+                      <td><code>${c.name}</code><div class="small dim">${c.what}</div></td>
+                      <td>${moment(c.made)}</td>
+                      <td class="num">${(c.bytes / 1048576).toFixed(1)} MB</td>
+                      <td class="small">${opensWith(c.opens)}${c.masterKey
+                        ? html`${' '}<code>${c.masterKey}</code>`
+                        : null}</td>
+                      <td><button type="button" class="btn sm" onClick=${() =>
+                        removeCopy(c).catch((e) => toast(e.message))}>Remove</button></td>
+                    </tr>
                   `
-                )
-              }
-                <div class="small dim">A copy that needs a previous phrase can only be left or deleted.</div></div>`
-              : null}
-            <${FormError} error=${reencrypt.error} />
-            <div class="toolbar"><button class="btn primary" disabled=${reencrypt
-              .busy}>Schedule it</button>
-                    <button type="button" class="btn" onClick=${() =>
-                      setArmed(false)}>Cancel</button></div>
+                )}</tbody>
+              </table>
+            `
+            : html`<span class="small dim"> none</span>`}
+          <div class="small dim">${/** @type {any} */ (cps.data)?.note || ''}</div></div></div>
+        <div class="list-item"><div class="grow">Recovery phrase<div class="small dim">${confirmed
+          ? `Last confirmed ${
+            confirmed.how === 'unlock'
+              ? 'by the unlock'
+              : confirmed.how === 'app'
+              ? 'with Verify key'
+              : 'with moolakata keys verify'
+          } on ${day(confirmed.at)}.`
+          : 'Not confirmed since install. Every unlock confirms it; check each copy once a year with Verify key.'}</div></div>
+          ${confirmed
+            ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
+            : html`<span class="pill warn">unchecked</span>`}<button type="button" class="btn sm" onClick=${() =>
+            verify().catch((e) => toast(e.message))}>Verify key</button></div>
+        ${last
+          ? html`
+            <div class="list-item" data-help="last-reencryption">
+              <div class="grow"><span class="dim">Last re-encryption</span>
+                      <div class="small">${day(last.finishedAt)}${last.why === 'rotation'
+                        ? ', with a rotation'
+                        : last.why === 'host'
+                        ? ', on the host'
+                        : ', from Settings'}${last.receiptsSetAside.length ||
+                          last.secretsSetAside.length
+                        ? html`
+                          : set aside ${last.receiptsSetAside.length} receipt files and left ${last
+                            .secretsSetAside
+                            .length} secrets that opened under neither key (the files are in <code
+                          >receipts-set-aside/</code> in the data directory)
+                        `
+                        : ': everything opened'}.</div>
+                      ${last.rotationUnfinished
+                        ? html`
+                          <div class="notice small bad mt" role="status">
+                            <${Icon} name="alert" />
+                            <div>The
+                                        rotation didn't finish: the keyring stayed under <code>${last
+                                          .rotationUnfinished}</code>, so it re-encrypted under that phrase. Rotate again.</div>
+                          </div>
+                        `
+                        : null}
+                      ${lastCopies.length
+                        ? html`<ul class="small" style=${{ margin: '4px 0 0' }}>${
+                          lastCopies.map(([name, o]) =>
+                            html`<li><code>${name}</code>: ${o}${
+                              leftUnder(String(o))
+                                ? html`
+                                  <span class="pill warn">still opens with an old key</span>
+                                `
+                                : null
+                            }</li>`
+                          )
+                        }</ul>`
+                        : null}</div>
+            </div>
+          `
+          : null}
+        <div class="notice mt"><${Icon} name="alert" /><div>Without the recovery phrase, nothing here and no backup can be
+          opened, and the server cannot even start serving. Keep the phrase in two places, one offline.</div></div>
+        ${test
+          ? html`<ul class="small">${
+            test.checks.map((/** @type {any} */ c) =>
+              html`<li>${c.ok ? '✓' : '✗'} <b>${c.name}</b>: ${c.detail}</li>`
+            )
+          }</ul>`
+          : null}
+        ${v.scheduled
+          ? html`
+            <div class="notice mt" role="status" data-help="scheduled">
+              <${Icon} name="refresh" />
+              <div
+                class="grow">A re-encryption${v.scheduled.why === 'rotation'
+                  ? ', brought by a rotation,'
+                  : ''} waits for the restart: the unlock runs it before the server serves, with the phrase
+                      given there, its progress on the locked screen.</div>
+            </div>
+          `
+          : null}${v.lastRestore &&
+            (v.lastRestore.receiptsUnopened.length || v.lastRestore.secretsUnopened.length ||
+              v.lastRestore.receiptsSetAside.length)
+          ? html`
+            <div class="notice small bad mt" role="status" data-help="after-restore">
+              <${Icon}
+                name="alert" />
+              <div>After the restore of <code>${v.lastRestore.source}</code>:
+                      ${v.lastRestore.receiptsUnopened
+                        .length} receipts' files don't open (or are missing),
+                      ${v.lastRestore.secretsUnopened.length} secrets don't open, and
+                      ${v.lastRestore.receiptsSetAside
+                        .length} files were set aside. Put the receipts back from
+                      the host's own backup of the same moment; enter the secrets again.</div>
+            </div>
+          `
+          : null}
+        <div class="toolbar mt"><button type="button" class="btn" onClick=${() =>
+          api.post('/settings/keys/test').then(setTest)}>Test</button>
+          ${armed || v.scheduled ? null : html`
+            <button type="button" class="btn" onClick=${rotate}>Rotate</button>
+            <button type="button" class="btn" onClick=${() =>
+              setArmed(true)}>Re-encrypt now</button>
+          `}
+          <span class="small dim">Rotate gives a new phrase, for a leaked or lost one or the yearly
+            reminder. Re-encrypt now keeps the phrase and makes a new data key, for when the data key
+            may have been read: a memory dump or a debugging session. Both restart MoolaKata, which
+            then asks for the phrase.</span></div>
+        ${armed
+          ? html`
+            <form class="mt" onSubmit=${(/** @type {Event} */ e) => {
+              e.preventDefault();
+              reencrypt.run().catch(() => {});
+            }}>
+              <p class="small dim" style=${{
+                marginTop: 0,
+              }}>MoolaKata restarts at once, locked. At the
+                unlock, before it serves: a verified backup first; then the database, the receipt
+                files and every secret are rewritten under a new data key, and the copies below as
+                you choose. The phrase given at the unlock wraps the new key.</p>
+              <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
+              <${FormError} error=${reencrypt.error} />
+              <div
+                class="toolbar"><button class="btn primary" disabled=${reencrypt
+                  .busy}>Re-encrypt and restart</button>
+                        <button type="button" class="btn" onClick=${() =>
+                          setArmed(false)}>Cancel</button></div>
             </form>
-      `
-      : null
-  }
-  </div>`;
+          `
+          : null}
+      </div>
+    <${ReminderSetting} />
+  `;
 }

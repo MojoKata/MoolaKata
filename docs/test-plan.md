@@ -75,8 +75,8 @@ descriptor) and a few of whose transactions are known. Mainnet.
 **Needs:** a Raspberry Pi 4 (4 GB) or 5, or an arm64 NAS, with Docker, and the images built
 with `--platform linux/amd64,linux/arm64`.
 
-1. Load both images; install as `operations.md` §2; `keys init`; start; unlock with the
-   phrase. Passing: `/healthz` says `locked` first, `docker compose ps` shows healthy within
+1. Load both images; install as `operations.md` §2; start; make the key in the welcome;
+   restart and unlock with the phrase. Passing: `/healthz` says `locked` first, `docker compose ps` shows healthy within
    two minutes of the unlock, and the default admin's setup works.
 2. Upload a receipt photo and a statement PDF. Passing: both are read; note the seconds each
    took (S9.8.4.5 expects 3–10 s a receipt on a Pi 5).

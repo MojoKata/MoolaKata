@@ -217,7 +217,9 @@
           the master key's recovery phrase (S15.6.5), due a year after the phrase last opened
           the keyring, by an unlock, **Verify key** or `keys verify`, or after the key was made,
           which opens Settings › Key storage's **Verify key**; the master
-          key's rotation, due after the period Settings › Key storage sets (S15.8.4); and the
+          key's rotation, due after the period Settings › Key storage sets (S15.8.4), which
+          opens Key storage's **Rotate**; a break-glass code asked for on the host, for two
+          days, so one nobody here asked for is noticed (S15.5.2); and the
           receipt reader running without its file sandbox, on a host that doesn't offer
           Landlock (S9.8.4.2). An admin's alert about someone else's account names its owner and source, never the
           account's name or figures (S10.2);
@@ -291,7 +293,9 @@
        says how long to wait. Once unlocked, the screen gives way to sign-in, or to **Set up
        the admin account** while there are no users (S10.1.2). A page open when the server
        restarts lands on it at its next request, as it lands on sign-in when a session ends
-       (S12.6).
+       (S12.6). After **Rotate** or **Re-encrypt now** (S16.13), the page that asked shows
+       **MoolaKata is restarting** until the server answers locked, then this screen; a
+       server not back within a minute is said to need starting on the host.
 15. **Editing and saving.** A form that changes records, in a dialog or on a screen
     (Settings, Profile), edits a **draft** of them (`app/draft.js`, S17.3.9), and nothing
     reaches the server until **Save**.

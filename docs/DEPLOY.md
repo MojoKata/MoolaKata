@@ -379,8 +379,9 @@ whenever you make a new copy; the yearly alert opens it.
   TrueNAS: **Stop** (■ under **Controls**, in the app's row), then in **System › Shell**
   `sudo find /mnt/tank/moolakata/data /mnt/tank/moolakata/backups -mindepth 1 -delete`,
   and **Start** in the same place.
-- **A lost phrase**: a running, unlocked server can still make a new one,
-  `keys rotate` (operations.md §7). Once it restarts without one, nothing opens the data.
+- **A lost phrase**: a running, unlocked server can still make a new one: **Rotate** in
+  Settings › Key storage, with a code from `keys break-glass` in place of the phrase
+  (operations.md §7). Once it restarts without one, nothing opens the data.
 
 ## 8. The MoolaKata Connector
 

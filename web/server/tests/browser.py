@@ -18,8 +18,7 @@ from edits import edit, giving_plan, make, save_settings, saved, share, tag, ter
 from jscoverage import SETTLED, TRACK_FETCHES
 
 from moolakata.config import load
-from moolakata.keys import cli as keys_cli
-from moolakata.keys import phrase
+from moolakata.keys import master, phrase
 
 PASSWORD = "a long admin passphrase"
 
@@ -46,7 +45,10 @@ data = "{tmp / "data"}"
 backups = "{tmp / "backups"}"
 socket = "{tmp / "run" / "sock"}"
 """)
-    key = keys_cli.init(load(config), say=lambda _: None, confirm=False) if keyed else None
+    key = None
+    if keyed:
+        key = os.urandom(16)
+        master.create_keyring(load(config), key)
     log = open(tmp / "server.log", "wb")  # noqa: SIM115 - a file: an unread pipe fills up
     proc = subprocess.Popen(
         [sys.executable, "-m", "moolakata.main", "--config", str(config), "serve"],

@@ -184,21 +184,34 @@ def write_keyring(path: Path, ring: Keyring, owner: int | None = None) -> None:
     os.replace(tmp, path)
 
 
+def create_keyring(config: Config, master: bytes) -> Keyring:
+    """A new server's keyring: a new data key wrapped under the master key (S15.4.4). The
+    welcome makes one; so does a dev server, and a test."""
+    if config.keyring_path.exists():
+        raise RefuseStart(f"{config.keyring_path} already exists: this data directory has a key")
+    refuse_a_database_without_its_keyring(config)
+    config.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    at = now()
+    ring = wrap(master, new_data_key(), at, at)
+    write_keyring(config.keyring_path, ring)
+    return ring
+
+
 def read_keyring(path: Path) -> Keyring:
     try:
         return Keyring.from_json(path.read_text())
     except FileNotFoundError:
         raise RefuseStart(
-            f"the keyring {path} is missing; restore it from a backup, or run "
-            "`moolakata keys init` on a new server"
+            f"the keyring {path} is missing; restore it from a backup, or, on a new server, "
+            "empty the data directory and open the page, whose welcome makes the key"
         ) from None
     except (ValueError, KeyError) as e:
         raise RefuseStart(f"the keyring {path} cannot be read: {e}") from None
 
 
 def refuse_a_database_without_its_keyring(config: Config) -> None:
-    """A database whose keyring is gone opens with no key made now, so neither the welcome
-    nor `keys init` may make one for it: the start is refused (S15.4.5)."""
+    """A database whose keyring is gone opens with no key made now, so the welcome may not
+    make one for it: the start is refused (S15.4.5)."""
     if config.db_path.exists() and not config.keyring_path.exists():
         raise RefuseStart(
             f"{config.db_path} has no keyring beside it: bring its own back with `moolakata db "

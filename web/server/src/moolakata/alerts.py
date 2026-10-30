@@ -398,11 +398,37 @@ def key_rotation(s: Session, server) -> Iterable[Cause]:
             key="keys:rotation",
             kind="key-rotation",
             title="Time to rotate the master key",
-            about=f"it is over {months} months old: `moolakata keys rotate` on the host",
+            about=f"it is over {months} months old: Rotate, in Settings › Key storage",
             link="/ui/settings/keys",
             fix="Key storage",
             icon="lock",
             since=due,
+        )
+
+
+BREAK_GLASS_DAYS = 2
+
+
+@check
+def break_glass(s: Session, server) -> Iterable[Cause]:
+    """A break-glass code asked for on the host (S15.5.2): every admin is told, for two days,
+    so one nobody asked for is noticed."""
+    from .store.entities.core import Activity
+
+    at = s.scalars(
+        select(Activity.at).where(Activity.kind == "keys.break-glass").order_by(Activity.at.desc())
+    ).first()
+    if at is not None and clock.now() < at + dt.timedelta(days=BREAK_GLASS_DAYS):
+        yield Cause(
+            key="keys:break-glass",
+            kind="break-glass",
+            title="A break-glass code was asked for on the host",
+            about="it stands in for the recovery phrase at Rotate; if nobody here asked, someone "
+            "has the server's host",
+            link="/ui/activity",
+            fix="Activity",
+            icon="lock",
+            since=at,
         )
 
 
@@ -914,6 +940,7 @@ _KINDS = {
     "reader_sandbox": {"reader-sandbox"},
     "recovery_phrase": {"phrase-check"},
     "key_rotation": {"key-rotation"},
+    "break_glass": {"break-glass"},
     "accounts": {"statement-overdue", "reconcile-mismatch"},
     "statement_values": {"statement-value-old"},
     "projections_behind": {"projection-behind"},
