@@ -12,6 +12,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from jscoverage import CHARTS_DRAWN
 
 pytestmark = pytest.mark.browser
 
@@ -173,6 +174,8 @@ def visit(page, path: str) -> None:
         if not page.evaluate("document.querySelector('.content [aria-busy=\"true\"]')"):
             break
         page.wait_for_timeout(50)
+    # Each chart drawn, so the next screen never tears one down half-loaded (S17.5.8).
+    page.wait_for_function(CHARTS_DRAWN, timeout=15000)
     page.wait_for_timeout(300)
 
 

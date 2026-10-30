@@ -110,4 +110,6 @@
       a preview of the coverage site.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
-   server's frozen one where a test freezes it.
+   server's frozen one where a test freezes it. Whenever a test waits for the page, and before
+   a page's coverage is taken, each chart on it is drawn first, so what the tests reach doesn't
+   depend on how soon a test moves on.

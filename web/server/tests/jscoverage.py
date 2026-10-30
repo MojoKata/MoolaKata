@@ -6,12 +6,18 @@ before it closes, each of the app's files it ran is written there in the form `d
 Pages are found by wrapping Playwright's `new_page` and `close`: a page opened another way (a
 pop-up) is not measured."""
 
+import contextlib
 import json
 import os
 import uuid
 from pathlib import Path
 
 UI = Path(__file__).resolve().parents[2] / "ui"
+# Each chart on the page drawn: ECharts loads on first use and draws its SVG into the box.
+# A function, not an expression: the app's CSP refuses eval.
+CHARTS_DRAWN = (
+    "() => [...document.querySelectorAll('.chart-box')].every((b) => b.querySelector('svg'))"
+)
 _started: set = set()
 
 
@@ -28,6 +34,10 @@ def _take(page, out: Path) -> None:
     if page not in _started or page.is_closed():
         return
     _started.discard(page)
+    # Each chart drawn first, as browser.wait() does, so a chart counts the same each run; a
+    # page gone elsewhere or never drawing one gives what ran.
+    with contextlib.suppress(Exception):
+        page.wait_for_function(CHARTS_DRAWN, timeout=5_000)
     try:
         scripts = page._mk_coverage.send("Profiler.takePreciseCoverage")["result"]
     except Exception:  # a page that crashed has nothing to give
