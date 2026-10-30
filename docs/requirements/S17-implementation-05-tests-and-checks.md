@@ -113,5 +113,8 @@
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before
-   a page's coverage is taken, each chart on it is drawn first, so what the tests reach doesn't
-   depend on how soon a test moves on.
+   a page's coverage is taken, the page settles first: none of its requests in flight (and
+   none for 150 ms, the time for a screen to start what it fetches next), no Loading
+   placeholder showing, and each chart drawn. A test then leaves each screen in the same state
+   every run, and what the tests reach doesn't depend on how soon a test moves on. What still
+   varies is the order in which a screen's parallel requests answer.

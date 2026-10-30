@@ -13,11 +13,33 @@ import uuid
 from pathlib import Path
 
 UI = Path(__file__).resolve().parents[2] / "ui"
-# Each chart on the page drawn: ECharts loads on first use and draws its SVG into the box.
+# What a test waits for before it moves on, so it leaves each screen in the same state every run
+# and the code the tests reach doesn't depend on their timing (S17.5.8). TRACK_FETCHES, run in
+# each page before its own scripts, counts the requests in flight until their bodies are read;
+# SETTLED holds once none has been for 150 ms (time for a screen to start what it fetches
+# next), no Loading placeholder shows, and each chart has drawn (ECharts loads on first use and
+# draws its SVG into the box). The page's open event stream is not a fetch, so it never counts.
+TRACK_FETCHES = """(() => {
+  let pending = 0;
+  let quiet = 0;
+  const fetch0 = window.fetch.bind(window);
+  window.__mkSettled = () => pending === 0 && performance.now() - quiet > 150;
+  window.fetch = (...args) => {
+    pending++;
+    const answer = fetch0(...args);
+    answer.then((r) => r.clone().arrayBuffer()).catch(() => {}).finally(() =>
+      setTimeout(() => {
+        pending--;
+        quiet = performance.now();
+      }, 0)
+    );
+    return answer;
+  };
+})();"""
 # A function, not an expression: the app's CSP refuses eval.
-CHARTS_DRAWN = (
-    "() => [...document.querySelectorAll('.chart-box')].every((b) => b.querySelector('svg'))"
-)
+SETTLED = """() => (!window.__mkSettled || window.__mkSettled())
+  && !document.querySelector('[aria-busy="true"]')
+  && [...document.querySelectorAll('.chart-box')].every((b) => b.querySelector('svg'))"""
 _started: set = set()
 
 
@@ -34,10 +56,10 @@ def _take(page, out: Path) -> None:
     if page not in _started or page.is_closed():
         return
     _started.discard(page)
-    # Each chart drawn first, as browser.wait() does, so a chart counts the same each run; a
-    # page gone elsewhere or never drawing one gives what ran.
+    # Settled first, as browser.wait() does, so a page counts the same each run; a page gone
+    # elsewhere or never settling gives what ran.
     with contextlib.suppress(Exception):
-        page.wait_for_function(CHARTS_DRAWN, timeout=5_000)
+        page.wait_for_function(SETTLED, timeout=5_000)
     try:
         scripts = page._mk_coverage.send("Profiler.takePreciseCoverage")["result"]
     except Exception:  # a page that crashed has nothing to give

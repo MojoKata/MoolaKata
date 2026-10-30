@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import httpx
 import pytest
 from edits import edit, giving_plan, make, save_settings, saved, share, tag, terms, wallet
-from jscoverage import CHARTS_DRAWN
+from jscoverage import SETTLED, TRACK_FETCHES
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -103,6 +103,7 @@ def open_page(browser, url):
     """A page at a desktop window's size, and the list of what went wrong on it: page errors,
     console errors, and answers of 400 or more."""
     page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.add_init_script(TRACK_FETCHES)
     problems = []
     page.on("pageerror", lambda e: problems.append(f"page error: {e}"))
     # The session check before signing in answers 401 by design; its "Failed to load resource"
@@ -128,14 +129,14 @@ def open_page(browser, url):
 
 
 def wait(page, selector: str, problems: list, **kw) -> None:
-    """Wait for a selector, then for each chart on the page to be drawn, so the test moves on
-    the same way every run (S17.5.8); a timeout names what the page reported on the way, and
-    leaves a screenshot where MK_FAIL_SHOT says."""
+    """Wait for a selector, then for the page to settle (jscoverage.SETTLED), so the test moves
+    on from the same state every run (S17.5.8); a timeout names what the page reported on the
+    way, and leaves a screenshot where MK_FAIL_SHOT says."""
     from playwright.sync_api import TimeoutError as Late
 
     try:
         page.wait_for_selector(selector, **kw)
-        page.wait_for_function(CHARTS_DRAWN)
+        page.wait_for_function(SETTLED)
     except Late:
         shot = os.environ.get("MK_FAIL_SHOT")
         if shot:
