@@ -142,8 +142,11 @@ def _take(lot: OpenLot, qty: Decimal) -> Decimal | None:
 
 
 def kept_by_snapshots(transactions: list, lots: list) -> bool:
-    """No trades of its own: no transaction in an instrument, and no lot typed on its own."""
-    return not any(t.instrumentId for t in transactions) and all(x.transactionId for x in lots)
+    """No trades of its own: no transaction that makes or takes away a lot, and no lot typed
+    on its own."""
+    return not any(t.instrumentId and t.kind in TRADES for t in transactions) and all(
+        x.transactionId for x in lots
+    )
 
 
 def replay(
@@ -496,6 +499,12 @@ OPTION_TRADES = (
     "assign",
     "exercise",
 )
+
+# What makes or takes away a lot (kept_by_snapshots): an account with none of these, and no
+# lot typed on its own, is kept by snapshots (R3.2). Income and fees on an instrument (a cash
+# dividend, interest, a distribution) and what only changes the lots there are (a split, a
+# corporate action) aren't.
+TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", *OPTION_TRADES)
 
 
 def _option(out: Replay, t, picks: list) -> None:

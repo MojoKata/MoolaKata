@@ -1,0 +1,14 @@
+Empower Retirement
+Acme Corp 401(k) Plan  Account ending 0099
+Statement Period: 07/01/2026 - 09/30/2026
+Your Account Summary
+Beginning Balance $88,000.00
+Contributions 4,500.00
+Change in Value 1,210.55
+Ending Balance $93,710.55
+Your Investments
+Fund Units Price Balance
+Vanguard Target Retirement 2045 Trust
+1,012.4410 54.12 54,793.31
+Stable Value Fund
+3,891.7240 10.00 38,917.24

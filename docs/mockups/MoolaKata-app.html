@@ -1489,6 +1489,27 @@
     border-radius: 14px;
     z-index: 1;
   }
+  /* "Ignore future lines starting with:", beneath a statement's line (S1.3.3.4). */
+  .ask-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ask-inline .in {
+    flex: 1;
+    min-width: 160px;
+  }
+  /* The question before a delete (S12.16), over the page or a dialog. */
+  .confirm-scrim {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    z-index: 60;
+    padding: 16px;
+  }
   .dialog-ask-box {
     background: var(--bg-2);
     border: 1px solid var(--border-strong);
@@ -2334,6 +2355,7 @@ ol.phrase li::marker {
 "GET /ui/api/settings/tax-tables":{"body": {"rows": [{"corrected": false, "figureId": null, "group": "Retirement", "key": "iraLimit", "kind": "money", "label": "IRA contribution limit", "shipped": 7500, "source": "IRS", "value": 7500, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "iraCatchUp", "kind": "money", "label": "IRA catch-up (50+)", "shipped": 1100, "source": "IRS", "value": 1100, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "k401Deferral", "kind": "money", "label": "401(k) employee deferral", "shipped": 24500, "source": "IRS", "value": 24500, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "k401CatchUp", "kind": "money", "label": "401(k) catch-up (50–59, 64+)", "shipped": 8000, "source": "IRS", "value": 8000, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "k401CatchUp6063", "kind": "money", "label": "401(k) catch-up (60–63)", "shipped": 11250, "source": "IRS", "value": 11250, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "hsaSelf", "kind": "money", "label": "HSA, self-only", "shipped": 4400, "source": "IRS", "value": 4400, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "hsaFamily", "kind": "money", "label": "HSA, family", "shipped": 8750, "source": "IRS", "value": 8750, "version": 0}, {"corrected": false, "figureId": null, "group": "Retirement", "key": "rmdAge", "kind": "number", "label": "RMD starting age", "shipped": 73, "source": "IRS", "value": 73, "version": 0}, {"corrected": false, "figureId": null, "group": "Gifts and giving", "key": "giftExclusion", "kind": "money", "label": "Annual gift exclusion", "shipped": 19000, "source": "IRS", "value": 19000, "version": 0}, {"corrected": false, "figureId": null, "group": "Gifts and giving", "key": "rothFrom529", "kind": "money", "label": "529 to Roth IRA, lifetime", "shipped": 35000, "source": "IRS", "value": 35000, "version": 0}, {"corrected": false, "figureId": null, "group": "Gifts and giving", "key": "qcdLimit", "kind": "money", "label": "QCD limit", "shipped": 111000, "source": "IRS", "value": 111000, "version": 0}, {"corrected": false, "figureId": null, "group": "Taxes", "key": "collectablesRate", "kind": "percent", "label": "Collectables rate (max)", "shipped": 28, "source": "IRS", "value": 28, "version": 0}, {"corrected": false, "figureId": null, "group": "Taxes", "key": "form8615Threshold", "kind": "money", "label": "Form 8615 unearned income", "shipped": 2700, "source": "IRS", "value": 2700, "version": 0}, {"corrected": false, "figureId": null, "group": "Taxes", "key": "federalDue", "kind": "numbers", "label": "Federal return due (month, day)", "shipped": [4, 15], "source": "IRS", "value": [4, 15], "version": 0}, {"corrected": false, "figureId": null, "group": "Education", "key": "collegePublic", "kind": "money", "label": "College a year, public four-year (in-state)", "shipped": 27100, "source": "NCES Digest of Education Statistics, table 330.10", "value": 27100, "version": 0}, {"corrected": false, "figureId": null, "group": "Education", "key": "collegePrivate", "kind": "money", "label": "College a year, private nonprofit four-year", "shipped": 60300, "source": "NCES Digest of Education Statistics, table 330.10", "value": 60300, "version": 0}, {"corrected": false, "figureId": null, "group": "Metal spot", "key": "slvOzPerShare", "kind": "number", "label": "Silver per SLV share (troy oz)", "shipped": 0.8591, "source": "iShares", "value": 0.8591, "version": 0}, {"corrected": false, "figureId": null, "group": "Metal spot", "key": "ppltOzPerShare", "kind": "number", "label": "Platinum per PPLT share (troy oz)", "shipped": 0.0909, "source": "abrdn", "value": 0.0909, "version": 0}, {"corrected": false, "figureId": null, "group": "Metal spot", "key": "pallOzPerShare", "kind": "number", "label": "Palladium per PALL share (troy oz)", "shipped": 0.0909, "source": "abrdn", "value": 0.0909, "version": 0}, {"corrected": false, "figureId": null, "group": "Bitcoin models", "key": "btcPowerLaw", "kind": "numbers", "label": "Bitcoin power law (A, n)", "shipped": [0.00000000000000001, 5.8], "source": "Santostasi's fit: price = A × days since the genesis block ^ n", "value": [0.00000000000000001, 5.8], "version": 0}, {"corrected": false, "figureId": null, "group": "Bitcoin models", "key": "btcLogRegression", "kind": "numbers", "label": "Bitcoin log regression (a, b)", "shipped": [2.66167155, 17.91837619], "source": "the rainbow chart's curve: log10(price) = a × ln(days) − b", "value": [2.66167155, 17.91837619], "version": 0}, {"corrected": false, "figureId": null, "group": "Bitcoin models", "key": "btcStockToFlow", "kind": "numbers", "label": "Bitcoin stock-to-flow (a, b)", "shipped": [14.6, 3.3], "source": "PlanB (2019): market value = e^a × SF^b", "value": [14.6, 3.3], "version": 0}, {"corrected": false, "figureId": null, "group": "Bitcoin models", "key": "btcSaylor2045", "kind": "numbers", "label": "Saylor 2045 (bear, base, bull)", "shipped": [3000000, 13000000, 49000000], "source": "Michael Saylor, Bitcoin24 (2024)", "value": [3000000, 13000000, 49000000], "version": 0}, {"corrected": false, "figureId": null, "group": "Bitcoin models", "key": "btcArk2030", "kind": "numbers", "label": "ARK 2030 (bear, base, bull)", "shipped": [500000, 1200000, 2400000], "source": "ARK Invest, Big Ideas (2025)", "value": [500000, 1200000, 2400000], "version": 0}], "year": 2026, "years": [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]}, "status": 200},
 "GET /ui/api/signup":{"body": {"domains": [], "open": false}, "status": 200},
 "GET /ui/api/signup-requests":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
+"GET /ui/api/statement-layouts/ignored":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
 "GET /ui/api/tax-books":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
 "GET /ui/api/timezones":{"body": {"server": "UTC", "zones": ["Africa/Abidjan", "Africa/Accra", "Africa/Addis_Ababa", "Africa/Algiers", "Africa/Asmara", "Africa/Asmera", "Africa/Bamako", "Africa/Bangui", "Africa/Banjul", "Africa/Bissau", "Africa/Blantyre", "Africa/Brazzaville", "Africa/Bujumbura", "Africa/Cairo", "Africa/Casablanca", "Africa/Ceuta", "Africa/Conakry", "Africa/Dakar", "Africa/Dar_es_Salaam", "Africa/Djibouti", "Africa/Douala", "Africa/El_Aaiun", "Africa/Freetown", "Africa/Gaborone", "Africa/Harare", "Africa/Johannesburg", "Africa/Juba", "Africa/Kampala", "Africa/Khartoum", "Africa/Kigali", "Africa/Kinshasa", "Africa/Lagos", "Africa/Libreville", "Africa/Lome", "Africa/Luanda", "Africa/Lubumbashi", "Africa/Lusaka", "Africa/Malabo", "Africa/Maputo", "Africa/Maseru", "Africa/Mbabane", "Africa/Mogadishu", "Africa/Monrovia", "Africa/Nairobi", "Africa/Ndjamena", "Africa/Niamey", "Africa/Nouakchott", "Africa/Ouagadougou", "Africa/Porto-Novo", "Africa/Sao_Tome", "Africa/Timbuktu", "Africa/Tripoli", "Africa/Tunis", "Africa/Windhoek", "America/Adak", "America/Anchorage", "America/Anguilla", "America/Antigua", "America/Araguaina", "America/Argentina/Buenos_Aires", "America/Argentina/Catamarca", "America/Argentina/ComodRivadavia", "America/Argentina/Cordoba", "America/Argentina/Jujuy", "America/Argentina/La_Rioja", "America/Argentina/Mendoza", "America/Argentina/Rio_Gallegos", "America/Argentina/Salta", "America/Argentina/San_Juan", "America/Argentina/San_Luis", "America/Argentina/Tucuman", "America/Argentina/Ushuaia", "America/Aruba", "America/Asuncion", "America/Atikokan", "America/Atka", "America/Bahia", "America/Bahia_Banderas", "America/Barbados", "America/Belem", "America/Belize", "America/Blanc-Sablon", "America/Boa_Vista", "America/Bogota", "America/Boise", "America/Buenos_Aires", "America/Cambridge_Bay", "America/Campo_Grande", "America/Cancun", "America/Caracas", "America/Catamarca", "America/Cayenne", "America/Cayman", "America/Chicago", "America/Chihuahua", "America/Ciudad_Juarez", "America/Coral_Harbour", "America/Cordoba", "America/Costa_Rica", "America/Coyhaique", "America/Creston", "America/Cuiaba", "America/Curacao", "America/Danmarkshavn", "America/Dawson", "America/Dawson_Creek", "America/Denver", "America/Detroit", "America/Dominica", "America/Edmonton", "America/Eirunepe", "America/El_Salvador", "America/Ensenada", "America/Fort_Nelson", "America/Fort_Wayne", "America/Fortaleza", "America/Glace_Bay", "America/Godthab", "America/Goose_Bay", "America/Grand_Turk", "America/Grenada", "America/Guadeloupe", "America/Guatemala", "America/Guayaquil", "America/Guyana", "America/Halifax", "America/Havana", "America/Hermosillo", "America/Indiana/Indianapolis", "America/Indiana/Knox", "America/Indiana/Marengo", "America/Indiana/Petersburg", "America/Indiana/Tell_City", "America/Indiana/Vevay", "America/Indiana/Vincennes", "America/Indiana/Winamac", "America/Indianapolis", "America/Inuvik", "America/Iqaluit", "America/Jamaica", "America/Jujuy", "America/Juneau", "America/Kentucky/Louisville", "America/Kentucky/Monticello", "America/Knox_IN", "America/Kralendijk", "America/La_Paz", "America/Lima", "America/Los_Angeles", "America/Louisville", "America/Lower_Princes", "America/Maceio", "America/Managua", "America/Manaus", "America/Marigot", "America/Martinique", "America/Matamoros", "America/Mazatlan", "America/Mendoza", "America/Menominee", "America/Merida", "America/Metlakatla", "America/Mexico_City", "America/Miquelon", "America/Moncton", "America/Monterrey", "America/Montevideo", "America/Montreal", "America/Montserrat", "America/Nassau", "America/New_York", "America/Nipigon", "America/Nome", "America/Noronha", "America/North_Dakota/Beulah", "America/North_Dakota/Center", "America/North_Dakota/New_Salem", "America/Nuuk", "America/Ojinaga", "America/Panama", "America/Pangnirtung", "America/Paramaribo", "America/Phoenix", "America/Port-au-Prince", "America/Port_of_Spain", "America/Porto_Acre", "America/Porto_Velho", "America/Puerto_Rico", "America/Punta_Arenas", "America/Rainy_River", "America/Rankin_Inlet", "America/Recife", "America/Regina", "America/Resolute", "America/Rio_Branco", "America/Rosario", "America/Santa_Isabel", "America/Santarem", "America/Santiago", "America/Santo_Domingo", "America/Sao_Paulo", "America/Scoresbysund", "America/Shiprock", "America/Sitka", "America/St_Barthelemy", "America/St_Johns", "America/St_Kitts", "America/St_Lucia", "America/St_Thomas", "America/St_Vincent", "America/Swift_Current", "America/Tegucigalpa", "America/Thule", "America/Thunder_Bay", "America/Tijuana", "America/Toronto", "America/Tortola", "America/Vancouver", "America/Virgin", "America/Whitehorse", "America/Winnipeg", "America/Yakutat", "America/Yellowknife", "Antarctica/Casey", "Antarctica/Davis", "Antarctica/DumontDUrville", "Antarctica/Macquarie", "Antarctica/Mawson", "Antarctica/McMurdo", "Antarctica/Palmer", "Antarctica/Rothera", "Antarctica/South_Pole", "Antarctica/Syowa", "Antarctica/Troll", "Antarctica/Vostok", "Arctic/Longyearbyen", "Asia/Aden", "Asia/Almaty", "Asia/Amman", "Asia/Anadyr", "Asia/Aqtau", "Asia/Aqtobe", "Asia/Ashgabat", "Asia/Ashkhabad", "Asia/Atyrau", "Asia/Baghdad", "Asia/Bahrain", "Asia/Baku", "Asia/Bangkok", "Asia/Barnaul", "Asia/Beirut", "Asia/Bishkek", "Asia/Brunei", "Asia/Calcutta", "Asia/Chita", "Asia/Choibalsan", "Asia/Chongqing", "Asia/Chungking", "Asia/Colombo", "Asia/Dacca", "Asia/Damascus", "Asia/Dhaka", "Asia/Dili", "Asia/Dubai", "Asia/Dushanbe", "Asia/Famagusta", "Asia/Gaza", "Asia/Harbin", "Asia/Hebron", "Asia/Ho_Chi_Minh", "Asia/Hong_Kong", "Asia/Hovd", "Asia/Irkutsk", "Asia/Istanbul", "Asia/Jakarta", "Asia/Jayapura", "Asia/Jerusalem", "Asia/Kabul", "Asia/Kamchatka", "Asia/Karachi", "Asia/Kashgar", "Asia/Kathmandu", "Asia/Katmandu", "Asia/Khandyga", "Asia/Kolkata", "Asia/Krasnoyarsk", "Asia/Kuala_Lumpur", "Asia/Kuching", "Asia/Kuwait", "Asia/Macao", "Asia/Macau", "Asia/Magadan", "Asia/Makassar", "Asia/Manila", "Asia/Muscat", "Asia/Nicosia", "Asia/Novokuznetsk", "Asia/Novosibirsk", "Asia/Omsk", "Asia/Oral", "Asia/Phnom_Penh", "Asia/Pontianak", "Asia/Pyongyang", "Asia/Qatar", "Asia/Qostanay", "Asia/Qyzylorda", "Asia/Rangoon", "Asia/Riyadh", "Asia/Saigon", "Asia/Sakhalin", "Asia/Samarkand", "Asia/Seoul", "Asia/Shanghai", "Asia/Singapore", "Asia/Srednekolymsk", "Asia/Taipei", "Asia/Tashkent", "Asia/Tbilisi", "Asia/Tehran", "Asia/Tel_Aviv", "Asia/Thimbu", "Asia/Thimphu", "Asia/Tokyo", "Asia/Tomsk", "Asia/Ujung_Pandang", "Asia/Ulaanbaatar", "Asia/Ulan_Bator", "Asia/Urumqi", "Asia/Ust-Nera", "Asia/Vientiane", "Asia/Vladivostok", "Asia/Yakutsk", "Asia/Yangon", "Asia/Yekaterinburg", "Asia/Yerevan", "Atlantic/Azores", "Atlantic/Bermuda", "Atlantic/Canary", "Atlantic/Cape_Verde", "Atlantic/Faeroe", "Atlantic/Faroe", "Atlantic/Jan_Mayen", "Atlantic/Madeira", "Atlantic/Reykjavik", "Atlantic/South_Georgia", "Atlantic/St_Helena", "Atlantic/Stanley", "Australia/ACT", "Australia/Adelaide", "Australia/Brisbane", "Australia/Broken_Hill", "Australia/Canberra", "Australia/Currie", "Australia/Darwin", "Australia/Eucla", "Australia/Hobart", "Australia/LHI", "Australia/Lindeman", "Australia/Lord_Howe", "Australia/Melbourne", "Australia/NSW", "Australia/North", "Australia/Perth", "Australia/Queensland", "Australia/South", "Australia/Sydney", "Australia/Tasmania", "Australia/Victoria", "Australia/West", "Australia/Yancowinna", "Brazil/Acre", "Brazil/DeNoronha", "Brazil/East", "Brazil/West", "Canada/Atlantic", "Canada/Central", "Canada/Eastern", "Canada/Mountain", "Canada/Newfoundland", "Canada/Pacific", "Canada/Saskatchewan", "Canada/Yukon", "Chile/Continental", "Chile/EasterIsland", "Europe/Amsterdam", "Europe/Andorra", "Europe/Astrakhan", "Europe/Athens", "Europe/Belfast", "Europe/Belgrade", "Europe/Berlin", "Europe/Bratislava", "Europe/Brussels", "Europe/Bucharest", "Europe/Budapest", "Europe/Busingen", "Europe/Chisinau", "Europe/Copenhagen", "Europe/Dublin", "Europe/Gibraltar", "Europe/Guernsey", "Europe/Helsinki", "Europe/Isle_of_Man", "Europe/Istanbul", "Europe/Jersey", "Europe/Kaliningrad", "Europe/Kiev", "Europe/Kirov", "Europe/Kyiv", "Europe/Lisbon", "Europe/Ljubljana", "Europe/London", "Europe/Luxembourg", "Europe/Madrid", "Europe/Malta", "Europe/Mariehamn", "Europe/Minsk", "Europe/Monaco", "Europe/Moscow", "Europe/Nicosia", "Europe/Oslo", "Europe/Paris", "Europe/Podgorica", "Europe/Prague", "Europe/Riga", "Europe/Rome", "Europe/Samara", "Europe/San_Marino", "Europe/Sarajevo", "Europe/Saratov", "Europe/Simferopol", "Europe/Skopje", "Europe/Sofia", "Europe/Stockholm", "Europe/Tallinn", "Europe/Tirane", "Europe/Tiraspol", "Europe/Ulyanovsk", "Europe/Uzhgorod", "Europe/Vaduz", "Europe/Vatican", "Europe/Vienna", "Europe/Vilnius", "Europe/Volgograd", "Europe/Warsaw", "Europe/Zagreb", "Europe/Zaporozhye", "Europe/Zurich", "Indian/Antananarivo", "Indian/Chagos", "Indian/Christmas", "Indian/Cocos", "Indian/Comoro", "Indian/Kerguelen", "Indian/Mahe", "Indian/Maldives", "Indian/Mauritius", "Indian/Mayotte", "Indian/Reunion", "Mexico/BajaNorte", "Mexico/BajaSur", "Mexico/General", "Pacific/Apia", "Pacific/Auckland", "Pacific/Bougainville", "Pacific/Chatham", "Pacific/Chuuk", "Pacific/Easter", "Pacific/Efate", "Pacific/Enderbury", "Pacific/Fakaofo", "Pacific/Fiji", "Pacific/Funafuti", "Pacific/Galapagos", "Pacific/Gambier", "Pacific/Guadalcanal", "Pacific/Guam", "Pacific/Honolulu", "Pacific/Johnston", "Pacific/Kanton", "Pacific/Kiritimati", "Pacific/Kosrae", "Pacific/Kwajalein", "Pacific/Majuro", "Pacific/Marquesas", "Pacific/Midway", "Pacific/Nauru", "Pacific/Niue", "Pacific/Norfolk", "Pacific/Noumea", "Pacific/Pago_Pago", "Pacific/Palau", "Pacific/Pitcairn", "Pacific/Pohnpei", "Pacific/Ponape", "Pacific/Port_Moresby", "Pacific/Rarotonga", "Pacific/Saipan", "Pacific/Samoa", "Pacific/Tahiti", "Pacific/Tarawa", "Pacific/Tongatapu", "Pacific/Truk", "Pacific/Wake", "Pacific/Wallis", "Pacific/Yap", "US/Alaska", "US/Aleutian", "US/Arizona", "US/Central", "US/East-Indiana", "US/Eastern", "US/Hawaii", "US/Indiana-Starke", "US/Michigan", "US/Mountain", "US/Pacific", "US/Samoa"]}, "status": 200},
 "GET /ui/api/transactions/newer":{"body": {"count": 0}, "status": 200},
@@ -2631,6 +2653,7 @@ ol.phrase li::marker {
 "GET /ui/api/shares/account/Acct_01m4rdf800e09b6x7b2wzv4ecz":{"body": {"accounts": [], "groups": [{"id": "Group_01m4rdf800e00tya428n81rvcb", "level": "none", "members": 2, "name": "Admins", "shareId": null, "version": 0}, {"id": "Group_01m4rdf800e0192x3k8skth481", "level": "none", "members": 2, "name": "Household", "shareId": null, "version": 0}], "hidden": {}, "itemId": "Acct_01m4rdf800e09b6x7b2wzv4ecz", "itemName": "Cold storage", "kind": "account", "links": [{"householdName": "Margaret & Tom", "includeReceipts": false, "linkId": "Link_01m4rdf800e00ssm4x59pbnntd", "serverName": "griffin-parents", "users": [{"avatar": null, "displayName": "Margaret Griffin", "id": "User_01m4rdf800e029senk6fw9b9rk", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}, {"avatar": null, "displayName": "Tom Griffin", "id": "User_01m4rdf800e02sbv3fknze4jfe", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}]}], "users": [{"avatar": null, "displayName": "Admin", "id": "User_01m4rdf800e00tf99mm9efehdp", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}, {"avatar": null, "displayName": "Bob Griffin", "id": "User_01m4rdf800e01skjft3xb5ewck", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}]}, "status": 200},
 "GET /ui/api/signup":{"body": {"domains": [], "open": false}, "status": 200},
 "GET /ui/api/signup-requests":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
+"GET /ui/api/statement-layouts/ignored":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
 "GET /ui/api/tags":{"body": {"items": [{"id": "Tag_01m4rdf800e00ssvkenz84y9rf", "name": "streaming", "version": 1}], "limit": 500, "offset": 0, "total": 1}, "status": 200},
 "GET /ui/api/tax-books":{"body": {"items": [{"filers": [{"accepted": true, "id": "User_01m4rdf800e018w8wax25eypm1", "name": "Alice Griffin"}, {"accepted": true, "id": "User_01m4rdf800e01skjft3xb5ewck", "name": "Bob Griffin"}], "id": "TaxBk_01m4rdf800e019wqs6vbzgak4v", "label": "2026 · Alice & Bob (joint)", "level": "owner", "version": 1, "year": 2026}, {"filers": [{"accepted": true, "id": "User_01m4rdf800e018w8wax25eypm1", "name": "Alice Griffin"}, {"accepted": true, "id": "User_01m4rdf800e01skjft3xb5ewck", "name": "Bob Griffin"}], "id": "TaxBk_01m4rdf800e00vwbqpv28aet0m", "label": "2025 · Alice & Bob (joint)", "level": "owner", "version": 1, "year": 2025}], "limit": 500, "offset": 0, "total": 2}, "status": 200},
 "GET /ui/api/tax-books/TaxBk_01m4rdf800e019wqs6vbzgak4v":{"body": {"accounts": [{"id": "Acct_01m4rdf800e039x8stdg10n97q", "name": "Acme 401(k)", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "401k"}, {"id": "Acct_01m4rdf800e0490demg1an248p", "name": "Bob's checking", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "checking"}, {"id": "Acct_01m4rdf800e05r7vayz05qa57r", "name": "Car loan", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "auto-loan"}, {"id": "Acct_01m4rdf800e09b6x7b2wzv4ecz", "name": "Cold storage", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "crypto-wallet"}, {"id": "Acct_01m4rdf800e06t36jvnxhccc5p", "name": "Collectables", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "collectables"}, {"id": "Acct_01m4rdf800e01b9479fephfqf8", "name": "Emergency savings", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "savings"}, {"id": "Acct_01m4rdf800e08aje6pr7ntwgmc", "name": "Emma's 529", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "529"}, {"id": "Acct_01m4rdf800e00rpbkavrdymf5d", "name": "Everyday checking", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "checking"}, {"id": "Acct_01m4rdf800e08vcjpgyrw4ppag", "name": "Griffin Giving Fund", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "daf"}, {"id": "Acct_01m4rdf800e03tajkg37ewybpg", "name": "Health savings", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "hsa"}, {"id": "Acct_01m4rdf800e07t7bj8fpds4tr7", "name": "Home", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "real-estate"}, {"id": "Acct_01m4rdf800e05avt2yw13jfjfr", "name": "Mortgage", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "mortgage"}, {"id": "Acct_01m4rdf800e068tc4cjbcvvx70", "name": "Precious metals", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "precious-metals"}, {"id": "Acct_01m4rdf800e04tmftpy4ag8qmn", "name": "Rollover IRA", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "ira"}, {"id": "Acct_01m4rdf800e02v874r5za7m260", "name": "Roth IRA", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "roth-ira"}, {"id": "Acct_01m4rdf800e02af3bqw26mpwnz", "name": "Taxable brokerage", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "brokerage"}, {"id": "Acct_01m4rdf800e01td4fwwhn3bshe", "name": "Travel Visa", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "credit-card"}, {"id": "Acct_01m4rdf800e07bnvqw44a8tye3", "name": "Vehicles", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "vehicle"}], "addable": [], "bitcoinFees": "sale", "canWrite": true, "claimedElsewhere": [], "dependents": [{"accountIds": [], "age": 14, "agesOut": [], "claimedAs": "qualifying child", "claimedElsewhere": false, "id": "TxDep_01m4rdf800e01rjgqxgweyrscx", "months": 12, "name": "Carol Griffin", "personId": "Persn_01m4rdf800e02tsv7f23fh5z29", "relation": "daughter", "student": true, "under13": false, "under17": true, "version": 1}, {"accountIds": [], "age": 8, "agesOut": [], "claimedAs": "qualifying child", "claimedElsewhere": false, "id": "TxDep_01m4rdf800e028v87a1sk6kfry", "months": 12, "name": "Emma Griffin", "personId": "Persn_01m4rdf800e02844dfnfyp9y96", "relation": "daughter", "student": false, "under13": true, "under17": true, "version": 1}], "expected": [{"accountId": "Acct_01m4rdf800e01b9479fephfqf8", "document": null, "form": "1099-INT", "issuer": "First Example Bank", "why": "From Emergency savings: $10 or more of interest"}, {"accountId": "Acct_01m4rdf800e03tajkg37ewybpg", "document": null, "form": "5498-SA", "issuer": "Example HSA Bank", "why": "From Health savings: an HSA"}, {"accountId": "Acct_01m4rdf800e03tajkg37ewybpg", "document": null, "form": "1099-SA", "issuer": "Example HSA Bank", "why": "From Health savings: distributions"}, {"accountId": "Acct_01m4rdf800e05avt2yw13jfjfr", "document": null, "form": "1098", "issuer": "Example Home Loans", "why": "From Mortgage: mortgage interest"}, {"accountId": "Acct_01m4rdf800e02v874r5za7m260", "document": null, "form": "5498", "issuer": "Example Brokerage", "why": "From Roth IRA: contributions"}, {"accountId": "Acct_01m4rdf800e02af3bqw26mpwnz", "document": null, "form": "1099 (composite)", "issuer": "Example Brokerage", "why": "From Taxable brokerage: a taxable brokerage account"}, {"accountId": null, "document": {"accountId": null, "accountName": null, "direction": "received", "fileName": null, "filingId": null, "form": "W-2", "id": "TxDoc_01m4rdf800e03ra9wtwjjtdxqz", "issuer": "Acme Corp", "notes": null, "receiptId": null, "version": 1}, "form": "W-2", "issuer": "Acme Corp", "why": "Received in 2025"}, {"accountId": null, "document": null, "form": "W-2", "issuer": "Northwind", "why": "Received in 2025"}, {"accountId": null, "document": null, "form": "1098-T", "issuer": null, "why": "For Carol Griffin: a student"}], "federalDue": "2027-04-15", "filers": [{"accepted": true, "id": "User_01m4rdf800e018w8wax25eypm1", "name": "Alice Griffin"}, {"accepted": true, "id": "User_01m4rdf800e01skjft3xb5ewck", "name": "Bob Griffin"}], "filings": [{"amendsId": null, "carried": {"agi": null, "basis8606": null, "capitalLossLong": null, "capitalLossShort": null, "charitableCarryover": null, "overpaymentApplied": null, "totalTax": null}, "confirmation": null, "documents": [], "dueDate": "2027-04-15", "extendedDue": null, "extensionFiledOn": null, "filedOn": null, "filingStatus": "Married filing jointly", "form": "Form 1040", "id": "Filng_01m4rdf800e01sp2b3kq2hht1y", "jurisdiction": "federal", "label": "Federal · Form 1040", "overdue": false, "payments": [], "place": null, "preparedBy": null, "progress": "not started", "resultAmount": null, "resultKind": null, "resultPaid": null, "resultTransactionId": null, "sentBy": null, "version": 1}], "form8615": [], "id": "TaxBk_01m4rdf800e019wqs6vbzgak4v", "label": "2026 · Alice & Bob (joint)", "lastYear": [{"figures": {"agi": 214380.00, "basis8606": 6500.00, "capitalLossLong": 2100.00, "capitalLossShort": null, "charitableCarryover": null, "overpaymentApplied": 0.00, "totalTax": 31920.00}, "filing": "Federal · Form 1040"}], "leftOut": [], "level": "owner", "received": [], "version": 1, "year": 2026}, "status": 200},
@@ -2809,6 +2832,7 @@ ol.phrase li::marker {
 "GET /ui/api/shares/account/Acct_01m4rdf800e05avt2yw13jfjfr":{"body": {"accounts": [], "groups": [{"id": "Group_01m4rdf800e00tya428n81rvcb", "level": "none", "members": 2, "name": "Admins", "shareId": null, "version": 0}, {"id": "Group_01m4rdf800e0192x3k8skth481", "level": "none", "members": 2, "name": "Household", "shareId": null, "version": 0}], "hidden": {}, "itemId": "Acct_01m4rdf800e05avt2yw13jfjfr", "itemName": "Mortgage", "kind": "account", "links": [{"householdName": "Margaret & Tom", "includeReceipts": false, "linkId": "Link_01m4rdf800e00ssm4x59pbnntd", "serverName": "griffin-parents", "users": [{"avatar": null, "displayName": "Margaret Griffin", "id": "User_01m4rdf800e029senk6fw9b9rk", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}, {"avatar": null, "displayName": "Tom Griffin", "id": "User_01m4rdf800e02sbv3fknze4jfe", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}]}], "users": [{"avatar": null, "displayName": "Admin", "id": "User_01m4rdf800e00tf99mm9efehdp", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}, {"avatar": null, "displayName": "Alice Griffin", "id": "User_01m4rdf800e018w8wax25eypm1", "includeReceipts": false, "level": "write", "shareId": "Share_01m4rdf800e00ttwevcxnkqh4a", "version": 1, "via": []}]}, "status": 200},
 "GET /ui/api/shares/account/Acct_01m4rdf800e07t7bj8fpds4tr7":{"body": {"accounts": [], "groups": [{"id": "Group_01m4rdf800e00tya428n81rvcb", "level": "none", "members": 2, "name": "Admins", "shareId": null, "version": 0}, {"id": "Group_01m4rdf800e0192x3k8skth481", "level": "none", "members": 2, "name": "Household", "shareId": null, "version": 0}], "hidden": {}, "itemId": "Acct_01m4rdf800e07t7bj8fpds4tr7", "itemName": "Home", "kind": "account", "links": [{"householdName": "Margaret & Tom", "includeReceipts": false, "linkId": "Link_01m4rdf800e00ssm4x59pbnntd", "serverName": "griffin-parents", "users": [{"avatar": null, "displayName": "Margaret Griffin", "id": "User_01m4rdf800e029senk6fw9b9rk", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}, {"avatar": null, "displayName": "Tom Griffin", "id": "User_01m4rdf800e02sbv3fknze4jfe", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}]}], "users": [{"avatar": null, "displayName": "Admin", "id": "User_01m4rdf800e00tf99mm9efehdp", "includeReceipts": false, "level": "none", "shareId": null, "version": 0, "via": []}, {"avatar": null, "displayName": "Alice Griffin", "id": "User_01m4rdf800e018w8wax25eypm1", "includeReceipts": false, "level": "read", "shareId": "Share_01m4rdf800e01aag5e020ykn55", "version": 1, "via": []}]}, "status": 200},
 "GET /ui/api/signup":{"body": {"domains": [], "open": false}, "status": 200},
+"GET /ui/api/statement-layouts/ignored":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
 "GET /ui/api/tags":{"body": {"items": [], "limit": 500, "offset": 0, "total": 0}, "status": 200},
 "GET /ui/api/tax-books":{"body": {"items": [{"filers": [{"accepted": true, "id": "User_01m4rdf800e018w8wax25eypm1", "name": "Alice Griffin"}, {"accepted": true, "id": "User_01m4rdf800e01skjft3xb5ewck", "name": "Bob Griffin"}], "id": "TaxBk_01m4rdf800e019wqs6vbzgak4v", "label": "2026 · Alice & Bob (joint)", "level": "owner", "version": 1, "year": 2026}, {"filers": [{"accepted": true, "id": "User_01m4rdf800e018w8wax25eypm1", "name": "Alice Griffin"}, {"accepted": true, "id": "User_01m4rdf800e01skjft3xb5ewck", "name": "Bob Griffin"}], "id": "TaxBk_01m4rdf800e00vwbqpv28aet0m", "label": "2025 · Alice & Bob (joint)", "level": "owner", "version": 1, "year": 2025}], "limit": 500, "offset": 0, "total": 2}, "status": 200},
 "GET /ui/api/tax-books/TaxBk_01m4rdf800e019wqs6vbzgak4v":{"body": {"accounts": [{"id": "Acct_01m4rdf800e039x8stdg10n97q", "name": "Acme 401(k)", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "401k"}, {"id": "Acct_01m4rdf800e0490demg1an248p", "name": "Bob's checking", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "checking"}, {"id": "Acct_01m4rdf800e05r7vayz05qa57r", "name": "Car loan", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "auto-loan"}, {"id": "Acct_01m4rdf800e09b6x7b2wzv4ecz", "name": "Cold storage", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "crypto-wallet"}, {"id": "Acct_01m4rdf800e06t36jvnxhccc5p", "name": "Collectables", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "collectables"}, {"id": "Acct_01m4rdf800e01b9479fephfqf8", "name": "Emergency savings", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "savings"}, {"id": "Acct_01m4rdf800e08aje6pr7ntwgmc", "name": "Emma's 529", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "529"}, {"id": "Acct_01m4rdf800e00rpbkavrdymf5d", "name": "Everyday checking", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "checking"}, {"id": "Acct_01m4rdf800e08vcjpgyrw4ppag", "name": "Griffin Giving Fund", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "daf"}, {"id": "Acct_01m4rdf800e03tajkg37ewybpg", "name": "Health savings", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "hsa"}, {"id": "Acct_01m4rdf800e07t7bj8fpds4tr7", "name": "Home", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "real-estate"}, {"id": "Acct_01m4rdf800e05avt2yw13jfjfr", "name": "Mortgage", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "mortgage"}, {"id": "Acct_01m4rdf800e068tc4cjbcvvx70", "name": "Precious metals", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "precious-metals"}, {"id": "Acct_01m4rdf800e04tmftpy4ag8qmn", "name": "Rollover IRA", "ownerName": "Bob Griffin", "rowId": null, "rowVersion": 0, "type": "ira"}, {"id": "Acct_01m4rdf800e02v874r5za7m260", "name": "Roth IRA", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "roth-ira"}, {"id": "Acct_01m4rdf800e02af3bqw26mpwnz", "name": "Taxable brokerage", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "brokerage"}, {"id": "Acct_01m4rdf800e01td4fwwhn3bshe", "name": "Travel Visa", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "credit-card"}, {"id": "Acct_01m4rdf800e07bnvqw44a8tye3", "name": "Vehicles", "ownerName": "Alice Griffin", "rowId": null, "rowVersion": 0, "type": "vehicle"}], "addable": [], "bitcoinFees": "sale", "canWrite": true, "claimedElsewhere": [], "dependents": [{"accountIds": [], "age": 14, "agesOut": [], "claimedAs": "qualifying child", "claimedElsewhere": false, "id": "TxDep_01m4rdf800e01rjgqxgweyrscx", "months": 12, "name": "Carol Griffin", "personId": "Persn_01m4rdf800e02tsv7f23fh5z29", "relation": "daughter", "student": true, "under13": false, "under17": true, "version": 1}, {"accountIds": [], "age": 8, "agesOut": [], "claimedAs": "qualifying child", "claimedElsewhere": false, "id": "TxDep_01m4rdf800e028v87a1sk6kfry", "months": 12, "name": "Emma Griffin", "personId": "Persn_01m4rdf800e02844dfnfyp9y96", "relation": "daughter", "student": false, "under13": true, "under17": true, "version": 1}], "expected": [{"accountId": "Acct_01m4rdf800e01b9479fephfqf8", "document": null, "form": "1099-INT", "issuer": "First Example Bank", "why": "From Emergency savings: $10 or more of interest"}, {"accountId": "Acct_01m4rdf800e03tajkg37ewybpg", "document": null, "form": "5498-SA", "issuer": "Example HSA Bank", "why": "From Health savings: an HSA"}, {"accountId": "Acct_01m4rdf800e03tajkg37ewybpg", "document": null, "form": "1099-SA", "issuer": "Example HSA Bank", "why": "From Health savings: distributions"}, {"accountId": "Acct_01m4rdf800e05avt2yw13jfjfr", "document": null, "form": "1098", "issuer": "Example Home Loans", "why": "From Mortgage: mortgage interest"}, {"accountId": "Acct_01m4rdf800e02v874r5za7m260", "document": null, "form": "5498", "issuer": "Example Brokerage", "why": "From Roth IRA: contributions"}, {"accountId": "Acct_01m4rdf800e02af3bqw26mpwnz", "document": null, "form": "1099 (composite)", "issuer": "Example Brokerage", "why": "From Taxable brokerage: a taxable brokerage account"}, {"accountId": null, "document": {"accountId": null, "accountName": null, "direction": "received", "fileName": null, "filingId": null, "form": "W-2", "id": "TxDoc_01m4rdf800e03ra9wtwjjtdxqz", "issuer": "Acme Corp", "notes": null, "receiptId": null, "version": 1}, "form": "W-2", "issuer": "Acme Corp", "why": "Received in 2025"}, {"accountId": null, "document": null, "form": "W-2", "issuer": "Northwind", "why": "Received in 2025"}, {"accountId": null, "document": null, "form": "1098-T", "issuer": null, "why": "For Carol Griffin: a student"}], "federalDue": "2027-04-15", "filers": [{"accepted": true, "id": "User_01m4rdf800e018w8wax25eypm1", "name": "Alice Griffin"}, {"accepted": true, "id": "User_01m4rdf800e01skjft3xb5ewck", "name": "Bob Griffin"}], "filings": [{"amendsId": null, "carried": {"agi": null, "basis8606": null, "capitalLossLong": null, "capitalLossShort": null, "charitableCarryover": null, "overpaymentApplied": null, "totalTax": null}, "confirmation": null, "documents": [], "dueDate": "2027-04-15", "extendedDue": null, "extensionFiledOn": null, "filedOn": null, "filingStatus": "Married filing jointly", "form": "Form 1040", "id": "Filng_01m4rdf800e01sp2b3kq2hht1y", "jurisdiction": "federal", "label": "Federal · Form 1040", "overdue": false, "payments": [], "place": null, "preparedBy": null, "progress": "not started", "resultAmount": null, "resultKind": null, "resultPaid": null, "resultTransactionId": null, "sentBy": null, "version": 1}], "form8615": [], "id": "TaxBk_01m4rdf800e019wqs6vbzgak4v", "label": "2026 · Alice & Bob (joint)", "lastYear": [{"figures": {"agi": 214380.00, "basis8606": 6500.00, "capitalLossLong": 2100.00, "capitalLossShort": null, "charitableCarryover": null, "overpaymentApplied": 0.00, "totalTax": 31920.00}, "filing": "Federal · Form 1040"}], "leftOut": [], "level": "owner", "received": [], "version": 1, "year": 2026}, "status": 200},
@@ -2870,7 +2894,7 @@ ol.phrase li::marker {
 "account-roth-ira":"@@ overview\n\n> Roth IRA: qualified withdrawals are tax-free.\n\n@@ settings\n\n> Contributions record their tax year.\n",
 "account-savings":"@@ overview\n\n> Interest shows as income.\n\n@@ settings\n\n> Import the bank's files, or type transactions.\n",
 "account-schedule":"# Account: Schedule\n\nA loan's amortization schedule, computed from its terms and the payments made.\n\n![A loan's Schedule](shots/account-schedule.png)\n\n## Due\n\nEach payment's due date. Payments already made are marked **paid**, with what was actually paid and\nhow it split.\n\n## Payment\n\nPrincipal, interest, escrow and PMI together.\n\n## Extra\n\nPrincipal paid beyond the schedule: an overpayment, which brings the payoff date nearer and lowers\nthe interest still to pay.\n\n## Balance\n\nThe principal owed after the payment.\n\n## Show all\n\nThe table shows the last few payments and the next year. **Show all** lists every one to the payoff.\n\nA payment that differs from the schedule, a rate reset or a recast recomputes the rest.\n",
-"account-settings":"# Account: Settings\n\nThe account's name, how it's kept current, and its lot method.\n\n![An account's Settings](shots/account-settings.png)\n\n## Name\n\nWhat the account is called in your lists.\n\n## Institution\n\nThe bank, broker or plan administrator: a label, not a connection.\n\n## Last 4 {#mask}\n\nThe last four digits of the account number, to tell accounts apart.\n\n## Lot method\n\nWhich lots a sale takes: **FIFO** the oldest first (the default), **LIFO** the newest, **HIFO** the\nmost expensive, **specific identification** the ones you pick, or **average cost**. The method in\nforce at a sale is recorded with it.\n\n## Opening balance\n\nA balance before the first transaction, with its date. Leave it empty to work it out from the\nearliest balance the institution reported.\n\n## Opening balance date {#opening-date}\n\nThe day the opening balance applies to.\n\n## Active\n\nA closed account stays, for history and taxes, but is marked closed.\n\n## Count in net worth\n\nWhether your totals include it.\n\n## Delete account\n\nDeletes it with its transactions, only by its owner. The click asks again first.\n\n## Count in my totals\n\nOn an account shared with you: whether your net worth includes it. Off by default, so a spouse's\naccounts count once.\n\n{{account-type settings}}\n\n## Method {#kept-by}\n\nHow the account is kept current: from files you import (OFX, QFX or CSV), or by hand.\n\n## Sync using MoolaKata Connector {#sync-using-moolakata-connector}\n\nThe connector fetches this account from its institution with one of your connections and\nimports what it fetches as an upload would. Only the account's owner turns it on; an account\nshared with write can't be. **Save** keeps the choice with the rest of the settings. Each post\nshows in Activity as by the connector and the connection.\n\n## Connection\n\nOne of your own sign-ins kept by the connector (Profile › Connections), or **New connection…**\nto start one here.\n\n## Institution account\n\nWhich of the connection's accounts at the institution this account is, by name and last four\ndigits, from what the driver found on its first run; typed until then.\n\n## Statements expected {#statements-expected}\n\nHow often the institution issues statements: monthly, quarterly, yearly or none. Left as the type,\nit follows the account's type: monthly for banking, cards, brokerage, IRAs, HSAs and loans; quarterly\nfor 401(k)s, 403(b)s, 457(b)s and 529s; none for accounts kept by hand. A statement is overdue once\nits period has passed and a grace after it (15 days monthly, 30 quarterly, 60 yearly): an alert\nnames the one missing, and clears when it arrives, read or kept. Once three statements or imports\nhave arrived, MoolaKata proposes the interval they arrive at when it differs; dismissed, it isn't\nproposed again once the settings are saved.\n\n## Withdrawals allowed a month {#withdrawals-a-month}\n\nA savings or money-market account's limit on transfers out, the bank's; empty for none. A budget's\n**Where the money is** sums the moves back to checking into one transfer a month and warns before it\nwould go past the limit.\n",
+"account-settings":"# Account: Settings\n\nThe account's name, how it's kept current, and its lot method.\n\n![An account's Settings](shots/account-settings.png)\n\n## Name\n\nWhat the account is called in your lists.\n\n## Institution\n\nThe bank, broker or plan administrator: a label, not a connection.\n\n## Last 4 {#mask}\n\nThe last four digits of the account number, to tell accounts apart.\n\n## Lot method\n\nWhich lots a sale takes: **FIFO** the oldest first (the default), **LIFO** the newest, **HIFO** the\nmost expensive, **specific identification** the ones you pick, or **average cost**. The method in\nforce at a sale is recorded with it.\n\n## Opening balance\n\nA balance before the first transaction, with its date. Leave it empty to work it out from the\nearliest balance the institution reported.\n\n## Opening balance date {#opening-date}\n\nThe day the opening balance applies to.\n\n## Active\n\nA closed account stays, for history and taxes, but is marked closed.\n\n## Count in net worth\n\nWhether your totals include it.\n\n## Delete account\n\nDeletes it with its transactions, only by its owner. The click asks again first.\n\n## Count in my totals\n\nOn an account shared with you: whether your net worth includes it. Off by default, so a spouse's\naccounts count once.\n\n{{account-type settings}}\n\n## Method {#kept-by}\n\nHow the account is kept current: by imports (files and statements alike), or by hand. It sets only\nwhether statements are expected.\n\n## Sync using MoolaKata Connector {#sync-using-moolakata-connector}\n\nThe connector fetches this account from its institution with one of your connections and\nimports what it fetches as an upload would. Only the account's owner turns it on; an account\nshared with write can't be. **Save** keeps the choice with the rest of the settings. Each post\nshows in Activity as by the connector and the connection.\n\n## Connection\n\nOne of your own sign-ins kept by the connector (Profile › Connections), or **New connection…**\nto start one here.\n\n## Institution account\n\nWhich of the connection's accounts at the institution this account is, by name and last four\ndigits, from what the driver found on its first run; typed until then.\n\n## Statements expected {#statements-expected}\n\nHow often the institution issues statements: monthly, quarterly, yearly or none. Left as the type,\nit follows the account's type: monthly for banking, cards, brokerage, IRAs, HSAs and loans; quarterly\nfor 401(k)s, 403(b)s, 457(b)s and 529s; none for accounts kept by hand. A statement is overdue once\nits period has passed and a grace after it (15 days monthly, 30 quarterly, 60 yearly): an alert\nnames the one missing, and clears when it arrives, read or kept. Once three statements or imports\nhave arrived, MoolaKata proposes the interval they arrive at when it differs; dismissed, it isn't\nproposed again once the settings are saved.\n\n## Withdrawals allowed a month {#withdrawals-a-month}\n\nA savings or money-market account's limit on transfers out, the bank's; empty for none. A budget's\n**Where the money is** sums the moves back to checking into one transfer a month and warns before it\nwould go past the limit.\n",
 "account-sharing":"# Account: Sharing\n\nWho else has this account.\n\n![An account's Sharing tab](shots/account-sharing.png)\n\n## Who has this account\n\nEach person or group, directly or through a group, with their level.\n\n## Share\n\nOpens the Share dialog. A new account is shared with no one.\n\n## Read and write\n\n**Read** sees everything about the account and changes nothing. **Write** also changes what it\nholds: transactions, imports and categories. Nobody but the owner deletes it, changes its settings\nor shares it.\n",
 "account-student-loan":"@@ overview\n\n> A student loan: its interest may be deductible (Form 1098-E).\n\n## Loan\n\nWhat is owed, the rate, the payment (and with escrow), the next due date, the payoff date against\nthe original schedule, interest paid so far and still to pay, and principal paid this year.\n**Overpaid** is principal paid beyond the schedule.\n\n## Record a payment\n\nA payment on the loan, split into principal, interest, escrow, PMI and fees by the schedule. From a\nbank account, its half of the transfer is recorded too.\n\n## Servicer's balance\n\nThe principal the servicer says is owed, typed from its statement. A difference from the schedule's\nbalance shows until it is explained: a fee, a missed payment, a wrong rate.\n\n## Following\n\nThe payoff plan you're following (the Payoff tab), and whether what you've overpaid since you chose\nit is ahead of the plan or behind.\n\n## Looks like a payment\n\nBank transactions of the last 90 days within 2% of the payment that aren't a transfer yet. **Link**\nmakes one the transfer into this loan, split by the schedule.\n\n@@ settings\n\n## Loan terms\n\nThe terms give the schedule; saving them recomputes it.\n\n## Original principal\n\nWhat was borrowed, from the closing disclosure or the loan agreement.\n\n## Start date\n\nThe day the loan was made; the first payment is due a month later.\n\n## Term (months) {#term-months}\n\nIn months: 360 for a 30-year mortgage, 60 for a five-year car loan.\n\n## Interest rate\n\nThe note rate, not the APR, to three places as the note states it (6.875%).\n\n## Interest method\n\nMost mortgages amortize monthly. Most car loans charge simple interest daily, so paying early saves\ninterest.\n\n## Scheduled payment\n\nPrincipal and interest per payment. Blank: computed from the terms; type the servicer's figure if it\ndiffers by a few cents.\n\n## In budgets {#in-budgets}\n\nHow its payments count in budgets, at the bank account each comes from. **Split by the schedule**\nputs interest, escrow, PMI and fees each in its category and principal in a savings category, all\nunder _Loan payments_, so a plan line on _Loan payments_ counts the whole payment. **The whole\npayment** counts it all in one category.\n\n## Counts in {#budget-category}\n\nThe category the whole payment counts in: _Loan payments_ unless you choose another.\n\n## Rate resets\n\nAn adjustable rate's new rate from each reset date, typed when known. The schedule from that date is\nre-amortized at the new rate.\n\n## Recasts\n\nThe servicer re-amortizes the balance over the rest of the term after a lump sum, for a fee: a lower\npayment, the same payoff date.\n",
 "account-transactions":"# Account: Transactions\n\nThis account's transactions, newest first.\n\n![An account's transactions](shots/account-transactions.png)\n\n## Import\n\nAdds a file's transactions to this account. Rows already here are matched, not doubled.\n\n## Add\n\nTypes a transaction by hand.\n\n## Categorise as\n\nSelect rows with their boxes, choose a category, and **Categorise** them together.\n\n## Category\n\nChange one transaction's category in place. A split shows its parts in the transaction itself.\n\n## Transfers\n\nMoney moving between two of your accounts is matched (the same amount the other way, within a few\ndays), and counts as neither spending nor income.\n\n## Page size\n\nHow many rows a page shows: 100, 500 or 1,000. The browser remembers it.\n",
@@ -2890,12 +2914,12 @@ ol.phrase li::marker {
 "budgets-where":"# Where the money is\n\nFor each account reserves are held in: what they hold, what was moved there, and what is to move\nthere or back. And for each card in the budget, what it owes and how it's paid.\n\n## Month\n\nThe month whose figures are shown.\n\n## Budget\n\nWhich budget's reserves and cards.\n\n## Refresh\n\nWorks the month's figures out again at once; they're kept once worked out, and worked out again\non their own when anything they come from changes.\n\n## Keep as the account's own {#keep-own}\n\nA transfer into the account from the budget's accounts counts as money moved in for the reserves.\nWhen it's savings of the account's own instead, keep it as the account's own: it then doesn't count\nfor the reserves, and **to move** no longer asks for it back.\n\n## Unassigned\n\nMoney that landed in the account other than by a transfer from the budget's accounts: its interest,\na paycheck split into it, a transfer from an account the budget doesn't count. **Assign** gives it\nto the reserves held there or keeps it as the account's own. Given to a reserve, it counts as moved\nin, so nothing more is asked to move for it.\n\n## To move\n\nWhat the reserves gained since they began, less what was moved in from the budget's other accounts\nand the landed money given to them. When the reserves are ahead, move the difference there from the\naccount it's moved from; after a repair paid from checking or a card, it goes back, summed into one\ntransfer for the month. MoolaKata moves no money: make the transfer at the bank, and once it's\nimported and paired the account reads **backed**. Money of the account's own doesn't count, and a\nwarning shows before a move back would go past its **Withdrawals allowed a month**.\n",
 "confirm-email":"# Confirm your email address\n\nThe new address is in use once this link is opened.\n",
 "dashboard":"# Dashboard\n\nWhere you land after signing in: what you're worth, how it's moving, and what needs you.\n\n![The Dashboard](shots/dashboard.png)\n\n## Net worth\n\nWhat your accounts are worth less what you owe on them: your own accounts that count in net worth,\nand accounts shared with you that you set to **Count in my totals**. The change below it is since\nyesterday, a month ago and a year ago.\n\n## Investments\n\nBrokerage and retirement accounts, valued at the latest daily close of what they hold.\n\n## Cash\n\nChecking, savings, money-market and CD accounts.\n\n## Budget {#budget}\n\nThe budget you follow, this month: what was spent against what was planned. Open it for the rest.\nWithout one, the count of what needs attention shows here instead.\n\n## Range\n\nHow far back the chart goes: a month, three months, this year, a year, five years, or everything.\n**Show as table** lists every point, for a screen reader or for copying.\n\n## Accounts\n\nYour accounts by group, with each group's total. A click opens Accounts.\n\n## New account\n\nPick the type first: it decides the fields and the tax treatment.\n\n## Plans {#plans}\n\nYour active projections, and those shared with you that you chose to show: each with its status (on\ntrack, ahead or behind its baseline), its answer, and a small chart of the actual balance against\nthe baseline.\n\n## Needs attention\n\nTransactions to categorise, lots without a cost basis, accounts whose reported balance doesn't match\nor whose next statement is overdue, a return past its due date, a year whose realized gains changed\nafter its federal return was filed, and stale prices. Each line links to where it's fixed.\n\n> Prices are daily closes, never live. The dot by **Prices** at the top turns amber when a held\n> instrument's price is stale.\n",
-"dialog-account-form":"# New account: details\n\n## Name\n\nWhat it's called in your lists.\n\n## Institution\n\nThe bank, broker or plan administrator.\n\n## Last 4 {#mask}\n\nThe last four digits of the account number.\n\n## Plan state {#plan-state}\n\nA 529's sponsoring state, which may not be yours.\n\n## Plan name {#plan-name}\n\nmy529, Bright Start, and so on.\n\n## Beneficiary\n\nWho a 529 is for: one of the household's people, or **Add a person…**.\n\n## Their name {#new-name}\n\nThe new person's name.\n\n## Sex {#new-sex}\n\nThe new person's: it chooses the words for the family tree, such as daughter or son.\n\n## Year of birth {#new-birth-year}\n\nTheir year of birth, for when school starts.\n\n## Opened {#opened-on}\n\nThe day it was opened: a Roth IRA rollover is possible 15 years on.\n\n## State tax deduction a year {#state-deduction}\n\nWhat you expect to deduct on your state return each year, typed.\n\n## Extended public keys or addresses {#wallet-keys}\n\nA self-custody wallet's public data: an **xpub**, **ypub** or **zpub** (exported from the wallet\nas its account's extended public key), or bitcoin addresses, one a line. From a key, MoolaKata\nderives the wallet's receive and change addresses itself.\n\n> Never enter a seed phrase or a private key. The form clears anything that looks like one (12\n> or 24 words, a WIF or 64-hex private key, an xprv) at once, and MoolaKata never stores or\n> logs it.\n\n## Gap limit\n\nHow many unused addresses past the last used one are derived and watched on each chain. 20 suits\nmost wallets; raise it for one that skipped addresses.\n\n## Keep it current by {#kept-by}\n\nFrom files you import, or by hand.\n\n## Lot method\n\nWhich lots a sale takes; FIFO, the oldest first, unless you choose otherwise.\n\n## Opening balance\n\nOptional. Without it, the first balance an imported file reports stands in.\n\n## Opening balance date {#opening-date}\n\nThe day the opening balance applies to.\n\n## Original principal\n\nA loan's amount borrowed, from the closing disclosure or the loan agreement.\n\n## Start date\n\nThe day the loan was made; the first payment is due a month later.\n\n## Term (months) {#term-months}\n\nIn months: 360 for a 30-year mortgage, 60 for a five-year car loan.\n\n## Interest rate\n\nThe note rate, not the APR, to three places as the note states it (6.875%). An adjustable\nrate's resets, to four places, are typed when known.\n\n## Interest method\n\nMost mortgages amortize monthly. Most car loans charge simple interest daily.\n\n## Scheduled payment\n\nPrincipal and interest per payment. Blank: computed from the terms.\n\n## Escrow for property tax {#escrow-tax}\n\nA mortgage's property tax collected with each payment.\n\n## Escrow for insurance {#escrow-insurance}\n\nHomeowner's insurance collected with each payment.\n\n## PMI per month {#pmi}\n\nMortgage insurance, until it can be dropped.\n\n## Secured by {#secured-by}\n\nThe property or vehicle the loan is secured by, from a physical-asset account. The Overview then\nshows your equity in it and the loan-to-value.\n\n## Home's original value {#original-value}\n\nThe appraisal or price when the loan was made. PMI can be dropped on request once the balance is 80%\nof it, and ends by itself at 78%.\n\n## Draw period (months) {#draw-months}\n\nA HELOC's months of interest-only drawing before repayment.\n\n## In budgets {#in-budgets}\n\nHow its payments count in budgets, at the bank account each comes from. **Split by the schedule**\nputs interest, escrow, PMI and fees each in its category and principal in a savings category, all\nunder _Loan payments_, so a plan line on _Loan payments_ counts the whole payment. **The whole\npayment** counts it all in one category.\n\n## Counts in {#budget-category}\n\nThe category the whole payment counts in: _Loan payments_ unless you choose another.\n",
+"dialog-account-form":"# New account: details\n\n## Name\n\nWhat it's called in your lists.\n\n## Institution\n\nThe bank, broker or plan administrator.\n\n## Last 4 {#mask}\n\nThe last four digits of the account number.\n\n## Plan state {#plan-state}\n\nA 529's sponsoring state, which may not be yours.\n\n## Plan name {#plan-name}\n\nmy529, Bright Start, and so on.\n\n## Beneficiary\n\nWho a 529 is for: one of the household's people, or **Add a person…**.\n\n## Their name {#new-name}\n\nThe new person's name.\n\n## Sex {#new-sex}\n\nThe new person's: it chooses the words for the family tree, such as daughter or son.\n\n## Year of birth {#new-birth-year}\n\nTheir year of birth, for when school starts.\n\n## Opened {#opened-on}\n\nThe day it was opened: a Roth IRA rollover is possible 15 years on.\n\n## State tax deduction a year {#state-deduction}\n\nWhat you expect to deduct on your state return each year, typed.\n\n## Extended public keys or addresses {#wallet-keys}\n\nA self-custody wallet's public data: an **xpub**, **ypub** or **zpub** (exported from the wallet\nas its account's extended public key), or bitcoin addresses, one a line. From a key, MoolaKata\nderives the wallet's receive and change addresses itself.\n\n> Never enter a seed phrase or a private key. The form clears anything that looks like one (12\n> or 24 words, a WIF or 64-hex private key, an xprv) at once, and MoolaKata never stores or\n> logs it.\n\n## Gap limit\n\nHow many unused addresses past the last used one are derived and watched on each chain. 20 suits\nmost wallets; raise it for one that skipped addresses.\n\n## Keep it current by {#kept-by}\n\n**Imports**: files and statements you import, or the connector fetches; statements are then\nexpected. Or **Manual**: typed by hand. Whether its positions are its holdings is told by its\ntrades, not by this.\n\n## Lot method\n\nWhich lots a sale takes; FIFO, the oldest first, unless you choose otherwise.\n\n## Opening balance\n\nOptional. Without it, the first balance an imported file reports stands in.\n\n## Opening balance date {#opening-date}\n\nThe day the opening balance applies to.\n\n## Original principal\n\nA loan's amount borrowed, from the closing disclosure or the loan agreement.\n\n## Start date\n\nThe day the loan was made; the first payment is due a month later.\n\n## Term (months) {#term-months}\n\nIn months: 360 for a 30-year mortgage, 60 for a five-year car loan.\n\n## Interest rate\n\nThe note rate, not the APR, to three places as the note states it (6.875%). An adjustable\nrate's resets, to four places, are typed when known.\n\n## Interest method\n\nMost mortgages amortize monthly. Most car loans charge simple interest daily.\n\n## Scheduled payment\n\nPrincipal and interest per payment. Blank: computed from the terms.\n\n## Escrow for property tax {#escrow-tax}\n\nA mortgage's property tax collected with each payment.\n\n## Escrow for insurance {#escrow-insurance}\n\nHomeowner's insurance collected with each payment.\n\n## PMI per month {#pmi}\n\nMortgage insurance, until it can be dropped.\n\n## Secured by {#secured-by}\n\nThe property or vehicle the loan is secured by, from a physical-asset account. The Overview then\nshows your equity in it and the loan-to-value.\n\n## Home's original value {#original-value}\n\nThe appraisal or price when the loan was made. PMI can be dropped on request once the balance is 80%\nof it, and ends by itself at 78%.\n\n## Draw period (months) {#draw-months}\n\nA HELOC's months of interest-only drawing before repayment.\n\n## In budgets {#in-budgets}\n\nHow its payments count in budgets, at the bank account each comes from. **Split by the schedule**\nputs interest, escrow, PMI and fees each in its category and principal in a savings category, all\nunder _Loan payments_, so a plan line on _Loan payments_ counts the whole payment. **The whole\npayment** counts it all in one category.\n\n## Counts in {#budget-category}\n\nThe category the whole payment counts in: _Loan payments_ unless you choose another.\n",
 "dialog-add-source":"# Add a price source\n\n## Source\n\nEach source MoolaKata ships, with what it serves and whether it needs a free key.\n",
 "dialog-adjustment":"# Balance adjustment\n\n## Why {#note}\n\nShown with the adjustment in the account and in Activity.\n",
 "dialog-assign":"# Assign landed money\n\nMoney that landed in an account reserves are held in, other than by a transfer from the budget's\naccounts. In the budget it counts as it always does, interest as income; this says whose it is.\nAll of it, or part: what no line takes stays unassigned.\n\n## A reserve's line {#reserve}\n\nWhat goes to each reserve held there. The lines start spread among the reserves by their\nbalances; **Spread by balance** spreads it so again. Change any line, or empty it.\n\n## Kept as the account's own {#own}\n\nSavings that aren't the reserves'.\n",
 "dialog-bitcoin-models":"# Bitcoin models\n\nPublished models of bitcoin's price, each from today's price on a log scale, with its figures for\n2030, 2035 and 2045 and what is known of its record. They are models other people publish, not\nMoolaKata's view and not advice: the curve fits describe the past, stock-to-flow has run below its\nown band since 2022, and the targets come from people who hold bitcoin.\n\nTheir figures ship with MoolaKata, dated, in Settings › Tax tables, where an admin can correct them.\n",
-"dialog-brokerage-statement":"# Check a brokerage statement\n\nA brokerage or plan statement's PDF, read from its text layer: its summary, its positions on the\nlast day and its cash activity, checked here before anything is saved. A photo or scan isn't read,\nsince its tables don't survive OCR reliably: keep it on the account instead.\n\n## Summary {#summary}\n\nThe starting and ending value, deposits, withdrawals, income and the change in value. The ending\nvalue becomes a balance anchor on the last day, checked on the Reconcile tab against what the\naccount was worth that day, cash and holdings at that day's prices.\n\n## Positions {#positions}\n\nEach holding the statement shows, against what MoolaKata holds that day. A difference is shown,\nand pointed at the statement's own trade lines when they account for it (a reinvestment or a buy\nnot entered yet). The statement's cost basis is kept beside the lots' and never written over them.\nFor an account kept by snapshots (kept from statements only, with no trades of its own), the\npositions become its holdings on that date. The cash or sweep line is checked against the account's\ncash, and becomes a cash anchor.\n\n## Cash activity {#cash-activity}\n\nDeposits, withdrawals, dividends, interest and fees, each kept as a transaction when ticked. Lines\nalready in the account start left out, and every line does when the account's files already carry\nits activity. When the lines read don't add up to the summary's figures, a line may not have been\nread: check them.\n\nTrades, options activity, corporate actions and margin lines aren't read. A trade opens the trade\ndialog with its figures filled in; the others are entered by hand.\n",
+"dialog-brokerage-statement":"# Check a brokerage statement\n\nA brokerage or plan statement's PDF, read from its text layer: its summary, its positions on the\nlast day and its cash activity, checked here before anything is saved. A photo or scan isn't read,\nsince its tables don't survive OCR reliably: keep it on the account instead.\n\n## Summary {#summary}\n\nThe starting and ending value, deposits, withdrawals, income and the change in value. The ending\nvalue becomes a balance anchor on the last day, checked on the Reconcile tab against what the\naccount was worth that day, cash and holdings at that day's prices.\n\n## Positions {#positions}\n\nEach holding the statement shows, against what MoolaKata holds that day. A difference is shown,\nand pointed at the statement's own trade lines when they account for it (a reinvestment or a buy\nnot entered yet). The statement's cost basis is kept beside the lots' and never written over them.\nFor an account kept by snapshots (one with no trades of its own, however it is kept current), the\npositions become its holdings on that date. The same statement again adds nothing. The cash or sweep line is checked against the account's\ncash, and becomes a cash anchor.\n\n## Cash activity {#cash-activity}\n\nDeposits, withdrawals, dividends, interest and fees, each kept as a transaction when ticked. A line\nalready in the account (its OFX brought it) is ticked, counted and never added again. A line you\nuntick offers **Remember…**, as a bank statement's does, to ignore lines like it from then on. When\nthe lines read don't add up to the summary's figures, a line may not have been read: check them.\n\nTrades, options activity, corporate actions and margin lines aren't read. A trade opens the trade\ndialog with its figures filled in; the others are entered by hand.\n",
 "dialog-budget":"# New budget\n\nA budget plans spending per category over the accounts you choose. Choose how it works and what it\noffers now; plan its categories next, from history or with **Edit plan**.\n\n## Name\n\nSuch as _Household_ or _My spending_.\n\n## Method\n\n**Tracking**: a plan per category compared with what is spent, received and saved. **Envelope**: the\nmoney in the budget's accounts is handed out to categories until none is left to hand out, and what\nyou charge to a card is set aside for its payment. A budget keeps its method; copy it as a scenario\nto try the other.\n\n## Reserves\n\nSave toward a target in a category, month by month: car repairs, a roof. Turn it on or off later in\nthe budget's settings.\n\n## Moves\n\nCover one category from another for a month. An envelope budget always has moves.\n\n## Accounts\n\nThe accounts whose transactions count: usually your checking accounts and cards. Investment accounts\naren't offered. An account you leave out that often gets transfers from these is named, so you can\ninclude it: a cash account, a savings account. Left out, a transfer to it counts by its category, or\nwaits to be sorted. To share a household budget, use **Share** on it afterwards and give a group\n**Write**.\n\n## Estimate from history\n\nProposes a plan line per category from its average over the months you pick, and the recurring\npayments as lines of their own. You keep, change or drop each before it's saved.\n",
 "dialog-budget-settings":"# Budget settings\n\nA budget's name, its options and its accounts, and where its money comes from. It keeps its method.\n\n## Name\n\nSuch as _Household_.\n\n## Reserves\n\nSave toward a target in a category, month by month. Turned off, the reserves' lines stay in the plan\nas ordinary lines.\n\n## Moves\n\nCover one category from another for a month. An envelope budget always has moves.\n\n## Accounts\n\nThe accounts whose transactions count. Only the budget's owner chooses them. An account left out that\noften gets transfers from these is named, so you can include it.\n\n## Paid from {#paid-from}\n\nThe account a card is paid from. Nothing to set: it's learned from the card's payments, so a card\neach for two spouses, paid from different accounts, just works. Choose one only where the history is\nmixed.\n\n## Moved from {#moved-from}\n\nWhere money for the reserves held in a savings account moves from, which **Where the money is**\nsuggests. It's proposed from the account that sends this one the most, and is only a suggestion: a\ntransfer from any of the budget's accounts counts the same.\n",
 "dialog-category":"# A category's retention\n\n## Keep receipts for {#keep-receipts-years}\n\nHow many years receipts in this category are kept after the record they are attached to ended: a\ntransaction on its date, a purchase once the lot is sold. Empty keeps them for ever, or as its parent\ncategory says. Under 7 years, note that 7 covers every IRS audit window.\n",
@@ -2912,7 +2936,7 @@ ol.phrase li::marker {
 "dialog-gift":"# A gift\n\nA gift for one or more people and an occasion, from idea to given; or one you received.\n\n## Status\n\n**Idea**, **Planned**, **Bought**, **Given**, or **Received** for a gift someone gave you.\n\n## For {#people}\n\nWho it's for: one or more people. For a received gift, who it was from.\n\n## Occasion\n\nWhich of their dates, and its year. With no date, it's an idea, kept on their list.\n\n## Description\n\nWhat it is.\n\n## Thank-you sent\n\nFor a received gift: whether you've thanked them.\n\n## Cost\n\nWhat it cost. Linked to a purchase, it's that purchase's amount unless you type another, so one\npurchase can pay for several gifts.\n\n## Paid with {#paid-with}\n\nThe purchase that paid for it, from the last 90 days. It's then categorised Gifts in budgets, unless\nit already had a category.\n\n## Given in money\n\nCash or a cheque. Money given to one person above the annual gift exclusion in a year is flagged for\nForm 709.\n\n## Where bought {#store}\n\nThe shop or site.\n\n## Link\n\nA link to it, for an idea.\n\n## Notes\n\nAnything else.\n\n## Receipts\n\nA receipt kept with the gift, for a return or a warranty.\n",
 "dialog-giving-plan":"# Giving plan\n\nThe year's giving target.\n\n## Target {#target-kind}\n\nA percentage of income, or a fixed amount.\n\n## Percent of income {#percent}\n\n10% is a common choice.\n\n## Income {#income-basis}\n\nWhat the percentage is of: the year's income transactions (take-home pay), or a gross income or AGI\nestimate you type.\n\n## Gross income {#income}\n\nFrom your W-2, pay stubs or last year's return.\n\n## Target amount {#amount}\n\nA fixed amount to give in the year.\n\n## Count the donor-advised fund {#daf-counted}\n\nWhen money goes into the fund, or when it grants it out. Either way, a dollar through the fund\ncounts once.\n",
 "dialog-group":"# Group\n\n## Name\n\nWhat shares name it by.\n\n## Active {#active}\n\nAn inactive group's shares give its members nothing.\n\n## Members\n\nIts users. A member holds the group's shares while in it.\n\nChanging who is in **Admins** asks for your password again when it was given over 10 minutes\nago.\n",
-"dialog-import":"# Import transactions\n\nAn OFX, QFX or CSV file from your bank or broker, or a **statement**: its PDF, or a photo or scan of\nit. Rows already imported are matched by the file's own transaction id, or by date, amount and\npayee, so a file can be imported again safely.\n\nA statement is read on this server, and shown for you to check before anything is saved.\n\nA statement of several accounts, such as a combined checking and savings statement, is split\nwhere each account's part begins, and each part is checked in turn.\n\n## Into account\n\nThe account the file belongs to.\n\n## File\n\nThe file you downloaded, or a statement's PDF or photo.\n\n## Keep a statement without reading it {#keep-without-reading}\n\nKeeps a statement on its account as it is, for the record: one from an account kept current from\nOFX, a brokerage statement, or one whose lines can't be read. Only its period is asked for.\n\n## Date column {#map-date}\n\nThe column with each row's date.\n\n## Description column {#map-payee}\n\nThe payee, merchant or description.\n\n## Amount column {#map-amount}\n\nOne column with money in as + and money out as −.\n\n## Debit column {#map-debit}\n\nWhen money out has its own column instead.\n\n## Credit column {#map-credit}\n\nWhen money in has its own column.\n\n## Running balance column {#map-balance}\n\nOptional. Every row's balance is then checked against MoolaKata's.\n\n## Memo column {#map-memo}\n\nOptional.\n\n## Transaction id column {#map-id}\n\nOptional: the institution's own id for each row, which makes re-imports exact.\n\n## Date format {#map-date-format}\n\nHow the file writes dates:\n\n| Written as  | Format     |\n| ----------- | ---------- |\n| 10/12/2026  | `%m/%d/%Y` |\n| 2026-10-12  | `%Y-%m-%d` |\n| 10/12/26    | `%m/%d/%y` |\n| 12-Oct-2026 | `%d-%b-%Y` |\n\n## Spending is positive {#map-negate}\n\nCard exports often show purchases as positive amounts: this flips them.\n",
+"dialog-import":"# Import transactions\n\nAn OFX, QFX or CSV file from your bank or broker, or a **statement**: its PDF, or a photo or scan of\nit. Rows already imported are matched by the file's own transaction id, or by date, amount and\npayee, so a file can be imported again safely; a row you deleted stays deleted. Notes a CSV\nwrites below its rows, after a blank line (a disclaimer, the time it was downloaded), are left\nout.\n\nA statement is read on this server, and shown for you to check before anything is saved.\n\nA statement of several accounts, such as a combined checking and savings statement, is split\nwhere each account's part begins, and each part is checked in turn.\n\n## Into account\n\nThe account the file belongs to.\n\n## File\n\nThe file you downloaded, or a statement's PDF or photo.\n\n## Keep a statement without reading it {#keep-without-reading}\n\nKeeps a statement on its account as it is, for the record: one from an account kept current from\nOFX, a brokerage statement, or one whose lines can't be read. Only its period is asked for.\n\n## Date column {#map-date}\n\nThe column with each row's date.\n\n## Description column {#map-payee}\n\nThe payee, merchant or description.\n\n## Amount column {#map-amount}\n\nOne column with money in as + and money out as −.\n\n## Debit column {#map-debit}\n\nWhen money out has its own column instead.\n\n## Credit column {#map-credit}\n\nWhen money in has its own column.\n\n## Running balance column {#map-balance}\n\nOptional. Every row's balance is then checked against MoolaKata's.\n\n## Memo column {#map-memo}\n\nOptional.\n\n## Transaction id column {#map-id}\n\nOptional: the institution's own id for each row, which makes re-imports exact.\n\n## Action column {#map-action}\n\nFor an investing or crypto account's trade history: what each row is, a buy, a sale, a dividend,\na transfer. A buy's cash goes out and a sale's comes in, whatever sign the file writes.\n\n## Symbol column {#map-symbol}\n\nThe ticker, fund symbol or coin each row trades. A five-letter symbol ending in X is taken for a\nmutual fund, any other ticker for a listed share; in an exchange's file, a coin.\n\n## Quantity column {#map-quantity}\n\nHow many shares or coins.\n\n## Price column {#map-price}\n\nOptional: the price per share or coin.\n\n## Fees column {#map-fees}\n\nOptional: commission, fees or spread.\n\n## Date format {#map-date-format}\n\nHow the file writes dates:\n\n| Written as  | Format     |\n| ----------- | ---------- |\n| 10/12/2026  | `%m/%d/%Y` |\n| 2026-10-12  | `%Y-%m-%d` |\n| 10/12/26    | `%m/%d/%y` |\n| 12-Oct-2026 | `%d-%b-%Y` |\n\n## Spending is positive {#map-negate}\n\nCard exports often show purchases as positive amounts: this flips them.\n",
 "dialog-item":"# An item\n\nA physical asset: what it is, when and how it was acquired, its cost basis, and how it's valued.\n\n## Name\n\nWhat the item is called in the list.\n\n## Address\n\nA property's address, if you want it kept.\n\n## Primary residence\n\nYour main home. Its sale may be partly tax-free, which Taxes shows.\n\n## Metal\n\nGold, silver, platinum or palladium: the spot price that values it.\n\n## Form {#category}\n\nA coin, bar, round or jewellery. A numismatic coin worth more than its metal belongs in a\ncollectables account instead.\n\n## Category\n\nThe kind of collectable: a watch, art, wine, cards and so on.\n\n## Valued by {#valuation}\n\n**Valuations**: the latest dated value counts. **Depreciation**: a yearly percentage off the cost\nbasis, until a valuation replaces it.\n\n## Weight per unit {#unit-weight}\n\nThe weight of one coin or bar, as stamped on it.\n\n## Unit {#weight-unit}\n\nTroy ounces, grams or kilograms. A troy ounce is 31.1 grams.\n\n## Purity\n\nThe share of the weight that is the metal: .9999 for most gold coins and bars, .999 for silver, .925\nfor sterling, 22k (.9167) for a Krugerrand. Fine weight is weight × purity × quantity.\n\n## Quantity\n\nHow many of them. Fine weight counts them all.\n\n## Depreciation per year {#depreciation-rate}\n\nA percentage of the value lost each year; about 12% suits most cars. A valuation replaces it.\n\n## Date acquired {#acquired-on}\n\nThe day it was bought, given or inherited. A sale's holding period starts here.\n\n## How acquired {#acquired-how}\n\nBought, a gift or inherited. A gift's basis is usually the giver's; an inherited item's is its value\nat death.\n\n## Cost basis {#cost-basis}\n\nWhat it cost: the price plus premium, fees and shipping, or for a property the purchase price. A\ngift's carried-over basis, or an inherited item's value at death.\n\n## Closing costs\n\nA property's costs at purchase that add to its basis.\n\n## Insured value\n\nWhat it's insured for, to compare with what it's worth.\n\n## Selling premium {#sell-premium}\n\nWhat you'd expect over spot (or under it, as a negative) when selling. 0% by default.\n\n## Where it's kept {#location}\n\nA safe, a bank box, a vault.\n\n## Serial or certificate {#serial}\n\nA serial, a grading certificate or a vehicle's VIN.\n\n## Condition or grade {#condition}\n\nIts condition, or its grade (MS-65, PCGS 64).\n\n## Insurance policy {#policy}\n\nThe policy that covers it.\n\n## Used personally\n\nA car, a home, a watch you wear. A loss when it's sold isn't deductible.\n\n## Notes\n\nAnything else, in Markdown: provenance, service history.\n\n## Valuations\n\nDated values with their source: an appraisal, a recent sale, a price guide or your estimate. The\nlatest counts; one over a year old is marked.\n\n## Improvements\n\nA property's improvements: a new roof, a remodel. Each adds to the cost basis on its date, with its\nreceipts kept as documents.\n\n## Photos and documents\n\nThe purchase receipt, an appraisal, a certificate, the title, photos. Kept as receipts, encrypted on\nthis server.\n\n## Sale\n\nThe day it was sold, the proceeds and the fees. The gain or loss is realized and shown in Taxes;\nmetals and collectables are flagged as collectables for Form 8949.\n",
 "dialog-link-invite":"# Invite a server to link\n\n## Link code {#link-code}\n\nGive it to the other server's admin, by any channel: it holds this server's link address and its\nkey's fingerprint, and a one-time secret. It works once, for 24 hours; **Withdraw** on the\ninvitation stops it sooner. When the other admin enters it, their server appears as **wants to\nlink**: compare fingerprints with them before approving.\n",
 "dialog-link-join":"# Enter a link code\n\n## Link code\n\nThe code the other server's admin made with **Invite a server**, starting `mkl1.`. MoolaKata\nreaches the address in it, refuses a server whose key doesn't match the fingerprint in it, and\nsends this server's address, key, household name and users. The link waits for the other admin's\napproval; until then it shows **waiting for approval**.\n",
@@ -2944,7 +2968,7 @@ ol.phrase li::marker {
 "dialog-servicer-balance":"# Type the servicer's balance\n\n## Principal owed {#owed}\n\nThe principal still owed, from the servicer's statement or site. A difference from the schedule's\nbalance on that day shows on the Overview until it is explained.\n\n## As of\n\nThe statement's date.\n",
 "dialog-share":"# Share\n\nWho else has this item, and at which level. Nothing changes until **Save**.\n\n## People\n\nEvery active user. **Read** sees everything and changes nothing; **Write** also changes what it\nholds. Nobody but you deletes it, shares it or sees its keys.\n\n## Via a group\n\nSomeone with access through a group is shown with the group's name.\n\n## Groups\n\nThe same, for every member while they're in the group.\n\n## People on a linked server {#linked-people}\n\nThe users of each server this one is linked with, under that server's name: it confirms who they\nare. They can only **Read**. What you share reaches their server at its next exchange and shows\nonly in that household's window there, only to the people you name; nobody else there sees its\nname or figures, and it can't be shared on from there.\n\n## Include receipts {#include-receipts}\n\nOff by default: receipts are large and personal. On, the item's receipts (and a tax book's\ndocument files) cross to that server with the text read from them; off, they see only how many\nreceipts a transaction has.\n\n## Share these accounts too\n\nA portfolio's viewers see only the accounts in it that are shared with them. This shares the missing\nones you own, at Read.\n",
 "dialog-source-key":"# A price source's key\n\n## API key\n\nFrom the source's site. Stored encrypted and never shown again.\n\nSetting the key asks for your password again when it was given over 10 minutes ago.\n",
-"dialog-statement":"# Check the statement\n\nWhat was read from the statement, before anything is saved. Nothing is saved until you import it.\n\n## Period from {#period-start}\n\nThe statement's first day. The opening balance is the balance the day before.\n\n## Period to {#period-end}\n\nIts last day, the day of the closing balance.\n\n## Opening balance {#opening}\n\nAs the statement shows it. A card's balance owed shows as a negative amount here, as the card's\naccount does.\n\n## Closing balance {#closing}\n\nAs the statement shows it. The transactions must add up from the opening balance to this one.\n\n## Include\n\nUntick a line that isn't a transaction (a subtotal, a daily balance), or one already here. Lines\nalready in the account are unticked to begin with.\n\n## Description\n\nThe payee as the statement words it; payee rules tidy it after.\n\n## Amount\n\nMoney in is positive, money out negative. A line whose sign was guessed says so: check it. Once the\ntransactions add up, **Adds up** says yes.\n\n## Accept difference {#accept-difference}\n\nImport even though they don't add up. The Reconcile tab then shows the difference, until it is found\nor accepted there.\n\n## Learning the layout\n\nWhat you correct is remembered for the institution: which section means money in or out, and lines\nthat are never transactions. The next statement from it needs fewer corrections. The statement\nitself is kept as a receipt on the account.\n",
+"dialog-statement":"# Check the statement\n\nWhat was read from the statement, before anything is saved. Nothing is saved until you import it.\n\n## Period from {#period-start}\n\nThe statement's first day. The opening balance is the balance the day before.\n\n## Period to {#period-end}\n\nIts last day, the day of the closing balance.\n\n## Opening balance {#opening}\n\nAs the statement shows it. A card's balance owed shows as a negative amount here, as the card's\naccount does.\n\n## Closing balance {#closing}\n\nAs the statement shows it. The transactions must add up from the opening balance to this one.\n\n## Include\n\nUntick a line that isn't a transaction (a subtotal, a daily balance). A line already in the account\nis ticked and can't be unticked: it counts towards the closing balance and isn't added again.\n\n## Remember… {#remember}\n\nA line you untick offers **Remember…**: it asks to ignore future lines starting like it (its first\nthree words, which you can change), from this institution's next statements on. They still show,\nleft out, saying so, with **Stop ignoring**. Profile lists what you ignore, to remove it.\n\n## Description\n\nThe payee as the statement words it; payee rules tidy it after.\n\n## Amount\n\nMoney in is positive, money out negative. A line whose sign was guessed says so: check it. Once the\ntransactions add up, **Adds up** says yes.\n\n## Accept difference {#accept-difference}\n\nImport even though they don't add up. The Reconcile tab then shows the difference, until it is found\nor accepted there.\n\n## Learning the layout\n\nWhat you correct is remembered for the institution: which section means money in or out. Lines that\nare never transactions are ignored only when you ask, with **Remember…**. The next statement from it needs fewer corrections. The statement\nitself is kept as a receipt on the account.\n",
 "dialog-statement-keep":"# Keep the statement\n\nA statement kept on its account as it is: its lines aren't read or added. It is kept as a receipt\nnamed by its period, and counts as the account's statement for that period, so no alert asks for\nit.\n\n## Period from {#period-start}\n\nThe first day it covers, read from the statement where it could be.\n\n## Period to {#period-end}\n\nThe last day it covers.\n",
 "dialog-statement-split":"# A statement of several accounts\n\nA combined statement, such as UMB's checking and savings or a Schwab combined statement, split\nwhere each account's part begins. Each part is checked against its own opening and closing\nbalances, one after another. Nothing is saved until every part is saved or left out; the PDF is\nthen kept once, on each account it filled.\n\n## Account {#part-account}\n\nThe account this part goes to: the one whose last four digits its header shows, or one you choose\nwhen none or several match.\n\n## Period from {#period-start}\n\nThe first day the part covers.\n\n## Period to {#period-end}\n\nThe last day it covers.\n\n## Opening balance {#opening}\n\nThe part's balance before the period: it becomes the account's balance the day before.\n\n## Closing balance {#closing}\n\nThe part's balance at the end: it becomes the account's balance on the last day.\n\n## Leave this part out\n\nFor an account MoolaKata doesn't hold, or one you keep elsewhere.\n",
 "dialog-strategy":"# A strategy\n\n## Name {#strategy-name}\n\nYour own name for it; empty, its shape names it.\n\n## Cash-secured\n\nFor a short put: the cash to buy the shares is set aside.\n\n## Margin requirement {#margin-requirement}\n\nYour broker's, for a strategy whose loss has no limit (a naked call, a short straddle or strangle):\nit is then its capital at risk.\n\n## Ungroup\n\nUndoes the group. Each leg stands on its own again, its lots, gains and history unchanged.\n",
@@ -2993,7 +3017,7 @@ ol.phrase li::marker {
 "prices-coinbase":"## Coinbase\n\nMajor coins, priced in US dollars, with no key. A day's close is at midnight UTC.\n",
 "prices-manual":"## Manual\n\nWhat has no free ticker (a 401(k)'s collective trust, a single bond) is valued from a typed price or\na statement value, with its date. One over 90 days old is stale. A typed price is its typer's: it\nvalues their own accounts, and another person's only when they type one too.\n",
 "prices-tiingo":"## Tiingo\n\nUS stocks, ETFs and mutual funds. A free key from tiingo.com; 50 requests an hour and 1,000 a day,\nfor personal use. Mutual-fund NAVs post around midnight Eastern.\n",
-"profile":"# Profile\n\nYour name, email, password, two-step sign-in and how MoolaKata shows things to you.\n\n![Profile](shots/profile.png)\n\n## Change avatar {#avatar}\n\nAn image, made small in your browser before it's saved.\n\n## Display name\n\nYour name as others see it.\n\n## Time zone\n\nTimes show in it. **Auto** follows the server's.\n\n## Theme\n\nDark, light or your system's. The button at the foot of the sidebar switches it too.\n\n## Sex\n\nChooses the words for the family tree: wife or husband, mother-in-law or father-in-law.\n\n## Birthday\n\nFor retirement contribution catch-up limits, required minimum distributions and your age in\nprojections.\n\n## Alert emails\n\nWhether alerts reach you by email: each one, a daily summary, or none.\n\n## Bitcoin in {#bitcoin-unit}\n\nHow amounts of bitcoin are shown to you: **BTC** (0.12345678 BTC) or **sats** (12,345,678 sats).\nThey are kept to the sat either way.\n\n## Relationships\n\nYour spouse, children, friends and colleagues, each from a date and, once over, to a date. Parents,\ngrandparents, cousins and in-laws are worked out from them. Your spouse on the day of a sale counts\nfor **wash sales** (a loss sale with a purchase of the same thing within 30 days either side), and\nyour spouse on the last day of a year for a joint tax book, once you have both confirmed the\nmarriage: one your spouse entered shows **Confirm** here. Click one to change its dates, such as a\ndivorce's, or to remove it.\n\n## New email address\n\nIt takes effect when you open the link sent to it.\n\n## Your password {#reauth-password}\n\nAsked again when you last gave it more than 10 minutes ago.\n\n## Current password\n\nYour password now.\n\n## New password\n\nAt least the minimum length, and not a common password. Changing it signs out your other sessions.\n\n## Two-step sign-in {#two-step}\n\nAfter your password, a code from an authenticator app on your phone, so a stolen password alone\ncan't sign in. **Turn on** shows a QR code to scan; **New recovery codes** replaces the ten codes\nthat sign in when the phone is lost. Turning it on or off emails you.\n\n## Your password {#two-step-password}\n\nAsked again when you last gave it more than 10 minutes ago.\n\n## Connections {#connections}\n\nYour sign-ins at institutions, kept by the MoolaKata Connector and never by MoolaKata: each with\nits driver (Schwab, OFX Direct Connect or a folder of downloads), the institution accounts the\ndriver found, the accounts here it keeps current, and its state from the connector's last\nreport. **New connection** starts one; **Sign in again** or **Change credentials** gives the\nconnector new ones, sealed in this browser to its key so MoolaKata can't read them; **Remove**\n(the click asks again) turns its accounts' sync off, and the connector deletes its credentials.\nA connection that needs a sign-in, as Schwab's does each week, alerts you.\n\n## Access tokens {#access-tokens}\n\nLet an AI assistant, or another tool that speaks the Model Context Protocol, read your finances at\nthe MCP endpoint shown. A token reads, never changes anything, and sees only what you can see, or\nthe accounts and portfolios you chose for it; never secrets, Settings or linked households. Each\nshows what it can read, when it expires and when it was last used. **Revoke** stops it at once (the\nclick asks again first). Its calls are recorded in Activity under its name.\n\n## Assumptions\n\nUsed by all your projections, so they agree: each asset class's expected yearly return and\nvolatility, and inflation. A projection can override a figure. Long-run figures, not forecasts.\n\n## Expected return {#expected-return}\n\nThe average yearly return you expect of the class, in percent.\n\n## Volatility\n\nHow much a year's return swings around it (its standard deviation), in percent. Monte Carlo draws\neach year's return from these.\n\n## General inflation (%) {#general-inflation}\n\nFor today's dollars and withdrawals that rise with prices. 2.5% by default.\n\n## Education inflation (%) {#education-inflation}\n\nCollege costs rise faster: 5% by default.\n\n## Bitcoin model\n\nFor the bitcoin in your projections: your crypto assumption, or a published model. **Compare\nmodels** shows them side by side with their sources and records. Other coins use the crypto row.\n",
+"profile":"# Profile\n\nYour name, email, password, two-step sign-in and how MoolaKata shows things to you.\n\n![Profile](shots/profile.png)\n\n## Change avatar {#avatar}\n\nAn image, made small in your browser before it's saved.\n\n## Display name\n\nYour name as others see it.\n\n## Time zone\n\nTimes show in it. **Auto** follows the server's.\n\n## Theme\n\nDark, light or your system's. The button at the foot of the sidebar switches it too.\n\n## Sex\n\nChooses the words for the family tree: wife or husband, mother-in-law or father-in-law.\n\n## Birthday\n\nFor retirement contribution catch-up limits, required minimum distributions and your age in\nprojections.\n\n## Alert emails\n\nWhether alerts reach you by email: each one, a daily summary, or none.\n\n## Bitcoin in {#bitcoin-unit}\n\nHow amounts of bitcoin are shown to you: **BTC** (0.12345678 BTC) or **sats** (12,345,678 sats).\nThey are kept to the sat either way.\n\n## Relationships\n\nYour spouse, children, friends and colleagues, each from a date and, once over, to a date. Parents,\ngrandparents, cousins and in-laws are worked out from them. Your spouse on the day of a sale counts\nfor **wash sales** (a loss sale with a purchase of the same thing within 30 days either side), and\nyour spouse on the last day of a year for a joint tax book, once you have both confirmed the\nmarriage: one your spouse entered shows **Confirm** here. Click one to change its dates, such as a\ndivorce's, or to remove it.\n\n## New email address\n\nIt takes effect when you open the link sent to it.\n\n## Your password {#reauth-password}\n\nAsked again when you last gave it more than 10 minutes ago.\n\n## Current password\n\nYour password now.\n\n## New password\n\nAt least the minimum length, and not a common password. Changing it signs out your other sessions.\n\n## Two-step sign-in {#two-step}\n\nAfter your password, a code from an authenticator app on your phone, so a stolen password alone\ncan't sign in. **Turn on** shows a QR code to scan; **New recovery codes** replaces the ten codes\nthat sign in when the phone is lost. Turning it on or off emails you.\n\n## Your password {#two-step-password}\n\nAsked again when you last gave it more than 10 minutes ago.\n\n## Connections {#connections}\n\nYour sign-ins at institutions, kept by the MoolaKata Connector and never by MoolaKata: each with\nits driver (Schwab, OFX Direct Connect or a folder of downloads), the institution accounts the\ndriver found, the accounts here it keeps current, and its state from the connector's last\nreport. **New connection** starts one; **Sign in again** or **Change credentials** gives the\nconnector new ones, sealed in this browser to its key so MoolaKata can't read them; **Remove**\n(the click asks again) turns its accounts' sync off, and the connector deletes its credentials.\nA connection that needs a sign-in, as Schwab's does each week, alerts you.\n\n## Access tokens {#access-tokens}\n\nLet an AI assistant, or another tool that speaks the Model Context Protocol, read your finances at\nthe MCP endpoint shown. A token reads, never changes anything, and sees only what you can see, or\nthe accounts and portfolios you chose for it; never secrets, Settings or linked households. Each\nshows what it can read, when it expires and when it was last used. **Revoke** stops it at once (the\nclick asks again first). Its calls are recorded in Activity under its name.\n\n## Ignored statement lines {#ignored-statement-lines}\n\nThe starts of statement lines you asked to ignore, with **Remember…** when checking a statement,\nby institution. **Remove** reads them again from its next statement.\n\n## Assumptions\n\nUsed by all your projections, so they agree: each asset class's expected yearly return and\nvolatility, and inflation. A projection can override a figure. Long-run figures, not forecasts.\n\n## Expected return {#expected-return}\n\nThe average yearly return you expect of the class, in percent.\n\n## Volatility\n\nHow much a year's return swings around it (its standard deviation), in percent. Monte Carlo draws\neach year's return from these.\n\n## General inflation (%) {#general-inflation}\n\nFor today's dollars and withdrawals that rise with prices. 2.5% by default.\n\n## Education inflation (%) {#education-inflation}\n\nCollege costs rise faster: 5% by default.\n\n## Bitcoin model\n\nFor the bitcoin in your projections: your crypto assumption, or a published model. **Compare\nmodels** shows them side by side with their sources and records. Other coins use the crypto row.\n",
 "projections":"# Projections\n\nHow your money might grow toward a goal, and whether it will pay for it: **retirement**, or a\n**savings target** by a date. A model, not a forecast. (Education goals come with 529 accounts.)\n\n![Projections](shots/projections.png)\n\n## Active\n\nThe plans you follow. At most one per subject: one retirement plan for the same people, one per\nsavings target. Making one active stores its median path and its 10th–90th percentile band as of\nthat day: its **baseline**.\n\n## Scenarios\n\nProjections that aren't active: what-ifs to compare, such as retiring at 60 against 65, or saving\n$500 more a month. **New projection** starts one.\n\n## Tracking\n\nFor an active projection, the actual balance of what it is built on against its baseline: **on\ntrack** inside the band, **ahead** above it, **behind** below it. Falling behind raises an alert,\nchecked at each month's end. In a projection shared with you, you see the status, and the balance\nof only the accounts that are shared with you too; when some aren't, there is no band to show it\nagainst.\n\n## Show on my Dashboard {#show-on-dashboard}\n\nFor an active projection someone shares with you: show it on your Dashboard's Plans card. Off by\ndefault.\n\n## Dollars\n\n**Nominal** dollars as they will be; **today's dollars** take inflation out.\n\n## Built on\n\nA portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their\nvalue today and their mix of asset classes; each class follows your assumptions in Profile.\n\n## Amount {#typed-amount}\n\nThe typed amount it starts from.\n\n## Retirement age\n\nWhen you retire: contributions stop, and withdrawals start, when the last of the people in it\nretires.\n\n## Partner retirement age\n\nYour partner's, for a couple.\n\n## Contribution per year {#contribution}\n\nWhat is added each year until retirement.\n\n## Grows yearly by (%) {#contribution-growth}\n\nHow much the contribution rises each year, with your pay.\n\n## Withdrawal\n\nHow much is taken each year in retirement: the **4% rule** (4% of the balance at retirement, then\nrising with inflation), a **fixed amount** rising with inflation, or a **percentage** of each year's\nbalance.\n\n## Withdrawal a year, in today's dollars {#withdrawal-amount}\n\nThe fixed amount, before inflation.\n\n## Percentage of the balance {#withdrawal-percent}\n\nTaken from each year's balance.\n\n## Other income {#other-income}\n\nSocial Security or a pension, from an age, a month. It covers part of each withdrawal.\n\n## For {#beneficiary}\n\nAn education goal is for one person, one of the household's people. Their year of birth gives the\nfirst year of school.\n\n## Age school starts {#start-age}\n\n18 for college; younger for a private school.\n\n## Years of school {#school-years}\n\nHow many years it pays for: four for a bachelor's degree.\n\n## Cost per year {#cost-basis}\n\nTuition, fees, room and board for a year, in today's dollars: a shipped average for public four-year\n(in-state) or private nonprofit four-year colleges, from the National Center for Education\nStatistics, or a figure you type. It rises each year by education inflation, from your assumptions.\n\n## Cost per year, typed {#cost}\n\nYour own figure for a year, in today's dollars.\n\n## Target amount {#target}\n\nWhat the savings target is.\n\n## Target date\n\nBy when.\n\n## Saving per month {#monthly}\n\nWhat goes in each month until then. The answer says what a month would reach it with a 90% chance.\n\n## Fees a year (%) {#fees}\n\nFund and advisory fees, taken from the balance each year.\n\n## Bitcoin model\n\nFor the bitcoin in what it is built on: your crypto assumption, or a model others publish. A model\nwith bear, base and bull cases shows those three paths instead of a fan.\n\n## Run\n\nSaves the inputs and works it out again. For an active projection it asks whether to move the\nbaseline to the new inputs.\n",
 "receipts":"# Receipts\n\nPDFs and photos of receipts, invoices and statements, kept encrypted on this server and attached to\nthe transactions they belong to.\n\n![Receipts](shots/receipts.png)\n\n## Drop PDFs or photos here {#receipt-files}\n\nPDF, JPEG, PNG, WebP and HEIC (iPhone photos), many at once, each up to the size in Settings ›\nReceipts. The type is checked from the file itself. A file you already uploaded isn't stored twice:\nyou get the receipt you have.\n\n## Show\n\n**All** your receipts, and those attached to transactions in accounts shared with you; or the\n**Inbox**: your receipts attached to nothing yet.\n\n## Search\n\nMatches the text read from each receipt (`blue bottle`, `142.18`), and its payee, amount, file name,\nnotes and tags.\n\n## Being read\n\nEach upload is read on this server in the background: **Reading…** until it's done, then its fields\nare filled in. **Couldn't read it** says why; the receipt still works with its fields typed by hand.\n\n## Sharing\n\nA receipt is seen by whoever can read a transaction it is attached to. One attached to nothing is\nyours alone. Only you can delete your receipt, and only once nothing links to it.\n",
 "reset":"# Reset your password\n\n## New password {#password}\n\nEvery session of yours is signed out when it changes.\n",
@@ -4594,6 +4618,8 @@ export const FIELDS = {
  * @property {(import('@mk/app/dec.js').Dec | null)} [endingValue]
  * @property {Array<PositionIn>} [positions]
  * @property {Array<ActivityIn>} [rows]
+ * @property {Array<string>} [remember]
+ * @property {Array<string>} [forget]
  */
 
 /**
@@ -5645,6 +5671,13 @@ export const FIELDS = {
  */
 
 /**
+ * @typedef {Object} IgnoredLine
+ * @property {string} institution
+ * @property {("bank" | "brokerage")} kind
+ * @property {string} start
+ */
+
+/**
  * @typedef {Object} ImportRow
  * @property {string} id
  * @property {string} format
@@ -6574,6 +6607,14 @@ export const FIELDS = {
 /**
  * @typedef {Object} Page_Household_
  * @property {Array<moolakata__ui__linked__Household>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
+ * @typedef {Object} Page_IgnoredLine_
+ * @property {Array<IgnoredLine>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -8027,6 +8068,8 @@ export const FIELDS = {
  * @property {(number | null)} [part]
  * @property {(string | null)} [accountId]
  * @property {boolean} [leftOut]
+ * @property {Array<string>} [remember]
+ * @property {Array<string>} [forget]
  */
 
 /**
@@ -10472,6 +10515,7 @@ import { ended, loadSession, lostChanges, session } from '@mk/store/session.js';
 import { connect, disconnect } from '@mk/app/stream.js';
 import { PUBLIC_PATHS, PublicScreens, Screens, SetupScreen } from '@mk/app/router.js';
 import { Frame } from '@mk/components/frame.js';
+import { ConfirmHost } from '@mk/components/confirm.js';
 import { dialogHasChanges, DialogHost } from '@mk/components/dialog.js';
 import { MenuHost } from '@mk/components/menu.js';
 import { Toasts } from '@mk/components/toast.js';
@@ -10552,6 +10596,7 @@ function Root() {
     <${LocationProvider}>
       <${App} />
       <${DialogHost} />
+      <${ConfirmHost} />
       <${MenuHost} />
       <${TooltipHost} />
       <${Toasts} />
@@ -11572,6 +11617,86 @@ export function Failed({ error }) {
   `;
 }
 </script>
+<script type="text/plain" data-module="@mk/components/confirm.js">
+// The question before anything is deleted, removed, revoked, ended or reset (requirements
+// S12.16): one small box over the page or the dialog it comes from, No focused and the
+// default (Enter and Escape both answer it), Yes named for what it does.
+import { signal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
+import { html } from '@mk/app/html.js';
+
+/** @type {import('@preact/signals').Signal<{ title: string, detail?: string, yes: string,
+ *   resolve: (v: boolean) => void, back: HTMLElement | null } | null>} */
+const asked = signal(null);
+
+/**
+ * Ask before a destructive action; true only for Yes.
+ * @param {{ title: string, detail?: string, yes?: string }} q
+ * @returns {Promise<boolean>}
+ */
+export function confirmAction({ title, detail, yes = 'Yes, delete' }) {
+  return new Promise((resolve) => {
+    asked.value?.resolve(false);
+    asked.value = {
+      title,
+      detail,
+      yes,
+      resolve,
+      back: /** @type {HTMLElement | null} */ (document.activeElement),
+    };
+  });
+}
+
+/** @param {boolean} answer */
+function answer(answer) {
+  const q = asked.value;
+  if (!q) return;
+  asked.value = null;
+  q.resolve(answer);
+  setTimeout(() => q.back?.focus?.(), 0);
+}
+
+export function ConfirmHost() {
+  const q = asked.value;
+  const no = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const yes = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  useEffect(() => {
+    if (!q) return;
+    no.current?.focus();
+    // Ahead of a dialog's own keys, so Escape answers No here and leaves the dialog open.
+    const onKey = (/** @type {KeyboardEvent} */ e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        answer(false);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        (document.activeElement === no.current ? yes : no).current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [q]);
+  if (!q) return null;
+  return html`
+    <div class="confirm-scrim" onClick=${(/** @type {any} */ e) =>
+      e.target === e.currentTarget && answer(false)}>
+      <div class="dialog-ask-box" role="alertdialog" aria-modal="true"
+        aria-labelledby="confirm-title" aria-describedby=${q.detail ? 'confirm-detail' : undefined}>
+        <h3 id="confirm-title">${q.title}</h3>
+        ${q.detail ? html`<p class="small dim" id="confirm-detail">${q.detail}</p>` : null}
+        <div class="dialog-ask-buttons">
+          <button type="button" class="btn danger" ref=${yes} onClick=${() => answer(true)}>${q
+            .yes}</button>
+          <button type="button" class="btn primary" ref=${no} onClick=${() =>
+            answer(false)}>No</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+</script>
 <script type="text/plain" data-module="@mk/components/connections.js">
 // Profile › Connections and an account's sync (requirements S18.6, S18.7): a user's own
 // sign-ins at institutions, kept by the MoolaKata Connector. Credentials typed here are sealed
@@ -11582,6 +11707,7 @@ import { api } from '@mk/api/client.js';
 import { withReauth } from '@mk/components/reauth.js';
 import { useApi, useList, useSubmit } from '@mk/app/hooks.js';
 import { canSeal, seal, sealingKeyIsSigned } from '@mk/app/sealed.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { errAt, Field, FormError, Input, Select, SwitchRow } from '@mk/components/fields.js';
@@ -11619,11 +11745,9 @@ export function Connections() {
   const res = useList('/profile/connections', {}, ['task']);
   const rows = /** @type {any[]} */ (res.data);
   const paired = /** @type {any} */ (info.data)?.paired;
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const remove = useSubmit(async (/** @type {any} */ c) => {
     await saveNow((d) => d.remove(d.load(ConnRec, c)));
     toast(`${c.label}: removed; its accounts' sync is off`);
-    setArmed(null);
     res.reload();
   });
   const make = () =>
@@ -11666,10 +11790,12 @@ export function Connections() {
                 ? 'Sign in again'
                 : 'Change credentials'}</button>
               <button class="btn sm danger" disabled=${remove.busy}
-                onClick=${() =>
-                  armed === c.id ? remove.run(c).catch(() => {}) : setArmed(c.id)}>${armed === c.id
-                  ? 'Click again to remove'
-                  : 'Remove'}</button></div>
+                onClick=${async () => {
+                  if (
+                    !(await confirmAction({ title: 'Remove this connection?', yes: 'Yes, remove' }))
+                  ) return;
+                  remove.run(c).catch(() => {});
+                }}>Remove</button></div>
           `
         )}
     </div>
@@ -12018,6 +12144,7 @@ import { FormError } from '@mk/components/fields.js';
 import { Failed, Loading } from '@mk/components/bits.js';
 import { Icon } from '@mk/components/icon.js';
 import { toast } from '@mk/components/toast.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',
@@ -12046,11 +12173,9 @@ export function connectionState(c) {
 export function ConnectorSection() {
   const res = useApi('/settings/connector', {}, ['task']);
   const v = /** @type {any} */ (res.data);
-  const [armed, setArmed] = useState(false);
   const unpair = useSubmit(async () => {
     await withReauth(() => api.post('/settings/connector/unpair'));
     toast('Unpaired: every Connection stopped and every sync is off');
-    setArmed(false);
     res.reload();
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
@@ -12153,14 +12278,14 @@ export function ConnectorSection() {
           : 'Pair…'}</button>
         <span class="spacer"></span>
         ${paired || v.state === 'pairing'
-          ? armed
-            ? html`
-              <span class="small dim">Every Connection stops and every account's sync
-                              turns off.</span> <button class="btn danger" disabled=${unpair.busy}
-                onClick=${() => unpair.run().catch(() => {})}>Unpair now</button>
-                            <button class="btn" onClick=${() => setArmed(false)}>Keep</button>
-            `
-            : html`<button class="btn danger" onClick=${() => setArmed(true)}>Unpair…</button>`
+          ? html`<button class="btn danger" disabled=${unpair.busy} onClick=${async () => {
+            const sure = await confirmAction({
+              title: 'Unpair the connector?',
+              detail: "Every Connection stops and every account's sync turns off.",
+              yes: 'Yes, unpair',
+            });
+            if (sure) unpair.run().catch(() => {});
+          }}>Unpair…</button>`
           : null}
       </div>
       <${FormError} error=${unpair.error} />
@@ -14922,6 +15047,7 @@ import { useApi, useSubmit } from '@mk/app/hooks.js';
 import { ago, day, moment } from '@mk/app/format.js';
 import { parseDuration } from '@mk/app/duration.js';
 import { withReauth } from '@mk/components/reauth.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { errAt, Field, FormError, Input, Select } from '@mk/components/fields.js';
@@ -14977,7 +15103,6 @@ export function LinksSection() {
   });
   const pause = (/** @type {any} */ l) =>
     openDialog(PauseDialog, { link: l }).then((x) => x && res.reload());
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const copyAct = useSubmit(async (/** @type {string} */ id, /** @type {string} */ what) => {
     const out = await api.post(`/settings/links/${id}/${what}`);
     toast(what === 'lock' ? 'Locked' : 'Copy reset: make its new access key');
@@ -15136,16 +15261,16 @@ export function LinksSection() {
                                 act.run(l.id, 'resume')}>Resume now</button>
                             `
                             : null}<button class="btn sm danger"
-                            onClick=${() =>
-                              armed === l.id
-                                ? act.run(l.id, 'end').then(() => setArmed(null))
-                                : setArmed(
-                                  l.id,
-                                )}>${armed === l.id
-                              ? 'Click again to end'
-                              : l.state === 'invited'
-                              ? 'Withdraw'
-                              : 'End link'}</button>
+                            onClick=${async () => {
+                              const invited = l.state === 'invited';
+                              if (
+                                !(await confirmAction({
+                                  title: invited ? 'Withdraw this invitation?' : 'End this link?',
+                                  yes: invited ? 'Yes, withdraw' : 'Yes, end it',
+                                }))
+                              ) return;
+                              act.run(l.id, 'end').catch(() => {});
+                            }}>${l.state === 'invited' ? 'Withdraw' : 'End link'}</button>
                         `}</div>
                     </td>
                   </tr>
@@ -15164,7 +15289,7 @@ export function LinksSection() {
         : null}
       <${FormError} error=${act.error} />
     </div>
-    ${copies(live, values, res.reload, copyAct, release, armed, setArmed)}
+    ${copies(live, values, res.reload, copyAct, release)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
       html`<div class="card mt"><h3 data-help="outgoing">Shared from here with ${l.peerName}</h3>
         <p class="small dim" style=${{ marginTop: '-6px' }}>What this server sends at each pull,
@@ -15294,9 +15419,9 @@ const size = (n) =>
  * The Linked copies card (S11.7, S11.9): each copy's access key, size and lock, Create the
  * access key, Lock now and Reset copy, and how long an unused copy stays unlocked.
  * @param {any[]} live @param {any} values @param {() => void} reload @param {any} act
- * @param {any} release @param {string | null} armed @param {(v: string | null) => void} setArmed
+ * @param {any} release
  */
-function copies(live, values, reload, act, release, armed, setArmed) {
+function copies(live, values, reload, act, release) {
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
@@ -15323,7 +15448,6 @@ function copies(live, values, reload, act, release, armed, setArmed) {
               </thead>
               <tbody>${rows.map((l) => {
                 const c = l.linkedCopy;
-                const reset = armed === 'reset-' + l.id;
                 return html`
                   <tr>
                     <td><b>${l.peerName}</b><div class="small dim">${c.items} item${c.items === 1
@@ -15358,12 +15482,12 @@ function copies(live, values, reload, act, release, armed, setArmed) {
                               act.run(l.id, 'lock').catch(() => {})}>Lock now</button>
                           `
                           : null
-                      }<button class="btn sm danger" onClick=${() =>
-                        reset
-                          ? act.run(l.id, 'reset-copy').then(() => setArmed(null), () => {})
-                          : setArmed('reset-' + l.id)}>${
-                        reset ? 'Click again to reset' : 'Reset copy'
-                      }</button>`}</td>
+                      }<button class="btn sm danger" onClick=${async () => {
+                        if (
+                          !(await confirmAction({ title: 'Reset this copy?', yes: 'Yes, reset' }))
+                        ) return;
+                        act.run(l.id, 'reset-copy').catch(() => {});
+                      }}>Reset copy</button>`}</td>
                   </tr>
                 `;
               })}</tbody>
@@ -17287,6 +17411,7 @@ import { Record as Rec } from '@mk/app/draft.js';
 import { DraftDialog, RecField, useDraft } from '@mk/components/draft-form.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { TagsField } from '@mk/components/tags.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -17455,6 +17580,7 @@ export function ReceiptDialog({ close, id }) {
                 : undefined} onClick=${async () => {
                 const draft = f.draft;
                 if (!draft) return;
+                if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
                 draft.remove(rec);
                 const o = await save.run().catch(() => null);
                 if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
@@ -17612,11 +17738,11 @@ export function ReceiptDialog({ close, id }) {
 <script type="text/plain" data-module="@mk/components/rules.js">
 // Categorisation and payee rules (requirements S2.7): Transactions › Rules lists a user's own
 // rules, first match wins, and edits them one at a time; applied on import and on demand.
-import { useState } from 'preact/hooks';
 import { html } from '@mk/app/html.js';
 import { api } from '@mk/api/client.js';
 import { useApi, useList, useSubmit } from '@mk/app/hooks.js';
 import { money } from '@mk/app/format.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { FormError } from '@mk/components/fields.js';
@@ -17679,10 +17805,8 @@ function RulesDialog({ close }) {
   useDialogGuide('dialog-rules');
   const res = useApi('/rules');
   const v = /** @type {any} */ (res.data);
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const act = useSubmit(async (/** @type {() => Promise<any>} */ f) => {
     await f();
-    setArmed(null);
     res.reload();
   });
   const apply = useSubmit(async () => {
@@ -17743,13 +17867,11 @@ function RulesDialog({ close }) {
                       <button type="button" class="btn sm" onClick=${() =>
                         close({ rule: r })}>Edit…</button>
                       <button type="button" class="btn sm danger" disabled=${act.busy}
-                        onClick=${() =>
-                          armed === r.id
-                            ? act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
-                              .catch(() => {})
-                            : setArmed(r.id)}>${armed === r.id
-                          ? 'Click again to delete'
-                          : 'Delete'}</button>
+                        onClick=${async () => {
+                          if (!(await confirmAction({ title: 'Delete this rule?' }))) return;
+                          act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
+                            .catch(() => {});
+                        }}>Delete</button>
                     </td>
                   </tr>
                 `
@@ -18511,6 +18633,7 @@ import { FIELDS } from '@mk/api/fields.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { Icon } from '@mk/components/icon.js';
 import { toast } from '@mk/components/toast.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
@@ -18863,7 +18986,6 @@ function StrategyDialog({ close, x }) {
     draft.load(StrategyRec, { ...x, name: x.name === x.shape ? null : x.name });
   }, [x.id]);
   const rec = /** @type {StrategyRec | undefined} */ (f.draft?.records[0]);
-  const [armed, setArmed] = useState(false);
   const shortPut = x.legs.some((/** @type {any} */ l) =>
     l.kind === 'put' && dec(l.quantity).isNegative()
   );
@@ -18876,11 +18998,17 @@ function StrategyDialog({ close, x }) {
           <button type="button" class="btn danger" disabled=${save.busy || !rec}
             onClick=${async () => {
               const draft = f.draft;
-              if (!armed || !rec || !draft) return setArmed(true);
+              if (!rec || !draft) return;
+              const sure = await confirmAction({
+                title: 'Ungroup this strategy?',
+                detail: 'Its legs stay, each on its own.',
+                yes: 'Yes, ungroup',
+              });
+              if (!sure) return;
               draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
-            }}>${armed ? 'Ungroup it?' : 'Ungroup'}</button><span class="spacer"></span>
+            }}>Ungroup</button><span class="spacer"></span>
         `}>
       ${rec
         ? html`
@@ -19750,10 +19878,10 @@ export function Toasts() {
 <script type="text/plain" data-module="@mk/components/tokens.js">
 // Profile › Access tokens (requirements S10.9.1): tokens an AI assistant uses to read, never
 // change, what you can see through the MCP endpoint. Each is shown once, when it is made.
-import { useState } from 'preact/hooks';
 import { html } from '@mk/app/html.js';
 import { useList, useSubmit } from '@mk/app/hooks.js';
 import { ago, day } from '@mk/app/format.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { Field, Select } from '@mk/components/fields.js';
@@ -19769,11 +19897,9 @@ const endpoint = () => `${location.origin}/mcp`;
 export function AccessTokens() {
   const res = useList('/profile/tokens');
   const rows = /** @type {any[]} */ (res.data);
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const revoke = useSubmit(async (/** @type {any} */ t) => {
     await saveNow((d) => d.remove(d.load(TokenRec, t)));
     toast(`${t.name}: revoked`);
-    setArmed(null);
     res.reload();
   });
   const make = () =>
@@ -19805,12 +19931,15 @@ export function AccessTokens() {
                 : `expires ${day(t.expiresAt)}`} · ${t.lastUsedAt
                 ? `last used ${ago(t.lastUsedAt)}`
                 : 'never used'}</div></div><button class="btn sm danger" disabled=${revoke.busy}
-                        onClick=${() =>
-                          armed === t.id
-                            ? revoke.run(t).catch(() => {})
-                            : setArmed(t.id)}>${armed === t.id
-                          ? 'Click again to revoke'
-                          : 'Revoke'}</button></div>
+                        onClick=${async () => {
+                          if (
+                            !(await confirmAction({
+                              title: 'Revoke this token?',
+                              yes: 'Yes, revoke',
+                            }))
+                          ) return;
+                          revoke.run(t).catch(() => {});
+                        }}>Revoke</button></div>
           `
         )}
     </div>
@@ -20480,6 +20609,7 @@ import { useGuide } from '@mk/components/help.js';
 import { Amt } from '@mk/components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs, Tile } from '@mk/components/bits.js';
 import { Icon } from '@mk/components/icon.js';
+import { confirmAction } from '@mk/components/confirm.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
 import { errAt, Field, FormError, Input, SwitchRow } from '@mk/components/fields.js';
@@ -21304,7 +21434,6 @@ function Settings({ a, reload }) {
   const physical = BY_TYPE[a.type]?.physical;
   const wallet = BY_TYPE[a.type]?.wallet;
   const education = BY_TYPE[a.type]?.education;
-  const [armed, setArmed] = useState(false);
   const f = useDraft(async (draft) => {
     draft.load(AcctRec, await api.get(`/accounts/${a.id}`));
     if (education) await loadPlan(draft, a.id);
@@ -21358,14 +21487,15 @@ function Settings({ a, reload }) {
         html`
           <button type="button" class="btn danger" disabled=${save.busy}
             onClick=${async () => {
-              if (!armed || !rec || !f.draft) return setArmed(true);
+              if (!rec || !f.draft) return;
+              if (!(await confirmAction({ title: `Delete ${a.name}?` }))) return;
               f.draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status === 'saved') {
                 toast(`${a.name} deleted`);
                 route('/ui/accounts');
               } else if (r?.status !== 'asks') f.draft.unremove(rec);
-            }}>${armed ? 'Click again to delete' : 'Delete account…'}</button>
+            }}>Delete account…</button>
         `}>
       ${rec
         ? html`
@@ -24109,6 +24239,7 @@ import { dec, num } from '@mk/app/dec.js';
 import { Record as Rec } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { DraftDialog, RecField, useDraft } from '@mk/components/draft-form.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -24543,8 +24674,6 @@ function PersonDialog({ close, p }) {
     else if (o.removed) draft.unremove(o);
     else draft.remove(o);
   };
-  // Deleting asks twice: the plan only, or the person with it (S7.8.6).
-  const [armed, setArmed] = useState('');
   const join = useSubmit(async (/** @type {any} */ r) => {
     await api.post(`/persons/${p.id}/join`, { userId: r.id });
     toast(`${r.name} on ${r.server} is ${p.name} here`);
@@ -24574,9 +24703,13 @@ function PersonDialog({ close, p }) {
         : `${who?.get('name') || 'They'} added`}
       hideSave=${!canWrite}
       extra=${({ save }) => {
-        /** Delete the plan, or the person with it: armed first, then removed and saved. */
+        /** Delete the plan, or the person with it (S7.8.6): asked first, then saved. */
         const drop = async (/** @type {string} */ what) => {
-          if (armed !== what || !draft) return setArmed(what);
+          if (!draft) return;
+          const sure = await confirmAction({
+            title: what === 'person' ? `Delete ${p.name} for everyone?` : 'Delete the plan?',
+          });
+          if (!sure) return;
           const r = /** @type {any} */ (what === 'person' ? who : plan);
           draft.remove(r);
           const out = await save.run().catch(() => null);
@@ -24595,18 +24728,14 @@ function PersonDialog({ close, p }) {
           p && p.level === 'owner'
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('plan')}>${armed === 'plan'
-                  ? 'Delete the plan?'
-                  : 'Delete plan'}</button>
+                onClick=${() => drop('plan')}>Delete plan</button>
             `
             : null
         }${
           p && p.canChangePerson && !p.isUser
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('person')}>${armed === 'person'
-                  ? `Delete ${p.name} for everyone?`
-                  : 'Delete person'}</button>
+                onClick=${() => drop('person')}>Delete person</button>
             `
             : null
         }<span class="spacer"></span>`;
@@ -24892,6 +25021,7 @@ function GiftDialog({ close, gift, start }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                if (!(await confirmAction({ title: 'Delete this gift?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -25010,6 +25140,7 @@ import { Dec, dec, num } from '@mk/app/dec.js';
 import { Record as Rec } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { DraftDialog, RecField, useDraft } from '@mk/components/draft-form.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
@@ -25668,6 +25799,7 @@ function DonationView({ close, d }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                if (!(await confirmAction({ title: 'Delete this donation?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -25779,7 +25911,7 @@ function OrganisationDialog({ close, o }) {
 // Importing a file into an account (requirements S1.3.2–S1.3.3): OFX, QFX or CSV, or a
 // statement (a PDF or a photo of one) read on the server and checked before it is saved. A CSV
 // from an institution seen for the first time asks for its columns, then remembers them.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '@mk/app/html.js';
 import { api } from '@mk/api/client.js';
 import { changes } from '@mk/app/stream.js';
@@ -25804,7 +25936,9 @@ async function finished(id) {
   throw new Error('The import is taking too long; it carries on, and its result shows later.');
 }
 
-const COLUMNS = /** @type {[string, string, string][]} */ ([
+// The columns a mapping names; the last five, a trade history's, only for an account that holds
+// instruments (S1.3.2).
+const COLUMNS = /** @type {[string, string, string, boolean?][]} */ ([
   ['date', 'Date column', 'The posting or trade date.'],
   ['payee', 'Description column', 'The payee, merchant or description.'],
   ['amount', 'Amount column', 'One column with + for money in and − for money out.'],
@@ -25813,6 +25947,11 @@ const COLUMNS = /** @type {[string, string, string][]} */ ([
   ['balance', 'Running balance column', 'Optional: every row then checks the balance.'],
   ['memo', 'Memo column', 'Optional.'],
   ['id', 'Transaction id column', "Optional: the institution's own id for each row."],
+  ['action', 'Action column', 'What each row is: a buy, a sale, a dividend, a transfer.', true],
+  ['symbol', 'Symbol column', 'The ticker, fund symbol or coin traded.', true],
+  ['quantity', 'Quantity column', 'Shares or coins.', true],
+  ['price', 'Price column', 'Optional: the price per share or coin.', true],
+  ['fees', 'Fees column', 'Optional: commission, fees or spread.', true],
 ]);
 
 /** @param {{ close: (v?: any) => void, accounts: any[], accountId?: string }} p */
@@ -25830,6 +25969,14 @@ export function ImportDialog({ close, accounts, accountId }) {
   // lines can't be read.
   const [keeping, setKeeping] = useState(false);
   const [kept, setKept] = useState(/** @type {any} */ (null));
+  // The upload the server holds for this dialog, let go as soon as the dialog closes
+  // (S13.7.6) rather than when it expires.
+  const held = useRef(/** @type {string | null} */ (null));
+  held.current = mapping?.uploadId || review?.uploadId || kept?.uploadId || error?.uploadId ||
+    null;
+  useEffect(() => () => {
+    if (held.current) api.del(`/imports/${held.current}`).catch(() => {});
+  }, []);
 
   const start = async () => {
     if (!file) return;
@@ -25847,13 +25994,16 @@ export function ImportDialog({ close, accounts, accountId }) {
           ...job.result,
           activity: job.result.activity.map((/** @type {any} */ r) => ({
             ...r,
-            include: !r.present && !r.notRead && !job.result.byFile,
+            include: !r.notRead && !r.ignored,
           })),
         });
       } else if (job.result.needsReview) {
         setReview({
           ...job.result,
-          rows: job.result.rows.map((/** @type {any} */ r) => ({ ...r, include: !r.present })),
+          rows: job.result.rows.map((/** @type {any} */ r) => ({
+            ...r,
+            include: r.present || !r.ignored,
+          })),
           accept: false,
         });
       } else setResult(job.result);
@@ -25950,7 +26100,9 @@ export function ImportDialog({ close, accounts, accountId }) {
         }}>A CSV from this institution for the first time.
               Check the columns MoolaKata guessed.</p>
         <div class="split-form">
-              ${COLUMNS.map(([k, label, hint]) =>
+              ${COLUMNS.filter(([, , , trade]) => !trade || mapping.trades).map((
+                [k, label, hint],
+              ) =>
                 html`
                   <${Field} label=${label} id=${'map-' + k} hint=${hint}
                     error=${errAt(error, 'mapping.' + k)}>
@@ -25968,6 +26120,16 @@ export function ImportDialog({ close, accounts, accountId }) {
                   setMapping({ ...mapping, mapping: { ...m, negateAmounts: v === 'yes' } })}
                 options=${[['no', 'No'], ['yes', 'Yes: flip the signs']]} /></${Field}>
             </div>
+            ${mapping.trailer
+              ? html`
+                <p
+                  class="small dim">${mapping.trailer} line${mapping.trailer === 1
+                    ? ''
+                    : 's'} below the rows ${mapping.trailer === 1
+                    ? 'was'
+                    : 'were'} left out: notes, not rows.</p>
+              `
+              : null}
             <div class="table-wrap"><table class="t"><caption class="sr-only">The file's first rows</caption>
               <thead><tr>${mapping.headers.map((/** @type {string} */ h) =>
                 html`<th>${h}</th>`
@@ -26123,9 +26285,83 @@ function partReview(review, part) {
     ...review,
     ...part,
     accountId: part.accountId || '',
-    rows: part.rows.map((/** @type {any} */ r) => ({ ...r, include: !r.present })),
+    rows: part.rows.map((/** @type {any} */ r) => ({ ...r, include: r.present || !r.ignored })),
     accept: false,
   };
+}
+
+/** A line's first three words, what "Remember…" proposes to ignore (S1.3.3.4). */
+const firstWords = (/** @type {string} */ d) =>
+  d.trim().split(/\s+/).slice(0, 3).join(' ').toLowerCase();
+
+/** What the person asked about the lines to ignore: the starts to remember and to forget. */
+function ignoring(/** @type {any[]} */ rows) {
+  return {
+    remember: [...new Set(rows.filter((r) => r.remember).map((r) => r.remember))],
+    forget: [...new Set(rows.filter((r) => r.stop).map((r) => r.ignored))],
+  };
+}
+
+/**
+ * A statement line's state at the end of its row (S1.3.3.3, S1.3.3.4): already in the account;
+ * caught by a line to ignore, with Stop ignoring; or left out by the person, with Remember…,
+ * whose question opens beneath the row (`Asking`).
+ * @param {{ r: any, set: (v: any) => void, fresh: any }} p
+ */
+function LineState({ r, set, fresh }) {
+  if (r.present) return html`<span class="pill">already in the account</span>`;
+  if (r.ignored && !r.stop) {
+    return html`<span class="small dim">Ignored (starts with “${r.ignored}”) · <a href="#"
+      onClick=${(/** @type {Event} */ e) => {
+      e.preventDefault();
+      set({ stop: true, include: true });
+    }}>Stop ignoring</a></span>`;
+  }
+  if (r.include) return fresh;
+  if (r.remember) {
+    return html`<span class="pill">Ignored next time <button type="button" class="linklike"
+      aria-label="Don't ignore it next time" onClick=${() =>
+      set({ remember: null })}>✕</button></span>`;
+  }
+  return r.asking == null
+    ? html`<a href="#" class="small dim" onClick=${(/** @type {Event} */ e) => {
+      e.preventDefault();
+      set({ asking: firstWords(r.description) });
+    }}>Remember…</a>`
+    : null;
+}
+
+/**
+ * "Ignore future lines starting with:", beneath the row it asks about.
+ * @param {{ r: any, set: (v: any) => void, cols: number }} p
+ */
+function Asking({ r, set, cols }) {
+  if (r.asking == null || r.include || r.present) return null;
+  const ok = () => r.asking.trim() && set({ remember: r.asking.trim(), asking: null });
+  return html`
+    <tr class="asking">
+      <td colspan=${cols}>
+        <div class="ask-inline" role="group" aria-label="Remember this line">
+          <label for=${'ask-' + r.line}>Ignore future lines starting with:</label>
+          <input class="in" id=${'ask-' + r.line} value=${r.asking} data-help="remember"
+            onInput=${(/** @type {any} */ e) => set({ asking: e.currentTarget.value })}
+            onKeyDown=${(/** @type {KeyboardEvent} */ e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                ok();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                set({ asking: null });
+              }
+            }} />
+          <button type="button" class="btn sm" onClick=${() =>
+            set({ asking: null })}>Cancel</button>
+          <button type="button" class="btn sm primary" onClick=${ok}>OK</button>
+        </div>
+      </td>
+    </tr>
+  `;
 }
 
 /**
@@ -26147,13 +26383,15 @@ function StatementReview({ review, setReview, close, done, part = null }) {
   const diff = (cents(review.closing) ?? 0n) - (cents(review.opening) ?? 0n) - sum;
   const set = (/** @type {string} */ k) => (/** @type {string} */ v) =>
     setReview({ ...review, [k]: v });
-  const setRow = (/** @type {number} */ i, /** @type {string} */ k, /** @type {any} */ v) =>
+  const change = (/** @type {number} */ i, /** @type {any} */ v) =>
     setReview({
       ...review,
       rows: review.rows.map((/** @type {any} */ r, /** @type {number} */ j) =>
-        i === j ? { ...r, [k]: v } : r
+        i === j ? { ...r, ...v } : r
       ),
     });
+  const setRow = (/** @type {number} */ i, /** @type {string} */ k, /** @type {any} */ v) =>
+    change(i, { [k]: v });
   const save = async (/** @type {boolean} */ leftOut = false) => {
     setBusy(true);
     setError(null);
@@ -26165,8 +26403,9 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         opening: review.opening,
         closing: review.closing,
         acceptDifference: review.accept,
+        ...ignoring(review.rows),
         // Each row names the line it was read as, so a corrected description is told from
-        // what was read and teaches no skip (S1.3.3.4).
+        // what was read (S1.3.3.4).
         rows: review.rows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
           date: r.date,
           description: r.description,
@@ -26259,10 +26498,9 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         <tbody>${review.rows.map((/** @type {any} */ r, /** @type {number} */ i) =>
           html`
             <tr class=${r.include ? '' : 'dim'}>
-              <td><input type="checkbox" checked=${r.include} aria-label=${'Import ' +
-                r.description}
-                          data-help="include" onChange=${() =>
-                            setRow(i, 'include', !r.include)} /></td>
+              <td><input type="checkbox" checked=${r.include} disabled=${r.present}
+                aria-label=${'Import ' + r.description} data-help="include" onChange=${() =>
+                  change(i, { include: !r.include, asking: null })} /></td>
               <td class="dim">${date(r.date)}</td>
               <td><input class="in" value=${r
                 .description} aria-label="Description" data-help="description"
@@ -26274,10 +26512,13 @@ function StatementReview({ review, setReview, close, done, part = null }) {
                           data-help="amount" style=${{ maxWidth: '120px' }}
                           onInput=${(/** @type {any} */ e) =>
                             setRow(i, 'amount', e.currentTarget.value)} /></td>
-              <td>${r.present
-                ? html`<span class="pill">already here</span>`
-                : html`<span class="pill info">new</span>`}</td>
+              <td>
+                <${LineState} r=${{ ...r, line: i }} set=${(/** @type {any} */ v) =>
+                  change(i, v)} fresh=${html`<span class="pill info">new</span>`} />
+              </td>
             </tr>
+            <${Asking} r=${{ ...r, line: i }} cols=${5} set=${(/** @type {any} */ v) =>
+              change(i, v)} />
           `
         )}</tbody>
       </table></div>
@@ -26307,11 +26548,11 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {any} */ (null));
   const sm = review.summary;
-  const setRow = (/** @type {number} */ i) =>
+  const change = (/** @type {number} */ i, /** @type {any} */ v) =>
     setReview({
       ...review,
       activity: review.activity.map((/** @type {any} */ r, /** @type {number} */ j) =>
-        i === j ? { ...r, include: !r.include } : r
+        i === j ? { ...r, ...v } : r
       ),
     });
   const save = async () => {
@@ -26340,6 +26581,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           symbol: r.symbol,
           include: r.include && !r.notRead,
         })),
+        ...ignoring(review.activity),
       });
       done(job.result);
     } catch (e) {
@@ -26377,7 +26619,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
   );
   return html`
     <${Dialog} title="Check the statement" wide close=${close} onSubmit=${save}
-      note=${`What you leave out is remembered for the next statement from ${
+      note=${`What you ask to ignore is remembered for the next statement from ${
         review.institution || 'this institution'
       }.`}
       footer=${html`<button class="btn primary" disabled=${busy}>${
@@ -26444,8 +26686,9 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           html`
             <tr class=${r.include && !r.notRead ? '' : 'dim'}>
               <td>${r.notRead ? null : html`
-                <input type="checkbox" checked=${r.include}
-                  aria-label=${'Import ' + r.description} onChange=${() => setRow(i)} />
+                <input type="checkbox" checked=${r.include} disabled=${r.present}
+                  aria-label=${'Import ' + r.description} onChange=${() =>
+                    change(i, { include: !r.include, asking: null })} />
               `}</td>
               <td class="dim">${date(r.date)}</td>
               <td>${r.description}</td>
@@ -26461,10 +26704,12 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
                       r.kind.replace('-', ' ')
                     }: enter it by hand</span>`
                 }`
-                : r.present
-                ? html`<span class="pill">already here</span>`
-                : html`<span class="pill info">${r.kind}</span>`}</td>
+                : html`<${LineState} r=${{ ...r, line: 'b' + i }} set=${(
+                  /** @type {any} */ v,
+                ) => change(i, v)} fresh=${html`<span class="pill info">${r.kind}</span>`} />`}</td>
             </tr>
+            <${Asking} r=${{ ...r, line: 'b' + i }} cols=${5} set=${(/** @type {any} */ v) =>
+              change(i, v)} />
           `
         )}</tbody>
       </table></div>
@@ -26480,10 +26725,9 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           </div>
         `
         : null}
-      <p class="small dim">${review.byFile
-        ? "This account's files already carry its activity, so every cash line starts left out."
-        : 'Lines already in the account start left out.'} Trades aren't read: each opens the
-        trade dialog with its figures. The PDF is kept on the account.</p>
+      <p class="small dim">Lines already in the account are counted and never added twice.
+        Trades aren't read: each opens the trade dialog with its figures. The PDF is kept on
+        the account.</p>
       <${FormError} error=${error} />
     </${Dialog}>
   `;
@@ -27683,8 +27927,10 @@ export const LOT_METHODS = /** @type {[string, string][]} */ ([
   ['specific', 'Specific identification'],
   ['average', 'Average cost'],
 ]);
+// Imports are files and statements alike (S1.3): the choice sets only whether statements are
+// expected; whether positions are holdings is told by the account's trades.
 export const KEPT_BY = /** @type {[string, string][]} */ ([
-  ['file', 'File import (OFX, QFX or CSV)'],
+  ['file', 'Imports (files and statements)'],
   ['manual', 'Manual'],
 ]);
 
@@ -28823,6 +29069,7 @@ import { Record as Rec } from '@mk/app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '@mk/components/draft-form.js';
 import { asFields, DAY } from '@mk/screens/gifts.js';
 import { FIELDS } from '@mk/api/fields.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -28947,6 +29194,7 @@ export default function Profile() {
           <${TwoStep} p=${p} reload=${res.reload} />
           <${Connections} />
           <${AccessTokens} />
+          <${IgnoredLines} />
         </div></div>
       <${Assumptions} />
   `;
@@ -29138,7 +29386,13 @@ function RelationshipDialog({ close, me, r }) {
         r
           ? html`
             <button type="button" class="btn danger" disabled=${remove.busy}
-              onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
+              onClick=${async () => {
+                const sure = await confirmAction({
+                  title: 'Remove this relationship?',
+                  yes: 'Yes, remove',
+                });
+                if (sure) remove.run().catch(() => {});
+              }}>Remove</button><span class="spacer"
             ></span>
           `
           : null
@@ -29569,6 +29823,44 @@ function BitcoinModels({ close }) {
         `
         : html`<p class="dim">Loading…</p>`}
     </${Dialog}>
+  `;
+}
+
+/** The statement lines this person asked to ignore, by institution (S1.3.3.4). */
+function IgnoredLines() {
+  const res = useApi('/statement-layouts/ignored', {});
+  const rows = /** @type {any[]} */ ((/** @type {any} */ (res.data))?.items || []);
+  const remove = async (/** @type {any} */ x) => {
+    const sure = await confirmAction({
+      title: `Stop ignoring lines starting “${x.start}”?`,
+      detail: `They are read again from ${x.institution}'s next statement.`,
+      yes: 'Yes, remove',
+    });
+    if (!sure) return;
+    try {
+      await api.post('/statement-layouts/ignored/forget', x);
+      toast(`Lines starting “${x.start}” are read again`);
+      res.reload();
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    }
+  };
+  return html`
+    <div class="card" data-help="ignored-statement-lines"><h3>Ignored statement lines</h3>
+      ${rows.length
+        ? rows.map((x) =>
+          html`
+            <div
+              class="list-item"><div class="grow">“${x.start}”<div class="small dim">${x
+                .institution} · ${x.kind === 'bank'
+                ? 'bank and card statements'
+                : 'brokerage statements'}</div></div><button type="button" class="btn sm"
+              onClick=${() => remove(x)}>Remove</button></div>
+          `
+        )
+        : html`<p class="small dim">None. When you leave a statement's line out, <b>Remember…</b>
+          ignores lines that start like it from then on.</p>`}
+    </div>
   `;
 }
 </script>
@@ -30452,6 +30744,7 @@ import { DraftDialog, DraftForm, saveNow, useDraft } from '@mk/components/draft-
 import { Record as Rec } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { useSettingsDraft } from '@mk/components/settings-draft.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -30832,6 +31125,8 @@ function Prices() {
     }
   };
   const remove = async (/** @type {any} */ src) => {
+    const sure = await confirmAction({ title: `Remove ${src.label}?`, yes: 'Yes, remove' });
+    if (!sure) return;
     try {
       await saveNow((d) => d.remove(d.load(SrcRec, src)));
       toast(`${src.label} removed`);
@@ -31689,6 +31984,12 @@ function Keys() {
     }
   };
   const forget = async (/** @type {string} */ fp) => {
+    const sure = await confirmAction({
+      title: `Forget ${fp}?`,
+      detail: 'A copy that needs it can no longer be opened here.',
+      yes: 'Yes, forget it',
+    });
+    if (!sure) return;
     await withReauth(() => api.del(`/settings/keys/previous/${encodeURIComponent(fp)}`));
     toast(`${fp} forgotten`);
     res.reload();
@@ -32338,6 +32639,7 @@ import { Dec } from '@mk/app/dec.js';
 import { Record as Rec, TYPES } from '@mk/app/draft.js';
 import { FIELDS } from '@mk/api/fields.js';
 import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '@mk/components/draft-form.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 export const TABS = /** @type {[string, string][]} */ ([
   ['summary', 'Summary'],
@@ -32704,6 +33006,11 @@ function DependentDialog({ close, b, d }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                const sure = await confirmAction({
+                  title: 'Remove this dependent?',
+                  yes: 'Yes, remove',
+                });
+                if (!sure) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -33091,6 +33398,7 @@ function FilingDialog({ close, b, f: filing }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !draft) return;
+                if (!(await confirmAction({ title: 'Delete this filing?' }))) return;
                 draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
@@ -33285,6 +33593,11 @@ function DocumentDialog({ close, b, start, doc }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                const sure = await confirmAction({
+                  title: 'Remove this document?',
+                  yes: 'Yes, remove',
+                });
+                if (!sure) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -33359,6 +33672,7 @@ import { money, today } from '@mk/app/format.js';
 import { useCategories } from '@mk/components/txtable.js';
 import { BY_TYPE } from '@mk/account-types/index.js';
 import { TagsField } from '@mk/components/tags.js';
+import { confirmAction } from '@mk/components/confirm.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -33474,7 +33788,6 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   const options = [['', 'Uncategorised'], ...cats.list.map((c) => [c.id, c.path])];
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
   const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
-  const [armed, setArmed] = useState(false);
   const deleting = !!t?.removed;
   /** Split…: a part, the category moving to the parts and the mark to be paid back with it. */
   const addPart = () => {
@@ -33498,22 +33811,28 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
           : html`
             ${editing
               ? html`
-                <button type="button" class="btn danger" disabled=${save.busy}
+                <button type="button" class="btn danger" disabled=${save.busy || !t || !draft}
                   onClick=${async () => {
-                    if (!armed || !t || !draft) return setArmed(true);
+                    if (!t || !draft) return;
+                    const withStock = ['assign', 'exercise'].includes(txn.kind);
+                    const sure = await confirmAction({
+                      title: withStock
+                        ? 'Delete this transaction and its stock trade?'
+                        : 'Delete this transaction?',
+                    });
+                    if (!sure) return;
                     draft.remove(t);
                     const r = await save.run().catch(() => null);
                     // Refused or stale, it stays: only a question keeps the delete waiting.
                     if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(t);
-                  }}>${armed
-                    ? (['assign', 'exercise'].includes(txn.kind)
-                      ? 'Click again to delete it and its stock trade'
-                      : 'Click again to delete')
-                    : 'Delete'}</button>
+                  }}>Delete</button>
               `
               : null}
             ${editing && txn.transferId
-              ? html`<button type="button" class="btn" disabled=${save.busy} onClick=${async () => {
+              ? html`<button type="button" class="btn" disabled=${
+                save.busy || !t
+              } onClick=${async () => {
+                // Enabled once the transaction's draft is loaded, so a click is never lost.
                 if (!t) return;
                 // The match undone through the save, with whatever else was changed here.
                 t.set('transferWithId', null);

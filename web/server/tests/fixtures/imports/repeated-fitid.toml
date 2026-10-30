@@ -1,0 +1,17 @@
+about = """A small bank's OFX that gives two different rows the same id: two $40 water bills, on
+Sep 9 and Sep 3, both FITID 1001, written in that order (S1.3.2: an id a file repeats is another
+row, kept beside the first)."""
+account = { type = "checking", institution = "Lakeside Savings" }
+
+[result]
+added = 4
+
+[expect]
+covered = ["2026-09-01", "2026-09-30"]
+transactions = [
+    "2026-09-01 deposit 900.00 | DEPOSIT",
+    "2026-09-03 withdrawal -40.00 | CITY WATER DEPT",
+    "2026-09-09 withdrawal -40.00 | CITY WATER DEPT",
+    "2026-09-20 withdrawal -12.75 | LIBRARY FINE",
+]
+checks = ["2026-09-30 1807.25 ok"]

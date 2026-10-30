@@ -304,7 +304,7 @@ def test_brokerage_ofx_makes_holdings(server):
     c = sign_in(server, "alice")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     job = upload(c, a["id"], "brokerage.ofx", (FIX / "brokerage.ofx").read_bytes())
-    assert job["state"] == "done", job
+    assert job["state"] == "done", job["error"]
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()
     vti = h["holdings"][0]
     assert vti["symbol"] == "VTI" and vti["quantity"] == "15.0"
@@ -323,7 +323,7 @@ def test_option_trades_and_an_assignment_from_a_brokers_file(server):
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     data = (FIX / "options.ofx").read_bytes()
     job = upload(c, a["id"], "options.ofx", data)
-    assert job["state"] == "done", job
+    assert job["state"] == "done", job["error"]
     assert not job["result"].get("warnings"), job
     with server.db.read() as s:
         rows = s.query(Transaction).filter_by(accountId=a["id"]).all()
@@ -395,7 +395,7 @@ def test_a_split_in_a_brokers_file_is_imported(server):
     )
     data = (FIX / "brokerage.ofx").read_bytes().replace(b"</INVTRANLIST>", split)
     job = upload(c, a["id"], "brokerage.ofx", data)
-    assert job["state"] == "done", job
+    assert job["state"] == "done", job["error"]
 
 
 def test_csv_import_asks_for_a_mapping_once(server):
@@ -420,6 +420,29 @@ def test_csv_import_asks_for_a_mapping_once(server):
     job = upload(c, a["id"], "export2.csv", more)
     assert job["result"]["added"] == 1  # the saved mapping, and the first two matched
     assert c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["checks"][-1]["ok"]
+
+
+def test_held_uploads_count_against_the_users_uploads_in_flight(server, monkeypatch):
+    """CR3-172: an upload waiting for its mapping counts; past the limit the user's oldest is
+    let go, and a dialog closed lets its own go at once."""
+    from moolakata import middleware
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, institution="Credit Union")
+    rows = b"".join(b"2026-09-%02d,Coffee at the corner,-4.50\n" % d for d in range(1, 29))
+    data = b"Date,Description,Amount\n" + rows
+    monkeypatch.setattr(middleware, "IN_FLIGHT", int(len(data) * 1.5))
+    job = upload(c, a["id"], "one.csv", data)
+    first = job["result"]["uploadId"]
+    second = upload(c, a["id"], "two.csv", data)["result"]["uploadId"]
+    mapping = {"mapping": {"date": "Date", "dateFormat": "%Y-%m-%d", "amount": "Amount",
+                           "payee": "Description"}}  # fmt: skip
+    r = c.post(f"/ui/api/imports/{first}/mapping", json=mapping)
+    assert r.status_code == 404 and r.json()["code"] == "upload-gone"
+    assert c.delete(f"/ui/api/imports/{second}").json()["deleted"]["id"] == second
+    r = c.post(f"/ui/api/imports/{second}/mapping", json=mapping)
+    assert r.status_code == 404
 
 
 def test_uploads_are_checked_from_their_content(server):

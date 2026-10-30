@@ -21,8 +21,14 @@ As the statement shows it. The transactions must add up from the opening balance
 
 ## Include
 
-Untick a line that isn't a transaction (a subtotal, a daily balance), or one already here. Lines
-already in the account are unticked to begin with.
+Untick a line that isn't a transaction (a subtotal, a daily balance). A line already in the account
+is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
+
+## Remember… {#remember}
+
+A line you untick offers **Remember…**: it asks to ignore future lines starting like it (its first
+three words, which you can change), from this institution's next statements on. They still show,
+left out, saying so, with **Stop ignoring**. Profile lists what you ignore, to remove it.
 
 ## Description
 
@@ -40,6 +46,6 @@ or accepted there.
 
 ## Learning the layout
 
-What you correct is remembered for the institution: which section means money in or out, and lines
-that are never transactions. The next statement from it needs fewer corrections. The statement
+What you correct is remembered for the institution: which section means money in or out. Lines that
+are never transactions are ignored only when you ask, with **Remember…**. The next statement from it needs fewer corrections. The statement
 itself is kept as a receipt on the account.

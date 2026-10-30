@@ -2,7 +2,10 @@
 
 1. **Instruments** are kept once per server: symbol, name, class (`cash`, `equity`, `etf`,
    `mutual-fund`, `money-market`, `bond`, `option`, `crypto`, `metal`, `other`), and for
-   options the underlying, right (call/put), strike, expiry and multiplier (100 by default). An
+   options the underlying, right (call/put), strike, expiry and multiplier (100 by default). A
+   symbol names one coin and one listed security at most: a coin and a share may share a ticker
+   (SOL is Solana and ReneSola), so a file's symbol is looked for among the coins in an
+   exchange's or a wallet's account and among the rest elsewhere, a CUSIP first. An
    option's symbol follows OCC (`AAPL  261218C00250000`); it is stored as people read it, `AAPL
    18DEC26 250 C`, and shown as `AAPL 18 Dec 26 250 C`.
 2. **Lots** are created by buys and by transfers in with a cost basis. A transfer in without a

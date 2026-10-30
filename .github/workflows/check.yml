@@ -12,9 +12,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its older run; runs on main queue instead, so each
+# coverage site is built on the one before it.
 concurrency:
   group: check-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -24,6 +26,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The commit before too: the coverage of the changed lines counts from it (a pull
+          # request's merge commit's first parent is its base).
+          fetch-depth: 2
       - name: uv, pinned with its hashes
         run: |
           python3 -m venv "$RUNNER_TEMP/uv"
@@ -35,6 +40,25 @@ jobs:
         run: |
           set -o pipefail
           web/check 2>&1 | tee "$RUNNER_TEMP/check.log"
+      # The coverage reports as HTML (S17.5.8); web/check writes the summary and annotations.
+      - name: coverage reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: web/.dev/coverage/html/
+          if-no-files-found: ignore
+          retention-days: 30
+      # On main, the coverage site (S17.5.8): this run's reports, and its totals added to the
+      # history the published site holds; the next job publishes it.
+      - name: coverage site
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cd web/server && uv run --frozen --quiet python -m moolakata.dev.coverage site
+      - name: the coverage site, for the next job
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web/.dev/coverage/site/
       # What failed, as annotations: they show on the pull request and through the API, where
       # a reader without access to the run's log can see them.
       - name: say what failed
@@ -61,3 +85,21 @@ jobs:
               if line.startswith(("FAILED tests/", "ERROR tests/")):
                   say("pytest", line)
           EOF
+
+  # The coverage site to the repository's GitHub Pages, after a passing check on main. Its
+  # environment, github-pages, takes deployments from main alone.
+  coverage-site:
+    name: coverage site
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

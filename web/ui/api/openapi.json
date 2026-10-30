@@ -2154,6 +2154,16 @@
             ],
             "title": "Endingvalue"
           },
+          "forget": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Forget",
+            "type": "array"
+          },
           "periodEnd": {
             "format": "date",
             "title": "Periodend",
@@ -2169,6 +2179,16 @@
               "$ref": "#/components/schemas/PositionIn"
             },
             "title": "Positions",
+            "type": "array"
+          },
+          "remember": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Remember",
             "type": "array"
           },
           "rows": {
@@ -8500,6 +8520,34 @@
         "title": "HolidayOut",
         "type": "object"
       },
+      "IgnoredLine": {
+        "additionalProperties": false,
+        "properties": {
+          "institution": {
+            "title": "Institution",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "bank",
+              "brokerage"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "institution",
+          "kind",
+          "start"
+        ],
+        "title": "IgnoredLine",
+        "type": "object"
+      },
       "ImportRow": {
         "additionalProperties": false,
         "properties": {
@@ -14114,6 +14162,37 @@
           "limit"
         ],
         "title": "Page[Household]",
+        "type": "object"
+      },
+      "Page_IgnoredLine_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IgnoredLine"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[IgnoredLine]",
         "type": "object"
       },
       "Page_ImportRow_": {
@@ -22330,6 +22409,16 @@
             "title": "Closing",
             "type": "number"
           },
+          "forget": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Forget",
+            "type": "array"
+          },
           "leftOut": {
             "default": false,
             "title": "Leftout",
@@ -22363,6 +22452,16 @@
             "format": "date",
             "title": "Periodstart",
             "type": "string"
+          },
+          "remember": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Remember",
+            "type": "array"
           },
           "rows": {
             "items": {
@@ -30553,6 +30652,45 @@
         ]
       }
     },
+    "/ui/api/imports/{upload_id}": {
+      "delete": {
+        "description": "An upload its dialog no longer needs (closed, or cancelled), let go at once rather than\nwhen it expires. Held in memory, it has no version; one already gone answers the same.",
+        "operationId": "let_go_ui_api_imports__upload_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Let Go",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/ui/api/imports/{upload_id}/brokerage": {
       "post": {
         "description": "The ending value becomes a value anchor on the last day; the positions a holdings check\n(or, for an account kept by snapshots, its holdings that day); the cash lines kept become\ntransactions; and the PDF is kept on the account. Trades are never added here.",
@@ -35401,6 +35539,90 @@
         "summary": "Signup Confirm",
         "tags": [
           "session"
+        ]
+      }
+    },
+    "/ui/api/statement-layouts/ignored": {
+      "get": {
+        "description": "The starts of statement lines the person asked to ignore (S1.3.3.4), by institution.",
+        "operationId": "ignored_lines_ui_api_statement_layouts_ignored_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IgnoredLine_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Ignored Lines",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/ui/api/statement-layouts/ignored/forget": {
+      "post": {
+        "description": "One of them no longer ignored: its lines are read again from the next statement.",
+        "operationId": "forget_ignored_line_ui_api_statement_layouts_ignored_forget_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IgnoredLine"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Forget Ignored Line",
+        "tags": [
+          "imports"
         ]
       }
     },

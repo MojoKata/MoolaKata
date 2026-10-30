@@ -34,6 +34,7 @@ import { useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs, Tile } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
+import { confirmAction } from '../components/confirm.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
 import { errAt, Field, FormError, Input, SwitchRow } from '../components/fields.js';
@@ -858,7 +859,6 @@ function Settings({ a, reload }) {
   const physical = BY_TYPE[a.type]?.physical;
   const wallet = BY_TYPE[a.type]?.wallet;
   const education = BY_TYPE[a.type]?.education;
-  const [armed, setArmed] = useState(false);
   const f = useDraft(async (draft) => {
     draft.load(AcctRec, await api.get(`/accounts/${a.id}`));
     if (education) await loadPlan(draft, a.id);
@@ -912,14 +912,15 @@ function Settings({ a, reload }) {
         html`
           <button type="button" class="btn danger" disabled=${save.busy}
             onClick=${async () => {
-              if (!armed || !rec || !f.draft) return setArmed(true);
+              if (!rec || !f.draft) return;
+              if (!(await confirmAction({ title: `Delete ${a.name}?` }))) return;
               f.draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status === 'saved') {
                 toast(`${a.name} deleted`);
                 route('/ui/accounts');
               } else if (r?.status !== 'asks') f.draft.unremove(rec);
-            }}>${armed ? 'Click again to delete' : 'Delete account…'}</button>
+            }}>Delete account…</button>
         `}>
       ${rec
         ? html`

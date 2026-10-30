@@ -1,0 +1,25 @@
+about = """A brokerage account's month as a broker's OFX download writes it: Eastern times on every
+date, a deposit and interest as bank rows, three buys and a dividend, and positions priced at the
+day before the statement's (the last close the broker had when it wrote them)."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[result]
+added = 6
+
+[expect]
+covered = ["2026-09-01", "2026-09-30"]
+transactions = [
+    "2026-09-02 deposit 10000.00 | MoneyLink Deposit",
+    "2026-09-03 buy -2750.00 SCHD 100",
+    "2026-09-03 buy -5800.00 VTI 20",
+    "2026-09-25 dividend 26.10 SCHD",
+    "2026-09-30 buy -600.00 VTI 2",
+    "2026-09-30 interest 1.12 | Bank Interest",
+]
+holdings = ["SCHD 100", "VTI 22"]
+# 10,000 in, 9,150 spent on shares, 26.10 and 1.12 earned.
+cash = "877.22"
+checks = ["2026-09-30 877.22 ok"]
+# The positions are as of the statement's day, Sep 30, the last buy of VTI with them.
+holding_checks = ["as of 2026-09-30", "SCHD 100 ok", "VTI 22 ok"]
+instruments = { SCHD = "equity", VTI = "equity" }

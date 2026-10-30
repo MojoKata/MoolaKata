@@ -7,6 +7,7 @@ import { api } from '../api/client.js';
 import { withReauth } from './reauth.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { canSeal, seal, sealingKeyIsSigned } from '../app/sealed.js';
+import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
 import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
@@ -44,11 +45,9 @@ export function Connections() {
   const res = useList('/profile/connections', {}, ['task']);
   const rows = /** @type {any[]} */ (res.data);
   const paired = /** @type {any} */ (info.data)?.paired;
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const remove = useSubmit(async (/** @type {any} */ c) => {
     await saveNow((d) => d.remove(d.load(ConnRec, c)));
     toast(`${c.label}: removed; its accounts' sync is off`);
-    setArmed(null);
     res.reload();
   });
   const make = () =>
@@ -91,10 +90,12 @@ export function Connections() {
                 ? 'Sign in again'
                 : 'Change credentials'}</button>
               <button class="btn sm danger" disabled=${remove.busy}
-                onClick=${() =>
-                  armed === c.id ? remove.run(c).catch(() => {}) : setArmed(c.id)}>${armed === c.id
-                  ? 'Click again to remove'
-                  : 'Remove'}</button></div>
+                onClick=${async () => {
+                  if (
+                    !(await confirmAction({ title: 'Remove this connection?', yes: 'Yes, remove' }))
+                  ) return;
+                  remove.run(c).catch(() => {});
+                }}>Remove</button></div>
           `
         )}
     </div>

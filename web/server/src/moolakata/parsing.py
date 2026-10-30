@@ -146,9 +146,10 @@ MAPPING_KEYS = {
 }
 
 
-def propose_csv(data: bytes) -> dict:
-    """A CSV's headers, a sample and a guessed mapping, for the person to check."""
-    out = _call("csv-propose", data)
+def propose_csv(data: bytes, trades: bool = False) -> dict:
+    """A CSV's headers, a sample and a guessed mapping, for the person to check; a trade
+    history's columns too for an account that holds instruments."""
+    out = _call("csv-propose", data, trades=trades)
     if "error" in out:
         raise ReadError(out["error"])
     p = out.get("proposal")
@@ -165,6 +166,7 @@ def propose_csv(data: bytes) -> dict:
             and all(isinstance(c, str) and len(c) <= 500 for c in r)
             for r in p["sample"]
         )
+        and isinstance(p.get("trailer", 0), int)
         and isinstance(p.get("mapping"), dict)
         and all(
             isinstance(k, str)
@@ -175,4 +177,9 @@ def propose_csv(data: bytes) -> dict:
     )
     if not ok:
         raise ReadError("the reader answered out of turn")
-    return {"headers": p["headers"], "sample": p["sample"], "mapping": p["mapping"]}
+    return {
+        "headers": p["headers"],
+        "sample": p["sample"],
+        "mapping": p["mapping"],
+        "trailer": p.get("trailer", 0),
+    }

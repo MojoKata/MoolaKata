@@ -52,7 +52,8 @@ accounts count once.
 
 ## Method {#kept-by}
 
-How the account is kept current: from files you import (OFX, QFX or CSV), or by hand.
+How the account is kept current: by imports (files and statements alike), or by hand. It sets only
+whether statements are expected.
 
 ## Sync using MoolaKata Connector {#sync-using-moolakata-connector}
 

@@ -21,6 +21,7 @@ import { Dec } from '../app/dec.js';
 import { Record as Rec, TYPES } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '../components/draft-form.js';
+import { confirmAction } from '../components/confirm.js';
 
 export const TABS = /** @type {[string, string][]} */ ([
   ['summary', 'Summary'],
@@ -387,6 +388,11 @@ function DependentDialog({ close, b, d }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                const sure = await confirmAction({
+                  title: 'Remove this dependent?',
+                  yes: 'Yes, remove',
+                });
+                if (!sure) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -774,6 +780,7 @@ function FilingDialog({ close, b, f: filing }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !draft) return;
+                if (!(await confirmAction({ title: 'Delete this filing?' }))) return;
                 draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
@@ -968,6 +975,11 @@ function DocumentDialog({ close, b, start, doc }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                const sure = await confirmAction({
+                  title: 'Remove this document?',
+                  yes: 'Yes, remove',
+                });
+                if (!sure) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);

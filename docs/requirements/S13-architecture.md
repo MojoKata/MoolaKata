@@ -126,7 +126,10 @@
       protocol §1.4), at most 100 MB of uploads in flight per user (never less than that
       largest sealed receipt), and request headers up to 16 KB. Each upload's
       type is checked from its content, never its name (S9.1), and an upload is held in memory,
-      never spooled to a temporary file.
+      never spooled to a temporary file. An import waiting for its mapping or its check (S1.3)
+      counts against its user's uploads in flight while it waits: past them, the user's
+      oldest waiting upload is let go, and its dialog asks for the file again. Closing the
+      dialog lets its upload go at once.
    7. **Response headers** on every response, refusals included: the CSP of S17.3.3,
       `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
       `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,

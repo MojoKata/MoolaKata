@@ -1,0 +1,121 @@
+{
+  "browser/account-types": {
+    "lines": 99
+  },
+  "browser/api": {
+    "branches": 99,
+    "lines": 98
+  },
+  "browser/app": {
+    "branches": 93,
+    "lines": 90
+  },
+  "browser/charts": {
+    "branches": 77,
+    "lines": 64
+  },
+  "browser/components": {
+    "branches": 82,
+    "lines": 57
+  },
+  "browser/screens": {
+    "branches": 74,
+    "lines": 51
+  },
+  "browser/store": {
+    "branches": 91,
+    "lines": 97
+  },
+  "connector": {
+    "branches": 69,
+    "lines": 83
+  },
+  "server/assets": {
+    "branches": 90,
+    "lines": 96
+  },
+  "server/auth": {
+    "branches": 76,
+    "lines": 91
+  },
+  "server/bitcoin": {
+    "branches": 80,
+    "lines": 88
+  },
+  "server/budgets": {
+    "branches": 85,
+    "lines": 95
+  },
+  "server/connector": {
+    "branches": 82,
+    "lines": 91
+  },
+  "server/core": {
+    "branches": 74,
+    "lines": 87
+  },
+  "server/education": {
+    "branches": 84,
+    "lines": 92
+  },
+  "server/gifts": {
+    "branches": 87,
+    "lines": 93
+  },
+  "server/giving": {
+    "branches": 90,
+    "lines": 96
+  },
+  "server/importers": {
+    "branches": 79,
+    "lines": 88
+  },
+  "server/keys": {
+    "branches": 62,
+    "lines": 80
+  },
+  "server/ledger": {
+    "branches": 88,
+    "lines": 95
+  },
+  "server/links": {
+    "branches": 75,
+    "lines": 87
+  },
+  "server/loans": {
+    "branches": 86,
+    "lines": 95
+  },
+  "server/options": {
+    "branches": 81,
+    "lines": 91
+  },
+  "server/people": {
+    "branches": 87,
+    "lines": 94
+  },
+  "server/prices": {
+    "branches": 75,
+    "lines": 88
+  },
+  "server/projections": {
+    "branches": 77,
+    "lines": 92
+  },
+  "server/receipts": {
+    "branches": 69,
+    "lines": 74
+  },
+  "server/store": {
+    "branches": 72,
+    "lines": 88
+  },
+  "server/taxes": {
+    "branches": 84,
+    "lines": 93
+  },
+  "server/ui": {
+    "branches": 72,
+    "lines": 89
+  }
+}

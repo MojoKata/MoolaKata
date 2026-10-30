@@ -1,0 +1,18 @@
+about = """A credit card's activity as a card issuer's CSV writes it: newest first, Windows line
+ends, purchases negative and payments positive, a transaction date and a post date, a category of
+the issuer's own, a sale and its return on the same day."""
+account = { type = "credit-card", institution = "Chase" }
+
+[result]
+added = 6
+
+[expect]
+covered = ["2026-09-03", "2026-09-28"]
+transactions = [
+    "2026-09-03 withdrawal -15.49 | NETFLIX.COM",
+    "2026-09-14 deposit 31.99 | AMAZON MKTPL*2K4L19PQ2",
+    "2026-09-14 withdrawal -31.99 | AMAZON MKTPL*2K4L19PQ2",
+    "2026-09-22 withdrawal -48.90 | SHELL OIL 57444",
+    "2026-09-25 deposit 1200.00 | AUTOMATIC PAYMENT - THANK",
+    "2026-09-28 withdrawal -64.21 | TRADER JOE'S #552",
+]

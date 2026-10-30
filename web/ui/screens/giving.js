@@ -18,6 +18,7 @@ import { Dec, dec, num } from '../app/dec.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
+import { confirmAction } from '../components/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
@@ -676,6 +677,7 @@ function DonationView({ close, d }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                if (!(await confirmAction({ title: 'Delete this donation?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);

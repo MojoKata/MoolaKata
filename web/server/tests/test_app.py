@@ -12,6 +12,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from jscoverage import CHARTS_DRAWN
 
 pytestmark = pytest.mark.browser
 
@@ -173,6 +174,8 @@ def visit(page, path: str) -> None:
         if not page.evaluate("document.querySelector('.content [aria-busy=\"true\"]')"):
             break
         page.wait_for_timeout(50)
+    # Each chart drawn, so the next screen never tears one down half-loaded (S17.5.8).
+    page.wait_for_function(CHARTS_DRAWN, timeout=15000)
     page.wait_for_timeout(300)
 
 
@@ -722,7 +725,7 @@ def test_every_dialog_has_its_guide(page):
     # A linked copy's access key, shown once (after a reset: the seeded copy has its key).
     visit(page, "/ui/settings/links")
     page.get_by_role("button", name="Reset copy").click()
-    page.get_by_role("button", name="Click again to reset").click()
+    page.get_by_role("button", name="Yes, reset").click()
     page.wait_for_selector("text=Copy reset")
     open_dialog(page, "/ui/settings/links", "Create the access key", "dialog-copy-key")
     page.wait_for_selector(".dialog .words")
@@ -1004,6 +1007,7 @@ def test_import_a_statement_through_the_app(page):
             "Ending Balance $57.82",
             "Withdrawals and Other Debits",
             "09/03 CORNER BAKERY 42.18",
+            "09/05 PENDING HOLD RELEASED 10.00",
         ]
     )
     visit(page, "/ui/accounts")
@@ -1018,10 +1022,22 @@ def test_import_a_statement_through_the_app(page):
     page.wait_for_selector("text=Check the statement", timeout=60000)
     wait_guide(page, "dialog-statement")
     check_guide(page, ".dialog", "the statement check")
+    # A line that isn't a transaction, left out and remembered to be ignored from the next
+    # statement on (S1.3.3.4).
+    line = page.locator(".dialog tbody tr").nth(1)
+    assert line.locator("input[aria-label=Description]").input_value() == "PENDING HOLD RELEASED"
+    line.locator("input[type=checkbox]").uncheck()
     assert page.inner_text(".dialog .kv").count("yes") == 1
+    line.get_by_text("Remember…").click()
+    asked = page.locator(".dialog .ask-inline input")
+    assert asked.input_value() == "pending hold released"
+    page.locator(".dialog .ask-inline").get_by_role("button", name="OK").click()
+    page.wait_for_selector(".dialog >> text=Ignored next time")
     page.get_by_role("button", name="Import 1 new").click()
     page.wait_for_selector(".dialog >> text=Imported")
     page.get_by_role("button", name="Done").click()
+    visit(page, "/ui/profile")
+    page.wait_for_selector("text=“pending hold released”")
     assert page.problems == []
 
 

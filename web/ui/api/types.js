@@ -388,6 +388,8 @@
  * @property {(import('../app/dec.js').Dec | null)} [endingValue]
  * @property {Array<PositionIn>} [positions]
  * @property {Array<ActivityIn>} [rows]
+ * @property {Array<string>} [remember]
+ * @property {Array<string>} [forget]
  */
 
 /**
@@ -1439,6 +1441,13 @@
  */
 
 /**
+ * @typedef {Object} IgnoredLine
+ * @property {string} institution
+ * @property {("bank" | "brokerage")} kind
+ * @property {string} start
+ */
+
+/**
  * @typedef {Object} ImportRow
  * @property {string} id
  * @property {string} format
@@ -2368,6 +2377,14 @@
 /**
  * @typedef {Object} Page_Household_
  * @property {Array<moolakata__ui__linked__Household>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
+ * @typedef {Object} Page_IgnoredLine_
+ * @property {Array<IgnoredLine>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -3821,6 +3838,8 @@
  * @property {(number | null)} [part]
  * @property {(string | null)} [accountId]
  * @property {boolean} [leftOut]
+ * @property {Array<string>} [remember]
+ * @property {Array<string>} [forget]
  */
 
 /**

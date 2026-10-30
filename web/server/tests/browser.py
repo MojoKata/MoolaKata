@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 import httpx
 import pytest
 from edits import edit, giving_plan, make, save_settings, saved, share, tag, terms, wallet
+from jscoverage import CHARTS_DRAWN
 
 from moolakata.config import load
 from moolakata.keys import cli as keys_cli
@@ -127,12 +128,14 @@ def open_page(browser, url):
 
 
 def wait(page, selector: str, problems: list, **kw) -> None:
-    """Wait for a selector; a timeout names what the page reported on the way, and leaves a
-    screenshot where MK_FAIL_SHOT says."""
+    """Wait for a selector, then for each chart on the page to be drawn, so the test moves on
+    the same way every run (S17.5.8); a timeout names what the page reported on the way, and
+    leaves a screenshot where MK_FAIL_SHOT says."""
     from playwright.sync_api import TimeoutError as Late
 
     try:
         page.wait_for_selector(selector, **kw)
+        page.wait_for_function(CHARTS_DRAWN)
     except Late:
         shot = os.environ.get("MK_FAIL_SHOT")
         if shot:

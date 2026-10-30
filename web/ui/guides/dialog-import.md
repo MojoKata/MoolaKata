@@ -2,7 +2,9 @@
 
 An OFX, QFX or CSV file from your bank or broker, or a **statement**: its PDF, or a photo or scan of
 it. Rows already imported are matched by the file's own transaction id, or by date, amount and
-payee, so a file can be imported again safely.
+payee, so a file can be imported again safely; a row you deleted stays deleted. Notes a CSV
+writes below its rows, after a blank line (a disclaimer, the time it was downloaded), are left
+out.
 
 A statement is read on this server, and shown for you to check before anything is saved.
 
@@ -53,6 +55,28 @@ Optional.
 ## Transaction id column {#map-id}
 
 Optional: the institution's own id for each row, which makes re-imports exact.
+
+## Action column {#map-action}
+
+For an investing or crypto account's trade history: what each row is, a buy, a sale, a dividend,
+a transfer. A buy's cash goes out and a sale's comes in, whatever sign the file writes.
+
+## Symbol column {#map-symbol}
+
+The ticker, fund symbol or coin each row trades. A five-letter symbol ending in X is taken for a
+mutual fund, any other ticker for a listed share; in an exchange's file, a coin.
+
+## Quantity column {#map-quantity}
+
+How many shares or coins.
+
+## Price column {#map-price}
+
+Optional: the price per share or coin.
+
+## Fees column {#map-fees}
+
+Optional: commission, fees or spread.
 
 ## Date format {#map-date-format}
 

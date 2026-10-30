@@ -91,6 +91,11 @@ the accounts and portfolios you chose for it; never secrets, Settings or linked 
 shows what it can read, when it expires and when it was last used. **Revoke** stops it at once (the
 click asks again first). Its calls are recorded in Activity under its name.
 
+## Ignored statement lines {#ignored-statement-lines}
+
+The starts of statement lines you asked to ignore, with **Remember…** when checking a statement,
+by institution. **Remove** reads them again from its next statement.
+
 ## Assumptions
 
 Used by all your projections, so they agree: each asset class's expected yearly return and

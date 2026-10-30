@@ -1304,6 +1304,27 @@
     border-radius: 14px;
     z-index: 1;
   }
+  /* "Ignore future lines starting with:", beneath a statement's line (S1.3.3.4). */
+  .ask-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ask-inline .in {
+    flex: 1;
+    min-width: 160px;
+  }
+  /* The question before a delete (S12.16), over the page or a dialog. */
+  .confirm-scrim {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    z-index: 60;
+    padding: 16px;
+  }
   .dialog-ask-box {
     background: var(--bg-2);
     border: 1px solid var(--border-strong);

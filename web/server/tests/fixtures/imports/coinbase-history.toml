@@ -1,0 +1,23 @@
+about = """A crypto exchange's transaction history as its CSV writes it: lines above the header,
+UTC timestamps, amounts unsigned (a buy's subtotal is positive), the quantity in a column called
+Quantity Transacted, fees and spread in their own column, and a send to a wallet outside. The
+person names the Notes column as the description, the one choice the mapping step offers that
+the file needs."""
+account = { type = "crypto-exchange", institution = "Coinbase" }
+mapping = { payee = "Notes" }
+
+[result]
+added = 5
+
+[expect]
+covered = ["2026-09-01", "2026-09-25"]
+transactions = [
+    "2026-09-01 deposit 1000.00 | Deposit from Checking",
+    "2026-09-03 buy -325.00 BTC 0.005",
+    "2026-09-10 buy -355.00 SOL 2.5",
+    "2026-09-20 sell 149.73 SOL 1",
+    "2026-09-25 transfer-out 0.00 BTC 0.001",
+]
+holdings = ["BTC 0.004", "SOL 1.5"]
+cash = "469.73"
+instruments = { BTC = "crypto", SOL = "crypto" }

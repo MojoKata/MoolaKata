@@ -19,6 +19,7 @@ import { dec, num } from '../app/dec.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
+import { confirmAction } from '../components/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -453,8 +454,6 @@ function PersonDialog({ close, p }) {
     else if (o.removed) draft.unremove(o);
     else draft.remove(o);
   };
-  // Deleting asks twice: the plan only, or the person with it (S7.8.6).
-  const [armed, setArmed] = useState('');
   const join = useSubmit(async (/** @type {any} */ r) => {
     await api.post(`/persons/${p.id}/join`, { userId: r.id });
     toast(`${r.name} on ${r.server} is ${p.name} here`);
@@ -484,9 +483,13 @@ function PersonDialog({ close, p }) {
         : `${who?.get('name') || 'They'} added`}
       hideSave=${!canWrite}
       extra=${({ save }) => {
-        /** Delete the plan, or the person with it: armed first, then removed and saved. */
+        /** Delete the plan, or the person with it (S7.8.6): asked first, then saved. */
         const drop = async (/** @type {string} */ what) => {
-          if (armed !== what || !draft) return setArmed(what);
+          if (!draft) return;
+          const sure = await confirmAction({
+            title: what === 'person' ? `Delete ${p.name} for everyone?` : 'Delete the plan?',
+          });
+          if (!sure) return;
           const r = /** @type {any} */ (what === 'person' ? who : plan);
           draft.remove(r);
           const out = await save.run().catch(() => null);
@@ -505,18 +508,14 @@ function PersonDialog({ close, p }) {
           p && p.level === 'owner'
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('plan')}>${armed === 'plan'
-                  ? 'Delete the plan?'
-                  : 'Delete plan'}</button>
+                onClick=${() => drop('plan')}>Delete plan</button>
             `
             : null
         }${
           p && p.canChangePerson && !p.isUser
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('person')}>${armed === 'person'
-                  ? `Delete ${p.name} for everyone?`
-                  : 'Delete person'}</button>
+                onClick=${() => drop('person')}>Delete person</button>
             `
             : null
         }<span class="spacer"></span>`;
@@ -802,6 +801,7 @@ function GiftDialog({ close, gift, start }) {
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
+                if (!(await confirmAction({ title: 'Delete this gift?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);

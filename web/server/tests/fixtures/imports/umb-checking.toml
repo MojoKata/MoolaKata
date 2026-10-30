@@ -1,0 +1,21 @@
+about = """A checking account's month as a Kansas City bank's QFX download writes it: one tag a
+line, Quicken's header, every date at noon Central time, a check with its number."""
+account = { type = "checking", institution = "UMB Bank" }
+
+[result]
+added = 8
+
+[expect]
+covered = ["2026-09-01", "2026-09-30"]
+transactions = [
+    "2026-09-01 deposit 2410.00 | ACME CORP PAYROLL",
+    "2026-09-03 withdrawal -142.18 | POS KROGER #412",
+    "2026-09-08 withdrawal -1250.00 | CHECK 1043",
+    "2026-09-10 transfer -1000.00 | ONLINE TRANSFER TO SAVINGS",
+    "2026-09-15 deposit 2410.00 | ACME CORP PAYROLL",
+    "2026-09-22 withdrawal -188.40 | EVERGY KS MO",
+    "2026-09-30 fee -5.00 | MONTHLY SERVICE CHARGE",
+    "2026-09-30 interest 0.84 | INTEREST PAID",
+]
+# The ledger balance on the last day: 5,710.50 before the month, 2,235.26 more in it.
+checks = ["2026-09-30 7945.76 ok"]

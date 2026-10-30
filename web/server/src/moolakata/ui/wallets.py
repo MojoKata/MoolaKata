@@ -68,7 +68,11 @@ def _held_sats(s, account_id: str) -> int:
     from ..store.entities.accounts import Account, Instrument
     from ..store.repos import ledger as repo
 
-    btc = s.scalars(select(Instrument.id).where(Instrument.symbol == "BTC")).first()
+    btc = s.scalars(
+        select(Instrument.id).where(
+            Instrument.symbol == "BTC", Instrument.instrumentClass == "crypto"
+        )
+    ).first()
     if btc is None:
         return 0
     qty = repo.load(s, s.get(Account, account_id)).replay().quantity(btc)

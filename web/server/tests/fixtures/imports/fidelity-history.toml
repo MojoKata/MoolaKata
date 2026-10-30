@@ -1,0 +1,21 @@
+about = """A brokerage's account history as a broker's CSV writes it: two blank lines above the
+header, symbols with a leading space, dollar signs in the column names, newest first, and a quantity
+of 0.000 on cash rows. The amount column's name isn't one the
+reader guesses, so the person picks it in the mapping step."""
+account = { type = "brokerage", institution = "Fidelity" }
+mapping = { amount = "Amount ($)" }
+
+[result]
+added = 3
+
+[expect]
+covered = ["2026-09-02", "2026-09-30"]
+transactions = [
+    "2026-09-02 transfer 5000.00 | No Description",
+    "2026-09-16 buy -2951.00 VTI 10",
+    "2026-09-30 dividend 31.40 FXAIX",
+]
+holdings = ["VTI 10"]
+cash = "2080.40"
+# By their symbols' shape (CR3-14): a listed share, and a fund (five letters ending in X).
+instruments = { FXAIX = "mutual-fund", VTI = "equity" }

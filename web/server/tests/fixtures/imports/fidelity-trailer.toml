@@ -1,0 +1,19 @@
+about = """The broker's history CSV of fidelity-history.csv as the broker writes it: below its rows,
+after blank lines, notes in quotes (a disclaimer and the time it was downloaded). They are not
+rows, and the file is the same history."""
+account = { type = "brokerage", institution = "Fidelity" }
+mapping = { amount = "Amount ($)" }
+
+[result]
+added = 3
+
+[expect]
+covered = ["2026-09-02", "2026-09-30"]
+transactions = [
+    "2026-09-02 transfer 5000.00 | No Description",
+    "2026-09-16 buy -2951.00 VTI 10",
+    "2026-09-30 dividend 31.40 FXAIX",
+]
+holdings = ["VTI 10"]
+cash = "2080.40"
+instruments = { FXAIX = "mutual-fund", VTI = "equity" }

@@ -1,0 +1,15 @@
+about = """A 401(k)'s quarterly statement as a plan's record keeper lays it out, read from its
+PDF's text: a summary, and its funds by name, each name on its own line above its units, price
+and balance. The account is kept from statements only, so its funds are its holdings, named as
+the statement names them, and each is checked against the statement too."""
+account = { type = "401k", institution = "Empower" }
+
+[expect]
+covered = ["2026-07-01", "2026-09-30"]
+holdings = ["STABLE VALUE FUND 3891.724", "VANGUARD TARGET RETIREMENT 2045 TRUST 1012.441"]
+holding_checks = [
+    "as of 2026-09-30",
+    "STABLE VALUE FUND 3891.724 ok",
+    "VANGUARD TARGET RETIREMENT 2045 TRUST 1012.441 ok",
+]
+instruments = { "STABLE VALUE FUND" = "mutual-fund", "VANGUARD TARGET RETIREMENT 2045 TRUST" = "mutual-fund" }

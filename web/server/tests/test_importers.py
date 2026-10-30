@@ -73,13 +73,13 @@ def test_csv_option_rows_are_contracts():
         b"09/18/2026,Assigned,AAPL 09/18/2026 150.00 P,2,,,\n"
         b"09/18/2026,Buy,AAPL,200,150.00,,-30000.00\n"
     )
-    p = csvfile.read(data, csvfile.propose(data)["mapping"])
+    p = csvfile.read(data, csvfile.propose(data, trades=True)["mapping"])
     assert [r.kind for r in p.rows] == ["sell-to-open", "assign", "buy"]
     assert p.rows[0].security == "AAPL260918P00150000"
     assert p.securities["AAPL260918P00150000"].instrumentClass == "option"
     plain = data.replace(b"Sell to Open", b"Sell")
     with pytest.raises(ReadError, match="is an option"):
-        csvfile.read(plain, csvfile.propose(plain)["mapping"])
+        csvfile.read(plain, csvfile.propose(plain, trades=True)["mapping"])
 
 
 def test_not_ofx_is_refused():
@@ -170,7 +170,7 @@ def test_trade_history_csv():
         b"2026-01-05,Buy,VTI,10,250.00,0,-2500.00\n"
         b"2026-06-30,Dividend,VTI,,,,18.40\n"
     )
-    m = csvfile.propose(data)["mapping"]
+    m = csvfile.propose(data, trades=True)["mapping"]
     assert m["symbol"] == "Symbol" and m["action"] == "Action"
     p = csvfile.read(data, m)
     assert [r.kind for r in p.rows] == ["buy", "dividend"]
@@ -192,3 +192,81 @@ def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
     got = [(r.kind, r.amount, r.dividendType) for r in p.rows]
     assert got == [("dividend", D("100.00"), "ordinary"), ("reinvest", D("-100.00"), None)]
     assert p.rows[1].quantity == D("0.4") and p.rows[1].price == D("250.00")
+
+
+@pytest.mark.parametrize(
+    "symbol, cls",
+    [
+        ("FXAIX", "mutual-fund"),
+        ("SWVXX", "mutual-fund"),
+        ("VTI", "equity"),
+        ("BRK.B", "equity"),
+        ("GOOGL", "equity"),
+        ("912828ZT0", "other"),
+        ("TARGET 2045 TRUST", "other"),
+    ],
+)
+def test_a_csv_security_is_classed_by_its_symbols_shape(symbol, cls):
+    """CR3-14: five letters ending in X is a fund; any other ticker a listed share, which the
+    price sources fetch; anything else isn't known."""
+    from moolakata.store.repos.ledger import class_by_symbol
+
+    assert class_by_symbol(symbol) == cls
+
+
+def test_a_trades_cash_follows_its_action():
+    """CR3-19: a buy's cash goes out and a sale's comes in, whatever sign the file writes;
+    shares moved in or out move no cash; the account's own currency is cash."""
+    data = (
+        b"Date,Action,Symbol,Quantity,Amount\n"
+        b"2026-09-01,Deposit,USD,1000,1000.00\n"
+        b"2026-09-02,Buy,BTC,0.01,600.00\n"
+        b"2026-09-03,Sell,BTC,0.005,-310.00\n"
+        b"2026-09-04,Receive,ETH,1,2500.00\n"
+    )
+    m = csvfile.propose(data, trades=True)["mapping"]
+    m["payee"] = "Action"
+    p = csvfile.read(data, m)
+    got = [(r.kind, r.amount, r.security) for r in p.rows]
+    assert got == [
+        ("deposit", D("1000.00"), None),
+        ("buy", D("-600.00"), "BTC"),
+        ("sell", D("310.00"), "BTC"),
+        ("transfer-in", D(0), "ETH"),
+    ]
+
+
+def test_notes_below_a_csvs_rows_are_left_out():
+    """Walk item 13: the rows end at the first blank line after them; a blank line between the
+    header and the first row doesn't end them."""
+    data = (
+        b"Date,Description,Amount\n\n2026-09-01,Pay,100.00\n2026-09-02,Shop,-10.00\n\n"
+        b'"Downloaded 10/01/2026 9:14 am"\n"Not for distribution."\n'
+    )
+    assert csvfile.looks_like_csv(data)
+    proposal = csvfile.propose(data)
+    assert proposal["trailer"] == 2 and len(proposal["sample"]) == 2
+    assert [r.payee for r in csvfile.read(data, proposal["mapping"]).rows] == ["Pay", "Shop"]
+
+
+def test_a_single_days_rows_keep_their_order_when_the_balances_dont_tell():
+    """CR3-171: rows that chain neither way, or have no balances, stay in the file's order."""
+    data = (
+        b"Date,Description,Amount,Balance\n2026-09-01,One,-1.00,50.00\n2026-09-01,Two,-2.00,70.00\n"
+    )
+    assert [r.payee for r in csvfile.read(data, csvfile.propose(data)["mapping"]).rows] == [
+        "One",
+        "Two",
+    ]
+    bare = b"Date,Description,Amount\n2026-09-01,One,-1.00\n2026-09-01,Two,-2.00\n"
+    assert [r.payee for r in csvfile.read(bare, csvfile.propose(bare)["mapping"]).rows] == [
+        "One",
+        "Two",
+    ]
+
+
+def test_an_ofx_date_not_written_as_a_date_falls_back_to_ofxtools():
+    from moolakata.importers.ofx import _raw
+
+    assert _raw("20260930200000[-5:EST]") == dt.date(2026, 9, 30)
+    assert _raw("") is None and _raw("2026-09") is None

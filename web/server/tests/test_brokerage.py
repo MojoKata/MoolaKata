@@ -141,11 +141,16 @@ def test_an_empower_plan_statement_names_its_funds():
     assert b.read
 
 
-def test_what_is_left_out_is_skipped_next_time():
-    b = brokerage.parse(FIDELITY.splitlines(), TODAY)
-    layout = brokerage.learn(None, b, ["Withdrawal Check Paid"])
+def test_a_line_asked_to_be_ignored_is_shown_ignored_next_time():
+    """CR3-16: only what the person asks (Remember…); the line is shown, marked, not dropped."""
+    layout = brokerage.learn(None, ["Withdrawal Check"])
     again = brokerage.parse(FIDELITY.splitlines(), TODAY, layout)
-    assert [a.kind for a in again.activity] == ["deposit", "dividend"]
+    assert [(a.kind, a.ignored) for a in again.activity] == [
+        ("deposit", None),
+        ("withdrawal", "withdrawal check"),
+        ("dividend", None),
+    ]
+    assert brokerage.learn(layout, forget=["withdrawal check"])["brokerage"]["skip"] == []
 
 
 def test_a_brokerage_statement_is_checked_and_saved(server):
@@ -231,7 +236,7 @@ def test_a_plan_kept_by_snapshots_takes_the_positions_as_its_holdings(server):
 
     make_user(server, "alice")
     c = sign_in(server, "alice")
-    a = new_account(c, name="Acme 401(k)", type="401k", institution="Empower", keptBy=["statement"])
+    a = new_account(c, name="Acme 401(k)", type="401k", institution="Empower")
     review = _import(c, a["id"], text_pdf(EMPOWER.splitlines()))["result"]
     assert review["kind"] == "brokerage" and review["snapshot"]
     body = {
@@ -255,3 +260,22 @@ def test_a_plan_kept_by_snapshots_takes_the_positions_as_its_holdings(server):
     assert sorted(x["quantity"] for x in h["holdings"]) == [1012.441, 3891.724]
     rec = c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()
     assert all(x["ok"] for x in rec["holdingChecks"])
+    # Item 14: the same statement again, its ending value corrected: nothing added twice, the
+    # value replaced; and a line asked to be ignored is listed in Profile, and taken back.
+    from moolakata.store.entities.accounts import Anchor, HoldingCheck
+
+    again = _import(c, a["id"], text_pdf(EMPOWER.splitlines()))["result"]
+    body["endingValue"] = "1.00"
+    body["remember"] = ["Employer Match"]
+    r = c.post(f"/ui/api/imports/{again['uploadId']}/brokerage", json=body)
+    assert r.status_code == 200, r.text
+    with server.db.read() as s:
+        values = s.query(Anchor).filter_by(accountId=a["id"], source="statement-value").all()
+        assert [str(x.balance) for x in values if not x.deleted] == ["1.00"]
+        assert s.query(HoldingCheck).filter_by(accountId=a["id"], deleted=False).count() == len(
+            review["positions"]
+        )
+    listed = c.get("/ui/api/statement-layouts/ignored").json()["items"]
+    assert listed == [{"institution": "Empower", "kind": "brokerage", "start": "employer match"}]
+    assert c.post("/ui/api/statement-layouts/ignored/forget", json=listed[0]).status_code == 204
+    assert c.get("/ui/api/statement-layouts/ignored").json()["items"] == []

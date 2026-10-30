@@ -13,6 +13,7 @@ import { FormError } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { confirmAction } from './confirm.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',
@@ -41,11 +42,9 @@ export function connectionState(c) {
 export function ConnectorSection() {
   const res = useApi('/settings/connector', {}, ['task']);
   const v = /** @type {any} */ (res.data);
-  const [armed, setArmed] = useState(false);
   const unpair = useSubmit(async () => {
     await withReauth(() => api.post('/settings/connector/unpair'));
     toast('Unpaired: every Connection stopped and every sync is off');
-    setArmed(false);
     res.reload();
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
@@ -148,14 +147,14 @@ export function ConnectorSection() {
           : 'Pair…'}</button>
         <span class="spacer"></span>
         ${paired || v.state === 'pairing'
-          ? armed
-            ? html`
-              <span class="small dim">Every Connection stops and every account's sync
-                              turns off.</span> <button class="btn danger" disabled=${unpair.busy}
-                onClick=${() => unpair.run().catch(() => {})}>Unpair now</button>
-                            <button class="btn" onClick=${() => setArmed(false)}>Keep</button>
-            `
-            : html`<button class="btn danger" onClick=${() => setArmed(true)}>Unpair…</button>`
+          ? html`<button class="btn danger" disabled=${unpair.busy} onClick=${async () => {
+            const sure = await confirmAction({
+              title: 'Unpair the connector?',
+              detail: "Every Connection stops and every account's sync turns off.",
+              yes: 'Yes, unpair',
+            });
+            if (sure) unpair.run().catch(() => {});
+          }}>Unpair…</button>`
           : null}
       </div>
       <${FormError} error=${unpair.error} />

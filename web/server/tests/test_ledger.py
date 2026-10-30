@@ -167,6 +167,18 @@ def test_a_snapshot_is_the_holdings_only_of_an_account_kept_by_snapshots():
     assert r.quantity("VTI") == D(40)
 
 
+def test_income_on_a_holding_is_not_a_trade():
+    """CR3-15: a cash dividend, interest or a fee naming the holding leaves the account kept by
+    its snapshots; a buy, a reinvestment or shares moved in end it (R3.2)."""
+    snap = [Snap("VTI", d(2025, 9, 30), D(100))]
+    for kind in ("dividend", "interest", "fee", "return-of-capital", "split"):
+        income = [Txn(d(2025, 9, 15), kind, D(12), "VTI")]
+        assert lots.kept_by_snapshots(income, []), kind
+        assert lots.replay("fifo", income, [], [], snap).quantity("VTI") == D(100), kind
+    for kind in ("buy", "reinvest", "transfer-in", "sell"):
+        assert not lots.kept_by_snapshots([Txn(d(2025, 9, 15), kind, D(-12), "VTI", D(1))], [])
+
+
 @dataclass
 class Acct:
     openingBalance: D | None = None

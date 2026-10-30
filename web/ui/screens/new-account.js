@@ -22,8 +22,10 @@ export const LOT_METHODS = /** @type {[string, string][]} */ ([
   ['specific', 'Specific identification'],
   ['average', 'Average cost'],
 ]);
+// Imports are files and statements alike (S1.3): the choice sets only whether statements are
+// expected; whether positions are holdings is told by the account's trades.
 export const KEPT_BY = /** @type {[string, string][]} */ ([
-  ['file', 'File import (OFX, QFX or CSV)'],
+  ['file', 'Imports (files and statements)'],
   ['manual', 'Manual'],
 ]);
 

@@ -25,7 +25,7 @@ def default_interval(account_type: str, kept_by: list[str]) -> str:
     watched wallets and physical assets."""
     if account_type in NEVER or atypes.GROUPS[account_type] == "physical-assets":
         return "none"
-    if not {"file", "statement"} & set(kept_by):
+    if "file" not in kept_by:
         return "none"
     return "quarterly" if account_type in QUARTERLY else "monthly"
 

@@ -97,7 +97,7 @@ def handle(job: dict, data: bytes) -> dict:
         if op == "ofx":
             return {"parsed": to_json(ofx.read(data))}
         if op == "csv-propose":
-            return {"proposal": csvfile.propose(data)}
+            return {"proposal": csvfile.propose(data, bool(job.get("trades")))}
         if op == "csv":
             return {"parsed": to_json(csvfile.read(data, job.get("mapping") or {}))}
         if op == "selftest":

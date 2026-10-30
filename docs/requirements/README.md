@@ -63,8 +63,11 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | Id | Gap | Rank |
 |---|---|---|
 | **G23** | [Real receipt fixtures for the reader](gaps.md#g23-real-receipt-fixtures-for-the-reader--low) | Low |
+| **G25** | [Real exported files for the import corpus](gaps.md#g25-real-exported-files-for-the-import-corpus--low) | Low |
+| **G26** | [Seeing and recovering what was deleted](gaps.md#g26-seeing-and-recovering-what-was-deleted--low) | Low |
+| **G27** | [Correcting an instrument's class](gaps.md#g27-correcting-an-instruments-class--low) | Low |
 
-A new gap takes the next id after G24.
+A new gap takes the next id after G25.
 
 ## Open questions
 

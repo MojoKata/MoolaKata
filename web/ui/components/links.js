@@ -8,6 +8,7 @@ import { useApi, useSubmit } from '../app/hooks.js';
 import { ago, day, moment } from '../app/format.js';
 import { parseDuration } from '../app/duration.js';
 import { withReauth } from './reauth.js';
+import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
 import { errAt, Field, FormError, Input, Select } from './fields.js';
@@ -63,7 +64,6 @@ export function LinksSection() {
   });
   const pause = (/** @type {any} */ l) =>
     openDialog(PauseDialog, { link: l }).then((x) => x && res.reload());
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const copyAct = useSubmit(async (/** @type {string} */ id, /** @type {string} */ what) => {
     const out = await api.post(`/settings/links/${id}/${what}`);
     toast(what === 'lock' ? 'Locked' : 'Copy reset: make its new access key');
@@ -222,16 +222,16 @@ export function LinksSection() {
                                 act.run(l.id, 'resume')}>Resume now</button>
                             `
                             : null}<button class="btn sm danger"
-                            onClick=${() =>
-                              armed === l.id
-                                ? act.run(l.id, 'end').then(() => setArmed(null))
-                                : setArmed(
-                                  l.id,
-                                )}>${armed === l.id
-                              ? 'Click again to end'
-                              : l.state === 'invited'
-                              ? 'Withdraw'
-                              : 'End link'}</button>
+                            onClick=${async () => {
+                              const invited = l.state === 'invited';
+                              if (
+                                !(await confirmAction({
+                                  title: invited ? 'Withdraw this invitation?' : 'End this link?',
+                                  yes: invited ? 'Yes, withdraw' : 'Yes, end it',
+                                }))
+                              ) return;
+                              act.run(l.id, 'end').catch(() => {});
+                            }}>${l.state === 'invited' ? 'Withdraw' : 'End link'}</button>
                         `}</div>
                     </td>
                   </tr>
@@ -250,7 +250,7 @@ export function LinksSection() {
         : null}
       <${FormError} error=${act.error} />
     </div>
-    ${copies(live, values, res.reload, copyAct, release, armed, setArmed)}
+    ${copies(live, values, res.reload, copyAct, release)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
       html`<div class="card mt"><h3 data-help="outgoing">Shared from here with ${l.peerName}</h3>
         <p class="small dim" style=${{ marginTop: '-6px' }}>What this server sends at each pull,
@@ -380,9 +380,9 @@ const size = (n) =>
  * The Linked copies card (S11.7, S11.9): each copy's access key, size and lock, Create the
  * access key, Lock now and Reset copy, and how long an unused copy stays unlocked.
  * @param {any[]} live @param {any} values @param {() => void} reload @param {any} act
- * @param {any} release @param {string | null} armed @param {(v: string | null) => void} setArmed
+ * @param {any} release
  */
-function copies(live, values, reload, act, release, armed, setArmed) {
+function copies(live, values, reload, act, release) {
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
@@ -409,7 +409,6 @@ function copies(live, values, reload, act, release, armed, setArmed) {
               </thead>
               <tbody>${rows.map((l) => {
                 const c = l.linkedCopy;
-                const reset = armed === 'reset-' + l.id;
                 return html`
                   <tr>
                     <td><b>${l.peerName}</b><div class="small dim">${c.items} item${c.items === 1
@@ -444,12 +443,12 @@ function copies(live, values, reload, act, release, armed, setArmed) {
                               act.run(l.id, 'lock').catch(() => {})}>Lock now</button>
                           `
                           : null
-                      }<button class="btn sm danger" onClick=${() =>
-                        reset
-                          ? act.run(l.id, 'reset-copy').then(() => setArmed(null), () => {})
-                          : setArmed('reset-' + l.id)}>${
-                        reset ? 'Click again to reset' : 'Reset copy'
-                      }</button>`}</td>
+                      }<button class="btn sm danger" onClick=${async () => {
+                        if (
+                          !(await confirmAction({ title: 'Reset this copy?', yes: 'Yes, reset' }))
+                        ) return;
+                        act.run(l.id, 'reset-copy').catch(() => {});
+                      }}>Reset copy</button>`}</td>
                   </tr>
                 `;
               })}</tbody>

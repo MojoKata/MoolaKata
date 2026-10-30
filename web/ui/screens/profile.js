@@ -22,6 +22,7 @@ import { Record as Rec } from '../app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
+import { confirmAction } from '../components/confirm.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -146,6 +147,7 @@ export default function Profile() {
           <${TwoStep} p=${p} reload=${res.reload} />
           <${Connections} />
           <${AccessTokens} />
+          <${IgnoredLines} />
         </div></div>
       <${Assumptions} />
   `;
@@ -337,7 +339,13 @@ function RelationshipDialog({ close, me, r }) {
         r
           ? html`
             <button type="button" class="btn danger" disabled=${remove.busy}
-              onClick=${() => remove.run().catch(() => {})}>Remove</button><span class="spacer"
+              onClick=${async () => {
+                const sure = await confirmAction({
+                  title: 'Remove this relationship?',
+                  yes: 'Yes, remove',
+                });
+                if (sure) remove.run().catch(() => {});
+              }}>Remove</button><span class="spacer"
             ></span>
           `
           : null
@@ -768,5 +776,43 @@ function BitcoinModels({ close }) {
         `
         : html`<p class="dim">Loading…</p>`}
     </${Dialog}>
+  `;
+}
+
+/** The statement lines this person asked to ignore, by institution (S1.3.3.4). */
+function IgnoredLines() {
+  const res = useApi('/statement-layouts/ignored', {});
+  const rows = /** @type {any[]} */ ((/** @type {any} */ (res.data))?.items || []);
+  const remove = async (/** @type {any} */ x) => {
+    const sure = await confirmAction({
+      title: `Stop ignoring lines starting “${x.start}”?`,
+      detail: `They are read again from ${x.institution}'s next statement.`,
+      yes: 'Yes, remove',
+    });
+    if (!sure) return;
+    try {
+      await api.post('/statement-layouts/ignored/forget', x);
+      toast(`Lines starting “${x.start}” are read again`);
+      res.reload();
+    } catch (e) {
+      toast(/** @type {any} */ (e).message);
+    }
+  };
+  return html`
+    <div class="card" data-help="ignored-statement-lines"><h3>Ignored statement lines</h3>
+      ${rows.length
+        ? rows.map((x) =>
+          html`
+            <div
+              class="list-item"><div class="grow">“${x.start}”<div class="small dim">${x
+                .institution} · ${x.kind === 'bank'
+                ? 'bank and card statements'
+                : 'brokerage statements'}</div></div><button type="button" class="btn sm"
+              onClick=${() => remove(x)}>Remove</button></div>
+          `
+        )
+        : html`<p class="small dim">None. When you leave a statement's line out, <b>Remember…</b>
+          ignores lines that start like it from then on.</p>`}
+    </div>
   `;
 }

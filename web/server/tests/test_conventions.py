@@ -13,6 +13,7 @@ NO_VERSION = {
     ("DELETE", "/ui/api/settings/keys/copies/{name}"): "a key file: a copy, by password and phrase",
     ("DELETE", "/ui/api/settings/keys/previous/{fingerprint}"): "a key file: the keyring's list",
     ("DELETE", "/ui/api/session"): "signing out",
+    ("DELETE", "/ui/api/imports/{upload_id}"): "an upload held in memory, let go",
 }
 
 

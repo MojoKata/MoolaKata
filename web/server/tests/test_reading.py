@@ -166,6 +166,31 @@ def test_a_broken_file_fails_with_a_reason_and_the_worker_lives_on():
         w.stop()
 
 
+def test_the_worker_starts_when_the_server_holds_over_a_thousand_files():
+    """Its pipes then have numbers past 1023, which `select` refuses (the full test run reaches
+    that, and a busy server can)."""
+    import os
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if hard != resource.RLIM_INFINITY and hard < 1200:
+        pytest.skip("this account may not hold 1200 files")
+    resource.setrlimit(resource.RLIMIT_NOFILE, (max(soft, 1200), hard))
+    held = []
+    try:
+        while not held or held[-1] < 1100:
+            held.append(os.open(os.devnull, os.O_RDONLY))
+        w = Worker()
+        try:
+            assert w.read(text_pdf(["AMOUNT DUE 153.58"]), "application/pdf")[0] == "ok"
+        finally:
+            w.stop()
+    finally:
+        for fd in held:
+            os.close(fd)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+
+
 def test_a_worker_past_its_time_is_stopped():
     w = Worker()
     try:

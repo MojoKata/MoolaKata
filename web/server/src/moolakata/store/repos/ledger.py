@@ -2,6 +2,7 @@
 (requirements S1.3, S1.7, S2)."""
 
 import datetime as dt
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -144,20 +145,41 @@ def ensure_categories(s: Session) -> int:
 
 # ---------- instruments ----------
 
+# A US fund's symbol is five letters ending in X (FXAIX, VTSAX, SWVXX); any other ticker is a
+# listed share, an ETF among them, which the price sources fetch the same way (CR3-14).
+FUND_SYMBOL = re.compile(r"[A-Z]{4}X")
+TICKER = re.compile(r"[A-Z][A-Z0-9]{0,4}(?:[.-][A-Z])?")
+
+
+def class_by_symbol(symbol: str | None) -> str:
+    """What a security named only by its symbol most likely is: a fund, a listed share, or
+    not known."""
+    s = (symbol or "").strip().upper()
+    if FUND_SYMBOL.fullmatch(s):
+        return "mutual-fund"
+    return "equity" if TICKER.fullmatch(s) else "other"
+
 
 def instrument(
     s: Session, symbol: str | None, name: str | None, cls: str, cusip: str | None = None
 ) -> Instrument:
-    """The instrument with this CUSIP or symbol, made if MoolaKata doesn't know it yet."""
+    """The instrument with this CUSIP or symbol, made if MoolaKata doesn't know it yet. A
+    symbol is looked for among the coins for a coin and among the rest otherwise: a coin and a
+    listed share may share a ticker (S2.1)."""
     found = None
     if cusip:
         found = s.scalars(
             select(Instrument).where(Instrument.cusip == cusip, Instrument.deleted == false())
         ).first()
-    if found is None and symbol:
+    # One known only by its CUSIP or name is kept under it as its symbol, and found by it.
+    wanted = symbol or cusip or name
+    if found is None and wanted:
+        coin = Instrument.instrumentClass == "crypto"
         found = s.scalars(
             select(Instrument).where(
-                Instrument.symbol == symbol.upper(), Instrument.deleted == false()
+                Instrument.symbol == wanted.upper(),
+                Instrument.deleted == false(),
+                coin if cls == "crypto" else ~coin,
             )
         ).first()
     if found is not None:
@@ -176,6 +198,113 @@ def instrument(
     s.add(inst)
     s.flush()
     return inst
+
+
+# ---------- what a file or statement reports on a day ----------
+
+
+def keep_anchor(
+    s: Session,
+    account_id: str,
+    day: dt.date,
+    balance: Decimal,
+    source: str,
+    import_id: str | None,
+    created_by: str | None = None,
+) -> None:
+    """A balance a file or statement reports, kept once for its account, day and source: the
+    same file again adds nothing, and a balance that differs replaces the one kept."""
+    found = s.scalars(
+        select(Anchor).where(
+            Anchor.accountId == account_id,
+            Anchor.date == day,
+            Anchor.source == source,
+            Anchor.deleted == false(),
+        )
+    ).first()
+    if found is None:
+        s.add(
+            Anchor(
+                id=ids.new_id("Anchr"),
+                accountId=account_id,
+                date=day,
+                balance=balance,
+                source=source,
+                importId=import_id,
+                createdById=created_by,
+            )
+        )
+    elif found.balance != balance:
+        found.balance = balance
+
+
+def keep_position(
+    s: Session,
+    account_id: str,
+    import_id: str | None,
+    day: dt.date,
+    instrument_id: str | None,
+    label: str,
+    *,
+    check: bool,
+    **figures,
+) -> None:
+    """A position a file or statement reports, kept once for its account, day and instrument
+    (or its label, for one MoolaKata doesn't know): as a holdings check when `check`, and, for a
+    known instrument, as the day's holding, which is the holdings of an account kept by
+    snapshots and the statement price of an instrument no source prices (S1.3.2). The same file
+    again adds nothing; figures that differ replace the ones kept."""
+    if check:
+        found = s.scalars(
+            select(HoldingCheck).where(
+                HoldingCheck.accountId == account_id,
+                HoldingCheck.asOf == day,
+                HoldingCheck.instrumentId == instrument_id
+                if instrument_id
+                else (HoldingCheck.instrumentId.is_(None) & (HoldingCheck.label == label)),
+                HoldingCheck.deleted == false(),
+            )
+        ).first()
+        if found is None:
+            s.add(
+                HoldingCheck(
+                    id=ids.new_id("HdChk"),
+                    accountId=account_id,
+                    importId=import_id,
+                    asOf=day,
+                    instrumentId=instrument_id,
+                    label=label,
+                    **figures,
+                )
+            )
+        else:
+            for k, v in figures.items():
+                setattr(found, k, v)
+    quantity, value = figures.get("quantity"), figures.get("marketValue")
+    if instrument_id is None or figures.get("cash") or not quantity:
+        return
+    held = s.scalars(
+        select(Holding).where(
+            Holding.accountId == account_id,
+            Holding.instrumentId == instrument_id,
+            Holding.asOf == day,
+            Holding.deleted == false(),
+        )
+    ).first()
+    if held is None:
+        s.add(
+            Holding(
+                id=ids.new_id("Hold"),
+                accountId=account_id,
+                instrumentId=instrument_id,
+                asOf=day,
+                quantity=quantity,
+                marketValue=value,
+                importId=import_id,
+            )
+        )
+    else:
+        held.quantity, held.marketValue = quantity, value
 
 
 # ---------- transfers (S1.7) ----------
@@ -292,23 +421,28 @@ def apply_import(
     crypto = atypes.GROUPS.get(account.type) == "crypto"
     for key, sec in parsed.securities.items():
         found = _option(s, account, sec, result) if sec.instrumentClass == "option" else None
-        # What an exchange's or a wallet's file trades is crypto, whatever the file calls it.
+        # What an exchange's or a wallet's file trades is crypto, whatever the file calls it;
+        # a CSV names a security by its symbol alone, so its shape says what it is.
         cls = "crypto" if crypto and sec.instrumentClass == "other" else sec.instrumentClass
+        if cls == "other" and parsed.format == "csv":
+            cls = class_by_symbol(sec.symbol)
         instruments[key] = found or instrument(s, sec.symbol, sec.name, cls, sec.cusip)
 
+    # Deleted rows first, so a live row with the same identity is the one found.
     existing = s.scalars(
-        select(Transaction).where(
-            Transaction.accountId == account.id, Transaction.deleted == false()
-        )
+        select(Transaction)
+        .where(Transaction.accountId == account.id)
+        .order_by(Transaction.deleted.desc())
     ).all()
     # What is here already, by the file's id, and by date, amount and payee for the rows
-    # without one. A FITID a file repeats is another row, kept as its second (`id#2`), and
-    # both are duplicate suspects (S1.11.5).
+    # without one; rows the owner deleted too, so a file never brings one back (S1.3.2). A
+    # FITID a file repeats is another row, kept as its second (`id#2`), and both are duplicate
+    # suspects (S1.11.5).
     by_fit = {x.fitId: x for x in existing if x.fitId}
-    before = set(by_fit)
+    before = {x.fitId for x in existing if x.fitId and not x.deleted}
     seen: dict[str, int] = {}
     loose: dict[tuple, list[Transaction]] = {}
-    for x in existing:
+    for x in reversed(existing):
         if not x.fitId:
             loose.setdefault(_loose_key(x.date, x.amount, x.payeeRaw), []).append(x)
 
@@ -331,6 +465,10 @@ def apply_import(
             found = bucket.pop(0) if bucket else None
             if found is not None and row.fitId:
                 found.fitId = row.fitId
+        if found is not None and found.deleted:
+            # Deleted by its owner: matched, and left deleted as it was.
+            result.matched += 1
+            continue
         if found is not None:
             # Compared in cents, as stored: a file's sub-cent digits change nothing.
             if money.to_cents(found.amount) != money.to_cents(row.amount):
@@ -372,27 +510,8 @@ def apply_import(
     # A balance the file reports: an OFX file's, or a statement's opening and closing.
     source = "statement" if parsed.format == "statement" else "ofx"
     for day, balance in parsed.balances:
-        if (
-            day
-            and not s.scalars(
-                select(Anchor).where(
-                    Anchor.accountId == account.id,
-                    Anchor.date == day,
-                    Anchor.source == source,
-                    Anchor.deleted == false(),
-                )
-            ).first()
-        ):
-            s.add(
-                Anchor(
-                    id=ids.new_id("Anchr"),
-                    accountId=account.id,
-                    date=day,
-                    balance=balance,
-                    source=source,
-                    importId=imp.id,
-                )
-            )
+        if day:
+            keep_anchor(s, account.id, day, balance, source, imp.id)
     # The file's positions: the holdings of an account kept by snapshots, and otherwise a
     # holdings check on Reconcile, the lots changing only through transactions (S1.3.3.8.2).
     s.flush()
@@ -409,48 +528,17 @@ def apply_import(
         if inst is None:
             result.warnings.append("a position names a security the file doesn't describe")
             continue
-        if (
-            checked
-            and not s.scalars(
-                select(HoldingCheck).where(
-                    HoldingCheck.accountId == account.id,
-                    HoldingCheck.instrumentId == inst.id,
-                    HoldingCheck.asOf == pos.asOf,
-                    HoldingCheck.deleted == false(),
-                )
-            ).first()
-        ):
-            s.add(
-                HoldingCheck(
-                    id=ids.new_id("HdChk"),
-                    accountId=account.id,
-                    asOf=pos.asOf,
-                    label=(inst.symbol or inst.name or "")[:200],
-                    importId=imp.id,
-                    instrumentId=inst.id,
-                    quantity=pos.quantity,
-                    marketValue=pos.marketValue,
-                )
-            )
-        if not s.scalars(
-            select(Holding).where(
-                Holding.accountId == account.id,
-                Holding.instrumentId == inst.id,
-                Holding.asOf == pos.asOf,
-                Holding.deleted == false(),
-            )
-        ).first():
-            s.add(
-                Holding(
-                    id=ids.new_id("Hold"),
-                    accountId=account.id,
-                    instrumentId=inst.id,
-                    asOf=pos.asOf,
-                    quantity=pos.quantity,
-                    marketValue=pos.marketValue,
-                    importId=imp.id,
-                )
-            )
+        keep_position(
+            s,
+            account.id,
+            imp.id,
+            pos.asOf,
+            inst.id,
+            (inst.symbol or inst.name or "")[:200],
+            check=bool(checked),
+            quantity=pos.quantity,
+            marketValue=pos.marketValue,
+        )
     for txn in added:
         if match_transfer(s, txn, account.ownerId):
             result.transfers += 1

@@ -1,10 +1,10 @@
 // Categorisation and payee rules (requirements S2.7): Transactions › Rules lists a user's own
 // rules, first match wins, and edits them one at a time; applied on import and on demand.
-import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { money } from '../app/format.js';
+import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
 import { FormError } from './fields.js';
@@ -67,10 +67,8 @@ function RulesDialog({ close }) {
   useDialogGuide('dialog-rules');
   const res = useApi('/rules');
   const v = /** @type {any} */ (res.data);
-  const [armed, setArmed] = useState(/** @type {string | null} */ (null));
   const act = useSubmit(async (/** @type {() => Promise<any>} */ f) => {
     await f();
-    setArmed(null);
     res.reload();
   });
   const apply = useSubmit(async () => {
@@ -131,13 +129,11 @@ function RulesDialog({ close }) {
                       <button type="button" class="btn sm" onClick=${() =>
                         close({ rule: r })}>Edit…</button>
                       <button type="button" class="btn sm danger" disabled=${act.busy}
-                        onClick=${() =>
-                          armed === r.id
-                            ? act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
-                              .catch(() => {})
-                            : setArmed(r.id)}>${armed === r.id
-                          ? 'Click again to delete'
-                          : 'Delete'}</button>
+                        onClick=${async () => {
+                          if (!(await confirmAction({ title: 'Delete this rule?' }))) return;
+                          act.run(() => saveNow((d) => d.remove(d.load(RuleRec, r))))
+                            .catch(() => {});
+                        }}>Delete</button>
                     </td>
                   </tr>
                 `

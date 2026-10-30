@@ -11,6 +11,7 @@ import { ended, loadSession, lostChanges, session } from '../store/session.js';
 import { connect, disconnect } from './stream.js';
 import { PUBLIC_PATHS, PublicScreens, Screens, SetupScreen } from './router.js';
 import { Frame } from '../components/frame.js';
+import { ConfirmHost } from '../components/confirm.js';
 import { dialogHasChanges, DialogHost } from '../components/dialog.js';
 import { MenuHost } from '../components/menu.js';
 import { Toasts } from '../components/toast.js';
@@ -91,6 +92,7 @@ function Root() {
     <${LocationProvider}>
       <${App} />
       <${DialogHost} />
+      <${ConfirmHost} />
       <${MenuHost} />
       <${TooltipHost} />
       <${Toasts} />

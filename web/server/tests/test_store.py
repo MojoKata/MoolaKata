@@ -77,6 +77,8 @@ def test_partial_unique_index_ignores_deleted(db):
         new_user(s)
 
 
+# An index on an expression can't be reflected; the upgrade test compares its DDL instead.
+@pytest.mark.filterwarnings("ignore:.*expression-based index")
 def test_tables_and_revisions_agree(db):
     with db.engine.connect() as conn:
         mc = MigrationContext.configure(
@@ -514,6 +516,7 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
         migrated = dict(
             conn.exec_driver_sql("SELECT name, sql FROM sqlite_master WHERE type = 'table'").all()
         )
+        migrated_ix = dict(conn.exec_driver_sql(INDEXES).all())
     engine.dispose()
 
     fresh = make_engine(tmp_path / "fresh.db", None)
@@ -522,9 +525,16 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
         made = dict(
             conn.exec_driver_sql("SELECT name, sql FROM sqlite_master WHERE type = 'table'").all()
         )
+        made_ix = dict(conn.exec_driver_sql(INDEXES).all())
     fresh.dispose()
     differ = [n for n in metadata.tables if _clauses(migrated[n]) != _clauses(made[n])]
     assert differ == []
+    # An index on an expression, which the comparison of tables and revisions can't reflect.
+    flat = lambda sql: " ".join(sql.split())  # noqa: E731
+    assert {n: flat(x) for n, x in migrated_ix.items()} == {n: flat(x) for n, x in made_ix.items()}
+
+
+INDEXES = "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
 
 
 def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_config, master_key):
