@@ -78,6 +78,7 @@ for amd64 and arm64 (S17.8.1). *Direct* means named in `pyproject.toml`.
 |---|---|---|---|
 | pytest | from `uv.lock` | the tests | — |
 | ruff | from `uv.lock` | lint and format | — |
+| coverage | from `uv.lock` | what the tests reach, in `web/check` and `web/dev.sh coverage` (S17.5.8) | none; its files name only its documentation |
 | playwright | from `uv.lock` | browser tests; downloads its Chromium (`web/pins`) | **egress** at `web/dev.sh setup` only |
 | sigstore | from `uv.lock` | verifying npm provenance in `vendor add` (S17.3.1) | **egress** at `vendor add` only |
 | uv | 0.12.5 | the build stage's installer (`install/build-requirements.txt`, hashed) | fetches wheels at image build only |
@@ -116,6 +117,7 @@ the commit its release tag named; a release is adopted after 14 days, as a brows
 | Action | Version | Commit | Purpose | Risks | Revisit |
 |---|---|---|---|---|---|
 | actions/checkout | 7.0.1 (2026-07-20) | `3d3c42e5aac5ba805825da76410c181273ba90b1` | the source, in both workflows, without keeping the token (`persist-credentials: false`) | none known | when its major version changes |
+| actions/upload-artifact | 7.0.2 (2026-10-07) | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` | the coverage reports (S17.5.8) of each `check` run, kept 30 days | none known: it writes to the run's own storage with the job's token | when its major version changes |
 | actions/attest-build-provenance | 4.2.2 (2026-08-06) | `4d101475d8b20a2381f78447822ac1eab6504dd8` | the build-provenance attestation of each released image (Sigstore's public instance) | **egress** to Sigstore and the registry, by design, in the release's last job only, which alone holds `id-token: write` | when its major version changes |
 | GitHub-hosted runners | `ubuntu-24.04`, `ubuntu-24.04-arm` | — | the checks; the amd64 and arm64 builds and smoke runs | the images are GitHub's; free for a public repository | if GitHub's terms for public repositories change |
 

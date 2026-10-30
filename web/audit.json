@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-10-19",
+  "auditedAt": "2026-10-30",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -35,6 +35,15 @@
         "www.freedesktop.org"
       ],
       "inImage": true,
+      "words": []
+    },
+    "coverage": {
+      "hosts": [
+        "aosabook.org",
+        "code.activestate.com",
+        "coverage.rtfd.io"
+      ],
+      "inImage": false,
       "words": []
     },
     "cryptography": {
@@ -1119,6 +1128,6 @@
   },
   "hashes": {
     "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
-    "uv.lock": "sha256:e09a521e8a148fe03a8ebe15dc8e8a96790168c7826e15485dbdac2630718092"
+    "uv.lock": "sha256:131e69489d38f02680335ec6c6f264baf940fb5f182b9ff9334bd78b0ee13f1c"
   }
 }

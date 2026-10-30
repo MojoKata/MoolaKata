@@ -60,5 +60,31 @@
       importing adds a file, an expected result or a sequence that fails before it. Real
       exported files join the corpus as G25 says.
 
+   8. **Coverage**: what the tests reach, measured on every run of `web/check`, with no
+      service outside the repository. coverage.py measures lines and branches in every
+      Python process the tests start (the server the browser tests run included; the
+      reader's worker, started with no environment, is not), and the connector. For the
+      browser app, `deno test --coverage` and the browser tests' pages (V8's precise
+      coverage through Chromium's DevTools protocol, written in Deno's form) are read
+      together by `deno coverage`; a file no test loads counts as not reached.
+      `python -m moolakata.dev.coverage report` then gives:
+      1. **By area**: line and branch coverage of each server package (its top-level modules
+         as one), each directory of the browser app, and the connector. A browser file's
+         branches count only where its code ran.
+      2. **The changed lines**: how many of the lines added or changed since the base (the
+         merge base with `main`; in CI, the commit before) the tests reach, and each stretch
+         they don't.
+      3. **Where it is shown**: the terminal; HTML reports in `web/.dev/coverage/html/`; in
+         CI, the job's summary, a notice with the headline and one on each of the nine
+         largest unreached stretches of changed lines (shown on those lines in a pull
+         request), and the HTML as the run's `coverage` artifact, kept 30 days.
+      4. **The floor**: `web/coverage-floor.json` holds each area's line and branch floor; an
+         area below its floor fails the check. `python -m moolakata.dev.coverage floor`
+         raises each to half a point under what was measured, rounded down, and never
+         lowers one: a lower floor is written by hand, with its reason in the commit.
+
+      `web/dev.sh coverage [pytest arguments]` measures the tests named (all by default) and
+      the browser modules' unit tests the same way, and reports them, without the floor.
+
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it.

@@ -34,6 +34,7 @@ dev = [
     "ruff",
     "playwright",
     "sigstore>=4.5",
+    "coverage",
 ]
 
 [build-system]
@@ -72,3 +73,15 @@ markers = [
     "audit: the no-network run of web/dev.sh audit (S17.2.1)",
 ]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
+
+# Coverage, measured by `web/dev.sh coverage` and in CI (requirements S17.5.8): the server, the
+# servers the browser tests start, and the connector.
+[tool.coverage.run]
+source_pkgs = ["moolakata", "moolakata_connector"]
+branch = true
+parallel = true
+patch = ["subprocess"]
+omit = ["*/moolakata/dev/*", "*/store/alembic/versions/*"]
+
+[tool.coverage.report]
+skip_empty = true

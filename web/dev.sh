@@ -22,6 +22,10 @@ web/dev.sh <command>
                --listen ADDR  --hostname NAME  --port N  --data DIR
                        for testing from another machine: see web/dev.md
   test [args]  run pytest (arguments pass through)
+  coverage [args]
+               pytest (arguments pass through) and the browser modules' tests,
+               measured: coverage by area and of the changed lines, with HTML,
+               in web/.dev/coverage/
   check        run every check: what CI runs (web/check)
   mail         list the emails dev mode has written
   mocks        fake bitcoin backends (Esplora, Electrum, Core) on local ports
@@ -99,6 +103,17 @@ case "$cmd" in
     ;;
   test)
     cd "$SERVER" && exec uv run --frozen pytest "$@"
+    ;;
+  coverage)
+    # What the tests reach (S17.5.8), as web/check measures it, for the tests named.
+    out="$WEB/.dev/coverage"
+    rm -rf "$out" && mkdir -p "$out/server" "$out/js"
+    "$WEB/dev.sh" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
+      --import-map "$WEB/ui/tests/import_map.json" --coverage="$out/js" "$WEB/ui/tests/" >/dev/null
+    cd "$SERVER"
+    COVERAGE_FILE="$out/server/.coverage" COVERAGE_CORE=sysmon MK_JS_COVERAGE="$out/js" \
+      uv run --frozen coverage run -m pytest "$@" || true
+    exec uv run --frozen python -m moolakata.dev.coverage report
     ;;
   mocks)
     # Fake bitcoin backends on local ports (S17.9.7.8); point Settings › Bitcoin at them.

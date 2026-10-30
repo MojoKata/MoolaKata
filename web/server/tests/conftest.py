@@ -7,6 +7,7 @@ import pytest
 # The browser tests' shared fixtures (S17.5.2), defined once for every module that uses them.
 from browser import browser, household, served  # noqa: F401
 from fastapi.testclient import TestClient
+from jscoverage import install as measure_the_browser_app
 
 from moolakata import exactjson
 from moolakata.app import Server, create_app
@@ -15,6 +16,8 @@ from moolakata.auth import users as accounts
 from moolakata.config import Config
 from moolakata.keys import cli as keys_cli
 from moolakata.store.maintenance import open_store
+
+measure_the_browser_app()
 
 
 @pytest.fixture(autouse=True)

@@ -22,6 +22,11 @@ step() {
 }
 
 py() { (cd "$SERVER" && uv run --frozen --quiet "$@"); }
+# What the tests reach (S17.5.8): every Python process the tests start, and the browser app
+# in Deno's tests and the browser tests' pages, measured into one place for the report.
+COVERAGE="$WEB/.dev/coverage"
+rm -rf "$COVERAGE" && mkdir -p "$COVERAGE/server" "$COVERAGE/js"
+export COVERAGE_FILE="$COVERAGE/server/.coverage" COVERAGE_CORE=sysmon MK_JS_COVERAGE="$COVERAGE/js"
 deno() { "$WEB/dev.sh" deno "$@"; }
 
 step "uv.lock matches pyproject.toml" bash -c "cd '$SERVER' && uv lock --check --quiet"
@@ -42,13 +47,14 @@ step "deno fmt" deno fmt --check --quiet --config "$WEB/ui/deno.json"
 # The browser modules' unit tests (S17.5): types are checked above, with the vendored
 # libraries' declarations, so the run itself loads their code through the tests' import map.
 step "deno test" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
-  --import-map "$WEB/ui/tests/import_map.json" "$WEB/ui/tests/"
+  --import-map "$WEB/ui/tests/import_map.json" --coverage="$COVERAGE/js" "$WEB/ui/tests/"
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
 if [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check
 fi
-step "pytest (server, schema, browser)" py pytest
-step "pytest (the connector)" py pytest "$ROOT/connector/tests"
+step "pytest (server, schema, browser)" py coverage run -m pytest
+step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
+step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check
 step "hand-written mockup" py python "$ROOT/docs/mockups/check.py" "$WEB/.dev/check-shots"
 
 if ((${#failed[@]})); then

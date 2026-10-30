@@ -4,7 +4,9 @@
     free for a public repository.
     1. **Checks**: `.github/workflows/check.yml` runs `web/check` on every pull request and
        every push to `main`, after `web/dev.sh setup`, with uv installed from
-       `install/build-requirements.txt` by its hashes.
+       `install/build-requirements.txt` by its hashes. It fetches the commit before as well,
+       for the coverage of the changed lines, and keeps the coverage reports (S17.5.8) as
+       the run's artifact.
     2. **Releases**: `.github/workflows/release.yml`, on a `v<version>` tag matching
        `web/VERSION`, builds both images on an amd64 and an arm64 runner, runs
        `smoke.sh` on each (S17.8.1), pushes the images that passed to `ghcr.io/mojokata`
