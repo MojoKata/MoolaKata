@@ -30654,7 +30654,7 @@
     },
     "/ui/api/imports/{upload_id}": {
       "delete": {
-        "description": "An upload its dialog no longer needs (closed, or cancelled), let go at once rather than\nwhen it expires.",
+        "description": "An upload its dialog no longer needs (closed, or cancelled), let go at once rather than\nwhen it expires. Held in memory, it has no version; one already gone answers the same.",
         "operationId": "let_go_ui_api_imports__upload_id__delete",
         "parameters": [
           {
@@ -30668,7 +30668,14 @@
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "422": {
