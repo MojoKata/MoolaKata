@@ -54,7 +54,15 @@ GUESSES = {
         "timestamp",
         "run date",
     ],
-    "amount": ["amount", "amount (usd)", "net amount", "total", "subtotal", "value"],
+    "amount": [
+        "amount",
+        "amount (usd)",
+        "net amount",
+        "total",
+        "total (inclusive of fees and/or spread)",
+        "subtotal",
+        "value",
+    ],
     "debit": ["debit", "withdrawal", "withdrawals", "debit amount", "money out"],
     "credit": ["credit", "deposit", "deposits", "credit amount", "money in"],
     "payee": ["description", "payee", "name", "merchant", "details", "transaction"],
@@ -63,7 +71,7 @@ GUESSES = {
     "id": ["transaction id", "reference", "ref", "id", "fitid"],
     "action": ["action", "transaction type", "type", "activity"],
     "symbol": ["symbol", "ticker", "asset", "security"],
-    "quantity": ["quantity", "shares", "units", "qty"],
+    "quantity": ["quantity", "shares", "units", "qty", "quantity transacted"],
     "price": ["price", "spot price at transaction", "unit price", "price ($)"],
     "fees": ["fees", "commission", "fees and/or spread", "fee"],
 }
@@ -98,22 +106,47 @@ def decode(data: bytes) -> str:
 
 
 def looks_like_csv(data: bytes) -> bool:
+    """Whether its longest stretch of lines between blank ones (its header and rows, not the
+    notes a bank writes above or below them) reads as a table."""
     try:
         text = decode(data[:65536])
     except ReadError:
         return False
-    lines = [x for x in text.splitlines() if x.strip()][:10]
+    blocks = [b.splitlines() for b in re.split(r"\r?\n[ \t]*\r?\n", text) if b.strip()]
+    lines = [x for x in max(blocks, key=len, default=[]) if x.strip()][:10]
     return len(lines) >= 2 and all(("," in x or ";" in x or "\t" in x) for x in lines[-2:])
 
 
-def _table(text: str) -> tuple[str, list[list[str]]]:
+def _table(text: str) -> tuple[str, list[list[str]], list[bool]]:
+    """The delimiter, the rows that hold anything, and for each whether a blank line came
+    before it."""
     sample = text[:8192]
     try:
         delim = csv.Sniffer().sniff(sample, delimiters=",;\t").delimiter
     except csv.Error:
         delim = ","
-    rows = [r for r in csv.reader(io.StringIO(text), delimiter=delim) if any(c.strip() for c in r)]
-    return delim, rows
+    return delim, *_rows(text, delim)
+
+
+def _rows(text: str, delim: str) -> tuple[list[list[str]], list[bool]]:
+    rows, gaps, blank = [], [], False
+    for r in csv.reader(io.StringIO(text), delimiter=delim):
+        if any(c.strip() for c in r):
+            rows.append(r)
+            gaps.append(blank)
+            blank = False
+        else:
+            blank = True
+    return rows, gaps
+
+
+def _body_end(gaps: list[bool], header: int) -> int:
+    """Where the rows below the header end: at the first blank line after the first of them.
+    What follows is a trailer (a disclaimer, the time the file was downloaded), not rows."""
+    for i in range(header + 2, len(gaps)):
+        if gaps[i]:
+            return i
+    return len(gaps)
 
 
 def header_row(rows: list[list[str]]) -> int:
@@ -125,12 +158,18 @@ def header_row(rows: list[list[str]]) -> int:
     return 0
 
 
-def propose(data: bytes) -> dict:
-    """A mapping guessed from the header row, with a preview for the user to check."""
-    delim, rows = _table(decode(data))
+TRADE_FIELDS = ("action", "symbol", "quantity", "price", "fees")
+
+
+def propose(data: bytes, trades: bool = False) -> dict:
+    """A mapping guessed from the header row, with a preview for the user to check. A trade
+    history's columns are guessed only for an account that holds instruments (`trades`)."""
+    delim, rows, gaps = _table(decode(data))
     if not rows:
         raise ReadError("The file is empty.")
     h = header_row(rows)
+    end = _body_end(gaps, h)
+    trailer, rows = len(rows) - end, rows[:end]
     headers = [c.strip() for c in rows[h]]
     lower = [c.lower() for c in headers]
     mapping: dict = {"delimiter": delim, "skipRows": h, "negateAmounts": False}
@@ -149,10 +188,10 @@ def propose(data: bytes) -> dict:
         if mapping["date"] and len(r) > lower.index(mapping["date"].lower())
     ]
     mapping["dateFormat"] = date_format(dates)
-    if not (mapping["symbol"] and mapping["quantity"]):
-        for f in ("action", "symbol", "quantity", "price", "fees"):
+    if not trades:
+        for f in TRADE_FIELDS:
             mapping[f] = None
-    return {"headers": headers, "sample": body[:8], "mapping": mapping}
+    return {"headers": headers, "sample": body[:8], "mapping": mapping, "trailer": trailer}
 
 
 def date_format(values: list[str]) -> str | None:
@@ -205,13 +244,9 @@ def read(data: bytes, mapping: dict) -> ParsedFile:
     problems = check_mapping(mapping)
     if problems:
         raise ReadError(problems[0][1])
-    delim = mapping.get("delimiter") or ","
-    rows = [
-        r
-        for r in csv.reader(io.StringIO(decode(data)), delimiter=delim)
-        if any(c.strip() for c in r)
-    ]
+    rows, gaps = _rows(decode(data), mapping.get("delimiter") or ",")
     skip = int(mapping.get("skipRows") or 0)
+    rows = rows[: _body_end(gaps, skip)]
     if len(rows) <= skip:
         raise ReadError("The file has no rows below its header.")
     headers = [c.strip() for c in rows[skip]]
@@ -256,6 +291,8 @@ def read(data: bytes, mapping: dict) -> ParsedFile:
         except ReadError as e:
             raise ReadError(f"Row {n}: {e}") from None
         symbol = (cell(r, "symbol") or "").upper() or None
+        if symbol == "USD":
+            symbol = None  # the account's own currency: cash, not an instrument
         option = occ_symbol(symbol) if mapping.get("symbol") else None
         symbol = option or symbol
         kind = (
@@ -273,6 +310,14 @@ def read(data: bytes, mapping: dict) -> ParsedFile:
                     "opens or closes (Buy to Open, Sell to Close, Expired, Assigned). Record "
                     "it on Positions, or fix the file's action."
                 )
+        # A trade's cash follows its action, whatever sign the file wrote: an exchange writes
+        # a buy's total as a positive number. Shares or coins moved in or out move no cash.
+        if symbol and kind in ("buy", "fee"):
+            value = -abs(value)
+        elif symbol and kind == "sell":
+            value = abs(value)
+        elif symbol and kind in ("transfer-in", "transfer-out"):
+            value = Decimal(0)
         if (
             symbol
             and symbol not in out.securities

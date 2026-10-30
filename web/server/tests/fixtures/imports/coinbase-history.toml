@@ -21,9 +21,3 @@ transactions = [
 holdings = ["BTC 0.004", "SOL 1.5"]
 cash = "469.73"
 instruments = { BTC = "crypto", SOL = "crypto" }
-
-[xfail]
-transactions = "CR3-19"
-holdings = "CR3-19"
-cash = "CR3-19"
-instruments = "CR3-19"

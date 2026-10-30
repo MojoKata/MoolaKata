@@ -1,6 +1,6 @@
 about = """A brokerage's account history as a broker's CSV writes it: two blank lines above the
-header, symbols with a leading space, dollar signs in the column names, newest first, a quantity of
-0.000 on cash rows, and notes in quotes below the rows. The amount column's name isn't one the
+header, symbols with a leading space, dollar signs in the column names, newest first, and a quantity
+of 0.000 on cash rows. The amount column's name isn't one the
 reader guesses, so the person picks it in the mapping step."""
 account = { type = "brokerage", institution = "Fidelity" }
 mapping = { amount = "Amount ($)" }

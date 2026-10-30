@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import Field
 from sqlalchemy import false, select
 
@@ -118,11 +118,22 @@ def accepted(job: Job) -> JSONResponse:
 
 
 def _hold(data: bytes, account_id: str, user_id: str, name: str, **extra) -> str:
+    """Kept in memory while it waits for its mapping or its check. What a user's held uploads
+    hold counts against their uploads in flight (S13.7.6): past it, their oldest held one is
+    let go, and its dialog asks for the file again (CR3-172)."""
+    from ..middleware import IN_FLIGHT
+
     key = "Upl_" + secrets.token_urlsafe(18)
     now = clock.now()
     with _held_lock:
         for k in [k for k, h in _held.items() if h.until < now]:
             del _held[k]
+        mine = sorted((h.until, k) for k, h in _held.items() if h.userId == user_id)
+        total = sum(len(_held[k].data) for _, k in mine) + len(data)
+        for _, k in mine:
+            if total <= IN_FLIGHT:
+                break
+            total -= len(_held.pop(k).data)
         _held[key] = Held(
             data, account_id, user_id, name, now + dt.timedelta(minutes=HELD_MINUTES), **extra
         )
@@ -155,7 +166,8 @@ def _run(
                         )
                     ).first()
                 if saved is None:
-                    proposal = parsing.propose_csv(data)
+                    trades = atypes.investing(account.type)
+                    proposal = parsing.propose_csv(data, trades)
                     srv.jobs.update(
                         job,
                         state="done",
@@ -163,6 +175,7 @@ def _run(
                         result={
                             "needsMapping": True,
                             "uploadId": _hold(data, account_id, user_id, name),
+                            "trades": trades,
                             **proposal,
                         },
                     )
@@ -1189,6 +1202,17 @@ def _learn(s, account: Account, st, rows: list[StatementRowIn], have: set = froz
         )
     elif row.layout != text:
         row.layout = text
+
+
+@router.delete("/imports/{upload_id}", status_code=204)
+def let_go(upload_id: str, c: Caller = Depends(caller)):
+    """An upload its dialog no longer needs (closed, or cancelled), let go at once rather than
+    when it expires."""
+    with _held_lock:
+        held = _held.get(upload_id)
+        if held is not None and held.userId == c.id:
+            del _held[upload_id]
+    return Response(status_code=204)
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)

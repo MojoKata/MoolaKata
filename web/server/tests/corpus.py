@@ -332,7 +332,7 @@ def header_line(data: bytes) -> int:
 
     from moolakata.importers import csvfile
 
-    _, rows = csvfile._table(csvfile.decode(data))
+    _, rows, _ = csvfile._table(csvfile.decode(data))
     want = [x.strip() for x in rows[csvfile.header_row(rows)]]
     for i, line in enumerate(csvfile.decode(data).splitlines()):
         if [x.strip() for x in next(csv.reader([line]), [])] == want:

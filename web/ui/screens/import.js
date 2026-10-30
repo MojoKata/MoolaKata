@@ -1,7 +1,7 @@
 // Importing a file into an account (requirements S1.3.2–S1.3.3): OFX, QFX or CSV, or a
 // statement (a PDF or a photo of one) read on the server and checked before it is saved. A CSV
 // from an institution seen for the first time asks for its columns, then remembers them.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { changes } from '../app/stream.js';
@@ -26,7 +26,9 @@ async function finished(id) {
   throw new Error('The import is taking too long; it carries on, and its result shows later.');
 }
 
-const COLUMNS = /** @type {[string, string, string][]} */ ([
+// The columns a mapping names; the last five, a trade history's, only for an account that holds
+// instruments (S1.3.2).
+const COLUMNS = /** @type {[string, string, string, boolean?][]} */ ([
   ['date', 'Date column', 'The posting or trade date.'],
   ['payee', 'Description column', 'The payee, merchant or description.'],
   ['amount', 'Amount column', 'One column with + for money in and − for money out.'],
@@ -35,6 +37,11 @@ const COLUMNS = /** @type {[string, string, string][]} */ ([
   ['balance', 'Running balance column', 'Optional: every row then checks the balance.'],
   ['memo', 'Memo column', 'Optional.'],
   ['id', 'Transaction id column', "Optional: the institution's own id for each row."],
+  ['action', 'Action column', 'What each row is: a buy, a sale, a dividend, a transfer.', true],
+  ['symbol', 'Symbol column', 'The ticker, fund symbol or coin traded.', true],
+  ['quantity', 'Quantity column', 'Shares or coins.', true],
+  ['price', 'Price column', 'Optional: the price per share or coin.', true],
+  ['fees', 'Fees column', 'Optional: commission, fees or spread.', true],
 ]);
 
 /** @param {{ close: (v?: any) => void, accounts: any[], accountId?: string }} p */
@@ -52,6 +59,14 @@ export function ImportDialog({ close, accounts, accountId }) {
   // lines can't be read.
   const [keeping, setKeeping] = useState(false);
   const [kept, setKept] = useState(/** @type {any} */ (null));
+  // The upload the server holds for this dialog, let go as soon as the dialog closes
+  // (S13.7.6) rather than when it expires.
+  const held = useRef(/** @type {string | null} */ (null));
+  held.current = mapping?.uploadId || review?.uploadId || kept?.uploadId || error?.uploadId ||
+    null;
+  useEffect(() => () => {
+    if (held.current) api.del(`/imports/${held.current}`).catch(() => {});
+  }, []);
 
   const start = async () => {
     if (!file) return;
@@ -172,7 +187,9 @@ export function ImportDialog({ close, accounts, accountId }) {
         }}>A CSV from this institution for the first time.
               Check the columns MoolaKata guessed.</p>
         <div class="split-form">
-              ${COLUMNS.map(([k, label, hint]) =>
+              ${COLUMNS.filter(([, , , trade]) => !trade || mapping.trades).map((
+                [k, label, hint],
+              ) =>
                 html`
                   <${Field} label=${label} id=${'map-' + k} hint=${hint}
                     error=${errAt(error, 'mapping.' + k)}>
@@ -190,6 +207,16 @@ export function ImportDialog({ close, accounts, accountId }) {
                   setMapping({ ...mapping, mapping: { ...m, negateAmounts: v === 'yes' } })}
                 options=${[['no', 'No'], ['yes', 'Yes: flip the signs']]} /></${Field}>
             </div>
+            ${mapping.trailer
+              ? html`
+                <p
+                  class="small dim">${mapping.trailer} line${mapping.trailer === 1
+                    ? ''
+                    : 's'} below the rows ${mapping.trailer === 1
+                    ? 'was'
+                    : 'were'} left out: notes, not rows.</p>
+              `
+              : null}
             <div class="table-wrap"><table class="t"><caption class="sr-only">The file's first rows</caption>
               <thead><tr>${mapping.headers.map((/** @type {string} */ h) =>
                 html`<th>${h}</th>`

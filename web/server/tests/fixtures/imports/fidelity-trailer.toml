@@ -17,8 +17,3 @@ transactions = [
 holdings = ["VTI 10"]
 cash = "2080.40"
 instruments = { FXAIX = "mutual-fund", VTI = "equity" }
-
-[xfail]
-# Found by the corpus, walk item 13: the notes make this upload "not a CSV" (415); in a longer
-# file no date format is proposed, and the read stops at the first note.
-import = "walk 13: notes below a CSV's rows"

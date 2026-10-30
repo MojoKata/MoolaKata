@@ -290,7 +290,6 @@ def test_the_browser_offers_every_way_an_account_is_kept():
     assert offered == set(accounts.KEPT_BY)
 
 
-@pytest.mark.xfail(strict=True, reason="CR3-19")
 def test_the_mapping_step_offers_every_column_the_reader_takes():
     from moolakata.importers import csvfile
 

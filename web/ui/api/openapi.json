@@ -30553,6 +30553,38 @@
         ]
       }
     },
+    "/ui/api/imports/{upload_id}": {
+      "delete": {
+        "description": "An upload its dialog no longer needs (closed, or cancelled), let go at once rather than\nwhen it expires.",
+        "operationId": "let_go_ui_api_imports__upload_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Let Go",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/ui/api/imports/{upload_id}/brokerage": {
       "post": {
         "description": "The ending value becomes a value anchor on the last day; the positions a holdings check\n(or, for an account kept by snapshots, its holdings that day); the cash lines kept become\ntransactions; and the PDF is kept on the account. Trades are never added here.",

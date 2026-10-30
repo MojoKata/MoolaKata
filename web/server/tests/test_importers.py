@@ -73,13 +73,13 @@ def test_csv_option_rows_are_contracts():
         b"09/18/2026,Assigned,AAPL 09/18/2026 150.00 P,2,,,\n"
         b"09/18/2026,Buy,AAPL,200,150.00,,-30000.00\n"
     )
-    p = csvfile.read(data, csvfile.propose(data)["mapping"])
+    p = csvfile.read(data, csvfile.propose(data, trades=True)["mapping"])
     assert [r.kind for r in p.rows] == ["sell-to-open", "assign", "buy"]
     assert p.rows[0].security == "AAPL260918P00150000"
     assert p.securities["AAPL260918P00150000"].instrumentClass == "option"
     plain = data.replace(b"Sell to Open", b"Sell")
     with pytest.raises(ReadError, match="is an option"):
-        csvfile.read(plain, csvfile.propose(plain)["mapping"])
+        csvfile.read(plain, csvfile.propose(plain, trades=True)["mapping"])
 
 
 def test_not_ofx_is_refused():
@@ -170,7 +170,7 @@ def test_trade_history_csv():
         b"2026-01-05,Buy,VTI,10,250.00,0,-2500.00\n"
         b"2026-06-30,Dividend,VTI,,,,18.40\n"
     )
-    m = csvfile.propose(data)["mapping"]
+    m = csvfile.propose(data, trades=True)["mapping"]
     assert m["symbol"] == "Symbol" and m["action"] == "Action"
     p = csvfile.read(data, m)
     assert [r.kind for r in p.rows] == ["buy", "dividend"]
