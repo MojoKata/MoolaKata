@@ -1,0 +1,20 @@
+UMB Bank, n.a.
+Free Checking
+Statement Period: 09/01/26 - 09/30/26
+Account Summary
+Beginning Balance on 09/01/26 $5,710.50
+Deposits and Other Credits 4,820.00
+Withdrawals and Other Debits 4,410.00
+Ending Balance on 09/30/26 $6,120.50
+Deposits and Other Credits
+09/15 ACME CORP PAYROLL 2,410.00
+09/30 ACME CORP PAYROLL 2,410.00
+Withdrawals and Other Debits
+09/03 POS KROGER #412 142.18
+09/10 ONLINE TRANSFER TO SAVINGS 1,000.00
+09/22 DUKE ENERGY 188.40
+Checks Paid
+09/12 1043 3,079.42
+Daily Balance
+09/03 5,568.32
+09/10 4,568.32

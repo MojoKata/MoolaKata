@@ -23,3 +23,22 @@ addresses beyond what the merchant prints, under `web/server/tests/fixtures/rece
 `expected.json` of date, total and merchant each; the floor set from the first run on them and
 recorded in the test; the synthetic test kept beside it for pipeline regressions. Built in
 milestone 7 part 9 (S17.9.7). **Waits on:** the receipts themselves.
+
+## G25: Real exported files for the import corpus — Low
+
+**What is named:** S17.5.7's import corpus, whose files are shaped as institutions export
+them.
+
+**What is not:** files from the institutions themselves. The corpus's files are written to
+the formats as they are documented and commonly seen, so a quirk no one wrote down (a column
+named otherwise, a trailer, a date or sign written another way) shows only when a real file
+meets the reader.
+
+**Settled:** each real file the household exports (a bank's QFX and CSV, a card's CSV, a
+broker's OFX, history CSV and statement PDF, an exchange's CSV, a plan's statement) joins the
+corpus as another entry with the same kind of `.toml`, its expected results written by reading
+it, never from what MoolaKata makes of it. Before it is committed, account numbers, names,
+addresses and card digits are replaced, and amounts are kept so the file still adds up. A file
+not yet cleaned can be kept in a git-ignored folder the same tests read when it is there.
+**Waits on:** the household's exports.
+

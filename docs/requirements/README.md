@@ -63,8 +63,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | Id | Gap | Rank |
 |---|---|---|
 | **G23** | [Real receipt fixtures for the reader](gaps.md#g23-real-receipt-fixtures-for-the-reader--low) | Low |
+| **G25** | [Real exported files for the import corpus](gaps.md#g25-real-exported-files-for-the-import-corpus--low) | Low |
 
-A new gap takes the next id after G24.
+A new gap takes the next id after G25.
 
 ## Open questions
 

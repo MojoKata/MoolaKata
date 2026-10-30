@@ -1,0 +1,18 @@
+Charles Schwab & Co., Inc.
+Contributory IRA of ALICE EXAMPLE  Account Number 3301-9920
+Statement Period: September 1-30, 2026
+Change in Account Value This Period Year to Date
+Starting Value $8,120.00 $7,460.00
+Deposits 0.00 0.00
+Withdrawals 0.00 0.00
+Dividends and Interest 78.75 312.40
+Change in Value of Investments 220.00 646.35
+Ending Value $8,418.75 $8,418.75
+Positions - Exchange Traded Funds
+Symbol Description Quantity Price Market Value Cost Basis
+SCHD SCHWAB US DIVIDEND EQUITY ETF 300.0000 27.80 8,340.00 7,950.00
+Transaction Detail
+Date Category Action Symbol Description Quantity Price Amount
+09/25 Dividend SCHD SCHWAB US DIVIDEND EQUITY ETF 78.30
+09/30 Interest Bank Interest 0.45
+Disclosures

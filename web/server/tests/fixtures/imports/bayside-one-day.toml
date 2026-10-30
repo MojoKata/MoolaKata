@@ -1,0 +1,21 @@
+about = """One day's activity downloaded from a credit union, newest first with a running balance:
+the dates are all the same, so only the balances tell the order (coffee, then groceries, then the
+paycheck, 1,000.00 before them)."""
+account = { type = "checking", institution = "Bayside Credit Union" }
+
+[result]
+added = 3
+
+[expect]
+covered = ["2026-10-14", "2026-10-14"]
+transactions = [
+    "2026-10-14 deposit 500.00 | PAYROLL ACME CORP",
+    "2026-10-14 withdrawal -4.50 | BLUE BOTTLE COFFEE",
+    "2026-10-14 withdrawal -60.00 | SAFEWAY #1234",
+]
+checks = ["2026-10-14 1435.50 ok"]
+
+[xfail]
+checks = "CR3-171"
+reversed = "CR3-171"
+overlap = "CR3-171"

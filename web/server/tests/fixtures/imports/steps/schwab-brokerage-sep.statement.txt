@@ -1,0 +1,24 @@
+Charles Schwab & Co., Inc.
+Schwab One Account of ALICE EXAMPLE  Account Number 8812-4417
+Statement Period: September 1-30, 2026
+Change in Account Value This Period Year to Date
+Starting Value $0.00 $0.00
+Deposits 10,000.00 10,000.00
+Withdrawals 0.00 0.00
+Dividends and Interest 27.22 27.22
+Change in Value of Investments 219.00 219.00
+Ending Value $10,246.22 $10,246.22
+Positions - Exchange Traded Funds
+Symbol Description Quantity Price Market Value Cost Basis
+VTI VANGUARD TOTAL STOCK MARKET ETF 22.0000 299.50 6,589.00 6,400.00
+SCHD SCHWAB US DIVIDEND EQUITY ETF 100.0000 27.80 2,780.00 2,750.00
+Total Exchange Traded Funds 9,369.00
+Transaction Detail
+Date Category Action Symbol Description Quantity Price Amount
+09/02 Deposit MoneyLink Deposit 10,000.00
+09/03 Buy VTI VANGUARD TOTAL STOCK MARKET ETF 20.0000 290.00 (5,800.00)
+09/03 Buy SCHD SCHWAB US DIVIDEND EQUITY ETF 100.0000 27.50 (2,750.00)
+09/25 Dividend SCHD SCHWAB US DIVIDEND EQUITY ETF 26.10
+09/30 Buy VTI VANGUARD TOTAL STOCK MARKET ETF 2.0000 300.00 (600.00)
+09/30 Interest Bank Interest 1.12
+Disclosures

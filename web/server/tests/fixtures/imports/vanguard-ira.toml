@@ -1,0 +1,19 @@
+about = """An IRA kept from its fund company's OFX downloads, with no trades of its own: the month
+holds one dividend paid to cash and the fund's position (S1.3.2: for an account kept by snapshots
+the positions are its holdings)."""
+account = { type = "ira", institution = "Vanguard" }
+
+[result]
+added = 1
+
+[expect]
+covered = ["2026-09-01", "2026-09-30"]
+transactions = ["2026-09-26 dividend 120.40 VTSAX"]
+holdings = ["VTSAX 150.512"]
+cash = "120.40"
+checks = ["2026-09-30 120.40 ok"]
+instruments = { VTSAX = "mutual-fund" }
+
+[xfail]
+holdings = "CR3-15"
+holding_checks = "CR3-15"

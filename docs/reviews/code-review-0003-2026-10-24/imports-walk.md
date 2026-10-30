@@ -19,5 +19,24 @@ claims (CR3-17, CR3-169, CR3-173, CR3-343, CR3-344, CR3-360, CR3-374) and the co
 10. CR3-175 (Low): two OFX rows sharing a FITID take the later one's date
 11. CR3-171 (Low): a newest-first CSV of a single day keeps its oldest row's balance
 12. CR3-172 (Low): uploads waiting for a mapping or a check are held in memory, uncounted
+13. Found by the corpus: notes below a CSV's rows (a broker's disclaimer and download time)
+    make a short upload "not a CSV" (415); in a longer one no date format reads every row, so
+    none is proposed, and with one chosen the read stops at the first note ("Row 15: the date
+    is not written as %m/%d/%Y") (`fidelity-trailer.csv`)
+14. Found by the corpus: a plan statement imported again lists its holdings checks twice
+    (`empower-401k.statement.txt`, invariant *again*)
+15. Found by the corpus: a bank statement whose lines are already in the account starts them
+    left out, so it doesn't add up until the difference is accepted, in the browser and on the
+    server (`umb-statement.statement.txt`, invariant *again*; `_checked` and
+    `StatementReview` sum the ticked lines only)
 
 ## Decisions
+
+1. **Before the walk: how imports are tested.** Approved Oct 29, built before any finding is
+   fixed: an import corpus (S17.5.7) of files shaped as institutions export them, each with
+   expected results written by reading it; invariants over every file (again, reversed,
+   overlap, deleted, zones); a table of sequences; a check that the browser offers what the
+   server takes; each instrument's class checked against the real price sources, so dev
+   mode's stub can't hide an unpriced class. Real exported files join later (G25). Each walk
+   item's fix makes its expected failures pass and takes their marks away. Items 13 to 15 were
+   found while building it.

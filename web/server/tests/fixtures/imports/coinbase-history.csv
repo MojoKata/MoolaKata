@@ -1,0 +1,9 @@
+Transactions
+User,Alice Example,6f1c2a90-0000-4000-8000-000000000000
+
+Timestamp,Transaction Type,Asset,Quantity Transacted,Spot Price Currency,Spot Price at Transaction,Subtotal,Total (inclusive of fees and/or spread),Fees and/or Spread,Notes
+2026-09-01T15:02:11Z,Deposit,USD,1000,USD,1.00,1000.00,1000.00,0.00,Deposit from Checking
+2026-09-03T14:22:10Z,Buy,BTC,0.005,USD,64210.00,321.05,325.00,3.95,Bought 0.005 BTC for 325.00 USD
+2026-09-10T09:15:00Z,Buy,SOL,2.5,USD,140.00,350.00,355.00,5.00,Bought 2.5 SOL for 355.00 USD
+2026-09-20T18:40:31Z,Sell,SOL,1,USD,152.00,152.00,149.73,2.27,Sold 1 SOL for 149.73 USD
+2026-09-25T12:00:00Z,Send,BTC,0.001,USD,63000.00,63.00,63.00,0.00,Sent 0.001 BTC to an external wallet

@@ -1,0 +1,25 @@
+about = """A checking account's monthly statement as a bank lays it out, read from its PDF's text:
+a summary, credits and debits in their own sections with amounts unsigned, checks paid by
+number, and a daily balance table."""
+account = { type = "checking", institution = "UMB Bank" }
+
+[result]
+added = 6
+
+[expect]
+covered = ["2026-09-01", "2026-09-30"]
+transactions = [
+    "2026-09-03 withdrawal -142.18 | POS KROGER #412",
+    "2026-09-10 withdrawal -1000.00 | ONLINE TRANSFER TO SAVINGS",
+    "2026-09-12 withdrawal -3079.42 | 1043",
+    "2026-09-15 deposit 2410.00 | ACME CORP PAYROLL",
+    "2026-09-22 withdrawal -188.40 | DUKE ENERGY",
+    "2026-09-30 deposit 2410.00 | ACME CORP PAYROLL",
+]
+# The statement's opening and closing balances.
+checks = ["2026-08-31 5710.50 ok", "2026-09-30 6120.50 ok"]
+
+[xfail]
+# Found by the corpus, walk item 15: its lines start left out as already present, so the
+# statement no longer adds up and asks for the difference to be accepted.
+again = "walk 15: present lines left out of the sum"

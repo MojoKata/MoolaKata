@@ -35,6 +35,30 @@
    6. **A hostile worker**: code run under the reader's worker's sandbox (S9.8.4) tries what
       it must not do (a socket of any kind, a local listener of its own account, a signal to
       another process), and each attempt is refused.
+   7. **The import corpus**: files shaped as institutions export them (OFX and QFX downloads,
+      bank, card, broker and exchange CSVs, bank and plan statements kept as their text and
+      drawn into a PDF), each beside a `.toml` that says what the file is like, the account it
+      goes into and what MoolaKata makes of it: the import's counts, the coverage, the
+      transactions, holdings, cash, balance and holdings checks, and each instrument's class
+      and whether a real price source fetches it (dev mode's stub prices every class, so it
+      can't show one that none does). The expected results are written by reading the file,
+      never from what the code makes of it. In `web/server/tests/fixtures/imports/`, imported
+      through the API with every question answered as the import dialog's defaults answer it
+      (`tests/corpus.py`, `tests/test_import_corpus.py`):
+      1. **Expected results**, compared section by section.
+      2. **Invariants** over every file: imported again it adds and changes nothing; its rows
+         in the other order, a later download that overlaps it imported before or after it,
+         and (for OFX) its times written as evening in a US zone each leave the account as the
+         file alone does; a row the owner deleted stays deleted when the file comes again.
+      3. **Sequences**: a table of steps (make an account, import a file or a changed copy,
+         check a result) for what one import leaves for the next.
+      4. **The browser offers what the server takes**: the ways an account is kept and the
+         columns a mapping names, read from the browser's lists, against the server's.
+
+      A part that waits on a fix is an expected failure named by its claim or question
+      (`[xfail]` in the file's `.toml`), strict, so the fix takes the mark away. A change to
+      importing adds a file, an expected result or a sequence that fails before it. Real
+      exported files join the corpus as G25 says.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it.
