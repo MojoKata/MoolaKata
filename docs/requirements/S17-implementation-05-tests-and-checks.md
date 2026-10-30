@@ -78,7 +78,12 @@
          CI, the job's summary, a notice with the headline and one on each of the nine
          largest unreached stretches of changed lines (shown on those lines in a pull
          request), and the HTML as the run's `coverage` artifact, kept 30 days; after each
-         merge to `main`, the coverage site.
+         merge to `main`, the coverage site. The terminal's and the job summary's table gives
+         each area's files, its lines and branches as a bar of ten characters (each a tenth)
+         with the percentage, the counts reached, and its floor, marking an area below its
+         floor; its last rows are the server's areas together, the browser's, and every area
+         as one (the connector's too), each summed from their counts. `files.json` keeps each
+         file's counts, and where its line-by-line report is.
       4. **The floor**: `web/coverage-floor.json` holds each area's line and branch floor; an
          area below its floor fails the check. `python -m moolakata.dev.coverage floor`
          raises each to what was measured less a slack in lines and in branches (a count,
@@ -89,21 +94,31 @@
          with the browser tests' timing. `totals.json` keeps each area's counts for it.
       5. **The coverage site**: the repository's GitHub Pages site
          (`https://mojokata.github.io/MoolaKata/`) holds the HTML reports of the last merge
-         to `main` and the history of every merge since the site began. Its page shows each
-         area's line and branch coverage and the change since the merge before, with the
-         floors; a chart of each area (and of the server's and the browser's areas as one,
-         weighted by lines) over the merges, with each merge's figures on hover; and every
-         merge in a table. `python -m moolakata.dev.coverage site` builds it into
-         `web/.dev/coverage/site/`:
-         1. **The history** is the site's `history.json`, one entry per merge: its commit,
+         to `main` and the history of every merge since the site began. Its page shows:
+         1. **The headline**: line and branch coverage of every area as one, with the counts
+            behind them, each side's line coverage, and the number of files.
+         2. **By area**: each area's lines and branches as a bar with a tick at its floor (red
+            below it), the percentage, the change since the merge before and the counts
+            reached; its files and floor; and, last, the rows that sum the areas as the
+            job summary does. Clicking an area opens its files, each with the same bars and
+            counts and a link to its line-by-line report. Clicking a heading sorts the areas
+            and their files by it (name, lines, lines reached, branches, branches taken; a
+            count sorts by size), lowest lines first to start. A filter keeps the files
+            whose path holds what is typed, opening each area that has one.
+         3. **Over the merges**: a chart of each area, and of the server's and the browser's
+            areas as one, with each merge's figures on hover; and every merge in a table.
+
+         `python -m moolakata.dev.coverage site` builds it into `web/.dev/coverage/site/`,
+         with `files.json` beside the page:
+         4. **The history** is the site's `history.json`, one entry per merge: its commit,
             date, subject, pull request (from the squash merge's subject) and totals by
             area. It lives on the site alone. Each build reads it back from the published
             site and adds its own entry last; a run done again for the same commit replaces
             that commit's entry.
-         2. **Never started over**: a site that answers with no `history.json` starts an
+         5. **Never started over**: a site that answers with no `history.json` starts an
             empty one only while the site itself isn't there. Any other failure to read it
             fails the build in CI, so a bad moment never loses the history.
-         3. **Published** by `check.yml` (S17.10.1) after a passing check on `main`. Run
+         6. **Published** by `check.yml` (S17.10.1) after a passing check on `main`. Run
             anywhere else, the build is a preview of what publishing that commit would show,
             and publishes nothing.
 

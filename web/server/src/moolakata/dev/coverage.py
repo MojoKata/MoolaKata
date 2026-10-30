@@ -8,9 +8,9 @@ browser tests' pages (tests/jscoverage.py), read through `deno coverage`.
     python -m moolakata.dev.coverage site               the site: the reports and their history
 
 `report` prints line and branch coverage by area and of the lines changed since the base (the
-merge base with main; in CI the commit before), and writes the HTML reports and summary.md.
-In GitHub Actions it also writes the job summary and annotations (the headline, and the
-changed lines no test reaches, inline). `--check` fails when an area falls below its floor.
+merge base with main; in CI the commit before), and writes the HTML reports, summary.md and
+files.json. In GitHub Actions it also writes the job summary and annotations (the headline, and
+the changed lines no test reaches, inline). `--check` fails when an area falls below its floor.
 `floor` raises each area's floor to what was measured less its side's SLACK in lines and in
 branches, rounded down to a tenth of a point, so run-to-run jitter doesn't fail however small
 the area; it never lowers one (that is done by hand, with the reason in the commit). `site`
@@ -41,6 +41,9 @@ ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine lar
 # one branch is a point of a one-file area. The server's and the connector's tests measure the
 # same each run; the browser's move 10 or more lines and branches with their timing.
 SLACK = {"server": 3, "connector": 3, "browser": 20}
+BAR = 10  # the job summary's bars, in characters
+# Where each side's files sit, for the shorter names the site shows.
+ROOTS = ("web/server/src/moolakata/", "connector/moolakata_connector/", "web/ui/")
 
 
 @dataclass
@@ -200,6 +203,18 @@ def pct(part: int, whole: int) -> float | None:
     return round(100 * part / whole, 1) if whole else None
 
 
+def counted(files: int, lines: int, reached: int, branches: int, taken: int) -> dict:
+    return {
+        "files": files,
+        "lines": pct(reached, lines),
+        "branches": pct(taken, branches),
+        "lineCount": lines,
+        "linesReached": reached,
+        "branchCount": branches,
+        "branchesReached": taken,
+    }
+
+
 def totals(files: dict[str, File]) -> dict[str, dict]:
     by: dict[str, list[File]] = {}
     for f in files.values():
@@ -207,18 +222,43 @@ def totals(files: dict[str, File]) -> dict[str, dict]:
     out = {}
     for area in sorted(by):
         fs = by[area]
-        lines = sum(len(f.covered) + len(f.missed) for f in fs)
-        reached = sum(len(f.covered) for f in fs)
-        branches, taken = sum(f.branches for f in fs), sum(f.branches_taken for f in fs)
-        out[area] = {
-            "files": len(fs),
-            "lines": pct(reached, lines),
-            "branches": pct(taken, branches),
-            "lineCount": lines,
-            "linesReached": reached,
-            "branchCount": branches,
-            "branchesReached": taken,
-        }
+        out[area] = counted(
+            len(fs),
+            sum(len(f.covered) + len(f.missed) for f in fs),
+            sum(len(f.covered) for f in fs),
+            sum(f.branches for f in fs),
+            sum(f.branches_taken for f in fs),
+        )
+    return out
+
+
+def total(areas: dict, prefix: str = "") -> dict:
+    """The areas under `prefix` (all of them by default) as one, summed from their counts."""
+    rows = [t for a, t in areas.items() if a.startswith(prefix)]
+    return counted(
+        *(
+            sum(t[k] for t in rows)
+            for k in ("files", "lineCount", "linesReached", "branchCount", "branchesReached")
+        )
+    )
+
+
+def file_rows(files: dict[str, File]) -> list[dict]:
+    """Each file's counts, and its line-by-line report's path within the HTML reports:
+    coverage.py names its own (status.json says which is which), deno's follow the source."""
+    reports = {}
+    status = OUT / "html" / "server" / "status.json"
+    if status.exists():
+        for f in json.loads(status.read_text())["files"].values():
+            rel = _rel(f["index"]["file"], paths.WEB / "server")
+            reports[rel] = "server/" + f["index"]["url"]
+    out = []
+    for rel, f in sorted(files.items()):
+        if rel.startswith("web/ui/"):
+            reports[rel] = "browser/" + rel.removeprefix("web/ui/") + ".html"
+        lines = len(f.covered) + len(f.missed)
+        row = counted(1, lines, len(f.covered), f.branches, f.branches_taken)
+        out.append({"path": rel, "area": f.area, "report": reports.get(rel), **row})
     return out
 
 
@@ -284,6 +324,20 @@ def show(v: float | None) -> str:
     return "—" if v is None else f"{v:.1f}%"
 
 
+def bar(v: float | None) -> str:
+    """A percentage as a bar of BAR characters, each a tenth, with the figure after it."""
+    if v is None:
+        return "—"
+    n = round(v * BAR / 100)
+    return f"`{'█' * n}{'░' * (BAR - n)}` {show(v)}"
+
+
+def reached(t: dict, kind: str) -> str:
+    count, got = (t["lineCount"], t["linesReached"]) if kind == "lines" else (
+        t["branchCount"], t["branchesReached"])  # fmt: skip
+    return f"{got:,} of {count:,}" if count else "—"
+
+
 def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: list) -> str:
     out = ["## Coverage", ""]
     if d is not None and d["lines"]:
@@ -295,15 +349,22 @@ def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: 
         out.append(f"**Changed lines** (since `{base}`): none that run.")
     out += [
         "",
-        "| Area | Files | Lines | Branches | Floor (lines / branches) |",
-        "|---|---:|---:|---:|---|",
+        "| Area | Files | Lines | Lines reached | Branches | Branches reached | Floor (lines / "
+        "branches) |",
+        "|---|---:|---|---:|---|---:|---|",
     ]
+
+    def row(name: str, t: dict, floor: str) -> str:
+        cells = [name, f"{t['files']:,}", bar(t["lines"]), reached(t, "lines")]
+        cells += [bar(t["branches"]), reached(t, "branches"), floor]
+        return "| " + " | ".join(cells) + " |"
+
     for area, t in areas.items():
         fl = floors.get(area)
         floor = f"{show(fl.get('lines'))} / {show(fl.get('branches'))}" if fl else "—"
-        mark = " ⚠" if area in below else ""
-        cells = [f"{area}{mark}", str(t["files"]), show(t["lines"]), show(t["branches"]), floor]
-        out.append("| " + " | ".join(cells) + " |")
+        out.append(row(area + (" ⚠" if area in below else ""), t, floor))
+    for name, prefix in SUMS:
+        out.append(row(f"**{name}**", total(areas, prefix), ""))
     if d and d["gaps"]:
         out += ["", "**Changed lines no test reaches:**", ""]
         out += [f"- `{rel}`: {a}" + (f"–{b}" if b > a else "") for rel, a, b in d["gaps"]]
@@ -312,10 +373,13 @@ def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: 
     return "\n".join(out) + "\n"
 
 
+# The rows that sum areas, last in each table: each side, then everything (the connector too).
+SUMS = (("Server", "server/"), ("Browser", "browser/"), ("Overall", ""))
+
+
 def overall(areas: dict, kind: str, prefix: str) -> float | None:
-    """The areas under `prefix` as one, each weighted by its lines."""
-    rows = [t for a, t in areas.items() if a.startswith(prefix) and t[kind] is not None]
-    return pct(sum(t[kind] * t["lineCount"] for t in rows), 100 * sum(t["lineCount"] for t in rows))
+    """The areas under `prefix` as one."""
+    return total(areas, prefix)[kind]
 
 
 def annotate(areas: dict, d: dict | None) -> None:
@@ -367,6 +431,7 @@ def cmd_report(check: bool) -> int:
     text = summary(areas, fl, d, base, below)
     (OUT / "summary.md").write_text(text)
     (OUT / "totals.json").write_text(json.dumps(areas, indent=2) + "\n")
+    (OUT / "files.json").write_text(json.dumps(file_rows(files), indent=1) + "\n")
     print(text)
     print(
         f"HTML: {OUT / 'html' / 'server' / 'index.html'}, {OUT / 'html' / 'browser' / 'index.html'}"
