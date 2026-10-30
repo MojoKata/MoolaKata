@@ -13,7 +13,3 @@ holdings = ["VTSAX 150.512"]
 cash = "120.40"
 checks = ["2026-09-30 120.40 ok"]
 instruments = { VTSAX = "mutual-fund" }
-
-[xfail]
-holdings = "CR3-15"
-holding_checks = "CR3-15"

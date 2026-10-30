@@ -41,7 +41,9 @@
       first and flagged with it as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with several is refused, asking
       for one account at a time. A broker's file's positions are a **holdings check** on that
       day, as a statement's are (S1.3.3.8.2): the lots change only through transactions. For an
-      account kept by snapshots (R3.2), with no trades of its own, they are its holdings;
+      account kept by snapshots (R3.2), with no trades of its own (nothing that makes or takes
+      away a lot: a buy, a sale, a reinvestment, shares moved in or out, an option trade;
+      income, fees and splits on a holding don't count), they are its holdings;
    3. **statement import**: a **PDF statement**, read from its text layer, or a **photo or
       scan** of one, read with RapidOCR as receipts are (S9.8), all on the server. MoolaKata
       finds the statement's period, its transactions and its opening and closing balances,
