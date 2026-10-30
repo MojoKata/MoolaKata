@@ -172,25 +172,117 @@ def keyed(kind: str, text: str) -> str:
     return f'<span class="key {kind}"></span>{text}'
 
 
-def page(history: list[dict], floors: dict, base: str, repo: str) -> str:
+def short(rel: str) -> str:
+    """A file's path from its side's root: ledger/post.py, components/share.js."""
+    for root in coverage.ROOTS:
+        if rel.startswith(root):
+            return rel.removeprefix(root)
+    return rel
+
+
+def meter(kind: str, v: float | None, floor: float | None = None, was: float | None = None) -> str:
+    """A bar for a percentage, a tick at the floor (red below it), the figure and its change."""
+    if v is None:
+        return "<td class='m'><span class='meter none'></span><span class='pct'>—</span></td>"
+    below = " below" if floor is not None and v < floor else ""
+    tick = f"<i style='left:{floor}%' title='floor {pct(floor)}'></i>" if floor is not None else ""
+    delta = change(v, was)
+    return (
+        f"<td class='m'><span class='meter {kind}{below}'><b style='width:{v}%'></b>{tick}</span>"
+        f"<span class='pct'>{pct(v)}</span><span class='delta'>{delta}</span></td>"
+    )
+
+
+def cells(t: dict, floor: dict | None = None, was: dict | None = None) -> str:
+    """A row's figures: lines and branches, each a bar and the count reached."""
+    out = []
+    for kind, _ in SERIES:
+        f = (floor or {}).get(kind)
+        w = (was or {}).get(kind) if was else None
+        out.append(meter(kind, t[kind], f, w))
+        out.append(f"<td class='n'>{coverage.reached(t, kind)}</td>")
+    return "".join(out)
+
+
+def sort_keys(name: str, t: dict, q: str = "") -> str:
+    """What the page's script sorts and filters a row by."""
+    keys = {
+        "name": name,
+        "lines": t["lines"],
+        "lc": t["lineCount"],
+        "branches": t["branches"],
+        "bc": t["branchCount"],
+    }
+    attrs = "".join(
+        f' data-{k}="{html.escape("" if v is None else str(v))}"' for k, v in keys.items()
+    )
+    return attrs + (f' data-q="{html.escape(q.lower())}"' if q else "")
+
+
+def area_group(area: str, t: dict, floor: dict | None, was: dict | None, files: list[dict]) -> str:
+    """An area's row, and its files' rows under it, shown when it is opened."""
+    fl = floor or {}
+    floor_text = f"{pct(fl.get('lines'))} / {pct(fl.get('branches'))}" if floor else ""
+    floor_text = floor_text.replace("% /", " /")
+    rows = [
+        f"<tr class='head'{sort_keys(area, t, area)}><th><span class='caret'></span>"
+        f"{html.escape(area)}</th>{cells(t, floor, was)}<td class='n'>{t['files']:,}</td>"
+        f"<td class='floor'>{floor_text}</td></tr>"
+    ]
+    for f in files:
+        name = html.escape(short(f["path"]))
+        link = f"<a href='{html.escape(f['report'])}'>{name}</a>" if f.get("report") else name
+        rows.append(
+            f"<tr class='file'{sort_keys(short(f['path']), f, f['path'])}><th>{link}</th>"
+            f"{cells(f)}<td></td><td></td></tr>"
+        )
+    return f"<tbody class='area'>{''.join(rows)}</tbody>"
+
+
+def banner(areas: dict) -> str:
+    """The headline: everything as one, and each side."""
+    t = coverage.total(areas)
+    sides = " · ".join(
+        f"{name} <b>{pct(coverage.total(areas, prefix)['lines'])}</b>"
+        for name, prefix in (
+            ("Server", "server/"),
+            ("Browser", "browser/"),
+            ("Connector", "connector"),
+        )
+    )
+    return (
+        f"<div class='banner'><div class='label'>Overall</div>"
+        f"<div><div class='big'>{pct(t['lines'])}</div>"
+        f"<div>of {t['lineCount']:,} lines reached</div></div>"
+        f"<div><div class='big b'>{pct(t['branches'])}</div>"
+        f"<div>of {t['branchCount']:,} branches taken</div></div>"
+        f"<div class='sides'><div>Lines by side</div><div>{sides}</div>"
+        f"<div>{t['files']:,} files</div></div></div>"
+    )
+
+
+def page(history: list[dict], floors: dict, files: list[dict], base: str, repo: str) -> str:
     last = history[-1]
     before = history[-2] if len(history) > 1 else None
     areas = ["server", "browser", *last["areas"]]
     commit = html.escape(last["commit"][:7])
     pr = f' (<a href="{repo}/pull/{last["pr"]}">#{last["pr"]}</a>)' if last["pr"] else ""
 
-    rows = []
-    for area in areas:
-        cells = [f"<th>{html.escape(area)}</th>"]
-        for kind, _ in SERIES:
-            now = figure(last, area, kind)
-            was = figure(before, area, kind) if before else None
-            cells.append(f"<td>{pct(now)}</td><td class='delta'>{change(now, was)}</td>")
-        fl = floors.get(area)
-        floor = f"{pct(fl.get('lines'))} / {pct(fl.get('branches'))}" if fl else ""
-        cells.append(f"<td class='floor'>{floor}</td>")
-        sum_ = " class=sum" if area in ("server", "browser") else ""
-        rows.append(f"<tr{sum_}>{''.join(cells)}</tr>")
+    by_area: dict[str, list[dict]] = {}
+    for f in files:
+        by_area.setdefault(f["area"], []).append(f)
+    groups = []
+    for area, t in last["areas"].items():
+        was = (before["areas"].get(area) if before else None) or None
+        groups.append(area_group(area, t, floors.get(area), was, by_area.get(area, [])))
+    sums = []
+    for name, prefix in coverage.SUMS:
+        t = coverage.total(last["areas"], prefix)
+        was = coverage.total(before["areas"], prefix) if before else None
+        sums.append(
+            f"<tr class='sum'><th>{name}</th>{cells(t, None, was)}"
+            f"<td class='n'>{t['files']:,}</td><td></td></tr>"
+        )
 
     figures = []
     for area in areas:
@@ -226,7 +318,9 @@ def page(history: list[dict], floors: dict, base: str, repo: str) -> str:
         subject=html.escape(last["subject"]),
         date=html.escape(last["date"][:10]),
         merges_count=len(history),
-        rows="\n".join(rows),
+        banner=banner(last["areas"]),
+        groups="\n".join(groups),
+        sums="\n".join(sums),
         figures="\n".join(figures),
         merges="\n".join(merges),
         data=script,
@@ -243,49 +337,98 @@ TEMPLATE = """<!doctype html>
 <style>
 :root {{
   color-scheme: light;
-  --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --border: rgba(11, 11, 11, 0.10);
-  --lines: #2a78d6; --branches: #eb6834;
+  --surface: #fcfcfb; --raised: #f3f2ee; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --track: #e9e8e2; --border: rgba(11, 11, 11, 0.10);
+  --lines: #2a78d6; --branches: #eb6834; --bad: #c8312b;
 }}
 @media (prefers-color-scheme: dark) {{
   :root {{
     color-scheme: dark;
-    --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --border: rgba(255, 255, 255, 0.10);
-    --lines: #3987e5; --branches: #d95926;
+    --surface: #1a1a19; --raised: #232321; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
+    --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
   }}
 }}
 * {{ box-sizing: border-box; }}
-body {{ margin: 0 auto; max-width: 1180px; padding: 24px 16px 48px; background: var(--surface);
-  color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }}
+body {{ margin: 0 auto; max-width: 1400px; padding: 24px 16px 48px; background: var(--surface);
+  color: var(--text); font: 19px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }}
 a {{ color: inherit; }}
-h1 {{ font-size: 22px; margin: 0 0 4px; }}
-h2 {{ font-size: 16px; margin: 32px 0 8px; }}
+h1 {{ font-size: 29px; margin: 0 0 4px; }}
+h2 {{ font-size: 21px; margin: 32px 0 8px; }}
 p {{ margin: 4px 0; color: var(--text-2); }}
 table {{ border-collapse: collapse; font-variant-numeric: tabular-nums; }}
-th, td {{ padding: 4px 10px; border-bottom: 1px solid var(--border); text-align: right;
+th, td {{ padding: 5px 10px; border-bottom: 1px solid var(--border); text-align: right;
   white-space: nowrap; }}
 th:first-child, td.subject {{ text-align: left; }}
 thead th {{ color: var(--text-2); font-weight: 600; }}
-tr.sum th, tr.sum td {{ font-weight: 600; }}
 td.delta, td.floor {{ color: var(--text-2); }}
 td.subject {{ white-space: normal; color: var(--text-2); }}
 .scroll {{ overflow-x: auto; }}
+
+.banner {{ display: flex; flex-wrap: wrap; gap: 16px 48px; align-items: flex-end;
+  margin: 20px 0 8px; padding: 20px 24px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--raised); color: var(--text-2); }}
+.banner .big {{ font-size: 47px; font-weight: 700; line-height: 1.1; color: var(--lines);
+  font-variant-numeric: tabular-nums; }}
+.banner .big.b {{ color: var(--branches); }}
+.banner .label {{ width: 100%; margin-bottom: -12px; font-weight: 600; }}
+.banner .sides {{ margin-left: auto; text-align: right; }}
+.banner .sides b {{ color: var(--text); }}
+
+.tools {{ display: flex; gap: 16px; align-items: center; margin: 12px 0; color: var(--text-2); }}
+.tools input {{ font: inherit; width: 22em; padding: 6px 10px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }}
+#areas thead th button {{ font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  cursor: pointer; }}
+#areas thead th[aria-sort] button::after {{ content: " ↑"; }}
+#areas thead th[aria-sort="descending"] button::after {{ content: " ↓"; }}
+#areas thead th[data-key="lines"], #areas thead th[data-key="branches"] {{ text-align: left; }}
+#areas tbody.area tr.head {{ cursor: pointer; }}
+#areas tbody.area tr.head:hover {{ background: var(--raised); }}
+#areas tbody.area tr.head th {{ font-weight: 600; }}
+.caret {{ display: inline-block; width: 1em; color: var(--muted); }}
+.caret::before {{ content: "▸"; }}
+tbody.open .caret::before, tbody.found .caret::before {{ content: "▾"; }}
+#areas tr.file {{ display: none; font-size: 17px; }}
+#areas tbody.open tr.file, #areas tbody.found tr.file {{ display: table-row; }}
+#areas tbody.area tr.file.miss {{ display: none; }}
+#areas tr.file th {{ padding-left: 40px; font-weight: 400; }}
+#areas tr.file th a {{ text-decoration: none; }}
+#areas tr.file th a:hover {{ text-decoration: underline; }}
+#areas tfoot th, #areas tfoot td {{ font-weight: 600; border-bottom: 0; }}
+#areas tfoot tr:first-child > * {{ border-top: 2px solid var(--grid); }}
+#areas tfoot tr:last-child > * {{ font-size: 21px; }}
+td.m {{ text-align: left; }}
+td.n {{ color: var(--text-2); }}
+.meter {{ position: relative; display: inline-block; width: 110px; height: 12px;
+  vertical-align: middle; border-radius: 6px; background: var(--track); }}
+#areas tr.file .meter {{ height: 8px; }}
+.meter b {{ position: absolute; inset: 0 auto 0 0; border-radius: 6px; }}
+.meter.lines b {{ background: var(--lines); }}
+.meter.branches b {{ background: var(--branches); }}
+.meter.below b {{ background: var(--bad); }}
+.meter.none {{ visibility: hidden; }}
+.meter i {{ position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+  background: var(--text); }}
+.pct {{ display: inline-block; width: 3.9em; text-align: right; }}
+.delta {{ display: inline-block; width: 3.2em; text-align: right; font-size: 16px;
+  color: var(--text-2); }}
+
 .legend {{ display: flex; gap: 16px; color: var(--text-2); margin: 8px 0 12px; }}
 .key {{ display: inline-block; width: 14px; height: 2px; vertical-align: middle;
   margin-right: 6px; border-radius: 1px; }}
 .key.lines {{ background: var(--lines); }}
 .key.branches {{ background: var(--branches); }}
-.charts {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+.charts {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 16px; }}
 figure {{ position: relative; margin: 0; padding: 10px 12px 4px; border: 1px solid var(--border);
   border-radius: 8px; }}
-figcaption {{ font-size: 13px; }}
-figcaption > span {{ display: block; color: var(--text-2); font-size: 12px;
+figcaption {{ font-size: 17px; }}
+figcaption > span {{ display: block; color: var(--text-2); font-size: 16px;
   font-variant-numeric: tabular-nums; }}
 svg {{ display: block; width: 100%; height: auto; overflow: visible; }}
 .grid {{ stroke: var(--grid); stroke-width: 1; }}
-.axis {{ fill: var(--muted); font-size: 10px; }}
+.axis {{ fill: var(--muted); font-size: 13px; }}
 .line {{ fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }}
 .line.lines {{ stroke: var(--lines); }}
 .line.branches {{ stroke: var(--branches); }}
@@ -295,7 +438,7 @@ svg {{ display: block; width: 100%; height: auto; overflow: visible; }}
 .cross {{ stroke: var(--muted); stroke-width: 1; }}
 .tip {{ position: absolute; pointer-events: none; padding: 6px 8px; border-radius: 6px;
   background: var(--surface); border: 1px solid var(--border); color: var(--text);
-  font-size: 12px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }}
+  font-size: 16px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }}
 .tip div {{ color: var(--text-2); }}
 details summary {{ cursor: pointer; font-weight: 600; margin: 32px 0 8px; }}
 </style>
@@ -303,21 +446,33 @@ details summary {{ cursor: pointer; font-weight: 600; margin: 32px 0 8px; }}
 <body>
 <h1>MoolaKata coverage</h1>
 <p>As of <a href="{commit_url}">{commit}</a>{pr}, {date}: {subject}</p>
+{banner}
 <p>What the tests reach, measured by <code>web/check</code> on each merge to <code>main</code>.
 Line by line: <a href="server/index.html">the server and the connector</a>,
 <a href="browser/index.html">the browser app</a>. The history:
-<a href="history.json">history.json</a> ({merges_count} merges).</p>
+<a href="history.json">history.json</a> ({merges_count} merges); each file's counts:
+<a href="files.json">files.json</a>.</p>
 
 <h2>By area</h2>
-<div class="scroll"><table>
-<thead><tr><th>Area</th><th>Lines</th><th></th><th>Branches</th><th></th>
-<th>Floor (lines / branches)</th></tr></thead>
-<tbody>
-{rows}
-</tbody>
+<div class="tools"><input id="filter" type="search"
+ placeholder="Filter files, e.g. ledger or share.js" aria-label="Filter files">
+<span>Click an area for its files, a heading to sort.</span></div>
+<div class="scroll"><table id="areas">
+<thead><tr><th data-key="name"><button>Area</button></th>
+<th data-key="lines"><button>Lines</button></th>
+<th data-key="lc"><button>Lines reached</button></th>
+<th data-key="branches"><button>Branches</button></th>
+<th data-key="bc"><button>Branches taken</button></th><th>Files</th>
+<th title="The floor: lines / branches">Floor</th></tr></thead>
+{groups}
+<tfoot>
+{sums}
+</tfoot>
 </table></div>
-<p>The change is since the merge before. <i>server</i> and <i>browser</i> are their areas as
-one, weighted by lines.</p>
+<p>The change is since the merge before. The tick on a bar is the area's floor (its lines' /
+branches' in the last column), and a bar below it is red. <i>Server</i> and <i>Browser</i> are
+their areas together; <i>Overall</i> is every area, the connector's too. Sorting by a count
+sorts by size.</p>
 
 <h2>Over the merges</h2>
 <div class="legend"><span><span class="key lines"></span>Lines</span>
@@ -340,6 +495,60 @@ one, weighted by lines.</p>
 <script type="application/json" id="data">{data}</script>
 <script>
 (() => {{
+  // By area: sorting by a heading, opening an area, and the filter.
+  const table = document.getElementById("areas");
+  const groups = [...table.tBodies];
+  const sort = {{ key: "lines", dir: 1 }};
+  const value = (tr) => {{
+    const v = tr.dataset[sort.key];
+    return sort.key === "name" ? v.toLowerCase() : v === "" ? null : Number(v);
+  }};
+  const byKey = (a, b) => {{
+    const x = value(a), y = value(b);
+    if (x === y) return a.dataset.name.localeCompare(b.dataset.name);
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return (x < y ? -1 : 1) * sort.dir;
+  }};
+  const order = () => {{
+    groups.sort((g, h) => byKey(g.rows[0], h.rows[0]));
+    for (const g of groups) {{
+      table.insertBefore(g, table.tFoot);
+      g.append(...[...g.rows].slice(1).sort(byKey));
+    }}
+    for (const th of table.tHead.querySelectorAll("th[data-key]")) {{
+      if (th.dataset.key === sort.key) {{
+        th.setAttribute("aria-sort", sort.dir > 0 ? "ascending" : "descending");
+      }} else th.removeAttribute("aria-sort");
+    }}
+  }};
+  for (const th of table.tHead.querySelectorAll("th[data-key]")) {{
+    th.querySelector("button").addEventListener("click", () => {{
+      sort.dir = sort.key === th.dataset.key ? -sort.dir : 1;
+      sort.key = th.dataset.key;
+      order();
+    }});
+  }}
+  for (const g of groups) {{
+    g.rows[0].addEventListener("click", () => g.classList.toggle("open"));
+  }}
+  const filter = document.getElementById("filter");
+  filter.addEventListener("input", () => {{
+    const q = filter.value.trim().toLowerCase();
+    for (const g of groups) {{
+      let found = false;
+      for (const tr of [...g.rows].slice(1)) {{
+        const hit = !q || tr.dataset.q.includes(q);
+        tr.classList.toggle("miss", !hit);
+        found ||= Boolean(q) && hit;
+      }}
+      g.classList.toggle("found", found);
+      g.hidden = Boolean(q) && !found && !g.rows[0].dataset.q.includes(q);
+    }}
+  }});
+  order();
+
+  // The charts: each merge's figures on hover.
   const data = JSON.parse(document.getElementById("data").textContent);
   const {{ w, left, right }} = data.frame;
   const n = data.merges.length;
@@ -418,6 +627,10 @@ def build() -> int:
     (SITE / "history.json").write_text(
         "[\n" + ",\n".join(json.dumps(h, sort_keys=True) for h in history) + "\n]\n"
     )
-    (SITE / "index.html").write_text(page(history, coverage.floors(), base, repo_url()))
+    files_file = coverage.OUT / "files.json"
+    files = json.loads(files_file.read_text()) if files_file.exists() else []
+    if files_file.exists():
+        shutil.copy(files_file, SITE / "files.json")
+    (SITE / "index.html").write_text(page(history, coverage.floors(), files, base, repo_url()))
     print(f"{SITE / 'index.html'}: {len(history)} merges" + ("" if in_ci() else ", a preview"))
     return 0

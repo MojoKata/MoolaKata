@@ -12,7 +12,10 @@ from moolakata.dev import coverage_site as cs
 
 
 def area(lines, branches, count=100):
-    return {"files": 1, "lines": lines, "branches": branches, "lineCount": count}
+    """An area's totals with the counts behind its figures, `count` lines and as many branches."""
+    reached = round(lines * count / 100)
+    taken = 0 if branches is None else round(branches * count / 100)
+    return coverage.counted(1, count, reached, 0 if branches is None else count, taken)
 
 
 def point(commit, areas, pr=None):
@@ -71,7 +74,7 @@ def test_an_entry_names_its_pull_request(monkeypatch):
     assert cs.entry({})["pr"] is None
 
 
-def test_server_and_browser_are_their_areas_weighted_by_lines():
+def test_server_and_browser_are_their_areas_summed_from_their_counts():
     areas = {
         "server/core": area(100.0, 50.0, count=300),
         "server/ledger": area(50.0, None, count=100),
@@ -83,6 +86,11 @@ def test_server_and_browser_are_their_areas_weighted_by_lines():
     assert cs.figure(h, "browser", "lines") == 40.0
     assert cs.figure(h, "server/ledger", "branches") is None
     assert cs.figure(h, "server/gone", "lines") is None
+    # Everything as one, the connector's too.
+    everything = coverage.total({**areas, "connector": area(80.0, 40.0)})
+    assert (everything["lines"], everything["branches"]) == (78.3, 50.0)
+    assert everything["lineCount"] == 600 and everything["linesReached"] == 470
+    assert everything["files"] == 4
 
 
 def test_a_chart_breaks_where_an_area_was_not_measured():
@@ -106,6 +114,13 @@ def test_the_site_holds_the_reports_the_history_and_a_page(monkeypatch, tmp_path
     (out / "html" / "server" / "index.html").write_text("server report")
     totals = {"server/core": area(90.0, 80.0), "browser/app": area(60.0, None)}
     (out / "totals.json").write_text(json.dumps(totals))
+    files = [
+        {"path": "web/server/src/moolakata/access.py", "area": "server/core",
+         "report": "server/z_1_access_py.html", **coverage.counted(1, 10, 9, 4, 3)},
+        {"path": "web/ui/app/main.js", "area": "browser/app",
+         "report": "browser/app/main.js.html", **coverage.counted(1, 10, 6, 0, 0)},
+    ]  # fmt: skip
+    (out / "files.json").write_text(json.dumps(files))
     monkeypatch.setattr(coverage, "OUT", out)
     monkeypatch.setattr(cs, "SITE", out / "site")
     monkeypatch.delenv("MK_COVERAGE_SITE", raising=False)
@@ -121,8 +136,16 @@ def test_the_site_holds_the_reports_the_history_and_a_page(monkeypatch, tmp_path
     page = (out / "site" / "index.html").read_text()
     assert "<title>MoolaKata coverage</title>" in page
     assert "work &lt;" + "0" * 40 + "&gt;" in page  # an old subject, escaped
-    assert "<td>90.0%</td><td class='delta'>+1.0</td>" in page
+    assert "<span class='pct'>90.0%</span><span class='delta'>+1.0</span>" in page
     assert page.count('<figure class="chart"') == 2 + len(totals)
+    # Each area opens to its files, each linked to its line-by-line report.
+    assert page.count("<tbody class='area'>") == len(totals)
+    assert "<a href='server/z_1_access_py.html'>access.py</a>" in page
+    assert "<a href='browser/app/main.js.html'>app/main.js</a>" in page
+    assert 'data-q="web/ui/app/main.js"' in page
+    # A floor's tick, and the rows that sum the areas last.
+    assert "title='floor 89.0%'" not in page and "<th>Overall</th>" in page
+    assert json.loads((out / "site" / "files.json").read_text()) == files
 
 
 def test_ci_fails_when_the_history_cannot_be_read(monkeypatch, tmp_path):

@@ -1,5 +1,6 @@
 """The coverage floor (requirements S17.5.8.4): raised to what was measured less a count of
-lines and branches, larger for the browser app's areas, and never lowered."""
+lines and branches, larger for the browser app's areas, and never lowered; and the job
+summary's table (S17.5.8.3)."""
 
 import json
 
@@ -7,15 +8,7 @@ from moolakata.dev import coverage
 
 
 def counts(lines, reached, branches, taken):
-    return {
-        "files": 1,
-        "lines": coverage.pct(reached, lines),
-        "branches": coverage.pct(taken, branches),
-        "lineCount": lines,
-        "linesReached": reached,
-        "branchCount": branches,
-        "branchesReached": taken,
-    }
+    return coverage.counted(1, lines, reached, branches, taken)
 
 
 def test_the_floor_leaves_each_sides_slack_and_only_rises(monkeypatch, tmp_path):
@@ -54,3 +47,27 @@ def test_totals_measured_without_the_counts_are_measured_again(monkeypatch, tmp_
     )
     monkeypatch.setattr(coverage, "OUT", tmp_path)
     assert coverage.cmd_floor() == 1
+
+
+def test_the_summary_shows_bars_counts_and_the_sums_last():
+    areas = {
+        "browser/app": counts(1970, 1793, 514, 483),
+        "connector": counts(1604, 1352, 358, 251),
+        "server/core": counts(4560, 3998, 1382, 1039),
+        "server/keys": counts(574, 464, 94, 59),
+    }
+    floors = {"server/keys": {"lines": 85.0, "branches": 62.0}}
+    text = coverage.summary(areas, floors, None, None, ["server/keys"])
+    rows = [r for r in text.splitlines() if r.startswith("| ")]
+    assert rows[1] == (
+        "| browser/app | 1 | `█████████░` 91.0% | 1,793 of 1,970 | `█████████░` 94.0% | "
+        "483 of 514 | — |"
+    )
+    assert rows[4].startswith("| server/keys ⚠ | 1 | `████████░░` 80.8% | 464 of 574 |")
+    assert [r.split(" | ")[0] for r in rows[-3:]] == [
+        "| **Server**",
+        "| **Browser**",
+        "| **Overall**",
+    ]
+    assert rows[-1].startswith("| **Overall** | 4 | `█████████░` 87.4% | 7,607 of 8,708 |")
+    assert coverage.bar(None) == "—" and coverage.bar(4.9) == "`░░░░░░░░░░` 4.9%"
