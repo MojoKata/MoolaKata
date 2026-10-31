@@ -390,14 +390,28 @@ class Core:
         if host != self._binds(c):
             c.state, c.message = "failing", "the credentials were sealed for another server"
             return
-        if not isinstance(at, int | float) or at <= self.vault.sealed_at(c.id):
+        held = self.vault.sealed_at(c.id)
+        if isinstance(at, int | float) and at == held:
+            # The box already filed, whose `taken` didn't reach MoolaKata: say so again.
+            self._taken(c, server_at)
+            return
+        if not isinstance(at, int | float) or at < held:
             c.state, c.message = "failing", "a box older than the credentials held was refused"
             return
         self.vault.put(c.id, opened.get("credentials") or {}, host, at)
-        self.server.call(
-            f"/connector/v1/connections/{c.id}/credential/taken", {"sealedAt": server_at}
-        )
         c.state, c.message, c.sign_in, c.last_run = "ok", "credentials received", None, None
+        self._taken(c, server_at)
+
+    def _taken(self, c: ConnectionState, server_at: str | None) -> None:
+        """MoolaKata told the box is filed, so it deletes its copy (protocol §4.3.2). A call that
+        fails is tried again when the same box comes back, and the rest of the answer is
+        applied meanwhile."""
+        try:
+            self.server.call(
+                f"/connector/v1/connections/{c.id}/credential/taken", {"sealedAt": server_at}
+            )
+        except Exception as e:
+            log.warning("MoolaKata wasn't told a box was filed; at its next report: %s", e)
 
     def _due(self, c: ConnectionState) -> bool:
         d = self.drivers.get(c.driver)

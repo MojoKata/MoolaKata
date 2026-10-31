@@ -544,6 +544,25 @@ def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
     core._collect(c, box(3000, host="evil.example"), "t3")
     assert core.vault.get("Conn_1") == {"appSecret": "s2000"} and "another server" in c.message
     assert len(taken) == 1, "MoolaKata isn't told a refused box was taken"
+    # CR3-331: the box filed but whose `taken` failed comes back with the same time: it is
+    # acknowledged again, nothing else changes, and a failing call stops nothing.
+    failing = [True]
+
+    class Flaky:
+        def call(self, path, data=None, **kw):
+            if failing[0]:
+                raise client.ServerError("locked", "MoolaKata is locked", 503)
+            taken.append((path, data))
+            return {}
+
+    core.server = Flaky()
+    core._collect(c, box(4000), "t4")
+    assert core.vault.get("Conn_1") == {"appSecret": "s4000"} and c.state == "ok"
+    assert len(taken) == 1
+    failing[0] = False
+    core._collect(c, box(4000), "t4")
+    assert taken[-1][1] == {"sealedAt": "t4"} and c.state == "ok" and len(taken) == 2
+    assert core.vault.get("Conn_1") == {"appSecret": "s4000"}
 
 
 def _seal(plain: bytes, public: bytes, connection_id: str) -> str:
