@@ -175,6 +175,15 @@
       *Remove orphans* during an upload, a prune while an upload reuses the file, and two pulls
       of one link. Its inventory names every background task and what it shares outside one
       transaction, and fails when a task is added without its row.
+   11. **Nothing readable on the disk** (S11.9.10, S15.7): one scenario puts distinctive
+      strings in the fields that carry a person's data (an owner's name, an account, a payee,
+      a memo, an amount, an imported payee, a receipt's file name), runs what writes files (a
+      link and a share with receipts, a pull while the copy is locked, an upload, an OFX
+      import, a CSV held for its mapping, a backup), and reads every file under the data and
+      backups folders, and the logs, for each, as UTF-8, UTF-16 and JSON escapes
+      (`tests/test_canaries.py`). Only the mail folder may hold one; and every file must be
+      a kind known by its header (a SQLCipher database, a sealed file, a keyring, a backup's
+      manifest), so a new kind of file fails before it ever holds data.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

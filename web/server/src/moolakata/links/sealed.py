@@ -28,6 +28,9 @@ TAG = 16
 HEADER = len(MAGIC) + 32 + 32 + 7 + 4
 RECEIPT = b"moolakata link receipt"
 CHANGE = b"moolakata link change"
+# A change's registry and the names its receipts were kept under, waiting in a locked copy's
+# inbox beside the change (S11.9.1): sealed too, so the folder names no one.
+ENTRY = b"moolakata link inbox entry"
 
 
 def sealed_size(plain: int) -> int:

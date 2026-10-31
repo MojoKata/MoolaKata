@@ -219,8 +219,9 @@ when they are shown, and its type is found from the bytes then, never from the c
    restarts `next` answers nothing and the caller's next exchange asks for everything.
 4. The receiver checks the signature and that `seq` follows its `have` (or that the change is
    `full`); otherwise it asks for everything at its next exchange. It keeps the registry in its
-   main database and writes `sealed` into the link's copy's inbox as it came (S11.9.5), where
-   it is applied, its signature and its sequence checked again, once the copy is unlocked.
+   main database and writes `sealed` into the link's copy's inbox as it came (S11.9.5), its
+   registry beside it sealed to the copy's key (S11.9.1), where it is applied, its signature
+   and its sequence checked again, once the copy is unlocked.
    Until the copy has an access key (S11.9.2.1), a pull keeps the registry only; making the key
    asks for everything at the next exchange.
 

@@ -1013,3 +1013,30 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     assert check(settings.RECEIPT_MAX_MB) == settings.RECEIPT_MAX_MB
     with pytest.raises(settings.Invalid):
         check(settings.RECEIPT_MAX_MB + 1)
+
+
+def test_a_locked_copys_inbox_names_no_one(admins):
+    """CR3-55, S11.9.1: what waits in a locked copy's inbox is sealed, the change's registry
+    beside it too: no owner's name, item id or user id in the clear; the unlock still checks
+    and applies it."""
+    from moolakata.store.entities.users import User
+
+    a, b, ca, cb, _ = admins
+    make_user(b, "carol")
+    alice, words, b_id, _image = _shared_receipt(a, ca, cb)
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    inbox = lcopy.folder(b.config.data_dir, b_id) / "inbox"
+    files = list(inbox.iterdir())
+    assert files and {f.suffix for f in files} == {".mks", ".mke"}
+    acct = alice.get("/ui/api/accounts").json()["items"][0]["id"]
+    with b.db.read() as s:
+        carol_id = s.query(User).filter(User.username == "carol").one().id
+    for f in files:
+        body = f.read_bytes()
+        assert body.startswith(b"MKR1"), f.name
+        for plain in (b"Alice", acct.encode(), carol_id.encode()):
+            assert plain not in body, (f.name, plain)
+    carol = sign_in(b, "carol")
+    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    assert carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    assert not any(inbox.iterdir()), "applied"

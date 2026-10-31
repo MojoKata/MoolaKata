@@ -152,7 +152,10 @@ preparer.
       names or values), the household's name and avatar, the copy's public key, the copy's
       folder name, and the inbox's length and newest `as_of`. File and folder names are
       random, so the folder shows no names, payees or dates, and not even when the link was
-      made.
+      made. A change waiting in the inbox is kept as it came, sealed, beside what is needed to
+      check and apply it (its registry, which the source's signature covers with it, and the
+      random names its receipts were kept under), sealed to the copy's public key too: the
+      inbox shows only random names, sizes and file times.
    2. **The access key.** Each linked copy has a random 128-bit **copy key**, shown once as
       **12 words** from the BIP39 English word list (the last word carries a checksum). The
       words are the copy's **access key**.
