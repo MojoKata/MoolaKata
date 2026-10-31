@@ -63,7 +63,7 @@ def post(srv, c: Connection, a: Account, data: bytes, meta: dict) -> dict:
     wait = srv.upload_rate.hit(c.ownerId)
     if wait:
         raise Limit(wait)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="connector.files: post") as s:
         limit = settings.get(s, "importMaxMb") * 1024 * 1024
     if len(data) > limit:
         # Settings › Imports' size, the one statements are held to (S16.8, protocol §7).
@@ -81,7 +81,7 @@ def post(srv, c: Connection, a: Account, data: bytes, meta: dict) -> dict:
         # A file the reader can't make out is refused, signed, with its words (S18.8).
         raise Refused("file-refused", str(e)) from None
     try:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="connector.files: post") as s:
             account = s.get(Account, a.id)
             applied = repo.apply_import(
                 s, account, c.ownerId, parsed, name, hashlib.sha256(data).hexdigest()
@@ -105,7 +105,7 @@ def _read(srv, a: Account, data: bytes):
     if ofx.looks_like_ofx(data):
         return parsing.read_ofx(data)
     if csvfile.looks_like_csv(data):
-        with srv.db.read() as s:
+        with srv.db.read(unscoped="connector.files: read") as s:
             from sqlalchemy import false, select
 
             from ..store.entities.accounts import ImportMapping
@@ -138,7 +138,7 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
             lines = None
         if lines:
             start, end, institution = statements.period_and_institution(lines)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.files: keep") as s:
         from sqlalchemy import false, select
 
         twice = s.scalars(

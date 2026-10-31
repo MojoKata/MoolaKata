@@ -193,7 +193,7 @@ class Reader:
     def start(self) -> None:
         if self.threads:
             return
-        with self.server.db.read() as s:
+        with self.server.db.read(unscoped="receipts.reading: start") as s:
             n = self.count or settings.get(s, "receiptReadJobs")
             pending = [
                 rid
@@ -240,7 +240,7 @@ class Reader:
         from . import whole
 
         srv = self.server
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="receipts.reading: read one") as s:
             r = s.get(Receipt, rid)
             if (
                 r is None
@@ -263,7 +263,7 @@ class Reader:
         except Exception as e:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")
         self.last_run = clock.now()
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="receipts.reading: read one") as s:
             r = s.get(Receipt, rid)
             if r is None:
                 return

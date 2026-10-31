@@ -585,7 +585,7 @@ def _activity() -> str:
 def _user() -> str:
     """S10.4, S11.3: every active user reads this household's active users, as a linked server
     is sent them; local users also read the linked servers' active users; admins read every
-    user and change them; each user changes their own (Profile)."""
+    user and change them; each user reads their own, and changes it (Profile) when local."""
     zero = ("0", "0", "0", "0")
     local = (
         f"SELECT {_cols('x."userId"', 'u."userId"', *zero)}\n"
@@ -601,8 +601,8 @@ def _user() -> str:
         'WHERE NOT x."effectiveDeleted"'
     )
     own = (
-        f"SELECT {_cols('u."userId"', 'u."userId"', '1', '0', '0', '0')}\n"
-        'FROM "AccessUser" AS u WHERE u.local'
+        f"SELECT {_cols('u."userId"', 'u."userId"', 'u.local', '0', '0', '0')}\n"
+        'FROM "AccessUser" AS u'
     )
     return _collapse("\nUNION ALL\n".join((local, remote, admins, own)))
 
@@ -643,6 +643,55 @@ def _share() -> str:
         'WHERE NOT s."effectiveDeleted"'
     )
     return _collapse("\nUNION ALL\n".join((*holders, direct, grouped)))
+
+
+def _admins_and_readers(table: str) -> str:
+    """Admins hold it; every local user reads it."""
+    readers = (
+        f"SELECT {_cols('t.id', 'u."userId"', '0', '0', '0', '0')}\n"
+        f'FROM "{view_name(table)}" AS t\nJOIN "AccessUser" AS u ON u.local\n'
+        'WHERE NOT t."effectiveDeleted"'
+    )
+    admins = (
+        f"SELECT {_cols('t.id', 'm."userId"', '1', '1', '1', '1')}\n"
+        f'FROM "{view_name(table)}" AS t\nCROSS JOIN "AccessAdmin" AS m\n'
+        'WHERE NOT t."effectiveDeleted"'
+    )
+    return _collapse(f"{readers}\nUNION ALL\n{admins}")
+
+
+def _connector() -> str:
+    """S16.1: whether a connector is paired, and the key a user's credentials are sealed to,
+    are every user's to read; admins pair it and end it."""
+    return _admins_and_readers("Connector")
+
+
+def _link() -> str:
+    """S10.4, S11: a linked server's name and state show to every user (its people in the
+    Share dialog, its window); admins make, change and end it."""
+    return _admins_and_readers("Link")
+
+
+def _connection() -> str:
+    """S16.2: its owner's, credentials and all; the admins read each connection's state on
+    the connector's page, never its credentials (sealed to the connector)."""
+    owner = _per_user_body("Connection", "ownerId", True)
+    admins = (
+        f"SELECT {_cols('t.id', 'm."userId"', '0', '0', '0', '0')}\n"
+        'FROM "ConnectionEffective" AS t\nCROSS JOIN "AccessAdmin" AS m\n'
+        'WHERE NOT t."effectiveDeleted"'
+    )
+    return _collapse(f"{owner}\nUNION ALL\n{admins}")
+
+
+def _per_user_body(table: str, key: str, configurable: bool) -> str:
+    cfg = "1" if configurable else "0"
+    return (
+        f"SELECT {_cols('t.id', f't."{key}"', '1', '1', '0', cfg)}\n"
+        f'FROM "{view_name(table)}" AS t\n'
+        f'JOIN "AccessUser" AS u ON u."userId" = t."{key}" AND u.local\n'
+        'WHERE NOT t."effectiveDeleted"'
+    )
 
 
 def _linked_item() -> str:
@@ -688,6 +737,9 @@ WRITTEN: dict[str, Callable[[], str]] = {
     "Group": _group,
     "Share": _share,
     "LinkedItem": _linked_item,
+    "Connector": _connector,
+    "Connection": _connection,
+    "Link": _link,
 }
 
 

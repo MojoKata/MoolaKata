@@ -108,7 +108,7 @@ def _household(srv, link: Link, n: int, colour: str = "teal", chosen=None) -> Ho
 def households(request: Request, c: Caller = Depends(caller)):
     """The households that share something with you (S12.10.1); none share nothing."""
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         mine = _mine(s, c.id)
         rows = s.scalars(
             select(Link).where(
@@ -159,7 +159,7 @@ def _state(srv, s, c: Caller, link_id: str) -> CopyState:
 @router.get("/linked/{link_id}", response_model=CopyState)
 def copy_state(link_id: str, request: Request, c: Caller = Depends(caller)):
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return _state(srv, s, c, link_id)
 
 
@@ -167,7 +167,7 @@ def copy_state(link_id: str, request: Request, c: Caller = Depends(caller)):
 def unlock(link_id: str, body: Unlock, request: Request, c: Caller = Depends(caller)):
     """The 12 words (S11.9.3.1): checked here, held in memory; nothing reaches the browser."""
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         _state(srv, s, c, link_id)
     try:
         copies.unlock(srv, link_id, c.id, body.words)
@@ -175,7 +175,7 @@ def unlock(link_id: str, body: Unlock, request: Request, c: Caller = Depends(cal
         headers = {"Retry-After": str(int(e.wait) + 1)} if e.wait else None
         status = 429 if e.wait else 422
         raise Problem(status, e.code, e.message, headers=headers) from None
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return _state(srv, s, c, link_id)
 
 
@@ -183,10 +183,10 @@ def unlock(link_id: str, body: Unlock, request: Request, c: Caller = Depends(cal
 def lock(link_id: str, request: Request, c: Caller = Depends(caller)):
     """Lock now (S11.9.4.3): anyone the copy shares with."""
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         _state(srv, s, c, link_id)
     copies.lock(srv, link_id, c.id, c.admin)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return _state(srv, s, c, link_id)
 
 
@@ -290,7 +290,7 @@ def _note_viewed(srv, user_id: str, link_id: str) -> None:
     if now - _viewed.get((user_id, link_id), -VIEWED_EVERY) < VIEWED_EVERY:
         return
     _viewed[(user_id, link_id)] = now
-    with srv.db.tx() as w:
+    with srv.db.tx(user=user_id) as w:
         activity.record(
             w,
             "link.viewed",
@@ -307,7 +307,7 @@ def items(link_id: str, request: Request, c: Caller = Depends(caller)):
     from ..links import copydb
 
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         o = _open(srv, s, c, link_id)
     out = []
     with o.engine.connect() as conn:
@@ -341,7 +341,7 @@ def doc(link_id: str, path: str, request: Request, c: Caller = Depends(caller)):
     from ..links import copydb
 
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         o = _open(srv, s, c, link_id)
     with o.engine.connect() as conn:
         body = conn.execute(
@@ -380,7 +380,7 @@ def files(link_id: str, request: Request, c: Caller = Depends(caller)):
     from ..links import copydb
 
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         o = _open(srv, s, c, link_id)
     with o.engine.connect() as conn:
         mine = _mine_items(conn, c.id)
@@ -411,7 +411,7 @@ def file(link_id: str, file_id: str, request: Request, c: Caller = Depends(calle
     from ..links.copy import folder, private_key
 
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         o = _open(srv, s, c, link_id)
     with o.engine.connect() as conn:
         row = conn.execute(select(copydb.File).where(copydb.File.c.id == file_id)).first()
@@ -427,7 +427,7 @@ def file(link_id: str, file_id: str, request: Request, c: Caller = Depends(calle
     from ..links.keys import direction, fingerprint, public_of, unb64
     from .receipts import _disposition
 
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         peer = unb64(s.get(Link, link_id).peerKey)
         # Sealed by its source to this copy's key (S11.9.6), named for that direction.
         way = direction(fingerprint(peer), fingerprint(public_of(s, srv.keys.secrets)))

@@ -32,21 +32,21 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
     under); any other it names is fetched. A receipt that can't be fetched never holds the
     change back: it is kept as not arrived, and asked for again at each exchange. Returns the
     receipts that weren't fetched."""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.receive: take") as s:
         link = s.get(Link, link_id)
         peer, got = unb64(link.peerKey), link.gotSeq
     changes.verify(peer, change)
     seq = int(change.get("seq") or 0)
     full = bool(change.get("full"))
     if not full and seq != got + 1:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="links.receive: take") as s:
             s.get(Link, link_id).needsFull = True
         return set()
     names = dict(delivered or {})
     missing = [f for f in change.get("fetch") or [] if f not in names]
     fetched, failed = fetch_files(srv, link_id, missing)
     names |= fetched
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.receive: take") as s:
         link = s.get(Link, link_id)
         now = clock.now()
         for fid in names:
@@ -144,7 +144,7 @@ def forget(srv, link_id: str) -> None:
     from ..store.entities.links import LinkSent
 
     srv.copies.reset(srv.config.data_dir, link_id)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.receive: forget") as s:
         s.execute(sql_delete(LinkedItem).where(LinkedItem.linkId == link_id))
         s.execute(sql_delete(LinkSent).where(LinkSent.linkId == link_id))
         link = s.get(Link, link_id)
@@ -164,7 +164,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
     from . import client, manage, sealed
     from .copy import folder
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.receive: fetch files") as s:
         link = s.get(Link, link_id)
         has_key = bool(link.copyPublicKey)
         address, peer, pins = link.address, unb64(link.peerKey), manage.pins(link)
@@ -202,7 +202,7 @@ def fetch_missing(srv, link_id: str, tried: set[str] = frozenset()) -> int:
     """The receipts not yet arrived, asked for again (S11.4), the longest waiting first, but
     those `tried` already in this exchange; then each fetched one placed in the copy if it is
     open. Returns how many arrived."""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.receive: fetch missing") as s:
         rows = list(
             s.scalars(
                 select(LinkFile)
@@ -219,7 +219,7 @@ def fetch_missing(srv, link_id: str, tried: set[str] = frozenset()) -> int:
         place_arrived(srv, link_id)
         return 0
     fetched, failed = fetch_files(srv, link_id, [r.fileId for r in rows])
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.receive: fetch missing") as s:
         for fid, name in fetched.items():
             _missing(s, link_id, fid).fileName = name
         for fid, why in failed.items():
@@ -240,7 +240,7 @@ def place_arrived(srv, link_id: str) -> int:
     o = srv.copies.get(link_id, for_person=False)
     if o is None:
         return 0
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.receive: place arrived") as s:
         rows = list(
             s.scalars(
                 select(LinkFile).where(LinkFile.linkId == link_id, LinkFile.fileName.is_not(None))
@@ -264,7 +264,7 @@ def place_arrived(srv, link_id: str) -> int:
             ).rowcount
             if done:
                 placed.append(r.fileId)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.receive: place arrived") as s:
         for fid in placed:
             row = _missing(s, link_id, fid)
             if row is not None:

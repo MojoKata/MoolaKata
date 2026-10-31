@@ -164,7 +164,7 @@ def list_strategies(request: Request, c: Caller = Depends(caller)):
     """Open strategies first, then those closed; the proposals for the accounts the caller
     may change."""
     out, props = [], []
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         for a, level in access.visible_accounts(s, c.id):
             if not atypes.investing(a.type):
                 continue
@@ -233,7 +233,7 @@ def _own(s, c: Caller, strategy_id: str, dismissed: bool = False):
 @router.post("/strategies/{strategy_id}/roll", response_model=StrategyOut)
 def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(caller)):
     """A roll proposed for it taken in, or turned down so it isn't offered again (S3.5.3)."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         st, a, level = _own(s, c, strategy_id)
         have = {r.instrumentId for r in strat.legs_of(s, st)}
         today = clock.today()

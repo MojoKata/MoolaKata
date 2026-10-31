@@ -862,7 +862,7 @@ def evaluate(server) -> list[Alert]:
     now = clock.now()
     holding: dict[str, Cause] = {}
     failed: set[str] = set()
-    with server.db.read() as s:
+    with server.db.read(unscoped="alerts: evaluate") as s:
         for fn in CHECKS:
             try:
                 for cause in fn(s, server):
@@ -889,7 +889,7 @@ def evaluate(server) -> list[Alert]:
     if not (resolve or change or holding):
         return []
     opened: list[Alert] = []
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="alerts: evaluate") as s:
         for alert_id in resolve:
             a = s.get(Alert, alert_id)
             if a is not None and a.resolvedAt is None:
@@ -1084,7 +1084,7 @@ def daily_summaries(server) -> int:
 
     sent = 0
     now = clock.now()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="alerts: daily summaries") as s:
         if not _sends(s, server):
             return 0
         at = settings.time_of(s, "alertSummaryTime")

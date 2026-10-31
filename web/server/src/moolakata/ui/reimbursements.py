@@ -75,7 +75,7 @@ def awaiting(budget_id: str, request: Request, c: Caller = Depends(caller)):
     """What the budget's accounts await, oldest first, each with the deposits that may pay it
     back among the caller's own accounts and those they can change."""
     today = clock.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         accts = budgets.account_ids(s, b, c.id)
         names = {a.id: a.name for a in s.scalars(select(Account).where(Account.id.in_(accts)))}

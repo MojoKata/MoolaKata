@@ -7,6 +7,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, sharing
 from ..errors import Problem, refuse
+from ..store import scoping
 from ..store.entities.sharing import CountedAccount, Share
 from ..store.entities.users import Group, User, UserGroup
 from ..store.rows import by_key
@@ -217,7 +218,7 @@ def _owner_only(s, c: Caller, kind: str, item_id: str) -> None:
 
 @router.get("/shares/{kind}/{item_id}", response_model=ShareView)
 def get_shares(kind: Kind, item_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         _owner_only(s, c, kind, item_id)
         return view(s, c.user, kind, item_id)
 
@@ -240,8 +241,16 @@ def _grantee(s, c: Caller, body: ShareRecord):
     if (body.userId is None) == (body.groupId is None):
         raise refuse("userId", "grantee-missing", "A user or a group.")
     if body.userId:
-        u = s.get(User, body.userId)
-        if u is None or u.deleted or u.id == c.id:
+        # Checked as the server: an inactive user is in no one's view but an admin's.
+        u = s.execute(
+            scoping.unscoped(
+                select(User.id, User.deletedAt, User.linkId, User.active, User.displayName).where(
+                    User.id == body.userId
+                ),
+                "the user a share is for",
+            )
+        ).first()
+        if u is None or u.deletedAt is not None or u.id == c.id:
             raise refuse("userId", "user-unknown", "Choose a user.")
         if u.linkId and body.level == "write":
             raise refuse(
@@ -255,13 +264,20 @@ def _grantee(s, c: Caller, body: ShareRecord):
             raise refuse(
                 "userId", "user-inactive", f"{u.displayName} is not active and can't be added."
             )
-        return u
-    g = s.get(Group, body.groupId)
-    if g is None or g.deleted:
+        return s.get(User, u.id)
+    g = s.execute(
+        scoping.unscoped(
+            select(Group.id, Group.deletedAt, Group.active, Group.name).where(
+                Group.id == body.groupId
+            ),
+            "the group a share is for",
+        )
+    ).first()
+    if g is None or g.deletedAt is not None:
         raise refuse("groupId", "group-unknown", "Choose a group.")
     if not g.active:
         raise refuse("groupId", "group-inactive", f"{g.name} is not active and can't be added.")
-    return g
+    return s.get(Group, g.id)
 
 
 def _reaches(ctx, grantee, receipts: bool) -> None:

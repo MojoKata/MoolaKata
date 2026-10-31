@@ -440,7 +440,7 @@ def imports_of(s, account_id: str) -> list[Import]:
 
 @router.get("/accounts", response_model=list[AccountRow])
 def list_accounts(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         visible = access.visible_accounts(s, c.id)
         ctx = context(s, c.id, [a.id for a, _ in visible])
         return [row(s, a, level, ctx) for a, level in visible]
@@ -473,7 +473,7 @@ def _make(s, c: Caller, body, account_id: str) -> Account:
 
 @router.get("/accounts/{account_id}", response_model=AccountDetail)
 def get_account(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, level = access.account(s, c.id, account_id)
         return row(s, a, level, context(s, c.id, [a.id]), detail=True)
 
@@ -599,7 +599,7 @@ def account_series(
     range: str = Query("1Y", pattern="^(1M|3M|YTD|1Y|5Y|All)$"),
 ):
     today = clock.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         if range == "YTD":
@@ -617,7 +617,7 @@ def account_series(
 
 @router.get("/accounts/{account_id}/holdings", response_model=Holdings)
 def account_holdings(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         replay = ledger.replay()
@@ -704,7 +704,7 @@ def _reconciliation_row(s, r: Reconciliation) -> ReconciliationRow:
 
 @router.get("/accounts/{account_id}/reconcile", response_model=ReconcileView)
 def account_reconcile(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         cover = reconcile.coverage(ledger.imports)

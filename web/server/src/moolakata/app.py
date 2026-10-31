@@ -107,7 +107,7 @@ class Server:
         from . import alerts, clock, gifts
         from .auth import signup
 
-        with self.db.read() as s:
+        with self.db.read(unscoped="app: badges") as s:
             unseen = alerts.unseen(s, caller.id, caller.admin)
             waiting = len(signup.waiting(s)) if caller.admin else 0
             # Occasions inside their reminder time with nothing bought yet (S7.7.3).
@@ -129,7 +129,7 @@ class Server:
         form around it."""
         if self.store is None:
             return self.upload_limit
-        with self.db.read() as s:
+        with self.db.read(unscoped="app: import cap") as s:
             return (settings.get(s, "importMaxMb") + 1) * 1024 * 1024
 
     def upload_cap(self) -> int:
@@ -137,7 +137,7 @@ class Server:
         limits in Settings (S13.7.6)."""
         if self.store is None:
             return self.upload_limit
-        with self.db.read() as s:
+        with self.db.read(unscoped="app: upload cap") as s:
             mb = max(settings.get(s, "importMaxMb"), settings.get(s, "receiptMaxMb"))
         # A file of the limit, with the form around it.
         return (mb + 1) * 1024 * 1024
@@ -146,7 +146,7 @@ class Server:
         """Settings › Network (S16.14), read for each request."""
         if self.store is None:
             return {}
-        with self.db.read() as s:
+        with self.db.read(unscoped="app: network ranges") as s:
             return {
                 "app": settings.get(s, "networkAppRanges"),
                 "link": settings.get(s, "networkLinkRanges"),
@@ -156,7 +156,7 @@ class Server:
     def session_max_age(self) -> int:
         if self.store is None:
             return 30 * 86400
-        with self.db.read() as s:
+        with self.db.read(unscoped="app: session max age") as s:
             return settings.get(s, "sessionAbsoluteDays") * 86400
 
     @property

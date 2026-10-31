@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, Request, Response
 
 from .. import clock
+from ..store import scoping
 from ..taxes import books, closed, dependents, exports, panels
 from .conventions import ExactRoute, Model, Money, Quantity, Ratio
 from .deps import Caller, caller, server
@@ -226,7 +227,20 @@ def _rows(s, b):
     return panels.form_8949(s, b, panels.spouse_accounts(s, b))
 
 
+def _rows_of(s, b):
+    """Form 8949's rows of a book the caller reads, worked out as the server (S8.14.2)."""
+    with scoping.as_server(s, "a tax book's 8949, for one who reads it") as srv:
+        return _rows(srv, srv.get(type(b), b.id))
+
+
 def build(s, b) -> Panels:
+    """A book's panels, worked out as the server over its filers' accounts (S8.14.2): the
+    caller's access to the book is checked first."""
+    with scoping.as_server(s, "a tax book's panels, for one who reads it") as srv:
+        return _build(srv, srv.get(type(b), b.id))
+
+
+def _build(s, b) -> Panels:
     rows, washes = _rows(s, b)
     d = panels.schedule_d(s, b, rows)
     inc = panels.income(s, b)
@@ -353,7 +367,7 @@ def build(s, b) -> Panels:
 
 @router.get("/tax-books/{book_id}/panels", response_model=Panels)
 def get_panels(book_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = books.get(s, c.id, book_id)
         return build(s, b)
 
@@ -362,7 +376,7 @@ def get_panels(book_id: str, request: Request, c: Caller = Depends(caller)):
 def no_amendment(book_id: str, request: Request, c: Caller = Depends(caller)):
     """No amendment needed (S8.15): settles the edits made since the federal return was filed,
     with who said so and when."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         b, _ = books.get(s, c.id, book_id, "write")
         closed.settle(s, b, c.id, "not-needed")
         s.flush()
@@ -380,9 +394,9 @@ def _download(body: bytes | str, name: str, kind: str) -> Response:
 
 @router.get("/tax-books/{book_id}/exports/8949.csv", response_class=Response)
 def export_csv(book_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = books.get(s, c.id, book_id)
-        rows, _ = _rows(s, b)
+        rows, _ = _rows_of(s, b)
         return _download(
             exports.csv_8949(rows, b.year, b.bitcoinFees), f"form-8949-{b.year}.csv", "text/csv"
         )
@@ -390,9 +404,9 @@ def export_csv(book_id: str, request: Request, c: Caller = Depends(caller)):
 
 @router.get("/tax-books/{book_id}/exports/moolakata.txf", response_class=Response)
 def export_txf(book_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = books.get(s, c.id, book_id)
-        rows, _ = _rows(s, b)
+        rows, _ = _rows_of(s, b)
         return _download(
             exports.txf(rows, clock.today()), f"moolakata-{b.year}.txf", "application/x-txf"
         )
@@ -401,7 +415,7 @@ def export_txf(book_id: str, request: Request, c: Caller = Depends(caller)):
 @router.get("/tax-books/{book_id}/exports/summary.pdf", response_class=Response)
 def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
     """A summary for a preparer: what each panel holds, with its sources."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = books.get(s, c.id, book_id)
         p = build(s, b)
         filers = " & ".join(f.name for f in _filers(s, b))

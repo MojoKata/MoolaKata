@@ -157,7 +157,7 @@ def _run(
             parsed = parsing.read_ofx(data)
         else:
             if mapping is None:
-                with srv.db.read() as s:
+                with srv.db.read(user=user_id) as s:
                     account = s.get(Account, account_id)
                     saved = s.scalars(
                         select(ImportMapping).where(
@@ -183,7 +183,7 @@ def _run(
                     return
                 mapping = json.loads(saved.columns)
             parsed = parsing.read_csv(data, mapping)
-        with srv.db.tx() as s:
+        with srv.db.tx(user=user_id) as s:
             account, _ = access.account(s, user_id, account_id, "write")
             if mapping is not None and save_mapping and parsed.format == "csv":
                 _save_mapping(s, account, mapping)
@@ -251,7 +251,7 @@ async def upload(
 ):
     srv = server(request)
     srv.upload_rate.check(c.id, "uploads")
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         access.account(s, c.id, account_id, "write")
         limit = settings.get(s, "importMaxMb") * 1024 * 1024
     data = await file.read(limit + 1)
@@ -262,7 +262,7 @@ async def upload(
     # The type is checked from the content, never the name (S13.7.6).
     media = receipts.sniff(data[:16])
     if media is not None:
-        with srv.db.read() as s:
+        with srv.db.read(user=c.id) as s:
             if not settings.get(s, "readStatements"):
                 raise Problem(
                     415,
@@ -420,7 +420,7 @@ def _run_statement(
         return
     lines, method = got
     pieces = statements.split(lines)
-    with srv.db.read() as s:
+    with srv.db.read(user=user_id) as s:
         account, _ = access.account(s, user_id, account_id, "write")
         if atypes.investing(account.type) and _run_brokerage(
             srv, job, s, account, user_id, data, name, lines, method
@@ -742,7 +742,7 @@ def save_brokerage(
     if bad is not None:
         raise refuse("rows", "row-not-cash", "Trades aren't added here: enter them as trades.")
     cash = next((p for p in body.positions if p.cash and p.marketValue is not None), None)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
         # A line already in the account (its file brought it) is matched, never added again.
         present = _marked(body.rows, _present(s, account.id))
@@ -991,11 +991,11 @@ def save_statement(
         raise Problem(404, "upload-gone", "That upload has expired; choose the file again.")
     if held.parts is not None:
         return _save_part(srv, c, upload_id, held, body)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         present = _marked(body.rows, _present(s, held.accountId))
     kept = _checked(body, present)
     st = held.statement
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
         applied = _apply(s, c, held, account, st, body, kept)
         r = _keep_file(
@@ -1030,7 +1030,7 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
     if not body.leftOut:
         if not body.accountId:
             raise refuse("accountId", "account-missing", "The account this part goes to.")
-        with srv.db.read() as s:
+        with srv.db.read(user=c.id) as s:
             access.account(s, c.id, body.accountId, "write")
             _checked(body, _marked(body.rows, _present(s, body.accountId)))
     held.decisions[body.part] = body
@@ -1039,7 +1039,7 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
         return _done(srv, c, {"part": body.part, "remaining": left}, [])
     saved = [(i, d) for i, d in sorted(held.decisions.items()) if not d.leftOut]
     results, accounts = [], []
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         for i, d in saved:
             account, _ = access.account(s, c.id, d.accountId, "write")
             kept = _checked(d, _marked(d.rows, _present(s, account.id)))
@@ -1086,7 +1086,7 @@ async def keep_upload(
     they can be, for the person to check."""
     srv = server(request)
     srv.upload_rate.check(c.id, "uploads")
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         access.account(s, c.id, account_id, "write")
         limit = settings.get(s, "importMaxMb") * 1024 * 1024
         reads = settings.get(s, "readStatements")
@@ -1142,7 +1142,7 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
     if body.periodEnd < body.periodStart:
         raise refuse("periodEnd", "period-backwards", "The period ends before it starts.")
     digest = hashlib.sha256(held.data).hexdigest()
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
         twice = s.scalars(
             select(Import).where(
@@ -1245,7 +1245,7 @@ def ignored_lines(request: Request, c: Caller = Depends(caller)):
     """The starts of statement lines the person asked to ignore (S1.3.3.4), by institution."""
     srv = server(request)
     out = []
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         for row in s.scalars(
             select(StatementLayout)
             .where(StatementLayout.ownerId == c.id, StatementLayout.deleted == false())
@@ -1263,7 +1263,7 @@ def ignored_lines(request: Request, c: Caller = Depends(caller)):
 def forget_ignored_line(body: IgnoredLine, request: Request, c: Caller = Depends(caller)):
     """One of them no longer ignored: its lines are read again from the next statement."""
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         row = _layout(s, c.id, body.institution)
         if row is not None:
             layout = json.loads(row.layout or "{}")
@@ -1285,7 +1285,7 @@ def get_job(job_id: str, request: Request, c: Caller = Depends(caller)):
 
 @router.get("/accounts/{account_id}/imports", response_model=list[ImportRow])
 def list_imports(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         names = {u.id: u.displayName for u in s.scalars(select(User))}
         rows = s.scalars(

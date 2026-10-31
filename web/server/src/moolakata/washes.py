@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from . import clock, ids
 from .ledger import types as atypes
+from .store import scoping
 from .store.entities.accounts import Account, Instrument, Lot, Transaction, WashSale
 from .store.repos import ledger as repo
 
@@ -42,7 +43,13 @@ class _Buy:
 
 
 def recompute(s: Session, user_id: str) -> int:
-    """The household's wash sales, worked out from its trades and stored whole."""
+    """The household's wash sales, worked out from its trades and stored whole: the server's
+    work across the user's and their spouse's accounts, whoever's change set it off."""
+    with scoping.as_server(s, "wash sales: worked out again") as server:
+        return _recompute(server, user_id)
+
+
+def _recompute(s: Session, user_id: str) -> int:
     who = household(s, user_id)
     s.execute(delete(WashSale).where(WashSale.ownerId.in_(who)))
     accounts = list(

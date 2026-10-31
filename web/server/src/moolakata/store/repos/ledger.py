@@ -14,6 +14,7 @@ from ...importers.parsed import ParsedFile
 from ...ledger import balances, lots, transfers
 from ...ledger import types as atypes
 from ...ledger.categories import DEFAULTS
+from .. import scoping
 from ..db import live
 from ..entities.accounts import (
     Account,
@@ -403,7 +404,18 @@ def apply_import(
 ) -> Applied:
     """Add what is new: rows are matched by the file's transaction id (an OFX FITID), or by
     date, amount and payee. A re-imported file adds nothing; an amount that changed between
-    imports is updated and kept for the reconciliation's suspects (S1.11.3)."""
+    imports is updated and kept for the reconciliation's suspects (S1.11.3). The server's work
+    on an account the importer may change, checked before: it matches the rows the owner
+    deleted too, which no one's view holds (S1.3.2)."""
+    with scoping.as_server(s, "an import into an account its importer may change") as srv:
+        return _apply_import(
+            srv, srv.get(Account, account.id), user_id, parsed, file_name, file_hash
+        )
+
+
+def _apply_import(
+    s: Session, account: Account, user_id: str, parsed: ParsedFile, file_name: str, file_hash: str
+) -> Applied:
     imp = Import(
         id=ids.new_id("Imprt"),
         accountId=account.id,

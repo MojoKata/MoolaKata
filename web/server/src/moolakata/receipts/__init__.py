@@ -32,6 +32,7 @@ from .. import access, clock, ids, settings
 from ..checkpoints import checkpoint
 from ..errors import Problem, refuse
 from ..keys import files
+from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
@@ -161,11 +162,16 @@ def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
     ).first()
     if mine is not None:
         return Stored(mine, True)
-    any_row = s.scalars(select(Receipt).where(Receipt.sha256 == digest)).first()
+    # Whether the file is kept already, for anyone: the server's to know, to keep one copy.
+    any_file = s.scalars(
+        scoping.unscoped(
+            select(Receipt.fileId).where(Receipt.sha256 == digest), "whether a file is kept"
+        )
+    ).first()
     path = None
     store = server.files.of(server.config.receipts_dir)
-    if any_row is not None:
-        file_id = any_row.fileId
+    if any_file is not None:
+        file_id = any_file
         path = file_path(server.config.receipts_dir, file_id)
         # Reused: held from a prune of the receipt it was another's (S14.10.5), held before it
         # is looked for, until this row is committed.

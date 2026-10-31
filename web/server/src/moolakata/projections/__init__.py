@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from .. import access, clock, valuation
 from ..ledger import types as atypes
+from ..store import scoping
 from ..store.entities.accounts import Account, Instrument
 from ..store.entities.projections import Projection
 from ..store.entities.users import User
@@ -447,9 +448,15 @@ def tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None = None
     """The actual balance of what it is built on since the baseline, against the band, and
     whether it is on track, ahead or behind (on the last day given: the alert checks it as of
     the end of the last month). A viewer who isn't shared every account it is built on sees
-    the status, and the balance of only the accounts shared with them, with no band (S6.1)."""
+    the status, and the balance of only the accounts shared with them, with no band (S6.1):
+    worked out as the server over the owner's accounts."""
     if not p.active or not p.baseline or p.baselineAt is None:
         return None
+    with scoping.as_server(s, "a projection's tracking, over its owner's accounts") as srv:
+        return _tracking(srv, srv.get(Projection, p.id), viewer, upto)
+
+
+def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> dict | None:
     base = json.loads(p.baseline)
     spec = json.loads(p.builtOn)
     start = p.baselineAt.date()

@@ -93,7 +93,7 @@ def _group(s, group_id: str) -> Group:
 
 @router.get("/users", response_model=list[UserRow])
 def list_users(request: Request, c: Caller = Depends(admin)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         users = s.scalars(
             select(User)
             .where(User.deleted == false(), User.linkId.is_(None))
@@ -115,7 +115,7 @@ def _admin_change(s, c: Caller, wanted: list[str] | None, user_id: str | None = 
 @router.post("/users/{user_id}/invitation", status_code=204)
 def resend(user_id: str, request: Request, c: Caller = Depends(admin)):
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         accounts.resend_invitation(s, srv.services, c.user, _user(s, user_id))
     return Response(status_code=204)
 
@@ -127,7 +127,7 @@ def reset_two_step(user_id: str, request: Request, c: Caller = Depends(admin)):
     again."""
     recent_auth(c)
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         u = _user(s, user_id)
         twostep.turn_off(s, srv.services, u, c.user)
         u.updatedAt = clock.now()
@@ -153,7 +153,7 @@ class Approval(Model):
 @router.get("/signup-requests", response_model=list[SignupRow])
 def signup_requests(request: Request, c: Caller = Depends(admin)):
     """Requests whose email is confirmed, waiting for an admin (S10.1.4)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [
             SignupRow(
                 id=r.id,
@@ -169,7 +169,7 @@ def signup_requests(request: Request, c: Caller = Depends(admin)):
 @router.post("/signup-requests/{request_id}/approve", response_model=UserRow)
 def approve_signup(request_id: str, body: Approval, request: Request, c: Caller = Depends(admin)):
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         _admin_change(s, c, body.groupIds)
         u = signup.approve(s, srv.services, c.user, request_id, body.groupIds)
         row = user_row(s, u)
@@ -181,7 +181,7 @@ def approve_signup(request_id: str, body: Approval, request: Request, c: Caller 
 @router.post("/signup-requests/{request_id}/reject", status_code=204)
 def reject_signup(request_id: str, request: Request, c: Caller = Depends(admin)):
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         signup.reject(s, srv.services, c.user, request_id)
         admins = accounts.admin_ids(s)
     srv.events.publish("signup", {}, users=admins)
@@ -190,7 +190,7 @@ def reject_signup(request_id: str, request: Request, c: Caller = Depends(admin))
 
 @router.get("/groups", response_model=list[GroupRow])
 def list_groups(request: Request, c: Caller = Depends(admin)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         groups = s.scalars(select(Group).where(Group.deleted == false()).order_by(Group.name)).all()
         return [group_row(s, g) for g in groups]
 

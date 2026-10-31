@@ -286,3 +286,44 @@ Given by the user Oct 31, 3:17 PM, for all sixteen decisions as written above.
       reader of the book.
    4. The plan test (2.4) compares each child query with and without its view: a child table
       with no index on its parent key (`BudgetReview`) already scans without one.
+2. **Step 2: scoped sessions** (c81b3df). `db.read/tx(user=…)` or `(unscoped="…")`;
+   `scoping.unscoped` for one column statement; `access.need`, `perms`, `listing`,
+   `holders_of`; settings read as the server.
+3. **Step 3a: every session names its scope.** Every UI route's session carries its caller
+   (87 by a script: a function with the Caller `c`), sign-in, the welcome and side-effect
+   writes name `unscoped=`, and every server session (jobs, links, the connector, mail,
+   alerts) names `<module>: <function>`. Deviations and what the move found:
+   1. 5.1 asked `with_loader_criteria(… IN (subquery))`; SQLAlchemy recursed forever on a
+      query reading a table both directly and in a correlated subquery (alerts). The hook adds
+      a plain `EXISTS` per table with a view at the query's top level (joined or aliased; on
+      the optional side of an outer join, `id IS NULL OR …`). A subquery is left as written:
+      it filters, it never returns records. Reloading an expired record isn't scoped again.
+   2. `scoping.as_server(s, why)`: work that must read across users inside a user's request
+      runs in a second session on the same connection, in a savepoint (decision 8.1 and
+      5.3): a tax book's detail, panels and exports; a portfolio's series and returns (with
+      the viewer's own deleted accounts, R3.10); a budget's recurring payments; a giving
+      plan's income; a projection's tracking; wash sales across spouses; an import, which
+      matches the rows the owner deleted (S1.3.2). The user's session reads afresh after it.
+   3. Read as the server, one column statement each, as the code did before: a setting's
+      value; whether a receipt's file is kept already; the user or group a share names (an
+      inactive one is in no one's view, so the refusal says *inactive*, not *unknown*);
+      whether a link is live; the names Activity's entries give (one shared and removed
+      since keeps its name, S10.8); one person, once, and asking to share a private one
+      (S10.10.3); the people a gift is for, deleted ones too (S7.8.6); what paid for a gift,
+      named *an account not shared* (S11.5.2); the accounts a connection keeps current, on
+      the connector's page (S16.2); a just-deleted record's answer to its save.
+   4. 1g.2 made `Connector` and `Link` admin data: every user reads whether a connector is
+      paired and the key credentials are sealed to (S16.1), and a linked server's name and
+      state (its people in the Share dialog, its window, S10.4, S11). Both are rules: admins
+      hold them, every local user reads them. `Connection` too: its owner holds it, admins
+      read each one's state on the connector's page (S16.2).
+   5. 1g.3: every user reads their own User row (a linked server's user too, as the routes
+      that answer a link run as them); only a local user changes it.
+   6. A removed receiver's tags go by one UPDATE (the server's bookkeeping on their rows);
+      a pending filer's books list reads those books as the server, and accepting reads the
+      invitation, then the book as theirs.
+   7. Found by the move, and fixed before it shipped: *Remove orphans* in Settings › Storage
+      ran in the admin's session, where other users' receipts are in no view, so it would have
+      taken their files for orphans and removed them. Storage's counts, pruning and orphans
+      are the household's and run as the server;
+      `test_an_admins_household_wide_file_work_counts_every_users_files` fails without that.

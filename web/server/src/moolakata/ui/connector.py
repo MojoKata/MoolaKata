@@ -12,6 +12,7 @@ from ..connector import manage
 from ..connector.manage import ConnectorError
 from ..errors import Problem, refuse
 from ..links import keys
+from ..store import scoping
 from ..store.entities.accounts import Account
 from ..store.entities.connector import Connection
 from ..store.entities.users import User
@@ -109,12 +110,17 @@ def connection_out(s, c: Connection, mine: bool = False) -> ConnectionOut:
             InstitutionAccount(name=x.get("name", ""), last4=x.get("last4"))
             for x in json.loads(c.institutionAccounts or "[]")
         ],
+        # What the connection keeps current, by name, as the connector's page shows it to
+        # admins as well as its owner (S16.2): read as the server.
         accounts=[
             SyncedAccount(id=a.id, name=a.name, syncAccount=a.syncAccount)
-            for a in s.scalars(
-                select(Account)
-                .where(Account.connectionId == c.id, Account.deleted == false())
-                .order_by(Account.name)
+            for a in s.execute(
+                scoping.unscoped(
+                    select(Account.id, Account.name, Account.syncAccount)
+                    .where(Account.connectionId == c.id, Account.deleted == false())
+                    .order_by(Account.name),
+                    "the accounts a connection keeps current",
+                )
             )
         ],
         credentialWaiting=bool(c.sealedCredential),
@@ -191,7 +197,7 @@ def view(s, srv) -> ConnectorOut:
 @router.get("/settings/connector", response_model=ConnectorOut)
 def get_connector(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         return view(s, srv)
 
 
@@ -220,7 +226,7 @@ def confirm(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
     if not manage.confirm(srv, c.id):
         raise Problem(404, "not-found", "No connector is paired.")
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         return view(s, srv)
 
 
@@ -233,7 +239,7 @@ def accept_address(request: Request, c: Caller = Depends(admin)):
     if not manage.accept_address(srv, c.id):
         raise Problem(404, "not-found", "No connector is paired.")
     srv.tasks.run_now("alerts")
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         return view(s, srv)
 
 
@@ -245,5 +251,5 @@ def unpair(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
     if not manage.unpair(srv, c.id):
         raise Problem(404, "not-found", "No connector is paired.")
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         return view(s, srv)

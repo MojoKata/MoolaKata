@@ -183,7 +183,7 @@ def _rewrap_secrets(db: Database, old_key: bytes, new_key: bytes) -> list[str]:
     from .entities.core import Secret
 
     aside = []
-    with db.tx() as s:
+    with db.tx(unscoped="re-encryption: the secrets") as s:
         for row in s.query(Secret):
             sealed = sealing.Sealed(row.ciphertext, row.nonce, row.wrappedKey)
             try:

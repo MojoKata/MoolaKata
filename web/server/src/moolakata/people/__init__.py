@@ -3,12 +3,14 @@ household's unless private, one person is added once, and dated relationships sa
 married to whom on a given day, for wash sales (S3.8) and joint tax books (S8.14.1)."""
 
 import datetime as dt
+from dataclasses import dataclass
 
 from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, ids
 from ..errors import FieldError, Problem
+from ..store import scoping
 from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
 
@@ -45,7 +47,7 @@ def for_new_user(s: Session, name: str, sex: str, by: str | None = None) -> Pers
     taken = set(s.scalars(select(User.personId).where(User.deleted == false())))
     free = [p for p in same_name(s, name) if p.id not in taken]
     if len(free) == 1:
-        p = free[0]
+        p = s.get(Person, free[0].id)
         p.sex, p.private = sex, False
         return p
     return make(s, name, sex, by)
@@ -206,13 +208,28 @@ def change(s: Session, p: Person, values: dict) -> None:
 # ---- One person, once (S10.10.3) ----
 
 
-def same_name(s: Session, name: str, exclude: str | None = None) -> list[Person]:
-    q = select(Person).where(
-        Person.deleted == false(), func.lower(Person.name) == name.strip().lower()
+@dataclass(frozen=True)
+class Named:
+    """A person as the one-person-once check sees them, read as the server: the check names
+    one the user may not read (S10.10.3)."""
+
+    id: str
+    name: str
+    birthYear: int | None
+    private: bool
+    ownerId: str | None
+    creator: str | None  # who added them, by name
+
+
+def same_name(s: Session, name: str, exclude: str | None = None) -> list[Named]:
+    q = (
+        select(Person.id, Person.name, Person.birthYear, Person.private, Person.ownerId)
+        .add_columns(select(User.displayName).where(User.id == Person.ownerId).scalar_subquery())
+        .where(Person.deletedAt.is_(None), func.lower(Person.name) == name.strip().lower())
     )
     if exclude:
         q = q.where(Person.id != exclude)
-    return list(s.scalars(q))
+    return [Named(*r) for r in s.execute(scoping.unscoped(q, "one person, once"))]
 
 
 def told_apart(a: int | None, b: int | None) -> bool:

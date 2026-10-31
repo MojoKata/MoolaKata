@@ -291,7 +291,7 @@ def list_receipts(
 ):
     """Newest first. *inbox*: the caller's receipts attached to nothing yet. The search looks
     in what was read from each receipt (S9.8.5) as well as its fields."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         rows = [row(s, r, lvl, c.id) for r, lvl in receipts.visible(s, c.id)]
         in_text = reading.search(s, q) if q else set()
     if show == "inbox":
@@ -322,14 +322,14 @@ async def upload(request: Request, file: UploadFile = File(...), c: Caller = Dep
     receipt it made (200)."""
     srv = server(request)
     srv.upload_rate.check(c.id, "uploads")
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         limit = settings.get(s, "receiptMaxMb") * 1024 * 1024
     data = await file.read(limit + 1)
     if len(data) > limit:
         raise Problem(413, "too-large", f"Receipts are up to {limit // (1024 * 1024)} MB.")
     if not data:
         raise refuse("file", "file-empty", "The file is empty.")
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         stored = receipts.store(s, srv, c.id, file.filename or "receipt", data)
         if not stored.existing:
             activity.record(s, "receipt.uploaded", actor=c.id, owner=c.id)
@@ -345,7 +345,7 @@ async def upload(request: Request, file: UploadFile = File(...), c: Caller = Dep
 
 @router.get("/receipts/{receipt_id}", response_model=ReceiptDetail)
 def get_receipt(receipt_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         r, lvl = receipts.get(s, c.id, receipt_id)
         return detail(s, c.id, r, lvl)
 
@@ -354,7 +354,7 @@ def get_receipt(receipt_id: str, request: Request, c: Caller = Depends(caller)):
 def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     """Read it again (S9.8.6): only empty or suggested fields are replaced."""
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         r, lvl = receipts.get(s, c.id, receipt_id, "write")
         if not settings.get(s, "readReceipts"):
             raise Problem(409, "reading-off", "Reading receipts is off in Settings › Receipts.")
@@ -526,7 +526,7 @@ def receipt_file(receipt_id: str, request: Request, c: Caller = Depends(caller))
     """Streamed through decryption, never written out as plaintext. Served inline in a
     sandbox, with its checked type, so a PDF can't run script in the app (S9.4)."""
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         r, _ = receipts.get(s, c.id, receipt_id)
     if r.filePrunedAt is not None:
         raise Problem(410, "file-pruned", f"Its file was pruned on {r.filePrunedAt:%b %-d, %Y}.")
@@ -563,7 +563,7 @@ def receipt_file(receipt_id: str, request: Request, c: Caller = Depends(caller))
 
 @router.get("/receipts/{receipt_id}/thumbnail", response_class=Response)
 def receipt_thumbnail(receipt_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         r, _ = receipts.get(s, c.id, receipt_id)
         thumb = r.thumbnail
     if thumb is None:
@@ -579,7 +579,7 @@ def receipt_thumbnail(receipt_id: str, request: Request, c: Caller = Depends(cal
 def transaction_receipts(transaction_id: str, request: Request, c: Caller = Depends(caller)):
     from .. import access
 
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         t = s.get(Transaction, transaction_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "Not found")

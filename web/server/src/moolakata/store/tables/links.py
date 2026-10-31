@@ -77,7 +77,7 @@ Link = record(
         "state IN ('invited', 'requested', 'pending', 'active', 'paused', 'ended')", name="state"
     ),
     CheckConstraint("role IN ('inviter', 'joiner')", name="role"),
-    seen=Seen.admin(),
+    seen=Seen.rule(),
 )
 unique_live(Link, "peerKey")
 

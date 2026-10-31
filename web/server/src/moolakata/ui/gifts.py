@@ -15,6 +15,7 @@ from .. import access, activity, clock, gifts, people, receipts
 from ..errors import FieldError, Problem, refuse
 from ..gifts import holidays
 from ..people import tree
+from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.education import Gift, GiftPerson, GiftPlan, Occasion, Person
 from ..store.entities.users import User
@@ -271,8 +272,7 @@ def refuse_clash(s, c: Caller, name: str, birth_year: int | None, exclude=None) 
     other = people.clash(s, name, birth_year, exclude)
     if other is None:
         return
-    seen = people.level(s, c.id, other) is not None
-    creator = s.get(User, other.ownerId) if other.ownerId else None
+    seen = access.perms(s, Person, other.id, c.id) is not None
     raise Problem(
         409,
         "person-exists",
@@ -285,7 +285,7 @@ def refuse_clash(s, c: Caller, name: str, birth_year: int | None, exclude=None) 
                 "name": other.name,
                 "visible": seen,
                 "private": other.private,
-                "createdBy": creator.displayName if creator else None,
+                "createdBy": other.creator,
             }
         },
     )
@@ -323,7 +323,7 @@ def _one(s, c: Caller, person_id: str) -> PersonOut:
 @router.get("/people", response_model=list[PersonOut])
 def list_people(request: Request, c: Caller = Depends(caller)):
     """The caller's gift plans and those shared with them, with their people."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return people_view(s, c)
 
 
@@ -339,7 +339,7 @@ def list_holidays(request: Request, c: Caller = Depends(caller)):
 @router.get("/people/{person_id}", response_model=PersonOut)
 def get_plan(person_id: str, request: Request, c: Caller = Depends(caller)):
     """One gift plan the caller sees, with its person: what the plan's dialog starts from."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         gifts.plan_for(s, c.id, person_id)
         return _one(s, c, person_id)
 
@@ -401,24 +401,52 @@ NOT_SHARED = "an account not shared"
 
 def _paid(s, t_id: str | None, viewer: str) -> Paid | None:
     """What a gift was paid with; an account the viewer can't see is named as such, and its
-    transaction is left out (S11.5.2)."""
-    t = s.get(Transaction, t_id) if t_id else None
-    if t is None or t.deleted:
+    transaction is left out (S11.5.2): its date and amount read as the server, as the gift
+    shows them."""
+    t = (
+        s.execute(
+            scoping.unscoped(
+                select(Transaction.date, Transaction.amount, Transaction.accountId).where(
+                    Transaction.id == t_id, Transaction.deletedAt.is_(None)
+                ),
+                "what paid for a gift",
+            )
+        ).first()
+        if t_id
+        else None
+    )
+    if t is None:
         return None
     a = s.get(Account, t.accountId)
-    if access.account_level(s, viewer, a) is None:
+    full = s.get(Transaction, t_id) if a is not None else None
+    if a is None or full is None:
         return Paid(
             transactionId=None, date=t.date, amount=t.amount, payee=None, accountName=NOT_SHARED
         )
-    return Paid(transactionId=t.id, date=t.date, amount=t.amount, payee=t.payee, accountName=a.name)
+    return Paid(
+        transactionId=t_id, date=t.date, amount=t.amount, payee=full.payee, accountName=a.name
+    )
 
 
 def _gift_out(s, c: Caller, g: Gift, ps: list[str]) -> GiftOut:
     lvl = gifts.level_on_gift(s, c.id, g, ps)
-    named = [s.get(Person, pid) for pid in ps]
+    # The people a gift is for, by name, deleted ones too (S7.8.6): read as the server.
+    named = {
+        r.id: r
+        for r in s.execute(
+            scoping.unscoped(
+                select(Person.id, Person.name, Person.deletedAt).where(Person.id.in_(ps)),
+                "the people a gift is for",
+            )
+        )
+    }
     return GiftOut(
         id=g.id,
-        people=[PersonRef(id=p.id, name=p.name, deleted=p.deleted) for p in named if p],
+        people=[
+            PersonRef(id=p.id, name=p.name, deleted=p.deletedAt is not None)
+            for p in (named.get(pid) for pid in ps)
+            if p
+        ],
         occasion=g.occasion,
         occasionLabel=gifts.label_for_occasion(s, g, ps),
         occasionYear=g.occasionYear,
@@ -566,7 +594,7 @@ def list_gifts(
     person: str | None = None,
     c: Caller = Depends(caller),
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return gifts_view(s, c, status, person)
 
 
@@ -595,7 +623,7 @@ class Purchase(Model):
 def purchases(request: Request, c: Caller = Depends(caller)):
     """Recent spending, to link a gift's cost to its transaction: the last 90 days, in the
     accounts the caller writes to, since linking may recategorise it."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         accts = {
             a.id: a for a, lvl in access.visible_accounts(s, c.id) if lvl in ("owner", "write")
         }
@@ -647,7 +675,7 @@ class UpcomingOut(Model):
 
 @router.get("/gifts/upcoming", response_model=list[UpcomingOut])
 def list_upcoming(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         out = []
         for u in gifts.upcoming(s, c.id, clock.today()):
             ps = gifts.people_of_gifts(s, [g.id for g in u.gifts])
@@ -696,7 +724,7 @@ class SpendingOut(Model):
 
 @router.get("/gifts/spending", response_model=SpendingOut)
 def get_spending(request: Request, year: int | None = None, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         sp = gifts.spending(s, c.id, year or clock.today().year)
         return SpendingOut(
             year=sp.year,

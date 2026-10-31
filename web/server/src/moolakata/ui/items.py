@@ -422,14 +422,14 @@ def _record(s, kind: str, c: Caller, a: Account) -> None:
 
 @router.get("/accounts/{account_id}/items", response_model=ItemsView)
 def list_items(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, lvl = _account(s, c, account_id)
         return view(s, a, lvl)
 
 
 @router.get("/items/{item_id}", response_model=ItemDetail)
 def get_item(item_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         it, a, lvl = _item(s, c, item_id)
         return detail(s, c, it, a, lvl)
 
@@ -445,7 +445,7 @@ class Securable(Model):
 def securable(request: Request, c: Caller = Depends(caller)):
     """Items a loan can be secured by: unsold property, vehicles and other assets the caller
     can see (S1.9.5)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         accts = {
             a.id: a
             for a, _ in access.visible_accounts(s, c.id)

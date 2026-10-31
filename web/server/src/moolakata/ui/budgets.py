@@ -14,6 +14,7 @@ from sqlalchemy import false, select
 from .. import access, activity, budgets, clock, ids
 from ..budgets import plan, recurring
 from ..errors import FieldError, Problem, refuse
+from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine, BudgetMove
 from ..store.entities.users import User
@@ -460,7 +461,7 @@ def _month(value: str | None) -> dt.date:
 
 @router.get("/budgets", response_model=list[BudgetRow])
 def list_budgets(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [shape(s, b, lvl, c.id) for b, lvl in access.visible_budgets(s, c.id)]
 
 
@@ -476,7 +477,7 @@ def left_out(
     from ..loans import TYPES
 
     since = clock.today() - dt.timedelta(days=365)
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         visible = {a.id: a for a, _ in access.visible_accounts(s, c.id)}
         chosen = [a for a in accountIds if a in visible]
         if not chosen:
@@ -510,7 +511,7 @@ def left_out(
 @router.get("/budgets/{budget_id}", response_model=BudgetRow)
 def get_budget(budget_id: str, request: Request, c: Caller = Depends(caller)):
     """One budget, as its list shows it: where a new one's Location leads (S13.8.4)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, lvl = access.budget(s, c.id, budget_id)
         return shape(s, b, lvl, c.id)
 
@@ -586,7 +587,7 @@ def _change_budget(s, c: Caller, b: Budget, lvl: str, body, sent: set[str]) -> N
 def budget_month(
     budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, lvl = access.budget(s, c.id, budget_id)
         m = budgets.month_view(s, b, _month(month), clock.today(), c.id)
         names = _names(
@@ -752,7 +753,7 @@ def get_plan(
     """The plan as it holds in a month, line by line as stored: what the plan dialog edits
     (S7.1.2), never the month's figures, which add carried amounts and moves to it."""
     m = dt.date.fromisoformat(month + "-01")
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id, "read")
         lines = budgets.in_force(budgets.lines(s, b), m)
         tr = budgets.tree(s)
@@ -810,7 +811,7 @@ def _planned(ctx, b: Budget) -> None:
     srv, by = server(ctx.request), ctx.caller.id
 
     def record() -> None:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="Activity: a budget's plan saved") as s:
             activity.record(
                 s,
                 "budget.planned",
@@ -1037,7 +1038,7 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
     from ..store.entities.accounts import Split
     from ..store.entities.budgets import BudgetLeaveOut
 
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         t = s.get(Transaction, txn_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "No such transaction.")
@@ -1082,7 +1083,7 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
 
     m = _month(month)
     today = clock.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         tr = budgets.tree(s, b)
         accts = budgets.account_ids(s, b, c.id)
@@ -1230,7 +1231,7 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
     if not body.name.strip() or len(body.name) > 80:
         raise refuse("name", "name-invalid", "Enter a name of up to 80 characters.")
     month = budgets.month_of(clock.today())
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         src, _ = access.budget(s, c.id, budget_id)
         b = Budget(
             id=ids.new_id("Bdgt"),
@@ -1312,7 +1313,7 @@ def compare(
     last = _month(month)
     first = last.replace(month=1) if span == "year" else last
     today = clock.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.budget(s, c.id, budget_id)
         b, _ = access.budget(s, c.id, other)
         sums: dict[str, dict[str, list]] = {}
@@ -1418,7 +1419,7 @@ def review(budget_id: str, request: Request, c: Caller = Depends(caller), month:
     from ..budgets import reserves
 
     m = _month(month) if month else budgets.add_months(budgets.month_of(clock.today()), -1)
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         v = budgets.month_view(s, b, m, clock.today(), c.id)
         to_move = []
@@ -1463,7 +1464,7 @@ def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = 
     from ..store.entities.budgets import BudgetReview
 
     m = budgets.month_of(body.month)
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id, "write")
         figures = json.dumps(_figures(budgets.month_view(s, b, m, clock.today(), c.id)))
         r = s.scalars(
@@ -1504,7 +1505,7 @@ def refresh(
     """Refresh: the budget's months worked out again at once (S7.3.10)."""
     from ..budgets import cache
 
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         access.budget(s, c.id, budget_id)
     cache.forget(budget_id)
     return budget_month(budget_id, request, c, month)
@@ -1518,7 +1519,7 @@ def estimate(
     months: int = Query(6, ge=3, le=12),
 ):
     """A plan from the last 3, 6 or 12 complete months (S7.1.5): nothing is saved."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id, "write")
         tr = budgets.tree(s, b)
         return [
@@ -1539,7 +1540,7 @@ def estimate(
 def budget_cash_flow(
     budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         m = _month(month)
         f = budgets.cash_flow(s, b, m, c.id)
@@ -1561,7 +1562,7 @@ def budget_trends(
     category: str | None = None,
     months: int = Query(12, ge=3, le=36),
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         return [
             TrendPoint(month=m, planned=p, actual=a)
@@ -1572,41 +1573,47 @@ def budget_trends(
 @router.get("/budgets/{budget_id}/recurring", response_model=list[RecurringRow])
 def budget_recurring(budget_id: str, request: Request, c: Caller = Depends(caller)):
     """Found in the last 15 months of the budget's accounts each time it is asked."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
-        accts = budgets.account_ids(s, b, c.id)
-        today = clock.today()
-        txns = s.scalars(
-            select(Transaction).where(
-                Transaction.accountId.in_(accts),
-                Transaction.deleted == false(),
-                Transaction.date >= today - dt.timedelta(days=460),
-            )
-        ).all()
-        # An entry names its account only to someone the account is shared with too; the owner's
-        # other accounts are *an account not shared* (S7.1.1, S11.3.1).
-        reach = access.reach(s, c.id) if c.id != b.ownerId else None
-        names = {
-            a.id: a.name
-            for a in s.scalars(select(Account).where(Account.id.in_(accts)))
-            if reach is None or access.account_level(s, c.id, a, reach) is not None
-        }
-        return [
-            RecurringRow(
-                payee=x.payee,
-                accountId=x.accountId if x.accountId in names else None,
-                accountName=names.get(x.accountId, "an account not shared"),
-                every=x.every,
-                last=x.last,
-                next=x.next,
-                usual=x.usual,
-                lastAmount=x.lastAmount,
-                count=x.count,
-                missed=x.missed,
-                changed=x.changed,
-            )
-            for x in recurring.detect(txns, today)
-        ]
+        # The budget's figures are the budget's, over its owner's accounts (S7.1.1).
+        with scoping.as_server(s, "a budget's recurring payments, for one who reads it") as srv:
+            return _recurring(srv, c, srv.get(Budget, b.id))
+
+
+def _recurring(s, c: Caller, b: Budget) -> list[RecurringRow]:
+    accts = budgets.account_ids(s, b, c.id)
+    today = clock.today()
+    txns = s.scalars(
+        select(Transaction).where(
+            Transaction.accountId.in_(accts),
+            Transaction.deleted == false(),
+            Transaction.date >= today - dt.timedelta(days=460),
+        )
+    ).all()
+    # An entry names its account only to someone the account is shared with too; the owner's
+    # other accounts are *an account not shared* (S7.1.1, S11.3.1).
+    reach = access.reach(s, c.id) if c.id != b.ownerId else None
+    names = {
+        a.id: a.name
+        for a in s.scalars(select(Account).where(Account.id.in_(accts)))
+        if reach is None or access.account_level(s, c.id, a, reach) is not None
+    }
+    return [
+        RecurringRow(
+            payee=x.payee,
+            accountId=x.accountId if x.accountId in names else None,
+            accountName=names.get(x.accountId, "an account not shared"),
+            every=x.every,
+            last=x.last,
+            next=x.next,
+            usual=x.usual,
+            lastAmount=x.lastAmount,
+            count=x.count,
+            missed=x.missed,
+            changed=x.changed,
+        )
+        for x in recurring.detect(txns, today)
+    ]
 
 
 # ---------- a budget and its moves in a dialog's draft (S12.15, S13.8.11) ----------

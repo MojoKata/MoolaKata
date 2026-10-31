@@ -55,7 +55,7 @@ def state(srv) -> LockState:
     if srv.ready and srv.store is not None:
         from ..auth import users
 
-        with srv.db.read() as s:
+        with srv.db.read(unscoped="whether the server is locked") as s:
             needs_admin = not users.has_users(s)
     return LockState(
         # Locked until the server serves: the store opens a moment before its tasks start.

@@ -14,6 +14,7 @@ from ..errors import FieldError, Problem, refuse
 from ..ledger import performance as perf
 from ..ledger import types as atypes
 from ..options import strategies as strat
+from ..store import scoping
 from ..store.entities.accounts import Account
 from ..store.entities.sharing import Portfolio, PortfolioAccount
 from ..store.entities.users import User
@@ -189,7 +190,7 @@ def _set_members(s, p: Portfolio, wanted: list[str], by: str) -> None:
 
 @router.get("/portfolios", response_model=list[PortfolioRow])
 def list_portfolios(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [shape(s, c.user, None, "owner")] + [
             shape(s, c.user, p, lvl) for p, lvl in access.visible_portfolios(s, c.id)
         ]
@@ -197,7 +198,7 @@ def list_portfolios(request: Request, c: Caller = Depends(caller)):
 
 @router.get("/portfolios/{portfolio_id}", response_model=PortfolioRow)
 def get_portfolio(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         if portfolio_id == ALL:
             return shape(s, c.user, None, "owner")
         p, lvl = access.portfolio(s, c.id, portfolio_id)
@@ -356,72 +357,80 @@ def portfolio_series(
     """Value over time with contributions apart from growth, against the benchmark, and the
     period's time- and money-weighted returns (S5.2.1, S5.2.3)."""
     today = figures.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         p, accounts, bench = _target(s, c, portfolio_id)
-        accounts = with_deleted(s, c.id, p, accounts)
-        first = figures.first_day(range, today, figures.earliest(s, accounts))
-        comb = figures.combine(s, accounts, first, today, figures.step_for(first, today))
-        values = comb.values
-        contrib = figures.contributions(values, comb.flow)
-        index = figures.benchmark_index(s, bench, first, today)
-        bench_values = dict(perf.benchmark(values, comb.flow, index))
-        start = values[0][1] if values else Decimal(0)
-        end = values[-1][1] if values else Decimal(0)
-        put_in = (contrib[-1][1] - start) if contrib else Decimal(0)
-        rate = perf.irr(values[0][0], start, comb.flow, values[-1][0], end) if values else None
-        return PortfolioSeries(
-            points=[
-                SeriesPoint(date=d, value=v, contributions=cv, benchmark=bench_values.get(d))
-                for (d, v), (_, cv) in zip(values, contrib, strict=True)
-            ],
-            benchmark=bench,
-            twr=figures.fmt_rate(perf.twr(values, comb.flow)),
-            irr=figures.fmt_rate(rate),
-            contributed=put_in,
-            growth=end - start - put_in,
-            start=start,
-            end=end,
-        )
+        with scoping.as_server(
+            s, "a portfolio's figures, over what its viewer reads and their own deleted accounts"
+        ) as srv:
+            accounts = [srv.get(Account, a.id) for a in accounts]
+            accounts = with_deleted(srv, c.id, p, accounts)
+            first = figures.first_day(range, today, figures.earliest(srv, accounts))
+            comb = figures.combine(srv, accounts, first, today, figures.step_for(first, today))
+            values = comb.values
+            contrib = figures.contributions(values, comb.flow)
+            index = figures.benchmark_index(srv, bench, first, today)
+            bench_values = dict(perf.benchmark(values, comb.flow, index))
+            start = values[0][1] if values else Decimal(0)
+            end = values[-1][1] if values else Decimal(0)
+            put_in = (contrib[-1][1] - start) if contrib else Decimal(0)
+            rate = perf.irr(values[0][0], start, comb.flow, values[-1][0], end) if values else None
+            return PortfolioSeries(
+                points=[
+                    SeriesPoint(date=d, value=v, contributions=cv, benchmark=bench_values.get(d))
+                    for (d, v), (_, cv) in zip(values, contrib, strict=True)
+                ],
+                benchmark=bench,
+                twr=figures.fmt_rate(perf.twr(values, comb.flow)),
+                irr=figures.fmt_rate(rate),
+                contributed=put_in,
+                growth=end - start - put_in,
+                start=start,
+                end=end,
+            )
 
 
 @router.get("/portfolios/{portfolio_id}/returns", response_model=list[ReturnRow])
 def portfolio_returns(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
     """Time-weighted returns per period, per account and for the portfolio (S5.2.3)."""
     today = figures.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         p, accounts, _ = _target(s, c, portfolio_id)
-        first = today - dt.timedelta(days=figures.RANGE_DAYS["5Y"])
-        step = 7
-        rows = []
-        # The portfolio's own returns keep an account deleted since, up to its deletion, as its
-        # value series does (R3.10); the rows are the accounts it holds now.
-        total = figures.combine(s, with_deleted(s, c.id, p, accounts), first, today, step)
-        for a in accounts:
-            led = repo.load(s, a)
-            series = total.byAccount[a.id]
+        with scoping.as_server(
+            s, "a portfolio's returns, over what its viewer reads and their own deleted accounts"
+        ) as srv:
+            accounts = [srv.get(Account, a.id) for a in accounts]
+            first = today - dt.timedelta(days=figures.RANGE_DAYS["5Y"])
+            step = 7
+            rows = []
+            # The portfolio's own returns keep an account deleted since, up to its deletion, as its
+            # value series does (R3.10); the rows are the accounts it holds now.
+            total = figures.combine(srv, with_deleted(srv, c.id, p, accounts), first, today, step)
+            for a in accounts:
+                led = repo.load(srv, a)
+                series = total.byAccount[a.id]
+                rows.append(
+                    ReturnRow(
+                        id=a.id,
+                        name=a.name,
+                        periods={
+                            k: figures.fmt_rate(v)
+                            for k, v in figures.period_returns(
+                                series, perf.flows(led.transactions), today
+                            ).items()
+                        },
+                    )
+                )
             rows.append(
                 ReturnRow(
-                    id=a.id,
-                    name=a.name,
+                    id=portfolio_id,
+                    name=p.name if p else "All my accounts",
                     periods={
                         k: figures.fmt_rate(v)
-                        for k, v in figures.period_returns(
-                            series, perf.flows(led.transactions), today
-                        ).items()
+                        for k, v in figures.period_returns(total.values, total.flow, today).items()
                     },
                 )
             )
-        rows.append(
-            ReturnRow(
-                id=portfolio_id,
-                name=p.name if p else "All my accounts",
-                periods={
-                    k: figures.fmt_rate(v)
-                    for k, v in figures.period_returns(total.values, total.flow, today).items()
-                },
-            )
-        )
-        return rows
+            return rows
 
 
 @router.get("/portfolios/{portfolio_id}/holdings", response_model=PortfolioHoldings)
@@ -429,7 +438,7 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
     """What the portfolio's visible accounts hold, added up by instrument."""
     from ..store.entities.accounts import Instrument
 
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         _, accounts, _ = _target(s, c, portfolio_id)
         by: dict[str, dict] = {}
         cash = Decimal(0)

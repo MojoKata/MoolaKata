@@ -33,7 +33,7 @@ PASSWORD = "moolakata-dev"  # noqa: S105 - dev mode's seed users only
 
 
 def seed(server) -> None:
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="dev mode: the seed") as s:
         if s.scalars(select(User).where(User.username == "alice")).first():
             log.info("dev: already seeded")
             return

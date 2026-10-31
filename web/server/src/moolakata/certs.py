@@ -99,7 +99,7 @@ def own_key(srv) -> str | None:
         return _from_file(path)
     from .links.manage import own_address
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="certs: own key") as s:
         address = own_address(s) or ""
     now = clock.now()
     with _lock:

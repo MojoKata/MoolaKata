@@ -316,7 +316,7 @@ def list_transactions(
     tag: str | None = None,
     sort: str = Query("-date", pattern="^-?(date|amount|payee)$"),
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         visible = {a.id: lvl for a, lvl in access.visible_accounts(s, c.id)}
         wanted = [a for a in account if a in visible] if account else list(visible)
         if account and not wanted:
@@ -399,7 +399,7 @@ def newer_transactions(
     request: Request, c: Caller = Depends(caller), since: dt.datetime = Query(...)
 ):
     """How many transactions arrived after the page loaded: the +N new pill (S12.1.3)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         visible = [a.id for a, _ in access.visible_accounts(s, c.id)]
         n = s.scalar(
             select(func.count())
@@ -657,7 +657,7 @@ def _editable(
 @router.get("/transactions/{txn_id}", response_model=TxnOut)
 def get_transaction(txn_id: str, request: Request, c: Caller = Depends(caller)):
     """One transaction the caller can see: where a new one's Location leads (S13.8.4)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         t = s.get(Transaction, txn_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "Not found")
@@ -803,7 +803,7 @@ def categorise(body: Categorise, request: Request, c: Caller = Depends(caller)):
     """Bulk categorise (S12.2.3): Activity says how many, never which amounts."""
     if len(body.ids) > 1000:
         raise refuse("ids", "too-many", "At most 1,000 at a time.")
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         if body.categoryId:
             cat = s.get(Category, body.categoryId)
             if cat is None or cat.deleted:
@@ -834,7 +834,7 @@ def categorise(body: Categorise, request: Request, c: Caller = Depends(caller)):
 def both_real(txn_id: str, request: Request, c: Caller = Depends(caller)):
     """Two identical rows on one day, or two a file gave one id: the answer *both real* is
     kept (S1.11.5)."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         t = s.get(Transaction, txn_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "Not found")
@@ -863,7 +863,7 @@ def _paths(cats: list[Category]) -> dict[str, str]:
 
 @router.get("/categories", response_model=list[CategoryOut])
 def list_categories(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         cats = s.scalars(select(Category).where(Category.deleted == false())).all()
         paths = _paths(list(cats))
         return sorted(
@@ -999,7 +999,7 @@ save.register(
 def search_instruments(
     request: Request, c: Caller = Depends(caller), q: str = Query(..., min_length=1, max_length=40)
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [
             InstrumentOut(id=i.id, symbol=i.symbol, name=i.name, instrumentClass=i.instrumentClass)
             for i in repo.search_instruments(s, q)
@@ -1012,7 +1012,7 @@ def keep_off_chain(
 ):
     """Keep a bitcoin transaction the explorer or node no longer has: its mark is cleared
     (S1.6.2.7). Deleting it is the usual delete."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         t, a, level = _editable(s, c, txn_id, version, True)
         if t.offChainAt is None:
             raise refuse(None, "on-chain", "It is still on the chain.")

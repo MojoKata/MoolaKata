@@ -346,12 +346,19 @@ ever read for them.
    no migration's business.
 6. **Scoped sessions.** A session opened for a user's request names the user
    (`db.read(user=…)`, `db.tx(user=…)`), and every ORM query in it reads only what the user's
-   views give them: each table with a view gets `EXISTS (SELECT 1 FROM <Table>Access WHERE
-   targetId = id AND userId = :user)` beside whatever the query asks, lists, a record fetched
-   by its id and joined tables alike. Code that needs the permissions joins the view itself.
+   views give them: each table with a view that the query reads at its top level, joined
+   or aliased, gets `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND userId =
+   :user)` beside whatever the query asks (on the optional side of an outer join, or none
+   there); lists, a record fetched by its id and joined tables alike. A subquery only filters
+   and is left as written. Reloading a record already in the session is not scoped again.
+   Code that needs the permissions joins the view itself.
    The server's own work opens a session unscoped, naming why (`db.tx(unscoped="…")`): a
    sweep, a job, sign-in, a link's pull. Inside a user's session, one statement may read as
    the server, naming why (`scoping.unscoped`), when what it reads serves the server (a
    setting's value, whether a file is kept already) and is never handed to the user; such a
    statement selects columns, never records, so a user's session holds only records they
-   read.
+   read. Work that must read across users inside a user's request, once the user's access is
+   checked (an item's figures over the accounts its own rules count, wash sales across
+   spouses, an import matching the rows the owner deleted), runs in a second session on the
+   same connection, unscoped and named (`scoping.as_server`), in a savepoint of the same
+   transaction; the user's session reads afresh what it changed.

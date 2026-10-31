@@ -308,7 +308,7 @@ class Mailer:
         db = self.db()
         if db is None:
             return []
-        with db.read() as s:
+        with db.read(unscoped="mail: the emails waiting") as s:
             rows = s.scalars(
                 select(QueuedEmail)
                 .where(QueuedEmail.refusedAt.is_(None), QueuedEmail.expiresAt > clock.now())
@@ -336,7 +336,7 @@ class Mailer:
         db = self.db()
         if db is None:
             return 0
-        with db.read() as s:
+        with db.read(unscoped="mail: emails set aside") as s:
             return s.scalar(
                 select(func.count())
                 .select_from(QueuedEmail)
@@ -353,7 +353,7 @@ class Mailer:
         db = self.db()
         if db is None:
             return 0
-        with db.tx() as s:
+        with db.tx(unscoped="mail: expired emails") as s:
             return s.execute(
                 delete(QueuedEmail).where(QueuedEmail.expiresAt <= clock.now())
             ).rowcount
@@ -368,7 +368,7 @@ class Mailer:
         if db is None or not folder.is_dir():
             return 0
         moved = []
-        with db.tx() as s:
+        with db.tx(unscoped="mail: the outbox adopted") as s:
             for path in sorted(folder.iterdir()):
                 if path.suffix not in (".eml", ".refused"):
                     continue

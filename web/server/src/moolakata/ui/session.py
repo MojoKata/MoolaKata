@@ -119,7 +119,7 @@ class InvitationInfo(Model):
 
 def info(request: Request, user: User, admin: bool) -> SessionInfo:
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=user.id) as s:
         house = Household(
             name=settings.get(s, "householdName"), avatar=settings.get(s, "householdAvatar")
         )
@@ -184,7 +184,7 @@ def sign_in(body: SignIn, request: Request):
     if delay:
         time.sleep(delay)
     two_step = None
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="sign-in") as s:
         user = accounts.by_login(s, login)
         ok = passwords.verify(user.passwordHash if user else None, body.password)
         if not ok:
@@ -226,13 +226,13 @@ def sign_in_code(body: TwoStepCode, request: Request):
     if not guard.checking(pending):
         raise too_many(1, "codes at once for this sign-in")
     try:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="sign-in: a two-step code") as s:
             login = twostep.pending_user(s, body.token).username
         delay = guard.delay(login, address)
         if delay:
             time.sleep(delay)
         ended = False
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="sign-in: a two-step code") as s:
             user = twostep.pending_user(s, body.token)
             if not user.active or user.deleted:
                 raise Problem(403, "account-disabled", "This account is disabled.")
@@ -386,7 +386,7 @@ def _note_address(s, user: User, address: str | None, svc) -> None:
 def sign_out(request: Request, c: Caller = Depends(caller_in_setup)):
     """Signing out ends every session of the user at once (S13.7.1)."""
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         sessions.end_all(s, c.id)
         activity.record(s, "signout", actor=c.id, subject_kind="user", subject_id=c.id, owner=c.id)
     srv.events.end_user(c.id, "signed-out")
@@ -399,7 +399,7 @@ def setup(body: Setup, request: Request, c: Caller = Depends(caller_in_setup)):
     if not c.user.needsSetup:
         raise Problem(409, "setup-done", "This account is already set up.")
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         user = s.get(User, c.id)
         accounts.finish_setup(s, user, body.password, body.email, body.displayName, body.sex)
         sessions.end_all(s, user.id)
@@ -415,7 +415,7 @@ def reauth(body: Password, request: Request, c: Caller = Depends(caller_in_setup
     srv = server(request)
     _throttle(request)
     address = guarded(request, c.user.username)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         user = s.get(User, c.id)
         right = passwords.verify(user.passwordHash, body.password)
         if right:
@@ -433,7 +433,7 @@ def password_reset(body: Login, request: Request):
     """The answer is the same whether or not the user exists (S10.1.5)."""
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="a password reset asked") as s:
         accounts.request_reset(s, srv.services, body.login)
     return Response(status_code=204)
 
@@ -442,7 +442,7 @@ def password_reset(body: Login, request: Request):
 def password_reset_confirm(body: TokenPassword, request: Request):
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="a password reset") as s:
         user = accounts.reset_password(s, srv.services, body.token, body.password)
     srv.events.end_user(user.id, "signed-out")
     return Response(status_code=204)
@@ -451,7 +451,7 @@ def password_reset_confirm(body: TokenPassword, request: Request):
 @router.get("/signup", response_model=SignupOpen)
 def signup_open(request: Request):
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="whether sign-up is open") as s:
         on, domains = signup.open_to(s, srv.config.dev)
     return SignupOpen(open=on, domains=domains)
 
@@ -461,7 +461,7 @@ def signup_request(body: SignupForm, request: Request):
     """The answer is the same whether or not the email already has an account (S10.1.4)."""
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="a sign-up asked") as s:
         signup.request(
             s,
             srv.services,
@@ -478,7 +478,7 @@ def signup_request(body: SignupForm, request: Request):
 def signup_confirm(body: Token, request: Request):
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="a sign-up confirmed") as s:
         req = signup.confirm(s, body.token)
         out = SignupConfirmed(
             displayName=req.displayName, household=settings.get(s, "householdName")
@@ -492,7 +492,7 @@ def signup_confirm(body: Token, request: Request):
 def invitation_lookup(body: Token, request: Request):
     srv = server(request)
     _throttle(request)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="an invitation looked up") as s:
         user = accounts.peek_invitation(s, body.token)
         return InvitationInfo(
             username=user.username,
@@ -505,7 +505,7 @@ def invitation_lookup(body: Token, request: Request):
 def invitation_accept(body: TokenPassword, request: Request):
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="an invitation accepted") as s:
         user = accounts.accept_invitation(s, body.token, body.password)
         admin = accounts.is_admin(s, user.id)
         token = sessions.create(s, user.id, admin, False)
@@ -518,7 +518,7 @@ def invitation_accept(body: TokenPassword, request: Request):
 def email_change_confirm(body: Token, request: Request):
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="an email change confirmed") as s:
         accounts.confirm_email_change(s, body.token, server(request).services)
     return Response(status_code=204)
 
@@ -531,7 +531,7 @@ def reactivation_request(body: SignIn, request: Request):
     _throttle(request)
     login = body.login.strip().lower()
     address = guarded(request, login)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="a reactivation asked") as s:
         if not accounts.ask_reactivation(s, login, body.password):
             count_failure(s, srv.sign_in, login, address, accounts.by_login(s, login))
     return Response(status_code=204)
@@ -552,7 +552,7 @@ def events(request: Request, c: Caller = Depends(caller_quiet)):
     token = request.cookies.get(sessions.COOKIE)
 
     def check() -> str | None:
-        with srv.db.read() as s:
+        with srv.db.read(user=c.id) as s:
             found = sessions.find(s, token)
             if found is None:
                 return "signed-out"

@@ -64,7 +64,7 @@ def enable_stub_prices(server) -> None:
     from ..store.entities.prices import PriceSource
 
     cls = SOURCES["stub"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="dev mode: the seed") as s:
         row = s.scalars(
             select(PriceSource).where(PriceSource.name == "stub", PriceSource.deleted == false())
         ).first()

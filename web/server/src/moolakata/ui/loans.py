@@ -339,7 +339,7 @@ def _check(body: TermsIn) -> list[FieldError]:
 
 @router.get("/accounts/{account_id}/loan", response_model=LoanView)
 def get_loan(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, lvl = _account(s, c, account_id)
         return view(s, a, lvl)
 
@@ -411,7 +411,7 @@ def suggest_split(
     draft records, a split of its transaction (S1.9.3)."""
     if amount <= 0:
         raise refuse("amount", "amount-invalid", "A payment is more than zero.")
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         row = loans.loan_of(s, a)
         if row is None:
@@ -436,7 +436,7 @@ def candidates(account_id: str, request: Request, c: Caller = Depends(caller)):
     """Bank transactions of the last 90 days that look like this loan's payment (within 2% of
     it, not yet a transfer, and not filed under some other category, as rent is), to link
     with one click."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         row = loans.loan_of(s, a)
         if row is None:
@@ -650,7 +650,7 @@ def plan_payoff(account_id: str, body: PlanIn, request: Request, c: Caller = Dep
     """A plan's overpayments against the schedule: the new payoff date, months and interest
     saved, a recast after its lump sums, and the same money invested instead."""
     _check_plan(body)
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         plan = _plan(body)
         r = _compute(s, c, a, plan)
@@ -732,7 +732,7 @@ def _following(s, a: Account, terms, rows, pi, today) -> Following | None:
 
 @router.get("/accounts/{account_id}/loan/plans", response_model=list[SavedPlan])
 def list_plans(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         return [_saved(s, c, a, p) for p in _plans(s, a)]
 
@@ -762,7 +762,7 @@ def follow_plan(
 ):
     """Marks the plan being followed, tracked from today, or stops following it; the one
     followed before stops. An action: it changes every plan of the loan."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         a, p = _get_plan(s, c, account_id, plan_id)
         for other in _plans(s, a):
             if other.following and other.id != p.id:

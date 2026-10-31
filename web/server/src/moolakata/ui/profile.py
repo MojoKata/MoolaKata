@@ -159,7 +159,7 @@ def _spouse(s, user_id: str) -> Spouse | None:
 
 @router.get("/profile", response_model=Profile)
 def get_profile(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return profile(s, s.get(User, c.id))
 
 
@@ -310,13 +310,13 @@ def change_password(body: PasswordChange, request: Request, c: Caller = Depends(
     srv = server(request)
     address = guarded(request, c.user.username)
     try:
-        with srv.db.tx() as s:
+        with srv.db.tx(user=c.id) as s:
             u = s.get(User, c.id)
             accounts.change_password(s, srv.services, u, body.currentPassword, body.newPassword)
             token = sessions.create(s, u.id, c.admin, False)
     except Problem as e:
         if e.code == "password-wrong":
-            with srv.db.tx() as s:
+            with srv.db.tx(user=c.id) as s:
                 count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
         raise
     srv.events.end_user(c.id, "signed-out")
@@ -328,7 +328,7 @@ def change_password(body: PasswordChange, request: Request, c: Caller = Depends(
 def change_email(body: EmailChange, request: Request, c: Caller = Depends(caller)):
     recent_auth(c)
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         accounts.request_email_change(s, srv.services, s.get(User, c.id), body.email)
     return Response(status_code=204)
 
@@ -338,7 +338,7 @@ def two_step_begin(request: Request, c: Caller = Depends(caller)):
     """Turning two-step on starts here; it is on once a code from the app is confirmed."""
     recent_auth(c)
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         u = s.get(User, c.id)
         seed = twostep.begin(s, srv.keys.secrets, u)
         link = twostep.uri(seed, u.username, settings.get(s, "serverName") or "MoolaKata")
@@ -348,7 +348,7 @@ def two_step_begin(request: Request, c: Caller = Depends(caller)):
 @router.post("/profile/two-step/confirm", response_model=RecoveryCodes)
 def two_step_confirm(body: TwoStepConfirm, request: Request, c: Caller = Depends(caller)):
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         codes = twostep.confirm(s, srv.services, srv.keys.secrets, s.get(User, c.id), body.code)
     return RecoveryCodes(codes=codes)
 
@@ -358,7 +358,7 @@ def two_step_codes(request: Request, c: Caller = Depends(caller)):
     """New codes replace every old one."""
     recent_auth(c)
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         return RecoveryCodes(codes=twostep.new_recovery_codes(s, s.get(User, c.id)))
 
 
@@ -367,7 +367,7 @@ def two_step_off(request: Request, c: Caller = Depends(caller)):
     """Two-step sign-in off, with the password again (S13.7.2): an action on the user."""
     recent_auth(c)
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         u = s.get(User, c.id)
         twostep.turn_off(s, srv.services, u, u)
         u.updatedAt = clock.now()

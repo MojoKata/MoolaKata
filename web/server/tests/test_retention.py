@@ -198,3 +198,20 @@ def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_clien
     )
     r = change(admin_client, "Cat", food, name="Eating")
     assert r.json()["errors"][0]["code"] == "category-fixed"
+
+
+def test_an_admins_household_wide_file_work_counts_every_users_files(server, admin_client):
+    """Storage's counts, its pruning and *Remove orphans* are the household's: a file is an
+    orphan only when no one's record names it, never when the admin can't read that record
+    (schema.md §7.6)."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    acct = new_account(c)
+    t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger")
+    rid = receipt_on(c, t["id"], png((10, 20, 30)))
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["orphans"]["files"] == 0 and st["receiptsBytes"] > 0
+    admin_client.post("/ui/api/session/reauth", json={"password": "a long admin passphrase"})
+    r = admin_client.post("/ui/api/settings/storage/orphans/remove")
+    assert r.status_code == 200 and r.json()["files"] == 0, r.text
+    assert c.get(f"/ui/api/receipts/{rid}/file").status_code == 200

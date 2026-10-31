@@ -251,13 +251,13 @@ def _raise(errors: list[FieldError]) -> None:
 
 @router.get("/projections", response_model=list[ProjectionRow])
 def list_projections(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [row(s, c.id, p, lvl) for p, lvl in projections.visible(s, c.id)]
 
 
 @router.get("/projections/{projection_id}", response_model=ProjectionDetail)
 def get_projection(projection_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         p, lvl = _get(s, c.id, projection_id)
         return detail(s, c.id, p, lvl)
 
@@ -266,7 +266,7 @@ def get_projection(projection_id: str, request: Request, c: Caller = Depends(cal
 def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
     """At most one active per subject: the one it replaces goes back to being a scenario.
     Its median path and 10th–90th band as of today become its baseline (S6.7.2)."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         p, _ = _get(s, c.id, projection_id, "owner")
         mine = projections.subject(p)
         replaced = None
@@ -295,7 +295,7 @@ def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
 
 @router.post("/projections/{projection_id}/deactivate", status_code=204)
 def deactivate(projection_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         p, _ = _get(s, c.id, projection_id, "owner")
         p.active, p.baseline, p.baselineAt = False, None, None
     return Response(status_code=204)
@@ -399,7 +399,7 @@ class Plan(Model):
 @router.get("/dashboard/plans", response_model=list[Plan])
 def plans(request: Request, c: Caller = Depends(caller)):
     out = []
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         for p, lvl in projections.visible(s, c.id):
             if not p.active or (lvl != "owner" and not _shown(s, c.id, p.id)):
                 continue
@@ -446,7 +446,7 @@ def assumptions_view(s, user_id: str) -> AssumptionsView:
 
 @router.get("/assumptions", response_model=AssumptionsView)
 def get_assumptions(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return assumptions_view(s, c.id)
 
 
@@ -519,7 +519,7 @@ class ModelsView(Model):
 @router.get("/bitcoin-models", response_model=ModelsView)
 def bitcoin_models(request: Request, c: Caller = Depends(caller)):
     """Compare models: each one's median path and its figures for 2030, 2035 and 2045."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         price = projections._btc_price(s)
         year = clock.today().year
         rows = bitcoin.compare(taxtables.figures(s, year), price or 100_000.0, clock.today())
@@ -582,7 +582,7 @@ def _tables(s, year: int) -> TaxTables:
 
 @router.get("/settings/tax-tables", response_model=TaxTables)
 def get_tax_tables(request: Request, c: Caller = Depends(admin), year: int | None = None):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         y = year if year in taxtables.SHIPPED else taxtables.years()[-1]
         return _tables(s, y)
 

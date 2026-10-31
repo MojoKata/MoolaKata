@@ -47,7 +47,7 @@ Connector = record(
     Column("pageAddress", Text),
     Column("statusKey", Text),
     CheckConstraint("state IN ('pairing', 'paired', 'ended')", name="state"),
-    seen=Seen.admin(),
+    seen=Seen.rule(),
 )
 unique_live(Connector, "actionKey")
 unique_live(Connector, "statusKey")
@@ -76,6 +76,6 @@ Connection = record(
     Column("removedAt", UtcTimestamp),  # Remove (S18.6.4): the connector deletes its credentials
     CheckConstraint("state IN ('new', 'ok', 'needs-sign-in', 'failing', 'removed')", name="state"),
     CheckConstraint("driver IN ('folder', 'ofx-direct', 'schwab')", name="driver"),
-    seen=Seen.per_user("ownerId", configurable=True),
+    seen=Seen.rule(),
 )
 unique_live(Connection, "ownerId", "label")

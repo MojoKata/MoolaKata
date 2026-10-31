@@ -276,7 +276,7 @@ def _who(srv, request: Request) -> Who:
 
     auth = request.headers.get("authorization", "")
     raw = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="mcp: who") as s:
         found = tokens.find(s, raw) if raw else None
     if found is None:
         raise Problem(
@@ -332,7 +332,7 @@ def _call(srv, w: Who, params: dict) -> dict:
         return _tool_error(wrong)
     if t.whole and w.chosen is not None:
         return _tool_error("This token reads only its chosen accounts and portfolios.")
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="mcp: call") as s:
         tok = s.get(AccessToken, w.token.id)
         tok.lastUsedAt = clock.now()
         activity.record(

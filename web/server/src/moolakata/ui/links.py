@@ -251,7 +251,7 @@ def list_links(request: Request, c: Caller = Depends(admin)):
 
     srv = server(request)
     own_cert = certs.own_key(srv)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         fp = keys.fingerprint(keys.public_of(s, srv.keys.secrets))
         rows = s.scalars(
             select(Link).where(Link.deleted == false()).order_by(Link.createdAt.desc())
@@ -271,7 +271,7 @@ def invite(request: Request, c: Caller = Depends(admin)):
         link, code = manage.invite(srv, c.id)
     except LinkError as e:
         raise _problem(e) from None
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return Invitation(code=code, link=_out(s, s.get(Link, link.id), srv))
 
 
@@ -296,7 +296,7 @@ def join(body: JoinIn, request: Request, c: Caller = Depends(admin)):
         raise _problem(e) from None
     finally:
         apply_egress(srv)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return _out(s, s.get(Link, link.id), srv)
 
 
@@ -313,7 +313,7 @@ def _act(request: Request, c: Caller, link_id: str, fn) -> LinkOut:
         if e.code in LOCAL:
             raise _problem(e) from None
     apply_egress(srv)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         link = s.get(Link, link_id)
         if link is None or link.deleted:
             raise Problem(404, "not-found", "No such link.")
@@ -358,7 +358,7 @@ def end(link_id: str, request: Request, c: Caller = Depends(admin)):
 @router.post("/settings/links/{link_id}/pull", response_model=LinkOut)
 def pull_now(link_id: str, request: Request, c: Caller = Depends(admin)):
     """An exchange now rather than at the next hour (S11.7), recorded with who asked (S11.8)."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         if s.get(Link, link_id) is not None:
             activity.record(s, "link.pull-asked", actor=c.id, for_admins=True)
     return _act(request, c, link_id, lambda srv: manage.exchange(srv, link_id))
@@ -399,7 +399,7 @@ def accept_certificate(link_id: str, request: Request, c: Caller = Depends(admin
         manage.accept_certificate(server(request), link_id, c.id)
     except LinkError as e:
         raise _problem(e) from None
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return _out(s, s.get(Link, link_id), server(request))
 
 
@@ -419,7 +419,7 @@ def reset_copy(link_id: str, request: Request, c: Caller = Depends(admin)):
 
     recent_auth(c)
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         link = s.get(Link, link_id)
         if link is None or link.deleted:
             raise Problem(404, "not-found", "No such link.")

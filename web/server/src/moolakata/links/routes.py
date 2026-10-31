@@ -44,7 +44,7 @@ def link_in(name: str):
     states = lifecycle.CALLS[name]
 
     def find(srv, caller: signing.Caller) -> tuple[Link, str]:
-        with srv.db.read() as s:
+        with srv.db.read(unscoped="links.routes: find") as s:
             link = s.scalars(
                 select(Link).where(Link.peerKey == keys.b64(caller.public), Link.deleted == false())
             ).first()
@@ -108,7 +108,7 @@ def hello(request: Request):
 @gate.route(link_in("ping"))
 def ping(call: Call):
     srv, link = call.srv, call.found
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.routes: ping") as s:
         row = s.get(Link, link.id)
         row.lastOkAt = clock.now()
         row.peerVersion = call.header("mk-link-version")

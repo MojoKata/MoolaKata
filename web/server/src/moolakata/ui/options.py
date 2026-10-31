@@ -122,7 +122,7 @@ def settle(
     """An option's end: it expired, was assigned, or was exercised (S3.4, S3.6)."""
     if body.how not in ("expired", "assign", "exercise"):
         raise refuse("how", "how-invalid", "Expired, assigned or exercised.")
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         a, level = access.account(s, c.id, account_id, "write")
         inst = s.get(Instrument, instrument_id)
         if inst is None or inst.deleted:
@@ -166,7 +166,7 @@ def adjustable(request: Request, c: Caller = Depends(caller)):
     """The caller's open contracts, by underlying, that an adjustment from the OCC's memo can
     change: in the accounts they may change."""
     by: dict[str, dict] = {}
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         for a, level in access.visible_accounts(s, c.id):
             if level not in ("owner", "write") or not atypes.investing(a.type):
                 continue
@@ -235,7 +235,7 @@ def adjust_contracts(body: Adjustment, request: Request, c: Caller = Depends(cal
         raise refuse("contracts", "contracts-missing", "At least one contract.")
     moved = 0
     touched: set[str] = set()
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         mine = [
             a
             for a, level in access.visible_accounts(s, c.id)

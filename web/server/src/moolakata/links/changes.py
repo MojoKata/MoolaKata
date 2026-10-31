@@ -124,7 +124,7 @@ def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
     what this side added (the random names its receipts were written under); apply it at once
     if the copy is unlocked. Returns False when the inbox overflowed and was discarded: the
     next pull asks for everything."""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.changes: enqueue") as s:
         link = s.get(Link, link_id)
         public = unb64(link.copyPublicKey) if link and link.copyPublicKey else None
     if public is None or not change.get("sealed"):
@@ -140,11 +140,11 @@ def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
         for p in have:
             p.unlink(missing_ok=True)
             p.with_suffix(ENTRY).unlink(missing_ok=True)
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="links.changes: enqueue") as s:
             row = s.get(Link, link_id)
             row.needsFull, row.inboxAsOf = True, None
         return False
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.changes: enqueue") as s:
         row = s.get(Link, link_id)
         row.inboxAsOf = _as_of(change) or row.inboxAsOf
     if srv.copies.get(link_id, for_person=False) is not None:
@@ -171,7 +171,7 @@ def apply(srv, link_id: str) -> int:
         return 0
     from .keys import direction, fingerprint, public_of
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.changes: apply") as s:
         peer = unb64(s.get(Link, link_id).peerKey)
         way = direction(fingerprint(peer), fingerprint(public_of(s, srv.keys.secrets)))
     priv = private_key(bytes(o.key))
@@ -218,7 +218,7 @@ def apply(srv, link_id: str) -> int:
             for part in (f, f.with_suffix(ENTRY)):
                 with contextlib.suppress(OSError):
                     part.rename(aside / part.name)
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="links.changes: apply") as s:
             row = s.get(Link, link_id)
             row.lastError = f"A pulled change can't be applied, so everything is asked for: {e}"
             row.needsFull, row.inboxAsOf = True, None
@@ -242,7 +242,7 @@ def apply(srv, link_id: str) -> int:
     for p in files:
         p.unlink(missing_ok=True)
         p.with_suffix(ENTRY).unlink(missing_ok=True)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.changes: apply") as s:
         s.get(Link, link_id).inboxAsOf = None
         from ..store.entities.links import LinkFile
         from .receive import _missing
@@ -310,7 +310,7 @@ def received_type(srv, o, link_id: str, file_id: str, path) -> str:
     """`_type_of` for a receipt that arrived after its change, the copy `o` open."""
     from .keys import direction, fingerprint, public_of
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.changes: received type") as s:
         peer = unb64(s.get(Link, link_id).peerKey)
         way = direction(fingerprint(peer), fingerprint(public_of(s, srv.keys.secrets)))
     return _type_of(private_key(bytes(o.key)), way, file_id, path)

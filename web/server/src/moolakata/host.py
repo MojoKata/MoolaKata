@@ -56,7 +56,7 @@ def break_glass(request: Request):
     if srv.store is None:
         raise Problem(503, "locked", "Unlock the server first: a locked server issues no code.")
     code, until = srv.break_glass.issue()
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="host: break glass") as s:
         activity.record(
             s,
             "keys.break-glass",
@@ -82,10 +82,10 @@ def backup(request: Request):
         raise Problem(503, "locked", "Unlock the server first.")
     with srv.maintenance_lock:
         path = maintenance.backup(srv.config, srv.store)
-        with srv.db.read() as s:
+        with srv.db.read(unscoped="host: backup") as s:
             keep = settings.get(s, "backupCopies")
         maintenance.prune(srv.config, keep)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="host: backup") as s:
         activity.record(
             s, "db.backup", actor=None, via="host", for_admins=True, detail={"name": path.name}
         )

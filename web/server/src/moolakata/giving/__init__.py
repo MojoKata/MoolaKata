@@ -14,6 +14,7 @@ from sqlalchemy import false, or_, select
 from sqlalchemy.orm import Session
 
 from .. import access, valuation
+from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
@@ -166,9 +167,15 @@ def counts(plan: GivingPlan | None, g: Gift) -> bool:
 
 
 def income(s: Session, plan: GivingPlan | None, owners: list[str], year: int) -> Decimal:
-    """The income the target's percentage is of: typed, or the year's income transactions."""
+    """The income the target's percentage is of: typed, or the year's income transactions,
+    the plan's owner's, worked out as the server for whoever reads the plan (S7.9.1)."""
     if plan is not None and plan.incomeBasis in ("gross", "agi"):
         return plan.income or ZERO
+    with scoping.as_server(s, "a giving plan's income, its owner's") as srv:
+        return _income(srv, owners, year)
+
+
+def _income(s: Session, owners: list[str], year: int) -> Decimal:
     cats = [c.id for c in s.scalars(select(Category).where(Category.kind == "income"))]
     accounts = [
         a.id
