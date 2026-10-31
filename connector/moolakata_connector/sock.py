@@ -64,8 +64,7 @@ def handle(core, request: dict) -> dict:
         if what == "pair":
             return {"ok": True, "fingerprint": core.pair(request.get("code", ""))}
         if what == "unpair":
-            core.unpair()
-            return {"ok": True}
+            return {"ok": True, "cleared": core.unpair(request.get("words") or None)}
         if what == "goes-to":
             return {"ok": True, **core.goes_to(request["id"])}
         if what == "connect":
@@ -74,7 +73,8 @@ def handle(core, request: dict) -> dict:
             core.connect(request["id"], request.get("credentials") or {}, request["host"])
             return {"ok": True}
         if what == "reset":
-            return {"ok": True, "fingerprint": core.reset(request.get("words", ""))}
+            fingerprint, told = core.reset(request.get("words", ""))
+            return {"ok": True, "fingerprint": fingerprint, "told": told}
     except (VaultError, ServerError) as e:
         return {"error": str(e)}
     return {"error": f"unknown command {what!r}"}

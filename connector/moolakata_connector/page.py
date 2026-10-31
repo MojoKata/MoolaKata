@@ -639,11 +639,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         core = self.page.core
         if offer.reset:
-            core.reset(" ".join(typed))
+            _, told = core.reset(" ".join(typed))
             log.info(
-                "a reset on its page made the vault %s, from %s",
+                "a reset on its page made the vault %s, from %s; MoolaKata %s",
                 core.vault.fingerprint(),
                 self.client_address[0],
+                "was told" if told else "wasn't told: unpair it in Settings › Connector",
             )
         else:
             if core.vault.exists():

@@ -270,7 +270,7 @@ def test_the_socket_commands_talk_to_the_running_connector(tmp_path):
 
     key = bytes(range(16))
     out = sock.ask(path, {"command": "reset", "words": " ".join(words.to_words(key))})
-    assert out == {"ok": True, "fingerprint": fingerprint(key)}
+    assert out == {"ok": True, "fingerprint": fingerprint(key), "told": False}
     assert json.loads((tmp_path / "vault.json").read_text())["format"]
     assert core.vault.get("Conn_1") is None and core.pairing is None
     assert "error" in sock.ask(path, {"command": "reset", "words": "not twelve words"})
@@ -892,3 +892,83 @@ def test_each_file_is_posted_on_its_own_and_the_report_always_follows(tmp_path):
     core.connections.pop("Conn_2")
     core._run(first)
     assert len(first.backlog) == 10 and "not posted: old0.ofx" in first.message
+
+
+def test_unpaired_while_locked_the_vault_is_cleared_at_its_next_unlock(tmp_path):
+    # CR3-327, S18.4.4: a locked vault can't be changed, so a mark beside it has the next unlock
+    # delete what it held for the unpaired server; the host's `unpair` takes the words to do it
+    # at once; a signed `not-paired` while locked marks it too.
+    from moolakata_connector.core import FORGET, Core
+
+    told = []
+
+    class Server:
+        def call(self, path, data=None, *, key, **kw):
+            told.append((path, key.public_key().public_bytes_raw()))
+            if path.endswith("/report"):
+                raise client.ServerError("not-paired", "This server has no pairing with you.")
+            return {"state": "ended"}
+
+    def paired_core(name):
+        data = tmp_path / name
+        data.mkdir()
+        sealing, public = keys.new_sealing_key()
+        action, action_public = keys.new_action_key()
+        keys.save(
+            data / "pairing.json", keys.make("https://money.lan", "f" * 64, action_public, public)
+        )
+        core = Core(data, transport=client.Transport(client.Egress()))
+        phrase = " ".join(core.vault.create())
+        core.vault.keep_keys(sealing, action)
+        core.vault.put("Conn_1", {"password": "pw"}, "ofx.cu.example")
+        core.server = Server()
+        core.lock()
+        return core, phrase, data
+
+    core, phrase, data = paired_core("plain")
+    status = core.pairing.status_public
+    assert core.unpair() is False
+    assert told[-1] == ("/connector/v1/unpaired", status), "locked, with the status key"
+    assert (data / FORGET).exists() and core.pairing is None
+    core.unlock(phrase)
+    assert core.vault.ids() == [] and core.vault.sealing_key() is None
+    assert core.vault.action_key() is None and not (data / FORGET).exists()
+
+    core, phrase, data = paired_core("words")
+    assert core.unpair(phrase) is True and core.vault.locked
+    assert not (data / FORGET).exists()
+    core.unlock(phrase)
+    assert core.vault.ids() == [] and core.vault.action_key() is None
+
+    core, phrase, data = paired_core("refused")
+    with pytest.raises(client.ServerError):
+        core.tick()
+    assert (data / FORGET).exists() and core.pairing is None
+    core.unlock(phrase)
+    assert core.vault.ids() == []
+
+
+def test_reset_tells_moolakata_with_the_status_key(tmp_path):
+    # CR3-334, S18.3.4: lost words leave only the status key, which may say `unpaired`.
+    from moolakata_connector.core import Core
+
+    told = []
+
+    class Server:
+        def call(self, path, data=None, *, key, **kw):
+            told.append((path, key.public_key().public_bytes_raw()))
+            return {"state": "ended"}
+
+    data = tmp_path / "data"
+    data.mkdir()
+    _, public = keys.new_sealing_key()
+    _, action_public = keys.new_action_key()
+    pairing = keys.make("https://money.lan", "f" * 64, action_public, public)
+    keys.save(data / "pairing.json", pairing)
+    core = Core(data, transport=client.Transport(client.Egress()))
+    core.vault.create()
+    core.lock()
+    core.server = Server()
+    fp, was_told = core.reset(" ".join(words.to_words(bytes(range(16)))))
+    assert was_told and told == [("/connector/v1/unpaired", pairing.status_public)]
+    assert core.pairing is None and fp == vault.fingerprint(bytes(range(16)))

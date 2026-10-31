@@ -185,9 +185,11 @@ A call the status key signs but may not make is refused `status-key`.
    answered, but `sealed` is withheld and a file post is refused `not-confirmed`.
 4. The connector then keeps with the pairing the address, the fingerprint, MoolaKata's key and
    its own keys: the status key and the public halves beside the vault, the action and sealing
-   keys' private halves in it. One connector is paired with one server; `moolakata-connector unpair` forgets it
-   and deletes every credential it held for it, as a signed `not-paired` answer from MoolaKata
-   makes it do (S18.4.4).
+   keys' private halves in it. One connector is paired with one server; `moolakata-connector
+   unpair` forgets it and deletes every credential it held for it and its action and sealing
+   keys, as a signed `not-paired` answer from MoolaKata makes it do (S18.4.4); a locked vault
+   is cleared at its next unlock, a mark beside it saying so. `reset` tells MoolaKata
+   `unpaired` with the status key before it forgets the pairing.
 
 ### 4.2 Reports
 

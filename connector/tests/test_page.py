@@ -144,7 +144,11 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
     status, _, text = call(running, "POST", "/lock", {"words": " ".join(slipped)})
     assert status == 403 and slipped[6] in text
     assert "not a valid phrase" in caplog.text and slipped[6] not in caplog.text
-    assert not any(w in caplog.text for w in phrase.split())
+    for rec in caplog.records:  # the address and the kind, nothing typed
+        assert re.fullmatch(
+            r"wrong words on its page from 127\.0\.0\.1: (not a valid phrase|another vault's)",
+            rec.getMessage(),
+        ), rec.getMessage()
     status, _, _ = call(running, "POST", "/lock", {"words": phrase})
     assert status == 303 and core.vault.locked
     status, _, text = call(running, "GET", "/")

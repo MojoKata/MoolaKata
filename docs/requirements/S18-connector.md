@@ -161,10 +161,13 @@ ask it for anything. People give it its words on **its page**, which it serves i
       minutes. Each wrong attempt on its page is logged with the address it came from.
    4. **Lost words**: the vault can't be opened. `moolakata-connector reset` on its host asks
       for it to be confirmed, deletes the vault, makes new words (shown as at `init`, three
-      typed back), and unpairs, so the next `pair` makes new keys and every Connection's credentials are entered again (S18.7). **Reset** on its page
-      does the same for a household that still has the words but wants new ones (some were
-      seen): it asks for the words, then shows new ones as its welcome does. Without the
-      words, reset is done on the host, whose access is the authority.
+      typed back), and unpairs: it tells MoolaKata first, with the status key, which needs no
+      words (S18.4.5), so MoolaKata ends the pairing as Unpair would; when MoolaKata can't be
+      reached it says so, and an admin unpairs there. The next `pair` makes new keys, and every
+      Connection's credentials are entered again (S18.7). **Reset** on its page does the same
+      for a household that still has the words but wants new ones (some were seen): it asks
+      for the words, then shows new ones as its welcome does. Without the words, reset is done
+      on the host, whose access is the authority.
 4. **Pairing with MoolaKata**, once, as two servers are linked (S11.1).
    1. An admin chooses **Settings › Connector › Pair** in MoolaKata, which shows a one-time
       **pairing code**: MoolaKata's address, its link key's fingerprint, a one-time secret,
@@ -222,11 +225,18 @@ ask it for anything. People give it its words on **its page**, which it serves i
       protocol in the link protocol's form. MoolaKata keeps only the public keys. One
       connector is paired with a server at a time: pairing another replaces it, as Unpair
       would (S18.4.4).
-   4. **Unpair** (Settings › Connector) ends the paired connector, never a pairing code still
-      waiting (which it withdraws as well), refuses its key from then on, stops every
-      Connection, and turns every account's sync off. MoolaKata answers the connector's next
-      call with a signed `not-paired`, at which the connector deletes the credentials it held
-      for that server and its sealing key.
+   4. **Unpair** (Settings › Connector) ends the paired connector and withdraws a pairing code
+      still waiting, refuses its keys from then on, stops every Connection, and turns every
+      account's sync off. MoolaKata answers the connector's next call with a signed
+      `not-paired`, at which the connector forgets the pairing and deletes the credentials it
+      held for that server and its action and sealing keys. A locked vault can't be changed:
+      the connector leaves a mark beside it, and its next unlock deletes them.
+      `moolakata-connector unpair` on its host does the same from the connector's side, telling
+      MoolaKata (`unpaired`); on a locked connector it asks for the words to delete them at
+      once, and without them leaves the mark. A MoolaKata restored from a backup older than the
+      pairing knows neither the pairing nor its Connections, so it too answers `not-paired`,
+      and the connector deletes what it held: those credentials were filed for Connections the
+      restored server no longer has (operations §6).
    5. **Where the keys live, and why.** The status key sits beside the vault, not in it, so a
       locked connector can still report; it can only say *the paired connector is locked* (or
       *unpaired*), and MoolaKata answers it with nothing about a Connection, an owner or an

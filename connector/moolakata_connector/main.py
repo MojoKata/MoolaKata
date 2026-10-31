@@ -125,6 +125,28 @@ def cmd_reset(args, tty=None) -> int:
         return 1
     out = _ask({"command": "reset", "words": " ".join(phrase)})
     print(f"Made {out['fingerprint']}, unpaired. Pair again: every credential is entered anew.")
+    if not out.get("told"):
+        print(
+            "MoolaKata couldn't be told: Unpair it there, in Settings › Connector.", file=sys.stderr
+        )
+    return 0
+
+
+def cmd_unpair(args) -> int:
+    """Forget the paired server and the credentials held for it (S18.4.4). A locked vault needs
+    its words to be cleared now; without them it is cleared at its next unlock."""
+    request: dict = {"command": "unpair"}
+    if _ask({"command": "status"}).get("locked"):
+        phrase = getpass.getpass(
+            "the vault's 12 words, to delete its credentials now (Enter: at the next unlock): "
+        )
+        if phrase.strip():
+            request["words"] = phrase
+    out = _ask(request)
+    if out.get("cleared"):
+        print("unpaired; the credentials and keys held for that server are deleted")
+    else:
+        print("unpaired; the vault is locked, so its credentials go at its next unlock")
     return 0
 
 
@@ -232,7 +254,7 @@ COMMANDS = {
     "unlock": ("unlock the vault with its words", lambda: cmd_unlock, None),
     "lock": ("lock the vault", lambda: cmd_simple("lock"), None),
     "status": ("what the connector is doing", lambda: cmd_simple("status"), None),
-    "unpair": ("forget the paired server and its credentials", lambda: cmd_simple("unpair"), None),
+    "unpair": ("forget the paired server and its credentials", lambda: cmd_unpair, None),
     "reset": ("a new vault with new words (the old one is lost)", lambda: cmd_reset, None),
     "pair": ("pair with MoolaKata, with the code Settings shows", lambda: cmd_pair, "code"),
     "connect": ("type a Connection's credentials here", lambda: cmd_connect, "id"),

@@ -34,6 +34,7 @@ SEALING_LABEL = b"moolakata connector sealing key\x00"
 STATUS_LABEL = b"moolakata connector status key\x00"
 ACTION_LABEL = b"moolakata connector action key\x00"
 SHOWN = ("label", "driver", "state", "message")  # each Connection, in `status`
+FORGET = "forget-on-unlock"  # unpaired while locked: the next unlock clears the vault
 WAITING_KEPT = 10  # files kept for a later round, per Connection: the newest
 # A post MoolaKata can't take now, kept for a later round, and what the Connection says of it
 # (S18.8, protocol §7); any other refusal drops the file.
@@ -167,27 +168,48 @@ class Core:
         self._wake.set()
         return keys.short(pairing.fingerprint)
 
-    def unpair(self) -> None:
-        """Forget the server and delete every credential held for it (S18.4.4)."""
+    def unpair(self, phrase: str | None = None) -> bool:
+        """Forget the server and delete every credential held for it (S18.4.4). Locked, the
+        words, when given, open the vault for it; without them the vault is cleared at its next
+        unlock. True when the vault was cleared now."""
         with self._lock:
-            if self.server:
+            reopened = False
+            if self.vault.locked and phrase:
+                self.vault.unlock(phrase)
+                reopened = True
+            if self.pairing is not None:
                 try:
+                    if self.server is None:
+                        self._attach(self.pairing)
                     self.server.call("/connector/v1/unpaired", key=self._key())
-                except (ServerError, Exception) as e:
+                except Exception as e:
                     log.warning("the server wasn't told of the unpairing: %s", e)
-            self._forget()
+            cleared = self._forget()
+            if reopened:
+                self.vault.lock()
+            return cleared
 
-    def _forget(self) -> None:
+    def _forget(self) -> bool:
         """The pairing gone: its file, every credential, and the sealing and action keys, so no
-        box sealed to it opens here again and nothing is signed for it (S18.4.4)."""
+        box sealed to it opens here again and nothing is signed for it (S18.4.4). A locked
+        vault can't be changed: a mark beside it has the next unlock clear it. True when the
+        vault was cleared now."""
         keys.forget(self.data / "pairing.json")
         self.pairing = self.server = None
         self.connections = {}
         self.confirmed = None
-        if not self.vault.locked:
-            for cid in self.vault.ids():
-                self.vault.delete(cid)
-            self.vault.keep_keys(b"", b"")
+        if self.vault.locked:
+            if self.vault.exists():
+                (self.data / FORGET).touch(mode=0o600)
+            return False
+        self._clear()
+        return True
+
+    def _clear(self) -> None:
+        for cid in self.vault.ids():
+            self.vault.delete(cid)
+        self.vault.keep_keys(b"", b"")
+        (self.data / FORGET).unlink(missing_ok=True)
 
     def _action(self) -> Ed25519PrivateKey:
         """The action key, from the vault: every call but a locked report and `unpaired` is
@@ -204,12 +226,23 @@ class Core:
             return self.pairing.status
         return self._action()
 
-    def reset(self, phrase: str) -> str:
+    def reset(self, phrase: str) -> tuple[str, bool]:
         """New words (S18.3.4): a new vault under the words typed at the command line or
-        confirmed on its page, and unpaired, so the next `pair` makes both keys afresh. Returns
-        its fingerprint."""
+        confirmed on its page, and unpaired, so the next `pair` makes its keys afresh. MoolaKata
+        is told first, with the status key, which needs no words (S18.4.2). Returns the new
+        vault's fingerprint, and whether MoolaKata was told."""
         with self._lock:
+            told = False
+            if self.pairing is not None:
+                try:
+                    if self.server is None:
+                        self._attach(self.pairing)
+                    self.server.call("/connector/v1/unpaired", key=self.pairing.status)
+                    told = True
+                except Exception as e:
+                    log.warning("MoolaKata wasn't told of the reset: %s", e)
             keys.forget(self.data / "pairing.json")
+            (self.data / FORGET).unlink(missing_ok=True)
             self.pairing = self.server = None
             self.connections = {}
             self.confirmed = None
@@ -218,7 +251,7 @@ class Core:
             except PhraseError as e:
                 raise VaultError(str(e)) from None
             self.unlocked_at = time.time()
-            return self.vault.fingerprint()
+            return self.vault.fingerprint(), told
 
     # ----- the loop -----
 
@@ -245,6 +278,11 @@ class Core:
 
     def unlock(self, phrase: str) -> None:
         self.vault.unlock(phrase)
+        if (self.data / FORGET).exists():
+            # Unpaired while locked (S18.4.4): what the vault held for that server goes now.
+            with self._lock:
+                self._clear()
+            log.info("the vault's credentials and keys for the unpaired server are deleted")
         self.unlocked_at = time.time()
         self._wake.set()
 

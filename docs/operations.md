@@ -244,7 +244,11 @@ phrase, or the keyring from another server: the line names its fingerprint).
    Storage then counts any file the restored database no longer names, with Remove.
 4. Start and unlock: `docker compose up -d`, then §2 step 5. The server opens the restored
    database, migrates it if it came from an earlier release, and reports anything it can't
-   open. Linked households pull their copies again in full.
+   open. Linked households pull their copies again in full. A backup older than the
+   connector's pairing ends it: the restored server knows neither the pairing nor its
+   Connections, so the connector forgets them and deletes their credentials at its next
+   report; pair it again (§8 step 5), and each owner makes their Connections and enters their
+   sign-ins again.
 5. Once you're satisfied, remove `data/before-restore-<time>/`.
 
 ### 6.2 Onto a new host
@@ -368,11 +372,13 @@ is an app of its own (DEPLOY.md §8.2).
    `connector-data` volume, reaching MoolaKata's address, and add where it calls from to
    Settings › Network › Allowed to connect; nothing else changes.
 10. **Unpair**: Settings › Connector › Unpair in MoolaKata, or **Unpair** on the connector's
-    page (or `moolakata-connector unpair` on the host); either way the connector deletes the credentials it held for that server, at its
-    next report after an Unpair in MoolaKata.
+    page (or `moolakata-connector unpair` on the host); either way the connector deletes the
+    credentials it held for that server, at its next report after an Unpair in MoolaKata. A
+    locked connector deletes them at its next unlock; `unpair` on its host asks for the words
+    to do it at once.
 11. **Lost words**: `docker compose exec connector moolakata-connector reset` makes a new vault
-    and new words and unpairs; pair again (step 5), and every Connection's credentials are
-    entered again. **Reset** on its page does the same with the words still known, when some
+    and new words and unpairs, telling MoolaKata (when it says MoolaKata couldn't be told,
+    Unpair there); pair again (step 5), and every Connection's credentials are entered again. **Reset** on its page does the same with the words still known, when some
     may have been seen. A new connector whose page asks for words nobody wrote down (someone
     else finished its welcome first): stop it, empty its volume, start it again.
 12. **Its logs** say what it did and what failed, never a credential, an amount or an account
