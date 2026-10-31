@@ -627,3 +627,75 @@ def test_status_answers_while_a_round_holds_the_loop(tmp_path):
     t.join()
     assert answered, "status waited for the round"
     assert answered[0]["connections"]["Conn_1"]["state"] == "ok"
+
+
+def _tls_server(tmp_path, answer):
+    """A local HTTPS server on its own certificate, answering each connection with `answer`
+    (a function of the socket); returns its port and the certificate key's pin."""
+    import contextlib
+    import socket as socket_mod
+    import ssl
+    import threading
+
+    from cryptography import x509 as x509_mod
+    from cryptography.hazmat.primitives.serialization import Encoding
+    from moolakata_connector import page
+
+    tmp_path.mkdir(parents=True)
+    cert, key = page.certificate(tmp_path, page.Settings(names=("127.0.0.1",)))
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert, key)
+    listener = socket_mod.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(4)
+
+    def serve():
+        while True:
+            try:
+                raw, _ = listener.accept()
+            except OSError:
+                return
+            with ctx.wrap_socket(raw, server_side=True) as s:
+                s.recv(65536)
+                with contextlib.suppress(OSError):
+                    answer(s)
+
+    threading.Thread(target=serve, daemon=True).start()
+    der = x509_mod.load_pem_x509_certificate(cert.read_bytes()).public_bytes(Encoding.DER)
+    return listener, client.key_fingerprint(der)
+
+
+def test_a_call_ends_at_its_deadline_however_slowly_the_answer_trickles(tmp_path, monkeypatch):
+    # CR3-330: the 60 seconds bound the whole call, not each read (S18.2.2).
+    monkeypatch.setattr(client, "LOOPBACK_OK", True)
+    monkeypatch.setattr(client, "DEADLINE", 1.5)
+
+    def trickle(s):
+        s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n")
+        for _ in range(100):
+            s.sendall(b"x")
+            time.sleep(0.4)  # each read waits less than the socket's timeout
+
+    def prompt(s):
+        s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+
+    for answer, ok in ((prompt, True), (trickle, False)):
+        listener, pin = _tls_server(tmp_path / answer.__name__, answer)
+        port = listener.getsockname()[1]
+        e = client.Egress()
+        e.allow("127.0.0.1")
+        start = time.monotonic()
+        try:
+            if ok:
+                r = client.Transport(e).request(
+                    "GET", f"https://127.0.0.1:{port}/", {}, b"", pins=frozenset([pin])
+                )
+                assert r.body == b"ok"
+            else:
+                with pytest.raises(TimeoutError, match=r"longer than 1\.5 seconds"):
+                    client.Transport(e).request(
+                        "GET", f"https://127.0.0.1:{port}/", {}, b"", pins=frozenset([pin])
+                    )
+                assert time.monotonic() - start < 5
+        finally:
+            listener.close()

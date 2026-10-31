@@ -4,6 +4,7 @@ other host. The standard library's HTTPS client, TLS always verified before anyt
 a public certificate against the system's roots, and MoolaKata's own against the key its
 pairing code pinned (protocol §1.2). The signature on each answer proves who wrote it."""
 
+import contextlib
 import hashlib
 import http.client
 import ipaddress
@@ -11,6 +12,7 @@ import json
 import os
 import socket
 import ssl
+import threading
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -26,6 +28,7 @@ class EgressRefused(Exception):
 
 
 MAX_ANSWER = 25 * 1024 * 1024  # what one answer may hold (S18.1.2)
+DEADLINE = 60  # seconds a whole call may take, an answer that trickles in included (S18.2.2)
 LOOPBACK_OK = os.environ.get("MOOLAKATA_CONNECTOR_DEV") == "1"  # a dev MoolaKata on localhost
 
 
@@ -116,10 +119,29 @@ class Transport:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
         port = u.port or 443
-        conn = http.client.HTTPSConnection(host, port, timeout=60, context=ctx)
+        conn = http.client.HTTPSConnection(host, port, timeout=DEADLINE, context=ctx)
+        # The socket's timeout bounds each read; the whole call is bounded by closing the
+        # socket at its deadline, so an answer of a byte a minute ends too.
+        ended = threading.Event()
+        live: list[socket.socket] = []  # the socket now in use: the TCP one, then the TLS one
+
+        def end() -> None:
+            ended.set()
+            for s in live[-1:]:
+                with contextlib.suppress(OSError):
+                    s.shutdown(socket.SHUT_RDWR)
+
+        timer = threading.Timer(DEADLINE, end)
+        timer.daemon = True
+        timer.start()
         try:
-            raw = socket.create_connection((vetted(host, port), port), timeout=60)
-            conn.sock = ctx.wrap_socket(raw, server_hostname=host)
+            live.append(socket.create_connection((vetted(host, port), port), timeout=DEADLINE))
+            if ended.is_set():
+                end()
+            conn.sock = ctx.wrap_socket(live[0], server_hostname=host)
+            live.append(conn.sock)
+            if ended.is_set():
+                end()
             cert = None
             if pins is not None:
                 cert = key_fingerprint(conn.sock.getpeercert(binary_form=True) or b"")
@@ -129,10 +151,17 @@ class Transport:
             conn.request(method, path, body=body, headers=headers)
             r = conn.getresponse()
             body = r.read(MAX_ANSWER + 1)
+            if ended.is_set():
+                raise TimeoutError(f"{host} took longer than {DEADLINE} seconds")
             if len(body) > MAX_ANSWER:
                 raise EgressRefused(f"{host} answered more than 25 MB")
             return Answer(r.status, {k: v for k, v in r.getheaders()}, body, cert)
+        except OSError, http.client.HTTPException:
+            if ended.is_set():
+                raise TimeoutError(f"{host} took longer than {DEADLINE} seconds") from None
+            raise
         finally:
+            timer.cancel()
             conn.close()
 
 
