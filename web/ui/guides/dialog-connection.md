@@ -24,12 +24,6 @@ nowhere else. When the institution moves its server, change the address here, wi
 credentials**: it is saved with your password again, and the sign-in you then seal is bound to
 the new one. Changed any other way, the connection asks for the sign-in again.
 
-## Sealed for {#sealed-for}
-
-The one host the connector will ever send this sign-in to: the OFX server's, from its address,
-or the institution's own (`api.schwabapi.com` for Schwab). It is sealed with the sign-in, so
-nothing MoolaKata or anyone else changes later can send it elsewhere.
-
 ## ORG {#ofx-org}
 
 The institution's OFX organisation name, as the directory lists it.
@@ -57,6 +51,12 @@ to the OFX server.
 
 Your Schwab developer account's app key, which the driver signs in with. It isn't a secret: the
 sign-in is.
+
+## Sealed for {#sealed-for}
+
+The one host the connector will ever send this sign-in to: the OFX server's, from its address,
+or the institution's own (`api.schwabapi.com` for Schwab). It is sealed with the sign-in, so
+nothing MoolaKata or anyone else changes later can send it elsewhere.
 
 ## How you sign in {#how-you-sign-in}
 

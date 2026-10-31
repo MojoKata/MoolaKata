@@ -2682,9 +2682,9 @@ const GUIDES = {
     <h2 id="h-connection-name">Connection name</h2><p>How you’ll know this sign-in: <i>Schwab login</i>.</p>
     <h2 ${hid('OFX server address')}>OFX server address</h2><p>The institution’s OFX Direct Connect address. The sign-in is bound to it: the connector sends it there and nowhere else. When the institution moves its server, change it here, with <b>Change credentials</b>: it is saved with your password again, and the sign-in you then seal is bound to the new one.</p>
     <h2 id="h-sealed-for">Sealed for</h2><p>The one host the connector will ever send this sign-in to: the OFX server’s, from its address, or the institution’s own (api.schwabapi.com for Schwab). It is sealed with the sign-in, so nothing changed later can send it elsewhere.</p>
+    <h2 id="h-how-you-sign-in">How you sign in</h2><p>Here, sealed for the connector, or typed by an admin on the connector’s host, so MoolaKata never handles it at all.</p>
     <h2 id="h-username">Username</h2><p>Your sign-in at the institution, sealed in this browser for the connector with the password.</p>
     <h2 id="h-password">Password</h2><p>Your password there, sealed with the username: MoolaKata stores only the sealed box and can’t open it.</p>
-    <h2 id="h-how-you-sign-in">How you sign in</h2><p>Here, sealed for the connector, or typed by an admin on the connector’s host, so MoolaKata never handles it at all.</p>
     <h2 id="h-the-address-you-landed-on">The address you landed on</h2><p>After signing in on the institution’s own page, the address your browser lands on. It carries the sign-in for the connector.</p>
     <h2 ${hid('Bitcoin amounts')}>Bitcoin amounts</h2><p>Bitcoin is kept in whole sats, 100,000,000 to the bitcoin. Choose whether amounts show as BTC or as sats; nothing else changes.</p>
     <h2 id="h-time-zone">Time zone</h2><p><b>Auto</b> follows the server’s. Times are stored in UTC and shown in your zone. Dates such as a transaction’s or a birthday stay as written, and a daily close keeps its market day.</p>
