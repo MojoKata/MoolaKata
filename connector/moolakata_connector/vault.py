@@ -1,5 +1,6 @@
 """The vault (requirements S18.3): every Connection's credentials, each bound to the host it
-may be sent to (S18.7.3), and the sealing key that credentials are sealed to (S18.4.5), all
+may be sent to (S18.7.3), the sealing key that credentials are sealed to (S18.4.5), and the
+action key that signs the connector's calls but a locked report (S18.4.2), all
 sealed with AES-256-GCM under a key derived from the 12 words, in one file. It opens only with
 the words, which are never stored: the key stays in memory while the connector is unlocked, and
 a restart locks it. Five wrong attempts in a row make the next wait 15 minutes."""
@@ -205,7 +206,17 @@ class Vault:
         raw = self._read().get("sealing")
         return bytes.fromhex(raw) if raw else None
 
-    def keep_sealing_key(self, raw: bytes) -> None:
+    # ----- the action key -----
+
+    def action_key(self) -> bytes | None:
+        """The raw private action key, which signs every call but a locked report and
+        `unpaired`: kept here, so a copy of the volume can do no more than say the connector is
+        locked (S18.2.4.4); None until a pairing made one."""
+        raw = self._read().get("action")
+        return bytes.fromhex(raw) if raw else None
+
+    def keep_keys(self, sealing: bytes, action: bytes) -> None:
+        """A pairing's private keys, kept together; empty ones forget them (S18.4.4)."""
         content = self._read()
-        content["sealing"] = raw.hex()
+        content["sealing"], content["action"] = sealing.hex(), action.hex()
         self._write(content)

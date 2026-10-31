@@ -10,11 +10,12 @@ ask it for anything. People give it its words on **its page**, which it serves i
 
 | Term | What it is |
 |---|---|
-| **the vault** | one encrypted file in the connector's volume holding every Connection's credentials, the host each is bound to, and the sealing key's private half. It opens only with the words (S18.3). |
+| **the vault** | one encrypted file in the connector's volume holding every Connection's credentials, the host each is bound to, and the private halves of the action key and the sealing key. It opens only with the words (S18.3). |
 | **the words** | 12 BIP-39 words that are the vault's key, kept in the household's password manager and never stored. |
-| **locked / unlocked** | whether the words have been given since the connector last started. Locked, it reports and nothing more. |
+| **locked / unlocked** | whether the words have been given since the connector last started. Locked, it reports that it is locked and nothing more. |
 | **its page** | the connector's own HTTPS page, on a port of its own, where its vault is made, its words given and its pairing done; anyone on the network sees its status, and every action asks for the words (S18.11). |
-| **identity key** | an Ed25519 key pair made at pairing, kept **beside** the vault (not in it), whose private half signs every call so MoolaKata knows the paired connector. A locked connector can still report with it (S18.4.5). |
+| **action key** | an Ed25519 key pair made at pairing, whose private half lives **in** the vault and signs every call but two, so MoolaKata knows the paired connector. Its fingerprint is the connector's, the one an admin confirms (S18.4.5). |
+| **status key** | an Ed25519 key pair made at pairing, kept **beside** the vault (not in it), whose private half signs only a report that the connector is locked and its `unpaired`: a locked connector can still report, and a copy of its volume can say no more (S18.4.5). |
 | **sealing key** | an X25519 key pair made at pairing. MoolaKata holds the public half and gives it to browsers; the private half lives **in** the vault and is the only thing that opens a sealed box (S18.4.5). |
 | **sealed box** | a credential encrypted in the owner's browser to the sealing key, which MoolaKata stores and hands over but cannot open (S18.7.1). |
 | **pairing / pairing code** | the one-time introduction of a connector to a MoolaKata server, from a code Settings shows (S18.4). |
@@ -31,14 +32,15 @@ ask it for anything. People give it its words on **its page**, which it serves i
  +------------------------------+                              +--------------------------------+
  | MoolaKata                    |   signed report, every 5 min |  MoolaKata Connector            |
  |                              | <--------------------------- |                                 |
- |  holds: identity public key  |   answer: Connections, their |  beside the vault:              |
- |         sealing public key   |   settings and accounts, and |    identity key (signs calls)   |
+ |  holds: action, status and   |   answer: Connections, their |  beside the vault:              |
+ |         sealing public keys  |   settings and accounts, and |    status key ("locked" only)   |
  |         Connection records   |   sealed boxes, only while   |    the pairing's address + key  |
  |         sealed boxes (can't  |   the connector is unlocked  |  in the vault (needs the words):|
- |         open them)           | ---------------------------> |    sealing key (opens boxes)    |
- |                              |   files for accounts,        |    credentials, each bound to   |
- |  never: a credential, the    |   sign-in addresses,         |    one host                     |
- |  sealing key's private half  |   "credential taken"         +--------------------------------+
+ |         open them)           | ---------------------------> |    action key (signs calls)     |
+ |                              |   files for accounts,        |    sealing key (opens boxes)    |
+ |  never: a credential, the    |   sign-in addresses,         |    credentials, each bound to   |
+ |  private half of any key     |   "credential taken"         |    one host                     |
+ +------------------------------+                              +--------------------------------+
  +------------------------------+                                   |
                                                                     |  only to the bound host
                                                                     v
@@ -68,11 +70,11 @@ ask it for anything. People give it its words on **its page**, which it serves i
          command line) has no limit: there is one core, kept as small as it can be.
 2. **Isolation**: the rules the design rests on.
    1. **Separate**: its own process, unprivileged user (uid 10002), image and volume
-      (`connector-data`: the vault and the connector's identity key). MoolaKata never mounts
+      (`connector-data`: the vault and the connector's status key). MoolaKata never mounts
       that volume; the connector never mounts MoolaKata's data, keys or backups. The volume is
       `/var/lib/moolakata-connector` (mode 0700): `vault.json`, and `pairing.json` (mode 0600:
-      MoolaKata's address and fingerprint, the identity key's private half and the sealing
-      key's public half), and `tls/`, its page's certificate when it makes its own (S18.11.1).
+      MoolaKata's address and fingerprint, the status key's private half and the action and
+      sealing keys' public halves), and `tls/`, its page's certificate when it makes its own (S18.11.1).
       The socket is `/run/moolakata-connector/sock` (mode 0600, on a tmpfs).
       `MOOLAKATA_CONNECTOR_DATA` and `MOOLAKATA_CONNECTOR_SOCKET` move the volume and the
       socket.
@@ -90,9 +92,9 @@ ask it for anything. People give it its words on **its page**, which it serves i
       or, for a certificate of MoolaKata's own, against the fingerprint the pairing code
       carried (S18.4.1).
    3. **What each side holds.** MoolaKata holds the connector's public keys and the records
-      of S18.6, never a credential. The connector holds the credentials and the sealing
-      key's private half, sealed in its vault, and beside the vault an identity key that can
-      only sign its calls.
+      of S18.6, never a credential. The connector holds the credentials and the private
+      halves of its action and sealing keys, sealed in its vault, and beside the vault a status
+      key that can only say the connector is locked, or unpaired.
    4. **What a compromise costs**, stated for each thing that can be taken:
       1. **A compromised MoolaKata** gets no credential: the boxes it holds open only in the
          vault. It can serve altered code to a browser and capture credentials typed after the
@@ -109,14 +111,16 @@ ask it for anything. People give it its words on **its page**, which it serves i
       3. **Root on the connector's running host** can read its memory while it is unlocked,
          words and all, and no design changes that.
       4. **A stolen volume, disk or backup of the connector**, or its powered-off machine,
-         yields the identity key and the pairing: whoever has it can report as the connector,
-         read the answers of S18.2.4.2 and post files, until MoolaKata **unpairs** it
-         (S18.4.4), which an admin does at once when a connector's host is lost. MoolaKata
+         yields the status key and the pairing: whoever has it can report that the connector
+         is locked, or tell MoolaKata it was unpaired, and nothing more. It reads none of the
+         answers of S18.2.4.2, posts no file, sets no page address or sign-in address, and
+         takes no sealed box, since all of that needs the action key in the vault (S18.4.5).
+         An admin still **unpairs** a connector at once when its host is lost (S18.4.4). MoolaKata
          helps notice it: the address a connector's reports come from is recorded, the first
          one as known, and a report from another address alerts admins until one **accepts**
          the new address (the connector moved) or unpairs (S18.5.4). The vault stays closed
          without the words: no credential, and no sealing key, so no box sealed before or
-         after the theft opens. This is why the sealing key lives in the vault.
+         after the theft opens. This is why the action and sealing keys live in the vault.
       5. **Someone on the network without the words** can open its page and read its status
          (S18.11.3), which names no institution, Connection, account or credential, and can
          make wrong guesses, each logged with their address and counted toward the wait of
@@ -157,8 +161,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
       minutes. Each wrong attempt on its page is logged with the address it came from.
    4. **Lost words**: the vault can't be opened. `moolakata-connector reset` on its host asks
       for it to be confirmed, deletes the vault, makes new words (shown as at `init`, three
-      typed back), and unpairs, so the next `pair` makes a new identity key and a new sealing
-      key and every Connection's credentials are entered again (S18.7). **Reset** on its page
+      typed back), and unpairs, so the next `pair` makes new keys and every Connection's credentials are entered again (S18.7). **Reset** on its page
       does the same for a household that still has the words but wants new ones (some were
       seen): it asks for the words, then shows new ones as its welcome does. Without the
       words, reset is done on the host, whose access is the authority.
@@ -170,13 +173,15 @@ ask it for anything. People give it its words on **its page**, which it serves i
       `docs/link-protocol.md` §4.1), of which MoolaKata keeps only the secret's hash.
    2. On the connector's page, **Pair** with the code and the words (S18.11.4), or on its host
       with the vault unlocked: `docker compose exec connector moolakata-connector pair
-      <code>`. The connector makes its **identity key** (Ed25519, for
-      signing) and its **sealing key** (X25519, for credentials sent to it, S18.7.1), files the
-      sealing key's private half in the vault (so `pair` is refused while the vault is locked),
-      introduces itself with the code in one call (`POST /connector/v1/pair`: the code and the
-      two public keys, the sealing key signed with the identity key), and both sides show the
-      connector's fingerprint for the admin to compare: the connector shows its own, worked out
-      from its identity key, never one an answer names. Before anything is sent, the connector
+      <code>`. The connector makes its **action key** (Ed25519, for signing its calls), its
+      **status key** (Ed25519, for saying it is locked) and its **sealing key** (X25519, for
+      credentials sent to it, S18.7.1), files the action and sealing keys' private halves in
+      the vault (so `pair` is refused while the vault is locked), introduces itself with the
+      code in one call (`POST /connector/v1/pair`, signed by the action key: the code and the
+      three public keys, the sealing key and the status key signed with the action key, the
+      action key with the status key), and both sides show the connector's fingerprint, its
+      action key's, for the admin to compare: the connector shows its own, worked out from the
+      key itself, never one an answer names, and refuses an answer that names another. Before anything is sent, the connector
       checks that the key MoolaKata's `hello` gives hashes to the code's fingerprint, and keeps
       that key with the pairing; a failed `pair` leaves any earlier pairing as it was. **The
       pairing is not trusted until an admin confirms it** (Settings › Connector › **Confirm**,
@@ -199,16 +204,17 @@ ask it for anything. People give it its words on **its page**, which it serves i
         |                       |        GET /connector/v1/hello   |                     |
         |                       |<-----------------------------------------------------|
         |                       |  {fingerprint, key} -------------------------------->| SHA-256(key) = code's? else stop
-        |                       |                                  |   makes identity key (beside the vault)
-        |                       |                                  |   makes sealing key (private half into the vault)
-        |                       |   POST /pair {code, sealingKey + its signature}, signed by the identity key
+        |                       |                                  |   makes status key (beside the vault)
+        |                       |                                  |   makes action and sealing keys (private halves into the vault)
+        |                       |   POST /pair {code, keys, each signed by the other}, signed by the action key
         |                       |<-----------------------------------------------------|
-        |                       |  keeps both public keys; answer signed by the link key |
+        |                       |  keeps the public keys; answer signed by the link key  |
         |                       |------------------------------------------------------>|
         |  both sides show the connector's fingerprint; the admin compares them         |
       ```
-   3. **Every call it makes is signed** with its identity key, with a timestamp and a nonce,
-      as link calls are (S11.1.3), at `/connector/v1/` on MoolaKata's address, and every
+   3. **Every call it makes is signed** with its action key, or, for a report that it is
+      locked and its `unpaired`, its status key, with a timestamp and a nonce, as link calls
+      are (S11.1.3), at `/connector/v1/` on MoolaKata's address, and every
       answer is signed by MoolaKata's link key, so the connector knows it reached the server
       it paired with. The path carries the protocol's version; a call also names it in a
       header, and one MoolaKata doesn't speak is refused naming the versions it does, as
@@ -221,22 +227,26 @@ ask it for anything. People give it its words on **its page**, which it serves i
       Connection, and turns every account's sync off. MoolaKata answers the connector's next
       call with a signed `not-paired`, at which the connector deletes the credentials it held
       for that server and its sealing key.
-   5. **Where the two keys live, and why.** The identity key sits beside the vault, not in
-      it, so a locked connector can still report. It can only prove *I am the paired
-      connector*: fetching anything still needs the vault. The sealing key's private half
-      lives **in** the vault: a locked connector has no use for it (it can't fetch), and a
-      copy of the connector's volume without the words must not open the boxes sealed to it.
-      MoolaKata hands a sealed box only to a connector that reports unlocked (S18.5), and
-      pairing needs the vault unlocked to file the key.
+   5. **Where the keys live, and why.** The status key sits beside the vault, not in it, so a
+      locked connector can still report; it can only say *the paired connector is locked* (or
+      *unpaired*), and MoolaKata answers it with nothing about a Connection, an owner or an
+      account. The action key, which signs everything else (full reports with each
+      Connection's state, its page's address and sign-in addresses, file posts, taking a box),
+      and the sealing key's private half live **in** the vault: a locked connector has no use
+      for them (it can't fetch), and a copy of the connector's volume without the words must
+      neither act as the connector nor open the boxes sealed to it. So no report a copy could
+      send points an admin at another page to type the words into. MoolaKata hands a sealed box
+      only in the answer to an action-key report (S18.5), and pairing needs the vault unlocked
+      to file the keys. Files fetched before a **Lock** wait in memory for the next unlock.
 5. **Status and alerts.** Every 5 minutes, after each run, and every 15 seconds for up to 10
    minutes while a Connection waits for a sign-in (so an address pasted back is exchanged at
-   once, S18.7.1), the connector reports, signed: whether it is locked, and each Connection's
-   state and last run (*ok, 14 new*; *needs a sign-in*; *failing: the institution refused the
+   once, S18.7.1), the connector reports, signed. Locked, with its status key, it says only
+   that, and is answered with an acknowledgement. Unlocked, with its action key, it reports
+   each Connection's state and last run (*ok, 14 new*; *needs a sign-in*; *failing: the institution refused the
    password*) with the institution accounts it found (name and last four digits, S18.6.1). The
    answer carries what waits for the connector: each live Connection with its settings and
-   accounts, sealed credentials to collect, by Connection (S18.7.1), **only when the report
-   says the connector is unlocked** (a locked one couldn't open them, S18.4.5) **and the
-   pairing is confirmed** (S18.4.2), and Connections removed (S18.6.4), whose credentials it
+   accounts, sealed credentials to collect, by Connection (S18.7.1), **only when the pairing
+   is confirmed** (S18.4.2), and Connections removed (S18.6.4), whose credentials it
    then deletes. MoolaKata shows the report and alerts admins (S12.11):
    1. **the connector is locked**: unlock it on its page, which Settings › Connector links to
       (S18.11.1), or on its host;
@@ -273,7 +283,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
       before anything is sent (an X25519 sealed box, made with the browser's own WebCrypto,
       which current Chrome, Edge, Safari and Firefox provide; a browser without it is offered
       only the stricter way below). The browser first checks the sealing key's signature by the
-      identity key the admin confirmed (S18.4.2), and seals, with the credentials, the host the
+      action key the admin confirmed (S18.4.2), and seals, with the credentials, the host the
       dialog shows the owner they go to and the time; the connector refuses a box older than
       the credential it holds. MoolaKata keeps only the ciphertext, which it can't open, until
       the connector collects it on its next report, files it in its vault and confirms which

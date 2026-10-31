@@ -52,9 +52,9 @@ class ConnectorInfo(Model):
     locked: bool
     fingerprint: str | None  # four groups of four
     sealingKey: str | None  # base64url, for sealing in the browser (S18.7.1)
-    # The connector's identity key and its signature over the sealing key: the browser checks
-    # the one against the other before sealing (S18.4.5).
-    identityKey: str | None = None
+    # The connector's action key and its signature over the sealing key: the browser checks the
+    # one against the other before sealing (S18.4.5).
+    actionKey: str | None = None
     sealingSignature: str | None = None
 
 
@@ -80,9 +80,9 @@ def _info(s) -> ConnectorInfo:
         paired=True,
         confirmed=row.confirmedAt is not None,
         locked=row.locked,
-        fingerprint=keys.short(keys.fingerprint(keys.unb64(row.identityKey))),
+        fingerprint=keys.short(keys.fingerprint(keys.unb64(row.actionKey))),
         sealingKey=row.sealingKey,
-        identityKey=row.identityKey,
+        actionKey=row.actionKey,
         sealingSignature=row.sealingSignature,
     )
 

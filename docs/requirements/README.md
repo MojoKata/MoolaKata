@@ -281,10 +281,11 @@ The rulings the rest of the requirements apply.
 25. **Strategy:** option legs, and shares, held together as one (a covered call, an iron
     condor), with its combined P/L, max profit and loss and capital at risk; a label over the
     lots, which keep their own gains (S3.5).
-26. **Identity key, sealing key:** the connector's two key pairs, made at pairing. The
-    identity key signs its calls and sits beside its vault; the sealing key is what a browser
-    encrypts a credential to (a **sealed box**), its public half held by MoolaKata and its
-    private half kept in the vault (S18.4.5).
+26. **Action key, status key, sealing key:** the connector's three key pairs, made at
+    pairing. The action key signs its calls and is kept in its vault; the status key sits
+    beside the vault and signs only a report that the connector is locked, and `unpaired`; the
+    sealing key is what a browser encrypts a credential to (a **sealed box**), its public half
+    held by MoolaKata and its private half kept in the vault (S18.4.5).
 
 # R3. Design principles
 

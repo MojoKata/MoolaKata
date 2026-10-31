@@ -19,8 +19,11 @@ from ..store.entities.connector import Connection, Connector
 
 def seed_connector(s, people: dict) -> None:
     alice, bob, admin = people["alice"], people["bob"], people["admin"]
-    identity = Ed25519PrivateKey.from_private_bytes(
-        hashlib.sha256(b"moolakata dev connector identity").digest()
+    action, status = (
+        Ed25519PrivateKey.from_private_bytes(
+            hashlib.sha256(b"moolakata dev connector " + which).digest()
+        )
+        for which in (b"action", b"status")
     )
     sealing = X25519PrivateKey.from_private_bytes(
         hashlib.sha256(b"moolakata dev connector sealing").digest()
@@ -29,7 +32,8 @@ def seed_connector(s, people: dict) -> None:
     row = Connector(
         id=ids.new_id("Cnctr"),
         state="paired",
-        identityKey=keys.b64(identity.public_key().public_bytes_raw()),
+        actionKey=keys.b64(action.public_key().public_bytes_raw()),
+        statusKey=keys.b64(status.public_key().public_bytes_raw()),
         sealingKey=keys.b64(sealing.public_key().public_bytes_raw()),
         pairedAt=now - dt.timedelta(days=3, hours=4),
         pairedById=admin.id,

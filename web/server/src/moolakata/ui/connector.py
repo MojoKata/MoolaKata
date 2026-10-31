@@ -154,8 +154,8 @@ def view(s, srv) -> ConnectorOut:
     ).all()
     return ConnectorOut(
         state=row.state,
-        fingerprint=keys.short(keys.fingerprint(keys.unb64(row.identityKey)))
-        if row.identityKey
+        fingerprint=keys.short(keys.fingerprint(keys.unb64(row.actionKey)))
+        if row.actionKey
         else None,
         serverFingerprint=own,
         sealingKey=row.sealingKey,

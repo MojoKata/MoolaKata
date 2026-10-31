@@ -18,18 +18,8 @@ from moolakata.store.entities.accounts import Account
 def paired(server, admin, client):
     fake = FakeConnector(server, client)
     fake.sealing_private = X25519PrivateKey.generate()
-    from moolakata.connector.manage import SEALING_LABEL
-
     raw = fake.sealing_private.public_key().public_bytes_raw()
-    r = fake.call(
-        "/connector/v1/pair",
-        {
-            "code": pair_code(admin),
-            "sealingKey": keys.b64(raw),
-            "sealingSignature": keys.b64(fake.key.sign(SEALING_LABEL + raw)),
-            "version": "0.1.0-test",
-        },
-    )
+    r = fake.call("/connector/v1/pair", fake.pair_body(pair_code(admin), raw))
     assert r.status_code == 200, r.text
     # The admin compared the fingerprints (S18.4.3).
     assert admin.post("/ui/api/settings/connector/confirm").status_code == 200

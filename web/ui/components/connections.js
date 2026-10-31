@@ -176,7 +176,7 @@ export function ConnectionDialog({ close, connection }) {
     const host = f.driver === 'ofx-direct' ? hostOf(c.settings?.url || f.url) : null;
     const plain = JSON.stringify({ credentials, host, sealedAt: Date.now() });
     const v = /** @type {any} */ (info.data);
-    if (!(await sealingKeyIsSigned(key, v?.identityKey, v?.sealingSignature))) {
+    if (!(await sealingKeyIsSigned(key, v?.actionKey, v?.sealingSignature))) {
       throw new Error(
         "The connector's sealing key isn't signed by the key an admin confirmed: nothing was sent. Pair the connector again.",
       );

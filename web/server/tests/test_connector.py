@@ -39,20 +39,31 @@ NEWFILEUID:NONE
 
 
 class FakeConnector:
-    """A connector as the protocol describes it: its identity key, signed calls to the server's
-    app, and answers checked against the server's link key."""
+    """A connector as the protocol describes it: its action key and its status key, signed
+    calls to the server's app, and answers checked against the server's link key."""
 
     def __init__(self, server, client):
-        self.key = Ed25519PrivateKey.generate()
+        self.key = Ed25519PrivateKey.generate()  # the action key
+        self.status = Ed25519PrivateKey.generate()
         self.sealing = Ed25519PrivateKey.generate()  # any 32 raw bytes serve as a sealing key
         self.client = client
         with server.db.tx() as s:
             self.server_key = keys.public_of(s, server.keys.secrets)
         self.fp = keys.fingerprint(self.server_key)
 
-    def call(self, path: str, data: dict | None = None, *, raw: bytes | None = None, headers=None):
+    def call(
+        self,
+        path: str,
+        data: dict | None = None,
+        *,
+        raw: bytes | None = None,
+        headers=None,
+        status: bool = False,
+    ):
+        """Signed with the action key, or with `status` the status key."""
+        key = self.status if status else self.key
         body = raw if raw is not None else exactjson.dumps(data or {}).encode()
-        signed = signing.sign_request(self.key, "POST", path, body, self.fp, scheme=signing.CONN)
+        signed = signing.sign_request(key, "POST", path, body, self.fp, scheme=signing.CONN)
         h = {
             **signed.headers,
             "Content-Type": "application/json",
@@ -61,28 +72,34 @@ class FakeConnector:
             **(headers or {}),
         }
         r = self.client.post(path, content=body, headers=h)
-        # The answer names this connector and this call (protocol §3.3).
-        me = keys.fingerprint(keys.raw_public(self.key.public_key()))
+        # The answer names the key that called and this call (protocol §3.3).
+        me = keys.fingerprint(keys.raw_public(key.public_key()))
         asked = signing.Asked(signed.nonce, me, signed.body_hash)
         signing.verify_answer(
             self.server_key, r.status_code, r.content, asked, r.headers, scheme=signing.CONN
         )
         return r
 
-    def pair(self, code: str, signed: bool = True):
-        from moolakata.connector.manage import SEALING_LABEL
+    def pair_body(self, code: str, sealing: bytes = b"\x11" * 32, signed: bool = True) -> dict:
+        """The pairing call's body (protocol §4.1): the sealing and status keys signed by the
+        action key, and the action key by the status key."""
+        from moolakata.connector.manage import ACTION_LABEL, SEALING_LABEL, STATUS_LABEL
 
-        sealing = b"\x11" * 32
+        action = keys.raw_public(self.key.public_key())
+        status = keys.raw_public(self.status.public_key())
         signature = self.key.sign(SEALING_LABEL + sealing) if signed else b"\x00" * 64
-        return self.call(
-            "/connector/v1/pair",
-            {
-                "code": code,
-                "sealingKey": keys.b64(sealing),
-                "sealingSignature": keys.b64(signature),
-                "version": "0.1.0-test",
-            },
-        )
+        return {
+            "code": code,
+            "sealingKey": keys.b64(sealing),
+            "sealingSignature": keys.b64(signature),
+            "statusKey": keys.b64(status),
+            "statusSignature": keys.b64(self.key.sign(STATUS_LABEL + status)),
+            "actionSignature": keys.b64(self.status.sign(ACTION_LABEL + action)),
+            "version": "0.1.0-test",
+        }
+
+    def pair(self, code: str, signed: bool = True):
+        return self.call("/connector/v1/pair", self.pair_body(code, signed=signed))
 
 
 @pytest.fixture
@@ -226,9 +243,74 @@ def test_pairing_takes_the_code_once_and_records_the_keys(server, admin, client)
     assert again.status_code == 403 and again.json()["code"] == "code-used"
     with server.db.read() as s:
         row = manage.paired(s)
-        assert row.codeHash is None and row.identityKey == keys.b64(
+        assert row.codeHash is None and row.actionKey == keys.b64(
             keys.raw_public(fake.key.public_key())
         )
+        assert row.statusKey == keys.b64(keys.raw_public(fake.status.public_key()))
+
+
+def test_a_pairing_whose_keys_dont_sign_each_other_is_refused(server, admin, client):
+    """S18.4.2: the action key signs the status key and the status key the action key, so both
+    are one connector's; a status key that is the action key itself is refused too."""
+    fake = FakeConnector(server, client)
+    code = pair_code(admin)
+    body = fake.pair_body(code)
+    for broken in (
+        {"actionSignature": body["statusSignature"]},
+        {"statusSignature": keys.b64(b"\x00" * 64)},
+        {"statusKey": keys.b64(keys.raw_public(fake.key.public_key()))},
+    ):
+        r = fake.call("/connector/v1/pair", {**body, **broken})
+        assert r.status_code == 403 and r.json()["code"] == "keys-unsigned", broken
+    assert fake.call("/connector/v1/pair", body).status_code == 200
+
+
+def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, admin):
+    """CR3-65, S18.4.2, S18.2.4.4: the status key, kept outside the vault, reports *locked*
+    and is answered with nothing about a Connection; its report sets no page, state or
+    sign-in address; every other call but `unpaired` is refused under it."""
+    alice = make_user(server, "alice")
+    with server.db.tx() as s:
+        row = manage.paired(s)
+        c = Connection(id=ids.new_id("Conn"), ownerId=alice.id, connectorId=row.id,
+                       driver="schwab", label="Alice's Schwab", state="new",
+                       settings='{"appKey": "k"}', sealedCredential="c2VhbGVk",
+                       sealedAt=clock.now())  # fmt: skip
+        s.add(c)
+        cid = c.id
+    out = paired.call("/connector/v1/report", {"locked": False, "page": "https://c.lan:37374"})
+    assert out.json()["connections"][0]["sealed"]["ciphertext"] == "c2VhbGVk"
+    lying = {
+        "locked": False,
+        "page": "https://evil.example:37374",
+        "connections": [{"id": cid, "state": "ok", "message": "fine", "signInAddress":
+                         "https://api.schwabapi.com/v1/oauth/authorize?x=1"}],
+    }  # fmt: skip
+    r = paired.call("/connector/v1/report", lying, status=True)
+    assert r.status_code == 200
+    answer = r.json()
+    assert answer["ok"] is True and "connections" not in answer and "removed" not in answer
+    assert "Alice" not in r.text and "appKey" not in r.text
+    view = admin.get("/ui/api/settings/connector").json()
+    assert view["locked"] is True and view["page"] == "https://c.lan:37374"
+    with server.db.read() as s:
+        c = s.get(Connection, cid)
+        assert c.state == "new" and c.message is None and c.signInAddress is None
+    for path, body in (
+        (f"/connector/v1/connections/{cid}/credential/taken", {}),
+        (f"/connector/v1/connections/{cid}/sign-in",
+         {"address": "https://api.schwabapi.com/v1/oauth/authorize"}),
+        ("/connector/v1/accounts/Acct_x/files", {}),
+    ):  # fmt: skip
+        r = paired.call(path, body, status=True)
+        assert r.status_code == 403 and r.json()["code"] == "status-key", path
+    with server.db.read() as s:
+        assert s.get(Connection, cid).sealedCredential == "c2VhbGVk"
+    # `unpaired` is the status key's too: a connector reset for lost words has only it.
+    r = paired.call("/connector/v1/unpaired", {}, status=True)
+    assert r.status_code == 200
+    with server.db.read() as s:
+        assert manage.paired(s) is None
 
 
 def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admin, client):

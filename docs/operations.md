@@ -378,9 +378,9 @@ is an app of its own (DEPLOY.md §8.2).
 12. **Its logs** say what it did and what failed, never a credential, an amount or an account
     number beyond its last four digits: `docker compose logs -f connector`.
 13. **A lost host or volume** (a stolen laptop, a disk sold with the volume on it): Unpair in
-    MoolaKata at once. The copy holds the identity key, so until then whoever has it can
-    report as the connector and post files; the vault stays closed without the words, so no
-    sign-in and no sealed credential, before or after, opens for them. Then make a fresh vault
+    MoolaKata at once. The copy holds the status key, so until then whoever has it can report
+    that the connector is locked, and nothing more; the vault stays closed without the words,
+    so no action key, no sign-in and no sealed credential, before or after, opens for them. Then make a fresh vault
     on the new host (its page's welcome), pair again, and have each owner enter their sign-ins again.
 14. **A Connection that says *the server address changed***: its OFX server address was edited
     after the sign-in was filed. The connector sends nothing to the new address until the owner

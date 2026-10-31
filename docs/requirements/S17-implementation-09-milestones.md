@@ -230,7 +230,7 @@
          allowlist for each driver, with its test (S18.1.2).
       8. **The connector**: the Folder driver taken out (S18.9), the lost-host response
          (S18.4.4, S18.5.4), the credential bound to the host sealed with it (S18.7.3), the
-         sealing key signed by the identity key, the sign-in host pinned, and the quick
+         sealing key signed by the action key, the sign-in host pinned, and the quick
          exchange of a landed address (S18.5).
       9. **The rest of the review's findings**, the generated mockup and help shots for what
          changed, both images, and `web/check`.

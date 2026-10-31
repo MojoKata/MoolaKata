@@ -696,7 +696,7 @@
  * @property {boolean} locked
  * @property {(string | null)} fingerprint
  * @property {(string | null)} sealingKey
- * @property {(string | null)} [identityKey]
+ * @property {(string | null)} [actionKey]
  * @property {(string | null)} [sealingSignature]
  */
 

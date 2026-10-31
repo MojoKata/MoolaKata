@@ -119,7 +119,8 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     )
     c.post(f"/ui/api/profile/connections/{conn['id']}/credential", json={"sealed": box})
     core.tick()
-    assert core.vault.locked and core.connections[conn["id"]].label == "Credit union"
+    # Locked, it reports with its status key only, and hears nothing of a Connection (S18.4.2).
+    assert core.vault.locked and core.connections == {}
     assert c.get("/ui/api/profile/connections").json()["items"][0]["credentialWaiting"] is True
     core.unlock(phrase)
     core.tick()

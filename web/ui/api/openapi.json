@@ -3870,6 +3870,17 @@
         "additionalProperties": false,
         "description": "What any user needs to start a Connection: whether a connector is paired, and its keys.",
         "properties": {
+          "actionKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actionkey"
+          },
           "confirmed": {
             "title": "Confirmed",
             "type": "boolean"
@@ -3884,17 +3895,6 @@
               }
             ],
             "title": "Fingerprint"
-          },
-          "identityKey": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identitykey"
           },
           "locked": {
             "title": "Locked",

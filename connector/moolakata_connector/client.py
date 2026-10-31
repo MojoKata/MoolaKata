@@ -17,10 +17,11 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from cryptography import x509
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from . import PROTOCOL, VERSION, signing
-from .keys import Pairing, unb64
+from .keys import Pairing, fingerprint, unb64
 
 
 class EgressRefused(Exception):
@@ -181,7 +182,9 @@ class ServerError(Exception):
 
 
 class Server:
-    """MoolaKata, as the connector calls it: signed calls, signed answers."""
+    """MoolaKata, as the connector calls it: signed calls, signed answers. Each call names the
+    key that signs it: the action key from the vault, or, for a locked report and `unpaired`,
+    the status key (S18.4.2)."""
 
     def __init__(self, pairing: Pairing, transport: Transport, server_public: bytes, on_cert=None):
         self.pairing = pairing
@@ -191,11 +194,18 @@ class Server:
         # starts using the one it announced, so the pairing keeps them (protocol §1.2).
         self.on_cert = on_cert
 
-    def call(self, path: str, data: dict | None = None, body: bytes | None = None, ctype=None):
+    def call(
+        self,
+        path: str,
+        data: dict | None = None,
+        body: bytes | None = None,
+        ctype=None,
+        *,
+        key: Ed25519PrivateKey,
+    ):
         payload = body if body is not None else json.dumps(data or {}).encode()
-        headers, nonce = signing.sign(
-            self.pairing.identity, "POST", path, payload, self.pairing.server_fp
-        )
+        headers, nonce = signing.sign(key, "POST", path, payload, self.pairing.server_fp)
+        me = fingerprint(key.public_key().public_bytes_raw())  # the caller the answer names
         headers |= {
             "Content-Type": ctype or "application/json",
             "MK-Conn-Protocol": str(PROTOCOL),
@@ -207,9 +217,7 @@ class Server:
         except CertificateRefused as e:
             raise ServerError("certificate-changed", str(e)) from None
         call = signing.body_hash(payload)
-        signing.verify_answer(
-            self.server_public, r.status, r.body, nonce, r.headers, p.fingerprint, call
-        )
+        signing.verify_answer(self.server_public, r.status, r.body, nonce, r.headers, me, call)
         if r.cert is not None and r.cert == p.cert_next and self.on_cert:
             self.on_cert(r.cert, None)  # the announced key is in use now
         out = r.json()

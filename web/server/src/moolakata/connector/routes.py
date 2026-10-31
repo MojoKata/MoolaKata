@@ -1,6 +1,7 @@
 """The /connector/v1 listener (requirements S18.4.3, docs/connector-protocol.md): what the
-paired MoolaKata Connector calls. Everything but `hello` is signed by the connector's identity
-key, and every answer is signed back by this server's link key."""
+paired MoolaKata Connector calls. Everything but `hello` is signed by one of the connector's
+keys: its action key, or, for a report that it is locked and `unpaired` only, its status key
+(S18.4.2). Every answer is signed back by this server's link key."""
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
@@ -74,15 +75,22 @@ async def _signed(request: Request) -> tuple[signing.Caller, bytes, int]:
     return caller, body, protocol
 
 
-async def verified(request: Request) -> tuple[Connector, signing.Caller, bytes, int]:
-    """The paired connector a signed call comes from, or a signed refusal."""
+async def verified(request: Request, status: bool = False) -> tuple[Connector, str, bytes, int]:
+    """The paired connector a signed call comes from and which of its keys signed it, or a
+    signed refusal. The status key only where `status` allows it: it can say no more than
+    that the connector is locked, or unpaired."""
     srv = request.app.state.server
     caller, body, protocol = await _signed(request)
     with srv.db.read() as s:
-        row = manage.by_key(s, caller.public)
-    if row is None:
+        found = manage.by_key(s, caller.public)
+    if found is None:
         raise signing.Refused("not-paired", "This server has no pairing with that connector.")
-    return row, caller, body, protocol
+    row, which = found
+    if which == "status" and not status:
+        raise signing.Refused(
+            "status-key", "Only the connector's action key makes this call: unlock it first."
+        )
+    return row, which, body, protocol
 
 
 @router.get("/hello")
@@ -101,7 +109,7 @@ def hello(request: Request):
 
 @router.post("/pair")
 async def pair(request: Request):
-    """The connector introduces itself with a pairing code, signed by its new identity key,
+    """The connector introduces itself with a pairing code, signed by its new action key,
     which the code vouches for (protocol §4.1)."""
     srv = request.app.state.server
     try:
@@ -125,17 +133,18 @@ async def pair(request: Request):
 async def report(request: Request):
     srv = request.app.state.server
     try:
-        row, _caller, body, protocol = await verified(request)
+        row, which, body, protocol = await verified(request, status=True)
     except signing.Refused as e:
         return refusal(request, e)
-    out = manage.apply_report(
-        srv,
-        row,
-        exactjson.loads(body or b"{}"),
-        request.headers.get("mk-conn-version"),
-        protocol,
-        request.client.host if request.client else None,
-    )
+    version = request.headers.get("mk-conn-version")
+    address = request.client.host if request.client else None
+    if which == "status":
+        # The status key's report: locked, and nothing more is taken or told (S18.5).
+        out = manage.apply_locked(srv, row, version, protocol, address)
+    else:
+        out = manage.apply_report(
+            srv, row, exactjson.loads(body or b"{}"), version, protocol, address
+        )
     srv.tasks.run_now("alerts")
     from .. import certs
 
@@ -150,7 +159,7 @@ async def report(request: Request):
 async def credential_taken(connection_id: str, request: Request):
     srv = request.app.state.server
     try:
-        row, _caller, body, _ = await verified(request)
+        row, _, body, _ = await verified(request)
     except signing.Refused as e:
         return refusal(request, e)
     at = exactjson.loads(body or b"{}").get("sealedAt")
@@ -163,7 +172,7 @@ async def credential_taken(connection_id: str, request: Request):
 async def sign_in(connection_id: str, request: Request):
     srv = request.app.state.server
     try:
-        row, _caller, body, _ = await verified(request)
+        row, _, body, _ = await verified(request)
     except signing.Refused as e:
         return refusal(request, e)
     address = str(exactjson.loads(body or b"{}").get("address") or "")
@@ -184,10 +193,11 @@ async def sign_in(connection_id: str, request: Request):
 @router.post("/unpaired")
 async def unpaired(request: Request):
     """`moolakata-connector unpair` on the connector's host: this side ends the pairing as
-    Unpair would (S18.4.4)."""
+    Unpair would (S18.4.4). Either key may say so: a locked connector, or one reset because its
+    words were lost, has only its status key."""
     srv = request.app.state.server
     try:
-        _, _caller, _, _ = await verified(request)
+        await verified(request, status=True)
     except signing.Refused as e:
         return refusal(request, e)
     manage.unpair(srv, None, "unpaired-by-connector")
@@ -202,7 +212,7 @@ async def post_file(account_id: str, request: Request):
 
     srv = request.app.state.server
     try:
-        row, _caller, body, _ = await verified(request)
+        row, _, body, _ = await verified(request)
     except signing.Refused as e:
         return refusal(request, e)
     if row.confirmedAt is None:

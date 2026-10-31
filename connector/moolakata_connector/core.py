@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from . import client, keys, sealed
 from .client import Egress, ServerError, Transport
 from .drivers import Account, Driver, File, registry
@@ -26,7 +28,10 @@ RETRY_FIRST = 15
 # an address pasted back is exchanged at once (S18.5).
 SIGN_IN_SECONDS = 15
 SIGN_IN_FOR = 600
+# What a pairing's keys sign of one another (S18.4.2, S18.4.5).
 SEALING_LABEL = b"moolakata connector sealing key\x00"
+STATUS_LABEL = b"moolakata connector status key\x00"
+ACTION_LABEL = b"moolakata connector action key\x00"
 SHOWN = ("label", "driver", "state", "message")  # each Connection, in `status`
 
 
@@ -112,19 +117,25 @@ class Core:
                 "The server at that address doesn't have the key the code names: nothing sent.",
             )
         private, public = keys.new_sealing_key()
-        pairing = keys.make(c["a"], c["f"], public, cert)
+        action_private, action_public = keys.new_action_key()
+        action = Ed25519PrivateKey.from_private_bytes(action_private)
+        pairing = keys.make(c["a"], c["f"], action_public, public, cert)
         server = client.Server(pairing, self.transport, key, self._certificate)
-        # The identity key signs the sealing key, so a browser seals only to the key of the
-        # connector an admin confirmed (S18.4.5).
-        signed = pairing.identity.sign(SEALING_LABEL + public)
+        # The action key signs the sealing key, so a browser seals only to the key of the
+        # connector an admin confirmed (S18.4.5); the action and status keys sign each other,
+        # so MoolaKata knows both are this connector's. The call itself is the action key's.
         out = server.call(
             "/connector/v1/pair",
             {
                 "code": code,
                 "sealingKey": keys.b64(public),
-                "sealingSignature": keys.b64(signed),
+                "sealingSignature": keys.b64(action.sign(SEALING_LABEL + public)),
+                "statusKey": keys.b64(pairing.status_public),
+                "statusSignature": keys.b64(action.sign(STATUS_LABEL + pairing.status_public)),
+                "actionSignature": keys.b64(pairing.status.sign(ACTION_LABEL + action_public)),
                 "version": client.VERSION,
             },
+            key=action,
         )
         # The fingerprint shown is worked out here, from the key itself; an answer naming
         # another means the server took some other key, and nothing is kept (S18.4.2).
@@ -140,7 +151,7 @@ class Core:
             self.connections = {}
             for cid in self.vault.ids():
                 self.vault.delete(cid)
-            self.vault.keep_sealing_key(private)
+            self.vault.keep_keys(private, action_private)
         self._wake.set()
         return keys.short(pairing.fingerprint)
 
@@ -149,14 +160,14 @@ class Core:
         with self._lock:
             if self.server:
                 try:
-                    self.server.call("/connector/v1/unpaired")
+                    self.server.call("/connector/v1/unpaired", key=self._key())
                 except (ServerError, Exception) as e:
                     log.warning("the server wasn't told of the unpairing: %s", e)
             self._forget()
 
     def _forget(self) -> None:
-        """The pairing gone: its file, every credential, and the sealing key, so no box sealed
-        to it opens here again (S18.4.4)."""
+        """The pairing gone: its file, every credential, and the sealing and action keys, so no
+        box sealed to it opens here again and nothing is signed for it (S18.4.4)."""
         keys.forget(self.data / "pairing.json")
         self.pairing = self.server = None
         self.connections = {}
@@ -164,7 +175,22 @@ class Core:
         if not self.vault.locked:
             for cid in self.vault.ids():
                 self.vault.delete(cid)
-            self.vault.keep_sealing_key(b"")
+            self.vault.keep_keys(b"", b"")
+
+    def _action(self) -> Ed25519PrivateKey:
+        """The action key, from the vault: every call but a locked report and `unpaired` is
+        signed with it (S18.4.2). Raises while the vault is locked."""
+        raw = self.vault.action_key()
+        if not raw:
+            raise VaultError("this pairing has no action key: pair again")
+        return Ed25519PrivateKey.from_private_bytes(raw)
+
+    def _key(self) -> Ed25519PrivateKey:
+        """The key a report or `unpaired` is signed with: the action key while the vault is
+        open, else the status key, which can say no more than that it is locked."""
+        if self.vault.locked:
+            return self.pairing.status
+        return self._action()
 
     def reset(self, phrase: str) -> str:
         """New words (S18.3.4): a new vault under the words typed at the command line or
@@ -309,8 +335,12 @@ class Core:
                     "waiting for it",
                 ) from e
         with self._lock:
+            locked = self.vault.locked
+            # Locked, the report is the status key's and says only that (S18.5): nothing in it
+            # or its answer is about a Connection, and nothing is run or posted.
+            report = {"locked": True} if locked else self._report()
             try:
-                answer = self.server.call("/connector/v1/report", self._report())
+                answer = self.server.call("/connector/v1/report", report, key=self._key())
             except ServerError as e:
                 if e.code == "not-paired":
                     # MoolaKata, in a signed answer, no longer knows this connector: unpaired
@@ -318,6 +348,8 @@ class Core:
                     self._forget()
                 raise
             self.last_report, self.last_error = time.time(), None
+            if locked:
+                return
             self._apply(answer)
             ran = False
             for c in list(self.connections.values()):
@@ -326,12 +358,15 @@ class Core:
                     ran = True
             self._post_backlogs()
             if ran:  # what each run came to, at once rather than at the next round (S18.5)
-                self._apply(self.server.call("/connector/v1/report", self._report()))
+                self._apply(
+                    self.server.call("/connector/v1/report", self._report(), key=self._action())
+                )
                 self.last_report = time.time()
 
     def _report(self) -> dict:
+        """The whole report, the action key's: the vault is open."""
         return {
-            "locked": self.vault.locked,
+            "locked": False,
             **({"page": self.page} if self.page else {}),
             "connections": [
                 {
@@ -408,7 +443,9 @@ class Core:
         applied meanwhile."""
         try:
             self.server.call(
-                f"/connector/v1/connections/{c.id}/credential/taken", {"sealedAt": server_at}
+                f"/connector/v1/connections/{c.id}/credential/taken",
+                {"sealedAt": server_at},
+                key=self._action(),
             )
         except Exception as e:
             log.warning("MoolaKata wasn't told a box was filed; at its next report: %s", e)
@@ -429,7 +466,9 @@ class Core:
                 if address and c.sign_in != address:
                     c.sign_in, c.sign_in_at = address, time.time()
                     self.server.call(
-                        f"/connector/v1/connections/{c.id}/sign-in", {"address": address}
+                        f"/connector/v1/connections/{c.id}/sign-in",
+                        {"address": address},
+                        key=self._action(),
                     )
                 c.state, c.message, c.last_run = "new", "waiting for credentials", time.time()
                 return
@@ -464,7 +503,11 @@ class Core:
         if r.credentials is not None:
             self.vault.put(c.id, r.credentials, self.vault.host(c.id))
         if r.sign_in:
-            self.server.call(f"/connector/v1/connections/{c.id}/sign-in", {"address": r.sign_in})
+            self.server.call(
+                f"/connector/v1/connections/{c.id}/sign-in",
+                {"address": r.sign_in},
+                key=self._action(),
+            )
         c.backlog.extend(r.files)
         c.last_added = 0
 
@@ -509,7 +552,9 @@ class Core:
             ]
         )
         path = f"/connector/v1/accounts/{f.account_id}/files"
-        return self.server.call(path, body=body, ctype=f"multipart/form-data; boundary={b}")
+        return self.server.call(
+            path, body=body, ctype=f"multipart/form-data; boundary={b}", key=self._action()
+        )
 
 
 def decode_code(code: str) -> dict:

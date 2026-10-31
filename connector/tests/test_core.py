@@ -71,22 +71,27 @@ def test_the_vault_opens_only_with_its_words_and_waits_after_five_wrong(tmp_path
 def test_keys_are_made_at_pairing_the_sealing_key_in_the_vault_and_forgotten(tmp_path):
     assert keys.load(tmp_path / "pairing.json") is None
     private, public = keys.new_sealing_key()
-    p = keys.make("https://money.lan", "f" * 64, public)
+    action, action_public = keys.new_action_key()
+    p = keys.make("https://money.lan", "f" * 64, action_public, public)
     assert keys.load(tmp_path / "pairing.json") is None, "nothing written until it is taken"
     keys.save(tmp_path / "pairing.json", p)
     assert not (tmp_path / "pairing.json.tmp").exists()
     again = keys.load(tmp_path / "pairing.json")
-    assert again.identity_public == p.identity_public and again.address == "https://money.lan"
-    assert again.sealing_public == public
+    assert again.status_public == p.status_public and again.address == "https://money.lan"
+    assert again.sealing_public == public and again.action_public == action_public
     assert keys.short(p.fingerprint).count(" ") == 3
-    # The pairing file holds the public half only (S18.4.5): nothing in it opens a box.
+    assert p.fingerprint == keys.fingerprint(action_public), "the fingerprint is the action key's"
+    # The pairing file holds the public halves only (S18.4.5) and the status key: nothing in it
+    # opens a box or signs more than "locked" (S18.4.2).
     text = (tmp_path / "pairing.json").read_text()
     assert keys.b64(private) not in text and "sealingPublic" in text and '"sealing"' not in text
+    assert keys.b64(action) not in text and "actionPublic" in text
     v = vault.Vault(tmp_path / "vault.json")
     v.create()
-    assert v.sealing_key() is None
-    v.keep_sealing_key(private)
+    assert v.sealing_key() is None and v.action_key() is None
+    v.keep_keys(private, action)
     assert v.sealing_key() == private and private.hex() not in (tmp_path / "vault.json").read_text()
+    assert v.action_key() == action and action.hex() not in (tmp_path / "vault.json").read_text()
     keys.forget(tmp_path / "pairing.json")
     assert keys.load(tmp_path / "pairing.json") is None
 
@@ -362,7 +367,8 @@ def test_moolakata_down_at_start_is_waited_for_with_a_growing_wait(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
     _, public = keys.new_sealing_key()
-    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, public))
+    _, action = keys.new_action_key()
+    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, action, public))
     core = Core(data, transport=Down(client.Egress()))  # no hello yet: nothing raised
     assert core.pairing is not None and core.server is None
     with pytest.raises(client.ServerError) as e:
@@ -521,15 +527,17 @@ def test_a_signed_not_paired_forgets_the_credentials_and_the_sealing_key(tmp_pat
     data = tmp_path / "data"
     data.mkdir()
     _, public = keys.new_sealing_key()
-    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, public))
+    _, action = keys.new_action_key()
+    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, action, public))
     core = Core(data, transport=client.Transport(client.Egress()))
     core.vault.create()
-    core.vault.keep_sealing_key(b"\x07" * 32)
+    core.vault.keep_keys(b"\x07" * 32, b"\x08" * 32)
     core.vault.put("Conn_1", {"password": "pw"}, "ofx.cu.example")
     core.server = Gone()
     with pytest.raises(client.ServerError):
         core.tick()
     assert core.vault.ids() == [] and core.vault.sealing_key() is None
+    assert core.vault.action_key() is None
     assert core.pairing is None and not (data / "pairing.json").exists()
 
 
@@ -550,7 +558,9 @@ def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
     core = Core(tmp_path, transport=client.Transport(client.Egress()))
     core.vault.create()
     private = X25519PrivateKey.generate()
-    core.vault.keep_sealing_key(private.private_bytes_raw())
+    core.vault.keep_keys(
+        private.private_bytes_raw(), Ed25519PrivateKey.generate().private_bytes_raw()
+    )
     core.server = Server()
     c = core.connections["Conn_1"] = ConnectionState("Conn_1", "schwab", "Schwab", {}, [])
     public = private.public_key().public_bytes_raw()
@@ -624,7 +634,7 @@ def test_pair_shows_the_fingerprint_it_works_out_and_refuses_an_answer_naming_an
     named = {}
 
     def answered(self, path, data=None, **kw):
-        own = keys.fingerprint(self.pairing.identity_public)
+        own = keys.fingerprint(self.pairing.action_public)
         return {"connectorFingerprint": named["fp"] or own}
 
     monkeypatch.setattr(core_mod.client, "hello", lambda *a, **k: {"key": keys.b64(server)})
@@ -740,3 +750,41 @@ def test_a_call_ends_at_its_deadline_however_slowly_the_answer_trickles(tmp_path
                 assert time.monotonic() - start < 5
         finally:
             listener.close()
+
+
+def test_locked_it_reports_with_its_status_key_and_says_nothing_else(tmp_path):
+    # CR3-65, S18.4.2: the status key, beside the vault, signs a report that says *locked*;
+    # every other call is the action key's, which only the open vault holds.
+    from moolakata_connector.core import Core
+
+    sent = []
+
+    class Watching:
+        def call(self, path, data=None, *, key, **kw):
+            sent.append((path, data, key.public_key().public_bytes_raw()))
+            return {"connections": [], "removed": []}
+
+    data = tmp_path / "data"
+    data.mkdir()
+    sealing, public = keys.new_sealing_key()
+    action, action_public = keys.new_action_key()
+    pairing = keys.make("https://money.lan", "f" * 64, action_public, public)
+    keys.save(data / "pairing.json", pairing)
+    core = Core(data, transport=client.Transport(client.Egress()))
+    phrase = " ".join(core.vault.create())
+    core.vault.keep_keys(sealing, action)
+    core.page = "https://connector.lan:37374"
+    core.server = Watching()
+    core.tick()
+    assert sent[-1][2] == action_public and sent[-1][1]["page"] == core.page
+    core.lock()
+    core.tick()
+    assert sent[-1] == ("/connector/v1/report", {"locked": True}, pairing.status_public)
+    with pytest.raises(vault.VaultError, match="locked"):
+        core._action()
+    # What a copy of the volume holds signs no more than that: the action key isn't in it.
+    held = (data / "pairing.json").read_text()
+    assert keys.b64(action) not in held and action.hex() not in held
+    core.unlock(phrase)
+    core.tick()
+    assert sent[-1][2] == action_public
