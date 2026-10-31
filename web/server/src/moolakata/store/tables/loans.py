@@ -4,7 +4,7 @@ the payoff planner's saved plans (S6.10)."""
 from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Integer, Text, text
 
 from ..types import Cents, Day, Dec
-from ._base import record, unique_live
+from ._base import Seen, record, unique_live
 
 Loan = record(
     "Loan",
@@ -37,6 +37,7 @@ Loan = record(
     CheckConstraint("method IN ('amortized', 'daily')", name="method"),
     CheckConstraint("\"budgetCounting\" IN ('split', 'whole')", name="budget_counting"),
     CheckConstraint('"termMonths" > 0', name="term"),
+    seen=Seen.child("accountId"),
 )
 unique_live(Loan, "accountId")
 
@@ -51,4 +52,5 @@ PayoffPlan = record(
     Column("following", Boolean, nullable=False, server_default=text("0")),
     Column("followingSince", Day),
     Column("createdById", Text, ForeignKey("User.id")),
+    seen=Seen.child("accountId"),
 )

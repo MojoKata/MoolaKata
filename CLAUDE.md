@@ -69,7 +69,9 @@ pass `--young` without the user's reason, and read the diff it writes before com
 ## Schema conventions
 
 `docs/schema.md` sets the database's naming and ID rules. A new table with an `id` gets a row
-in its prefix table, kept sorted by prefix, in the same change.
+in its prefix table, kept sorted by prefix, in the same change. A new table declares how it is
+seen (`seen=`, schema.md §7), and gets its access view written if it is a rule of its own, in
+the same change.
 
 ## Reviews
 

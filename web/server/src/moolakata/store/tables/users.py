@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 
 from ..types import UtcTimestamp
-from ._base import exception, pairs, record, unique_live
+from ._base import Seen, exception, pairs, record, unique_live
 
 User = record(
     "User",
@@ -74,6 +74,7 @@ User = record(
         'AND "remoteId" IS NOT NULL)',
         name="remote",
     ),
+    seen=Seen.rule(),
 )
 # Usernames and emails are unique among this server's own users; a linked server's users are
 # told apart by their link (S10.3.3.1).
@@ -106,6 +107,7 @@ Group = record(
     # The built-in Admins group: membership is what makes an admin (S10.1.8).
     Column("builtIn", Text),
     CheckConstraint('"builtIn" IS NULL OR "builtIn" = \'admins\'', name="built_in"),
+    seen=Seen.rule(),
 )
 unique_live(Group, "name")
 
@@ -131,6 +133,7 @@ Session = exception(
     Column("needsSetup", Boolean, nullable=False, server_default=text("0")),
     Index("ix_Session_userId", "userId"),
     prefix="Sessn",
+    seen=Seen.server(),
 )
 
 OneTimeToken = exception(
@@ -147,6 +150,7 @@ OneTimeToken = exception(
     ),
     Index("ix_OneTimeToken_userId", "userId"),
     prefix="OTTkn",
+    seen=Seen.server(),
 )
 
 # Ten per user, each usable once in place of a two-step code (S10.1.6).
@@ -158,6 +162,7 @@ RecoveryCode = exception(
     Column("createdAt", UtcTimestamp, nullable=False),
     Index("ix_RecoveryCode_userId", "userId"),
     prefix="RCode",
+    seen=Seen.server(),
 )
 
 # A person's request for an account (S10.1.4): confirmed by an emailed link, then approved or
@@ -181,6 +186,7 @@ SignupRequest = record(
     CheckConstraint("status IN ('confirming', 'waiting', 'approved', 'rejected')", name="status"),
     CheckConstraint("sex IN ('male', 'female')", name="sex"),
     Index("ix_SignupRequest_confirmTokenHash", "confirmTokenHash"),
+    seen=Seen.admin(),
 )
 
 # A user's read-only token for the MCP endpoint (S10.9.1): shown once, kept as a hash of its
@@ -197,4 +203,5 @@ AccessToken = record(
     Column("lastUsedAt", UtcTimestamp),
     CheckConstraint("scope IN ('all', 'chosen')", name="scope"),
     Index("ix_AccessToken_userId", "userId"),
+    seen=Seen.per_user("userId"),
 )

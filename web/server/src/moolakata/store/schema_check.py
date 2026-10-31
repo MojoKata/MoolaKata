@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from sqlalchemy import MetaData, Table
 
 from .. import paths
-from . import views
-from .tables._base import DELETED, DELETED_BY
+from . import access_views, views
+from .tables._base import DELETED, DELETED_BY, Seen
 
 SCHEMA_MD = paths.ROOT / "docs" / "schema.md"
 INFRA = {"SchemaRevision"}
@@ -70,6 +70,7 @@ def check_metadata(metadata: MetaData, text: str | None = None) -> list[str]:
             if not _has_id_check(t, prefix):
                 problems.append(f"{t.name} lacks the CHECK on its id's form")
         problems += _check_soft_delete(t)
+        problems += _check_seen(t)
     for r in in_use:
         if r.table not in metadata.tables:
             problems.append(f"schema.md §3 names {r.table}, which is not a table")
@@ -93,6 +94,27 @@ def _check_names(t: Table) -> list[str]:
         elif re.search(r"[A-Z]{3}", c.name):
             out.append(f"{t.name}.{c.name}: write acronyms as words")
     return out
+
+
+def _check_seen(t: Table) -> list[str]:
+    """How it is seen (schema.md §7): declared, and a child's key a NOT NULL key to a table
+    with a view."""
+    how = t.info.get("seen")
+    if not isinstance(how, Seen):
+        return [f"{t.name}: say how it is seen (schema.md §7)"]
+    if t.info.get("pairs") and how.how != "relation":
+        return [f"{t.name}: a many-to-many table is a relation"]
+    if how.how == "child":
+        fk = [f for f in t.foreign_keys if f.parent.name == how.key]
+        if not fk or t.c[how.key].nullable:
+            return [f"{t.name}.{how.key}: a child's key is a NOT NULL foreign key"]
+        if not access_views.has_view(fk[0].column.table):
+            return [f"{t.name}.{how.key}: its parent has no access view"]
+    if how.how == "per-user" and how.key not in t.c:
+        return [f"{t.name}: no column {how.key} for its user"]
+    if how.how == "rule" and t.name not in access_views.WRITTEN:
+        return [f"{t.name}: its access view is not written"]
+    return []
 
 
 def _has_id_check(t: Table, prefix: str | None) -> bool:
@@ -123,7 +145,8 @@ def _check_soft_delete(t: Table) -> list[str]:
 
 
 def check_database(connection, metadata: MetaData) -> list[str]:
-    """Every soft-deleting table has its Effective view, matching its cascading keys."""
+    """Every soft-deleting table has its Effective view, matching its cascading keys, and every
+    table with an access view has it as generated now, with its six columns (§7)."""
     problems = []
     have = {
         name: sql
@@ -137,6 +160,16 @@ def check_database(connection, metadata: MetaData) -> list[str]:
             problems.append(f"view {name} is missing")
         elif have[name].strip() != views.view_sql(t).strip():
             problems.append(f"view {name} does not match {t.name}'s cascading keys")
+    made = access_views.all_sql(metadata)
+    for name, sql in made.items():
+        if name not in have:
+            problems.append(f"view {name} is missing")
+        elif have[name].strip() != sql.strip():
+            problems.append(f"view {name} is not as generated now")
+        elif name.endswith(access_views.SUFFIX):
+            cols = [r[1] for r in connection.exec_driver_sql(f'PRAGMA table_info("{name}")')]
+            if cols != ["targetId", "userId", *access_views.PERMISSIONS]:
+                problems.append(f"view {name} has columns {cols}")
     for t in metadata.sorted_tables:
         sql = connection.exec_driver_sql(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", (t.name,)

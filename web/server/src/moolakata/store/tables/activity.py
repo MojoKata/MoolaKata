@@ -4,7 +4,7 @@ kept as written, never deleted, and never name an amount (R3.8)."""
 from sqlalchemy import Boolean, Column, ForeignKey, Index, Text, text
 
 from ..types import UtcTimestamp
-from ._base import exception
+from ._base import Seen, exception
 
 Activity = exception(
     "Activity",
@@ -21,4 +21,5 @@ Activity = exception(
     Index("ix_Activity_at", "at"),
     Index("ix_Activity_subject", "subjectId", "at"),
     prefix="Actv",
+    seen=Seen.rule(),
 )

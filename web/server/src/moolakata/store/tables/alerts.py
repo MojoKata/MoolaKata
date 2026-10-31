@@ -5,7 +5,7 @@ out of the list after 90 days (schema.md §4.4)."""
 from sqlalchemy import Column, ForeignKey, Index, Text, UniqueConstraint, text
 
 from ..types import UtcTimestamp
-from ._base import exception
+from ._base import Seen, exception
 
 Alert = exception(
     "Alert",
@@ -28,6 +28,7 @@ Alert = exception(
     Index("ix_Alert_causeKey", "causeKey", "resolvedAt"),
     Index("ix_Alert_userId", "userId", "openedAt"),
     prefix="Alert",
+    seen=Seen.rule(),
 )
 
 # Each person's own state of an alert: seen (for the badge), dismissed, emailed.
@@ -42,4 +43,5 @@ AlertState = exception(
     UniqueConstraint("alertId", "userId"),
     Index("ix_AlertState_userId", "userId"),
     prefix="AlSt",
+    seen=Seen.per_user("userId"),
 )

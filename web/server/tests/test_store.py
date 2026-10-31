@@ -20,7 +20,7 @@ from moolakata.store.entities.core import Secret
 from moolakata.store.entities.users import User
 from moolakata.store.repos import secrets as secret_repo
 from moolakata.store.tables import metadata
-from moolakata.store.tables._base import record
+from moolakata.store.tables._base import Seen, record
 from moolakata.store.tables.receipts import is_search_table
 
 
@@ -117,6 +117,7 @@ def test_schema_checks_catch_breaks():
     assert any("WITHOUT ROWID" in p for p in problems)
     assert any("no row in schema.md" in p for p in problems)
     assert any("soft-delete" in p or "lacks" in p for p in problems)
+    assert any("say how it is seen" in p for p in problems)
 
 
 def test_effective_views_follow_what_records_belong_to(tmp_path):
@@ -132,18 +133,19 @@ def test_effective_views_follow_what_records_belong_to(tmp_path):
             Column("id", Text, primary_key=True),
             info={"softDelete": False, "exception": "§4.4"},
         )
-        parent = record("Thing", "Thng")
+        parent = record("Thing", "Thng", seen=Seen.server())
         child = record(
             "Part",
             "Part",
             Column("thingId", Text, ForeignKey("Thing.id", ondelete="CASCADE"), nullable=False),
+            seen=Seen.server(),
         )
     finally:
         _base.metadata = saved
     engine = make_engine(tmp_path / "v.db", None)
     md.create_all(engine)
     with engine.begin() as conn:
-        views.sync(conn, md)
+        views.sync(conn, md, access=False)
         now = "2026-10-12T10:00:00.000000Z"
         later = "2026-10-12T11:00:00.000000Z"
         tid, pid = ids.new_id("Thng"), ids.new_id("Part")

@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, UtcTimestamp
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 # Someone in the household's life: every user is one (User.personId), and so are people who
 # never sign in. Seen by every local user unless `private` (S10.10.2).
@@ -36,6 +36,7 @@ Person = record(
     CheckConstraint('"birthMonth" IS NULL OR "birthMonth" BETWEEN 1 AND 12', name="birth_month"),
     CheckConstraint('"birthDay" IS NULL OR "birthDay" BETWEEN 1 AND 31', name="birth_day"),
     Index("ix_Person_name", "name"),
+    seen=Seen.rule("person"),
 )
 
 # A dated link between two people (S10.10.4). A child runs from the parent (person1) to the
@@ -63,6 +64,7 @@ Relationship = record(
         '"toDate" IS NULL OR "fromDate" IS NULL OR "toDate" >= "fromDate"', name="dates"
     ),
     Index("ix_Relationship_person2Id", "person2Id"),
+    seen=Seen.rule(),
 )
 unique_live(Relationship, "person1Id", "person2Id", "relation", "fromDate")
 
@@ -78,6 +80,7 @@ GiftPlan = record(
     Column("notes", Text),
     CheckConstraint('"leadDays" >= 0', name="lead_days"),
     Index("ix_GiftPlan_personId", "personId"),
+    seen=Seen.rule("gift-plan"),
 )
 unique_live(GiftPlan, "ownerId", "personId")
 
@@ -100,6 +103,7 @@ Occasion = record(
         "kind = 'holiday' OR (month BETWEEN 1 AND 12 AND day BETWEEN 1 AND 31)", name="date"
     ),
     Index("ix_Occasion_giftPlanId", "giftPlanId"),
+    seen=Seen.child("giftPlanId"),
 )
 
 # A gift, from idea to given, for one or more people and an occasion of a year; or one received
@@ -121,6 +125,7 @@ Gift = record(
     Column("thankYou", Boolean, nullable=False, server_default=text("0")),  # a received one's
     CheckConstraint("status IN ('idea', 'planned', 'bought', 'given', 'received')", name="status"),
     Index("ix_Gift_ownerId", "ownerId"),
+    seen=Seen.rule(),
 )
 
 # Who a gift is for, or for a received one, who it came from.

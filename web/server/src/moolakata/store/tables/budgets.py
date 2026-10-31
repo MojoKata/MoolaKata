@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 Budget = record(
     "Budget",
@@ -28,6 +28,7 @@ Budget = record(
     Column("startMonth", Day),
     CheckConstraint("method IN ('tracking', 'envelope')", name="method"),
     Index("ix_Budget_ownerId", "ownerId"),
+    seen=Seen.root("budget"),
 )
 
 BudgetAccount = record(
@@ -40,6 +41,7 @@ BudgetAccount = record(
     # worked out when not set.
     Column("movedFromId", Text, ForeignKey("Account.id")),
     Column("paidFromId", Text, ForeignKey("Account.id")),
+    seen=Seen.child("budgetId"),
 )
 unique_live(BudgetAccount, "budgetId", "accountId")
 
@@ -65,6 +67,7 @@ BudgetLine = record(
     CheckConstraint("overspend IN ('carry', 'next')", name="overspend"),
     CheckConstraint("strftime('%d', \"fromMonth\") = '01'", name="from_month"),
     Index("ix_BudgetLine_budgetId", "budgetId"),
+    seen=Seen.child("budgetId"),
 )
 unique_live(BudgetLine, "budgetId", "categoryId", "fromMonth")
 
@@ -78,6 +81,7 @@ BudgetReview = record(
     Column("figures", Text, nullable=False),
     Column("reviewedById", Text, ForeignKey("User.id")),
     CheckConstraint("strftime('%d', month) = '01'", name="month"),
+    seen=Seen.child("budgetId"),
 )
 unique_live(BudgetReview, "budgetId", "month")
 
@@ -114,4 +118,5 @@ BudgetMove = record(
         name="somewhere",
     ),
     Index("ix_BudgetMove_budgetId", "budgetId"),
+    seen=Seen.child("budgetId"),
 )

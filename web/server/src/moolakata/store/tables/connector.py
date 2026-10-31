@@ -5,7 +5,7 @@ keys and these records, never a credential (S18.2.3)."""
 from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Integer, Text, text
 
 from ..types import UtcTimestamp
-from ._base import record, unique_live
+from ._base import Seen, record, unique_live
 
 # The paired connector (S18.4). One is paired at a time: pairing another replaces it, as
 # Unpair does, and the replaced one ends (endedAt). While a pairing code is out, the row holds
@@ -47,6 +47,7 @@ Connector = record(
     Column("pageAddress", Text),
     Column("statusKey", Text),
     CheckConstraint("state IN ('pairing', 'paired', 'ended')", name="state"),
+    seen=Seen.admin(),
 )
 unique_live(Connector, "actionKey")
 unique_live(Connector, "statusKey")
@@ -75,5 +76,6 @@ Connection = record(
     Column("removedAt", UtcTimestamp),  # Remove (S18.6.4): the connector deletes its credentials
     CheckConstraint("state IN ('new', 'ok', 'needs-sign-in', 'failing', 'removed')", name="state"),
     CheckConstraint("driver IN ('folder', 'ofx-direct', 'schwab')", name="driver"),
+    seen=Seen.per_user("ownerId", configurable=True),
 )
 unique_live(Connection, "ownerId", "label")

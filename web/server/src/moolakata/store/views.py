@@ -87,15 +87,24 @@ def create_all_sql(metadata: MetaData) -> list[str]:
 
 
 def drop_all_sql(connection) -> list[str]:
+    """Every generated view, the access views (§7) that read the Effective views first."""
+    from . import access_views
+
     rows = connection.exec_driver_sql(
         "SELECT name FROM sqlite_master WHERE type = 'view' AND name LIKE '%Effective'"
     ).fetchall()
-    return [f'DROP VIEW IF EXISTS "{r[0]}"' for r in rows]
+    return access_views.drop_all_sql(connection) + [f'DROP VIEW IF EXISTS "{r[0]}"' for r in rows]
 
 
-def sync(connection, metadata: MetaData) -> None:
-    """Drop every Effective view and create them again from the declarations."""
+def sync(connection, metadata: MetaData, *, access: bool = True) -> None:
+    """Drop every generated view and create them again from the declarations: the Effective
+    views, then the access views built on them (schema.md §7)."""
+    from . import access_views
+
     for sql in drop_all_sql(connection):
         connection.exec_driver_sql(sql)
-    for sql in create_all_sql(metadata):
+    made = create_all_sql(metadata)
+    if access:
+        made += access_views.create_all_sql(metadata)
+    for sql in made:
         connection.exec_driver_sql(sql)

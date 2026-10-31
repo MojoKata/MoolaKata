@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, UtcTimestamp
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 TaxBook = record(
     "TaxBook",
@@ -28,6 +28,7 @@ TaxBook = record(
     Column("fromLastYear", Boolean, nullable=False, server_default=text("0")),
     CheckConstraint("\"bitcoinFees\" IN ('sale', 'not-taxed')", name="bitcoin_fees"),
     Index("ix_TaxBook_owner", "ownerId", "year"),
+    seen=Seen.rule("tax-book"),
 )
 
 # Its filers: one user, or two who are married; one named by someone else accepts first.
@@ -38,6 +39,7 @@ TaxBookFiler = record(
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("acceptedAt", UtcTimestamp),
     Index("ix_TaxBookFiler_user", "userId"),
+    seen=Seen.rule(),
 )
 unique_live(TaxBookFiler, "bookId", "userId")
 
@@ -50,6 +52,7 @@ TaxBookAccount = record(
     Column("counted", Boolean, nullable=False),
     # The filer who added it: an added account counts only while they can see it (S8.14.2).
     Column("addedById", Text, ForeignKey("User.id")),
+    seen=Seen.child("bookId"),
 )
 unique_live(TaxBookAccount, "bookId", "accountId")
 
@@ -68,6 +71,7 @@ TaxBookDependent = record(
     ),
     CheckConstraint("months BETWEEN 0 AND 12", name="months"),
     Index("ix_TaxBookDependent_bookId", "bookId"),
+    seen=Seen.child("bookId"),
 )
 unique_live(TaxBookDependent, "bookId", "personId")
 
@@ -118,6 +122,7 @@ Filing = record(
         name="result_kind",
     ),
     Index("ix_Filing_bookId", "bookId"),
+    seen=Seen.child("bookId"),
 )
 
 # An edit made anyway to a year whose federal return was filed (S2.8.3, S8.15): the account,
@@ -136,6 +141,7 @@ TaxBookChange = record(
     CheckConstraint("settled IS NULL OR settled IN ('amended', 'not-needed')", name="settled"),
     CheckConstraint('(settled IS NULL) = ("settledAt" IS NULL)', name="settled_at"),
     Index("ix_TaxBookChange_bookId", "bookId"),
+    seen=Seen.child("bookId"),
 )
 
 # A filing's estimated payment for a quarter, matched to the transaction that paid it.
@@ -150,6 +156,7 @@ EstimatedPayment = record(
     Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="SET NULL")),
     CheckConstraint("quarter BETWEEN 1 AND 4", name="quarter"),
     Index("ix_EstimatedPayment_filingId", "filingId"),
+    seen=Seen.child("filingId"),
 )
 
 # A tax document: received (a W-2, a 1099) in the book, or filed (the return as filed, a
@@ -168,4 +175,5 @@ TaxDocument = record(
     CheckConstraint("direction IN ('received', 'filed')", name="direction"),
     CheckConstraint("direction = 'received' OR \"filingId\" IS NOT NULL", name="filed_in"),
     Index("ix_TaxDocument_bookId", "bookId"),
+    seen=Seen.child("bookId"),
 )

@@ -3,7 +3,7 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Index, Text, text
 
 from ..types import Day, Dec, UtcTimestamp
-from ._base import record, unique_live
+from ._base import Seen, record, unique_live
 
 PriceSource = record(
     "PriceSource",
@@ -17,6 +17,7 @@ PriceSource = record(
     Column("lastOkAt", UtcTimestamp),
     Column("lastError", Text),
     Column("createdById", Text, ForeignKey("User.id")),
+    seen=Seen.admin(),
 )
 unique_live(PriceSource, "name")
 
@@ -32,6 +33,7 @@ Price = record(
     Column("fetchedAt", UtcTimestamp, nullable=False),
     Column("enteredById", Text, ForeignKey("User.id")),
     Index("ix_Price_date", "date"),
+    seen=Seen.household(),
 )
 unique_live(Price, "instrumentId", "date")
 
@@ -44,5 +46,6 @@ TypedPrice = record(
     Column("userId", Text, ForeignKey("User.id"), nullable=False),
     Column("date", Day, nullable=False),
     Column("close", Dec, nullable=False),
+    seen=Seen.per_user("userId"),
 )
 unique_live(TypedPrice, "userId", "instrumentId", "date")
