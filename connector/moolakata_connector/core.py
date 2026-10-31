@@ -185,24 +185,25 @@ class Core:
     # ----- the loop -----
 
     def status(self) -> dict:
-        with self._lock:
-            return {
-                "paired": self.pairing is not None,
-                "server": self.pairing.address if self.pairing else None,
-                "fingerprint": keys.short(self.pairing.fingerprint) if self.pairing else None,
-                "locked": self.vault.locked,
-                "vault": self.vault.fingerprint(),
-                "confirmed": self.confirmed,
-                "unlockedAt": self.unlocked_at,
-                "page": self.page,
-                "lastReport": self.last_report,
-                "lastError": self.last_error,
-                "reachable": self.server is not None,
-                "retryIn": int(self.retry) if self.retry else None,
-                "connections": {
-                    c.id: {k: getattr(c, k) for k in SHOWN} for c in self.connections.values()
-                },
-            }
+        """What the connector is doing, without waiting for the round: a run or a post may take
+        minutes, and the health check, `status` and its page answer at once (S18.3.2). Each
+        field is read once; the Connections from a copy of the map the round may change."""
+        pairing, connections = self.pairing, self.connections.copy()
+        return {
+            "paired": pairing is not None,
+            "server": pairing.address if pairing else None,
+            "fingerprint": keys.short(pairing.fingerprint) if pairing else None,
+            "locked": self.vault.locked,
+            "vault": self.vault.fingerprint(),
+            "confirmed": self.confirmed,
+            "unlockedAt": self.unlocked_at,
+            "page": self.page,
+            "lastReport": self.last_report,
+            "lastError": self.last_error,
+            "reachable": self.server is not None,
+            "retryIn": int(self.retry) if self.retry else None,
+            "connections": {c.id: {k: getattr(c, k) for k in SHOWN} for c in connections.values()},
+        }
 
     def unlock(self, phrase: str) -> None:
         self.vault.unlock(phrase)

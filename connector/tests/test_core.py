@@ -597,3 +597,33 @@ def test_pair_shows_the_fingerprint_it_works_out_and_refuses_an_answer_naming_an
     named["fp"] = None
     shown = core.pair(code)
     assert shown == keys.short(core.pairing.fingerprint)
+
+
+def test_status_answers_while_a_round_holds_the_loop(tmp_path):
+    # CR3-329: a run or a post may take minutes; `status`, the health check and the page
+    # answer at once all the same (S18.3.2).
+    import threading
+
+    from moolakata_connector.core import ConnectionState, Core
+
+    core = Core(tmp_path, transport=client.Transport(client.Egress()))
+    core.vault.create()
+    core.connections["Conn_1"] = ConnectionState("Conn_1", "schwab", "Schwab", {}, [], "ok")
+    held, done = threading.Event(), threading.Event()
+
+    def a_long_round():
+        with core._lock:
+            held.set()
+            done.wait(10)
+
+    t = threading.Thread(target=a_long_round)
+    t.start()
+    held.wait(5)
+    answered = []
+    asker = threading.Thread(target=lambda: answered.append(core.status()))
+    asker.start()
+    asker.join(2)
+    done.set()
+    t.join()
+    assert answered, "status waited for the round"
+    assert answered[0]["connections"]["Conn_1"]["state"] == "ok"
