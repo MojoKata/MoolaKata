@@ -137,3 +137,46 @@ to `ofx-direct`'s settings).
 
 **Final approval:** given Oct 30, 8:19 PM (Chicago), decisions 1 to 9. Commits pushed as they
 go, the PR open from the first so CI runs alongside.
+
+## Applied
+
+On branch `cr3-connector` (PR #25), one commit per decision and per claim taken as written, each
+with its requirements, protocol, mockup and tests.
+
+| Decision | Claims | Commit | What changed |
+|---|---|---|---|
+| 1 | CR3-65, CR3-137 | `d84b206` | status and action keys; `actionKey`/`statusKey` (revision 0043); `status-key`, `keys-unsigned`; the protocol's glance and §4.1-§4.2 |
+| 2, 9 | CR3-66, CR3-67 | `4aa8e4b` | the Schwab driver's `statement`; OFX Direct Connect's codes and several accounts; the connector corpus; G28, L14 |
+| 3 | CR3-68, CR3-69, CR3-71, CR3-138, CR3-333, CR3-357, CR3-159 | `d11b0d1` | `MK-Conn-Body-SHA256`; the signature and key before the body; signed refusals; `IN_FLIGHT_ALL`; each file on its own |
+| 4 | CR3-70, CR3-325 | `f2d9ceb` | `host`, `address`, `settings` (the owner's) on a Connection; *Sealed for … only*; the address in the credentials dialog; the Host column |
+| 5 | CR3-327, CR3-334, CR3-139, CR3-125 | `8dbba0e` | the `forget-on-unlock` mark; `unpair` with the words; `reset` tells MoolaKata; operations §6 |
+| 6 | CR3-372, CR3-141 | `11c8960` | `connectorAddress`, the field in Settings › Connector |
+| 7 | CR3-373 | `3e10eeb` | no vault wait; five wrong tries a minute per address on the page |
+| as written | CR3-326, CR3-328, CR3-329, CR3-330, CR3-331, CR3-332, CR3-335, CR3-336, CR3-337, CR3-338, CR3-339, CR3-140, CR3-64 | `030422e` to `0ae6907` | one commit each |
+
+Where the work differs from the decision as written, and why:
+
+1. **Decision 1**: a status report's answer carries `certificate` as well as `ok`: it is public,
+   and a connector locked for long must still follow a renewed own certificate (protocol §1.2).
+   An action-key report keeps its `locked` flag rather than being taken as unlocked.
+2. **Decision 3**: the 60-calls-a-minute `limit` is signed (it is checked after the signature,
+   still before the body); the unsigned refusals are `locked`, `uploads-in-flight` and the
+   hard `too-large`. The connector keeps a file on a signed `server-error` and on an unsigned
+   answer it can't read, since neither is the file's fault, and drops it on any other
+   refusal. Its uploads count as they are read rather than by a declared length, which makes
+   "only the paired key" hold without a lookup in the middleware; all callers together have four
+   times one caller's budget.
+3. **Decision 4**: admins see each Connection's host and never its settings; its owner's view
+   carries them, for the dialog's draft.
+4. **Decision 5**: `unpair` on the host asks for the words only when the vault is locked, and
+   reaches MoolaKata first when the connector hadn't yet (a restart).
+5. **Decision 7**: only wrong tries count toward the page's five a minute.
+6. **Decision 9**: the corpus runs in the server's tests, beside the import corpus whose
+   machinery it uses. A broker's file sets the account's cash to its own, so the cash check
+   alone can't show a missing row: the invariant also adds up the rows. Building it found what
+   the decisions didn't name: an OFX server that answers with several accounts, sign-on codes
+   15000, 15502 and 3000, a refused statement (all now handled), and a short sale of stock
+   (G28).
+7. **CR3-140**: `days` is a setting the API takes and the driver honours; no dialog offers it.
+8. **CR3-329**: `status` no longer waits for the round; the round still holds its lock around
+   its calls, so `pair` and `connect` on the host wait for a round in progress.
