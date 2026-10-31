@@ -265,3 +265,26 @@ def test_schwab_ofx_names_every_security_once():
 def test_every_driver_is_registered_with_its_limits():
     names = set(registry())
     assert names == {"ofx-direct", "schwab"}
+
+
+def test_a_schwab_run_names_what_it_left_out(monkeypatch):
+    # CR3-67, S18.9.2: a transaction the driver can't write whole is named in the Connection's
+    # message, never dropped unsaid (the connector corpus has the rest).
+    import test_drivers as here
+
+    future = {
+        "activityId": 9100,
+        "time": "2026-09-22T14:00:00+0000",
+        "type": "TRADE",
+        "description": "BUY E-MINI S&P 500",
+        "netAmount": -2.25,
+        "transferItems": [{"instrument": {"assetType": "FUTURE", "symbol": "/ESZ26"}, "amount": 1}],
+    }
+    monkeypatch.setattr(here, "SCHWAB_TXNS", [*SCHWAB_TXNS, future])
+    d = Schwab()
+    http = Fake(schwab_answers())
+    http.egress.allow(*d.hosts)
+    creds = {"appSecret": "S", "accessToken": "at-1", "accessUntil": time.time() + 600}
+    r = d.run({"appKey": "KEY"}, creds, [Account("Acct_1", "Individual ••4417", ["ofx"])], http)
+    assert r.state == "ok" and len(r.files) == 1
+    assert "1 transaction left out: ••4417 20260922 TRADE: BUY E-MINI S&P 500" in r.message

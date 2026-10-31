@@ -1,0 +1,21 @@
+about = """A cash-secured put assigned: the option removed, and the shares put to the account
+delivered with their cash at the strike in a second RECEIVE_AND_DELIVER, written as a buy that
+the import pairs with the assignment (S3.4)."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-10 sell-to-open 249.34 AAPL 09OCT26 165 P 1",
+    "2026-10-09 assign 0.00 AAPL 09OCT26 165 P 1",
+    "2026-10-09 buy -16500.00 AAPL 100",
+]
+holdings = ["AAPL 100"]
+cash = "3749.34"
+checks = ["2026-10-15 3749.34 ok"]
+holding_checks = ["as of 2026-10-15", "AAPL 100 ok"]
+instruments = { AAPL = "equity", "AAPL 09OCT26 165 P" = "option" }
+# Assigned, the put's credit comes off the shares' basis (S3.4): 16,500 - 249.34.
+open = ["AAPL long 100 cost 16250.66"]
+closed = []
+strategies = []

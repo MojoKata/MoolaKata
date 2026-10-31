@@ -1,0 +1,21 @@
+about = """A broker's OFX server answering for an investment account: a deposit, shares bought, a call
+written against them and expiring, the shares as the statement's position."""
+account = { type = "brokerage", institution = "Broker" }
+settings = { url = "https://ofx.broker.example/ofx", org = "BROKER", fid = "7777", accountType = "INVESTMENT", accountId = "77770921", bankId = "broker.example" }
+driver = { state = "ok", message = "1 statement" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 10000.00 | ACH DEPOSIT",
+    "2026-09-03 buy -4200.00 MSFT 10",
+    "2026-09-10 sell-to-open 149.35 MSFT 16OCT26 450 C 1",
+    "2026-10-16 expire 0.00 MSFT 16OCT26 450 C 1",
+]
+holdings = ["MSFT 10"]
+cash = "5949.35"
+checks = ["2026-10-16 5949.35 ok"]
+holding_checks = ["as of 2026-10-16", "MSFT 10 ok"]
+instruments = { MSFT = "equity", "MSFT 16OCT26 450 C" = "option" }
+open = ["MSFT long 10 cost 4200.00"]
+closed = ["2026-10-16 MSFT 16OCT26 450 C short 1 expired realized 149.35"]
+strategies = []

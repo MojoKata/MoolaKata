@@ -1,0 +1,17 @@
+about = "A card's statement: two charges and a payment, the balance owed below zero."
+account = { type = "credit-card", institution = "Credit union" }
+settings = { url = "https://ofx.cu.example/ofx", org = "CU", fid = "1204", accountType = "CREDITCARD", accountId = "4111111111111234" }
+driver = { state = "ok", message = "1 statement" }
+
+[expect]
+transactions = [
+    "2026-09-03 withdrawal -120.50 | GROCERY OUTLET",
+    "2026-09-14 withdrawal -61.40 | CITY WATER",
+    "2026-09-20 deposit 100.00 | PAYMENT THANK YOU",
+]
+holdings = []
+checks = ["2026-09-30 -81.90 ok"]
+holding_checks = []
+open = []
+closed = []
+strategies = []

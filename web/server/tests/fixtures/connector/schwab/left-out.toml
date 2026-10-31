@@ -1,0 +1,22 @@
+about = """What the driver can't write whole, named rather than guessed at: an option trade that says
+neither opening nor closing (AUTOMATIC), an option removed for a reason not given, and a future,
+which has no OFX form. Each is left out of the file and named in the Connection's message, and
+the cash check shows what is missing."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+left = [
+    "20260910 TRADE: SELL AAPL CALL",
+    "20261009 RECEIVE_AND_DELIVER: REMOVAL OF OPTION",
+    "20260912 TRADE: BUY E-MINI S&P 500",
+]
+
+[expect]
+transactions = ["2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND"]
+holdings = []
+# The account's cash is the statement's, as a broker's file sets it, though the rows left out
+# don't add up to it: 197.09, the call's premium less the future's commission, is unexplained.
+cash = "20197.09"
+checks = ["2026-10-15 20197.09 ok"]
+holding_checks = []
+open = []
+closed = []
+strategies = []

@@ -1,0 +1,23 @@
+about = """Cash in and out every way Schwab names: ACH and wires in and out, a journal to another
+Schwab account, a MoneyLink transfer, the bank sweep's interest, margin interest, and a
+memorandum that moves nothing and is written as nothing."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 5000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-04 deposit 10000.00 | WIRED FUNDS RECEIVED",
+    "2026-09-10 withdrawal -1000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-12 withdrawal -2000.00 | WIRED FUNDS DISBURSED",
+    "2026-09-15 transfer -500.00 | JOURNAL TO ...1234",
+    "2026-09-20 transfer 300.00 | MONEYLINK TRANSFER",
+    "2026-09-30 fee -12.40",
+    "2026-09-30 interest 1.25 | SCHWAB1 INT 08/28-09/29",
+]
+holdings = []
+cash = "11788.85"
+checks = ["2026-10-15 11788.85 ok"]
+holding_checks = []
+open = []
+closed = []
+strategies = []

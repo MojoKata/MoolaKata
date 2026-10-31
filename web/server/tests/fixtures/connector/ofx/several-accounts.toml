@@ -1,0 +1,20 @@
+about = """A server that answers with every account of the sign-in: a savings account's statement first,
+the checking account's second. The driver keeps the Connection's own (••1204), since the import
+takes one account a file."""
+account = { type = "checking", institution = "Credit union" }
+settings = { url = "https://ofx.cu.example/ofx", org = "CU", fid = "1204", accountType = "CHECKING", accountId = "00001204", bankId = "101000695" }
+driver = { state = "ok", message = "1 statement" }
+
+[expect]
+transactions = [
+    "2026-09-04 withdrawal -42.37 | SHELL OIL 57444",
+    "2026-09-15 deposit 2500.00 | PAYROLL ACME CORP",
+    "2026-09-18 withdrawal -18.00 | BARNES & NOBLE #2231",
+    "2026-09-22 withdrawal -6.50 | CAFÉ <LUNA>",
+]
+holdings = []
+checks = ["2026-09-30 2433.13 ok"]
+holding_checks = []
+open = []
+closed = []
+strategies = []

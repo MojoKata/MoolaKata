@@ -1,0 +1,22 @@
+about = """A covered call assigned: the option removed by a RECEIVE_AND_DELIVER that says
+"assignment", and the shares sold at the strike in a trade the same day, which the import pairs
+with it as the assignment's stock leg (S3.4)."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -17000.00 AAPL 100",
+    "2026-09-10 sell-to-open 199.34 AAPL 09OCT26 175 C 1",
+    "2026-10-09 assign 0.00 AAPL 09OCT26 175 C 1",
+    "2026-10-09 sell 17500.00 AAPL 100",
+]
+holdings = []
+cash = "20699.34"
+checks = ["2026-10-15 20699.34 ok"]
+holding_checks = []
+instruments = { AAPL = "equity", "AAPL 09OCT26 175 C" = "option" }
+# Assigned, the call's credit goes into the shares' proceeds (S3.4): 17,500 + 199.34 - 17,000.
+open = []
+closed = ["2026-10-09 AAPL long 100 sold realized 699.34"]
+strategies = []

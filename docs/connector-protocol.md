@@ -344,8 +344,8 @@ What each driver posts, and what its `settings` hold (S18.9):
 
 | Driver | Posts | Settings | Credentials (sealed, 4.3) | Size |
 |---|---|---|---|---|
-| `ofx-direct` | the OFX statement the institution's OFX server answers with, as it is | `url`, `org`, `fid`, `accountType` (`CHECKING`, `SAVINGS`, `CREDITCARD`, `INVESTMENT`), `accountId`, `bankId` (the routing number) for a bank account, and `days`, how many days back each run asks for (1 to 90, 45 when not set) | `{username, password}`, bound to the host of `url` when filed (4.3.3) | 🟢 110 |
-| `schwab` | positions, transactions and balances from the Trader API, written as an OFX investment statement, one file per account | `appKey` | `{appSecret, landed}`: the app's secret and the address the owner landed on after signing in; the driver keeps the refresh token in the vault, and asks for a new sign-in when it has run out, after seven days. Bound to no host: the driver's is fixed | 🟢 230 |
+| `ofx-direct` | the OFX statement the institution's OFX server answers with, as it is | `url`, `org`, `fid`, `accountType` (`CHECKING`, `SAVINGS`, `CREDITCARD`, `INVESTMENT`), `accountId`, `bankId` (the routing number) for a bank account, and `days`, how many days back each run asks for (1 to 90, 45 when not set) | `{username, password}`, bound to the host of `url` when filed (4.3.3) | 🟢 144 |
+| `schwab` | positions, transactions and balances from the Trader API, written as an OFX investment statement, one file per account: options whole (opening or closing, contracts' shares, expiry, assignment, exercise), an order's legs one trade each, positions by kind; a transaction it can't write whole is named in the run's message (S18.9.2) | `appKey` | `{appSecret, landed}`: the app's secret and the address the owner landed on after signing in; the driver keeps the refresh token in the vault, and asks for a new sign-in when it has run out, after seven days. Bound to no host: the driver's is fixed | 🟢 378 |
 
 **Size** is the driver's lines of code, leaving out blank lines, comments and docstrings, with
 its colour (S18.1.2.1): 🟢 under 1,000, 🟡 1,000 to 1,999, 🔴 2,000 or more, a driver to read

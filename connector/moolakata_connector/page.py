@@ -2,8 +2,8 @@
 of its own, where its vault is made, its words given after a restart and its pairing done.
 Plain forms the connector renders, no JavaScript. Anyone on the network sees its status;
 every action takes the words, wrong ones are logged with the address they came from, and one
-address may try wrong ones five times a minute (S18.3.3). MoolaKata only links here and never sees the
-words."""
+address may try wrong ones five times a minute (S18.3.3). MoolaKata only links here and never
+sees the words."""
 
 import datetime as dt
 import html

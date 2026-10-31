@@ -18,6 +18,16 @@ HEADER = (
 )
 SIGNON_CODE = re.compile(r"<SONRS>.*?<CODE>(\d+)", re.S)
 ACCTID = re.compile(r"<ACCTID>([^<\r\n]+)")
+STATEMENTS = re.compile(r"<(STMTTRNRS|CCSTMTTRNRS|INVSTMTTRNRS)>.*?</\1>", re.S)
+STATUS_CODE = re.compile(r"<STATUS>\s*<CODE>(\d+)", re.S)
+# Sign-on codes (OFX 1.0.2 §2.5.1.6, §2.5.1.5) that ask the owner, not the connector.
+SIGN_IN_AGAIN = {
+    "15500": "the institution refused the sign-in",
+    "15501": "the institution refused the sign-in",
+    "15502": "the institution locked the sign-in: unlock it there, then sign in again",
+    "15503": "the institution refused the sign-in",
+    "15000": "the institution asks for a new password: change it there, then sign in again",
+}
 
 
 def _stamp(d: dt.datetime) -> str:
@@ -80,6 +90,27 @@ def request(settings: dict, credentials: dict, since: dt.date) -> bytes:
     return (HEADER.format(uid=uid) + f"<OFX>{signon}{body}</OFX>").encode("cp1252")
 
 
+def _only(body: bytes, last4: str) -> tuple[bytes, str | None]:
+    """The answer kept to the Connection's own account's statement, when a server answers with
+    several (the import takes one account a file, S1.3.2); and the statement's own status
+    code, when it isn't 0."""
+    text = body.decode("latin-1")
+    blocks = list(STATEMENTS.finditer(text))
+    mine = [
+        b for b in blocks if (m := ACCTID.search(b.group(0))) and m.group(1).strip()[-4:] == last4
+    ] or blocks[:1]
+    for b in mine:
+        status = STATUS_CODE.search(b.group(0))
+        if status and status.group(1) != "0":
+            return body, status.group(1)
+    if len(blocks) < 2:
+        return body, None
+    for b in reversed(blocks):
+        if b not in mine:
+            text = text[: b.start()] + text[b.end() :]
+    return text.encode("latin-1"), None
+
+
 class OfxDirect(Driver):
     name = "ofx-direct"
     hosts = ()  # the server named in each Connection's settings (hosts_for)
@@ -116,16 +147,25 @@ class OfxDirect(Driver):
         if r.status != 200 or not code:
             return Result("failing", f"the OFX server answered {r.status}")
         if code.group(1) != "0":
-            if code.group(1) in ("15500", "15501", "15502", "15503"):
-                return Result("needs-sign-in", "the institution refused the sign-in")
+            if code.group(1) in SIGN_IN_AGAIN:
+                return Result("needs-sign-in", SIGN_IN_AGAIN[code.group(1)])
+            if code.group(1) == "3000":
+                return Result(
+                    "failing",
+                    "the institution asks for a second factor, which OFX Direct Connect can't "
+                    "give: download its files and upload them instead",
+                )
             return Result("failing", f"the OFX server refused (code {code.group(1)})")
-        found = [
-            {"name": settings.get("accountType", "").title(), "last4": m[-4:]}
-            for m in ACCTID.findall(text)[:1]
-        ]
         last4 = str(settings.get("accountId", ""))[-4:]
+        found = [
+            {"name": settings.get("accountType", "").title(), "last4": m.strip()[-4:]}
+            for m in ACCTID.findall(text)
+        ]
+        body, refused = _only(r.body, last4)
+        if refused:
+            return Result("failing", f"the OFX server refused the statement (code {refused})")
         files = [
-            File(a.id, f"ofx-{dt.date.today():%Y-%m-%d}.ofx", r.body, "ofx")
+            File(a.id, f"ofx-{dt.date.today():%Y-%m-%d}.ofx", body, "ofx")
             for a in accounts
             if a.last4 == last4
         ]

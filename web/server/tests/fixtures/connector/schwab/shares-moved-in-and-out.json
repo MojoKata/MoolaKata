@@ -1,0 +1,78 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "CASH",
+   "accountNumber": "12344417",
+   "positions": [
+    {
+     "shortQuantity": 0,
+     "longQuantity": 80,
+     "settledLongQuantity": 80,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 33600,
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "MSFT",
+      "cusip": "594918104",
+      "description": "MICROSOFT CORP"
+     }
+    }
+   ],
+   "currentBalances": {
+    "cashBalance": 0
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000054,
+   "time": "2026-09-05T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "RECEIVE_AND_DELIVER",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "TRANSFER OF SECURITY OR OPTION IN",
+   "netAmount": 0,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "MSFT",
+      "cusip": "594918104",
+      "description": "MICROSOFT CORP"
+     },
+     "amount": 100,
+     "price": 0,
+     "cost": 0
+    }
+   ]
+  },
+  {
+   "activityId": 1000055,
+   "time": "2026-10-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "RECEIVE_AND_DELIVER",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "TRANSFER OF SECURITY OR OPTION OUT",
+   "netAmount": 0,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "MSFT",
+      "cusip": "594918104",
+      "description": "MICROSOFT CORP"
+     },
+     "amount": -20,
+     "price": 0,
+     "cost": 0
+    }
+   ]
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

@@ -157,8 +157,9 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     conn = c.get("/ui/api/profile/connections").json()["items"][0]
     assert conn["host"] == BANK and conn["address"] == f"https://{BANK}/ofx"
     moved = {**conn["settings"], "url": f"https://{BANK2}/ofx"}
+    fields = {"driver": "ofx-direct", "label": conn["label"], "settings": moved}
     op = {"op": "update", "entity": "Conn", "id": conn["id"], "version": conn["version"],
-          "fields": {"driver": "ofx-direct", "label": conn["label"], "settings": moved}}  # fmt: skip
+          "fields": fields}  # fmt: skip
     r = c.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 200, r.text
     box = mk_sealed.seal(

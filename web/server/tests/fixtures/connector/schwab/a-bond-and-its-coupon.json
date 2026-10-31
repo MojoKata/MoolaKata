@@ -1,0 +1,97 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "CASH",
+   "accountNumber": "12344417",
+   "positions": [
+    {
+     "shortQuantity": 0,
+     "longQuantity": 10000,
+     "settledLongQuantity": 10000,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 9970,
+     "instrument": {
+      "assetType": "FIXED_INCOME",
+      "symbol": "912828XX1",
+      "cusip": "912828XX1",
+      "description": "US TREASURY NOTE 4.5% 11/15/2028",
+      "maturityDate": "2028-11-15T05:00:00+0000",
+      "multiplier": 0.01
+     }
+    }
+   ],
+   "currentBalances": {
+    "cashBalance": 10275
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000038,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 20000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000039,
+   "time": "2026-09-03T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY US TREASURY NOTE 4.5% 11/15/2028",
+   "netAmount": -9950,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "FIXED_INCOME",
+      "symbol": "912828XX1",
+      "cusip": "912828XX1",
+      "description": "US TREASURY NOTE 4.5% 11/15/2028",
+      "maturityDate": "2028-11-15T05:00:00+0000",
+      "multiplier": 0.01
+     },
+     "amount": 10000,
+     "price": 99.5,
+     "cost": -9950,
+     "positionEffect": "OPENING"
+    }
+   ],
+   "tradeDate": "2026-09-03T04:00:00+0000",
+   "settlementDate": "2026-09-03T04:00:00+0000"
+  },
+  {
+   "activityId": 1000040,
+   "time": "2026-10-01T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "DIVIDEND_OR_INTEREST",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "INTEREST US TREASURY NOTE",
+   "netAmount": 225,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "FIXED_INCOME",
+      "symbol": "912828XX1",
+      "cusip": "912828XX1",
+      "description": "US TREASURY NOTE 4.5% 11/15/2028",
+      "maturityDate": "2028-11-15T05:00:00+0000",
+      "multiplier": 0.01
+     },
+     "amount": 0
+    }
+   ]
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

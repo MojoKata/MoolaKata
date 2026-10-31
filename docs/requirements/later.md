@@ -104,3 +104,16 @@ the month's end, with the settling transfer paired like any other (S1.7). Until 
 budget counts every transaction in its accounts, whoever paid.
 
 **Touches:** S7.1, S7.3, S10.3.
+
+## L14: The drivers checked against a household's own data
+
+**What it is:** the connector corpus (S17.5.7) holds data shaped as Schwab's Trader API and OFX
+servers document it, which is where the Schwab driver's reading of an option's opening or
+closing (`positionEffect`), of an expiry, assignment or exercise (by what a
+`RECEIVE_AND_DELIVER` says), of a bond's units and of a cash balance comes from. A household's
+own Schwab data, with options, and an OFX server's answers join it as entries of their own,
+cleaned as G25 says (account numbers, names and addresses replaced, amounts kept), their
+expected results written by reading them; what they show the driver got wrong is fixed with
+them.
+
+**Touches:** S18.9, S17.5.7.

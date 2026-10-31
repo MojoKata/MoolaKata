@@ -1,0 +1,5 @@
+about = """The sign-on asks for a second factor (3000), which OFX Direct Connect can't give: failing, and
+the owner told to upload the institution's files instead."""
+account = { type = "checking", institution = "Credit union" }
+settings = { url = "https://ofx.cu.example/ofx", org = "CU", fid = "1204", accountType = "CHECKING", accountId = "00001204", bankId = "101000695" }
+driver = { state = "failing", message = "second factor", files = 0 }

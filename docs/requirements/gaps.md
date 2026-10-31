@@ -69,3 +69,18 @@ that holds it.
 **Settled:** nothing yet. **Waits on:** a screen that shows an instrument (its name, class,
 CUSIP and price source), where an admin corrects the class.
 
+## G28: Short sales of stock — Low
+
+**What is named:** the Schwab driver writes a short sale and its cover as OFX does
+(`SELLSHORT`, `BUYTOCOVER`, S18.9.2), and S3.4 opens a short stock lot when a call is assigned,
+or a put exercised, with none of the shares held.
+
+**What is not:** a short sale on its own. The import reads `SELLSHORT` as a sale, which with no
+shares held finds no lot (S8.4), and the cover then opens a long position: the connector
+corpus's `short-sale-and-cover` entry waits on this gap.
+
+**Settled:** nothing yet. **Proposed:** a sale marked short (from `SELLSHORT`, or the trade
+dialog's **Sell short**) with fewer shares held than it sells opens a short stock lot for the
+rest, its proceeds the basis, as an assignment's does; a buy closes short lots first (as it
+already does after an assignment), its gain short-term; wash-sale rules for short sales
+(S3.8.1) follow. **Waits on:** a household that sells short.

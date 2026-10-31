@@ -1,0 +1,169 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "CASH",
+   "accountNumber": "12344417",
+   "positions": [
+    {
+     "shortQuantity": 0,
+     "longQuantity": 30,
+     "settledLongQuantity": 30,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 5400,
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "AAPL",
+      "cusip": "037833100",
+      "description": "APPLE INC"
+     }
+    },
+    {
+     "shortQuantity": 0,
+     "longQuantity": 30,
+     "settledLongQuantity": 30,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 840,
+     "instrument": {
+      "assetType": "COLLECTIVE_INVESTMENT",
+      "symbol": "SCHD",
+      "cusip": "808524797",
+      "description": "SCHWAB US DIVIDEND EQUITY ETF"
+     }
+    }
+   ],
+   "currentBalances": {
+    "cashBalance": 14281.28
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000001,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 20000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000002,
+   "time": "2026-09-03T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY APPLE INC",
+   "netAmount": -8500,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "AAPL",
+      "cusip": "037833100",
+      "description": "APPLE INC"
+     },
+     "amount": 50,
+     "price": 170,
+     "cost": -8500,
+     "positionEffect": "OPENING"
+    }
+   ],
+   "tradeDate": "2026-09-03T04:00:00+0000",
+   "settlementDate": "2026-09-03T04:00:00+0000"
+  },
+  {
+   "activityId": 1000003,
+   "time": "2026-09-03T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY SCHWAB US DIVIDEND EQUITY ETF",
+   "netAmount": -825,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "COLLECTIVE_INVESTMENT",
+      "symbol": "SCHD",
+      "cusip": "808524797",
+      "description": "SCHWAB US DIVIDEND EQUITY ETF"
+     },
+     "amount": 30,
+     "price": 27.5,
+     "cost": -825.0,
+     "positionEffect": "OPENING"
+    }
+   ],
+   "tradeDate": "2026-09-03T04:00:00+0000",
+   "settlementDate": "2026-09-03T04:00:00+0000"
+  },
+  {
+   "activityId": 1000004,
+   "time": "2026-09-24T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "SELL APPLE INC",
+   "netAmount": 3599.98,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "AAPL",
+      "cusip": "037833100",
+      "description": "APPLE INC"
+     },
+     "amount": -20,
+     "price": 180,
+     "cost": 3600,
+     "positionEffect": "CLOSING"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -0.02,
+     "feeType": "SEC_FEE"
+    }
+   ],
+   "tradeDate": "2026-09-24T04:00:00+0000",
+   "settlementDate": "2026-09-24T04:00:00+0000"
+  },
+  {
+   "activityId": 1000005,
+   "time": "2026-09-25T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "DIVIDEND_OR_INTEREST",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "QUALIFIED DIVIDEND SCHD",
+   "netAmount": 6.3,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "COLLECTIVE_INVESTMENT",
+      "symbol": "SCHD",
+      "cusip": "808524797",
+      "description": "SCHWAB US DIVIDEND EQUITY ETF"
+     },
+     "amount": 0
+    }
+   ]
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

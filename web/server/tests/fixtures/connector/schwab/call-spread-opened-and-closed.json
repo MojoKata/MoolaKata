@@ -1,0 +1,165 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "CASH",
+   "accountNumber": "12344417",
+   "positions": [],
+   "currentBalances": {
+    "cashBalance": 20097.36
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000023,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 20000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000024,
+   "time": "2026-09-15T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY CALL SPREAD AAPL",
+   "netAmount": -401.32,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "OPTION",
+      "symbol": "AAPL  261120C00170000",
+      "description": "AAPL 11/20/2026 170.00 C",
+      "putCall": "CALL",
+      "strikePrice": 170,
+      "expirationDate": "2026-11-20T20:00:00+0000",
+      "underlyingSymbol": "AAPL",
+      "optionPremiumMultiplier": 100,
+      "type": "VANILLA"
+     },
+     "amount": 1,
+     "price": 6.0,
+     "cost": -600.0,
+     "positionEffect": "OPENING"
+    },
+    {
+     "instrument": {
+      "assetType": "OPTION",
+      "symbol": "AAPL  261120C00180000",
+      "description": "AAPL 11/20/2026 180.00 C",
+      "putCall": "CALL",
+      "strikePrice": 180,
+      "expirationDate": "2026-11-20T20:00:00+0000",
+      "underlyingSymbol": "AAPL",
+      "optionPremiumMultiplier": 100,
+      "type": "VANILLA"
+     },
+     "amount": -1,
+     "price": 2.0,
+     "cost": 200.0,
+     "positionEffect": "OPENING"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -0.02,
+     "feeType": "OPT_REG_FEE"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -1.3,
+     "feeType": "COMMISSION"
+    }
+   ],
+   "tradeDate": "2026-09-15T04:00:00+0000",
+   "settlementDate": "2026-09-15T04:00:00+0000"
+  },
+  {
+   "activityId": 1000025,
+   "time": "2026-10-06T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "SELL CALL SPREAD AAPL",
+   "netAmount": 498.68,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "OPTION",
+      "symbol": "AAPL  261120C00170000",
+      "description": "AAPL 11/20/2026 170.00 C",
+      "putCall": "CALL",
+      "strikePrice": 170,
+      "expirationDate": "2026-11-20T20:00:00+0000",
+      "underlyingSymbol": "AAPL",
+      "optionPremiumMultiplier": 100,
+      "type": "VANILLA"
+     },
+     "amount": -1,
+     "price": 8.0,
+     "cost": 800.0,
+     "positionEffect": "CLOSING"
+    },
+    {
+     "instrument": {
+      "assetType": "OPTION",
+      "symbol": "AAPL  261120C00180000",
+      "description": "AAPL 11/20/2026 180.00 C",
+      "putCall": "CALL",
+      "strikePrice": 180,
+      "expirationDate": "2026-11-20T20:00:00+0000",
+      "underlyingSymbol": "AAPL",
+      "optionPremiumMultiplier": 100,
+      "type": "VANILLA"
+     },
+     "amount": 1,
+     "price": 3.0,
+     "cost": -300.0,
+     "positionEffect": "CLOSING"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -0.02,
+     "feeType": "OPT_REG_FEE"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -1.3,
+     "feeType": "COMMISSION"
+    }
+   ],
+   "tradeDate": "2026-10-06T04:00:00+0000",
+   "settlementDate": "2026-10-06T04:00:00+0000"
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

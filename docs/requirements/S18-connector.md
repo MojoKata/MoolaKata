@@ -392,9 +392,34 @@ ask it for anything. People give it its words on **its page**, which it serves i
       15500 to 15503 mean *needs a sign-in*. Every value in the request is written as SGML
       wants it (`&`, `<` and `>` escaped) in Windows-1252, its header's character set; a
       credential or setting holding a character that set can't carry is never altered to fit:
-      nothing is sent, and the Connection is *failing* with the reason.
+      nothing is sent, and the Connection is *failing* with the reason. A server that answers
+      with several accounts' statements has them kept to the Connection's own (by its
+      account number's last four digits), since the import takes one account a file. Code
+      15000 (a new password wanted) and 15502 (the sign-in locked) also mean *needs a
+      sign-in*, with the owner told what the institution wants; 3000 (a second factor) is
+      *failing*: OFX Direct Connect can't give one, and the owner uploads the institution's
+      files instead; a statement refused with a code of its own is *failing* with that code.
    2. **Schwab**: Schwab's official Trader API, for positions, transactions and balances,
-      posted as OFX. Its sign-in lasts seven days, so the Connection asks for a sign-in every
+      posted as OFX, an option written whole (S3):
+      1. **Trades**: a share's, an ETF's, a mutual fund's (a money market fund's among them),
+         a bond's and an option's, each as its kind; an option's opening or closing from what
+         Schwab says of the trade (`positionEffect`), as buy or sell to open or to close,
+         with its contracts' shares (Schwab's multiplier, else 100), and a share's short sale
+         and cover the same way (G28); an order of several legs (a spread, a roll) as one
+         trade per leg, its fees with the first.
+      2. **An option's end**: a `RECEIVE_AND_DELIVER` removing an option as an expiry,
+         assignment or exercise by what it says; the shares that come with an assignment or
+         exercise, a trade or a delivery with cash, as the trade the import pairs with it
+         (S3.4); shares moved in or out with no cash as transfers.
+      3. **Cash and income**: ACH, wires, journals and MoneyLink transfers; dividends and a
+         bond's interest on the security; the bank sweep's interest; margin interest as a
+         fee. A memorandum that moves nothing is written as nothing.
+      4. **Positions** by kind (shares, funds, bonds, options, a short one below zero), with
+         Schwab's market value, and the account's cash.
+      5. **What it can't write whole** (an option trade that says neither opening nor
+         closing, an option removed for a reason not given, a kind with no OFX form, such as a
+         future) is left out of the file and named in the Connection's message, never
+         dropped unsaid; the statement's cash check then shows what is missing. Its sign-in lasts seven days, so the Connection asks for a sign-in every
       week (S18.5.3). Once a day it asks for the last 45 days. The app registered at Schwab
       must name `https://127.0.0.1` as its callback, the address the owner lands on and pastes
       back (S18.7.1); an access token is used until a minute before it runs out. The access

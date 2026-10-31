@@ -1,0 +1,123 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "MARGIN",
+   "accountNumber": "12344417",
+   "positions": [],
+   "currentBalances": {
+    "cashBalance": 11788.85
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000045,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 5000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000046,
+   "time": "2026-09-04T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "WIRE_IN",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "WIRED FUNDS RECEIVED",
+   "netAmount": 10000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000047,
+   "time": "2026-09-10T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_DISBURSEMENT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING DISBURSEMENT",
+   "netAmount": -1000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000048,
+   "time": "2026-09-12T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "WIRE_OUT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "WIRED FUNDS DISBURSED",
+   "netAmount": -2000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000049,
+   "time": "2026-09-15T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "JOURNAL",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "JOURNAL TO ...1234",
+   "netAmount": -500,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000050,
+   "time": "2026-09-20T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ELECTRONIC_FUND",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "MONEYLINK TRANSFER",
+   "netAmount": 300,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000051,
+   "time": "2026-09-30T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "DIVIDEND_OR_INTEREST",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "SCHWAB1 INT 08/28-09/29",
+   "netAmount": 1.25,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000052,
+   "time": "2026-09-30T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "DIVIDEND_OR_INTEREST",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "MARGIN INTEREST",
+   "netAmount": -12.4,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000053,
+   "time": "2026-10-01T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "MEMORANDUM",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "MANDATORY - NAME CHANGE",
+   "netAmount": 0,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

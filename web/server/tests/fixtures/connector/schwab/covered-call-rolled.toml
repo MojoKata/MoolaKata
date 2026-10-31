@@ -1,0 +1,23 @@
+about = """A covered call rolled out and up in one order, which Schwab writes as one transaction of
+two legs: the October call bought to close, the November one sold to open. The order's fees go
+with its first leg."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -17000.00 AAPL 100",
+    "2026-09-10 sell-to-open 199.34 AAPL 09OCT26 175 C 1",
+    "2026-10-05 buy-to-close -51.32 AAPL 09OCT26 175 C 1",
+    "2026-10-05 sell-to-open 300.00 AAPL 20NOV26 180 C 1",
+]
+holdings = ["AAPL 100", "AAPL 20NOV26 180 C -1"]
+cash = "3448.02"
+checks = ["2026-10-15 3448.02 ok"]
+holding_checks = ["as of 2026-10-15", "AAPL 100 ok", "AAPL 20NOV26 180 C -1 ok"]
+instruments = { AAPL = "equity", "AAPL 09OCT26 175 C" = "option", "AAPL 20NOV26 180 C" = "option" }
+# The October call: 199.34 in, 51.32 to buy it back. The November one is open, its 300 credit
+# its basis, and with the shares it is offered as a covered call (S3.5.1).
+open = ["AAPL 20NOV26 180 C short -1 cost -300.00", "AAPL long 100 cost 17000.00"]
+closed = ["2026-10-05 AAPL 09OCT26 175 C short 1 bought back realized 148.02"]
+strategies = ["proposed covered-call Covered call: AAPL, AAPL 20NOV26 180 C"]
