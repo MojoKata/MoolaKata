@@ -376,3 +376,6 @@ Given by the user Oct 31, 3:17 PM, for all sixteen decisions as written above.
    3. CR3-47's leak is closed by step 3a: bob's view of the receipt lists only the joint
       account's link, its links and their transactions read through his views. How the
       dialog says it is kept with more is the receipts walk's item 1.
+9. **Decision 9's last parts:** `rejected-ideas.md` 24 (one polymorphic view) and 25
+   (visibility per route in Python); G26 says who sees a deleted record needs a rule of its
+   own, as the views hold live records only.
