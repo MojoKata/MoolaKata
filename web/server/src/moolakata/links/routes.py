@@ -12,7 +12,7 @@ from sqlalchemy import false, select
 
 from .. import clock, ratelimit
 from ..store.entities.links import Link
-from . import PROTOCOL, SUPPORTED, keys, signing
+from . import PROTOCOL, SUPPORTED, keys, lifecycle, signing
 from .gate import Call, Gate, Kind
 
 KIND = Kind(
@@ -36,9 +36,10 @@ def own(srv) -> tuple[object, str]:
     return keys.signing_key(srv), keys.own_public(srv)[1]
 
 
-def link_in(*states: str):
-    """The finder for a route the peer's link must be in one of these states to call; its
-    calls count against that link (S13.7.5.4)."""
+def link_in(name: str):
+    """The finder for a call the peer's link must be in a state that allows (`lifecycle.CALLS`);
+    its calls count against that link (S13.7.5.4)."""
+    states = lifecycle.CALLS[name]
 
     def find(srv, caller: signing.Caller) -> tuple[Link, str]:
         with srv.db.read() as s:
@@ -83,7 +84,7 @@ def hello(request: Request):
 
 
 @router.post("/ping")
-@gate.route(link_in("active", "paused", "pending", "requested"))
+@gate.route(link_in("ping"))
 def ping(call: Call):
     srv, link = call.srv, call.found
     with srv.db.tx() as s:
@@ -106,7 +107,7 @@ def join(call: Call):
 
 
 @router.post("/exchange")
-@gate.route(link_in("active", "pending"))
+@gate.route(link_in("exchange"))
 def exchange(call: Call):
     """Each side's directory for the other's: users and household (S11.3)."""
     from .manage import answer_exchange
@@ -115,7 +116,7 @@ def exchange(call: Call):
 
 
 @router.post("/end")
-@gate.route(link_in("requested", "pending", "active", "paused"))
+@gate.route(link_in("end"))
 def end(call: Call):
     from .manage import answer_end
 
@@ -124,7 +125,7 @@ def end(call: Call):
 
 
 @router.post("/next")
-@gate.route(link_in("active"))
+@gate.route(link_in("next"))
 def next_part(call: Call):
     """The next part of a large change the caller is pulling (S11.4), oldest first."""
     from .manage import answer_next
@@ -158,7 +159,7 @@ FILE_ID = re.compile(r"[A-Za-z]{2,8}_[0-9a-z]{26}")
 
 
 @router.post("/deliver")
-@gate.route(link_in("active"), files=True)
+@gate.route(link_in("deliver"), files=True)
 def deliver(call: Call):
     """The caller's change for this server, after an exchange it made (S11.4); or, before it,
     one of the receipts that change sends, sealed by the caller to this side's copy key, as
@@ -185,7 +186,7 @@ def deliver(call: Call):
 
 
 @router.post("/certificate")
-@gate.route(link_in("active", "paused"))
+@gate.route(link_in("certificate"))
 def certificate(call: Call):
     """The peer's next TLS certificate key, announced before it is used (link-protocol.md
     §4.5): accepted beside the pinned one until it is in use."""
@@ -195,7 +196,7 @@ def certificate(call: Call):
 
 
 @router.post("/file")
-@gate.route(link_in("active"))
+@gate.route(link_in("file"))
 def file(call: Call):
     """One receipt, for a peer whose people may have it (S11.5.1): sealed to the caller's copy
     key, so only that copy opens it, and its answer signed over the sealed bytes' hash."""

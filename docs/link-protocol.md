@@ -234,6 +234,33 @@ an exchange over the new one succeeds. A certificate whose key changes unannounc
 peer's certificate changed* until an admin there accepts the new fingerprint, which the peer's
 admin reads out from their Settings › Linked servers.
 
+### 4.6 A link's states
+
+A link is **invited**, **requested**, **pending**, **active**, **paused** or **ended**; the
+calls each allows are the table's in section 4. **Broken** is a mark on a pending, active or
+paused link, never a state: the peer answered `not-linked`. These events move a link, and
+nothing else does (`links/lifecycle.py`, held to this table by a test):
+
+| Event | From | To |
+|---|---|---|
+| `invite`: an admin makes a link code | — | invited |
+| `join-here`: an admin enters the other server's code | — | pending |
+| `join-arrives`: the other server answers this one's code | invited | requested |
+| `approve` | requested | active |
+| `peer-active`: the other side's exchange, or its answer, says active | pending, active | active |
+| `pause` | active | paused |
+| `resume`: an admin, or the pause running out | paused | active |
+| `end-here` | invited, requested, pending, active, paused | ended |
+| `link-ended`: the peer's signed `link-ended` | requested, pending, active, paused, ended | ended |
+| `not-linked`: the peer's answer; marks the link broken | pending, active, paused | the same |
+| `good-call`: any answered call; the broken mark goes | any | the same |
+| `link-again`: a new link with the same peer, either side's join | ended; a broken pending, active or paused | ended, and put aside |
+
+Linking again (S11.6) is a join like any other, from either side: the link already held with
+that key, ended or broken, is put aside in the join's own transaction (a broken one ended
+first, its copy deleted), and the new link takes its place; a link that is neither is the one
+the two servers have, and the join is refused `already-linked`. The new link pulls in full.
+
 ## 5. Versions
 
 1. The protocol has one number, `1`, sent in `MK-Link-Protocol` on every call. A server
@@ -277,7 +304,7 @@ message into an alert or an email (S13.7.9).
 | `not-shared` | a file no share to that link includes |
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |
 | `code-used` | a link code was used, expired or withdrawn |
-| `already-linked` | the two servers already have a link |
+| `already-linked` | the two servers already have a link that is neither ended nor broken (section 4.6) |
 | `change-refused` | a delivered change fails its signature check |
 
 A `link-ended` answer to a signed call ends the link on the calling side, as `end` would: its

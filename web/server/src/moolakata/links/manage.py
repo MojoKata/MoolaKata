@@ -19,7 +19,7 @@ from .. import activity, clock, ids, people, settings
 from ..store.entities.education import Person
 from ..store.entities.links import Link
 from ..store.entities.users import User
-from . import client, keys
+from . import client, keys, lifecycle
 from .changes import ChangeError
 from .client import LinkError
 
@@ -127,7 +127,8 @@ def call(srv, link_id: str, path: str, data: dict | None = None) -> dict:
             # again, never ended by an answer that isn't the peer's `link-ended` (S11.6).
             with srv.db.tx() as s:
                 row = _get(s, link_id)
-                row.brokenAt = row.brokenAt or clock.now()
+                with contextlib.suppress(LinkError):  # an ended or new link takes no mark
+                    lifecycle.apply(row, "not-linked")
                 row.lastError = "The other server has no link with this one: end it, or link again."
                 row.failingSince = row.failingSince or clock.now()
         raise
@@ -145,9 +146,8 @@ def ended_by_peer(srv, link_id: str) -> None:
 
     with srv.db.tx() as s:
         row = _get(s, link_id)
-        if row.state == "ended":
+        if not lifecycle.apply(row, "link-ended").ended:
             return
-        row.state, row.endedAt = "ended", clock.now()
         end_users(s, row)
         activity.record(s, "link.ended-by-peer", actor=None, for_admins=True)
     receive.forget(srv, link_id)
@@ -224,7 +224,7 @@ def invite(srv, by: str) -> tuple[Link, str]:
         secret = secrets.token_urlsafe(24)
         link = Link(
             id=ids.new_id("Link"),
-            state="invited",
+            state=lifecycle.start("invite"),
             role="inviter",
             codeHash=_hash(secret),
             codeExpiresAt=clock.now() + dt.timedelta(hours=CODE_HOURS),
@@ -259,22 +259,18 @@ def join(srv, code: str, by: str) -> Link:
                 "Set this server's link address (or its public URL) first, so the other server "
                 "can reach it.",
             )
-        if s.scalars(
-            select(Link).where(
-                Link.peerKey == keys.b64(peer),
-                Link.deleted == false(),
-                Link.state != "ended",
-            )
-        ).first():
-            raise LinkError("already-linked", "This server already has a link with that one.")
+        old = _with_key(s, peer)
+        if old is not None:
+            lifecycle.step(old.state, old.brokenAt is not None, "link-again")  # or refused
     # No directory crosses before the other side's admin approves (link-protocol.md §4.1).
     mine = certs.own_key(srv)
     body = {"code": c["c"], "address": address, **({"t": mine} if mine else {})}
     client.call(srv, c["a"], peer, "/link/v1/join", body, pins=pinned)
     with srv.db.tx() as s:
+        gone = _link_again(s, peer, by)
         link = Link(
             id=ids.new_id("Link"),
-            state="pending",
+            state=lifecycle.start("join-here"),
             role="joiner",
             address=client.checked_address(c["a"]),
             peerKey=keys.b64(peer),
@@ -287,7 +283,11 @@ def join(srv, code: str, by: str) -> Link:
         s.add(link)
         s.flush()
         activity.record(s, "link.requested", actor=by, for_admins=True)
-        return link
+    if gone:
+        from . import receive
+
+        receive.forget(srv, gone)
+    return link
 
 
 def answer_join(srv, caller_key: bytes, body: dict) -> dict:
@@ -301,19 +301,12 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
         ).first()
         if link is None or link.codeExpiresAt <= clock.now():
             return {"error": ("code-used", "That link code was used, expired or withdrawn.")}
-        if s.scalars(
-            select(Link).where(
-                Link.peerKey == keys.b64(caller_key),
-                Link.deleted == false(),
-                Link.state != "ended",
-            )
-        ).first():
-            return {"error": ("already-linked", "These two servers are already linked.")}
         try:
             address = client.checked_address(str(body.get("address") or ""))
+            gone = _link_again(s, caller_key)
         except LinkError as e:
             return {"error": (e.code, e.message)}
-        link.state = "requested"
+        lifecycle.apply(link, "join-arrives")
         link.codeHash = None
         link.peerKey = keys.b64(caller_key)
         link.address = address
@@ -321,8 +314,12 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
         link.lastOkAt = clock.now()
         s.flush()
         activity.record(s, "link.request-received", actor=None, for_admins=True)
-        # Nothing of either household crosses until the admin approves (S10.10.1).
-        return {}
+    if gone:
+        from . import receive
+
+        receive.forget(srv, gone)
+    # Nothing of either household crosses until the admin approves (S10.10.1).
+    return {}
 
 
 def apply_directory(s, link: Link, payload: dict) -> None:
@@ -391,12 +388,34 @@ def _get(s, link_id: str) -> Link:
     return link
 
 
+def _with_key(s, peer: bytes) -> Link | None:
+    """The link this server has with the server whose key this is: at most one is live."""
+    return s.scalars(
+        select(Link).where(Link.peerKey == keys.b64(peer), Link.deleted == false())
+    ).first()
+
+
+def _link_again(s, peer: bytes, by: str | None = None) -> str | None:
+    """Linking again with a server this one already had a link with (S11.6): an ended link is
+    put aside for the new one, a broken one ended first, its copy deleted (the id returned,
+    for the caller to forget once the transaction is done); any other is the link the two
+    already have, refused."""
+    old = _with_key(s, peer)
+    if old is None:
+        return None
+    got = lifecycle.apply(old, "link-again", by)
+    if got.ended:
+        old.codeHash = None
+        end_users(s, old)
+        activity.record(s, "link.ended", actor=by, for_admins=True)
+    s.flush()  # put aside before the new link takes its key
+    return old.id if got.ended else None
+
+
 def approve(srv, link_id: str, by: str) -> Link:
     with srv.db.tx() as s:
         link = _get(s, link_id)
-        if link.state != "requested":
-            raise LinkError("not-requested", "Only a request can be approved.")
-        link.state = "active"
+        lifecycle.apply(link, "approve")
         link.approvedById = by
         link.approvedAt = clock.now()
         activity.record(s, "link.approved", actor=by, for_admins=True)
@@ -411,18 +430,16 @@ def set_state(
     """Reject a request, pause (until a time), resume or end a link on this side."""
     with srv.db.tx() as s:
         link = _get(s, link_id)
-        allowed = {
-            "paused": ("active",),
-            "active": ("paused",),
-            "ended": ("invited", "requested", "pending", "active", "paused"),
-        }[state]
-        if link.state not in allowed:
-            raise LinkError("state-invalid", f"A link that is {link.state} can't be {state}.")
         was = link.state
-        link.state = state
+        event = {"paused": "pause", "active": "resume", "ended": "end-here"}[state]
+        try:
+            lifecycle.apply(link, event)
+        except LinkError:
+            raise LinkError(
+                "state-invalid", f"A link that is {link.state} can't be {state}."
+            ) from None
         link.pausedUntil = until if state == "paused" else None
         if state == "ended":
-            link.endedAt = clock.now()
             link.codeHash = None
             end_users(s, link)
         kind = {"paused": "link.paused", "active": "link.resumed", "ended": "link.ended"}[state]
@@ -484,10 +501,10 @@ def exchange(srv, link_id: str) -> None:
         raise
     with srv.db.tx() as s:
         link = _get(s, link_id)
-        if link.state == "pending" and out.get("state") == "active":
-            link.state = "active"
+        if out.get("state") == "active":
+            lifecycle.apply(link, "peer-active")
+        lifecycle.apply(link, "good-call")
         link.lastOkAt, link.lastError, link.failingSince = clock.now(), None, None
-        link.brokenAt = None
         link.peerVersion = out.get("version") or link.peerVersion
         link.peerCopyKey = _copy_key(out.get("copyKey"))
         apply_directory(s, link, out)
@@ -593,10 +610,9 @@ def answer_exchange(srv, link: Link, body: dict, version: str | None) -> dict:
 
     with srv.db.tx() as s:
         row = _get(s, link.id)
-        if row.state == "pending":
-            row.state = "active"  # only an approved link calls this way
+        lifecycle.apply(row, "peer-active")  # only an approved link calls this way
+        lifecycle.apply(row, "good-call")
         row.lastOkAt, row.lastError, row.failingSince = clock.now(), None, None
-        row.brokenAt = None
         row.peerVersion = version or row.peerVersion
         row.peerCopyKey = _copy_key(body.get("copyKey"))
         apply_directory(s, row, body)
@@ -653,8 +669,7 @@ def answer_end(srv, link: Link) -> None:
 
     with srv.db.tx() as s:
         row = _get(s, link.id)
-        if row.state != "ended":
-            row.state, row.endedAt = "ended", clock.now()
+        if lifecycle.apply(row, "link-ended").ended:
             end_users(s, row)
             activity.record(s, "link.ended-by-peer", actor=None, for_admins=True)
     receive.forget(srv, link.id)

@@ -106,8 +106,14 @@ preparer.
    call and deletes its copies. Only the peer's signed `link-ended` ends a link there: a
    `not-linked` answer (a peer restored from an older backup, say) marks the link broken and
    alerts admins, who end it or link again. Ending a link deletes nothing on the source.
+   **Linking again** is a new link code and join, from either side: the old link with that
+   server, ended or broken, makes way for the new one (a broken one is ended first, its copy
+   deleted), and the new link pulls everything afresh. A link that is neither is the one the
+   two servers have, and a second join with it is refused. The states and what moves a link
+   between them are `docs/link-protocol.md` §4.6.
 7. **Settings › Linked servers** lists each link: the peer's name and address, its
-   fingerprint, state (active, paused until…, unreachable since…, ended), the last pull, and
+   fingerprint, state (invited, requested, pending, active, paused until…, unreachable
+   since…, broken, ended), the last pull, and
    what flows each way, with *Pull now*, *Pause* and *End link*.
    1. **Progress**: while a pull is under way, how far it has come both in time and in
       quantity: *Up to July 2022 (47 MB of 2 GB)*, the date being the newest record applied so
