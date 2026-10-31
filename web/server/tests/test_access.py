@@ -518,3 +518,62 @@ def test_activity_agrees_with_the_python_rule(household):
                 if s.get(Activity, i).subjectKind == "person"  # 1f.5: through PersonAccess
             }
             assert old == new - extra, (u.username, old ^ new)
+
+
+# ---- Scoped sessions (decision 5) ----
+
+
+def test_a_users_session_reads_only_what_their_views_give(household):
+    """Lists, a get, a joined table and an alias are all scoped; the same statement, cached,
+    gives each user their own; the server's session reads everything."""
+    from sqlalchemy.orm import aliased
+
+    from moolakata.store.entities.accounts import Account, Transaction
+
+    srv, n = household
+
+    def ids_of(user=None, unscoped=None):
+        with srv.db.read(user=user, unscoped=unscoped) as s:
+            accounts = set(s.scalars(select(Account.id)))
+            joined = set(
+                s.scalars(select(Transaction.id).join(Account, Account.id == Transaction.accountId))
+            )
+            a = aliased(Account)
+            aliased_ids = set(s.scalars(select(a.id)))
+            got = s.get(Account, n["unshared"])
+            return accounts, joined, aliased_ids, got
+
+    every, all_txns, _, unshared = ids_of(unscoped="test: every account")
+    assert unshared is not None
+    for user in ("alice", "bob", "tom", "carol"):
+        with srv.db.read(unscoped="test: the view") as s:
+            view = rows(s, "Account")
+            txns = rows(s, "Transaction")
+        accounts, joined, aliased_ids, got = ids_of(user=n[user])
+        assert accounts == {k[0] for k in view if k[1] == n[user]}, user
+        assert aliased_ids == accounts, user
+        assert joined == {k[0] for k in txns if k[1] == n[user]} & all_txns, user
+        assert (got is not None) == ((n["unshared"], n[user]) in view), user
+    assert accounts < every
+
+
+def test_need_answers_404_unread_and_403_without_the_permission(household):
+    from moolakata.errors import Problem
+    from moolakata.store.entities.accounts import Account
+
+    srv, n = household
+    with srv.db.read(user=n["bob"]) as s:
+        shared = s.scalars(select(Account).where(Account.name == "Everyday checking")).one()
+        a, p = access.need(s, Account, shared.id, n["bob"])
+        assert p.level() == "read"
+        with pytest.raises(Problem) as e:
+            access.need(s, Account, shared.id, n["bob"], "writable", "account")
+        assert e.value.status == 403
+        with pytest.raises(Problem) as e:
+            access.need(s, Account, n["unshared"], n["bob"])
+        assert e.value.status == 404
+        listed = access.listing(s, Account, n["bob"], order_by=Account.name)
+        assert {a.id for a, _ in listed} == {k[0] for k in rows(s, "Account") if k[1] == n["bob"]}
+    with srv.db.read(unscoped="test: holders") as s:
+        held = access.holders_of(s, Account, shared.id)
+        assert held[n["alice"]].level() == "owner" and n["bob"] in held

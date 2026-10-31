@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from . import ids
 from .errors import FieldError, Problem
+from .store import scoping
 from .store.entities.core import Setting
 
 
@@ -307,22 +308,43 @@ def row_of(s: Session, key: str) -> Setting | None:
 
 
 def get(s: Session, key: str) -> Any:
-    row = row_of(s, key)
-    return DEFINITIONS[key].default if row is None else json.loads(row.value)
+    """A setting's value, as the server reads it for whoever's request it serves (Settings are
+    admin data, schema.md §7.1)."""
+    value = s.scalars(
+        scoping.unscoped(
+            select(Setting.value).where(Setting.key == key, Setting.deleted == false()),
+            "a setting's value, for the server",
+        )
+    ).first()
+    return DEFINITIONS[key].default if value is None else json.loads(value)
 
 
 def section(s: Session, name: str) -> dict[str, Any]:
     keys = [k for k, d in DEFINITIONS.items() if d.section == name]
-    rows = {
-        r.key: r
-        for r in s.scalars(select(Setting).where(Setting.key.in_(keys), Setting.deleted == false()))
-    }
-    return {k: json.loads(rows[k].value) if k in rows else DEFINITIONS[k].default for k in keys}
+    rows = dict(
+        s.execute(
+            scoping.unscoped(
+                select(Setting.key, Setting.value).where(
+                    Setting.key.in_(keys), Setting.deleted == false()
+                ),
+                "a section's settings, for the server",
+            )
+        ).all()
+    )
+    return {k: json.loads(rows[k]) if k in rows else DEFINITIONS[k].default for k in keys}
 
 
 def saved(s: Session, key: str) -> bool:
     """Whether an admin has saved the setting, rather than it standing at its default."""
-    return row_of(s, key) is not None
+    return (
+        s.scalars(
+            scoping.unscoped(
+                select(Setting.id).where(Setting.key == key, Setting.deleted == false()),
+                "whether a setting is saved, for the server",
+            )
+        ).first()
+        is not None
+    )
 
 
 def put(s: Session, key: str, value: Any, by: str | None) -> Any:

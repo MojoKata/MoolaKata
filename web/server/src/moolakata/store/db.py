@@ -11,7 +11,7 @@ from sqlalchemy import Engine, and_, create_engine, event, false, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import QueuePool
 
-from . import views
+from . import scoping, views
 
 BUSY_MS = 10_000
 
@@ -101,10 +101,20 @@ class Database:
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
+    @staticmethod
+    def _scope(s: Session, user: str | None, unscoped: str | None) -> None:
+        """A user's request reads only what their access views give them; the server's own
+        work names why it reads everything (schema.md §7.6)."""
+        if user is not None:
+            scoping.scope_user(s, user)
+        elif unscoped is not None:
+            scoping.scope_server(s, unscoped)
+
     @contextmanager
-    def tx(self) -> Iterator[Session]:
+    def tx(self, user: str | None = None, unscoped: str | None = None) -> Iterator[Session]:
         """A write: BEGIN IMMEDIATE, committed on leaving, rolled back on an exception."""
         with Session(self.engine, expire_on_commit=False, autoflush=True) as s:
+            self._scope(s, user, unscoped)
             s.connection(execution_options={"mk_mode": "write"})
             try:
                 yield s
@@ -114,9 +124,10 @@ class Database:
                 raise
 
     @contextmanager
-    def read(self) -> Iterator[Session]:
+    def read(self, user: str | None = None, unscoped: str | None = None) -> Iterator[Session]:
         """A read under PRAGMA query_only: any write in it fails."""
         with Session(self.engine, expire_on_commit=False, autoflush=False) as s:
+            self._scope(s, user, unscoped)
             s.connection(execution_options={"mk_mode": "read"})
             # Leaving the block closes the session: the pool rolls the connection back, and
             # what was read stays loaded (a rollback here would expire it).

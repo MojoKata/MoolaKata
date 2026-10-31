@@ -344,3 +344,14 @@ ever read for them.
 5. **Kept current** as the Effective views are: dropped before a migration and made again
    after it, at every start, each after the views it reads, from the declarations. They are
    no migration's business.
+6. **Scoped sessions.** A session opened for a user's request names the user
+   (`db.read(user=…)`, `db.tx(user=…)`), and every ORM query in it reads only what the user's
+   views give them: each table with a view gets `EXISTS (SELECT 1 FROM <Table>Access WHERE
+   targetId = id AND userId = :user)` beside whatever the query asks, lists, a record fetched
+   by its id and joined tables alike. Code that needs the permissions joins the view itself.
+   The server's own work opens a session unscoped, naming why (`db.tx(unscoped="…")`): a
+   sweep, a job, sign-in, a link's pull. Inside a user's session, one statement may read as
+   the server, naming why (`scoping.unscoped`), when what it reads serves the server (a
+   setting's value, whether a file is kept already) and is never handed to the user; such a
+   statement selects columns, never records, so a user's session holds only records they
+   read.
