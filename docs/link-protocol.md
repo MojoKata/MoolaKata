@@ -20,7 +20,8 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 3. Everything but `hello` is signed, and every answer to a signed call is signed back, but for
    the refusals §7 marks unsigned, which come before the answering server can sign to the call.
 4. Bodies are JSON, UTF-8, at most 20 MB. A caller waits 10 seconds to connect and 20 seconds
-   for each read, and cuts off an answer past 20 MB. A receipt's sealed bytes (a `deliver`
+   for each read, and cuts off an answer past 20 MB as it decodes (a caller asks for gzip or
+   deflate at most, and refuses any other content coding). A receipt's sealed bytes (a `deliver`
    body with `MK-Link-File`, a `file` answer) are read as they arrive, never whole in memory,
    and are bounded instead by the largest receipt Settings allows (S16.10, 100 MB) sealed: its
    header and a 16-byte tag for each 64 KiB chunk (section 4.4). Each side bounds them so,

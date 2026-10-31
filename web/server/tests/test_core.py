@@ -1,5 +1,6 @@
 import asyncio
 import datetime as dt
+import gzip
 import threading
 import time
 from decimal import Decimal
@@ -273,7 +274,12 @@ def tls_peer(tmp_path):
             try:
                 with ctx.wrap_socket(raw, server_side=True) as tls:
                     request = tls.recv(65536)
-                    if b"/long" in request:
+                    if b"/gzip" in request:
+                        # 1 MB of zeros, about a kilobyte as gzip: under any ceiling on the wire.
+                        bomb = gzip.compress(b"0" * (1 << 20))
+                        head = f"Content-Encoding: gzip\r\nContent-Length: {len(bomb)}\r\n"
+                        tls.sendall(b"HTTP/1.1 200 OK\r\n" + head.encode() + b"\r\n" + bomb)
+                    elif b"/long" in request:
                         tls.sendall(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n")
                         piece = b"x" * 4096
                         for _ in range(8):
@@ -299,7 +305,8 @@ def tls_peer(tmp_path):
 def test_a_servers_own_certificate_is_pinned_by_its_key(tls_peer):
     """S11.1.3, S13.5: the address the guard checked is the one connected to; a certificate of
     the server's own is accepted only by the key pinned for it, checked before anything is
-    sent; a public check refuses it; and an answer past the ceiling is cut off, chunked or not."""
+    sent; a public check refuses it; and an answer past the ceiling is cut off, chunked or not,
+    and counted as it decodes, over the sockets as tests/test_net.py counts it above them."""
     port, fp = tls_peer
     lookups = []
 
@@ -319,3 +326,5 @@ def test_a_servers_own_certificate_is_pinned_by_its_key(tls_peer):
         net.Client(guard).get(url)  # a public check: no root vouches for it
     with pytest.raises(net.ResponseTooLarge):
         net.Client(guard, max_bytes=10_000, pins=[fp]).get(url + "long")
+    with pytest.raises(net.ResponseTooLarge):
+        net.Client(guard, max_bytes=10_000, pins=[fp]).get(url + "gzip").json()

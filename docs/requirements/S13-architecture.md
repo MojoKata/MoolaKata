@@ -49,7 +49,9 @@
    it could reach on its own, each time a dependency changes (S17.2.1), and any switch that
    turns such a call off is thrown before the library is first used. Each call connects within
    10 seconds and waits at most 20 seconds for each read, and every answer is cut off past 20
-   MB, whether or not it announces its length. SMTP waits 20 seconds.
+   MB, whether or not it announces its length, counted in the bytes it decodes to: only gzip
+   and deflate are asked for, decoded by MoolaKata as they arrive, and an answer in any other
+   content coding is refused. SMTP waits 20 seconds.
 6. **Stopping**: on SIGTERM the server ends every event stream, lets requests in flight finish
    for up to 5 seconds, and stops; a second signal stops at once. **A refused start**: when it
    cannot start for a reason only an operator can fix (a config file it can't use or with a key

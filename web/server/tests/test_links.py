@@ -665,7 +665,7 @@ def test_only_link_ended_ends_a_link_and_not_linked_marks_it_broken(admins):
     assert manage.pins  # the module is there for what follows
 
 
-def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins, monkeypatch):
+def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins):
     """S11.9.6, link-protocol.md §4.4: in transit, a change shows its registry only; its items'
     names and figures, and its receipts, open only with the receiving copy's key."""
     from test_accounts import add
@@ -682,26 +682,10 @@ def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins, monkeypatch
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
     seen: list[bytes] = []
-    original = wire.client
-
-    def watching(guard=None, **kw):
-        c = original(guard, **kw)
-        post = c.post
-
-        def spy(url, **k):
-            r = post(url, **k)
-            seen.append(r.content)
-            seen.append(k.get("content") or b"")
-            return r
-
-        c.post = spy
-        return c
-
-    from moolakata.links import client as link_client
-
-    monkeypatch.setattr(link_client.net, "Client", watching)
+    wire.watch = lambda request, body: seen.extend([request.content, body])
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    wire_bytes = b"".join(x if isinstance(x, bytes) else b"" for x in seen)
+    wire.watch = None
+    wire_bytes = b"".join(seen)
     assert b"Secret Brokerage" not in wire_bytes and b"A very private payee" not in wire_bytes
     assert b'"sealed"' in wire_bytes, "the change crossed, sealed"
     carol = sign_in(b, "carol")
@@ -741,16 +725,17 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
         assert link.needsFull and "asked for" in link.lastError
 
 
-def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins, monkeypatch):
+def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins):
     """link-protocol.md §4.5: an announced key is accepted beside the pinned one and becomes
     the pinned one once in use; one presented unannounced waits for an admin to accept it,
     after the password again."""
     from moolakata.links import client as link_client
     from moolakata.links import manage
 
-    a, _b, ca, cb, _ = admins
+    a, _b, ca, cb, wire = admins
     a_id, _ = linked(ca, cb)
     old, new, rogue = "aa" * 32, "bb" * 32, "cc" * 32
+    wire.certs["b.test"] = old
     with a.db.tx() as s:
         s.get(Link, a_id).peerCert = old
     with a.db.read() as s:
@@ -759,27 +744,12 @@ def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins, monkey
         manage.answer_certificate(a, s.get(Link, a_id), {"fingerprint": new})
     with a.db.read() as s:
         assert manage.pins(s.get(Link, a_id)) == {old, new}
-    real = link_client.call
-
-    def over(key):
-        def fake(*args, seen=None, **kw):
-            out = real(*args, **kw)
-            if seen is not None:
-                seen.append(key)
-            return out
-
-        return fake
-
-    monkeypatch.setattr(link_client, "call", over(new))
+    wire.certs["b.test"] = new  # B moves to the key it announced
     manage.call(a, a_id, "/link/v1/ping")
     with a.db.read() as s:
         row = s.get(Link, a_id)
         assert (row.peerCert, row.peerCertNext) == (new, None), "in use: now the pinned one"
-
-    def refused(*args, **kw):
-        raise link_client.LinkError("certificate-changed", "changed", offered=rogue)
-
-    monkeypatch.setattr(link_client, "call", refused)
+    wire.certs["b.test"] = rogue  # one it never announced
     with pytest.raises(link_client.LinkError):
         manage.call(a, a_id, "/link/v1/ping")
     shown = next(x for x in links_of(ca)["links"] if x["id"] == a_id)

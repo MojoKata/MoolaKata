@@ -13,6 +13,7 @@ import ipaddress
 import socket
 import ssl
 import threading
+import zlib
 from collections.abc import Callable, Iterable
 
 import httpcore
@@ -177,19 +178,54 @@ class _Backend(httpcore.SyncBackend):
         return _Stream(stream, self._pins)
 
 
-class _Capped(httpx.SyncByteStream):
-    """An answer read only up to the ceiling, however it is sent."""
+class EncodingRefused(httpx.TransportError):
+    """An answer in a content coding MoolaKata doesn't decode, so can't hold to the ceiling."""
 
-    def __init__(self, inner, max_bytes: int, host: str) -> None:
+
+class _Decoded(httpx.SyncByteStream):
+    """An answer decoded here, never by httpx, and read only up to the ceiling in decoded
+    bytes, however it is sent (S13.5): 20 MB of gzip that would inflate to gigabytes stops at
+    20 MB."""
+
+    def __init__(self, inner, coding: str, max_bytes: int, host: str) -> None:
         self._inner, self._max, self._host = inner, max_bytes, host
+        self._coding = coding
+        # gzip by its header; deflate as zlib wraps it, or raw as some servers send it.
+        self._d = {
+            "gzip": lambda: zlib.decompressobj(16 + zlib.MAX_WBITS),
+            "deflate": zlib.decompressobj,
+        }.get(coding, lambda: None)()
+
+    def _too_large(self):
+        return ResponseTooLarge(f"the response from {self._host} is larger than allowed")
 
     def __iter__(self):
-        size = 0
+        size, first = 0, True
         for chunk in self._inner:
-            size += len(chunk)
+            if self._d is None:
+                out = chunk
+            else:
+                try:
+                    # Never asked for more than the rest of the ceiling and a byte.
+                    out = self._d.decompress(chunk, self._max - size + 1)
+                except zlib.error:
+                    if not (first and self._coding == "deflate"):
+                        raise httpx.DecodingError(f"{self._host} sent a damaged answer") from None
+                    self._d = zlib.decompressobj(-zlib.MAX_WBITS)
+                    out = self._d.decompress(chunk, self._max - size + 1)
+            first = False
+            size += len(out)
             if size > self._max:
-                raise ResponseTooLarge(f"the response from {self._host} is larger than allowed")
-            yield chunk
+                raise self._too_large()
+            if out:
+                yield out
+        if self._d is not None:
+            out = self._d.flush()
+            size += len(out)
+            if size > self._max:
+                raise self._too_large()
+            if out:
+                yield out
 
     def close(self) -> None:
         self._inner.close()
@@ -204,10 +240,12 @@ def tls_context(pins: frozenset[str] | None) -> ssl.SSLContext:
     return ctx
 
 
-class _Transport(httpx.HTTPTransport):
-    def __init__(self, guard: Guard, max_bytes: int, pins: frozenset[str] | None) -> None:
+class _Network(httpx.HTTPTransport):
+    """The sockets: each connection made through the guard, to the address it checked, and its
+    TLS checked against the pins, before anything is sent."""
+
+    def __init__(self, guard: Guard, pins: frozenset[str] | None) -> None:
         super().__init__()
-        # The connection pool connects through the guard, to the address it checked.
         self._pool = httpcore.ConnectionPool(
             ssl_context=tls_context(pins),
             max_connections=10,
@@ -215,19 +253,42 @@ class _Transport(httpx.HTTPTransport):
             keepalive_expiry=5.0,
             network_backend=_Backend(guard, pins),
         )
+
+
+# What carries a call out of the process: the sockets, or in tests another app in the same
+# process, beneath everything else this module does to a call and its answer.
+network: Callable[[Guard, frozenset[str] | None], httpx.BaseTransport] = _Network
+
+CODINGS = ("identity", "gzip", "deflate")
+
+
+class _Transport(httpx.BaseTransport):
+    def __init__(self, inner: httpx.BaseTransport, max_bytes: int) -> None:
+        self._inner = inner
         self._max = max_bytes
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         url = request.url
         if url.scheme not in ("https", "http"):
             raise EgressRefused(f"{url.scheme} is not allowed")
-        response = super().handle_request(request)
+        response = self._inner.handle_request(request)
+        coding = response.headers.get("content-encoding", "identity").strip().lower() or "identity"
+        if coding not in CODINGS:
+            response.close()
+            raise EncodingRefused(f"{url.host} answered in {coding}, which MoolaKata doesn't read")
         length = response.headers.get("content-length")
-        if length and length.isdigit() and int(length) > self._max:
+        if coding == "identity" and length and length.isdigit() and int(length) > self._max:
             response.close()
             raise ResponseTooLarge(f"the response from {url.host} is larger than allowed")
-        response.stream = _Capped(response.stream, self._max, url.host)
+        response.stream = _Decoded(response.stream, coding, self._max, url.host)
+        # Decoded here: httpx sees the answer as it now is.
+        if coding != "identity":
+            del response.headers["content-encoding"]
+            response.headers.pop("content-length", None)
         return response
+
+    def close(self) -> None:
+        self._inner.close()
 
 
 class Client(httpx.Client):
@@ -244,10 +305,15 @@ class Client(httpx.Client):
     ) -> None:
         if "verify" in kw:
             raise TypeError("TLS is always verified: pin a server's own certificate instead")
-        headers = {"User-Agent": "MoolaKata", **(kw.pop("headers", None) or {})}
+        # Only the codings `_Transport` decodes, counting what they decode to.
+        headers = {
+            "User-Agent": "MoolaKata",
+            "Accept-Encoding": "gzip, deflate",
+            **(kw.pop("headers", None) or {}),
+        }
         pinned = frozenset(pins) if pins is not None else None
         super().__init__(
-            transport=_Transport(guard, max_bytes, pinned),
+            transport=_Transport(network(guard, pinned), max_bytes),
             timeout=TIMEOUT,
             follow_redirects=False,
             headers=headers,
@@ -256,12 +322,6 @@ class Client(httpx.Client):
         self._max = max_bytes
 
     def get_bytes(self, url: str, **kw) -> tuple[httpx.Response, bytes]:
-        """GET, reading at most the ceiling: a server that sends more is cut off."""
-        with self.stream("GET", url, **kw) as r:
-            chunks, size = [], 0
-            for chunk in r.iter_bytes():
-                size += len(chunk)
-                if size > self._max:
-                    raise ResponseTooLarge("the response is larger than allowed")
-                chunks.append(chunk)
-            return r, b"".join(chunks)
+        """GET, its answer read whole: the transport holds it to the ceiling, decoded."""
+        r = self.get(url, **kw)
+        return r, r.content

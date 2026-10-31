@@ -41,8 +41,11 @@
    3. **Workflows** that carry what one use learned or saved into the next (import, correct,
       import the next statement) run end to end through the API.
    4. **Faults one at a time**: a link's or the connector's exchange is made to fail at one
-      call or one file, through fakes that keep the real transport's limits and timeouts; the
-      rest goes through, and the failure is recorded and alerted.
+      call or one file, through a fake that stands where the sockets are (`net.network`), so
+      the real client's guard, decoding, ceiling and pins run above it; the rest goes
+      through, and the failure is recorded and alerted. The client's ceiling is checked on
+      every content coding × announced length × way of reading × size
+      (`tests/test_net.py`), and over real sockets in `tests/test_core.py`.
    5. **Limits that fit**: every size a setting allows (S16) is checked against every path
       it travels (a request, an answer, a link's file, an upload in flight).
    6. **A hostile worker**: code run under the reader's worker's sandbox (S9.8.4) tries what
