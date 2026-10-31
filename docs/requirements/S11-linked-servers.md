@@ -237,7 +237,12 @@ preparer.
          thumbnails are kept in `shared.db`.
       6. **Writing**: each file is written under a temporary name, synced to disk and renamed
          before its row is committed. A sweeper removes files that no row names, left behind
-         after a crash.
+         after a crash, by the one rule every receipts folder has: never while a pull or an
+         unlock's apply is under way (their receipts are named only in what they hold, or in
+         the inbox, until their rows are written), never a file a delivered or a late receipt
+         waits in, and only once a file is half an hour old. A change whose receipt's file is
+         gone by the time it is applied, whatever took it, keeps that receipt as not arrived,
+         asked for again (S11.4).
       7. This is the AES-GCM-HKDF streaming construction (the one Tink uses), built on the
          `cryptography` library. It needs no further dependency.
    7. **Who can open what.** The owner's shares decide what each user sees (S11.3), and the

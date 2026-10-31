@@ -291,14 +291,16 @@ def orphan_files(s: Session, receipts_dir: Path) -> list[Path]:
     return sorted(p for p in receipts_dir.glob("*.mkr") if p.stem not in named)
 
 
-def remove_orphans(s: Session, receipts_dir: Path) -> tuple[int, int]:
-    """Remove the orphan files; the count and bytes freed."""
-    n = freed = 0
-    for p in orphan_files(s, receipts_dir):
-        freed += p.stat().st_size
-        p.unlink()
-        n += 1
-    return n, freed
+def remove_orphans(srv, s: Session) -> tuple[int, int]:
+    """Remove the orphan files, by the receipts folder's one sweep rule (filestore.py): never
+    one an upload is still writing, nor one younger than the grace. The count and bytes freed."""
+    receipts_dir = srv.config.receipts_dir
+
+    def named() -> set[str]:
+        return {f"{fid}.mkr" for (fid,) in s.execute(select(Receipt.fileId)) if fid}
+
+    gone = srv.files.of(receipts_dir).sweep(named, (".mkr",))
+    return len(gone), sum(size for _, size in gone)
 
 
 def prunable(s: Session, categories: list[str] | None, today: dt.date | None = None):
@@ -312,8 +314,11 @@ def prunable(s: Session, categories: list[str] | None, today: dt.date | None = N
     return out
 
 
-def prune_files(s: Session, receipts_dir: Path, rows: list[Receipt], by: str) -> int:
-    """Mark the receipts pruned and remove each file no receipt still needs; the bytes freed."""
+def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
+    """Mark the receipts pruned and remove each file no receipt still needs, but one an upload
+    is reusing this moment (filestore.py); the bytes freed."""
+    receipts_dir = srv.config.receipts_dir
+    store = srv.files.of(receipts_dir)
     now = clock.now()
     for r in rows:
         r.filePrunedAt, r.filePrunedById, r.thumbnail = now, by, None
@@ -330,10 +335,5 @@ def prune_files(s: Session, receipts_dir: Path, rows: list[Receipt], by: str) ->
         )
         if still is not None:
             continue
-        p = file_path(receipts_dir, file_id)
-        try:
-            freed += p.stat().st_size
-            p.unlink()
-        except FileNotFoundError:
-            pass
+        freed += store.remove(file_path(receipts_dir, file_id).name)
     return freed

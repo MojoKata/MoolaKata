@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 from sqlalchemy import delete, func, select
 
 from .. import clock, exactjson
+from ..checkpoints import checkpoint
 from ..store.entities.links import Link
 from . import copydb, sealed
 from .copy import folder, private_key
@@ -183,6 +184,7 @@ def apply(srv, link_id: str) -> int:
             opened = open_part(priv, change, way, raw)
             _shape(opened)
             changes.append((opened, local))
+            checkpoint("apply.opened")
     except (
         sealed.SealError,
         ChangeError,
@@ -207,9 +209,14 @@ def apply(srv, link_id: str) -> int:
             row.needsFull, row.inboxAsOf = True, None
         raise ChangeError(str(e)) from None
     receipts_dir = folder(srv.config.data_dir, link_id) / "receipts"
+    lost: list[str] = []
     with o.engine.begin() as conn:
         for change, local in changes:
             names = local.get("fileNames") or {}
+            # A receipt whose file is gone (whatever took it) is one not yet arrived, asked
+            # for again (S11.4), never a row naming a file that isn't there.
+            lost += [fid for fid, n in names.items() if not (receipts_dir / n).is_file()]
+            names = {fid: n for fid, n in names.items() if (receipts_dir / n).is_file()}
             types = {fid: _type_of(priv, way, fid, receipts_dir / n) for fid, n in names.items()}
             for name in _apply_one(conn, change, names, types):
                 (receipts_dir / name).unlink(missing_ok=True)
@@ -222,6 +229,12 @@ def apply(srv, link_id: str) -> int:
         p.with_suffix(".json").unlink(missing_ok=True)
     with srv.db.tx() as s:
         s.get(Link, link_id).inboxAsOf = None
+        from ..store.entities.links import LinkFile
+        from .receive import _missing
+
+        for fid in lost:
+            if _missing(s, link_id, fid) is None:
+                s.add(LinkFile(linkId=link_id, fileId=fid, missedAt=clock.now()))
     from .receive import place_arrived
 
     place_arrived(srv, link_id)

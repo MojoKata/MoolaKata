@@ -178,7 +178,7 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
         b.mark_deleted(None)
         path = retention.file_path(server.config.receipts_dir, a.fileId)
         assert path.exists()
-        assert retention.prune_files(s, server.config.receipts_dir, [a], a.ownerId) > 0
+        assert retention.prune_files(server, s, [a], a.ownerId) > 0
     assert not path.exists()
 
 

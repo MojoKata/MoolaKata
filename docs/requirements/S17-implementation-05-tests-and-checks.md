@@ -168,6 +168,13 @@
       reads both routers and fails on a signed route that skips the gate, and a forged call
       naming a real key leaves no trace on any route. While one call's work runs, held on an
       event, another is answered.
+   10. **Races**: an operation that writes files or rows in more than one step (a receipt's
+      upload, a pull, a delivered receipt, an unlock's apply) has named checkpoints
+      (`moolakata/checkpoints.py`), and a test runs what could race it at each, every run
+      (`tests/test_races.py`): the linked copies' sweep during a pull, a delivery and an apply,
+      *Remove orphans* during an upload, a prune while an upload reuses the file, and two pulls
+      of one link. Its inventory names every background task and what it shares outside one
+      transaction, and fails when a task is added without its row.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

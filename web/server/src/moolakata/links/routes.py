@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import false, select
 
 from .. import clock, ratelimit
+from ..checkpoints import checkpoint
 from ..store.entities.links import Link
 from . import PROTOCOL, SUPPORTED, keys, lifecycle, signing
 from .gate import Call, Gate, Kind
@@ -170,11 +171,14 @@ def deliver(call: Call):
         fid = call.header("mk-link-file") or ""
         if not FILE_ID.fullmatch(fid):
             raise signing.Refused("file-refused", "The file isn't named.")
+        from .copies import receipt_files
         from .receive import keep_delivered
 
-        with open(call.file, "rb") as f:
+        # Kept, then named for the change to come, the copy's sweep waiting (filestore.py).
+        with receipt_files(srv, link.id).busy(), open(call.file, "rb") as f:
             name = keep_delivered(srv, link.id, iter(lambda: f.read(1 << 16), b""))
-        DELIVERED.put(link.id, fid, name)
+            checkpoint("deliver.kept")
+            DELIVERED.put(link.id, fid, name)
         return {"ok": True}
     from .changes import ChangeError
     from .manage import answer_deliver

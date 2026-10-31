@@ -1342,7 +1342,7 @@ def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
         raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
     with srv.db.tx() as s:
         rows = retention.prunable(s, body.categories)
-        freed = retention.prune_files(s, srv.config.receipts_dir, rows, c.id)
+        freed = retention.prune_files(srv, s, rows, c.id)
         activity.record(
             s,
             "files.pruned",
@@ -1363,7 +1363,7 @@ def remove_orphans(request: Request, c: Caller = Depends(admin)):
     recent_auth(c)
     srv = server(request)
     with srv.db.tx() as s:
-        n, freed = retention.remove_orphans(s, srv.config.receipts_dir)
+        n, freed = retention.remove_orphans(srv, s)
         activity.record(
             s,
             "files.orphans-removed",

@@ -12,6 +12,7 @@ from . import errors, middleware, net, paths, ratelimit, settings, static
 from .auth.users import Services
 from .config import Config
 from .events import STREAM_SECONDS, Broker
+from .filestore import FileStores
 from .jobs import Jobs
 from .keys.breakglass import BreakGlass
 from .keys.welcome import Phrases
@@ -81,6 +82,8 @@ class Server:
     link_limit: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
     link_unknown: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
     # The unlocked linked copies, in memory only (S11.9.3).
+    # The folders of files rows name, and who may sweep them (filestore.py).
+    files: FileStores = field(default_factory=FileStores)
     copies: Copies = field(default_factory=Copies)
     # This server's link key's public half and fingerprint, once worked out (S11.1).
     link_public: tuple[bytes, str] | None = None

@@ -16,6 +16,7 @@ import secrets
 from sqlalchemy import false, select
 
 from .. import activity, clock, ids, people, settings
+from ..checkpoints import checkpoint
 from ..store.entities.education import Person
 from ..store.entities.links import Link
 from ..store.entities.users import User
@@ -481,6 +482,7 @@ def exchange(srv, link_id: str) -> None:
         }
     try:
         out = call(srv, link_id, "/link/v1/exchange", mine)
+        checkpoint("exchange.called")
     except LinkError as e:
         if e.code in ("link-requested", "link-ended"):
             return  # not approved there yet; or ended, here too now
@@ -533,21 +535,25 @@ def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
     """After the exchange call: the peer's change taken, the receipts not yet arrived asked
     for again, then this side's change sent, each of its receipts ahead of it."""
     from . import receive, serve
+    from .copies import receipt_files
 
     tried: set[str] = set()
-    if out.get("change"):
-        tried |= receive.take(srv, link_id, out["change"])
-        # The rest of a large change, part by part, oldest first (S11.4).
-        more = int(out.get("more") or 0)
-        while more > 0:
-            with srv.db.read() as s:
-                got = _get(s, link_id).gotSeq
-            nxt = call(srv, link_id, "/link/v1/next", {"have": got})
-            if not nxt.get("change"):
-                break
-            tried |= receive.take(srv, link_id, nxt["change"])
-            more = int(nxt.get("more") or 0)
-    receive.fetch_missing(srv, link_id, tried)
+    # The pull's receipts are named only in what it holds until its rows are written: the
+    # copy's sweep waits for it (filestore.py).
+    with receipt_files(srv, link_id).busy():
+        if out.get("change"):
+            tried |= receive.take(srv, link_id, out["change"])
+            # The rest of a large change, part by part, oldest first (S11.4).
+            more = int(out.get("more") or 0)
+            while more > 0:
+                with srv.db.read() as s:
+                    got = _get(s, link_id).gotSeq
+                nxt = call(srv, link_id, "/link/v1/next", {"have": got})
+                if not nxt.get("change"):
+                    break
+                tried |= receive.take(srv, link_id, nxt["change"])
+                more = int(nxt.get("more") or 0)
+        receive.fetch_missing(srv, link_id, tried)
     mine = serve.change_for(srv, link_id, int(out.get("have") or 0), bool(out.get("wantFull")))
     for part in mine:
         for fid in part.get("fetch") or []:
@@ -656,10 +662,12 @@ def answer_next(srv, link: Link, body: dict) -> dict:
 
 def answer_deliver(srv, link: Link, body: dict) -> dict:
     from . import receive
+    from .copies import receipt_files
     from .routes import DELIVERED
 
     if body.get("change"):
-        receive.take(srv, link.id, body["change"], DELIVERED.take(link.id))
+        with receipt_files(srv, link.id).busy():
+            receive.take(srv, link.id, body["change"], DELIVERED.take(link.id))
     with srv.db.read() as s:
         return {"have": _get(s, link.id).gotSeq}
 

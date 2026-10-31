@@ -8,6 +8,7 @@ import logging
 from sqlalchemy import false, select
 
 from .. import activity, clock, settings
+from ..checkpoints import checkpoint
 from ..store.entities.links import Link, LinkedItem
 from .copy import CopyError, folder
 
@@ -57,20 +58,24 @@ def unlock(srv, link_id: str, user_id: str, words: str) -> None:
         if not link.copyPublicKey:
             raise CopyError("no-key", "An admin hasn't created this copy's access key yet.")
         public = link.copyPublicKey
-    try:
-        srv.copies.unlock(srv.config.data_dir, link_id, public, words, user_id, clock.now())
-    except CopyError:
-        with srv.db.tx() as s:
-            activity.record(s, "link.copy-unlock-failed", actor=user_id, for_admins=True)
-        raise
-    with srv.db.tx() as s:
-        activity.record(s, "link.copy-unlocked", actor=user_id, for_admins=True)
     from .changes import ChangeError, apply
 
-    # What arrived while it was locked is applied now (S11.9.5.3); a change that fails is
-    # reported on the link and the copy stays as it was.
-    with contextlib.suppress(ChangeError):
-        apply(srv, link_id)
+    # Busy from before the copy opens until what waited is applied: its receipts are named
+    # only in the inbox until then (S11.9.5.3).
+    with receipt_files(srv, link_id).busy():
+        try:
+            srv.copies.unlock(srv.config.data_dir, link_id, public, words, user_id, clock.now())
+        except CopyError:
+            with srv.db.tx() as s:
+                activity.record(s, "link.copy-unlock-failed", actor=user_id, for_admins=True)
+            raise
+        with srv.db.tx() as s:
+            activity.record(s, "link.copy-unlocked", actor=user_id, for_admins=True)
+        checkpoint("unlock.opened")
+        # What arrived while it was locked is applied now; a change that fails is reported
+        # on the link and the copy stays as it was.
+        with contextlib.suppress(ChangeError):
+            apply(srv, link_id)
 
 
 def lock(srv, link_id: str, user_id: str, admin: bool) -> None:
@@ -100,47 +105,43 @@ def reset(srv, link_id: str, by: str) -> None:
         activity.record(s, "link.copy-reset", actor=by, for_admins=True)
 
 
-ORPHAN_MINUTES = 10  # a file this old that no row names was left by a crash
+def receipt_files(srv, link_id: str):
+    """The copy's receipts folder's store (filestore.py): a pull, and an unlock's apply, hold
+    it busy, so its sweep never takes a receipt that a waiting change still names."""
+    return srv.files.of(folder(srv.config.data_dir, link_id) / "receipts")
 
 
 def orphans(srv, link_id: str) -> int:
     """With the copy open: the receipt files no row of it names, and the temporary files a
-    write left behind, once old enough not to be one still arriving (S11.9.6.6). A file a
-    peer delivered stays until the change that names it comes. Returns how many went."""
-    import time
-
+    write left behind, by the folder's one sweep rule (S11.9.6.6): never while a pull or the
+    unlock's apply is under way, never one a delivered or a late receipt waits in, and only
+    once older than the grace. Returns how many went."""
     from sqlalchemy import select
 
+    from ..store.entities.links import LinkFile
     from . import copydb
     from .routes import DELIVERED
 
     o = srv.copies.get(link_id, for_person=False)
-    d = folder(srv.config.data_dir, link_id) / "receipts"
-    if o is None or not d.exists():
+    if o is None:
         return 0
-    with o.engine.connect() as conn:
-        kept = set(conn.execute(select(copydb.File.c.fileName)).scalars())
-    waiting = DELIVERED.names(link_id)
-    # Receipts fetched after their change, waiting to be placed in the copy (S11.4).
-    from ..store.entities.links import LinkFile
 
-    with srv.db.read() as s:
-        waiting |= set(
-            s.scalars(
-                select(LinkFile.fileName).where(
-                    LinkFile.linkId == link_id, LinkFile.fileName.is_not(None)
+    def named() -> set[str]:
+        with o.engine.connect() as conn:
+            kept = set(conn.execute(select(copydb.File.c.fileName)).scalars())
+        # Receipts delivered ahead of their change, and those fetched after it (S11.4).
+        kept |= DELIVERED.names(link_id)
+        with srv.db.read() as s:
+            kept |= set(
+                s.scalars(
+                    select(LinkFile.fileName).where(
+                        LinkFile.linkId == link_id, LinkFile.fileName.is_not(None)
+                    )
                 )
             )
-        )
-    old = time.time() - ORPHAN_MINUTES * 60
-    gone = 0
-    for f in d.iterdir():
-        if f.stat().st_mtime > old or f.name in kept or f.name in waiting:
-            continue
-        if f.suffix in (".mkr", ".tmp"):
-            f.unlink(missing_ok=True)
-            gone += 1
-    return gone
+        return kept
+
+    return len(receipt_files(srv, link_id).sweep(named, (".mkr", ".tmp")))
 
 
 def sweep(srv) -> list[str]:
