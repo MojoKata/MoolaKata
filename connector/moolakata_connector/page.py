@@ -92,13 +92,8 @@ def certificate(data: Path, settings: Settings) -> tuple[Path, Path]:
     folder = data / "tls"
     cert, key = folder / "cert.pem", folder / "key.pem"
     wanted = sorted({"localhost", *settings.names})
-    if cert.exists() and key.exists():
-        have = x509.load_pem_x509_certificate(cert.read_bytes())
-        named = have.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
-        if sorted(
-            str(getattr(n, "value", n)) for n in named
-        ) == wanted and have.not_valid_after_utc - dt.datetime.now(dt.UTC) > dt.timedelta(days=30):
-            return cert, key
+    if cert.exists() and key.exists() and _fits(cert, key, wanted):
+        return cert, key
     folder.mkdir(mode=0o700, exist_ok=True)
     private = ec.generate_private_key(ec.SECP256R1())
     now = dt.datetime.now(dt.UTC)
@@ -115,18 +110,48 @@ def certificate(data: Path, settings: Settings) -> tuple[Path, Path]:
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .sign(private, hashes.SHA256())
     )
-    fd = os.open(key, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(
-            private.private_bytes(
-                serialization.Encoding.PEM,
-                serialization.PrivateFormat.PKCS8,
-                serialization.NoEncryption(),
-            )
-        )
-    cert.write_bytes(made.public_bytes(serialization.Encoding.PEM))
+    # Each through a temporary file and a rename, the certificate last: a stop between the two
+    # leaves a key that doesn't match the certificate, which the next start makes again.
+    _replace(
+        key,
+        private.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ),
+    )
+    _replace(cert, made.public_bytes(serialization.Encoding.PEM))
     log.info("made the page's certificate for %s", ", ".join(wanted))
     return cert, key
+
+
+def _fits(cert: Path, key: Path, wanted: list[str]) -> bool:
+    """The pair kept serves on: its key is the certificate's, it names what browsers use, and
+    it has more than 30 days left."""
+    try:
+        have = x509.load_pem_x509_certificate(cert.read_bytes())
+        private = serialization.load_pem_private_key(key.read_bytes(), password=None)
+        named = have.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    except ValueError, x509.ExtensionNotFound:
+        return False
+    der = serialization.Encoding.DER
+    spki = serialization.PublicFormat.SubjectPublicKeyInfo
+    if private.public_key().public_bytes(der, spki) != have.public_key().public_bytes(der, spki):
+        return False
+    left = have.not_valid_after_utc - dt.datetime.now(dt.UTC)
+    return sorted(str(getattr(n, "value", n)) for n in named) == wanted and left > dt.timedelta(
+        days=30
+    )
+
+
+def _replace(path: Path, data: bytes) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
 
 
 def _san(name: str) -> x509.GeneralName:

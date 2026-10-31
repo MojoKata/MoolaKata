@@ -256,6 +256,22 @@ def test_the_certificate_names_what_browsers_use_and_follows_them(tmp_path):
     assert cert.read_bytes() == again  # the same names keep it
     page.certificate(tmp_path, page.Settings(names=("money.lan",)))
     assert cert.read_bytes() != again  # other names make it again
+    # CR3-335: a key left from a remake cut short (written, its certificate not) doesn't match
+    # the certificate kept: the next start makes the pair again rather than failing to serve.
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    stray = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    key.write_bytes(stray)
+    kept = cert.read_bytes()
+    page.certificate(tmp_path, page.Settings(names=("money.lan",)))
+    assert cert.read_bytes() != kept and key.read_bytes() != stray
+    assert not list((tmp_path / "tls").glob("*.tmp"))
+    import ssl
+
+    ssl.create_default_context(ssl.Purpose.CLIENT_AUTH).load_cert_chain(cert, key)
     own = page.Settings(cert=tmp_path / "c.pem", key=tmp_path / "k.pem")
     assert page.certificate(tmp_path, own) == (tmp_path / "c.pem", tmp_path / "k.pem")
 
