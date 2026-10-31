@@ -26,7 +26,10 @@ INVENTORY = {
     "mail": "the mail folder's files, its own: none",
     "options": "expiries, in transactions: none",
     "bitcoin": "wallet rows, in transactions: none",
-    "links": "pulls: test_the_hourly_pull_and_pull_now_on_one_link",
+    "links": (
+        "pulls: test_the_hourly_pull_and_pull_now_on_one_link, "
+        "test_two_servers_pulling_each_other_at_once"
+    ),
     "linked-copies": (
         "copies' receipts folders: test_the_sweep_during_a_pull, "
         "test_the_sweep_during_an_unlocks_apply, test_the_sweep_while_a_receipt_is_delivered"
@@ -265,15 +268,10 @@ def test_a_prune_while_an_upload_reuses_the_file(server, monkeypatch):
 # ---------- two pulls of one link
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="CR3-376: two pulls of one link at once take a change out of order; needs the "
-    "user's choice of how the two sides serialize (links-walk.md, Applied)",
-)
 def test_the_hourly_pull_and_pull_now_on_one_link(admins, monkeypatch):  # noqa: F811
-    """The hourly task's pull and an admin's Pull now on the same link at once: the second
-    runs in another thread while the first is between its call and its rows; the link comes
-    out as one pull leaves it, nothing asked for again in full."""
+    """CR3-376: the hourly task's pull and an admin's Pull now on the same link at once. The
+    second, started while the first is between its call and its rows, waits its turn: the link
+    comes out as two pulls in a row leave it, nothing asked for again in full."""
     from moolakata.store.entities.links import Link
 
     a, b, ca, cb, _ = admins
@@ -283,28 +281,64 @@ def test_the_hourly_pull_and_pull_now_on_one_link(admins, monkeypatch):  # noqa:
     carol = sign_in(b, "carol")
     assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": words}).is_success
     image = add_receipt(alice, acct)
-    errors = []
+    errors, threads = [], []
+
+    def run():
+        try:
+            link_manage.exchange(b, b_id)
+        except Exception as e:
+            errors.append(e)
 
     def second():
-        def run():
-            try:
-                link_manage.exchange(b, b_id)
-            except Exception as e:
-                errors.append(e)
-
         t = threading.Thread(target=run)
         t.start()
-        t.join(30)
-        assert not t.is_alive(), "the second pull finished, or waited its turn"
+        threads.append(t)
 
     ran = at(monkeypatch, "exchange.called", second)
     link_manage.exchange(b, b_id)
-    assert ran and errors == []
+    threads[0].join(30)
+    assert ran and not threads[0].is_alive(), "the second pull ran once the first was done"
+    assert errors == []
     link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
     assert link["lastError"] is None
     with b.db.read() as s:
         assert not s.get(Link, b_id).needsFull, "no change was taken twice or out of order"
     opened(carol, b_id, image)
+
+
+def test_two_servers_pulling_each_other_at_once(admins, monkeypatch):  # noqa: F811
+    """CR3-376: while B pulls from A, A's pull from B is refused `busy` at once, never kept
+    waiting (both waiting would hold both); it is no failure, and A's next pull goes through."""
+    from moolakata.links.client import LinkError
+
+    a, b, ca, cb, _ = admins
+    make_user(b, "carol")
+    alice, _words, b_id, acct = shared_account(a, ca, cb)
+    a_id = links_of(ca)["links"][0]["id"]
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    add_receipt(alice, acct)
+    refused = []
+
+    def a_pulls():
+        def run():
+            try:
+                link_manage.exchange(a, a_id)
+            except LinkError as e:
+                refused.append(e.code)
+
+        t = threading.Thread(target=run)
+        t.start()
+        t.join(30)
+        assert not t.is_alive(), "answered at once, never kept waiting"
+
+    ran = at(monkeypatch, "exchange.called", a_pulls)
+    link_manage.exchange(b, b_id)
+    assert ran and refused == ["busy"]
+    link = next(x for x in links_of(ca)["links"] if x["id"] == a_id)
+    assert link["lastError"] and link["failingSince"] is None, "named, not alerted"
+    link_manage.exchange(a, a_id)
+    link = next(x for x in links_of(ca)["links"] if x["id"] == a_id)
+    assert link["lastError"] is None
 
 
 @pytest.fixture(autouse=True)

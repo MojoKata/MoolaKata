@@ -36,6 +36,7 @@ log = logging.getLogger("moolakata.links")
 STATUS = {
     "protocol-unsupported": 426,
     "limit": 429,
+    "busy": 429,
     "not-found": 404,
     "too-large": 413,
     "server-error": 500,

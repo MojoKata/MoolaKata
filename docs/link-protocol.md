@@ -147,7 +147,10 @@ S10.10.1), used only for gifts.
 ### 4.3 Exchanges
 
 1. Either side may make an exchange, hourly and when an admin presses **Pull now**; whichever
-   can reach the other does, so one reachable side is enough.
+   can reach the other does, so one reachable side is enough. A server makes one exchange of a
+   link at a time; while its own runs, it answers the peer's `exchange`, `next` and change
+   `deliver` for that link with `busy` (section 7) rather than wait, so two servers exchanging
+   with each other at once never wait on each other.
 2. The caller sends `{…directory, have, wantFull, copyKey}`: `have` is the sequence number of
    the last change it took from the answering side, `wantFull` asks for everything (a new or
    reset copy, an overflowed inbox, a change out of sequence), and `copyKey` is the public key
@@ -301,6 +304,7 @@ message into an alert or an email (S13.7.9).
 | `limit` | (429, with `Retry-After`) the 60 calls a minute of S13.7.5.4: signed when they are the link's, unsigned when they are an address's, refused before the call is checked; the caller tries again at its next exchange |
 | `too-large` | (413) a `join` over 16 KB, signed; unsigned, a body past the hard limit (20 MB of JSON, the largest sealed receipt), refused before it is read |
 | `server-error` | (500) a fault in the route, logged on the answering side |
+| `busy` | (429, with `Retry-After`) the answering server is making its own exchange of this link (section 4.3); the caller tries again at its next exchange, and isn't alerted |
 | `locked` | (503, unsigned) the answering server is locked (S13.6); the caller tries again at its next exchange |
 | `not-shared` | a file no share to that link includes |
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |

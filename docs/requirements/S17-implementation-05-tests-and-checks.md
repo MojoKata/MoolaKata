@@ -172,8 +172,8 @@
       upload, a pull, a delivered receipt, an unlock's apply) has named checkpoints
       (`moolakata/checkpoints.py`), and a test runs what could race it at each, every run
       (`tests/test_races.py`): the linked copies' sweep during a pull, a delivery and an apply,
-      *Remove orphans* during an upload, a prune while an upload reuses the file, and two pulls
-      of one link. Its inventory names every background task and what it shares outside one
+      *Remove orphans* during an upload, a prune while an upload reuses the file, two pulls
+      of one link from one server, and two servers pulling each other at once. Its inventory names every background task and what it shares outside one
       transaction, and fails when a task is added without its row.
    11. **Nothing readable on the disk** (S11.9.10, S15.7): one scenario puts distinctive
       strings in the fields that carry a person's data (an owner's name, an account, a payee,

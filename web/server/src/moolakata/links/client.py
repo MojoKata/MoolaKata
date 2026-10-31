@@ -24,6 +24,7 @@ REFUSALS = {
     "replayed": "The other server says it has seen this call already.",
     "not-linked": "The other server has no link with this one.",
     "limit": "The other server is limiting calls; it is asked again later.",
+    "busy": "The other server is pulling from this one; it is asked again at the next exchange.",
     "locked": "The other server is locked; it is asked again at the next exchange.",
     "not-shared": "The other server shares no such file with this one.",
     "protocol-unsupported": "The other server doesn't answer this protocol.",

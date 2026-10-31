@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import secrets
+import threading
 
 from sqlalchemy import false, select
 
@@ -456,11 +457,50 @@ def set_state(
     return link
 
 
+class Pulls:
+    """One pull of a link at a time (S11.4, CR3-376): this server's own pulls of a link wait
+    their turn; answering the peer's, a server never waits, and refuses `busy` while its own
+    pull of that link runs, so two servers pulling each other at once can't wait on each other."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._links: dict[str, threading.RLock] = {}
+
+    def _of(self, link_id: str) -> threading.RLock:
+        with self._lock:
+            return self._links.setdefault(link_id, threading.RLock())
+
+    @contextlib.contextmanager
+    def pulling(self, link_id: str):
+        with self._of(link_id):
+            yield
+
+    @contextlib.contextmanager
+    def answering(self, link_id: str):
+        lock = self._of(link_id)
+        if not lock.acquire(blocking=False):
+            raise LinkError("busy", "This server is pulling from yours: ask at the next exchange.")
+        try:
+            yield
+        finally:
+            lock.release()
+
+
+PULLS = Pulls()
+# Refused for the moment, never a failing link: asked again at the next exchange, unalerted.
+FOR_NOW = ("link-paused", "busy")
+
+
 def exchange(srv, link_id: str) -> None:
     """One exchange with the peer (S11.2–S11.4), made by whichever side can reach the other:
     each side's directory and copy key for the other's, the peer's change for this side in its
     answer, and then this side's change for the peer, its receipts sent ahead of it. Only a
-    signed `link-ended` ends the link here (S11.6)."""
+    signed `link-ended` ends the link here (S11.6). One at a time per link (`PULLS`)."""
+    with PULLS.pulling(link_id):
+        _exchange(srv, link_id)
+
+
+def _exchange(srv, link_id: str) -> None:
     from ..ui.prices import apply_egress
 
     with srv.db.read() as s:
@@ -490,8 +530,9 @@ def exchange(srv, link_id: str) -> None:
             raise  # recorded on the link as it is (S11.6, link-protocol.md §4.5)
         with srv.db.tx() as s:
             link = _get(s, link_id)
-            if e.code == "link-paused":
-                # Paused on the other side: waits, and isn't alerted (S11.7.2).
+            if e.code in FOR_NOW:
+                # Paused on the other side, or it is pulling from this one: waits, and isn't
+                # alerted (S11.7.2).
                 link.lastError = e.message
             else:
                 # A clock more than a minute off is named as such (S12.11.1.1): the fix is
@@ -515,7 +556,7 @@ def exchange(srv, link_id: str) -> None:
         return
     if pending:
         # Approved there: this side's directory goes now, with the first exchange proper.
-        return exchange(srv, link_id)
+        return _exchange(srv, link_id)
     try:
         _rest_of_exchange(srv, link_id, out)
     except (LinkError, ChangeError) as e:
@@ -525,7 +566,8 @@ def exchange(srv, link_id: str) -> None:
         with srv.db.tx() as s:
             link = _get(s, link_id)
             link.lastError = message
-            link.failingSince = link.failingSince or clock.now()
+            if getattr(e, "code", None) not in FOR_NOW:
+                link.failingSince = link.failingSince or clock.now()
         if isinstance(e, LinkError):
             raise
         raise LinkError("change-failed", message) from e

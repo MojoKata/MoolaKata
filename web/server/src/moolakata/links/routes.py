@@ -3,6 +3,7 @@
 link code vouches for), checked by the gate before its body is read, and every answer is
 signed back (`gate.py`)."""
 
+import contextlib
 import re
 import threading
 
@@ -63,6 +64,25 @@ def link_in(name: str):
     return find
 
 
+@contextlib.contextmanager
+def answering(link_id: str):
+    """The peer's exchange, part or change for a link this server is itself pulling: refused
+    `busy`, never waited for (CR3-376); the peer asks again at its next exchange."""
+    from .client import LinkError
+    from .manage import PULLS
+
+    try:
+        with PULLS.answering(link_id):
+            yield
+    except LinkError as e:
+        if e.code != "busy":
+            raise
+        raise signing.Refused("busy", e.message, BUSY_SECONDS) from None
+
+
+BUSY_SECONDS = 60
+
+
 def hello_limit(request: Request) -> None:
     """The unsigned hello, 60 a minute from one address (S13.7.5.4)."""
     srv = request.app.state.server
@@ -113,7 +133,8 @@ def exchange(call: Call):
     """Each side's directory for the other's: users and household (S11.3)."""
     from .manage import answer_exchange
 
-    return answer_exchange(call.srv, call.found, call.json(), call.header("mk-link-version"))
+    with answering(call.found.id):
+        return answer_exchange(call.srv, call.found, call.json(), call.header("mk-link-version"))
 
 
 @router.post("/end")
@@ -131,7 +152,8 @@ def next_part(call: Call):
     """The next part of a large change the caller is pulling (S11.4), oldest first."""
     from .manage import answer_next
 
-    return answer_next(call.srv, call.found, call.json())
+    with answering(call.found.id):
+        return answer_next(call.srv, call.found, call.json())
 
 
 class Delivered:
@@ -184,7 +206,8 @@ def deliver(call: Call):
     from .manage import answer_deliver
 
     try:
-        return answer_deliver(srv, link, call.json())
+        with answering(link.id):
+            return answer_deliver(srv, link, call.json())
     except ChangeError as e:
         raise signing.Refused("change-refused", str(e)) from None
 

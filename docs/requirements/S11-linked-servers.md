@@ -68,7 +68,11 @@ preparer.
       well arrives as its own item. The receiving server never recomputes; it shows what
       arrived, with its age.
 4. **How data moves**: the receiving server **pulls a snapshot** of each linked share on a
-   schedule (hourly by default, and on demand). The snapshot holds each shared item as S11.3.1
+   schedule (hourly by default, and on demand), **one pull of a link at a time**: a second
+   pull of a link waits for the one under way, and a server answering the peer's pull while
+   its own pull of that link runs refuses it as busy, never waiting on the peer, so two
+   servers pulling each other at once never hold each other up; the refused side asks again
+   at its next exchange, unalerted. The snapshot holds each shared item as S11.3.1
    says (for an account: balances, holdings, positions, transactions and series), and receipts
    and documents when the share includes them. It is versioned, and only changes travel. Each
    change is **sealed by the source to the receiving copy's public key** (S11.9.2.2), which the
