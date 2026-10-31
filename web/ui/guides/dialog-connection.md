@@ -41,8 +41,9 @@ Checking, savings, credit card or investment, as the OFX server expects it.
 
 ## Account number {#ofx-account-id}
 
-The account's number at the institution, which the OFX server asks for. It is sealed with the
-credentials, never shown here.
+The account's number at the institution, which the OFX server asks for. It is a setting, not a
+credential: MoolaKata keeps it with the Connection and hands it to the connector, which sends it
+to the OFX server.
 
 ## App key {#schwab-app-key}
 
