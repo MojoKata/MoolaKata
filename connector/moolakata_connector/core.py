@@ -126,6 +126,13 @@ class Core:
                 "version": client.VERSION,
             },
         )
+        # The fingerprint shown is worked out here, from the key itself; an answer naming
+        # another means the server took some other key, and nothing is kept (S18.4.2).
+        if out.get("connectorFingerprint") != pairing.fingerprint:
+            raise ServerError(
+                "fingerprint-mismatch",
+                "MoolaKata's answer names another connector's key: nothing kept. Pair again.",
+            )
         # Only now, MoolaKata having taken it, does the new pairing replace the old (S18.4.2).
         keys.save(self.data / "pairing.json", pairing)
         with self._lock:
@@ -135,7 +142,7 @@ class Core:
                 self.vault.delete(cid)
             self.vault.keep_sealing_key(private)
         self._wake.set()
-        return keys.short(out.get("connectorFingerprint", pairing.fingerprint))
+        return keys.short(pairing.fingerprint)
 
     def unpair(self) -> None:
         """Forget the server and delete every credential held for it (S18.4.4)."""

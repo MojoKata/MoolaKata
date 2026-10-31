@@ -566,3 +566,34 @@ def _seal(plain: bytes, public: bytes, connection_id: str) -> str:
     nonce = os.urandom(12)
     out = once.public_key().public_bytes_raw() + nonce + AESGCM(key).encrypt(nonce, plain, None)
     return keys.b64(out)
+
+
+def test_pair_shows_the_fingerprint_it_works_out_and_refuses_an_answer_naming_another(
+    tmp_path, monkeypatch
+):
+    # CR3-326: the two sides' fingerprints are two workings; the connector never shows the
+    # one MoolaKata's answer names (S18.4.2).
+    from moolakata_connector import core as core_mod
+    from moolakata_connector.core import Core
+
+    server = Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+    code = "mkp1." + keys.b64(
+        json.dumps({"a": "https://money.lan", "f": keys.fingerprint(server), "c": "s"}).encode()
+    )
+    named = {}
+
+    def answered(self, path, data=None, **kw):
+        own = keys.fingerprint(self.pairing.identity_public)
+        return {"connectorFingerprint": named["fp"] or own}
+
+    monkeypatch.setattr(core_mod.client, "hello", lambda *a, **k: {"key": keys.b64(server)})
+    monkeypatch.setattr(core_mod.client.Server, "call", answered)
+    core = Core(tmp_path, transport=client.Transport(client.Egress()))
+    core.vault.create()
+    named["fp"] = "0" * 64
+    with pytest.raises(client.ServerError, match="another connector's key"):
+        core.pair(code)
+    assert core.pairing is None and not (tmp_path / "pairing.json").exists()
+    named["fp"] = None
+    shown = core.pair(code)
+    assert shown == keys.short(core.pairing.fingerprint)
