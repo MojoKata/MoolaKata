@@ -26,7 +26,7 @@ def at(**kw) -> None:
 
 
 def failing_source(server, ok_hours_ago: float, error="Tiingo refused the key (HTTP 401)"):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(
             PriceSource(
                 id=ids.new_id("Src"),
@@ -41,7 +41,7 @@ def failing_source(server, ok_hours_ago: float, error="Tiingo refused the key (H
 def set_source_error(server, error):
     from sqlalchemy import select
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         src = s.scalars(select(PriceSource)).one()
         src.lastError = error
         if error is None:
@@ -55,7 +55,7 @@ def listed(c) -> dict:
 
 
 def test_a_failing_source_alerts_admins_after_the_threshold(server, admin_client, frozen):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "sessionIdleHours", 168, None)
     alice = make_user(server, "alice")
     failing_source(server, ok_hours_ago=10)
@@ -81,17 +81,17 @@ def test_a_failing_source_alerts_admins_after_the_threshold(server, admin_client
 
 
 def test_the_threshold_is_a_setting(server, admin_client, frozen):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "alertSourceHours", 6, None)
     failing_source(server, ok_hours_ago=7)
     assert len(alerts.evaluate(server)) == 1
 
 
 def test_a_failed_backup_alerts_at_once_and_resolves(server, admin_client, frozen):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(TaskRun(name="backups", startedAt=T0, finishedAt=T0, error="disk full"))
     assert [a.title for a in alerts.evaluate(server)] == ["Backup failed"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(TaskRun, "backups").error = None
     alerts.evaluate(server)
     assert listed(admin_client)["open"] == []
@@ -99,7 +99,7 @@ def test_a_failed_backup_alerts_at_once_and_resolves(server, admin_client, froze
 
 def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, frozen):
     alice = make_user(server, "alice")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a = Account(
             id=ids.new_id("Acct"),
             ownerId=alice.id,
@@ -130,7 +130,7 @@ def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, fr
     assert not rows[0]["forAdmins"]
     assert listed(admin_client)["open"] == [], "an admin never sees someone's account"
     # A statement covering it clears it; one kept without reading counts.
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(
             Import(
                 id=ids.new_id("Imprt"),
@@ -150,7 +150,7 @@ def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, fr
 def test_seen_and_dismissed_are_each_persons_own(server, admin_client, frozen):
     make_user(server, "root2", admin=True)
     other = sign_in(server, "root2")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(TaskRun(name="backups", startedAt=T0, finishedAt=T0, error="disk full"))
     alerts.evaluate(server)
     assert admin_client.post("/ui/api/alerts/seen").status_code == 204
@@ -172,12 +172,12 @@ def test_the_phrase_check_comes_due_after_a_year(server, admin_client, frozen):
     # S15.6.5: every unlock is a check as well, so one resolves it.
     from moolakata import activity
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         activity.record(s, "key.unlocked", actor=None, for_admins=True)
     alerts.evaluate(server)
     from moolakata.store.entities.alerts import Alert
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         still = {a.kind for a in s.query(Alert).filter(Alert.resolvedAt.is_(None))}
     assert still == {"key-rotation"}
 
@@ -185,11 +185,11 @@ def test_the_phrase_check_comes_due_after_a_year(server, admin_client, frozen):
 def test_the_rotation_reminder_follows_its_setting(server, admin_client, frozen):
     # N15: due after the period Settings › Key storage sets (S15.8.4); off, never.
     created = server.store.keys.ring.master_created
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "keyReminderMonths", 6, None)
     clock.fix(created + dt.timedelta(days=190))
     assert [a.kind for a in alerts.evaluate(server)] == ["key-rotation"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "keyReminderMonths", 0, None)
     assert alerts.evaluate(server) == []
 
@@ -211,7 +211,7 @@ def test_an_option_expiring_within_a_week_and_a_pledge_due(server, frozen):
     assert "pledge-due" in [a.kind for a in alerts.evaluate(server)]
     from moolakata.store.entities.alerts import Alert
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         open_ = {a.kind for a in s.query(Alert).filter(Alert.resolvedAt.is_(None))}
     assert "option-expiring" not in open_ and "pledge-due" in open_
 
@@ -221,14 +221,14 @@ def _outbox_subjects(server) -> list[str]:
 
 
 def test_each_alert_is_emailed_once_when_smtp_is_set(server, admin_client, frozen):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(TaskRun(name="backups", startedAt=T0, finishedAt=T0, error="disk full"))
     alerts.evaluate(server)
     assert _outbox_subjects(server) == [], "no SMTP: nothing is sent"
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(TaskRun, "backups").error = None
     alerts.evaluate(server)
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "smtpHost", "smtp.home.lan", None)
         s.get(TaskRun, "backups").error = "disk full again"
     alerts.evaluate(server)
@@ -238,7 +238,7 @@ def test_each_alert_is_emailed_once_when_smtp_is_set(server, admin_client, froze
 
 def test_the_daily_summary_goes_once_a_day_after_its_time(server, frozen):
     alice = make_user(server, "alice")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "smtpHost", "smtp.home.lan", None)
         a = Account(
             id=ids.new_id("Acct"),
@@ -262,7 +262,7 @@ def test_the_daily_summary_goes_once_a_day_after_its_time(server, frozen):
         )
     alerts.evaluate(server)
     # 12:00 UTC is 08:00 in New York, past the 07:00 default.
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         from moolakata.store.entities.users import User
 
         s.get(User, alice.id).timeZone = "America/New_York"
@@ -294,12 +294,12 @@ def test_every_check_names_the_kinds_it_keeps_when_it_fails():
 
 
 def test_a_check_that_fails_leaves_its_alerts_open_and_unsent(server, admin_client, frozen):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(TaskRun(name="backups", startedAt=T0, finishedAt=T0, error="disk full"))
     alerts.evaluate(server)
     before = [a["title"] for a in listed(admin_client)["open"]]
     assert before == ["Backup failed"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(TaskRun, "backups").error = None
 
     def broken(s, server):
@@ -325,12 +325,12 @@ def test_a_holding_valued_from_an_old_statement_alerts_its_owner(server, frozen)
 
     from moolakata.store.entities.accounts import Holding, Instrument
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "sessionIdleHours", 168, None)
     make_user(server, "alice")
     c = sign_in(server, "alice")
     acct = new_account(c, name="Plan", type="brokerage")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         fund = Instrument(id=ids.new_id("Instr"), symbol="XFUNDZ", instrumentClass="mutual-fund")
         s.add(fund)
         s.flush()

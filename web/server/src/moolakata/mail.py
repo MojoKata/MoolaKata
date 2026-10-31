@@ -414,14 +414,14 @@ class Mailer:
                 deliver(smtp, w.message, guard)
             except smtplib.SMTPRecipientsRefused as e:
                 # This address will never take it: set aside, without its message.
-                with self.db().tx() as s:
+                with self.db().tx(unscoped="mail: a recipient refused") as s:
                     row = s.get(QueuedEmail, w.id)
                     row.message, row.refusedAt, row.error = None, clock.now(), describe(e)
                 log.warning("the SMTP server refused an email's recipient; it was set aside")
                 continue
             except Exception as e:
                 raise RuntimeError(describe(e)) from None
-            with self.db().tx() as s:
+            with self.db().tx(unscoped="mail: an email sent") as s:
                 row = s.get(QueuedEmail, w.id)
                 if row is not None:
                     s.delete(row)

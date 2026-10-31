@@ -97,7 +97,7 @@ def test_upcoming_with_the_reminder_on_the_dashboard_and_as_an_alert(server, ali
                  cost="35"))  # fmt: skip
     assert alice.get("/ui/api/gifts/upcoming").json()["items"][0]["planned"] == "35.00"
     alerts.evaluate(server)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         from moolakata.store.entities.alerts import Alert
 
         a = s.query(Alert).filter_by(kind="occasion").one()

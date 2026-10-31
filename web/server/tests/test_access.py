@@ -40,10 +40,10 @@ def household(tmp_path_factory):
     master.create_keyring(config, key)
     store = open_store(config, key)
     srv = Server(config=config, store=store, ready=True)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         ensure_categories(s)
     seed.seed(srv)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         names = edge_cases(s)
     yield srv, names
     store.db.dispose()
@@ -219,7 +219,7 @@ def rows(s, table: str) -> dict[tuple[str, str], tuple[int, int, int, int]]:
 
 def test_every_view_has_one_row_per_record_and_user(household):
     srv, _ = household
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         for t in metadata.sorted_tables:
             if not access_views.has_view(t):
                 continue
@@ -249,7 +249,7 @@ def test_a_child_is_searched_by_its_index_never_scanned(household):
         plan = [r[3] for r in s.execute(text("EXPLAIN QUERY PLAN " + sql), {"x": "x", "u": "u"})]
         return [p for p in plan if p in ("SCAN c", f"SCAN {t.name}")], plan
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         for t in metadata.sorted_tables:
             how = access_views.seen(t)
             if how.how != "child":
@@ -343,7 +343,7 @@ def test_roots_agree_with_the_python_rules(household):
         "projection": Projection,
     }
     wrong = []
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         users = everyone(s)
         for kind, table in ROOTS.items():
             view = rows(s, table)
@@ -362,7 +362,7 @@ def test_children_agree_with_their_roots(household):
     """Each child is seen exactly as the root its keys lead to is, by the Python rule."""
     srv, names = household
     wrong = []
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         users = everyone(s)
         old_cache: dict[tuple[str, str, str], str | None] = {}
         for t in metadata.sorted_tables:
@@ -427,7 +427,7 @@ def test_people_receipts_and_gifts_agree_with_the_python_rules(household):
     from moolakata.store.entities.receipts import Receipt
 
     wrong = []
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         users = everyone(s)
         person = rows(s, "Person")
         for p in s.scalars(select(Person).where(Person.deleted.is_(False))):
@@ -472,7 +472,7 @@ def test_people_receipts_and_gifts_agree_with_the_python_rules(household):
 def test_the_household_reaches_every_rule(household):
     """What the edge cases are for, each as the decisions say."""
     srv, n = household
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         account, receipt = rows(s, "Account"), rows(s, "Receipt")
         link, gift = rows(s, "ReceiptLink"), rows(s, "Gift")
         book, budget = rows(s, "TaxBook"), rows(s, "Budget")
@@ -504,7 +504,7 @@ def test_activity_agrees_with_the_python_rule(household):
         def __init__(self, uid, admin):
             self.id, self.admin = uid, admin
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         view = rows(s, "Activity")
         admins = admin_ids(s)
         from moolakata.store.entities.users import User
@@ -564,8 +564,8 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
     srv, n = household
     with srv.db.read(user=n["bob"]) as s:
         shared = s.scalars(select(Account).where(Account.name == "Everyday checking")).one()
-        a, p = access.need(s, Account, shared.id, n["bob"])
-        assert p.level() == "read"
+        got, p = access.need(s, Account, shared.id, n["bob"])
+        assert got.id == shared.id and p.level() == "read"
         with pytest.raises(Problem) as e:
             access.need(s, Account, shared.id, n["bob"], "writable", "account")
         assert e.value.status == 403

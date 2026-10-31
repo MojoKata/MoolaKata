@@ -248,7 +248,7 @@ def holding_rows(server, account_id: str) -> int:
 
     from moolakata.store.entities.accounts import Holding
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         return s.scalar(
             select(func.count())
             .select_from(Holding)
@@ -385,7 +385,7 @@ def make_server(path: Path):
     key = os.urandom(16)
     master.create_keyring(config, key)
     srv = Server(config=config, store=open_store(config, key), ready=True)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", ADMIN_PW)
         ensure_categories(s)
     return srv

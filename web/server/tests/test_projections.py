@@ -213,7 +213,7 @@ def test_a_bitcoin_model_with_cases_gives_three_paths(server, alice):
     from moolakata import ids
     from moolakata.store.entities.accounts import Instrument
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(
             Instrument(
                 id=ids.new_id("Instr"), symbol="BTC", name="Bitcoin", instrumentClass="crypto"

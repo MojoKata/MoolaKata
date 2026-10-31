@@ -29,7 +29,7 @@ def seeded(store, keyed_config):
     from moolakata.store.repos.ledger import ensure_categories
 
     srv = Server(config=keyed_config, store=store, ready=True)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         ensure_categories(s)
     seed.seed(srv)
     return srv, seed.PASSWORD
@@ -44,7 +44,7 @@ def ids(srv) -> dict[str, str]:
     from moolakata.store.entities.taxes import TaxBook
     from moolakata.store.entities.users import User
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         users = {u.username: u for u in s.scalars(select(User))}
         alice = users["alice"]
         acct = {a.type: a.id for a in s.scalars(select(Account).where(Account.ownerId == alice.id))}

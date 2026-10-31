@@ -25,7 +25,7 @@ def frozen():
 
 
 def cat(server, name, years=None):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         c = s.scalars(select(Category).where(Category.name == name)).first()
         c.keepReceiptsYears = years
         return c.id, c.parentId
@@ -47,7 +47,7 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
     c = sign_in(server, "alice")
     acct = new_account(c)
     child, parent = cat(server, "Doctor")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(Category, parent).keepReceiptsYears = 3  # the subcategory takes its parent's
     t = add(c, acct["id"], "-42.18", "2029-10-02", payee="Clinic", categoryId=child)
     rid = receipt_on(c, t["id"], png((1, 2, 3)))
@@ -68,7 +68,7 @@ def test_a_lots_receipt_is_kept_while_the_lot_is_open(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     acct = new_account(c, type="brokerage")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         any_cat = s.scalars(select(Category)).first()
         any_cat.keepReceiptsYears = 2
         cid = any_cat.id
@@ -116,7 +116,7 @@ def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     st = admin_client.get("/ui/api/settings/storage").json()
     assert st["expired"]["files"] == 1 and st["expiredBy"][0]["category"] == "Groceries"
     assert "text" not in str(st), "sizes and counts only"
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         for row in s.scalars(select(Session)):
             row.authAt -= dt.timedelta(minutes=11)
     body = {"categories": ["Groceries"], "count": 1}
@@ -148,7 +148,7 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     c = sign_in(server, "alice")
     acct = new_account(c)
     rid = upload(c, png((90, 91, 92))).json()["id"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         r = s.get(Receipt, rid)
         r.date = dt.date(2027, 9, 30)
         receipts.attach_account(s, alice.id, r, acct["id"])
@@ -172,7 +172,7 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
     c = sign_in(server, "alice")
     first = upload(c, png((9, 8, 7))).json()["id"]
     second = upload(c, png((9, 8, 7))).json()["id"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a, b = s.get(Receipt, first), s.get(Receipt, second)
         assert a.fileId == b.fileId, "one file for the same bytes"
         b.mark_deleted(None)

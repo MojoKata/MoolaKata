@@ -74,7 +74,7 @@ def test_metals_at_spot_from_the_proxy_and_by_metal(server, alice):
     )
     assert bar["fineOunces"] == "99.9"
     assert bar["value"] == "2800.00", "no spot yet: worth its cost"
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(
             PriceSource(
                 id=ids.new_id("Src"), name="fixed-test", enabled=True, preference=json.dumps({})
@@ -82,7 +82,7 @@ def test_metals_at_spot_from_the_proxy_and_by_metal(server, alice):
         )
     pricing.install()
     pricing.refresh(server)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         p = s.scalars(select(Price)).all()
         assert [x.close for x in p] == [(D("30.00") / D("0.8591")).quantize(D("0.01"))]
     spot = (D("30.00") / D("0.8591")).quantize(D("0.01"))

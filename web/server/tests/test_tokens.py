@@ -29,7 +29,7 @@ def test_a_token_is_shown_once_and_kept_as_a_hash(server, alice):
     listed = alice.get("/ui/api/profile/tokens").json()["items"]
     assert [t["name"] for t in listed] == ["Claude on my laptop"]
     assert secret.split(".")[1] not in str(listed)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         found = tokens.find(s, secret)
         assert found is not None and found[1].username == "alice"
         assert found[0].secretHash != secret.split(".")[1]
@@ -70,22 +70,22 @@ def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice
     assert remove(alice, "Token", one).status_code == 200
     assert alice.get("/ui/api/profile/tokens").json()["items"] == []
     two = new_token()
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert tokens.find(s, one["secret"]) is None
         assert tokens.find(s, two["secret"]) is not None
     from moolakata.store.entities.users import AccessToken
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(AccessToken, two["id"]).expiresAt = clock.now() - dt.timedelta(seconds=1)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert tokens.find(s, two["secret"]) is None
     assert alice.get("/ui/api/profile/tokens").json()["items"][0]["expired"] is True
     three = new_token()
     from moolakata.store.entities.users import User
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(User, tokens.find(s, three["secret"])[1].id).active = False
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert tokens.find(s, three["secret"]) is None
 
 
@@ -104,7 +104,7 @@ def test_making_a_token_needs_the_password_again_and_is_emailed(server, alice):
 
     from moolakata.store.entities.users import Session
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.scalars(select(Session)).one().authAt -= dt.timedelta(minutes=11)
     r = make(alice, "Token", name="Stale")
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
@@ -125,7 +125,7 @@ def test_a_password_change_or_reset_stops_every_token(server, alice):
         json={"currentPassword": PW, "newPassword": "another long passphrase"},
     )
     assert r.status_code in (200, 204), r.text
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert tokens.find(s, secret) is None
     assert alice.get("/ui/api/profile/tokens").json()["items"] == []
     assert "access token revoked" in mails(server)[-1].get_content()

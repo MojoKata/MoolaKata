@@ -96,7 +96,7 @@ def test_three_words_back_make_the_key_and_unlock(new_server):
     r = c.post("/ui/api/welcome/key", json={"token": other["token"], "words": _typed_back(other)})
     assert r.status_code == 409 and r.json()["code"] == "initialised"
     assert c.post("/ui/api/welcome/phrase").status_code == 409
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         made = s.query(Activity).filter(Activity.kind == "key.made-welcome").one()
     assert json.loads(made.detail)["fingerprint"] == offer["fingerprint"]
 

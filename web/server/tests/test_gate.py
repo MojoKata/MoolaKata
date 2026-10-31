@@ -95,7 +95,7 @@ class Side:
 @pytest.fixture
 def link_side(server):
     key = Ed25519PrivateKey.generate()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         row = Link(
             id=ids.new_id("Link"),
             state="active",
@@ -157,7 +157,7 @@ def trace(side: Side) -> dict:
         for p in side.srv.config.data_dir.rglob("*")
         if p.is_file() and ".db" not in p.name and "keyring" not in str(p)
     )
-    with side.srv.db.read() as s:
+    with side.srv.db.read(unscoped="test") as s:
         rows = {
             t.name: s.execute(t.select().with_only_columns(t.c[0])).all().__len__()
             for t in metadata.sorted_tables

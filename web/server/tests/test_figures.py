@@ -109,7 +109,7 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
     ks = admin_client.get("/ui/api/settings/keys").json()
     assert ks["fingerprint"].startswith("mk-") and ks["reminderMonths"] == 12
     assert ks["previous"] == [] and ks["scheduled"] is None and ks["lastReencryption"] is None
-    with server.db.read() as s:  # the data, wherever it sits: the file or its log
+    with server.db.read(unscoped="test") as s:  # the data, wherever it sits: the file or its log
         pages = s.execute(text("PRAGMA page_count")).scalar_one()
     assert ks["databaseBytes"] == pages * 4096 >= server.config.db_path.stat().st_size
     t = admin_client.post("/ui/api/settings/keys/test").json()

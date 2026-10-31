@@ -28,7 +28,7 @@ def make_server(tmp_path, name: str) -> Server:
     srv = Server(config=cfg, store=open_store(cfg, key), ready=True)
     # The test names resolve to an address on a LAN, as a peer's does (S13.5).
     srv.guard = net.Guard(resolver=lambda host, port: ["192.0.2.10"])
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         ensure_categories(s)
     return srv
 
@@ -116,7 +116,7 @@ def admin_of(srv: Server, base: str) -> TestClient:
     (S10.1.2), and signed in again when it exists."""
     from moolakata import settings
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", base, None)
     c = TestClient(
         create_app(srv), base_url=base, headers={"Origin": base}, client=("127.0.0.1", 50000)

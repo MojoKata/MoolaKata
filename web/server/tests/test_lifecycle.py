@@ -120,12 +120,12 @@ def test_nothing_else_in_links_writes_a_links_state():
 
 
 def the_link(srv, link_id):
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         return s.get(Link, link_id)
 
 
 def live_links(srv):
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         return s.query(Link).filter(Link.deleted.is_(False)).all()
 
 
@@ -145,7 +145,7 @@ def test_a_broken_link_is_ended_and_replaced_by_linking_again(admins):  # noqa: 
     a, b, ca, cb, _ = admins
     a_id, b_id = linked(ca, cb)
     other = keys.b64(keys.raw_public(signing.Ed25519PrivateKey.generate().public_key()))
-    with b.db.tx() as s:  # B restored from before the link: it has none with A's key
+    with b.db.tx(unscoped="test") as s:  # B restored from before the link: it has none with A's key
         s.query(Link).filter(Link.id == b_id).update({Link.peerKey: other})
     ca.post(f"/ui/api/settings/links/{a_id}/pull")
     assert the_link(a, a_id).brokenAt is not None

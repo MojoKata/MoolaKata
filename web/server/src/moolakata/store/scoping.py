@@ -121,7 +121,14 @@ def _scope(state: ORMExecuteState) -> None:
                 raise Unscoped("an unscoped statement selects columns, never records")
         return
     access = state.session.info.get(KEY)
-    user_id = access.get("user") if access else None
+    if access is None:
+        if isinstance(state.statement, Select) and criteria(state.statement, "?"):
+            raise Unscoped(
+                "a session reads for a user (db.read(user=…)) or names why it reads as the "
+                "server (db.read(unscoped=…))"
+            )
+        return
+    user_id = access.get("user")
     if user_id is None:
         return
     if isinstance(state.statement, Select):

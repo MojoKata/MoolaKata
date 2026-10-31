@@ -39,7 +39,7 @@ def new_user(s, name="alice"):
 
 
 def test_database_is_encrypted_at_rest(store, keyed_config):
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s)
     raw = keyed_config.db_path.read_bytes()
     assert b"SQLite format 3" not in raw[:100]
@@ -49,31 +49,31 @@ def test_database_is_encrypted_at_rest(store, keyed_config):
 
 
 def test_read_refuses_writes_and_tx_commits(db):
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         new_user(s)
-    with db.read() as s:
+    with db.read(unscoped="test") as s:
         assert s.scalars(select(User)).one().username == "alice"
         with pytest.raises(Exception, match=r"readonly|query_only|attempt to write"):
             s.execute(text("UPDATE User SET displayName = 'x'"))
 
 
 def test_versions_change_with_every_save(db):
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         u = new_user(s)
     assert u.version == 1
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         u = s.get(User, u.id)
         u.displayName = "Alice G."
     assert u.version == 2
 
 
 def test_partial_unique_index_ignores_deleted(db):
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         a = new_user(s)
         a.mark_deleted(None)
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         new_user(s)  # the name can be used again
-    with pytest.raises(Exception, match="UNIQUE"), db.tx() as s:
+    with pytest.raises(Exception, match="UNIQUE"), db.tx(unscoped="test") as s:
         new_user(s)
 
 
@@ -178,13 +178,13 @@ def test_effective_views_follow_what_records_belong_to(tmp_path):
 
 
 def test_live_leaves_out_deleted_records(db):
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         a = new_user(s, "a")
         new_user(s, "b")
         a.mark_deleted(None)
     from moolakata.store.tables.users import User as UserTable
 
-    with db.read() as s:
+    with db.read(unscoped="test") as s:
         names = [u.username for u in s.scalars(live(User, UserTable))]
     assert names == ["b"]
 
@@ -214,7 +214,7 @@ def test_a_wrong_phrase_does_not_unlock(store, keyed_config):
 
 def test_secrets_are_bound_to_their_record_and_field(store):
     key = store.keys.keys.secrets
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         secret_repo.put(s, key, "PriceSource", "Src_a", "apiKey", "tiingo-123", None)
         assert secret_repo.use(s, key, "PriceSource", "Src_a", "apiKey") == "tiingo-123"
         assert secret_repo.info(s, "PriceSource", "Src_a", "apiKey") is not None
@@ -234,7 +234,7 @@ def test_secrets_are_bound_to_their_record_and_field(store):
 def test_settings_have_defaults_and_are_checked(db):
     from moolakata.errors import Problem
 
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         assert settings.get(s, "passwordMinLength") == 12
         settings.put(s, "passwordMinLength", 16, None)
         assert settings.get(s, "passwordMinLength") == 16
@@ -247,7 +247,7 @@ def test_settings_have_defaults_and_are_checked(db):
 
 
 def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path, master_key):
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s)
     keyed_config.receipts_dir.mkdir(parents=True)
     (keyed_config.receipts_dir / "abc.mkr").write_bytes(b"sealed bytes")
@@ -274,7 +274,7 @@ def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path,
     shutil.copy(made[-1] / "moolakata.db", restored.db_path)
     shutil.copy(made[-1] / "keyring", restored.keyring_path)
     again = maintenance.open_store(restored, master_key)
-    with again.db.read() as s:
+    with again.db.read(unscoped="test") as s:
         assert s.scalars(select(User)).one().username == "alice"
     again.db.dispose()
 
@@ -284,7 +284,7 @@ def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path,
 
 
 def test_reencrypt_changes_the_data_key_and_keeps_everything(store, keyed_config, master_key):
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s)
         secret_repo.put(s, store.keys.keys.secrets, "Smtp", "Smtp_x", "password", "hunter2", None)
     old_db_key = store.keys.keys.database
@@ -292,13 +292,13 @@ def test_reencrypt_changes_the_data_key_and_keeps_everything(store, keyed_config
         maintenance.reencrypt(keyed_config, store, os.urandom(16))
     store2 = maintenance.reencrypt(keyed_config, store, master_key)
     assert store2.keys.keys.database != old_db_key
-    with store2.db.read() as s:
+    with store2.db.read(unscoped="test") as s:
         assert (
             secret_repo.use(s, store2.keys.keys.secrets, "Smtp", "Smtp_x", "password") == "hunter2"
         )
     store2.db.dispose()
     store3 = maintenance.open_store(keyed_config, master_key)
-    with store3.db.read() as s:
+    with store3.db.read(unscoped="test") as s:
         assert s.scalars(select(User)).one().username == "alice"
     store3.db.dispose()
 
@@ -310,7 +310,7 @@ def test_an_interrupted_reencrypt_is_finished_at_start(
     nothing, and the data opens under the new key."""
     from moolakata.store import reencrypt as journaled
 
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         secret_repo.put(s, store.keys.keys.secrets, "Smtp", "Smtp_x", "password", "hunter2", None)
     old_db_key = store.keys.keys.database
 
@@ -328,7 +328,7 @@ def test_an_interrupted_reencrypt_is_finished_at_start(
     assert not maintenance.next_keyring(keyed_config).exists()
     assert journaled.journal(keyed_config) is None
     assert again.keys.keys.database != old_db_key
-    with again.db.read() as s:
+    with again.db.read(unscoped="test") as s:
         assert (
             secret_repo.use(s, again.keys.keys.secrets, "Smtp", "Smtp_x", "password") == "hunter2"
         )
@@ -346,7 +346,7 @@ def test_a_file_or_secret_under_neither_key_is_set_aside_not_fatal(store, keyed_
     public = store.keys.keys.receipts.public_key()
     files.write(keyed_config.receipts_dir / "good.mkr", [b"ok"], public, "good")
     (keyed_config.receipts_dir / "broken.mkr").write_bytes(b"not sealed at all")
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         secret_repo.put(s, store.keys.keys.secrets, "Smtp", "Smtp_x", "password", "hunter2", None)
         from moolakata.store.entities.core import Secret
 
@@ -380,7 +380,7 @@ def test_a_reencryption_stopped_after_any_step_and_before_its_record_resumes(
         store.keys.keys.receipts.public_key(),
         "r1",
     )
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s)
         secret_repo.put(s, store.keys.keys.secrets, "Smtp", "Smtp_x", "password", "hunter2", None)
     maintenance.backup(keyed_config, store, dt.datetime(2026, 1, 1, tzinfo=dt.UTC))
@@ -401,7 +401,7 @@ def test_a_reencryption_stopped_after_any_step_and_before_its_record_resumes(
     if named:
         assert ring.data_key_id == named  # the journal's new key, never a third
     assert ring.data_key_id != store.keys.ring.data_key_id
-    with again.db.read() as s:
+    with again.db.read(unscoped="test") as s:
         assert s.scalars(select(User)).one().username == "alice"
         assert (
             secret_repo.use(s, again.keys.keys.secrets, "Smtp", "Smtp_x", "password") == "hunter2"
@@ -500,7 +500,7 @@ def test_a_keyring_next_nothing_explains_is_set_aside_never_deleted(
 
 
 def test_migration_copies_the_database_first(store, keyed_config, monkeypatch, master_key):
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s)
     store.db.dispose()
     engine = make_engine(keyed_config.db_path, store.keys.keys.sqlcipher_key)
@@ -539,14 +539,14 @@ def test_the_pool_keeps_connections_apart_across_threads(db):
     from sqlalchemy.pool import QueuePool
 
     assert isinstance(db.engine.pool, QueuePool)
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         new_user(s)
     failures = []
 
     def read():
         try:
             for _ in range(20):
-                with db.read() as s:
+                with db.read(unscoped="test") as s:
                     s.scalars(select(User)).all()
         except Exception as e:
             failures.append(e)
@@ -562,7 +562,7 @@ def test_the_pool_keeps_connections_apart_across_threads(db):
 def test_a_backup_after_reads_still_writes_its_copy(store, keyed_config):
     """A pooled connection returns writable after a read (the backup's export needs it)."""
     for _ in range(5):
-        with store.db.read() as s:
+        with store.db.read(unscoped="test") as s:
             s.scalars(select(User)).all()
     maintenance.backup(keyed_config, store)
 
@@ -680,7 +680,7 @@ def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_conf
         public = store.keys.keys.receipts.public_key()
         files.write(keyed_config.receipts_dir / f"{name}.mkr", [data], public, name)
 
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s, "alice")
     keyed_config.receipts_dir.mkdir(parents=True)
     receipt("abc", b"sealed bytes")
@@ -688,7 +688,7 @@ def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_conf
     assert maintenance.verify_backup(keyed_config, master_key) == made
     with pytest.raises(RefuseStart, match="does not open with that phrase"):
         maintenance.verify_backup(keyed_config, os.urandom(16))
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s, "bob")
     receipt("later", b"after the backup")
     store.db.dispose()
@@ -704,7 +704,7 @@ def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_conf
     assert (keyed_config.data_dir / "restored.json").exists(), "the next unlock checks it"
     assert sorted(p.name for p in keyed_config.receipts_dir.iterdir()) == ["abc.mkr", "later.mkr"]
     again = maintenance.open_store(keyed_config, master_key)
-    with again.db.read() as s:
+    with again.db.read(unscoped="test") as s:
         assert [u.username for u in s.scalars(select(User))] == ["alice"]
         # A file no record names is counted, for Settings › Storage to offer removing.
         from moolakata.receipts import retention
@@ -746,7 +746,7 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     it, Settings removes it; each says how it opens."""
     from moolakata.store import copies
 
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s)
     b = maintenance.backup(keyed_config, store)
     older = keyed_config.data_dir / "pre-upgrade"
@@ -860,7 +860,7 @@ def test_a_restore_after_a_reencryption_rewraps_the_receipts_and_resets_the_link
     keyed_config.receipts_dir.mkdir(parents=True)
     public = store.keys.keys.receipts.public_key()
     files.write(keyed_config.receipts_dir / "r1.mkr", [b"one"], public, "r1")
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         link = Link(id=ids.new_id("Link"), state="active", role="inviter", copyPublicKey="k")
         link.copyFolder = "f"
         s.add(link)
@@ -875,7 +875,7 @@ def test_a_restore_after_a_reencryption_rewraps_the_receipts_and_resets_the_link
     srv = Server(config=keyed_config, store=again, ready=True)
     mark = maintenance.after_restore(keyed_config)
     check_restored(srv, mark)
-    with again.db.read() as s:
+    with again.db.read(unscoped="test") as s:
         link = s.query(Link).one()
         assert link.copyPublicKey is None and link.copyFolder is None and link.needsFull
     report = maintenance.restore_report(keyed_config)
@@ -905,19 +905,19 @@ def test_a_restore_under_an_earlier_phrase_asks_first(store, keyed_config, maste
 
 def test_a_pre_upgrade_copy_restores_like_a_backup(store, keyed_config, master_key):
     """S16.13: `db restore` takes a pre-upgrade copy's .db with its .keyring beside it."""
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s, "alice")
     older = keyed_config.data_dir / "pre-upgrade"
     older.mkdir()
     key = store.keys.keys.sqlcipher_key
     copy.export(store.db.engine, older / "moolakata-before-0009-t.db", key)
     shutil.copy2(keyed_config.keyring_path, older / "moolakata-before-0009-t.keyring")
-    with store.db.tx() as s:
+    with store.db.tx(unscoped="test") as s:
         new_user(s, "bob")
     store.db.dispose()
     maintenance.restore(keyed_config, older / "moolakata-before-0009-t.db", master_key)
     again = maintenance.open_store(keyed_config, master_key)
-    with again.db.read() as s:
+    with again.db.read(unscoped="test") as s:
         assert [u.username for u in s.scalars(select(User))] == ["alice"]
     again.db.dispose()
 
@@ -1041,7 +1041,7 @@ def test_a_failed_write_names_no_value_it_was_given(store):
     secret = "4111-1111-1111-1111"
     row = {"k": "aTestKey", "v": json.dumps(secret), "t": "2026-10-17T00:00:00.000000Z"}
     insert = text('INSERT INTO "Setting" (key, value, "updatedAt") VALUES (:k, :v, :t)')
-    with pytest.raises(IntegrityError) as e, store.db.tx() as s:
+    with pytest.raises(IntegrityError) as e, store.db.tx(unscoped="test") as s:
         s.execute(insert, row)
         s.execute(insert, row)
     assert secret not in str(e.value)

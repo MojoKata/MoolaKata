@@ -93,7 +93,7 @@ def test_one_person_once_and_asking_to_share_a_private_one(server, two):
     assert r.status_code == 200, r.text
     assert "Priya Shah" in {x["name"] for x in bob.get("/ui/api/persons").json()["items"]}
     alerts.evaluate(server)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         from moolakata.store.entities.alerts import Alert
 
         assert all(a.resolvedAt for a in s.query(Alert).filter_by(kind="share-asked"))
@@ -182,7 +182,7 @@ def family(s):
 
 
 def test_the_family_tree_is_worked_out_as_of_a_day(db):
-    with db.tx() as s:
+    with db.tx(unscoped="test") as s:
         ids = family(s)
         now = {
             s.get(Person, r.personId).name: r.word
@@ -275,7 +275,7 @@ def test_a_joint_book_needs_a_marriage_on_the_last_day_or_a_death_that_year(serv
     assert bob.post(f"/ui/api/relationships/{made['id']}/confirm").status_code == 200
     assert joint(2024).status_code == 200
     assert joint(2025).status_code == 422, "divorced before the year ended"
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         rel = s.query(Relationship).one()
         rel.toDate = None
         s.get(Person, b).diedOn = dt.date(2025, 6, 1)
@@ -334,7 +334,7 @@ def test_a_person_who_becomes_a_user_is_theirs_to_change(server, two):
     assert person["canChange"]
     from moolakata import settings
 
-    with server.db.tx() as s:  # invited under the same name, she becomes that person
+    with server.db.tx(unscoped="test") as s:  # invited under the same name, she becomes that person
         settings.put(s, "publicUrl", "https://money.home.lan", None)
         admin = s.query(User).filter(User.username == "admin").one()
         dana = accounts.invite(

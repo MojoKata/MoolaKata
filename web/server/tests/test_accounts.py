@@ -271,7 +271,7 @@ def test_reimports_match_by_cents_by_row_and_keep_a_repeated_id(server):
     from moolakata.store.entities.accounts import Account
     from moolakata.store.repos import ledger as repo
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         txns = repo.load(s, s.get(Account, b["id"])).transactions
         groups = reconcile.duplicates(txns)
         fits = sorted(t.fitId for t in txns if t.id in groups[0])
@@ -325,7 +325,7 @@ def test_option_trades_and_an_assignment_from_a_brokers_file(server):
     job = upload(c, a["id"], "options.ofx", data)
     assert job["state"] == "done", job["error"]
     assert not job["result"].get("warnings"), job
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         rows = s.query(Transaction).filter_by(accountId=a["id"]).all()
         kinds = sorted(t.kind for t in rows)
         assert kinds == sorted(
@@ -353,7 +353,7 @@ def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
     c = sign_in(server, "alice")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     upload(c, a["id"], "brokerage.ofx", (FIX / "brokerage.ofx").read_bytes())
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         sale = s.query(Transaction).filter_by(accountId=a["id"], kind="sell").one()
         assert sale.lotMethod == "fifo"
     before = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]["costBasis"]

@@ -130,7 +130,7 @@ class Garbled(TickerSource):
 
 
 def _book(server, user):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a = Account(id=ids.new_id("Acct"), ownerId=user.id, name="B", type="brokerage")
         s.add(a)
         s.flush()
@@ -164,7 +164,7 @@ def _book(server, user):
 
 
 def _source(server, name, pref):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(
             PriceSource(
                 id=ids.new_id("Src"), name=name, enabled=True, preference=json.dumps({"etf": pref})
@@ -181,7 +181,7 @@ def test_refresh_falls_back_records_errors_and_stores_once(server):
     _source(server, "stub", 2)
     result = pricing.refresh(server)
     assert result["stored"] > 10
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         rows = {r.name: r for r in s.scalars(select(PriceSource))}
         assert rows["broken-test"].lastError == "Broken answered HTTP 500"
         assert rows["stub"].lastOkAt is not None and rows["stub"].lastError is None
@@ -189,7 +189,7 @@ def test_refresh_falls_back_records_errors_and_stores_once(server):
         p = pricing.stored_closes(s, [inst_id], TODAY)[inst_id]
         assert p.source == "close" and not p.stale
     assert pricing.refresh(server)["stored"] == 0  # nothing new: nothing stored twice
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.scalar(select(func.count()).select_from(Price)) == n
         a = s.get(Account, account_id)
         led = repo.load(s, a)
@@ -213,7 +213,7 @@ def test_an_unreadable_answer_falls_back_like_a_failure(server):
     _source(server, "garbled-test", 1)
     _source(server, "stub", 2)
     assert pricing.refresh(server)["stored"] > 10
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         rows = {r.name: r for r in s.scalars(select(PriceSource))}
         assert rows["garbled-test"].lastError == "an answer it couldn't read"
 
@@ -222,9 +222,9 @@ def test_only_what_is_held_is_priced(server):
     from moolakata.store.entities.accounts import Transaction
 
     account_id, inst_id = _book(server, make_user(server, "alice"))
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert inst_id in {i.id for i, _ in pricing.priced(s, benchmarks=False)}
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.add(
             Transaction(
                 id=ids.new_id("Txn"),
@@ -237,7 +237,7 @@ def test_only_what_is_held_is_priced(server):
                 price=D(275),
             )
         )
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert pricing.priced(s, benchmarks=False) == []  # sold: no longer fetched
 
 
@@ -275,7 +275,7 @@ def test_price_sources_in_settings(admin_client, server):
     assert remove(admin_client, "Src", row).status_code == 200
     from moolakata.store.repos import secrets as secret_repo
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert secret_repo.info(s, "PriceSource", src["id"], "apiKey") is None
 
 
@@ -324,9 +324,9 @@ def test_sources_registered():
 
 
 def test_a_server_that_holds_nothing_has_no_stale_prices(admin_client, server):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         figures.ensure_benchmarks(s)  # as a real start does
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert pricing.priced(s), "the benchmarks are watched from the start"
     assert admin_client.get("/ui/api/prices/status").json()["stale"] is False
     attention = admin_client.get("/ui/api/dashboard").json()["attention"]

@@ -96,7 +96,7 @@ def test_the_password_is_a_secret_never_read_back(admin_client, server):
         "app password" not in body
         and "app password" not in admin_client.get("/ui/api/settings").text
     )
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert smtp_settings(s, server.keys.secrets).password == "app password"
 
 
@@ -119,7 +119,7 @@ def test_with_smtp_emails_go_through_the_outbox(admin_client, server, smtp):
 
 
 def _smtp(server):
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         return smtp_settings(s, server.keys.secrets)
 
 
@@ -155,7 +155,7 @@ def test_emails_wait_in_the_database_until_sent_or_their_link_expires(admin_clie
     assert [w.recipient for w in server.services.mailer.waiting()] == ["dave@x.lan", "erin@x.lan"]
     smtp.fail = smtplib.SMTPRecipientsRefused({"dave@x.lan": (550, b"no such user")})
     assert server.services.mailer.send_waiting(_smtp(server), server.guard) == 0
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         refused = s.query(QueuedEmail).filter(QueuedEmail.refusedAt.is_not(None)).all()
         assert [(r.recipient, r.message) for r in refused] == [
             ("dave@x.lan", None),
@@ -196,7 +196,7 @@ def test_a_written_invitation_stays_a_week_and_the_rest_a_day(server):
 
     from moolakata.mail import Email, expire_written
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         server.services.mailer.send(
             s, Email("gus@x.lan", "invited", "link", keep=dt.timedelta(days=7))
         )
@@ -362,7 +362,7 @@ def test_sign_up_checks_its_fields_and_domains(admin_client, server, smtp):
 
 
 def test_signup_settings_are_off_by_default(server):
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert settings.get(s, "signupEnabled") is False
 
 
@@ -376,7 +376,7 @@ def test_written_emails_are_listed_for_admins_and_expire(admin_client, server, t
 
     from moolakata import mail, settings
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     make_user(server, "carol")
     r = make(
@@ -399,7 +399,7 @@ def test_written_emails_are_listed_for_admins_and_expire(admin_client, server, t
     from moolakata.store.entities.core import Activity
     from moolakata.store.entities.users import User
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         dave = s.query(User).filter_by(username="dave").one()
         opened = s.query(Activity).filter_by(kind="email.opened").one()
         assert opened.ownerId == dave.id and opened.forAdmins
@@ -432,6 +432,6 @@ def test_a_new_smtp_host_needs_the_password_again_and_clears_the_old_password(
     assert r.status_code == 204
     r = save_settings(admin_client, {"smtpHost": "smtp.elsewhere.example"})
     assert r.status_code == 200, r.text
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert secret_repo.info(s, *SMTP_SECRET) is None
     assert admin_client.get("/ui/api/settings/email").json()["password"] is None

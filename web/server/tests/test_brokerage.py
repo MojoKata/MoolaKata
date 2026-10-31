@@ -269,7 +269,7 @@ def test_a_plan_kept_by_snapshots_takes_the_positions_as_its_holdings(server):
     body["remember"] = ["Employer Match"]
     r = c.post(f"/ui/api/imports/{again['uploadId']}/brokerage", json=body)
     assert r.status_code == 200, r.text
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         values = s.query(Anchor).filter_by(accountId=a["id"], source="statement-value").all()
         assert [str(x.balance) for x in values if not x.deleted] == ["1.00"]
         assert s.query(HoldingCheck).filter_by(accountId=a["id"], deleted=False).count() == len(
