@@ -346,8 +346,16 @@ def apply_report(
                         if isinstance(x, dict)
                     ][:50]
                 )
+            # Held to the driver's own sign-in page, as the sign-in call is: a report is no
+            # way round that check (S18.7.1).
             address = rep.get("signInAddress")
-            c.signInAddress = address if isinstance(address, str) and len(address) < 2000 else None
+            c.signInAddress = (
+                address
+                if isinstance(address, str)
+                and len(address) < 2000
+                and sign_in_allowed(c.driver, address)
+                else None
+            )
         live = []
         removed = []
         for c in mine.values():

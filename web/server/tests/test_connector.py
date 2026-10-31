@@ -373,6 +373,13 @@ def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, 
     assert r.status_code == 403 and r.json()["code"] == "address-invalid"
     r = paired.call(f"/connector/v1/connections/{cid}/sign-in", {"address": "http://x"})
     assert r.status_code == 403 and r.json()["code"] == "address-invalid"
+    # CR3-64: a report is held to the same page; one naming another keeps no address.
+    for address, kept in (("https://api.schwabapi.com.example/v1/oauth/authorize", None),
+                          ("https://evil.example/schwab-login", None), (page, page)):  # fmt: skip
+        rep = {"id": cid, "state": "needs-sign-in", "signInAddress": address}
+        paired.call("/connector/v1/report", {"locked": False, "connections": [rep]})
+        with server.db.read() as s:
+            assert s.get(Connection, cid).signInAddress == kept, address
 
 
 def _multipart(file: bytes, meta: dict, name="schwab.ofx") -> tuple[bytes, str]:
