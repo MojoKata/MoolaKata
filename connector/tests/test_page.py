@@ -138,6 +138,13 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
     status, _, text = call(running, "POST", "/lock", {"words": "abandon " * 11 + "about"})
     assert status == 403 and "not this vault" in text and not core.vault.locked
     assert "wrong words on its page from 127.0.0.1" in caplog.text
+    # CR3-328: a slip in one of the real words is shown to the person typing, never logged.
+    slipped = phrase.split()
+    slipped[6] = slipped[6][:3] + "zq"
+    status, _, text = call(running, "POST", "/lock", {"words": " ".join(slipped)})
+    assert status == 403 and slipped[6] in text
+    assert "not a valid phrase" in caplog.text and slipped[6] not in caplog.text
+    assert not any(w in caplog.text for w in phrase.split())
     status, _, _ = call(running, "POST", "/lock", {"words": phrase})
     assert status == 303 and core.vault.locked
     status, _, text = call(running, "GET", "/")

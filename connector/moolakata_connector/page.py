@@ -381,7 +381,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 vault.check(phrase)
         except VaultError as err:
-            log.warning("wrong words on its page from %s: %s", self.client_address[0], err)
+            log.warning("wrong words on its page from %s: %s", self.client_address[0], err.kind)
             self.refused = str(err)[:1].upper() + str(err)[1:] + "."
             return None
         return phrase

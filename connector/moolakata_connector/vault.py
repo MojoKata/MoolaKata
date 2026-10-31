@@ -23,7 +23,11 @@ WAIT_SECONDS = 15 * 60
 
 
 class VaultError(Exception):
-    pass
+    """`kind` says what was wrong without the words: what a log may keep (S18.3.1)."""
+
+    def __init__(self, message: str, kind: str = "refused"):
+        super().__init__(message)
+        self.kind = kind
 
 
 def fingerprint(key: bytes) -> str:
@@ -86,16 +90,21 @@ class Vault:
 
     def _key_of(self, phrase: str) -> bytes:
         if self.waiting():
-            raise VaultError(f"wait {int(self.waiting() // 60) + 1} minutes: too many wrong words")
+            raise VaultError(
+                f"wait {int(self.waiting() // 60) + 1} minutes: too many wrong words", "waiting"
+            )
         try:
             key = words.from_words(phrase)
         except words.PhraseError as e:
             self._wrong_one()
-            raise VaultError(str(e)) from None
+            # The message may name a mistyped word, for the person typing; the kind never does.
+            raise VaultError(str(e), "not a valid phrase") from None
         stored = self._header()
         if stored["fingerprint"] != fingerprint(key):
             self._wrong_one()
-            raise VaultError("those words are a valid phrase, but not this vault's")
+            raise VaultError(
+                "those words are a valid phrase, but not this vault's", "another vault's"
+            )
         self._wrong = 0
         return key
 
