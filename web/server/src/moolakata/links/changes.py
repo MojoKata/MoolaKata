@@ -107,6 +107,18 @@ def waiting(data_dir, link_id: str) -> list:
     return sorted(d.glob("*.mks")) if d.exists() else []
 
 
+def keep(d, link_id: str, name: str, change: dict, local: dict | None, public: bytes) -> None:
+    """One change in the inbox `d`, as it came: its sealed part, and beside it its registry
+    and what this side added, sealed to the copy's key as the change is, so who shares what,
+    with whom and since when is never in the clear on the disk (S11.9.1, S11.9.10)."""
+    registry = {k: v for k, v in change.items() if k != "sealed"}
+    entry = exactjson.dumps({"change": registry, "local": local or {}}, separators=(",", ":"))
+    sealed.write(
+        d / f"{name}{ENTRY}", sealed.seal(public, sealed.ENTRY, link_id, name, [entry.encode()])
+    )
+    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])])
+
+
 def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
     """Keep a signed change's sealed part in the inbox as it came, beside its registry and
     what this side added (the random names its receipts were written under); apply it at once
@@ -122,14 +134,7 @@ def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
     have = waiting(srv.config.data_dir, link_id)
     seq = int(have[-1].stem) + 1 if have else 1
     name = f"{seq:010d}"
-    registry = {k: v for k, v in change.items() if k != "sealed"}
-    entry = exactjson.dumps({"change": registry, "local": local or {}}, separators=(",", ":"))
-    # Sealed to the copy's key as the change beside it is: who shares what, with whom and
-    # since when, never in the clear on the disk (S11.9.1, S11.9.10).
-    sealed.write(
-        d / f"{name}{ENTRY}", sealed.seal(public, sealed.ENTRY, link_id, name, [entry.encode()])
-    )
-    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])])
+    keep(d, link_id, name, change, local, public)
     have = waiting(srv.config.data_dir, link_id)
     if len(have) > MAX_CHANGES or sum(p.stat().st_size for p in have) > MAX_BYTES:
         for p in have:
