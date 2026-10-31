@@ -44,7 +44,9 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
 ## 1. Transport
 
 1. The connector **only opens connections** (S18.2.2): HTTPS POSTs of JSON, or multipart for a
-   file, to `/connector/v1/` on MoolaKata's address, the one in the pairing code. MoolaKata
+   file, to `/connector/v1/` on MoolaKata's address, the one in the pairing code: Settings ›
+   Connector's address for the connector, or, when it is empty, the public URL (S18.4.1),
+   never the link address, whose proxy may pass only `/link/`. MoolaKata
    never calls the connector; everything the connector must learn comes back in the answers
    to its own calls.
 2. **The connector verifies MoolaKata's TLS certificate**: a public one against the system's
@@ -154,7 +156,8 @@ A call the status key signs but may not make is refused `status-key`.
 
 1. An admin's **Pair** (Settings › Connector) makes a pairing code: `mkp1.` and unpadded
    base64url of `{"a": address, "f": fingerprint, "c": secret, "t": certificate}`, as a link
-   code is (`link-protocol.md` §4.1), `t` present when MoolaKata's certificate is its own.
+   code is (`link-protocol.md` §4.1), `a` the address of section 1.1 and `t` present when
+   MoolaKata's certificate is its own.
    MoolaKata keeps only the SHA-256 of the secret and the code's expiry (24 hours); a code
    works once. Making a code needs the admin's password again (S13.7.2).
 2. `moolakata-connector pair <code>`, run with the vault unlocked (it is refused otherwise,

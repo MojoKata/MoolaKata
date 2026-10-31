@@ -827,3 +827,20 @@ def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, pa
     view = admin.get("/ui/api/settings/connector").json()
     assert view["knownAddress"] == "198.51.100.7" and view["newAddress"] is None
     assert not moved()
+
+
+def test_the_pairing_code_carries_the_connectors_own_address_else_the_public_url(server, admin):
+    """CR3-372, CR3-141, S18.4.1: Settings › Connector's address, else the public URL, and never
+    the link address, whose proxy may pass only /link/."""
+
+    def carried() -> str:
+        code = pair_code(admin)
+        return manage.decode_code(code)["a"]
+
+    with server.db.tx() as s:
+        settings.put(s, "linkAddress", "https://links.example.net", None)
+    assert carried() == ORIGIN
+    r = save_settings(admin, {"connectorAddress": "money.lan"})
+    assert r.status_code == 422
+    assert save_settings(admin, {"connectorAddress": "https://money.lan:37373"}).status_code == 200
+    assert carried() == "https://money.lan:37373"

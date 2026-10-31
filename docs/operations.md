@@ -352,10 +352,11 @@ is an app of its own (DEPLOY.md §8.2).
    moolakata-connector pair <code>` with the vault unlocked) and compare the fingerprints both
    sides show. If they match, **Confirm** in Settings › Connector: until then
    the connector gets no sign-in and posts no file. If they differ, someone else answered the
-   code: Unpair. Pairing makes the connector's sealing key and files its private half in the
-   vault, so `pair` is refused while the vault is locked. The connector reaches MoolaKata at
-   the address in the code (the public URL, or the link address), so that address must resolve
-   from inside the container: on one host, the compose service name or the host's LAN address,
+   code: Unpair. Pairing makes the connector's keys and files the private halves of its action
+   and sealing keys in the vault, so `pair` is refused while the vault is locked. The connector
+   reaches MoolaKata at the address in the code: Settings › Connector's **The connector reaches
+   MoolaKata at**, or, when it is empty, the public URL; never the link address. That address
+   must resolve from inside the container: on one host, the compose service name or the host's LAN address,
    not `localhost`. It verifies MoolaKata's certificate: a public one, or one of MoolaKata's
    own whose fingerprint the code carries.
 6. **Banks with nothing to fetch from** (UMB, say) have no driver: download their statements

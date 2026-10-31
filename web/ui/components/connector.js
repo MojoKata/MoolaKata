@@ -9,11 +9,13 @@ import { ago, moment } from '../app/format.js';
 import { withReauth } from './reauth.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { FormError } from './fields.js';
+import { Field, FormError, Input } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
+import { DraftForm } from './draft-form.js';
+import { useSettingsDraft } from './settings-draft.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',
@@ -41,14 +43,19 @@ export function connectionState(c) {
 
 export function ConnectorSection() {
   const res = useApi('/settings/connector', {}, ['task']);
+  const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
+  const values = /** @type {any} */ (s.data)?.values;
+  // The address a pairing code carries (S18.4.1): the connector's own, else the public URL.
+  const fd = useSettingsDraft(s.data, ['connectorAddress']);
+  const rec = fd.rec;
   const unpair = useSubmit(async () => {
     await withReauth(() => api.post('/settings/connector/unpair'));
     toast('Unpaired: every Connection stopped and every sync is off');
     res.reload();
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!v) return html`<${Loading} />`;
+  if (!v || !values || !rec) return html`<${Loading} />`;
   const paired = v.state === 'paired';
   const tone = !paired ? '' : v.silentForSeconds ? 'bad' : v.locked ? 'warn' : 'ok';
   const status = !paired
@@ -140,6 +147,21 @@ export function ConnectorSection() {
                       <code>${v.serverFingerprint}</code></div>
           </div>
         `}
+      <${DraftForm} f=${fd} class="draft-form mt" where="Settings › Connector"
+        what="The address the connector reaches MoolaKata at" saved=${() => {
+          toast('Saved');
+          s.reload();
+        }}>
+        <${Field} label="The connector reaches MoolaKata at" id="connector-address"
+          error=${rec.error('connectorAddress')}
+          hint=${`The address a pairing code carries: on the connector's network, often this server's own. Empty: the public URL${
+            values.publicUrl ? ` (${values.publicUrl})` : ', which is not set'
+          }.`}>
+          <${Input} value=${rec.get('connectorAddress') || ''} onInput=${(
+            /** @type {string} */ x,
+          ) => rec.set('connectorAddress', x || null)} placeholder="https://money.lan:37373" />
+        </${Field}>
+      </${DraftForm}>
       <div class="toolbar mt">
         <button class="btn" onClick=${() =>
           openDialog(PairDialog, {}).then(() => res.reload())}>${paired

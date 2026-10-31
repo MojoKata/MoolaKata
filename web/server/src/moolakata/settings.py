@@ -240,6 +240,10 @@ _d("linkAddress", "links", None, _link_url)
 # This server's own certificate key as last told to its peers (link-protocol.md §4.5).
 _d("linkCertificate", "links", None, _optional_text(64))
 _d("linkReleaseMinutes", "links", 60, _int(5, 24 * 60))
+# The connector (S16.18, S18.4.1): the address the connector reaches this server at, which a
+# pairing code carries (the public URL when not set); never the link address, which may lead to
+# a proxy that passes only /link.
+_d("connectorAddress", "connector", None, _link_url)
 # Network (S16.14): the address ranges allowed to reach each path; empty allows any. /mcp
 # follows the app's; the connector's defaults to the LAN and the overlay (Tailscale's range)
 # so a connector on a laptop away from home needs an admin to widen it.

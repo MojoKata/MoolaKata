@@ -175,7 +175,9 @@ ask it for anything. People give it its words on **its page**, which it serves i
       on the host, whose access is the authority.
 4. **Pairing with MoolaKata**, once, as two servers are linked (S11.1).
    1. An admin chooses **Settings › Connector › Pair** in MoolaKata, which shows a one-time
-      **pairing code**: MoolaKata's address, its link key's fingerprint, a one-time secret,
+      **pairing code**: the address the connector reaches MoolaKata at (Settings › Connector's
+      own, S16.18, or the public URL when it is empty; never the link address, which may lead
+      to a proxy that passes only `/link/`), its link key's fingerprint, a one-time secret,
       and, when MoolaKata's certificate is its own rather than a public one, the fingerprint of
       the certificate's key, valid 24 hours, in the form of a link code (`mkp1.`,
       `docs/link-protocol.md` §4.1), of which MoolaKata keeps only the secret's hash.

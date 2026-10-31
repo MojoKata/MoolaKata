@@ -19,11 +19,20 @@ reported. There its vault is made and its words are given: **Unlock** after a re
 see its status there, which names no institution, sign-in or account; every action asks for
 the words. MoolaKata only links to it and never sees the words.
 
+## The connector reaches MoolaKata at {#connector-address}
+
+The address a pairing code carries, as `https://…` with its port and no path: where the
+connector sends its reports and files, under `/connector/`. The connector usually runs on the
+household's own network, so this is often the server's own address there
+(`https://money.lan:37373`), not a public URL that leads out through a proxy or a tunnel and
+back. Empty, the public URL is used. Never the link address: a proxy for linked servers may pass
+only `/link/`. A change applies to the next pairing.
+
 ## Pair {#pair}
 
 Shows a one-time pairing code, valid 24 hours, to paste into **Pair** on the connector's page
-with its words, or in the command to run on its host. It holds this server's address and key
-fingerprint; the connector then introduces itself, and
+with its words, or in the command to run on its host. It holds the address above (or the public
+URL) and this server's key fingerprint; the connector then introduces itself, and
 both sides show its fingerprint for you to compare. One connector is paired at a time: pairing
 another replaces it, as Unpair does. Needs your password again when it was given over 10
 minutes ago.

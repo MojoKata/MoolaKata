@@ -70,7 +70,9 @@ def paired(s) -> Connector | None:
 
 
 def own_address(s) -> str | None:
-    return settings.get(s, "linkAddress") or settings.get(s, "publicUrl")
+    """The address a pairing code carries (S18.4.1): Settings › Connector's own, else the
+    public URL."""
+    return settings.get(s, "connectorAddress") or settings.get(s, "publicUrl")
 
 
 def pair_code(srv, by: str) -> tuple[Connector, str]:
@@ -84,8 +86,8 @@ def pair_code(srv, by: str) -> tuple[Connector, str]:
         if not address:
             raise ConnectorError(
                 "no-address",
-                "Set this server's public URL (or link address) first, so the connector can "
-                "reach it.",
+                "Set the address the connector reaches this server at (Settings › Connector), or "
+                "the public URL, first.",
             )
         own = keys.private_key(s, srv.keys.secrets, by)
         fp = keys.fingerprint(keys.raw_public(own.public_key()))
