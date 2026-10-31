@@ -104,21 +104,13 @@ def _check_settings(driver: str, settings: dict) -> dict:
             elif isinstance(v, str) and v.strip():
                 out[key] = v.strip()
             continue
-        if kind is list:
-            if v is None:
-                v = []
-            if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
-                errors.append(FieldError(f"settings.{key}", "settings-invalid", "A list of rules."))
-                continue
-            out[key] = [x.strip() for x in v if x.strip()][:200]
-        else:
-            if not isinstance(v, str) or not v.strip():
-                errors.append(FieldError(f"settings.{key}", "settings-missing", "Needed."))
-                continue
-            if len(v) > 500:
-                errors.append(FieldError(f"settings.{key}", "settings-invalid", "Too long."))
-                continue
-            out[key] = v.strip()
+        if not isinstance(v, str) or not v.strip():
+            errors.append(FieldError(f"settings.{key}", "settings-missing", "Needed."))
+            continue
+        if len(v) > 500:
+            errors.append(FieldError(f"settings.{key}", "settings-invalid", "Too long."))
+            continue
+        out[key] = v.strip()
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
     return out
