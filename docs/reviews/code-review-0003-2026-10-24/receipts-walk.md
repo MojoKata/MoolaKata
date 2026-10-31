@@ -71,3 +71,12 @@ Given by the user Oct 31, 5:55 PM, for all three as written above.
    `test_a_slow_thumbnail_holds_no_one_elses_write` holds the thumbnail on an event while
    another user saves; with the thumbnail inside the transaction it fails with *database is
    locked*.
+3. **CR3-56**: `BodyLimit` asks the server whose live session an upload's cookie is
+   (`Server.session_user`, read as the server) before a byte of the body is read, for a
+   multipart body or any body past 64 KB to `/ui/api`; none answers 401 and the in-flight
+   cap counts by user. Deviation: a ceiling for every caller together was already there (four
+   times the per-user 100 MB, answering 429); it is now 256 MB and answers 503 with
+   `Retry-After: 30`, the per-user cap staying 429. S13.7.6. Tests: the middleware's (503,
+   429, a forged session 401 with nothing held) and the whole app's (a forged cookie with
+   5 MB: 401, one chunk read at most; with any session passing, the body is read and the
+   test fails).
