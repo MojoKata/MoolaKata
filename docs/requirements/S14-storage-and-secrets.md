@@ -23,7 +23,9 @@
       own upgrade.
    4. **Access:** each table has a repository module. A unit of work is `Database.tx()`
       (`BEGIN IMMEDIATE`) or `Database.read()` (`PRAGMA query_only`, which refuses any
-      write). Foreign keys are on, with a 10-second busy timeout.
+      write). Foreign keys are on, with a 10-second busy timeout. A unit of work reads and
+      writes for a user, through each table's access view, or names why it is the server's
+      own; one that does neither reads nothing ([`schema.md`](schema.md) §7).
    5. **Soft deletes**: records are never removed. Deleting one sets its `deletedAt` and
       `deletedById` (its `deleted` is generated from `deletedAt`), and each table's view works out whether a record is
       deleted through the records it belongs to. [`schema.md`](schema.md) (S1) sets the

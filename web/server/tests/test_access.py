@@ -3,6 +3,7 @@ searched by index, and, while the Python rules remain, the views agreeing with t
 user and record of a household built to reach every rule."""
 
 import hashlib
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select, text
@@ -11,7 +12,7 @@ from moolakata import access, clock, ids
 from moolakata.app import Server
 from moolakata.config import Config
 from moolakata.keys import master
-from moolakata.store import access_views, views
+from moolakata.store import access_views
 from moolakata.store.maintenance import open_store
 from moolakata.store.tables import metadata
 
@@ -52,7 +53,13 @@ def household(tmp_path_factory):
 def edge_cases(s) -> dict[str, str]:
     from moolakata.links.manage import apply_directory
     from moolakata.people import make as make_person
-    from moolakata.store.entities.accounts import Account, Transaction
+    from moolakata.store.entities.accounts import (
+        Account,
+        Reimbursement,
+        Transaction,
+        TransferMatch,
+        WashSale,
+    )
     from moolakata.store.entities.budgets import Budget
     from moolakata.store.entities.education import Gift, GiftPerson, GiftPlan
     from moolakata.store.entities.links import Link
@@ -119,7 +126,8 @@ def edge_cases(s) -> dict[str, str]:
     )
 
     carol = user("carol", active=False)
-    s.add(Account(id=ids.new_id("Acct"), ownerId=carol.id, name="Carol's", type="checking"))
+    carols = Account(id=ids.new_id("Acct"), ownerId=carol.id, name="Carol's", type="checking")
+    s.add(carols)
     share("account", shared.id, "read", user=carol)
 
     dave = user("dave")
@@ -131,7 +139,8 @@ def edge_cases(s) -> dict[str, str]:
     share("budget", budget.id, "write", grp=former)
 
     erin = user("erin")
-    s.add(TaxBookFiler(bookId=book.id, userId=erin.id, createdAt=now))
+    invitation = TaxBookFiler(bookId=book.id, userId=erin.id, createdAt=now)
+    s.add(invitation)
 
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
     plan = alices(GiftPlan, personId=bob.personId)
@@ -163,12 +172,33 @@ def edge_cases(s) -> dict[str, str]:
     )
     s.add(receipt)
     s.flush()
-    for kind, item in (
-        ("transaction", txn(shared).id),
-        ("transaction", txn(unshared).id),
-        ("gift", surprise.id),
+    links = {}
+    for name, kind, item in (
+        ("shared link", "transaction", txn(shared).id),
+        ("unshared link", "transaction", txn(unshared).id),
+        ("gift link", "gift", surprise.id),
     ):
-        s.add(ReceiptLink(receiptId=receipt.id, kind=kind, itemId=item, linkedById=alice.id))
+        ln = ReceiptLink(receiptId=receipt.id, kind=kind, itemId=item, linkedById=alice.id)
+        s.add(ln)
+        links[name] = ln.id
+
+    # The rows joining two transactions, one on each side of the share (1e).
+    mine, ours = txn(unshared), txn(shared)
+    reimbursement = Reimbursement(
+        id=ids.new_id("Rmbrs"), spendingId=mine.id, paybackId=ours.id, amount=Decimal("1.00")
+    )
+    match = TransferMatch(id=ids.new_id("XfrMt"), ownerId=alice.id, outId=mine.id, inId=ours.id)
+    wash = WashSale(
+        id=ids.new_id("WashS"),
+        ownerId=alice.id,
+        saleId=mine.id,
+        replacementId=ours.id,
+        quantity=Decimal(1),
+        disallowed=Decimal("1.00"),
+        heldFrom=mine.date,
+        createdAt=now,
+    )
+    s.add_all([reimbursement, match, wash])
 
     link = s.scalars(select(Link).order_by(Link.id)).first()
     apply_directory(
@@ -185,7 +215,18 @@ def edge_cases(s) -> dict[str, str]:
     share("account", shared.id, "read", user=remote["r-tom"])
     share("account", shared.id, "read", user=remote["r-ann"], receipts=True)
     s.flush()
+    admin = s.scalars(select(User).where(User.username == "admin")).one()
     return {
+        **links,
+        "shared": shared.id,
+        "carols": carols.id,
+        "erins invitation": invitation.id,
+        "reimbursement": reimbursement.id,
+        "match": match.id,
+        "wash": wash.id,
+        "bobs person": bob.personId,
+        "admin": admin.id,
+        "former": former.id,
         "carol": carol.id,
         "dave": dave.id,
         "erin": erin.id,
@@ -266,315 +307,68 @@ def test_a_child_is_searched_by_its_index_never_scanned(household):
                 assert len(after) <= len(before), f"{t.name} ({where}): {plan}"
 
 
-# ---- The views against the Python rules (decision 7.2, until step 5) ----
+# ---- Who holds what, written out (decision 7.2: the parity test's household, kept) ----
 
-ROOTS = {
-    "account": "Account",
-    "portfolio": "Portfolio",
-    "budget": "Budget",
-    "gift-plan": "GiftPlan",
-    "giving-plan": "GivingPlan",
-    "tax-book": "TaxBook",
-    "projection": "Projection",
-}
+R, W, D, S, C = "read", "writable", "deletable", "shareable", "configurable"
+EVERY = (W, D, S, C)
 
-
-def everyone(s) -> list[str]:
-    from moolakata.store.entities.users import User
-
-    return [u.id for u in s.scalars(select(User).where(User.deleted.is_(False)))]
-
-
-def derived(row) -> str | None:
-    """The level a root's view gives, as the API names it (decision 6.4)."""
-    if row is None:
-        return None
-    if all(row):
-        return "owner"
-    return "write" if row[0] else "read"
-
-
-def old_root(s, kind: str, item, user_id: str) -> str | None:
-    from moolakata.taxes import books
-
-    if kind == "tax-book":
-        return books.level(s, user_id, item)
-    if kind == "gift-plan":  # as gifts.plan_by_id had it: while its person is there
-        from moolakata.store.entities.education import Person
-
-        person = s.get(Person, item.personId)
-        if person is None or person.deleted:
-            return None
-    return access.level_of(s, user_id, kind, item.ownerId, item.id, item.deleted)
-
-
-def expected_difference(kind: str, item_id: str, user_id: str, names, s) -> str | None:
-    """Why a view deliberately parts from the Python rule, by decision; None when it
-    doesn't."""
-    from moolakata.store.entities.users import User
-
-    u = s.get(User, user_id)
-    if not u.active:
-        return "4.1"
-    if kind == "gift-plan" and u.linkId is not None:
-        return "4.5"
-    return None
+# (table, record, user, what they hold: None when they don't read it).
+HOLDS = [
+    ("Account", "unshared", "alice", EVERY),
+    ("Account", "unshared", "bob", None),
+    ("Account", "shared", "bob", (R,)),  # through the Household group
+    ("Account", "shared", "carol", None),  # inactive (4.1)
+    ("Account", "shared", "tom", (R,)),  # a linked server's user reads, never more (4.3)
+    ("Account", "carols", "carol", None),  # an inactive user holds nothing, not even theirs
+    ("TaxBook", "book", "alice", EVERY),
+    ("TaxBook", "book", "dave", (R,)),  # an active group's share
+    ("TaxBook", "book", "erin", None),  # a filer who hasn't accepted
+    ("TaxBookFiler", "erins invitation", "erin", (W,)),  # answered before accepting
+    ("Budget", "budget", "dave", None),  # an inactive group's share gives nothing
+    ("GiftPlan", "plan", "bob", (R,)),
+    ("Gift", "gift", "alice", (W, D)),
+    ("Gift", "gift", "bob", None),  # the person it is for (1d.3)
+    ("Receipt", "receipt", "alice", (W, D)),
+    ("Receipt", "receipt", "bob", (R,)),  # through the shared account
+    ("Receipt", "receipt", "tom", None),  # without Include receipts (4.4)
+    ("Receipt", "receipt", "ann", (R,)),  # with it
+    ("ReceiptLink", "shared link", "bob", (R,)),
+    ("ReceiptLink", "unshared link", "bob", None),  # CR3-47: never the other account's
+    ("ReceiptLink", "gift link", "bob", None),
+    ("ReceiptLink", "unshared link", "alice", (W, D)),
+    ("Reimbursement", "reimbursement", "alice", (W, D)),
+    ("Reimbursement", "reimbursement", "bob", (R,)),  # from the side he reads (1e.3)
+    ("TransferMatch", "match", "alice", (W, D)),
+    ("TransferMatch", "match", "bob", None),  # its owner's alone (1e.4)
+    ("WashSale", "wash", "alice", (R,)),  # a cache: read with its sale, never changed
+    ("WashSale", "wash", "bob", None),
+    ("Person", "bobs person", "erin", (R,)),  # every local user, as he is not private
+    ("Person", "bobs person", "bob", EVERY),
+    ("Person", "bobs person", "admin", EVERY),  # admins hold every person (1b.3)
+    ("User", "carol", "admin", (W, D)),  # admins read inactive users too
+    ("User", "carol", "bob", None),
+    ("User", "tom", "tom", (R,)),  # one's own row; changed only by a local user
+    ("Group", "former", "dave", None),  # an inactive group
+    ("Group", "former", "admin", (W, D)),
+]
 
 
-def test_roots_agree_with_the_python_rules(household):
-    srv, names = household
-    from moolakata.store import entities  # noqa: F401
-    from moolakata.store.entities.accounts import Account
-    from moolakata.store.entities.budgets import Budget
-    from moolakata.store.entities.education import GiftPlan
-    from moolakata.store.entities.giving import GivingPlan
-    from moolakata.store.entities.projections import Projection
-    from moolakata.store.entities.sharing import Portfolio
-    from moolakata.store.entities.taxes import TaxBook
-
-    entity = {
-        "account": Account,
-        "portfolio": Portfolio,
-        "budget": Budget,
-        "gift-plan": GiftPlan,
-        "giving-plan": GivingPlan,
-        "tax-book": TaxBook,
-        "projection": Projection,
-    }
-    wrong = []
-    with srv.db.read(unscoped="test") as s:
-        users = everyone(s)
-        for kind, table in ROOTS.items():
-            view = rows(s, table)
-            for item in s.scalars(select(entity[kind]).where(entity[kind].deleted.is_(False))):
-                for u in users:
-                    old = old_root(s, kind, item, u)
-                    new = derived(view.get((item.id, u)))
-                    if old != new:
-                        why = expected_difference(kind, item.id, u, names, s)
-                        if why is None or new is not None:
-                            wrong.append((kind, item.id, u, old, new))
-    assert not wrong, wrong[:20]
-
-
-def test_children_agree_with_their_roots(household):
-    """Each child is seen exactly as the root its keys lead to is, by the Python rule."""
-    srv, names = household
-    wrong = []
-    with srv.db.read(unscoped="test") as s:
-        users = everyone(s)
-        old_cache: dict[tuple[str, str, str], str | None] = {}
-        for t in metadata.sorted_tables:
-            if access_views.seen(t).how != "child":
-                continue
-            chain, cur = [], t
-            while access_views.seen(cur).how == "child":
-                key = access_views.seen(cur).key
-                parent = next(f for f in cur.foreign_keys if f.parent.name == key).column.table
-                chain.append((cur, key, parent))
-                cur = parent
-            root = cur
-            kind = access_views.seen(root).share
-            if kind is None:
-                continue
-            # Every live child's root, through the Effective views.
-            sql = f'SELECT c0.id, c{len(chain) - 1}."{chain[-1][1]}" FROM '
-            joins = []
-            for i, (tab, _, _) in enumerate(chain):
-                src = (
-                    f'"{views.view_name(tab.name)}" AS c{i}'
-                    if tab.info.get("softDelete")
-                    else f'"{tab.name}" AS c{i}'
-                )
-                live = f'NOT c{i}."effectiveDeleted"' if tab.info.get("softDelete") else "1"
-                if i == 0:
-                    joins.append(f"{src}")
-                    where = [live]
-                else:
-                    joins.append(f'JOIN {src} ON c{i}.id = c{i - 1}."{chain[i - 1][1]}"')
-                    where.append(live)
-            sql += "\n".join(joins) + " WHERE " + " AND ".join(where)
-            view = rows(s, t.name)
-            ent = {r.local_table.name: r.class_ for r in _mappers()}[root.name]
-            for child_id, root_id in s.execute(text(sql)):
-                item = s.get(ent, root_id)
-                for u in users:
-                    k = (kind, root_id, u)
-                    if k not in old_cache:
-                        old_cache[k] = old_root(s, kind, item, u) if item else None
-                    old = old_cache[k]
-                    row = view.get((child_id, u))
-                    got = None if row is None else ("write" if row[0] else "read")
-                    want = (
-                        None if old is None else ("write" if old in ("owner", "write") else "read")
-                    )
-                    if got != want and expected_difference(kind, root_id, u, names, s) is None:
-                        wrong.append((t.name, child_id, u, want, got))
-    assert not wrong, wrong[:20]
-
-
-def _mappers():
-    from moolakata.store.mapping import mapper_registry
-
-    return list(mapper_registry.mappers)
-
-
-def test_people_receipts_and_gifts_agree_with_the_python_rules(household):
-    srv, names = household
-    from moolakata import gifts, people, receipts
-    from moolakata.store.entities.education import Gift, Person
-    from moolakata.store.entities.receipts import Receipt
-
-    wrong = []
-    with srv.db.read(unscoped="test") as s:
-        users = everyone(s)
-        person = rows(s, "Person")
-        for p in s.scalars(select(Person).where(Person.deleted.is_(False))):
-            for u in users:
-                old = people.level(s, u, p)
-                row = person.get((p.id, u))
-                new = None if row is None else ("owner" if row[0] else "read")
-                if old != new and expected_difference("person", p.id, u, names, s) is None:
-                    wrong.append(("person", p.name, u, old, new))
-        receipt = rows(s, "Receipt")
-        for r in s.scalars(select(Receipt).where(Receipt.deleted.is_(False))):
-            for u in users:
-                old = receipts.level(s, u, r)
-                row = receipt.get((r.id, u))
-                new = (
-                    None if row is None else ("owner" if row[1] else "write" if row[0] else "read")
-                )
-                why = expected_difference("receipt", r.id, u, names, s)
-                if r.id == names["receipt"] and u == names["bob"]:
-                    why = "1d.3"  # through the gift for him: never; through the joint account
-                if r.id == names["receipt"] and u == names["tom"]:
-                    why = "4.4"  # without Include receipts
-                if old != new and why is None:
-                    wrong.append(("receipt", r.fileName, u, old, new))
-        gift = rows(s, "Gift")
-        for u in users:
-            seen = {g.id for g, _ in gifts.visible_gifts(s, u)}
-            for g in s.scalars(select(Gift).where(Gift.deleted.is_(False))):
-                ps = gifts.people_of_gifts(s, [g.id])[g.id]
-                old = gifts.level_on_gift(s, u, g, ps) if g.id in seen else None
-                row = gift.get((g.id, u))
-                new = (
-                    None
-                    if row is None
-                    else ("owner" if g.ownerId == u else "write" if row[0] else "read")
-                )
-                if old != new and expected_difference("gift", g.id, u, names, s) is None:
-                    wrong.append(("gift", g.description, u, old, new))
-    assert not wrong, wrong[:20]
-
-
-def test_the_household_reaches_every_rule(household):
-    """What the edge cases are for, each as the decisions say."""
+def test_who_holds_what(household):
+    """Each rule as the decisions say, on the household built to reach them."""
     srv, n = household
+    wrong = []
     with srv.db.read(unscoped="test") as s:
-        account, receipt = rows(s, "Account"), rows(s, "Receipt")
-        link, gift = rows(s, "ReceiptLink"), rows(s, "Gift")
-        book, budget = rows(s, "TaxBook"), rows(s, "Budget")
-        assert not [k for k in account if k[1] == n["carol"]]  # 4.1
-        assert (n["book"], n["dave"]) in book  # an active group's share
-        assert (n["budget"], n["dave"]) not in budget  # an inactive group's: nothing
-        assert (n["book"], n["erin"]) not in book  # a filer who hasn't accepted
-        assert book[(n["book"], n["alice"])] == (1, 1, 1, 1)
-        assert (n["gift"], n["bob"]) not in gift  # the person it is for (1d.3)
-        assert (n["receipt"], n["bob"]) in receipt  # through the shared account
-        mine = s.execute(
-            text('SELECT id FROM "ReceiptLink" WHERE "receiptId" = :r'), {"r": n["receipt"]}
-        ).scalars()
-        bobs = [x for x in mine if (x, n["bob"]) in link]
-        assert len(bobs) == 1  # CR3-47: only the joint account's link
-        assert (n["receipt"], n["tom"]) not in receipt  # 4.4: without Include receipts
-        assert (n["receipt"], n["ann"]) in receipt  # with it
-        assert not [k for k in account if k[1] == n["tom"] and account[k][0]]  # read only
-
-
-def test_activity_agrees_with_the_python_rule(household):
-    """S10.8's entries, as the Activity screen's query chooses them."""
-    srv, _ = household
-    from moolakata.auth.users import admin_ids
-    from moolakata.store.entities.core import Activity
-
-    class C:
-        def __init__(self, uid, admin):
-            self.id, self.admin = uid, admin
-
-    def _visible(s, c):
-        """The rule as the Python code had it (ui/activity.py), until step 5."""
-        from sqlalchemy import and_, func, or_
-
-        from moolakata.store.entities.budgets import Budget
-        from moolakata.store.entities.sharing import Portfolio
-        from moolakata.taxes import books
-
-        r = access.reach(s, c.id)
-
-        def readable(entity, kind):
-            return [
-                x.id
-                for x in s.scalars(select(entity).where(entity.deleted.is_(False)))
-                if access.level_of(s, c.id, kind, x.ownerId, x.id, x.deleted, r)
-            ]
-
-        from moolakata.store.entities.accounts import Account
-
-        accounts = readable(Account, "account")
-        portfolios = readable(Portfolio, "portfolio")
-        budgets = readable(Budget, "budget")
-        shared: dict[str, set[str]] = {}
-        for kind, item in r.levels:
-            shared.setdefault(kind, set()).add(item)
-        from moolakata.store.entities.taxes import TaxBook
-
-        shared.setdefault("tax-book", set()).update(
-            b.id
-            for b in s.scalars(select(TaxBook).where(TaxBook.deleted.is_(False)))
-            if books.level(s, c.id, b) is not None
-        )
-        groups = access.groups_of(s, c.id)
-        grantee = func.json_extract(Activity.detail, "$.granteeId")
-        conds = [
-            Activity.actorId == c.id,
-            Activity.ownerId == c.id,
-            and_(Activity.subjectKind == "account", Activity.subjectId.in_(accounts)),
-            and_(Activity.subjectKind == "portfolio", Activity.subjectId.in_(portfolios)),
-            and_(Activity.subjectKind == "budget", Activity.subjectId.in_(budgets)),
-            *(
-                and_(Activity.subjectKind == kind, Activity.subjectId.in_(sorted(items)))
-                for kind, items in shared.items()
-                if kind not in ("account", "portfolio", "budget")
-            ),
-            and_(Activity.kind == "share.removed", or_(grantee == c.id, grantee.in_(groups))),
-        ]
-        if c.admin:
-            conds.append(
-                and_(
-                    Activity.forAdmins,
-                    or_(
-                        Activity.subjectKind.is_(None),
-                        Activity.subjectKind.in_(("user", "group", "link")),
-                    ),
-                )
+        for table, record, user, want in HOLDS:
+            row = rows(s, table).get((n[record], n[user]))
+            got = (
+                None
+                if row is None
+                else (R, *(p for p, x in zip((W, D, S, C), row, strict=True) if x))
             )
-        return or_(*conds)
-
-    with srv.db.read(unscoped="test") as s:
-        view = rows(s, "Activity")
-        admins = admin_ids(s)
-        from moolakata.store.entities.users import User
-
-        for u in s.scalars(select(User).where(User.linkId.is_(None), User.active)):
-            old = set(s.scalars(select(Activity.id).where(_visible(s, C(u.id, u.id in admins)))))
-            new = {k[0] for k in view if k[1] == u.id}
-            extra = {
-                i
-                for i in new - old
-                if s.get(Activity, i).subjectKind == "person"  # 1f.5: through PersonAccess
-            }
-            assert old == new - extra, (u.username, old ^ new)
+            expected = None if want is None else tuple(dict.fromkeys((R, *want)))
+            if got != expected:
+                wrong.append((table, record, user, expected, got))
+    assert not wrong, wrong
 
 
 # ---- Scoped sessions (decision 5) ----

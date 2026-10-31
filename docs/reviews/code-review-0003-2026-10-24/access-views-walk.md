@@ -349,3 +349,15 @@ Given by the user Oct 31, 3:17 PM, for all sixteen decisions as written above.
    QueuedEmail are written for everyone and not checked. Found: joining a linked server's
    user to a person changed their User row and their own person, which the joiner doesn't
    hold; the server does it, for one who may change the person.
+7. **Step 5: the Python rules deleted.** `access.reach`, `level_of`, `account_level`,
+   `holders`, `RANK`, `higher`, `groups_of`; `books.level`, `people.level`,
+   `receipts.level`/`_kept_level`/`_on_tax_document`, `gifts.visible_gifts`/`level_on_gift`,
+   `giving.visible_plans`; the last production uses of them (`people.may_join`,
+   `receipts.detach_kept`) ask the views. The parity test went with them; its household
+   stays, with the rows the seed lacks (a reimbursement, a transfer match and a wash sale on
+   both sides of a share), as `test_who_holds_what`: each user's permissions written out per
+   record. Decision 9.2's lines: S10.3.2 and S10.3 (the permissions, decided by the views),
+   S14.1.1.4, S7.8.5 (the person a gift is for, nor what is kept with it). Deviation from 7.3:
+   the changes of behaviour came with the commits that made them (the gift's recipient with
+   step 1's views, Activity's people entries with 3c), not a commit each; the walk log says
+   which.

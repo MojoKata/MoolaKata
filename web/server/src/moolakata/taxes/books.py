@@ -45,19 +45,6 @@ def filers(s: Session, book: TaxBook) -> list[TaxBookFiler]:
     )
 
 
-def level(s: Session, user_id: str, book: TaxBook, r=None) -> str | None:
-    """owner for the one who made it and its accepted filers; else a share's level."""
-    if book.deleted:
-        return None
-    if book.ownerId == user_id:
-        return "owner"
-    for f in filers(s, book):
-        if f.userId == user_id and f.acceptedAt is not None:
-            return "owner"
-    r = r or access.reach(s, user_id)
-    return r.levels.get(("tax-book", book.id))
-
-
 def visible(s: Session, user_id: str) -> list[tuple[TaxBook, str]]:
     """The books the user holds or helps with (TaxBookAccess), newest first."""
     return [

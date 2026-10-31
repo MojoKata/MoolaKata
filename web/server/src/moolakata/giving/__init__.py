@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import false, or_, select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import access, valuation
@@ -38,24 +38,6 @@ def plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
     return [
         (p, perms.level())
         for p, perms in access.listing(s, GivingPlan, user_id, order_by=GivingPlan.year.desc())
-    ]
-
-
-def visible_plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
-    r = access.reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "giving-plan"]
-    rows = s.scalars(
-        select(GivingPlan)
-        .where(
-            GivingPlan.deleted == false(),
-            or_(GivingPlan.ownerId == user_id, GivingPlan.id.in_(shared)),
-        )
-        .order_by(GivingPlan.year.desc())
-    ).all()
-    return [
-        (p, lvl)
-        for p in rows
-        if (lvl := access.level_of(s, user_id, "giving-plan", p.ownerId, p.id, p.deleted, r))
     ]
 
 

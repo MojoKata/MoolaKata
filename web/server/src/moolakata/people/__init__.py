@@ -76,7 +76,7 @@ def may_join(s: Session, user_id: str, p: Person) -> list[User]:
     """The remote users who may be this person (S10.10.1): of the same name, with a person of
     their own that nothing names yet; offered to someone who may change this one, a person
     who isn't a user."""
-    if p.deleted or user_of(s, p.id) is not None or level(s, user_id, p) != "owner":
+    if p.deleted or user_of(s, p.id) is not None or not changeable(s, user_id, p.id):
         return []
     out = []
     for u in s.scalars(
@@ -134,42 +134,6 @@ def is_admin(s: Session, user_id: str) -> bool:
     from ..auth.users import admin_ids
 
     return user_id in admin_ids(s)
-
-
-def level(s: Session, user_id: str, p: Person, r: access.Reach | None = None) -> str | None:
-    """'owner' for those who may change it, 'read' for the rest who see it, else None."""
-    if p.deleted:
-        return None
-    u = s.get(User, user_id)
-    if u is None:
-        return None
-    # A linked server's user sees a person only through a share, of them or of a gift plan
-    # for them, read only (S10.3.3).
-    if u.linkId is None:
-        if p.id == u.personId or is_admin(s, user_id):
-            return "owner"
-        # Once they are a user here, a person is changed by that user (and admins) alone;
-        # until then, and for a linked server's user, who never signs in here, by whoever
-        # added them (S10.10.2).
-        mine = user_of(s, p.id)
-        if mine is not None and mine.id == user_id:
-            return "owner"
-        if (mine is None or mine.linkId is not None) and p.ownerId == user_id:
-            return "owner"
-        if not p.private:
-            return "read"
-    r = r or access.reach(s, user_id)
-    if r.levels.get(("person", p.id)):
-        return "read"
-    # Holding a gift plan for them shows them too.
-    from ..store.entities.education import GiftPlan
-
-    plans = s.scalars(
-        select(GiftPlan.id).where(GiftPlan.personId == p.id, GiftPlan.deleted == false())
-    ).all()
-    if any(r.levels.get(("gift-plan", i)) for i in plans):
-        return "read"
-    return None
 
 
 def visible(s: Session, user_id: str) -> list[tuple[Person, str]]:

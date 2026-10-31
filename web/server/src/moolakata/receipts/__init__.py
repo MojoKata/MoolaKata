@@ -234,64 +234,6 @@ def links(s: Session, receipt_id: str) -> list[ReceiptLink]:
     )
 
 
-def level(s: Session, user_id: str, r: Receipt) -> str | None:
-    """owner, write or read; None when the user can't see it."""
-    if r.deleted:
-        return None
-    if r.ownerId == user_id:
-        return "owner"
-    best = None
-    reach = access.reach(s, user_id)
-    for ln in links(s, r.id):
-        if ln.kind in ("gift", "donation"):
-            best = access.higher(best, _kept_level(s, user_id, ln))
-            continue
-        if ln.kind == "account":
-            a = s.get(Account, ln.itemId)
-        elif ln.kind == "item":
-            it = s.get(Item, ln.itemId)
-            a = s.get(Account, it.accountId) if it and not it.deleted else None
-        elif ln.kind == "expense":
-            ex = s.get(QualifiedExpense, ln.itemId)
-            a = s.get(Account, ex.accountId) if ex and not ex.deleted else None
-        else:
-            t = s.get(Transaction, ln.itemId)
-            a = s.get(Account, t.accountId) if t and not t.deleted else None
-        if a is None:
-            continue
-        lvl = access.account_level(s, user_id, a, reach)
-        best = access.higher(best, "write" if lvl in ("owner", "write") else lvl)
-    if best is None and _on_tax_document(s, user_id, r.id):
-        best = "read"  # a tax document's file, for the book's filers (S8.16)
-    return best
-
-
-def _kept_level(s: Session, user_id: str, ln) -> str | None:
-    """A receipt kept with a gift or a donation is seen as that is (S9.6): a gift through its
-    owner's gift plans, a donation by its owner and the giving plan it counts in."""
-    if ln.kind == "gift":
-        from .. import gifts
-        from ..store.entities.education import Gift
-
-        g = s.get(Gift, ln.itemId)
-        if g is None or g.deleted:
-            return None
-        lvl = gifts.level_on_gift(s, user_id, g, gifts.people_of_gifts(s, [g.id]).get(g.id, []))
-        return "write" if lvl in ("owner", "write") else lvl
-    from .. import giving
-    from ..store.entities.giving import Donation
-
-    d = s.get(Donation, ln.itemId)
-    if d is None or d.deleted:
-        return None
-    if d.ownerId == user_id:
-        return "write"
-    for plan, _ in giving.visible_plans(s, user_id):
-        if plan.year == d.date.year and d.ownerId in giving.givers(s, plan, user_id):
-            return "read"
-    return None
-
-
 def on_tax_documents(s: Session, receipt_id: str) -> list:
     from ..store.entities.taxes import TaxDocument
 
@@ -302,19 +244,6 @@ def on_tax_documents(s: Session, receipt_id: str) -> list:
             )
         )
     )
-
-
-def _on_tax_document(s: Session, user_id: str, receipt_id: str) -> bool:
-    from ..store.entities.taxes import TaxBook
-    from ..taxes import books
-
-    for doc in on_tax_documents(s, receipt_id):
-        book = s.get(TaxBook, doc.bookId)
-        if book is None or book.deleted:
-            continue
-        if any(f.userId == user_id and f.acceptedAt for f in books.filers(s, book)):
-            return True
-    return False
 
 
 def level_for(s: Session, user_id: str, r: Receipt) -> str | None:
@@ -507,7 +436,8 @@ def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -
     row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if row is None or row.deleted or kind not in ("gift", "donation"):
         raise Problem(404, "not-found", "The receipt is not kept with that.")
-    if _kept_level(s, user_id, row) != "write":
+    held = target(s, user_id, kind, item_id)
+    if held is None or not held.writable:
         raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     row.mark_deleted(user_id, clock.now())
 

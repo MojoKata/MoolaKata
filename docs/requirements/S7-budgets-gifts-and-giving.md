@@ -150,7 +150,8 @@
    5. **Privacy**: gift plans and gifts are their owner's alone. A user may share a gift
       plan (with its gifts) with another user or group, read or write, so a couple plans
       their children's gifts together. A gift for a person who is a user is **never shown
-      to that user**, even through a share, so a surprise stays one. For a
+      to that user** until it is received, even through a share, nor anything kept with it
+      (a receipt, S9.6), so a surprise stays one. For a
       user of a linked server, the owner's server leaves those gifts out before sending, so
       they never reach the other server.
    6. **A deleted person**: gifts bought, given or received stay, still count in past

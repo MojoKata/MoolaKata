@@ -110,58 +110,6 @@ def readable(s: Session, user_id: str) -> list[tuple[Gift, list[str]]]:
     return [(g, whom[g.id]) for g in rows]
 
 
-def visible_gifts(s: Session, user_id: str) -> list[tuple[Gift, list[str]]]:
-    """The user's own gifts, and the gifts in the plans shared with them; never a gift for
-    the user themselves, even through a share, so a surprise stays one (S7.8.5)."""
-    me = s.get(User, user_id)
-    mine_person = me.personId if me else None
-    r = access.reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "gift-plan"]
-    # (owner, person) pairs whose gifts the user sees through a shared plan.
-    through: set[tuple[str, str]] = set()
-    if shared:
-        for gp in s.scalars(
-            select(GiftPlan).where(GiftPlan.id.in_(shared), GiftPlan.deleted == false())
-        ):
-            through.add((gp.ownerId, gp.personId))
-    owners = {o for o, _ in through} | {user_id}
-    rows = s.scalars(
-        select(Gift).where(Gift.deleted == false(), Gift.ownerId.in_(list(owners)))
-    ).all()
-    whom = people_of_gifts(s, [g.id for g in rows])
-    out = []
-    for g in rows:
-        ps = whom[g.id]
-        if g.ownerId != user_id and not any((g.ownerId, p) in through for p in ps):
-            continue
-        if g.status != "received" and mine_person in ps:
-            continue
-        out.append((g, ps))
-    return out
-
-
-def level_on_gift(s: Session, user_id: str, g: Gift, ps: list[str]) -> str | None:
-    """A gift's owner holds it; others hold the lowest of their levels on the owner's plans
-    for its people."""
-    if g.ownerId == user_id:
-        return "owner"
-    r = access.reach(s, user_id)
-    levels = []
-    for pid in ps:
-        gp = s.scalars(
-            select(GiftPlan).where(
-                GiftPlan.ownerId == g.ownerId,
-                GiftPlan.personId == pid,
-                GiftPlan.deleted == false(),
-            )
-        ).first()
-        levels.append(r.levels.get(("gift-plan", gp.id)) if gp else None)
-    held = [x for x in levels if x]
-    if not held:
-        return None
-    return min(held, key=lambda x: access.RANK[x]) if len(held) == len(levels) else "read"
-
-
 @dataclass
 class Date:
     key: str  # birthday, wedding, holiday:<key> or occasion:<id>
