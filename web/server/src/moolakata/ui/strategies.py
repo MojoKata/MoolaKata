@@ -165,10 +165,10 @@ def list_strategies(request: Request, c: Caller = Depends(caller)):
     may change."""
     out, props = [], []
     with server(request).db.read(user=c.id) as s:
-        for a, level in access.visible_accounts(s, c.id):
+        for a, perms in access.accounts(s, c.id):
             if not atypes.investing(a.type):
                 continue
-            v, p = account_view(s, a, level)
+            v, p = account_view(s, a, perms.level())
             out += v
             props += p
     out.sort(key=lambda x: (x.closedOn is not None, x.underlying, x.openedOn))

@@ -82,8 +82,8 @@ def hidden_accounts(s: Session, p: Portfolio, user_ids: list[str]) -> dict[str, 
     accounts = portfolio_accounts(s, p.id)
     out = {}
     for uid in user_ids:
-        r = access.reach(s, uid)
-        missing = [a.id for a in accounts if not access.account_level(s, uid, a, r)]
+        seen = {a.id for a, _ in access.accounts(s, uid)}
+        missing = [a.id for a in accounts if a.id not in seen]
         if missing:
             out[uid] = missing
     return out

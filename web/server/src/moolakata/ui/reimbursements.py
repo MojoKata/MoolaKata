@@ -67,7 +67,7 @@ def _out(r: Reimbursement) -> PairOut:
 
 
 def _writable(s, user_id: str) -> list[Account]:
-    return [a for a, lvl in access.visible_accounts(s, user_id) if lvl in ("owner", "write")]
+    return [a for a, p in access.accounts(s, user_id) if p.writable]
 
 
 @router.get("/budgets/{budget_id}/reimbursements", response_model=list[AwaitingRow])

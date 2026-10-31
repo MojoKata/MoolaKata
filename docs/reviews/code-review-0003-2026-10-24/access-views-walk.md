@@ -327,3 +327,17 @@ Given by the user Oct 31, 3:17 PM, for all sixteen decisions as written above.
       taken their files for orphans and removed them. Storage's counts, pruning and orphans
       are the household's and run as the server;
       `test_an_admins_household_wide_file_work_counts_every_users_files` fails without that.
+4. **Step 3b: unnamed sessions refused** (aca0a99).
+5. **Step 3c: the routes read through the views.** Lists are `access.listing` (`access.accounts`
+   for accounts), one record `access.need` or a thin fetcher over it (`access.account`,
+   `portfolio`, `budget`; `books.get`, `people.get`, `receipts.get`, `gifts.plan_by_id`,
+   the projections' `_get`), which take *read*, *write* or a permission's name: deleting asks
+   `deletable`, choosing what is active or counted `configurable`, sharing `shareable`
+   (`_owner_only`); share counts are `access.holders_of`; Activity's filter is its view;
+   is-it-mine checks compare `ownerId` (net worth, *Count in my totals*, a portfolio's
+   accounts). The old rule functions (`access.reach`, `level_of`, `account_level`,
+   `books.level`, `people.level`, `receipts.level`/`_kept_level`, `gifts.level_on_gift`/
+   `visible_gifts`, `giving.visible_plans`) remain only for the parity test, and go in step
+   5 with it. Deviation from 6.1: the single-record fetchers stay as names (one line over
+   `access.need` each, giving the API's level), as they read better at the ~100 call sites
+   than `access.need` with an entity.

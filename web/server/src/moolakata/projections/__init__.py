@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import false, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, valuation
@@ -102,7 +102,7 @@ def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
         accounts = seen_accounts(s, user_id, p)
         label = f"Portfolio: {p.name}"
     else:
-        visible = {a.id: a for a, _ in access.visible_accounts(s, user_id)}
+        visible = {a.id: a for a, _ in access.accounts(s, user_id)}
         accounts = [visible[i] for i in spec.get("ids", []) if i in visible]
         label = (
             (accounts[0].name if len(accounts) == 1 else f"{len(accounts)} accounts")
@@ -468,7 +468,7 @@ def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> d
     seen = (
         None
         if viewer == p.ownerId
-        else {a.id for a, _ in access.visible_accounts(s, viewer)} & {a.id for a in on.accounts}
+        else {a.id for a, _ in access.accounts(s, viewer)} & {a.id for a in on.accounts}
     )
     totals: dict[dt.date, Decimal] = {}
     theirs: dict[dt.date, Decimal] = {}
@@ -516,18 +516,8 @@ def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> d
 
 
 def visible(s: Session, user_id: str) -> list[tuple[Projection, str]]:
-    r = access.reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "projection"]
-    rows = s.scalars(
-        select(Projection)
-        .where(
-            Projection.deleted == false(),
-            (Projection.ownerId == user_id) | Projection.id.in_(shared),
-        )
-        .order_by(Projection.name)
-    ).all()
+    """The projections the user reads (ProjectionAccess), by name, with their level."""
     return [
-        (p, lvl)
-        for p in rows
-        if (lvl := access.level_of(s, user_id, "projection", p.ownerId, p.id, p.deleted, r))
+        (p, perms.level())
+        for p, perms in access.listing(s, Projection, user_id, order_by=Projection.name)
     ]

@@ -315,11 +315,7 @@ def _held_writable(s, user_id: str, instrument_id: str) -> bool:
             )
         )
     )
-    return any(
-        access.RANK[lvl] >= access.RANK["write"]
-        for a, lvl in access.visible_accounts(s, user_id)
-        if a.id in account_ids
-    )
+    return any(p.writable for a, p in access.accounts(s, user_id) if a.id in account_ids)
 
 
 class TypedPriceRecord(Model):

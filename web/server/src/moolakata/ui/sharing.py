@@ -123,7 +123,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
     hidden: dict[str, list[str]] = {}
     accounts: list[AccountName] = []
     if kind == "portfolio":
-        people = [u for u in access.holders(s, kind, item_id, obj.ownerId) if u != owner.id]
+        people = [u for u in access.holders_of(s, access.entity_of(kind), item_id) if u != owner.id]
         hidden = sharing.hidden_accounts(s, obj, people)
         accounts = [
             AccountName(id=a.id, name=a.name, yours=a.ownerId == owner.id)
@@ -199,21 +199,9 @@ def _linked(s, current) -> list[LinkedPeople]:
 
 
 def _owner_only(s, c: Caller, kind: str, item_id: str) -> None:
-    obj = sharing.item(s, kind, item_id)
-    if kind == "person":  # a private person: whoever may change them shares them (S10.10.2)
-        from .. import people
-
-        lvl = people.level(s, c.id, obj)
-    elif kind == "tax-book":  # its filers hold it as its owners, and any changes its sharing
-        from ..taxes import books
-
-        lvl = books.level(s, c.id, obj)
-    else:
-        lvl = access.level_of(s, c.id, kind, obj.ownerId, obj.id, obj.deleted)
-    if lvl is None:
-        raise Problem(404, "not-found", "Not found")
-    if lvl != "owner":
-        raise Problem(403, "owner-only", "Only the owner changes who this is shared with.")
+    """Whoever may share the item changes its sharing: its owner; a tax book's filers; whoever
+    may change a person (S10.10.2)."""
+    access.need(s, access.entity_of(kind), item_id, c.id, "shareable", kind.replace("-", " "))
 
 
 @router.get("/shares/{kind}/{item_id}", response_model=ShareView)
@@ -382,11 +370,10 @@ def _share_update(ctx, row: Share, body: ShareRecord) -> None:
 def _share_delete(ctx, row: Share) -> None:
     """Taken away: a receiver who no longer reaches an account loses their tags on it (S10.4)."""
     s = ctx.s
-    obj = sharing.item(s, row.kind, row.itemId)
-    before = access.holders(s, row.kind, row.itemId, obj.ownerId)
+    before = access.holders_of(s, access.entity_of(row.kind), row.itemId)
     row.mark_deleted(ctx.caller.id)
     s.flush()
-    after = access.holders(s, row.kind, row.itemId, obj.ownerId)
+    after = access.holders_of(s, access.entity_of(row.kind), row.itemId)
     if row.kind == "account":
         for uid in [u for u in before if u not in after]:
             sharing.drop_annotations(s, uid, row.itemId)

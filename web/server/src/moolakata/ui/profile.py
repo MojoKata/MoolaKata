@@ -117,7 +117,7 @@ def profile(s, u: User) -> Profile:
     relations = [
         Relation(personId=r.personId, name=g.people[r.personId].name, word=r.word, stored=r.stored)
         for r in g.relations(me.id)
-        if people.level(s, u.id, g.people[r.personId]) is not None
+        if people.readable(s, u.id, r.personId)
     ]
     return Profile(
         id=u.id,

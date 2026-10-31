@@ -358,17 +358,12 @@ def _names(s, viewer: str, account_ids: set[str]) -> dict[str, str]:
     shared budget never names another account (S7.1.1, S11.3.1)."""
     if not account_ids:
         return {}
-    reach = access.reach(s, viewer)
-    return {
-        a.id: a.name
-        for a in s.scalars(select(Account).where(Account.id.in_(account_ids)))
-        if access.account_level(s, viewer, a, reach) is not None
-    }
+    return {a.id: a.name for a, _ in access.accounts(s, viewer, Account.id.in_(account_ids))}
 
 
 def shape(s, b: Budget, level: str, viewer: str | None = None) -> BudgetRow:
     owner = s.get(User, b.ownerId)
-    shared = len(access.holders(s, "budget", b.id, b.ownerId)) - 1 if level == "owner" else 0
+    shared = len(access.holders_of(s, Budget, b.id)) - 1 if level == "owner" else 0
     accts = _accounts_of(s, b, viewer)
     rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
     return BudgetRow(
@@ -394,7 +389,7 @@ def _check(s, user_id: str, body) -> list[FieldError]:
     if body.name is not None and (not body.name.strip() or len(body.name) > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
     if body.accountIds is not None:
-        mine = {a.id for a, _ in access.visible_accounts(s, user_id)}
+        mine = {a.id for a, _ in access.accounts(s, user_id)}
         if any(a not in mine for a in body.accountIds):
             errors.append(
                 FieldError(
@@ -462,7 +457,10 @@ def _month(value: str | None) -> dt.date:
 @router.get("/budgets", response_model=list[BudgetRow])
 def list_budgets(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        return [shape(s, b, lvl, c.id) for b, lvl in access.visible_budgets(s, c.id)]
+        return [
+            shape(s, b, perms.level(), c.id)
+            for b, perms in access.listing(s, Budget, c.id, order_by=Budget.name)
+        ]
 
 
 @router.get("/budgets/left-out", response_model=list[LeftOut])
@@ -478,7 +476,7 @@ def left_out(
 
     since = clock.today() - dt.timedelta(days=365)
     with server(request).db.read(user=c.id) as s:
-        visible = {a.id: a for a, _ in access.visible_accounts(s, c.id)}
+        visible = {a.id: a for a, _ in access.accounts(s, c.id)}
         chosen = [a for a in accountIds if a in visible]
         if not chosen:
             return []
@@ -1052,7 +1050,8 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
         )
         counts_as = ", ".join(sorted(tr.label(x) for x in cats if x in tr.by_id)) or None
         out = []
-        for b, lvl in access.visible_budgets(s, c.id):
+        for b, perms in access.listing(s, Budget, c.id, order_by=Budget.name):
+            lvl = perms.level()
             if t.accountId not in budgets.account_ids(s, b, c.id):
                 continue
             left = s.get(BudgetLeaveOut, (b.id, t.id))
@@ -1244,7 +1243,7 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
         )
         s.add(b)
         s.flush()
-        mine = {a.id for a, _ in access.visible_accounts(s, c.id)}
+        mine = {a.id for a, _ in access.accounts(s, c.id)}
         _set_accounts(s, b, [a for a in budgets.account_ids(s, src, c.id) if a in mine], c.id)
         for ln in budgets.in_force(budgets.lines(s, src), month).values():
             s.add(
@@ -1592,12 +1591,11 @@ def _recurring(s, c: Caller, b: Budget) -> list[RecurringRow]:
     ).all()
     # An entry names its account only to someone the account is shared with too; the owner's
     # other accounts are *an account not shared* (S7.1.1, S11.3.1).
-    reach = access.reach(s, c.id) if c.id != b.ownerId else None
-    names = {
-        a.id: a.name
-        for a in s.scalars(select(Account).where(Account.id.in_(accts)))
-        if reach is None or access.account_level(s, c.id, a, reach) is not None
-    }
+    names = (
+        {a.id: a.name for a in s.scalars(select(Account).where(Account.id.in_(accts)))}
+        if c.id == b.ownerId
+        else {a.id: a.name for a, _ in access.accounts(s, c.id, Account.id.in_(accts))}
+    )
     return [
         RecurringRow(
             payee=x.payee,
@@ -1686,7 +1684,7 @@ def _budget_update(ctx, b: Budget, body: BudgetRecord) -> None:
 
 
 def _budget_delete(ctx, b: Budget) -> None:
-    access.budget(ctx.s, ctx.caller.id, b.id, "owner")
+    access.budget(ctx.s, ctx.caller.id, b.id, "deletable")
     b.mark_deleted(ctx.caller.id)
     for u in ctx.s.scalars(select(User).where(User.activeBudgetId == b.id)):
         u.activeBudgetId = None

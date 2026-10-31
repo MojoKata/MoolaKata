@@ -90,7 +90,7 @@ def _out(s, r: Rule, paths: dict) -> RuleOut:
 
 
 def _writable(s, user_id: str) -> list[str]:
-    return [a.id for a, lvl in access.visible_accounts(s, user_id) if lvl in ("owner", "write")]
+    return [a.id for a, p in access.accounts(s, user_id) if p.writable]
 
 
 def _uncategorised(s, user_id: str) -> list[Transaction]:

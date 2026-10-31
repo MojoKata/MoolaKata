@@ -423,7 +423,7 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
 
 def _receipt_delete(ctx, r: Receipt) -> None:
     s, c = ctx.s, ctx.caller
-    receipts.get(s, c.id, r.id, "owner")
+    receipts.get(s, c.id, r.id, "deletable")
     receipts.delete(s, c.id, r)
     activity.record(s, "receipt.deleted", actor=c.id, owner=c.id)
 
@@ -588,5 +588,5 @@ def transaction_receipts(transaction_id: str, request: Request, c: Caller = Depe
         out = []
         for rid in ids:
             r = s.get(Receipt, rid)
-            out.append(row(s, r, receipts.level(s, c.id, r) or "read", c.id))
+            out.append(row(s, r, receipts.level_for(s, c.id, r) or "read", c.id))
         return out

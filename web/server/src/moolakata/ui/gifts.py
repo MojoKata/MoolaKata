@@ -176,7 +176,7 @@ def people_view(s, c: Caller) -> list[PersonOut]:
     today = clock.today()
     plans = gifts.visible_plans(s, c.id)
     occs = gifts.occasions_of(s, [x.plan.id for x in plans])
-    seen = gifts.visible_gifts(s, c.id)
+    seen = gifts.readable(s, c.id)
     me = s.get(User, c.id)
     words = tree.relation_to(s, me.personId) if me else {}
     users = people.users_by_person(s)
@@ -213,7 +213,7 @@ def people_view(s, c: Caller) -> list[PersonOut]:
                 diedOn=p.diedOn,
                 wedding=wedding,
                 private=p.private,
-                canChangePerson=people.level(s, c.id, p) == "owner",
+                canChangePerson=people.changeable(s, c.id, p.id),
                 canMakePrivate=p.ownerId == c.id,
                 isUser=p.id in users,
                 sameAs=[_remote(s, r) for r in people.may_join(s, c.id, p)],
@@ -429,7 +429,7 @@ def _paid(s, t_id: str | None, viewer: str) -> Paid | None:
 
 
 def _gift_out(s, c: Caller, g: Gift, ps: list[str]) -> GiftOut:
-    lvl = gifts.level_on_gift(s, c.id, g, ps)
+    perms = access.perms(s, Gift, g.id, c.id)
     # The people a gift is for, by name, deleted ones too (S7.8.6): read as the server.
     named = {
         r.id: r
@@ -460,17 +460,17 @@ def _gift_out(s, c: Caller, g: Gift, ps: list[str]) -> GiftOut:
         cash=g.cash,
         thankYou=g.thankYou,
         documents=[
-            receipt_row(s, r, receipts.level(s, c.id, r) or "read", c.id)
+            receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
             for r in receipts.of_item(s, g.id, "gift")
         ],
-        canWrite=access.RANK[lvl] >= 2,
+        canWrite=perms is not None and perms.writable,
         version=g.version,
     )
 
 
 def gifts_view(s, c: Caller, status: str | None = None, person: str | None = None):
     out = []
-    for g, ps in gifts.visible_gifts(s, c.id):
+    for g, ps in gifts.readable(s, c.id):
         if status and g.status != status:
             continue
         if person and person not in ps:
@@ -624,9 +624,7 @@ def purchases(request: Request, c: Caller = Depends(caller)):
     """Recent spending, to link a gift's cost to its transaction: the last 90 days, in the
     accounts the caller writes to, since linking may recategorise it."""
     with server(request).db.read(user=c.id) as s:
-        accts = {
-            a.id: a for a, lvl in access.visible_accounts(s, c.id) if lvl in ("owner", "write")
-        }
+        accts = {a.id: a for a, p in access.accounts(s, c.id) if p.writable}
         if not accts:
             return []
         cats = {x.id: x.name for x in s.scalars(select(Category))}
@@ -813,7 +811,7 @@ def _plan_update(ctx, gp: GiftPlan, body: PlanRecord) -> None:
 
 def _plan_delete(ctx, gp: GiftPlan) -> None:
     """The caller's own plan; the person stays (S10.10), its occasions go with it."""
-    gifts.plan_by_id(ctx.s, ctx.caller.id, gp.id, "owner")
+    gifts.plan_by_id(ctx.s, ctx.caller.id, gp.id, "deletable")
     gp.mark_deleted(ctx.caller.id)
 
 

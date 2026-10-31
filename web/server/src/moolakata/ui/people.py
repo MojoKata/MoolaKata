@@ -205,7 +205,7 @@ def person_relations(
                 label=r.label,
             )
             for r in g.relations(person_id)
-            if people.level(s, c.id, g.people[r.personId]) is not None
+            if people.readable(s, c.id, r.personId)
         ]
 
 
@@ -289,7 +289,7 @@ def list_relationships(request: Request, person: str | None = None, c: Caller = 
             for r in people.live_relationships(s, [pid])
             if all(
                 (x := s.get(Person, i)) is not None
-                and (x.deleted or people.level(s, c.id, x) is not None)
+                and (x.deleted or people.readable(s, c.id, x.id))
                 for i in (r.person1Id, r.person2Id)
             )
         ]

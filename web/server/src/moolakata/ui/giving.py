@@ -588,7 +588,7 @@ def _gplan_editable(ctx, record_id: str) -> GivingPlan:
     if p is None or p.deleted:
         raise Problem(404, "not-found", "Not found")
     _, lvl = giving.plan_for(ctx.s, ctx.caller.id, p.year)
-    if access.RANK.get(lvl or "", 0) < access.RANK["write"]:
+    if lvl not in ("owner", "write"):
         raise Problem(403, "read-only", "This plan is shared with you to read.")
     return p
 

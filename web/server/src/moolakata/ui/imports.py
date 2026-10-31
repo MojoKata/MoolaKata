@@ -468,9 +468,7 @@ def _run_statement(
 def _hold_parts(srv, job, s, account, user_id, data, name, lines, method, pieces) -> None:
     whole = statements.period_and_institution(lines)
     writable = [
-        a
-        for a, lvl in access.visible_accounts(s, user_id)
-        if lvl in ("owner", "write") and atypes.reconcilable(a.type)
+        a for a, p in access.accounts(s, user_id) if p.writable and atypes.reconcilable(a.type)
     ]
     parsed, out = [], []
     for i, piece in enumerate(pieces):

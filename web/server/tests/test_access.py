@@ -295,16 +295,15 @@ def derived(row) -> str | None:
 
 
 def old_root(s, kind: str, item, user_id: str) -> str | None:
-    from moolakata import gifts
-    from moolakata.errors import Problem
     from moolakata.taxes import books
 
     if kind == "tax-book":
         return books.level(s, user_id, item)
-    if kind == "gift-plan":
-        try:
-            return gifts.plan_by_id(s, user_id, item.id).level
-        except Problem:
+    if kind == "gift-plan":  # as gifts.plan_by_id had it: while its person is there
+        from moolakata.store.entities.education import Person
+
+        person = s.get(Person, item.personId)
+        if person is None or person.deleted:
             return None
     return access.level_of(s, user_id, kind, item.ownerId, item.id, item.deleted)
 
@@ -498,11 +497,69 @@ def test_activity_agrees_with_the_python_rule(household):
     srv, _ = household
     from moolakata.auth.users import admin_ids
     from moolakata.store.entities.core import Activity
-    from moolakata.ui.activity import _visible
 
     class C:
         def __init__(self, uid, admin):
             self.id, self.admin = uid, admin
+
+    def _visible(s, c):
+        """The rule as the Python code had it (ui/activity.py), until step 5."""
+        from sqlalchemy import and_, func, or_
+
+        from moolakata.store.entities.budgets import Budget
+        from moolakata.store.entities.sharing import Portfolio
+        from moolakata.taxes import books
+
+        r = access.reach(s, c.id)
+
+        def readable(entity, kind):
+            return [
+                x.id
+                for x in s.scalars(select(entity).where(entity.deleted.is_(False)))
+                if access.level_of(s, c.id, kind, x.ownerId, x.id, x.deleted, r)
+            ]
+
+        from moolakata.store.entities.accounts import Account
+
+        accounts = readable(Account, "account")
+        portfolios = readable(Portfolio, "portfolio")
+        budgets = readable(Budget, "budget")
+        shared: dict[str, set[str]] = {}
+        for kind, item in r.levels:
+            shared.setdefault(kind, set()).add(item)
+        from moolakata.store.entities.taxes import TaxBook
+
+        shared.setdefault("tax-book", set()).update(
+            b.id
+            for b in s.scalars(select(TaxBook).where(TaxBook.deleted.is_(False)))
+            if books.level(s, c.id, b) is not None
+        )
+        groups = access.groups_of(s, c.id)
+        grantee = func.json_extract(Activity.detail, "$.granteeId")
+        conds = [
+            Activity.actorId == c.id,
+            Activity.ownerId == c.id,
+            and_(Activity.subjectKind == "account", Activity.subjectId.in_(accounts)),
+            and_(Activity.subjectKind == "portfolio", Activity.subjectId.in_(portfolios)),
+            and_(Activity.subjectKind == "budget", Activity.subjectId.in_(budgets)),
+            *(
+                and_(Activity.subjectKind == kind, Activity.subjectId.in_(sorted(items)))
+                for kind, items in shared.items()
+                if kind not in ("account", "portfolio", "budget")
+            ),
+            and_(Activity.kind == "share.removed", or_(grantee == c.id, grantee.in_(groups))),
+        ]
+        if c.admin:
+            conds.append(
+                and_(
+                    Activity.forAdmins,
+                    or_(
+                        Activity.subjectKind.is_(None),
+                        Activity.subjectKind.in_(("user", "group", "link")),
+                    ),
+                )
+            )
+        return or_(*conds)
 
     with srv.db.read(unscoped="test") as s:
         view = rows(s, "Activity")

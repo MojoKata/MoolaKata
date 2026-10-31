@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import false, func, select
 from sqlalchemy.orm import Session
 
 from .. import access, clock
@@ -59,37 +59,28 @@ def level(s: Session, user_id: str, book: TaxBook, r=None) -> str | None:
 
 
 def visible(s: Session, user_id: str) -> list[tuple[TaxBook, str]]:
-    """The books the user holds or helps with, and those they are named in, to accept."""
-    r = access.reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "tax-book"]
-    named = select(TaxBookFiler.bookId).where(
-        TaxBookFiler.userId == user_id, TaxBookFiler.deleted == false()
-    )
-    rows = s.scalars(
-        select(TaxBook)
-        .where(
-            TaxBook.deleted == false(),
-            or_(TaxBook.ownerId == user_id, TaxBook.id.in_(shared), TaxBook.id.in_(named)),
+    """The books the user holds or helps with (TaxBookAccess), newest first."""
+    return [
+        (b, p.level())
+        for b, p in access.listing(
+            s, TaxBook, user_id, order_by=(TaxBook.year.desc(), TaxBook.createdAt)
         )
-        .order_by(TaxBook.year.desc(), TaxBook.createdAt)
-    ).all()
-    out = []
-    for b in rows:
-        lvl = level(s, user_id, b, r) or "pending"
-        out.append((b, lvl))
-    return out
+    ]
 
 
 def get(s: Session, user_id: str, book_id: str, need: str = "read") -> tuple[TaxBook, str]:
+    """`need`: *read*, *write*, or a permission's name (what it counts: *configurable*;
+    deleting it: *deletable*)."""
     from ..errors import Problem
 
-    b = s.get(TaxBook, book_id)
-    lvl = level(s, user_id, b) if b is not None else None
-    if lvl is None:
+    p = access.perms(s, TaxBook, book_id, user_id)
+    b = s.get(TaxBook, book_id) if p is not None else None
+    if b is None:
         raise Problem(404, "not-found", "Not found")
-    if access.RANK[lvl] < access.RANK[need]:
+    want = {"read": None, "write": "writable"}.get(need, need)
+    if want is not None and not getattr(p, want):
         raise Problem(403, "read-only", "This tax book is shared with you to read.")
-    return b, lvl
+    return b, p.level()
 
 
 def overrides(s: Session, book: TaxBook) -> dict[str, bool]:
@@ -150,7 +141,7 @@ def _still_seen(s: Session, a: Account, adder: str | None, who: list[str]) -> bo
     while they are an accepted filer (S8.14.2); one copied without its adder needs an accepted
     filer who can."""
     seers = [adder] if adder else who
-    return any(u in who and access.account_level(s, u, a) is not None for u in seers)
+    return any(u in who and access.perms(s, Account, a.id, u) is not None for u in seers)
 
 
 def federal_due(s: Session, year: int) -> dt.date:

@@ -448,8 +448,8 @@ def candidates(account_id: str, request: Request, c: Caller = Depends(caller)):
             return []
         banks = [
             x
-            for x, lvl in access.visible_accounts(s, c.id)
-            if lvl in ("owner", "write") and not loans.is_loan(x.type) and x.id != a.id
+            for x, p in access.accounts(s, c.id)
+            if p.writable and not loans.is_loan(x.type) and x.id != a.id
         ]
         names = {x.id: x.name for x in banks}
         rows = s.scalars(

@@ -279,7 +279,7 @@ def shape(
                 contributionSource=t.contributionSource,
                 transferId=t.transferId,
                 transferAccountName=other.name
-                if other and access.account_level(s, user_id, other)
+                if other and access.perms(s, Account, other.id, user_id)
                 else None,
                 imported=t.importId is not None,
                 cleared=t.cleared,
@@ -317,7 +317,7 @@ def list_transactions(
     sort: str = Query("-date", pattern="^-?(date|amount|payee)$"),
 ):
     with server(request).db.read(user=c.id) as s:
-        visible = {a.id: lvl for a, lvl in access.visible_accounts(s, c.id)}
+        visible = {a.id: p.level() for a, p in access.accounts(s, c.id)}
         wanted = [a for a in account if a in visible] if account else list(visible)
         if account and not wanted:
             return paging.wrap([], 0)
@@ -400,7 +400,7 @@ def newer_transactions(
 ):
     """How many transactions arrived after the page loaded: the +N new pill (S12.1.3)."""
     with server(request).db.read(user=c.id) as s:
-        visible = [a.id for a, _ in access.visible_accounts(s, c.id)]
+        visible = [a.id for a, _ in access.accounts(s, c.id)]
         n = s.scalar(
             select(func.count())
             .select_from(Transaction)
@@ -1080,9 +1080,9 @@ class SplitRecord(Model):
 
 def _left_out_of(s: Session, c: Caller, t: Transaction) -> list[str]:
     """The budgets the caller sees that leave the transaction out."""
-    from ..store.entities.budgets import BudgetLeaveOut
+    from ..store.entities.budgets import Budget, BudgetLeaveOut
 
-    seen = {b.id for b, _ in access.visible_budgets(s, c.id)}
+    seen = {b.id for b, _ in access.listing(s, Budget, c.id)}
     return sorted(
         x.budgetId
         for x in s.scalars(

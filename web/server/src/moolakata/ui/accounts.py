@@ -364,9 +364,7 @@ def row(
         ownerName=owner.displayName if owner else "",
         ownerAvatar=owner.avatar if owner else None,
         level=level,
-        sharedWith=len(access.holders(s, "account", a.id, a.ownerId)) - 1
-        if level == "owner"
-        else 0,
+        sharedWith=len(access.holders_of(s, Account, a.id)) - 1 if level == "owner" else 0,
         counted=a.countInNetWorth if level == "owner" else a.id in ctx.counted,
         balance=value,
         change=value - month_ago if ledger.transactions else None,
@@ -441,9 +439,9 @@ def imports_of(s, account_id: str) -> list[Import]:
 @router.get("/accounts", response_model=list[AccountRow])
 def list_accounts(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        visible = access.visible_accounts(s, c.id)
+        visible = access.accounts(s, c.id)
         ctx = context(s, c.id, [a.id for a, _ in visible])
-        return [row(s, a, level, ctx) for a, level in visible]
+        return [row(s, a, p.level(), ctx) for a, p in visible]
 
 
 def _make(s, c: Caller, body, account_id: str) -> Account:
@@ -1044,7 +1042,7 @@ def _account_update(ctx, a: Account, body: AccountRecord) -> None:
 
 def _account_delete(ctx, a: Account) -> None:
     """Soft-deleted with everything that belongs to it (schema.md §4); only by its owner."""
-    access.account(ctx.s, ctx.caller.id, a.id, "owner")
+    access.account(ctx.s, ctx.caller.id, a.id, "deletable")
     a.mark_deleted(ctx.caller.id)
     activity.record(
         ctx.s,

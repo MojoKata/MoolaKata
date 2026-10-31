@@ -6,10 +6,9 @@ import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, or_, select
 
-from .. import access
-from ..store import scoping
+from ..store import access_views, scoping
 from ..store.entities.accounts import Account
 from ..store.entities.core import Activity
 from ..store.entities.sharing import Portfolio
@@ -251,49 +250,11 @@ def render(a: Activity, names: dict[tuple[str, str], str]) -> str:
 
 
 def _visible(s, c: Caller):
-    """Entries the caller may see (S10.8): their own, about them, about whatever is shared with
-    them, the one that says a share with them was removed, and for admins, about users,
-    groups, Settings and keys."""
-    from ..taxes import books
-
-    accounts = [a.id for a, _ in access.visible_accounts(s, c.id)]
-    portfolios = [p.id for p, _ in access.visible_portfolios(s, c.id)]
-    shared: dict[str, set[str]] = {}
-    for kind, item in access.reach(s, c.id).levels:
-        shared.setdefault(kind, set()).add(item)
-    shared.setdefault("tax-book", set()).update(b.id for b, _ in books.visible(s, c.id))
-    groups = access.groups_of(s, c.id)
-    grantee = func.json_extract(Activity.detail, "$.granteeId")
-    conds = [
-        Activity.actorId == c.id,
-        Activity.ownerId == c.id,
-        and_(Activity.subjectKind == "account", Activity.subjectId.in_(accounts)),
-        and_(Activity.subjectKind == "portfolio", Activity.subjectId.in_(portfolios)),
-        and_(
-            Activity.subjectKind == "budget",
-            Activity.subjectId.in_([b.id for b, _ in access.visible_budgets(s, c.id)]),
-        ),
-        *(
-            and_(Activity.subjectKind == kind, Activity.subjectId.in_(sorted(items)))
-            for kind, items in shared.items()
-            if kind not in ("account", "portfolio", "budget")
-        ),
-        and_(
-            Activity.kind == "share.removed",
-            or_(grantee == c.id, grantee.in_(groups)),
-        ),
-    ]
-    if c.admin:
-        conds.append(
-            and_(
-                Activity.forAdmins,
-                or_(
-                    Activity.subjectKind.is_(None),
-                    Activity.subjectKind.in_(("user", "group", "link")),
-                ),
-            )
-        )
-    return or_(*conds)
+    """Entries the caller may see (S10.8), as Activity's access view says: their own, about
+    them, about whatever they read, the one that says a share with them was removed, and for
+    admins those about users, groups, links, Settings and keys."""
+    v = access_views.access_table(Activity.__mapper__.local_table)
+    return exists().where(v.c.targetId == Activity.id, v.c.userId == c.id)
 
 
 @router.get("/activity", response_model=Page[ActivityItem])

@@ -503,7 +503,7 @@ def _detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
     counted_ids = {a.id for a in cnt.accounts}
     addable = [
         a
-        for a, _ in access.visible_accounts(s, c.id)
+        for a, _ in access.accounts(s, c.id)
         if a.id not in counted_ids and a.id not in {x.id for x in cnt.leftOut}
     ]
     base = _row(s, b, lvl)
@@ -1096,7 +1096,7 @@ def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
 
 
 def _book_delete(ctx, b: TaxBook) -> None:
-    books.get(ctx.s, ctx.caller.id, b.id, "owner")
+    books.get(ctx.s, ctx.caller.id, b.id, "deletable")
     b.mark_deleted(ctx.caller.id)
 
 

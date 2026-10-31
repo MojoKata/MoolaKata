@@ -317,14 +317,22 @@ def _on_tax_document(s: Session, user_id: str, receipt_id: str) -> bool:
     return False
 
 
+def level_for(s: Session, user_id: str, r: Receipt) -> str | None:
+    """The user's level on a receipt as the API names it (ReceiptAccess), or None."""
+    p = access.perms(s, Receipt, r.id, user_id)
+    return None if p is None else p.level(access.RECORD_OWNER)
+
+
 def get(s: Session, user_id: str, receipt_id: str, need: str = "read") -> tuple[Receipt, str]:
-    r = s.get(Receipt, receipt_id)
-    lvl = level(s, user_id, r) if r is not None else None
-    if lvl is None:
+    """`need`: *read*, *write*, or a permission's name (deleting it: *deletable*)."""
+    p = access.perms(s, Receipt, receipt_id, user_id)
+    r = s.get(Receipt, receipt_id) if p is not None else None
+    if r is None:
         raise Problem(404, "not-found", "Not found")
-    if access.RANK[lvl] < access.RANK[need]:
+    want = {"read": None, "write": "writable"}.get(need, need)
+    if want is not None and not getattr(p, want):
         raise Problem(403, "owner-only", "Only the receipt's owner can do this.")
-    return r, lvl
+    return r, p.level(access.RECORD_OWNER)
 
 
 def to_attach(s: Session, user_id: str, receipt_id: str, field: str = "receiptId") -> Receipt:
@@ -342,68 +350,12 @@ def to_attach(s: Session, user_id: str, receipt_id: str, field: str = "receiptId
 
 
 def visible(s: Session, user_id: str) -> list[tuple[Receipt, str]]:
-    """The user's own receipts, and those attached to transactions in accounts they read."""
-    own = s.scalars(
-        select(Receipt).where(Receipt.ownerId == user_id, Receipt.deleted == false())
-    ).all()
-    accounts = [a.id for a, _ in access.visible_accounts(s, user_id)]
-    linked = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .join(Transaction, Transaction.id == ReceiptLink.itemId)
-        .where(
-            ReceiptLink.kind == "transaction",
-            ReceiptLink.deleted == false(),
-            Transaction.deleted == false(),
-            Transaction.accountId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    statements = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .where(
-            ReceiptLink.kind == "account",
-            ReceiptLink.deleted == false(),
-            ReceiptLink.itemId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    documents = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .join(Item, Item.id == ReceiptLink.itemId)
-        .where(
-            ReceiptLink.kind == "item",
-            ReceiptLink.deleted == false(),
-            Item.deleted == false(),
-            Item.accountId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    expenses = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .join(QualifiedExpense, QualifiedExpense.id == ReceiptLink.itemId)
-        .where(
-            ReceiptLink.kind == "expense",
-            ReceiptLink.deleted == false(),
-            QualifiedExpense.deleted == false(),
-            QualifiedExpense.accountId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    out = [(r, "owner") for r in own]
-    seen = {r.id for r in own}
-    for r in [*linked, *statements, *documents, *expenses]:
-        if r.id not in seen:
-            seen.add(r.id)
-            out.append((r, level(s, user_id, r) or "read"))
-    return out
+    """The receipts the user reads (ReceiptAccess): their own, and those kept with what they
+    read."""
+    return [
+        (r, p.level(access.RECORD_OWNER))
+        for r, p in access.listing(s, Receipt, user_id, order_by=Receipt.createdAt)
+    ]
 
 
 # What a link of each kind names, by the prefix of its id (schema.md §3).
@@ -428,18 +380,27 @@ def _account_of(s: Session, ln: ReceiptLink) -> Account | None:
     return a if a is not None and not a.deleted else None
 
 
-def target_level(s: Session, user_id: str, ln: ReceiptLink) -> str | None:
-    """The user's level on what a link names, while it is there: its account's, or a gift's
-    or donation's as it is seen (S9.6)."""
-    if ln.kind in ("gift", "donation"):
-        return _kept_level(s, user_id, ln)
-    a = _account_of(s, ln)
-    return access.account_level(s, user_id, a) if a is not None else None
+def target(s: Session, user_id: str, kind: str, item_id: str) -> access.Perms | None:
+    """The user's permissions on what a link of this kind names, while it is there (S9.6),
+    from its own access view."""
+    from ..store.entities.education import Gift
+    from ..store.entities.giving import Donation
+
+    entity = {
+        "transaction": Transaction,
+        "account": Account,
+        "item": Item,
+        "expense": QualifiedExpense,
+        "gift": Gift,
+        "donation": Donation,
+    }[kind]
+    return access.perms(s, entity, item_id, user_id)
 
 
 def can_unlink(s: Session, user_id: str, ln: ReceiptLink) -> bool:
     """Whoever can change what a receipt is kept with can detach it from that (S9.3)."""
-    return target_level(s, user_id, ln) in ("owner", "write")
+    p = target(s, user_id, ln.kind, ln.itemId)
+    return p is not None and p.writable
 
 
 def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):
@@ -452,10 +413,10 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
         createdAt=clock.now(),
         linkedById=user_id,
     )
-    lvl = target_level(s, user_id, ln)
-    if lvl is None:
+    p = target(s, user_id, kind, item_id)
+    if p is None:
         raise refuse("itemId", "not-found", "That is not there.", 404)
-    if lvl not in ("owner", "write"):
+    if not p.writable:
         raise refuse("itemId", "read-only", "That is shared with you to read.", 403)
     have = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if have is not None and not have.deleted:
@@ -468,10 +429,15 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
 def unlink(s: Session, user_id: str, ln: ReceiptLink) -> None:
     """A link taken away by whoever can change what it names, or, once that is gone, by the
     receipt's owner."""
-    lvl = target_level(s, user_id, ln)
-    if lvl is None and s.get(Receipt, ln.receiptId).ownerId != user_id:
+    p = target(s, user_id, ln.kind, ln.itemId)
+    owner = s.scalars(
+        scoping.unscoped(
+            select(Receipt.ownerId).where(Receipt.id == ln.receiptId), "a receipt's owner"
+        )
+    ).first()
+    if p is None and owner != user_id:
         raise Problem(404, "not-found", "Not found")
-    if lvl is not None and lvl not in ("owner", "write"):
+    if p is not None and not p.writable:
         raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     ln.mark_deleted(user_id, clock.now())
 
@@ -616,7 +582,7 @@ def matches(s: Session, user_id: str, r: Receipt, limit: int = 3) -> list[Match]
         return []
     amount = abs(r.amount)
     day = r.date or r.createdAt.date()
-    writable = [a for a, lvl in access.visible_accounts(s, user_id) if lvl in ("owner", "write")]
+    writable = [a for a, p in access.accounts(s, user_id) if p.writable]
     by_id = {a.id: a for a in writable}
     if not by_id:
         return []

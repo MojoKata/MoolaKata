@@ -33,6 +33,14 @@ FORM_8283_AT = Decimal(500)  # goods over this in a year
 APPRAISAL_AT = Decimal(5000)  # an item over this needs an appraisal
 
 
+def plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
+    """The giving plans the user reads (GivingPlanAccess), newest first, with their level."""
+    return [
+        (p, perms.level())
+        for p, perms in access.listing(s, GivingPlan, user_id, order_by=GivingPlan.year.desc())
+    ]
+
+
 def visible_plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
     r = access.reach(s, user_id)
     shared = [i for (k, i) in r.levels if k == "giving-plan"]
@@ -53,7 +61,7 @@ def visible_plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
 
 def plan_for(s: Session, user_id: str, year: int) -> tuple[GivingPlan | None, str | None]:
     """The year's plan: the user's own, else one shared with them."""
-    rows = [(p, lvl) for p, lvl in visible_plans(s, user_id) if p.year == year]
+    rows = [(p, lvl) for p, lvl in plans(s, user_id) if p.year == year]
     rows.sort(key=lambda x: x[1] != "owner")
     return rows[0] if rows else (None, None)
 

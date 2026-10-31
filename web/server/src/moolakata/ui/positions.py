@@ -130,7 +130,7 @@ def gather(s, c: Caller, kind: str = "all"):
     """The open rows, the closing trades, and every disposal, for the user's investing
     accounts."""
     today = clock.today()
-    accts = [a for a, _ in access.visible_accounts(s, c.id) if atypes.investing(a.type)]
+    accts = [a for a, _ in access.accounts(s, c.id) if atypes.investing(a.type)]
     classes = KINDS.get(kind)
     open_rows, closed_rows, disposals = [], [], []
     insts: dict[str, Instrument] = {}
@@ -366,7 +366,7 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
     for a call."""
     out: list[OptionTradeRow] = []
     with server(request).db.read(user=c.id) as s:
-        for a, _ in access.visible_accounts(s, c.id):
+        for a, _ in access.accounts(s, c.id):
             if not atypes.investing(a.type):
                 continue
             led = repo.load(s, a)
@@ -418,7 +418,7 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
         from ..options import strategies as strat
 
         at_open: dict[tuple[str, str], Decimal] = {}
-        for a, _ in access.visible_accounts(s, c.id):
+        for a, _ in access.accounts(s, c.id):
             mine = strat.of_account(s, a.id) if atypes.investing(a.type) else []
             if not mine:
                 continue

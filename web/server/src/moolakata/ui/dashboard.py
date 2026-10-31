@@ -106,8 +106,8 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
         groups: dict[str, list] = {}
         for a in mine:
             groups.setdefault(atypes.GROUPS[a.type], []).append(a)
-        visible = access.visible_accounts(s, c.id)
-        writable = [a.id for a, lvl in visible if access.RANK[lvl] >= access.RANK["write"]]
+        visible = access.accounts(s, c.id)
+        writable = [a.id for a, p in visible if p.writable]
         attention = _attention(s, c, [a for a, _ in visible], writable, today, srv.config.dev)
         updated = repo.latest_activity(s, [a.id for a in banking])
         card = None

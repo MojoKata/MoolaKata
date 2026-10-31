@@ -169,21 +169,29 @@ def level(s: Session, user_id: str, p: Person, r: access.Reach | None = None) ->
 
 
 def visible(s: Session, user_id: str) -> list[tuple[Person, str]]:
-    r = access.reach(s, user_id)
-    out = []
-    for p in s.scalars(select(Person).where(Person.deleted == false()).order_by(Person.name)):
-        lvl = level(s, user_id, p, r)
-        if lvl is not None:
-            out.append((p, lvl))
-    return out
+    """The people the user reads (PersonAccess), by name: *owner* for those they may change,
+    *read* for the rest."""
+    return [
+        (p, "owner" if perms.writable else "read")
+        for p, perms in access.listing(s, Person, user_id, order_by=Person.name)
+    ]
+
+
+def readable(s: Session, user_id: str, person_id: str) -> bool:
+    return access.perms(s, Person, person_id, user_id) is not None
+
+
+def changeable(s: Session, user_id: str, person_id: str) -> bool:
+    p = access.perms(s, Person, person_id, user_id)
+    return p is not None and p.writable
 
 
 def get(s: Session, user_id: str, person_id: str, need: str = "read") -> Person:
-    p = s.get(Person, person_id)
-    lvl = level(s, user_id, p) if p is not None else None
-    if lvl is None:
+    perms = access.perms(s, Person, person_id, user_id)
+    p = s.get(Person, person_id) if perms is not None else None
+    if p is None:
         raise Problem(404, "not-found", "Not found")
-    if access.RANK[lvl] < access.RANK[need]:
+    if need != "read" and not perms.writable:
         raise Problem(
             403,
             "person-read-only",

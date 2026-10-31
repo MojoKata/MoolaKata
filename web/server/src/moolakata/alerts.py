@@ -799,7 +799,7 @@ def share_asked(s: Session, server) -> Iterable[Cause]:
         asker = s.get(User, a.actorId) if a.actorId else None
         if p is None or p.deleted or not p.private or asker is None or not asker.active:
             continue
-        if people.level(s, asker.id, p) is not None:
+        if people.readable(s, asker.id, p.id):
             continue
         for to in {p.ownerId, None}:
             yield Cause(

@@ -334,7 +334,7 @@ def detail(s, c: Caller, it: Item, a: Account, lvl: str) -> ItemDetail:
         valuations=[_valuation_out(v) for v in reversed(d.valuations)],
         improvements=[_improvement_out(m) for m in reversed(d.improvements)],
         documents=[
-            receipt_row(s, r, receipts.level(s, c.id, r) or "read", c.id)
+            receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
             for r in receipts.of_item(s, it.id)
         ],
         history=history,
@@ -448,7 +448,7 @@ def securable(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         accts = {
             a.id: a
-            for a, _ in access.visible_accounts(s, c.id)
+            for a, _ in access.accounts(s, c.id)
             if a.type in ("real-estate", "vehicle", "other-asset")
         }
         if not accts:

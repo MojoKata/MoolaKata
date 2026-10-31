@@ -84,9 +84,7 @@ def row(s, c_id: str, p: Projection, level: str, result: dict | None = None) -> 
         headline=projections.headline(p, result["answer"]),
         status=track["status"] if track else None,
         shown=level == "owner" or _shown(s, c_id, p.id),
-        sharedWith=len(access.holders(s, "projection", p.id, p.ownerId)) - 1
-        if level == "owner"
-        else 0,
+        sharedWith=len(access.holders_of(s, Projection, p.id)) - 1 if level == "owner" else 0,
         version=p.version,
     )
 
@@ -104,17 +102,16 @@ def detail(s, c_id: str, p: Projection, level: str) -> ProjectionDetail:
 
 
 def _get(s, user_id: str, pid: str, need: str = "read") -> tuple[Projection, str]:
-    p = s.get(Projection, pid)
-    lvl = (
-        access.level_of(s, user_id, "projection", p.ownerId, p.id, p.deleted)
-        if p is not None
-        else None
-    )
-    if lvl is None:
+    """`need`: *read*, *write*, or a permission's name (which one is active: *configurable*;
+    deleting it: *deletable*)."""
+    perms = access.perms(s, Projection, pid, user_id)
+    p = s.get(Projection, pid) if perms is not None else None
+    if p is None:
         raise Problem(404, "not-found", "Not found")
-    if access.RANK[lvl] < access.RANK[need]:
+    want = {"read": None, "write": "writable"}.get(need, need)
+    if want is not None and not getattr(perms, want):
         raise Problem(403, "owner-only", "Only the projection's owner can do this.")
-    return p, lvl
+    return p, perms.level()
 
 
 def _check(s, user_id: str, name, goal, built, inputs) -> list[FieldError]:
@@ -141,7 +138,7 @@ def _check(s, user_id: str, name, goal, built, inputs) -> list[FieldError]:
             except Problem:
                 errors.append(FieldError("builtOn", "portfolio-unknown", "Choose a portfolio."))
         else:
-            mine = {a.id for a, _ in access.visible_accounts(s, user_id)}
+            mine = {a.id for a, _ in access.accounts(s, user_id)}
             if not built.get("ids") or any(i not in mine for i in built["ids"]):
                 errors.append(FieldError("builtOn", "accounts-unknown", "Choose accounts."))
     if inputs is not None:
@@ -164,7 +161,7 @@ def _check_beneficiary(s, user_id: str, who) -> list[FieldError]:
         from .. import people
 
         p = s.get(Person, who.get("id") or "")
-        return [] if p is not None and people.level(s, user_id, p) is not None else bad
+        return [] if p is not None and people.readable(s, user_id, p.id) else bad
     if who.get("kind") == "user":
         return [] if s.get(User, who.get("id") or "") is not None else bad
     return bad
@@ -267,7 +264,7 @@ def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
     """At most one active per subject: the one it replaces goes back to being a scenario.
     Its median path and 10th–90th band as of today become its baseline (S6.7.2)."""
     with server(request).db.tx(user=c.id) as s:
-        p, _ = _get(s, c.id, projection_id, "owner")
+        p, _ = _get(s, c.id, projection_id, "configurable")
         mine = projections.subject(p)
         replaced = None
         for other, lvl in projections.visible(s, c.id):
@@ -296,7 +293,7 @@ def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
 @router.post("/projections/{projection_id}/deactivate", status_code=204)
 def deactivate(projection_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.tx(user=c.id) as s:
-        p, _ = _get(s, c.id, projection_id, "owner")
+        p, _ = _get(s, c.id, projection_id, "configurable")
         p.active, p.baseline, p.baselineAt = False, None, None
     return Response(status_code=204)
 
@@ -355,7 +352,7 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
 
 def _projection_delete(ctx, p: Projection) -> None:
     s, c = ctx.s, ctx.caller
-    _get(s, c.id, p.id, "owner")
+    _get(s, c.id, p.id, "deletable")
     p.mark_deleted(c.id)
     activity.record(s, "projection.deleted", actor=c.id, subject_kind="projection",
                     subject_id=p.id, owner=c.id)  # fmt: skip

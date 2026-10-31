@@ -167,8 +167,8 @@ def adjustable(request: Request, c: Caller = Depends(caller)):
     change: in the accounts they may change."""
     by: dict[str, dict] = {}
     with server(request).db.read(user=c.id) as s:
-        for a, level in access.visible_accounts(s, c.id):
-            if level not in ("owner", "write") or not atypes.investing(a.type):
+        for a, p in access.accounts(s, c.id):
+            if not p.writable or not atypes.investing(a.type):
                 continue
             for iid, qty in repo.load(s, a).replay().positions().items():
                 oc = options.contract_of(s, iid)
@@ -236,11 +236,7 @@ def adjust_contracts(body: Adjustment, request: Request, c: Caller = Depends(cal
     moved = 0
     touched: set[str] = set()
     with server(request).db.tx(user=c.id) as s:
-        mine = [
-            a
-            for a, level in access.visible_accounts(s, c.id)
-            if level in ("owner", "write") and atypes.investing(a.type)
-        ]
+        mine = [a for a, p in access.accounts(s, c.id) if p.writable and atypes.investing(a.type)]
         for i, x in enumerate(body.contracts):
             oc = options.contract_of(s, x.instrumentId)
             if oc is None:

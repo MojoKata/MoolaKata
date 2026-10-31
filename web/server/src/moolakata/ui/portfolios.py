@@ -65,22 +65,15 @@ def member_ids(s, portfolio_id: str) -> list[str]:
 def all_mine(s, user_id: str) -> list[Account]:
     """My own accounts, and those shared with me that I count in my totals (S10.7)."""
     counted = counted_for(s, user_id)
-    return [
-        a for a, lvl in access.visible_accounts(s, user_id) if lvl == "owner" or a.id in counted
-    ]
+    return [a for a, _ in access.accounts(s, user_id) if a.ownerId == user_id or a.id in counted]
 
 
 def seen_accounts(s, user_id: str, p: Portfolio | None) -> list[Account]:
     """The portfolio's accounts this user can see (S5.1.1)."""
     if p is None:
         return all_mine(s, user_id)
-    r = access.reach(s, user_id)
-    out = []
-    for aid in member_ids(s, p.id):
-        a = s.get(Account, aid)
-        if a is not None and access.account_level(s, user_id, a, r):
-            out.append(a)
-    return sorted(out, key=lambda a: a.name)
+    ids = member_ids(s, p.id)
+    return [a for a, _ in access.accounts(s, user_id, Account.id.in_(ids))]
 
 
 def with_deleted(s, user_id: str, p: Portfolio | None, accounts: list[Account]) -> list[Account]:
@@ -129,7 +122,7 @@ def shape(s, user: User, p: Portfolio | None, level: str) -> PortfolioRow:
             version=1,
         )
     owner = s.get(User, p.ownerId)
-    shared = len(access.holders(s, "portfolio", p.id, p.ownerId)) - 1 if level == "owner" else 0
+    shared = len(access.holders_of(s, Portfolio, p.id)) - 1 if level == "owner" else 0
     return PortfolioRow(
         id=p.id,
         name=p.name,
@@ -154,7 +147,7 @@ def _check(s, user_id: str, body) -> list[FieldError]:
     if body.benchmark is not None and body.benchmark not in BENCHMARKS:
         errors.append(FieldError("benchmark", "benchmark-invalid", "VT, SPY or a 60/40 mix."))
     if body.accountIds is not None:
-        mine = {a.id for a, _ in access.visible_accounts(s, user_id)}
+        mine = {a.id for a, _ in access.accounts(s, user_id)}
         if any(a not in mine for a in body.accountIds):
             errors.append(
                 FieldError(
@@ -192,7 +185,8 @@ def _set_members(s, p: Portfolio, wanted: list[str], by: str) -> None:
 def list_portfolios(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         return [shape(s, c.user, None, "owner")] + [
-            shape(s, c.user, p, lvl) for p, lvl in access.visible_portfolios(s, c.id)
+            shape(s, c.user, p, perms.level())
+            for p, perms in access.listing(s, Portfolio, c.id, order_by=Portfolio.name)
         ]
 
 
@@ -260,7 +254,7 @@ def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
 
 def _portfolio_delete(ctx, p: Portfolio) -> None:
     s, c = ctx.s, ctx.caller
-    access.portfolio(s, c.id, p.id, "owner")
+    access.portfolio(s, c.id, p.id, "deletable")
     p.mark_deleted(c.id)
     activity.record(s, "portfolio.deleted", actor=c.id, subject_kind="portfolio",
                     subject_id=p.id, owner=p.ownerId)  # fmt: skip

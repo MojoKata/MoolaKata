@@ -167,7 +167,7 @@ def _held_by(s: Session, viewer: str) -> list[str]:
 
     ids = {
         lot.instrumentId
-        for a, _ in access.visible_accounts(s, viewer)
+        for a, _ in access.accounts(s, viewer)
         for lot in repo.load(s, a).replay().open
         if lot.quantity
     }

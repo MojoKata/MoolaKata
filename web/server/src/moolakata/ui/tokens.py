@@ -10,6 +10,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, tokens
 from ..errors import FieldError, Problem, refuse
+from ..store.entities.sharing import Portfolio
 from ..store.entities.users import AccessToken, User
 from . import save
 from .conventions import ExactRoute, Model
@@ -52,8 +53,8 @@ class TokenMade(Model):
 
 
 def _names(s, user_id: str) -> dict[tuple[str, str], str]:
-    out = {("account", a.id): a.name for a, _ in access.visible_accounts(s, user_id)}
-    out |= {("portfolio", p.id): p.name for p, _ in access.visible_portfolios(s, user_id)}
+    out = {("account", a.id): a.name for a, _ in access.accounts(s, user_id)}
+    out |= {("portfolio", p.id): p.name for p, _ in access.listing(s, Portfolio, user_id)}
     return out
 
 

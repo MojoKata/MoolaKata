@@ -93,90 +93,6 @@ def account_level(s: Session, user_id: str, account: Account, r: Reach | None = 
     return level_of(s, user_id, "account", account.ownerId, account.id, account.deleted, r)
 
 
-def visible_accounts(s: Session, user_id: str) -> list[tuple[Account, str]]:
-    """The accounts the user owns or holds a share of, with the level of each."""
-    r = reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "account"]
-    rows = s.scalars(
-        select(Account)
-        .where(Account.deleted == false(), or_(Account.ownerId == user_id, Account.id.in_(shared)))
-        .order_by(Account.name)
-    ).all()
-    out = []
-    for a in rows:
-        lvl = account_level(s, user_id, a, r)
-        if lvl:
-            out.append((a, lvl))
-    return out
-
-
-def account(s: Session, user_id: str, account_id: str, need: str = "read") -> tuple[Account, str]:
-    a = s.get(Account, account_id)
-    lvl = account_level(s, user_id, a) if a is not None else None
-    return a, _require(lvl, need, "account")
-
-
-def portfolio_level(s: Session, user_id: str, p: Portfolio, r: Reach | None = None) -> str | None:
-    return level_of(s, user_id, "portfolio", p.ownerId, p.id, p.deleted, r)
-
-
-def visible_portfolios(s: Session, user_id: str) -> list[tuple[Portfolio, str]]:
-    r = reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "portfolio"]
-    rows = s.scalars(
-        select(Portfolio)
-        .where(
-            Portfolio.deleted == false(),
-            or_(Portfolio.ownerId == user_id, Portfolio.id.in_(shared)),
-        )
-        .order_by(Portfolio.name)
-    ).all()
-    return [(p, lvl) for p in rows if (lvl := portfolio_level(s, user_id, p, r))]
-
-
-def portfolio(
-    s: Session, user_id: str, portfolio_id: str, need: str = "read"
-) -> tuple[Portfolio, str]:
-    p = s.get(Portfolio, portfolio_id)
-    lvl = portfolio_level(s, user_id, p) if p is not None else None
-    return p, _require(lvl, need, "portfolio")
-
-
-def visible_budgets(s: Session, user_id: str) -> list[tuple]:
-    from .store.entities.budgets import Budget
-
-    r = reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "budget"]
-    rows = s.scalars(
-        select(Budget)
-        .where(Budget.deleted == false(), or_(Budget.ownerId == user_id, Budget.id.in_(shared)))
-        .order_by(Budget.name)
-    ).all()
-    return [
-        (b, lvl)
-        for b in rows
-        if (lvl := level_of(s, user_id, "budget", b.ownerId, b.id, b.deleted, r))
-    ]
-
-
-def budget(s: Session, user_id: str, budget_id: str, need: str = "read"):
-    from .store.entities.budgets import Budget
-
-    b = s.get(Budget, budget_id)
-    lvl = level_of(s, user_id, "budget", b.ownerId, b.id, b.deleted) if b is not None else None
-    return b, _require(lvl, need, "budget")
-
-
-def _require(level: str | None, need: str, what: str) -> str:
-    if level is None:
-        raise Problem(404, "not-found", "Not found")
-    if RANK[level] < RANK[need]:
-        if level == "read":
-            raise Problem(403, "share-read-only", f"You can read this {what} but not change it.")
-        raise Problem(403, "owner-only", f"Only the {what}'s owner can do this.")
-    return level
-
-
 def holders(s: Session, kind: str, item_id: str, owner_id: str) -> dict[str, str]:
     """Everyone who holds an item, with their level: the owner, and every active user its
     shares reach directly or through an active group."""
@@ -246,7 +162,7 @@ def perms(s: Session, entity, item_id: str, user_id: str) -> Perms | None:
 MESSAGES = {
     "writable": ("share-read-only", "You can read this {what} but not change it."),
     "deletable": ("owner-only", "Only the {what}'s owner can do this."),
-    "shareable": ("owner-only", "Only the {what}'s owner can do this."),
+    "shareable": ("owner-only", "Only the owner changes who this is shared with."),
     "configurable": ("owner-only", "Only the {what}'s owner can do this."),
 }
 
@@ -276,6 +192,47 @@ def listing(s: Session, entity, user_id: str, *where, order_by=None) -> list[tup
     if order_by is not None:
         q = q.order_by(*(order_by if isinstance(order_by, tuple) else (order_by,)))
     return [(r[0], Perms(*(bool(x) for x in r[1:]))) for r in s.execute(q)]
+
+
+def _want(want: str) -> str | None:
+    """*read*, *write* or a permission's name: the permission asked for."""
+    return {"read": None, "write": "writable"}.get(want, want)
+
+
+def account(s: Session, user_id: str, account_id: str, want: str = "read") -> tuple[Any, str]:
+    """An account the user reads, and their level on it as the API names it."""
+    from .store.entities.accounts import Account
+
+    a, p = need(s, Account, account_id, user_id, _want(want), "account")
+    return a, p.level()
+
+
+def portfolio(s: Session, user_id: str, portfolio_id: str, want: str = "read") -> tuple[Any, str]:
+
+    p_, p = need(s, Portfolio, portfolio_id, user_id, _want(want), "portfolio")
+    return p_, p.level()
+
+
+def budget(s: Session, user_id: str, budget_id: str, want: str = "read") -> tuple[Any, str]:
+    from .store.entities.budgets import Budget
+
+    b, p = need(s, Budget, budget_id, user_id, _want(want), "budget")
+    return b, p.level()
+
+
+def accounts(s: Session, user_id: str, *where) -> list[tuple[Any, Perms]]:
+    """The accounts the user reads, by name, with their permissions."""
+    from .store.entities.accounts import Account
+
+    return listing(s, Account, user_id, *where, order_by=Account.name)
+
+
+def entity_of(kind: str):
+    """The entity a share's kind names (Share.kind)."""
+    from .store.mapping import mapper_registry
+
+    table = access_views.SUBJECTS[kind]
+    return next(m.class_ for m in mapper_registry.mappers if m.local_table.name == table)
 
 
 def holders_of(s: Session, entity, item_id: str) -> dict[str, Perms]:
