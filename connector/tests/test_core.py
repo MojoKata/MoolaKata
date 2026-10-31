@@ -489,9 +489,20 @@ def test_an_address_the_connector_never_calls_is_refused(monkeypatch):
     import socket as socket_mod
 
     def resolving(ip):
-        return lambda *a, **k: [(socket_mod.AF_INET, socket_mod.SOCK_STREAM, 6, "", (ip, 443))]
+        family = socket_mod.AF_INET6 if ":" in ip else socket_mod.AF_INET
+        return lambda *a, **k: [(family, socket_mod.SOCK_STREAM, 6, "", (ip, 443))]
 
-    for ip in ("169.254.169.254", "127.0.0.1", "224.0.0.1", "0.0.0.0"):  # noqa: S104
+    # CR3-337: each of MoolaKata's metadata addresses, AWS's IPv6 one among them; reserved too.
+    for ip in (
+        "169.254.169.254",
+        "fd00:ec2::254",
+        "100.100.100.200",
+        "::ffff:169.254.169.254",
+        "127.0.0.1",
+        "224.0.0.1",
+        "240.0.0.1",
+        "0.0.0.0",  # noqa: S104
+    ):
         monkeypatch.setattr(socket_mod, "getaddrinfo", resolving(ip))
         with pytest.raises(client.EgressRefused):
             client.vetted("api.example", 443)

@@ -32,18 +32,27 @@ DEADLINE = 60  # seconds a whole call may take, an answer that trickles in inclu
 LOOPBACK_OK = os.environ.get("MOOLAKATA_CONNECTOR_DEV") == "1"  # a dev MoolaKata on localhost
 
 
+# Cloud metadata services, as MoolaKata's guard names them (S13.5): AWS's IPv6 one is a
+# unique local address, not link-local, so it is named.
+METADATA = {
+    ipaddress.ip_address("169.254.169.254"),
+    ipaddress.ip_address("fd00:ec2::254"),
+    ipaddress.ip_address("100.100.100.200"),
+}
+
+
 def vetted(host: str, port: int) -> str:
-    """The address to connect to, resolved once: loopback, link-local (cloud metadata among
-    them), multicast and unspecified addresses are refused, as MoolaKata's guard does (S13.5),
-    and the connection goes to the address checked, never a second lookup's."""
+    """The address to connect to, resolved once: cloud metadata, loopback, link-local,
+    multicast, reserved and unspecified addresses are refused, as MoolaKata's guard does
+    (S13.5), and the connection goes to the address checked, never a second lookup's."""
     addr = None
     for *_, sa in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
         ip = ipaddress.ip_address(sa[0])
         ip = ip.ipv4_mapped or ip if ip.version == 6 else ip
-        if (ip.is_loopback and not LOOPBACK_OK) or ip.is_link_local or ip.is_multicast:
+        if ip in METADATA or (ip.is_loopback and not LOOPBACK_OK) or ip.is_link_local:
             raise EgressRefused(f"{host} resolves to {ip}, an address the connector never calls")
-        if ip.is_unspecified:
-            raise EgressRefused(f"{host} resolves to {ip}")
+        if ip.is_unspecified or ip.is_multicast or ip.is_reserved:
+            raise EgressRefused(f"{host} resolves to {ip}, not a host address")
         addr = addr or sa[0]
     if addr is None:
         raise EgressRefused(f"{host} doesn't resolve")
