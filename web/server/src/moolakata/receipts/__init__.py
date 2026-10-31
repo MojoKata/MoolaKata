@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import false, select
+from sqlalchemy import and_, exists, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, ids, settings
@@ -244,6 +244,41 @@ def on_tax_documents(s: Session, receipt_id: str) -> list:
             )
         )
     )
+
+
+def kept_with(s: Session, receipt_id: str) -> int:
+    """How many things a receipt is kept with, whoever reads them: its live links to live
+    records, counted as the server and never named (S9.3)."""
+    from ..store import views
+    from ..store.entities.education import Gift
+    from ..store.entities.giving import Donation
+    from ..store.tables import metadata
+
+    rl = metadata.tables["ReceiptLink"]
+    live = views.view_table(rl)
+    found = []
+    for kind, entity in (
+        ("transaction", Transaction),
+        ("account", Account),
+        ("item", Item),
+        ("expense", QualifiedExpense),
+        ("gift", Gift),
+        ("donation", Donation),
+    ):
+        t = views.view_table(entity.__mapper__.local_table)
+        found.append(
+            and_(
+                rl.c.kind == kind,
+                exists().where(t.c.id == rl.c.itemId, t.c.effectiveDeleted == false()),
+            )
+        )
+    q = (
+        select(func.count())
+        .select_from(rl)
+        .join(live, live.c.id == rl.c.id)
+        .where(rl.c.receiptId == receipt_id, live.c.effectiveDeleted == false(), or_(*found))
+    )
+    return s.scalar(scoping.unscoped(q, "how many things a receipt is kept with"))
 
 
 def level_for(s: Session, user_id: str, r: Receipt) -> str | None:

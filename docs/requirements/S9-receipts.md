@@ -19,8 +19,9 @@
    an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement),
    529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
    one suggests matching transactions by amount and date. A receipt kept with anything is out
-   of the inbox, and its dialog names each thing it is kept with; whoever can change one of
-   them can detach it from that. Each attachment is a record of its own (`ReceiptLink`),
+   of the inbox, and its dialog names each thing it is kept with that its reader can see,
+   and counts the rest, never naming them (*Also kept with 2 things not shared with you*);
+   whoever can change one of them can detach it from that. Each attachment is a record of its own (`ReceiptLink`),
    made or taken away, never changed: attaching and detaching are changes of the dialog's
    draft, saved with the rest (S12.15), whether in the receipt's dialog or in what it is
    attached to (a file added to a transaction is uploaded at once, into the inbox, and
@@ -44,8 +45,10 @@
    file stays while any live receipt names its hash; a deleted receipt doesn't keep it from
    file pruning (S14.10.5). Backups leave the receipts directory out: the host backs it up with
    the data directory (S14.6). Its file is kept for as long as its category says, shown on the
-   receipt as *Kept until…* or *Kept for ever*, and the receipt's **Keep** toggle holds it for
-   ever (S14.10).
+   receipt as *Kept until…* or *Kept for ever*: the file's own date, over everything it is
+   kept with, its category named only to someone who can see what sets it (*Kept for
+   something not shared with you*, else). The receipt's **Keep** toggle holds it for ever
+   (S14.10).
 8. **Reading receipts (OCR)**: MoolaKata reads the date, total and merchant from each receipt
    **on the server, with RapidOCR**, and suggests the transaction it belongs to. Nothing
    leaves the server, and no external service, model download or GPU is involved.

@@ -12,6 +12,8 @@ stays yours and is never replaced. **Read again** reads it once more.
 Keeps the file for ever, whatever its retention: for a warranty, or a medical bill an HSA may repay
 later. Beside it, how long the file is kept otherwise: _Kept until Mar 2031_ (in bold within 90
 days), _Kept while the lot is open_ while what it is attached to hasn't ended, or _Kept for ever_.
+The date is the file's own, over everything it is kept with; the category that sets it is named
+only when that is shared with you, else _Kept for something not shared with you_.
 An expired file shows _Expired Mar 2031, prunable_, and an admin may prune it in Settings ›
 Storage; a pruned file's record keeps its amounts, dates and links.
 
@@ -41,6 +43,8 @@ Words to find it by, separated by commas, such as _medical_ or _warranty_.
 The transactions it supports, and what else it is kept with. **Attach** takes the best match among
 your transactions with the same amount near its date; the buttons beside it are the next two.
 **Detach** returns it to the inbox when nothing else links to it. Both happen when you save.
+What it is kept with that isn't shared with you is only counted: _Also kept with 2 things not
+shared with you_, never named.
 
 ## Text read from the receipt
 
@@ -48,4 +52,4 @@ Everything the reader found, which the Receipts screen searches.
 
 ## Delete
 
-Only its owner, and only once nothing links to it.
+Only its owner, and only once nothing links to it, including what isn't shared with them.

@@ -88,8 +88,10 @@ export function ReceiptCard({ r, onOpen }) {
           ? html`<span class="pill bad">couldn't read it</span>`
           : r.links.length
           ? html`<span class="pill ok">${r.links[0].accountName || r.links[0].label}${
-            r.links.length > 1 ? ` +${r.links.length - 1}` : ''
+            r.links.length + r.alsoKeptWith > 1 ? ` +${r.links.length + r.alsoKeptWith - 1}` : ''
           }</span>`
+          : r.alsoKeptWith
+          ? html`<span class="pill ok">kept with ${r.alsoKeptWith} not shared</span>`
           : html`<span class="pill warn">inbox</span>`}</div>
       </div>
     </button>
@@ -175,9 +177,12 @@ export function ReceiptDialog({ close, id }) {
         r.level === 'owner'
           ? html`
             <button type="button" class="btn danger" style=${{ marginRight: 'auto' }}
-              disabled=${save.busy || r.links.length > 0 || linkRecs.length > 0}
+              disabled=${save.busy || r.links.length > 0 || r.alsoKeptWith > 0 ||
+                linkRecs.length > 0}
               title=${r.links.length || linkRecs.length
                 ? 'Detach it first'
+                : r.alsoKeptWith
+                ? 'It is kept with something not shared with you'
                 : undefined} onClick=${async () => {
                 const draft = f.draft;
                 if (!draft) return;
@@ -302,7 +307,18 @@ export function ReceiptDialog({ close, id }) {
                   : null
               }</div>`
             )
+            : r.alsoKeptWith
+            ? null
             : html`<p class="small dim">Nothing yet: it waits in the inbox.</p>`}
+          ${r.alsoKeptWith
+            ? html`
+              <p class="small dim"
+                id="x-also-kept">Also kept with ${r.alsoKeptWith} ${r
+                    .alsoKeptWith === 1
+                  ? 'thing'
+                  : 'things'} not shared with you.</p>
+            `
+            : null}
           ${r.matches.length && !added.length && canEdit
             ? html`
               <div class="notice mt">

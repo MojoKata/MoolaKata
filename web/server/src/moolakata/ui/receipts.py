@@ -12,10 +12,11 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
 
-from .. import activity, clock, exactjson, ids, parsing, receipts, settings, tags
+from .. import access, activity, clock, exactjson, ids, parsing, receipts, settings, tags
 from ..errors import Problem, new_error_id, refuse
 from ..keys.files import FileError
 from ..receipts import reading, retention
+from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
@@ -64,6 +65,8 @@ class ReceiptRow(Model):
     tags: list[str]  # the reader's own, by name (S2.6)
     tagIds: list[str]
     links: list[LinkOut]
+    # What else it is kept with that this reader can't read: counted, never named (S9.3).
+    alsoKeptWith: int
     hasThumbnail: bool
     readStatus: str
     readError: str | None
@@ -222,6 +225,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
 def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
     owner = s.get(User, r.ownerId)
     tagged = tags.of(s, "receipt", user_id, [r.id]).get(r.id, []) if user_id else []
+    links = _links(s, r, user_id)
     return ReceiptRow(
         id=r.id,
         fileName=r.fileName,
@@ -237,7 +241,10 @@ def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
         notes=r.notes,
         tags=[t.name for t in tagged],
         tagIds=[t.id for t in tagged],
-        links=_links(s, r, user_id),
+        links=links,
+        alsoKeptWith=max(
+            0, receipts.kept_with(s, r.id) - sum(x.kind != "tax-document" for x in links)
+        ),
         hasThumbnail=r.thumbnail is not None,
         readStatus=r.readStatus,
         readError=r.readError,
@@ -250,7 +257,11 @@ def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
 
 def detail(s, user_id: str, r: Receipt, level: str) -> ReceiptDetail:
     base = row(s, r, level, user_id)
-    rt = retention.retention(retention.Context(s), r)
+    # The file's own date, over every link; its reason named only from a link this reader
+    # reads (S9.7).
+    with scoping.as_server(s, "how long a receipt's file is kept") as srv:
+        rt = retention.retention(retention.Context(srv), srv.get(Receipt, r.id))
+    named = rt.link is None or access.perms(s, ReceiptLink, rt.link, user_id) is not None
     return ReceiptDetail(
         **base.model_dump(),
         matches=[
@@ -276,11 +287,13 @@ def detail(s, user_id: str, r: Receipt, level: str) -> ReceiptDetail:
         keptUntil=rt.until,
         keptSoon=rt.soon,
         keptWhy=(
-            f"{rt.category} keeps "
+            None
+            if not rt.years
+            else "Kept for something not shared with you"
+            if not named
+            else f"{rt.category} keeps "
             + ("statements" if rt.category == "Statements" else "receipts")
             + f" {rt.years} year{'s' if rt.years != 1 else ''}"
-            if rt.years
-            else None
         ),
     )
 
@@ -295,7 +308,7 @@ def list_receipts(
         rows = [row(s, r, lvl, c.id) for r, lvl in receipts.visible(s, c.id)]
         in_text = reading.search(s, q) if q else set()
     if show == "inbox":
-        rows = [r for r in rows if not r.links and r.level == "owner"]
+        rows = [r for r in rows if not r.links and not r.alsoKeptWith and r.level == "owner"]
     if q:
         words = q.lower().split()
         rows = [

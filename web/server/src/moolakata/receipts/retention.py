@@ -61,6 +61,7 @@ class Retention:
     openWhat: str | None = None
     category: str | None = None  # the category, or Statements, that sets the period
     years: int | None = None
+    link: str | None = None  # the link whose record sets the period
 
     @property
     def label(self) -> str:
@@ -198,21 +199,21 @@ def retention(ctx: Context, r: Receipt) -> Retention:
     )
     if not links:
         return Retention("forever")
-    found = [(_link(ctx, x, r), x.kind) for x in links]
-    if any(years is None for (_, years, _), _ in found):
+    found = [(_link(ctx, x, r), x.kind, x.id) for x in links]
+    if any(years is None for (_, years, _), _, _ in found):
         return Retention("forever")
-    open_ = [kind for (end, _, _), kind in found if end is None]
+    open_ = [kind for (end, _, _), kind, _ in found if end is None]
     if open_:
         return Retention("open", openWhat=OPEN_WHAT.get(open_[0]))
-    end = max(e for (e, _, _), _ in found)
-    (_, years, name), _ = max(found, key=lambda f: f[0][1])
+    end = max(e for (e, _, _), _, _ in found)
+    (_, years, name), _, by = max(found, key=lambda f: f[0][1])
     if end == dt.date.min:
         end = r.createdAt.date()
     until = add_years(end, years)
     if until <= ctx.today:
-        return Retention("expired", until, category=name, years=years)
+        return Retention("expired", until, category=name, years=years, link=by)
     soon = (until - ctx.today).days <= SOON_DAYS
-    return Retention("until", until, soon, category=name, years=years)
+    return Retention("until", until, soon, category=name, years=years, link=by)
 
 
 # ---------- Settings › Storage (S14.10.4) ----------

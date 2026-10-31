@@ -24,3 +24,40 @@ a child view joined through it keeps the child on its own index.
 
 **Oct 31, 2:11 PM, paused** by the user until the access views are designed and built
 ([`access-views-walk.md`](access-views-walk.md)); items 1–3 resume after.
+
+**Oct 31, 5:52 PM: resumed** after the access views (PR #27 commits d0512ad to 1294824).
+
+1. **CR3-47 (1 of 3).** Its leak is closed by the access views: a receipt's links, and what
+   they name, are read through the reader's views, so a reader sees only the links to what
+   they read. Decided:
+   1. Under them, *Also kept with N things not shared with you*, the count read as the server
+      and naming nothing; the owner sees it too (why *Delete* is refused, S9.7). The
+      mockup's receipt dialog and its guide show it.
+   2. *Kept until…* is the file's own date, worked out as the server over every link; its
+      reason (*Groceries keeps receipts 3 years*) is named only when the link it comes from
+      is readable, else *Kept for something not shared with you*.
+   3. The receipts list's search matches rows built from readable links only, as it does:
+      no change.
+2. **CR3-48 (2 of 3).** `receipts.store` splits: *prepare*, outside any transaction (type,
+   hash, the same file kept already, the thumbnail drawn in the reader's worker, the
+   encrypted file written under a hold the orphan sweep respects), and *record*, a short
+   transaction (the duplicate checked again, the row added, the hold released at commit; a
+   row that never commits leaves its file to the sweep, S14.6). The upload, an import's
+   statement and the connector all use it. A thumbnail that fails or times out leaves the
+   receipt with its file-type icon and the upload succeeds; *Read again* tries it again. A
+   test holds the worker slow and sees another user's write go through. Weighed: the
+   thumbnail in the reading queue's job (waits on *Read receipts*); a 5-second limit with the
+   queue catching up (two paths).
+3. **CR3-56 (3 of 3).** An upload to `/ui/api` (multipart, or a body past 64 KB) has its
+   session looked up by its token's hash, as the server, before a byte of its body is read;
+   no live session answers 401 on the headers, and the in-flight cap counts by user. The
+   link and connector routes keep their own gates. A server-wide ceiling of 256 MB of
+   uploads in flight, past which 503 with `Retry-After: 30`; the 100 MB per user stays.
+   S13.7.6 says both; tests for each (a forged cookie with 5 MB read almost none of it).
+   Weighed: 128 MB.
+
+## Final approval
+
+Given by the user Oct 31, 5:55 PM, for all three as written above.
+
+## Applied

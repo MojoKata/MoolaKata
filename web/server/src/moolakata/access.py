@@ -52,14 +52,6 @@ def perms(s: Session, entity, item_id: str, user_id: str) -> Perms | None:
     return None if row is None else Perms(*(bool(x) for x in row))
 
 
-MESSAGES = {
-    "writable": ("share-read-only", "You can read this {what} but not change it."),
-    "deletable": ("owner-only", "Only the {what}'s owner can do this."),
-    "shareable": ("owner-only", "Only the owner changes who this is shared with."),
-    "configurable": ("owner-only", "Only the {what}'s owner can do this."),
-}
-
-
 def need(s: Session, entity, item_id: str, user_id: str, permission: str | None = None, what=None):
     """The record and the user's permissions on it: 404 when they don't read it, never
     saying whether it exists; 403 without the permission asked for."""
@@ -67,10 +59,14 @@ def need(s: Session, entity, item_id: str, user_id: str, permission: str | None 
     obj = s.get(entity, item_id) if p is not None else None
     if obj is None:
         raise Problem(404, "not-found", "Not found")
-    if permission is not None and not getattr(p, permission):
-        code, text = MESSAGES[permission]
-        raise Problem(403, code, text.format(what=what or entity.__name__.lower()))
-    return obj, p
+    if permission is None or getattr(p, permission):
+        return obj, p
+    what = what or entity.__name__.lower()
+    if permission == "writable":
+        raise Problem(403, "share-read-only", f"You can read this {what} but not change it.")
+    if permission == "shareable":
+        raise Problem(403, "owner-only", "Only the owner changes who this is shared with.")
+    raise Problem(403, "owner-only", f"Only the {what}'s owner can do this.")
 
 
 def listing(s: Session, entity, user_id: str, *where, order_by=None) -> list[tuple[Any, Perms]]:

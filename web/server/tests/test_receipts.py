@@ -191,3 +191,47 @@ def test_reencrypt_carries_the_receipts_over(server, alice, keyed_config, master
     rid = upload(alice, data).json()["id"]
     server.store = maintenance.reencrypt(keyed_config, server.store, master_key)
     assert alice.get(f"/ui/api/receipts/{rid}/file").content == data
+
+
+def test_a_reader_sees_only_the_links_they_read_and_how_many_more(server, alice):
+    """CR3-47 (S9.3): Bob, reading the joint account, sees the receipt's joint link and that
+    it is kept with one thing more, never what; the reason it is kept is named only from a
+    link he reads. Alice, its owner, sees the same of a link Bob made to his own account, and
+    the receipt stays out of her inbox."""
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Category
+
+    with server.db.tx(unscoped="test") as s:
+        jewels = Category(id=ids.new_id("Cat"), name="Jewellery", kind="expense",
+                          keepReceiptsYears=7)  # fmt: skip
+        coffee = Category(id=ids.new_id("Cat"), name="Coffee", kind="expense",
+                          keepReceiptsYears=2)  # fmt: skip
+        s.add_all([jewels, coffee])
+    joint, private = new_account(alice, name="Joint"), new_account(alice, name="Alice private")
+    ours = add(alice, joint["id"], "-42.18", "2026-10-02", payee="Blue Bottle",
+               categoryId=coffee.id)  # fmt: skip
+    hers = add(alice, private["id"], "-42.18", "2026-10-02", payee="Secret Jeweller",
+               categoryId=jewels.id)  # fmt: skip
+    rid = upload(alice, png((1, 2, 3))).json()["id"]
+    assert saved(attach(alice, rid, ours["id"]))
+    assert saved(attach(alice, rid, hers["id"]))
+    make_user(server, "bob")
+    bob = sign_in(server, "bob")
+    users = {
+        u["displayName"]: u["id"]
+        for u in alice.get(f"/ui/api/shares/account/{joint['id']}").json()["users"]
+    }
+    assert share(alice, "account", joint["id"], users={users["Bob"]: "write"}).status_code == 200
+    seen = bob.get(f"/ui/api/receipts/{rid}").json()
+    assert [x["payee"] for x in seen["links"]] == ["Blue Bottle"]
+    assert seen["alsoKeptWith"] == 1 and "Secret Jeweller" not in str(seen)
+    assert seen["keptWhy"] == "Kept for something not shared with you"
+    mine = alice.get(f"/ui/api/receipts/{rid}").json()
+    assert len(mine["links"]) == 2 and mine["alsoKeptWith"] == 0
+    assert mine["keptWhy"] == "Jewellery keeps receipts 7 years"
+    assert seen["keptUntil"] == mine["keptUntil"], "the file's own date, for whoever reads"
+    # Bob, writing the joint account, keeps it with a transaction of his own as well.
+    his = add(bob, new_account(bob, name="Bob's")["id"], "-42.18", "2026-10-02")
+    assert saved(attach(bob, rid, his["id"]))
+    assert alice.get(f"/ui/api/receipts/{rid}").json()["alsoKeptWith"] == 1
+    assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
