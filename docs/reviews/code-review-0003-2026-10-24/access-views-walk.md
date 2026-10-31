@@ -361,3 +361,18 @@ Given by the user Oct 31, 3:17 PM, for all sixteen decisions as written above.
    the changes of behaviour came with the commits that made them (the gift's recipient with
    step 1's views, Activity's people entries with 3c), not a commit each; the walk log says
    which.
+8. **Step 6: the sweeps.** `tests/test_leaks.py`: every GET route (but the live stream, which
+   holds a request open for minutes) called by admin, alice, bob, dave and erin of the
+   household, filled with the household's edge-case records where the user reads them;
+   every id in an answer must be in that user's view, or one of three named on purpose
+   (a tax book's filers' accounts, S8.14.2; the connector page's accounts, S16.2; a book a
+   filer is named on, S8.14.1). 19 s across five workers. The static check: outside
+   `store/`, no `text()` or `exec_driver_sql()` names a table with a view. Found and fixed:
+   1. A transfer named its other half's id to someone who can't read that account (the
+      account's name was already hidden); the sweep catches it again if it comes back.
+   2. Settings › Receipts' counts and *Read again* and Settings › Bitcoin's wallet count ran
+      in the admin's scope (raw SQL counted everyone's; *Read again* would have re-read
+      only the admin's receipts); they are the server's now, and a test fails without that.
+   3. CR3-47's leak is closed by step 3a: bob's view of the receipt lists only the joint
+      account's link, its links and their transactions read through his views. How the
+      dialog says it is kept with more is the receipts walk's item 1.

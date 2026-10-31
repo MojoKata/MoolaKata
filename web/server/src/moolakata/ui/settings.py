@@ -8,10 +8,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
-from sqlalchemy import false, select, text
+from sqlalchemy import false, func, select, text
 
 from .. import activity, clock, settings, timezones
 from ..errors import FieldError, Problem, refuse
+from ..store import scoping
 from ..store.entities.core import Setting
 from . import save
 from .conventions import Deleted, ExactRoute, Model
@@ -361,10 +362,14 @@ def _bitcoin_view(s) -> BitcoinView:
         password=SecretSet(setAt=info.setAt, setBy=by.displayName if by else None)
         if info
         else None,
+        # How many wallets the household's settings read: counted as the server (S16.7).
         wallets=s.scalar(
-            select(func.count())
-            .select_from(Account)
-            .where(Account.type == "crypto-wallet", Account.deleted == false())
+            scoping.unscoped(
+                select(func.count())
+                .select_from(Account)
+                .where(Account.type == "crypto-wallet", Account.deleted == false()),
+                "the household's wallets counted, for an admin",
+            )
         ),
         lastRun=run.finishedAt if run else None,
         lastError=run.error if run else None,
@@ -488,15 +493,22 @@ class ReadingQueue(Model):
 
 
 def _queue(s, srv) -> ReadingQueue:
+    """The reading queue's counts, every receipt's: the server's to count, for an admin."""
+    from ..store.entities.receipts import Receipt
+
     counts = dict(
         s.execute(
-            text(
-                'SELECT "readStatus", count(*) FROM "Receipt" WHERE NOT deleted '
-                'GROUP BY "readStatus"'
+            scoping.unscoped(
+                select(Receipt.readStatus, func.count())
+                .where(Receipt.deleted == false())
+                .group_by(Receipt.readStatus),
+                "the reading queue counted, for an admin",
             )
         ).all()
     )
-    last = s.execute(text('SELECT max("readAt") FROM "Receipt"')).scalar()
+    last = s.execute(
+        scoping.unscoped(select(func.max(Receipt.readAt)), "the reader's last run")
+    ).scalar()
     return ReadingQueue(
         waiting=counts.get("waiting", 0),
         reading=counts.get("reading", 0),
@@ -527,7 +539,8 @@ def reread_all(request: Request, c: Caller = Depends(admin)):
     from ..store.entities.receipts import Receipt
 
     srv = server(request)
-    with srv.db.tx(user=c.id) as s:
+    # Every receipt in the household, whoever's: the server's work, for an admin.
+    with srv.db.tx(unscoped="receipts: every one read again, for an admin") as s:
         if not settings.get(s, "readReceipts"):
             raise Problem(409, "reading-off", "Turn on Read receipts first.")
         ids = []

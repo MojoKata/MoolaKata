@@ -215,3 +215,20 @@ def test_an_admins_household_wide_file_work_counts_every_users_files(server, adm
     r = admin_client.post("/ui/api/settings/storage/orphans/remove")
     assert r.status_code == 200 and r.json()["files"] == 0, r.text
     assert c.get(f"/ui/api/receipts/{rid}/file").status_code == 200
+
+
+def test_an_admins_reading_queue_and_wallets_are_the_households(server, admin_client):
+    """Settings › Receipts counts and reads again every user's receipts, and Settings ›
+    Bitcoin counts every wallet, not only what the admin reads (schema.md §7.6)."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    acct = new_account(c)
+    t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger")
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    rid = receipt_on(c, t["id"], png((40, 50, 60)))
+    assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "off"
+    new_account(c, name="Cold storage", type="crypto-wallet")
+    assert admin_client.get("/ui/api/settings/bitcoin").json()["wallets"] == 1
+    assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
+    admin_client.post("/ui/api/settings/receipts/reread")
+    assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] != "off", "hers too"

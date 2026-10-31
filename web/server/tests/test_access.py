@@ -73,6 +73,9 @@ def edge_cases(s) -> dict[str, str]:
     alice, bob = users["alice"], users["bob"]
 
     def user(name: str, active: bool = True) -> User:
+        from moolakata.auth import passwords
+        from moolakata.dev.seed import PASSWORD
+
         p = make_person(s, name.title(), "female")
         u = User(
             id=ids.new_id("User"),
@@ -81,6 +84,7 @@ def edge_cases(s) -> dict[str, str]:
             displayName=name.title(),
             email=f"{name}@griffin.home",
             active=active,
+            passwordHash=passwords.hash_password(PASSWORD),
         )
         s.add(u)
         s.flush()
@@ -183,7 +187,22 @@ def edge_cases(s) -> dict[str, str]:
         links[name] = ln.id
 
     # The rows joining two transactions, one on each side of the share (1e).
-    mine, ours = txn(unshared), txn(shared)
+    # A trade in an account of hers no one else reads, as a wash sale's sale and a transfer's
+    # side are; and the joint account's first transaction.
+    unshared_ids = [
+        a.id for a in accounts if not s.scalars(select(Share).where(Share.itemId == a.id)).first()
+    ]
+    mine = s.scalars(
+        select(Transaction)
+        .where(
+            Transaction.accountId.in_(unshared_ids),
+            Transaction.instrumentId.is_not(None),
+            Transaction.quantity.is_not(None),
+            Transaction.deleted.is_(False),
+        )
+        .order_by(Transaction.id)
+    ).first()
+    ours = txn(shared)
     reimbursement = Reimbursement(
         id=ids.new_id("Rmbrs"), spendingId=mine.id, paybackId=ours.id, amount=Decimal("1.00")
     )

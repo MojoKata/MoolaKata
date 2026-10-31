@@ -26,6 +26,7 @@ import time
 from decimal import Decimal
 from types import SimpleNamespace
 
+import sqlalchemy as sa
 from sqlalchemy import text
 
 from .. import clock, settings
@@ -198,10 +199,12 @@ class Reader:
             pending = [
                 rid
                 for (rid,) in s.execute(
-                    text(
-                        "SELECT id FROM \"Receipt\" WHERE \"readStatus\" IN ('waiting', 'reading')"
-                        ' AND NOT deleted ORDER BY "createdAt"'
+                    sa.select(Receipt.id)
+                    .where(
+                        Receipt.readStatus.in_(("waiting", "reading")),
+                        Receipt.deletedAt.is_(None),
                     )
+                    .order_by(Receipt.createdAt)
                 )
             ]
         for i in range(n):

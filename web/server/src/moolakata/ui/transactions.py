@@ -257,6 +257,10 @@ def shape(
     out = []
     for t in rows:
         other = accounts.get(other_acct.get(t.transferId, ""))
+        # The other half is named only to someone who reads its account (decision 1c.4 of
+        # the access-views walk): neither its id nor its account's name, else.
+        if other is not None and access.perms(s, Account, other.id, user_id) is None:
+            other = None
         out.append(
             TxnOut(
                 id=t.id,
@@ -277,10 +281,8 @@ def shape(
                 dividendType=t.dividendType,
                 contributionYear=t.contributionYear,
                 contributionSource=t.contributionSource,
-                transferId=t.transferId,
-                transferAccountName=other.name
-                if other and access.perms(s, Account, other.id, user_id)
-                else None,
+                transferId=t.transferId if other is not None else None,
+                transferAccountName=other.name if other is not None else None,
                 imported=t.importId is not None,
                 cleared=t.cleared,
                 reconciled=t.reconciliationId in finished,
