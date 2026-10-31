@@ -63,6 +63,20 @@ def test_the_ofx_request_names_the_account_and_signs_in():
     )
 
 
+def test_the_ofx_request_escapes_what_it_carries_and_alters_nothing():
+    # CR3-332: SGML values escape &, < and >; a character Windows-1252 can't hold is refused
+    # with a message, never sent as "?".
+    settings = {"url": "https://ofx.cu.example/ofx", "org": "A&B <CU>", "accountId": "1204"}
+    body = request(settings, {"username": "al<ice", "password": "p<ss&word>€"}, dt.date(2026, 9, 1))
+    text = body.decode("cp1252")
+    assert "<USERID>al&lt;ice<USERPASS>p&lt;ss&amp;word&gt;€<LANGUAGE>" in text
+    assert "<ORG>A&amp;B &lt;CU&gt;<FID>" in text
+    sent = Fake(lambda *a: (200, OFX_OK))
+    out = OfxDirect().run(settings, {"username": "al", "password": "zażółć"}, [], sent)
+    assert out.state == "failing" and "password holds a character" in out.message
+    assert sent.calls == [], "nothing is sent when a value can't be carried as typed"
+
+
 def test_ofx_direct_posts_the_statement_to_the_account_with_those_last_four():
     settings = {
         "url": "https://ofx.cu.example/ofx",

@@ -298,7 +298,7 @@ What each driver posts, and what its `settings` hold (S18.9):
 
 | Driver | Posts | Settings | Credentials (sealed, 4.3) | Size |
 |---|---|---|---|---|
-| `ofx-direct` | the OFX statement the institution's OFX server answers with, as it is | `url`, `org`, `fid`, `accountType` (`CHECKING`, `SAVINGS`, `CREDITCARD`, `INVESTMENT`), `accountId`, and `bankId` (the routing number) for a bank account | `{username, password}`, bound to the host of `url` when filed (4.3.3) | 🟢 91 |
+| `ofx-direct` | the OFX statement the institution's OFX server answers with, as it is | `url`, `org`, `fid`, `accountType` (`CHECKING`, `SAVINGS`, `CREDITCARD`, `INVESTMENT`), `accountId`, and `bankId` (the routing number) for a bank account | `{username, password}`, bound to the host of `url` when filed (4.3.3) | 🟢 108 |
 | `schwab` | positions, transactions and balances from the Trader API, written as an OFX investment statement, one file per account | `appKey` | `{appSecret, landed}`: the app's secret and the address the owner landed on after signing in; the driver keeps the refresh token in the vault, and asks for a new sign-in when it has run out, after seven days. Bound to no host: the driver's is fixed | 🟢 230 |
 
 **Size** is the driver's lines of code, leaving out blank lines, comments and docstrings, with

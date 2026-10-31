@@ -350,7 +350,10 @@ ask it for anything. People give it its words on **its page**, which it serves i
       address the Connection named when they were filed (S18.7.3). Once a day, over `https`
       only, as an OFX 1.0.2 client, it asks for the last 45 days (the Connection's `days`), or
       90 while no account matches the Connection's account number; the server's sign-on codes
-      15500 to 15503 mean *needs a sign-in*.
+      15500 to 15503 mean *needs a sign-in*. Every value in the request is written as SGML
+      wants it (`&`, `<` and `>` escaped) in Windows-1252, its header's character set; a
+      credential or setting holding a character that set can't carry is never altered to fit:
+      nothing is sent, and the Connection is *failing* with the reason.
    2. **Schwab**: Schwab's official Trader API, for positions, transactions and balances,
       posted as OFX. Its sign-in lasts seven days, so the Connection asks for a sign-in every
       week (S18.5.3). Once a day it asks for the last 45 days. The app registered at Schwab

@@ -24,14 +24,35 @@ def _stamp(d: dt.datetime) -> str:
     return d.strftime("%Y%m%d%H%M%S")
 
 
+class Unsendable(ValueError):
+    """A value the request can't carry as typed: never altered to fit."""
+
+
+def _v(value, what: str) -> str:
+    """A value written into the SGML request: `&`, `<` and `>` escaped (OFX 1.0.2 §2.3), and
+    only characters its charset (Windows-1252, as the header says) holds."""
+    text = str(value or "")
+    try:
+        text.encode("cp1252")
+    except UnicodeEncodeError:
+        raise Unsendable(
+            f"the {what} holds a character an OFX request can't carry: nothing was sent"
+        ) from None
+    if any(ch in text for ch in "\r\n"):
+        raise Unsendable(f"the {what} holds a line break: nothing was sent")
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def request(settings: dict, credentials: dict, since: dt.date) -> bytes:
     """The OFX 1.0.2 request for one account's statement since a date."""
     now = dt.datetime.now(dt.UTC)
     kind = str(settings.get("accountType") or "CHECKING").upper()
-    acct = settings.get("accountId", "")
+    acct = _v(settings.get("accountId"), "account number")
     uid = str(uuid.uuid4())
-    user, password = credentials.get("username", ""), credentials.get("password", "")
-    org, fid = settings.get("org", ""), settings.get("fid", "")
+    user = _v(credentials.get("username"), "username")
+    password = _v(credentials.get("password"), "password")
+    org, fid = _v(settings.get("org"), "ORG"), _v(settings.get("fid"), "FID")
+    bank = _v(settings.get("bankId"), "routing number")
     signon = (
         f"<SIGNONMSGSRQV1><SONRQ><DTCLIENT>{_stamp(now)}<USERID>{user}<USERPASS>{password}"
         f"<LANGUAGE>ENG<FI><ORG>{org}<FID>{fid}</FI><APPID>QWIN<APPVER>2700</SONRQ>"
@@ -46,17 +67,17 @@ def request(settings: dict, credentials: dict, since: dt.date) -> bytes:
     elif kind == "INVESTMENT":
         body = (
             f"<INVSTMTMSGSRQV1><INVSTMTTRNRQ><TRNUID>{uid}<INVSTMTRQ><INVACCTFROM><BROKERID>"
-            f"{settings.get('bankId') or settings.get('org', '')}<ACCTID>{acct}</INVACCTFROM>"
+            f"{bank or org}<ACCTID>{acct}</INVACCTFROM>"
             f"{inctran}<INCOO>N<INCPOS><DTASOF>{_stamp(now)}<INCLUDE>Y</INCPOS><INCBAL>Y"
             f"</INVSTMTRQ></INVSTMTTRNRQ></INVSTMTMSGSRQV1>"
         )
     else:
         body = (
             f"<BANKMSGSRQV1><STMTTRNRQ><TRNUID>{uid}<STMTRQ><BANKACCTFROM><BANKID>"
-            f"{settings.get('bankId', '')}<ACCTID>{acct}<ACCTTYPE>{kind}</BANKACCTFROM>"
+            f"{bank}<ACCTID>{acct}<ACCTTYPE>{_v(kind, 'account type')}</BANKACCTFROM>"
             f"{inctran}</STMTRQ></STMTTRNRQ></BANKMSGSRQV1>"
         )
-    return (HEADER.format(uid=uid) + f"<OFX>{signon}{body}</OFX>").encode("latin-1", "replace")
+    return (HEADER.format(uid=uid) + f"<OFX>{signon}{body}</OFX>").encode("cp1252")
 
 
 class OfxDirect(Driver):
@@ -82,7 +103,10 @@ class OfxDirect(Driver):
         for a in accounts:
             if a.last4 and a.last4 == str(settings.get("accountId", ""))[-4:]:
                 since = dt.date.today() - dt.timedelta(days=int(settings.get("days") or 45))
-        body = request(settings, credentials or {}, since)
+        try:
+            body = request(settings, credentials or {}, since)
+        except Unsendable as e:
+            return Result("failing", str(e))
         headers = {"Content-Type": "application/x-ofx", "Accept": "*/*, application/x-ofx"}
         r = http.request("POST", url, headers, body)
         text = r.body.decode("latin-1", "replace")
