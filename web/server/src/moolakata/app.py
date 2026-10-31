@@ -13,6 +13,7 @@ from .auth.users import Services
 from .config import Config
 from .events import STREAM_SECONDS, Broker
 from .jobs import Jobs
+from .keys.breakglass import BreakGlass
 from .keys.welcome import Phrases
 from .links.copy import Copies
 from .links.signing import Nonces
@@ -39,8 +40,16 @@ class Server:
     # progress for the locked screen, and why the last unlock failed, if it did.
     reencrypting: Any = None
     unlock_error: str | None = None
-    # A new server's welcome: the phrases on offer until one is confirmed (S15.4.4).
+    # The event loop the server runs on, and whether it is stopping to start again, locked,
+    # for a re-encryption (runtime.restart, S15.7.2).
+    loop: Any = None
+    restarting: bool = False
+    # A new server's welcome: the phrases on offer until one is confirmed (S15.4.4); and a
+    # rotation's, offered the same way in Settings › Key storage (S15.7.1).
     phrases: Phrases = field(default_factory=Phrases)
+    rotations: Phrases = field(default_factory=Phrases)
+    # The break-glass code a host command asked for, for a lost phrase (S15.5.2).
+    break_glass: BreakGlass = field(default_factory=BreakGlass)
     background: set = field(default_factory=set)
     # Backups and re-encryption never run at the same time (S15.7.2).
     maintenance_lock: threading.Lock = field(default_factory=threading.Lock)

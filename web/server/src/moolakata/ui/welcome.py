@@ -13,8 +13,8 @@ from .. import activity
 from ..auth import sessions
 from ..auth import users as accounts
 from ..errors import FieldError, Problem
-from ..keys import cli as keys_cli
 from ..keys import master, phrase
+from ..keys.welcome import Offer
 from .conventions import ExactRoute, Model
 from .deps import server, set_cookie
 from .session import SessionInfo, _throttle, info
@@ -43,6 +43,26 @@ class FirstAdmin(Model):
     sex: str
     email: str
     password: str
+
+
+def matches(word: str, typed: str) -> bool:
+    """A word typed in full, or by its first four letters (which identify it)."""
+    return typed == word or (len(typed) >= 4 and word.startswith(typed))
+
+
+def words_wrong(made: Offer, typed: dict[str, str]) -> None:
+    """Refused unless the three words asked for are typed back (S15.6.1): the welcome's and a
+    rotation's."""
+    words = phrase.to_words(made.key)
+    wrong = [
+        i for i in made.picks if not matches(words[i], typed.get(str(i + 1), "").strip().lower())
+    ]
+    if wrong:
+        errors = [
+            FieldError(f"word{i + 1}", "word-wrong", "Not the word shown: check your sheet.")
+            for i in wrong
+        ]
+        raise Problem(422, "words-wrong", "Those aren't the words shown: check your sheet.", errors)
 
 
 def _uninitialised(srv) -> None:
@@ -77,24 +97,10 @@ async def make_key(body: Confirm, request: Request):
     made = srv.phrases.get(body.token)
     if made is None:
         raise Problem(410, "phrase-gone", "Those words aren't on offer now: show a new phrase.")
-    words = phrase.to_words(made.key)
-    wrong = [
-        i
-        for i in made.picks
-        if not keys_cli.matches(words[i], body.words.get(str(i + 1), "").strip().lower())
-    ]
-    if wrong:
-        errors = [
-            FieldError(f"word{i + 1}", "word-wrong", "Not the word shown: check your sheet.")
-            for i in wrong
-        ]
-        raise Problem(422, "words-wrong", "Those aren't the words shown: check your sheet.", errors)
+    words_wrong(made, body.words)
     srv.phrases.clear()
-    _uninitialised(srv)  # `keys init` on the host may have made one meanwhile
-    srv.config.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    at = master.now()
-    ring = master.wrap(made.key, master.new_data_key(), at, at)
-    master.write_keyring(srv.config.keyring_path, ring, keys_cli.owner())
+    _uninitialised(srv)  # another browser's welcome may have made one meanwhile
+    master.create_keyring(srv.config, made.key)
     address = request.client.host if request.client else "-"
     log.info("the welcome made the key %s, from %s", master.fingerprint(made.key), address)
     await runtime.unlock(srv, made.key, wait=False)

@@ -250,14 +250,19 @@ def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path,
     keyed_config.receipts_dir.mkdir(parents=True)
     (keyed_config.receipts_dir / "abc.mkr").write_bytes(b"sealed bytes")
     t0 = dt.datetime(2026, 10, 1, tzinfo=dt.UTC)
-    made = [maintenance.backup(keyed_config, store, t0 + dt.timedelta(days=i)) for i in range(3)]
+    made = [maintenance.backup(keyed_config, store, t0 + dt.timedelta(days=i)) for i in range(5)]
     key = master_key
     for b in made:
         maintenance.check_backup(b, key)
         # The database and its keyring only: the host backs up the files (S14.6).
         assert sorted(p.name for p in b.iterdir()) == ["keyring", "manifest.json", "moolakata.db"]
-    assert maintenance.prune(keyed_config, 2) == made[:1]
-    assert maintenance.backups(keyed_config) == made[1:]
+    # Kept by day, never fewer than three (CR3-63): a second backup the same day, Back up now,
+    # pushes out no earlier day's.
+    again = maintenance.backup(keyed_config, store, t0 + dt.timedelta(days=4, hours=6))
+    assert maintenance.prune(keyed_config, 1) == made[:2]
+    assert maintenance.backups(keyed_config) == [*made[2:], again]
+    assert maintenance.backup_days(keyed_config) == 3
+    made = made[2:]
 
     # The restore of S15.6.8: the key from its phrase, the data directory from a backup.
     from moolakata.config import Config
@@ -352,6 +357,133 @@ def test_a_file_or_secret_under_neither_key_is_set_aside_not_fatal(store, keyed_
     assert (keyed_config.data_dir / "receipts-set-aside" / "broken.mkr").exists()
     assert journaled.opens(keyed_config.receipts_dir / "good.mkr", again.keys.keys.receipts, "good")
     again.db.dispose()
+
+
+@pytest.mark.parametrize(
+    "step", ["backup", "next", "rekeyed", "secrets", "receipts", "keyring", "copies"]
+)
+def test_a_reencryption_stopped_after_any_step_and_before_its_record_resumes(
+    store, keyed_config, monkeypatch, master_key, step
+):
+    """CR3-58, CR3-307: each step is taken, then recorded; a stop between the two (a crash, a
+    power cut) is carried on at the next unlock with the data under the one new data key the
+    journal names, never a third."""
+    from moolakata.keys import files
+    from moolakata.store import reencrypt as journaled
+
+    keyed_config.receipts_dir.mkdir(parents=True)
+    files.write(
+        keyed_config.receipts_dir / "r1.mkr",
+        [b"a receipt"],
+        store.keys.keys.receipts.public_key(),
+        "r1",
+    )
+    with store.db.tx() as s:
+        new_user(s)
+        secret_repo.put(s, store.keys.keys.secrets, "Smtp", "Smtp_x", "password", "hunter2", None)
+    maintenance.backup(keyed_config, store, dt.datetime(2026, 1, 1, tzinfo=dt.UTC))
+    real = journaled._step
+
+    def stop_before_recording(config, j, name, value):
+        if name == step:
+            raise KeyboardInterrupt
+        real(config, j, name, value)
+
+    monkeypatch.setattr(journaled, "_step", stop_before_recording)
+    with pytest.raises(KeyboardInterrupt):
+        maintenance.reencrypt(keyed_config, store, master_key)
+    monkeypatch.undo()
+    named = journaled.journal(keyed_config)["steps"].get("next")
+    again = maintenance.open_store(keyed_config, master_key)
+    ring = master.read_keyring(keyed_config.keyring_path)
+    if named:
+        assert ring.data_key_id == named  # the journal's new key, never a third
+    assert ring.data_key_id != store.keys.ring.data_key_id
+    with again.db.read() as s:
+        assert s.scalars(select(User)).one().username == "alice"
+        assert (
+            secret_repo.use(s, again.keys.keys.secrets, "Smtp", "Smtp_x", "password") == "hunter2"
+        )
+    assert journaled.opens(keyed_config.receipts_dir / "r1.mkr", again.keys.keys.receipts, "r1")
+    assert journaled.journal(keyed_config) is None
+    # The old keyring stays until the store has opened under the new one (`tidy`).
+    journaled.tidy(keyed_config)
+    assert not (keyed_config.data_dir / journaled.OLD).exists()
+    done = journaled.report(keyed_config)
+    assert set(done["copies"].values()) <= {"re-encrypted", "already under the new data key"}
+    again.db.dispose()
+
+
+def test_a_receipt_damaged_past_its_first_part_is_set_aside_with_no_half_file(
+    store, keyed_config, master_key
+):
+    """CR3-59: its first chunk opens under the old key, a later one doesn't: the file is set
+    aside as damaged and the run goes on, leaving no `.tmp`."""
+    from moolakata.keys import files
+    from moolakata.store import reencrypt as journaled
+
+    keyed_config.receipts_dir.mkdir(parents=True)
+    path = keyed_config.receipts_dir / "big.mkr"
+    files.write(path, [os.urandom(200_000)], store.keys.keys.receipts.public_key(), "big")
+    data = bytearray(path.read_bytes())
+    data[files.HEADER + files.CHUNK + files.TAG + 10] ^= 1  # a byte in the second chunk
+    path.write_bytes(bytes(data))
+    assert journaled.opens(path, store.keys.keys.receipts, "big")
+    again = maintenance.reencrypt(keyed_config, store, master_key)
+    assert journaled.report(keyed_config)["receiptsSetAside"] == ["big.mkr"]
+    assert (keyed_config.data_dir / journaled.SET_ASIDE / "big.mkr").exists()
+    assert not list(keyed_config.receipts_dir.glob("*.tmp"))
+    again.db.dispose()
+
+
+def test_copies_the_choices_dont_name_are_reencrypted_the_first_backup_last(
+    store, keyed_config, monkeypatch, master_key
+):
+    """CR3-60: a backup made after the choices (a daily one, the run's own first) holds the
+    data key being replaced: it takes the default, re-encrypt, and the run's own goes last."""
+    from moolakata.store import copies
+    from moolakata.store import reencrypt as journaled
+
+    named = maintenance.backup(keyed_config, store, dt.datetime(2026, 1, 1, tzinfo=dt.UTC))
+    journaled.schedule(keyed_config, {named.name: "leave"}, None, "settings")
+    later = maintenance.backup(keyed_config, store, dt.datetime(2026, 1, 2, tzinfo=dt.UTC))
+    order = []
+    real = journaled._copy
+    monkeypatch.setattr(journaled, "_copy", lambda c, *a: order.append(c.name) or real(c, *a))
+    store.db.dispose()
+    again = maintenance.open_store(keyed_config, master_key)
+    done = journaled.report(keyed_config)
+    first = done["backup"]
+    assert done["copies"][named.name] == "left"
+    assert done["copies"][later.name] == done["copies"][first] == "re-encrypted"
+    assert order[-1] == first
+    new_id = again.keys.ring.data_key_id
+    assert all(
+        c.ring.data_key_id == new_id
+        for c in copies.copies(keyed_config)
+        if c.name in (later.name, first)
+    )
+    again.db.dispose()
+
+
+def test_a_backup_cut_off_part_way_is_removed_and_a_set_aside_keyring_listed(
+    store, keyed_config, master_key
+):
+    """CR3-299: a `.part` folder never stays, and a keyring set aside is a copy to remove."""
+    from moolakata.store import copies
+
+    keyed_config.backup_dir.mkdir(parents=True)
+    stale = keyed_config.backup_dir / "moolakata-20250101-000000.part"
+    stale.mkdir()
+    (stale / "moolakata.db").write_bytes(b"half a database")
+    maintenance.backup(keyed_config, store)
+    assert not stale.exists()
+    aside = keyed_config.data_dir / "keyring.next.set-aside-20260101-000000"
+    aside.write_text(store.keys.ring.to_json())
+    found = copies.find(keyed_config, aside.name)
+    assert found is not None and found.kind == "keyring"
+    copies.remove(found)
+    assert not aside.exists()
 
 
 def test_a_keyring_next_nothing_explains_is_set_aside_never_deleted(
@@ -632,9 +764,8 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     ]
     assert all(copies.opens_with(c, store.keys) == "current" for c in found)
 
-    # Rotation through the running server (S15.7.1): the keyring under the new phrase at
-    # once, one copy deleted now, and a re-encryption scheduled that will rewrite one copy and
-    # leave the other.
+    # Rotation in the running server (S15.7.1): the keyring under the new phrase at once, and
+    # a re-encryption journaled that will rewrite one copy, delete one and leave the other.
     from moolakata.store import reencrypt as journaled
 
     new_key = os.urandom(16)
@@ -645,18 +776,20 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
         {b.name: "reencrypt", aside.name: "delete", "moolakata-before-0009-t.db": "leave"},
     )
     assert outcomes == {
-        b.name: "re-encrypted at the next unlock",
-        aside.name: "deleted",
+        b.name: "re-encrypted at the restart",
+        aside.name: "deleted at the restart",
         "moolakata-before-0009-t.db": "left",
     }
-    assert journaled.journal(keyed_config)["why"] == "rotation"
+    j = journaled.journal(keyed_config)
+    assert j["why"] == "rotation" and j["to"] == master.key_id(new_key)
     assert maintenance.verify_backup(keyed_config, master_key) == b, "still under its day's key"
     assert [master.fingerprint(p.master_id) for p in store2.keys.ring.previous] == [
         master.fingerprint(master_key)
     ]
 
     # The next unlock, with the new phrase: everything under a new data key, the backup
-    # rewritten under it and the new phrase, the pre-upgrade copy left under the old one.
+    # rewritten under it and the new phrase, the copy chosen deleted, the pre-upgrade copy
+    # left under the old one, and the run's own first backup rewritten last (CR3-60).
     store2.db.dispose()
     store3 = maintenance.open_store(keyed_config, new_key)
     assert store3.keys.ring.data_key_id != store.keys.ring.data_key_id
@@ -664,13 +797,14 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     first = journaled.report(keyed_config)["backup"]
     assert copies.opens_with(found[b.name], store3.keys) == "current"
     assert copies.opens_with(found["moolakata-before-0009-t.db"], store3.keys) == "previous"
-    assert copies.opens_with(found[first], store3.keys) == "phrase", "the old data key"
+    assert copies.opens_with(found[first], store3.keys) == "current"
+    assert aside.name not in found
     assert maintenance.verify_backup(keyed_config, new_key, b) == b
     assert journaled.report(keyed_config)["copies"] == {
         b.name: "re-encrypted",
+        aside.name: "deleted",
         "moolakata-before-0009-t.db": "left",
-        # The backup the re-encryption made first, under the replaced data key.
-        journaled.report(keyed_config)["backup"]: "left",
+        first: "re-encrypted",
     }
     store3.db.dispose()
 
@@ -730,7 +864,7 @@ def test_a_restore_after_a_reencryption_rewraps_the_receipts_and_resets_the_link
         s.add(link)
     made = maintenance.backup(keyed_config, store)
     old_receipts = store.keys.keys.receipts
-    store = maintenance.reencrypt(keyed_config, store, master_key)
+    store = maintenance.reencrypt(keyed_config, store, master_key, {made.name: "leave"})
     assert not journaled.opens(keyed_config.receipts_dir / "r1.mkr", old_receipts, "r1")
     store.db.dispose()
     maintenance.restore(keyed_config, made, master_key)
@@ -756,7 +890,7 @@ def test_a_restore_under_an_earlier_phrase_asks_first(store, keyed_config, maste
     store2.db.dispose()
     from moolakata.store import reencrypt as journaled
 
-    journaled.cancel(keyed_config)
+    (keyed_config.data_dir / journaled.JOURNAL).unlink()  # as if never scheduled
     asked = []
     with pytest.raises(RefuseStart, match="current phrase stays"):
         maintenance.restore(
@@ -797,7 +931,7 @@ def test_an_offline_backup_needs_the_server_stopped_and_changes_nothing(
     journaled.schedule(keyed_config, {}, None, "settings")
     with pytest.raises(RefuseStart, match="re-encryption is pending"):
         maintenance.open_store(keyed_config, master_key, read_only=True)
-    journaled.cancel(keyed_config)
+    (keyed_config.data_dir / journaled.JOURNAL).unlink()  # as if never scheduled
     st = maintenance.open_store(keyed_config, master_key, read_only=True)
     with pytest.raises(Exception), st.db.engine.begin() as conn:  # noqa: B017 - refused
         conn.exec_driver_sql("PRAGMA query_only = 1")

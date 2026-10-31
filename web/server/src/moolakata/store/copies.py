@@ -1,8 +1,10 @@
 """The copies on this host (requirements S15.7): backups in the backup directory, the copies
-made before a migration (`pre-upgrade/`) and the folders a restore set aside
-(`before-restore-*/`). Each carries its own keyring, so it opens with the phrase of its day
-for as long as it exists, and so a rotation can re-wrap it and a re-encryption rewrite it. The
-host's own snapshots and backups are copies too, which nothing here can see."""
+made before a migration (`pre-upgrade/`), the folders a restore set aside
+(`before-restore-*/`), and a new keyring a re-encryption left unexplained, set aside beside the
+keyring (`keyring.next.set-aside-*`: a data key nothing was written under). Each carries its
+own keyring, so it opens with the phrase of its day for as long as it exists, and so a
+rotation can re-wrap it and a re-encryption rewrite it. The host's own snapshots and backups
+are copies too, which nothing here can see."""
 
 import contextlib
 import datetime as dt
@@ -20,11 +22,12 @@ from .db import WrongKey
 BACKUP_PREFIX = "moolakata-"
 PRE_UPGRADE = "pre-upgrade"
 BEFORE_RESTORE = "before-restore-"
+SET_ASIDE_RING = "keyring.next.set-aside-"
 
 
 @dataclass
 class Copy:
-    kind: str  # backup, pre-upgrade, before-restore
+    kind: str  # backup, pre-upgrade, before-restore, keyring
     name: str
     path: Path  # the folder (a backup, a before-restore) or the database file (pre-upgrade)
     keyring: Path
@@ -110,6 +113,21 @@ def copies(config: Config) -> list[Copy]:
                     "what a restore replaced",
                 )
             )
+    # Listed so it can be removed like any copy (CR3-299): it holds a data key, wrapped.
+    for p in sorted(config.data_dir.glob(SET_ASIDE_RING + "*")):
+        if p.is_file():
+            out.append(
+                Copy(
+                    "keyring",
+                    p.name,
+                    p,
+                    p,
+                    _mtime(p),
+                    _bytes(p),
+                    _ring(p),
+                    "a new keyring a re-encryption left unexplained, set aside",
+                )
+            )
     return out
 
 
@@ -131,7 +149,9 @@ def opens_with(c: Copy, current: master.Unlocked) -> str:
 
 
 def remove(c: Copy) -> None:
-    if c.kind == "pre-upgrade":
+    if c.kind == "keyring":
+        c.path.unlink(missing_ok=True)
+    elif c.kind == "pre-upgrade":
         c.path.unlink(missing_ok=True)
         c.keyring.unlink(missing_ok=True)
     else:

@@ -40,7 +40,7 @@ def test_fingerprint_form():
     assert master.key_id(bytes(16)) == master.key_id(bytes(16))
 
 
-def test_init_writes_only_the_keyring_and_refuses_a_second_time(keyed_config, master_key, tmp_path):
+def test_a_keyring_is_all_that_is_written_and_only_once(keyed_config, master_key, tmp_path):
     """S15.4: the master key is the phrase; nothing but the wrapped data key is written."""
     ring = keyed_config.keyring_path
     assert ring.exists() and os.stat(ring).st_mode & 0o777 == 0o600
@@ -49,7 +49,7 @@ def test_init_writes_only_the_keyring_and_refuses_a_second_time(keyed_config, ma
     assert master_key.hex() not in ring.read_text()
     assert " ".join(phrase.to_words(master_key)) not in ring.read_text()
     with pytest.raises(RefuseStart, match="already exists"):
-        cli.init(keyed_config, say=lambda _: None, confirm=False)
+        master.create_keyring(keyed_config, os.urandom(16))
     assert master.unlock_keys(keyed_config, master_key).master_id == master.key_id(master_key)
     assert cli.fingerprint_of(keyed_config) == master.fingerprint(master_key)
 
@@ -57,26 +57,6 @@ def test_init_writes_only_the_keyring_and_refuses_a_second_time(keyed_config, ma
 def test_a_wrong_phrase_does_not_unlock_the_keys(keyed_config):
     with pytest.raises(master.WrongPhrase, match="wrapped by"):
         master.unlock_keys(keyed_config, os.urandom(16))
-
-
-def test_init_waits_for_three_words(config):
-    answers = iter(["wrong", "wrong", "wrong"] * 3)
-    with pytest.raises(RefuseStart, match="not confirmed"):
-        cli.init(config, ask=lambda _: next(answers), say=lambda _: None)
-    assert not config.keyring_path.exists()
-
-
-def test_init_saves_when_the_words_are_right(config, monkeypatch):
-    made = {}
-    real = master.new_master
-    monkeypatch.setattr(master, "new_master", lambda: made.setdefault("k", real()))
-
-    def ask(prompt):
-        n = int(prompt.split()[1].rstrip(":"))
-        return phrase.to_words(made["k"])[n - 1][:4]
-
-    key = cli.init(config, ask=ask, say=lambda _: None)
-    assert master.unlock_keys(config, key).master_id == master.key_id(key)
 
 
 def test_verify_compares_without_changing_anything(keyed_config, master_key):
@@ -108,76 +88,18 @@ def test_host_commands_queue_what_they_did_for_activity(keyed_config):
     taken = maintenance.take_host_events(keyed_config)
     assert [e["kind"] for e in taken] == ["key.verified", "key.rotated"]
     assert taken[1]["detail"] == {"from": "mk-1", "to": "mk-2"} and taken[0]["at"]
-    assert not queued.exists() and maintenance.take_host_events(keyed_config) == []
-
-
-def _rotate(config, old_key, monkeypatch):
-    """Rotate offline: the old phrase typed and the new one's words typed back."""
-    made = {}
-    real = master.new_master
-
-    def remember():
-        made["k"] = real()
-        return made["k"]
-
-    monkeypatch.setattr(master, "new_master", remember)
-
-    def ask(prompt):
-        n = int(prompt.split()[1].rstrip(":"))
-        return phrase.to_words(made["k"])[n - 1]
-
-    out = cli.rotate(
-        config,
-        ask=ask,
-        say=lambda _: None,
-        ask_hidden=lambda _: " ".join(phrase.to_words(old_key)),
-        running=False,
-        all_copies="reencrypt",
-    )
-    return out, made["k"]
-
-
-def test_rotate_offline_reencrypts_and_records_the_previous_key_in_the_keyring(
-    keyed_config, store, master_key, monkeypatch, tmp_path
-):
-    """S15.7.1: a rotation always re-encrypts: offline, with the old phrase typed, at once."""
-    config, old_key = keyed_config, master_key
-    old = master.unlock_keys(config, old_key)
-    store.db.dispose()
-    (old_fp, new_fp), new_key = _rotate(config, old_key, monkeypatch)
-    ring = master.read_keyring(config.keyring_path)
-    assert [master.fingerprint(p.master_id) for p in ring.previous] == [old_fp]
-    new = master.unlock_keys(config, new_key)
-    assert new.keys.database != old.keys.database, "a new data key, not only a new wrap"
-    again = maintenance.open_store(config, new_key)
-    again.db.dispose()
-    assert master.fingerprint(new.master_id) == new_fp != old_fp
-    with pytest.raises(master.WrongPhrase):
-        master.unlock_keys(config, old_key)
-    # Nothing of either phrase was written anywhere.
-    for p in tmp_path.rglob("*"):
-        if p.is_file():
-            text = p.read_bytes()
-            assert old_key not in text and new_key not in text, p
-
-
-def test_rotate_offline_refuses_a_wrong_phrase_or_a_pending_reencryption(config, monkeypatch):
-    cli.init(config, say=lambda _: None, confirm=False)
-    before = config.keyring_path.read_bytes()
-    with pytest.raises(RefuseStart, match="not this server's key"):
-        _rotate(config, os.urandom(16), monkeypatch)
-    assert config.keyring_path.read_bytes() == before
-    cli.pending_reencrypt(config).write_text("{}")
-    held = maintenance.lock_data_dir(config, "test")
-    with pytest.raises(RefuseStart, match="server is running"):
-        cli.rotate(
-            config, ask=lambda _: "", say=lambda _: None, ask_hidden=lambda _: "", running=False
-        )
-    held.close()
-    with pytest.raises(RefuseStart, match="re-encryption is pending"):
-        cli.rotate(
-            config, ask=lambda _: "", say=lambda _: None, ask_hidden=lambda _: "", running=False
-        )
+    assert not queued.exists()
+    # Until they are recorded the taken events stay, and are taken again (CR3-355); a line
+    # appended meanwhile starts a new queue (CR3-305).
+    maintenance.queue_host_event(keyed_config, "db.backup", {"name": "b"})
+    assert [e["kind"] for e in maintenance.take_host_events(keyed_config)] == [
+        "key.verified",
+        "key.rotated",
+    ]
+    maintenance.host_events_taken(keyed_config)
+    assert [e["kind"] for e in maintenance.take_host_events(keyed_config)] == ["db.backup"]
+    maintenance.host_events_taken(keyed_config)
+    assert maintenance.take_host_events(keyed_config) == []
 
 
 def test_rotate_through_the_running_server_needs_no_old_phrase(store, keyed_config, master_key):
@@ -199,17 +121,9 @@ def test_rotate_through_the_running_server_needs_no_old_phrase(store, keyed_conf
         maintenance.rotate_running(keyed_config, store2, os.urandom(16))
 
 
-def test_rotate_offline_reencrypts_the_copies_on_the_host(
-    store, keyed_config, master_key, monkeypatch
-):
-    """S15.7.1: offline, with the old phrase typed, every copy chosen is re-encrypted too."""
-    b = maintenance.backup(keyed_config, store)
-    store.db.dispose()
-    (_old_fp, _new_fp), new_key = _rotate(keyed_config, master_key, monkeypatch)
-    assert maintenance.verify_backup(keyed_config, new_key, b) == b
-    with pytest.raises(RefuseStart):
-        maintenance.verify_backup(keyed_config, master_key, b)
-    # Asked per copy: Enter re-encrypts, 'd' deletes, 'l' leaves.
+def test_reencrypt_offline_asks_each_copy_its_choice():
+    """`keys reencrypt` with the server stopped (S15.7.2): Enter re-encrypts, 'd' deletes, 'l'
+    leaves."""
     answers = iter(["", "d", "l"])
     found = [
         {"name": n, "kind": "backup", "made": "2026-10-01T00:00:00", "bytes": 0, "opens": "current"}
@@ -222,72 +136,37 @@ def test_rotate_offline_reencrypts_the_copies_on_the_host(
     }
 
 
-def test_a_recovery_sheet_goes_to_the_terminal_only(config, monkeypatch):
-    """S15.4.4 (K10): the sheet and the words typed back never touch standard output, which
-    Docker's logs keep; without a terminal the command refuses."""
-    import builtins
-    import io
-
-    def no_tty():
-        raise OSError(6, "No such device or address")
-
-    monkeypatch.setattr(cli, "open_tty", no_tty)
-    with pytest.raises(RefuseStart, match="on a terminal only"):
-        cli.init(config)
-    assert not config.keyring_path.exists()
-    tty = io.StringIO()
-    monkeypatch.setattr(cli, "open_tty", lambda: tty)
-    printed = []
-    monkeypatch.setattr(builtins, "print", lambda *a, **k: printed.append(a))
-    key = cli.init(config, confirm=False)
-    assert " ".join(phrase.to_words(key)).split()[0] in tty.getvalue()
-    assert printed == [], "nothing on standard output"
-
-
-ON_A_TERMINAL = """
-import os, sys
-os.close(os.open(os.ttyname(0), os.O_RDWR))  # the pty becomes this session's terminal
-from moolakata.keys.cli import Terminal
-t = Terminal()
-t.say("the sheet")
-sys.stdout.write(t.ask("word 3? ").strip() + "\\n")
-"""
-
-
-def test_the_terminal_opens_on_a_real_one():
-    """`keys init` and `keys rotate` reach the sheet's terminal on a real one: a terminal can't
-    seek, so it is opened as getpass opens it, never as a file to read and write."""
-    import pty
-    import select
-    import subprocess
-    import sys
+def test_a_break_glass_code_works_once_for_fifteen_minutes(monkeypatch):
+    """S15.5.2: the code stands in for a lost phrase once; typed any case, with or without its
+    dashes; a new one replaces the last; it expires."""
     import time
 
-    leader, follower = pty.openpty()
-    child = subprocess.Popen(
-        [sys.executable, "-c", ON_A_TERMINAL],
-        stdin=follower,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
-    os.close(follower)
-    shown = b""
-    deadline = time.monotonic() + 30
-    while b"word 3? " not in shown:
-        ready, _, _ = select.select([leader], [], [], max(0, deadline - time.monotonic()))
-        assert ready, f"no prompt on the terminal: {shown!r}"
-        try:
-            chunk = os.read(leader, 1024)
-        except OSError:  # the terminal closed: the command ended before it asked
-            chunk = b""
-        if not chunk:
-            child.wait(timeout=30)
-            pytest.fail(f"it ended before it asked: {child.stderr.read().decode()}")
-        shown += chunk
-    os.write(leader, b"abandon\n")
-    out, err = child.communicate(timeout=30)
-    os.close(leader)
-    assert child.returncode == 0, err.decode()
-    assert b"the sheet" in shown
-    assert out == b"abandon\n", "the answer came back from the terminal, and only it"
+    from moolakata.keys import breakglass
+
+    bg = breakglass.BreakGlass()
+    assert not bg.use("BG-0000-0000")
+    code, _ = bg.issue()
+    assert code.startswith("BG-") and len(code) == 12
+    assert not bg.use("BG-AAAA-AAAA")
+    assert bg.use(code.lower().replace("-", " "))
+    assert not bg.use(code), "used once"
+    first, _ = bg.issue()
+    second, _ = bg.issue()
+    assert not bg.use(first) and bg.use(second)
+    late, _ = bg.issue()
+    now = time.monotonic()
+    monkeypatch.setattr(breakglass.time, "monotonic", lambda: now + breakglass.LIFE + 1)
+    assert not bg.use(late)
+
+
+def test_db_shell_under_run_asks_before_it_shows_anything(keyed_config, monkeypatch):
+    """CR3-369: as its container's first process, Docker's log keeps what it prints."""
+    import argparse
+
+    from moolakata.store import cli as db_cli
+
+    monkeypatch.setattr(db_cli, "configured", lambda _: keyed_config)
+    monkeypatch.setattr(os, "getpid", lambda: 1)
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+    monkeypatch.setattr(db_cli, "read_phrase", lambda: pytest.fail("asked for the phrase"))
+    assert db_cli._shell(argparse.Namespace(config=None)) == 1

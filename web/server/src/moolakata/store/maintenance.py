@@ -137,25 +137,42 @@ HOST_EVENTS = "host-events.jsonl"
 def queue_host_event(config: Config, kind: str, detail: dict) -> None:
     """A command run on the host, queued for Activity (S15.7.4): a one-off container has no
     phrase to open the database with, so the running server takes the queue at its next
-    unlock and every quarter hour (`take_host_events`)."""
+    unlock and every quarter hour (`take_host_events`). The line is appended under the file's
+    lock, to the file still at the queue's name: one the server took meanwhile is left for a
+    new one (CR3-305)."""
     config.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     line = json.dumps({"kind": kind, "at": clock.now().isoformat(), "detail": detail})
     path = config.data_dir / HOST_EVENTS
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    with os.fdopen(fd, "a") as f:
-        f.write(line + "\n")
+    while True:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                same = os.fstat(f.fileno()).st_ino == os.stat(path).st_ino
+            except FileNotFoundError:
+                same = False
+            if same:
+                f.write(line + "\n")
+                break
     if os.geteuid() == 0:
         os.chown(path, 10001, 10001)
 
 
 def take_host_events(config: Config) -> list[dict]:
-    """The queued host events, removed from the queue."""
+    """The queued host events, moved aside under a private name first, so a line appended
+    meanwhile starts a new queue (CR3-305). The moved file stays until `host_events_taken`,
+    once the events are recorded, so a failed record loses none (CR3-355); a file left from
+    such a failure is taken again first."""
     path = config.data_dir / HOST_EVENTS
-    try:
-        text = path.read_text()
-    except FileNotFoundError:
-        return []
-    path.unlink()
+    taking = config.data_dir / (HOST_EVENTS + ".taking")
+    if not taking.exists():
+        try:
+            os.replace(path, taking)
+        except FileNotFoundError:
+            return []
+    with open(taking) as f:
+        fcntl.flock(f, fcntl.LOCK_EX)  # a writer that opened it before the move finishes
+        text = f.read()
     out = []
     for line in text.splitlines():
         try:
@@ -163,6 +180,10 @@ def take_host_events(config: Config) -> list[dict]:
         except ValueError:
             continue
     return out
+
+
+def host_events_taken(config: Config) -> None:
+    (config.data_dir / (HOST_EVENTS + ".taking")).unlink(missing_ok=True)
 
 
 # ---------- backups ----------
@@ -189,9 +210,8 @@ def backup(config: Config, store: Store, now: dt.datetime | None = None) -> Path
     while (config.backup_dir / (BACKUP_PREFIX + now.strftime("%Y%m%d-%H%M%S"))).exists():
         now += dt.timedelta(seconds=1)
     name = BACKUP_PREFIX + now.strftime("%Y%m%d-%H%M%S")
+    clear_parts(config)
     part = config.backup_dir / (name + ".part")
-    if part.exists():
-        shutil.rmtree(part)
     part.mkdir(mode=0o700)
     key = store.keys.keys.sqlcipher_key
     copy.export(store.db.engine, part / "moolakata.db", key)
@@ -218,6 +238,17 @@ def backup(config: Config, store: Store, now: dt.datetime | None = None) -> Path
     return final
 
 
+def clear_parts(config: Config) -> None:
+    """A backup cut off part-way (a stop, a full disk) is removed: at the next backup and at
+    the server's start, never listed nor kept under an old key (CR3-299). Only one process
+    makes backups at a time, under the data directory's lock or the maintenance lock."""
+    if not config.backup_dir.is_dir():
+        return
+    for p in config.backup_dir.glob(BACKUP_PREFIX + "*.part"):
+        shutil.rmtree(p, ignore_errors=True)
+        log.info("backup %s, cut off part-way, removed", p.name)
+
+
 def backups(config: Config) -> list[Path]:
     if not config.backup_dir.is_dir():
         return []
@@ -228,8 +259,25 @@ def backups(config: Config) -> list[Path]:
     )
 
 
+KEEP_AT_LEAST = 3
+
+
+def _day(p: Path) -> str:
+    return p.name[len(BACKUP_PREFIX) :].split("-")[0]  # YYYYMMDD, in UTC
+
+
+def backup_days(config: Config) -> int:
+    """How many days have a backup: what *Copies kept* counts (S16.12)."""
+    return len({_day(p) for p in backups(config)})
+
+
 def prune(config: Config, keep: int) -> list[Path]:
-    gone = backups(config)[:-keep] if keep > 0 else []
+    """Every backup of the `keep` most recent days that have one is kept, and the rest go
+    (S14.6): a second backup the same day, *Back up now*, never pushes out an earlier day's,
+    and never fewer than three days are kept (CR3-63)."""
+    found = backups(config)
+    days = sorted({_day(p) for p in found})[-max(keep, KEEP_AT_LEAST) :]
+    gone = [p for p in found if _day(p) not in days]
     for p in gone:
         shutil.rmtree(p)
         log.info("backup %s pruned", p.name)
@@ -437,14 +485,16 @@ def _rewrap_restored(config: Config, aside: Path, master_key: bytes, ask) -> lis
 
 
 def after_restore(config: Config) -> dict | None:
-    """At the unlock after a restore: what it left to do, taken (`restored.json`)."""
-    path = config.data_dir / RESTORED_MARK
+    """At the unlock after a restore: what it left to do (`restored.json`), kept until
+    `restore_checked` says it is done, so a failed unlock does it again (CR3-298)."""
     try:
-        mark = json.loads(path.read_text())
+        return json.loads((config.data_dir / RESTORED_MARK).read_text())
     except FileNotFoundError, ValueError:
         return None
-    path.unlink()
-    return mark
+
+
+def restore_checked(config: Config) -> None:
+    (config.data_dir / RESTORED_MARK).unlink(missing_ok=True)
 
 
 def restore_report(config: Config) -> dict | None:
@@ -502,31 +552,37 @@ def rotate_running(
     store: Store,
     new_master: bytes,
     choices: dict[str, str] | None = None,
-    old_master: bytes | None = None,
+    by: str | None = None,
 ) -> tuple[Store, dict[str, str]]:
-    """Rotation through the running server (S15.7.1): it holds the data key, so no old phrase
-    is needed. The keyring is wrapped under the new master key at once, the old one recorded,
-    and a re-encryption scheduled for the next unlock, with the new phrase, carrying each
-    copy's choice; a copy chosen for deletion goes now."""
+    """Rotation (S15.7.1) in the running server, which holds the data key, so the current
+    phrase is not needed to wrap it. The journal comes first, naming the new master key and
+    each copy's choice (re-encrypt by default), then the keyring wrapped under the new key
+    with the old one recorded (CR3-296); the server then restarts, and the unlock with the new
+    phrase re-encrypts and carries out the copies' choices (S15.7.2). Returns the store under
+    the new keyring, and what each copy will meet there."""
     from . import copies, reencrypt
 
     if reencrypt.pending(config):
         raise RefuseStart("a re-encryption is pending: it finishes at the next unlock")
-    choices = dict(choices or {})
+    choices = choices or {}
+    found = copies.copies(config)
+    planned = {c.name: choices.get(c.name, "reencrypt") for c in found}
+    reencrypt.schedule(config, planned, by, "rotation", to=master.key_id(new_master))
     at = master.now()
     ring = master.rotated(store.keys.ring, store.keys.data_key, new_master, at)
     master.write_keyring(config.keyring_path, ring)
     new = master.Unlocked(ring.master_id, ring, store.keys.keys, store.keys.data_key)
-    outcomes, later = {}, {}
-    for c in copies.copies(config):
-        choice = choices.get(c.name, "reencrypt")
+    outcomes = {}
+    for c in found:
+        choice, how = planned[c.name], copies.opens_with(c, store.keys)
         if choice == "delete":
-            copies.remove(c)
-            outcomes[c.name] = "deleted"
-        else:
-            later[c.name] = choice
-            outcomes[c.name] = (
-                "re-encrypted at the next unlock" if choice == "reencrypt" else "left"
-            )
-    reencrypt.schedule(config, later, None, "rotation")
+            outcomes[c.name] = "deleted at the restart"
+        elif choice == "leave" or c.kind == "keyring":
+            outcomes[c.name] = "left"
+        elif how == "current":
+            outcomes[c.name] = "re-encrypted at the restart"
+        elif c.ring is None:
+            outcomes[c.name] = "left: its keyring cannot be read"
+        else:  # under the old phrase with an earlier data key, or an earlier phrase
+            outcomes[c.name] = f"left: needs the phrase of {master.fingerprint(c.ring.master_id)}"
     return Store(store.db, new), outcomes

@@ -339,6 +339,9 @@ FORMS = [
         "/settings/tax-tables",
     ),
     settings_form("Settings › Backups", "backups", 'form.card:has-text("Copies kept")'),
+    settings_form(
+        "Settings › Key storage's reminder", "keys", 'form.card:has-text("Remind admins")'
+    ),
     settings_form("Settings › Storage", "storage", 'form.card:has-text("Keep statements for")'),
     settings_form("Settings › Linked servers' address", "links", 'form:has-text("link address")'),
 ]

@@ -1,6 +1,7 @@
 """Two MoolaKata servers in one test, their link calls wired to each other's app."""
 
 import dataclasses
+import os
 from urllib.parse import urlsplit
 
 import httpx
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from moolakata import net
 from moolakata.app import Server, create_app
 from moolakata.config import Config
-from moolakata.keys import cli as keys_cli
+from moolakata.keys import master
 from moolakata.links import client as link_client
 from moolakata.store.maintenance import open_store
 from moolakata.store.repos.ledger import ensure_categories
@@ -22,7 +23,8 @@ def make_server(tmp_path, name: str) -> Server:
         data_dir=tmp_path / name / "data",
         backup_dir=tmp_path / name / "backups",
     )
-    key = keys_cli.init(cfg, say=lambda _: None, confirm=False)
+    key = os.urandom(16)
+    master.create_keyring(cfg, key)
     srv = Server(config=cfg, store=open_store(cfg, key), ready=True)
     # The test names resolve to an address on a LAN, as a peer's does (S13.5).
     srv.guard = net.Guard(resolver=lambda host, port: ["192.0.2.10"])

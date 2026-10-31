@@ -16,6 +16,16 @@ export const session = signal(null);
  * and the sign-in or locked screen says so (S12.15.6). */
 export const lostChanges = signal(false);
 export const ended = signal('');
+/** When the server was asked to restart for a re-encryption or a rotation (S15.7.2), 0 when
+ * it wasn't: the locked screen waits for it to come back, locked. */
+export const restarting = signal(0);
+
+/** The server restarts: the session goes, and the locked screen waits for it. */
+export function awaitRestart() {
+  session.value = null;
+  restarting.value = Date.now();
+  ended.value = 'locked';
+}
 
 export async function loadSession() {
   try {

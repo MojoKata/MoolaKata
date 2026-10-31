@@ -2925,6 +2925,7 @@ ol.phrase li::marker {
 "dialog-category":"# A category's retention\n\n## Keep receipts for {#keep-receipts-years}\n\nHow many years receipts in this category are kept after the record they are attached to ended: a\ntransaction on its date, a purchase once the lot is sold. Empty keeps them for ever, or as its parent\ncategory says. Under 7 years, note that 7 covers every IRS audit window.\n",
 "dialog-connection":"# New connection\n\nA sign-in at one institution, kept by the MoolaKata Connector. What you type is encrypted in\nyour browser for the connector before it is sent: MoolaKata keeps only what it can't read, until\nthe connector collects it, and never shows it back. Sealing asks for your password again when it\nwas given over 10 minutes ago, and waits until an admin has confirmed the connector's pairing.\n\n## Institution {#driver}\n\nWhich driver fetches it: **Schwab** (its official Trader API, signed in on Schwab's own page),\nor **OFX Direct Connect** (a bank or credit union that still runs an OFX server, with a username\nand password). An institution neither reaches is kept current by the statements and exports\nyou download and upload yourself.\n\n## Connection name {#label}\n\nA name to tell it apart: *Schwab login*, *Credit union*.\n\n## OFX server address {#ofx-url}\n\nThe institution's OFX Direct Connect address, from the institution or a directory such as\nofxhome.com. The sign-in you seal is bound to this address: the connector sends it there and\nnowhere else, and if the address is changed later the connection asks for the sign-in again.\n\n## ORG {#ofx-org}\n\nThe institution's OFX organisation name, as the directory lists it.\n\n## FID {#ofx-fid}\n\nThe institution's OFX id, as the directory lists it.\n\n## Routing number {#ofx-bank-id}\n\nThe bank's routing number, which a bank account's OFX request names; a card or an investment\naccount has none.\n\n## Account type {#ofx-account-type}\n\nChecking, savings, credit card or investment, as the OFX server expects it.\n\n## Account number {#ofx-account-id}\n\nThe account's number at the institution, which the OFX server asks for. It is sealed with the\ncredentials, never shown here.\n\n## App key {#schwab-app-key}\n\nYour Schwab developer account's app key, which the driver signs in with. It isn't a secret: the\nsign-in is.\n\n## How you sign in {#how-you-sign-in}\n\n**Here, sealed for the connector**: the usual way; your browser encrypts what you type to the\nconnector's key, and MoolaKata can't open it. **An admin types it on the connector's host**: the\nstricter way; the dialog shows the command, and MoolaKata never handles the credentials at all.\n\n## App secret {#schwab-app-secret}\n\nYour Schwab app's secret, which the driver signs in with beside the app key. A secret: sealed\nfor the connector with the sign-in, never seen by MoolaKata.\n\n## The address you landed on {#landed}\n\nAfter signing in on the institution's own page, the address your browser lands on. It carries\nthe sign-in for the connector; sealed here like a password. Schwab's lasts seven days.\n\n## Username\n\nYour username at the institution. Sealed for the connector.\n\n## Password\n\nYour password at the institution. Sealed for the connector, never seen by MoolaKata.\n\n## Connect command {#connect-command}\n\nFor the stricter way: an admin runs it on the connector's host and types the credentials there.\n",
 "dialog-connector-pair":"# Pair a connector\n\n## Pairing code {#pairing-code}\n\nPaste it into **Pair** on the connector's page, with its words, within 24 hours, or run the\ncommand under it on the connector's host. The code holds this server's address, its\nkey's fingerprint and a one-time secret; it works once. The connector checks the fingerprint\nbefore it sends anything, makes its own keys if it has none, and introduces itself. Both sides\nthen show the connector's fingerprint: compare them before trusting it. Pairing another\nconnector replaces the one paired, as Unpair does.\n",
+"dialog-copies-kept":"# Copies kept\n\nHow many days of backups the server keeps: every backup of each of the most recent days that\nhave one, 3 to 365. A second backup the same day, **Back up now**, never pushes out an earlier\nday's.\n\n## Days of backups kept\n\nMore days keeps more. Fewer days than the backups there are deletes some at the next backup,\nwhich can't be undone.\n\n## Recovery phrase\n\nAsked only when the number is fewer than the days of backups kept: the server's 12 words, with\nyour password, so a session someone took over can't delete the backups. A wrong phrase counts\nlike a wrong password.\n",
 "dialog-copy":"# Copy as scenario\n\nA new budget of yours with the same accounts and plan from this month, to try another method or\nplan beside the one you follow, which doesn't change.\n\n## Name\n\nSuch as _Household, envelope_.\n\n## Method\n\n**Tracking** or **envelope**. Each plan line becomes the same amount, planned or assigned each month.\n\n## Bring this month's moves {#bring-this-month-s-moves}\n\nThis month's moves come along, so the scenario starts from where the budget stands. Moves to or from\nTo Budget come along only into an envelope budget.\n",
 "dialog-copy-key":"# A linked copy's access key\n\n## The words {#words}\n\nTwelve words from the BIP39 list, the last carrying a checksum: the only way into this link's copy.\nMoolaKata keeps no copy of them, in any form. Save them in the household's password manager, where\nthe people this link's shares name can reach them.\n\n## I have saved the 12 words {#words-saved}\n\n**Done** waits for this tick. If the words are ever lost, **Reset copy** makes new ones, and the\ncopy is pulled again in full.\n",
 "dialog-corporate-action":"# Record a corporate action\n\nWhat a company did to the shares you hold: their lots are reshaped or moved to the new shares with\nthe days they were held, never sold and bought again. Delete either side of one on its transactions\nand both go.\n\n## Holding\n\nThe shares it happened to, in one account.\n\n## Action\n\n**Split or reverse split**: more or fewer shares, the same basis. **Symbol change**: the same shares\nunder a new symbol. **Spin-off**: new shares of another company, with part of the basis. **Merger**:\nthe acquirer's shares, cash, or both, in place of yours.\n\n## Date\n\nThe day it took effect.\n\n## New symbol\n\nThe new company's or the new name's symbol. A merger paid all in cash has none: it is a sale.\n\n## New shares for each held\n\nHow many new shares each one you held became: 2 for a 2-for-1 split, 0.1 for a 1-for-10 reverse,\n0.3333 for one new share for every three.\n\n## Basis to the new shares\n\nFor a spin-off, the share of your basis that moves to the new company, in percent, as the company's\nForm 8937 states it; the rest stays with the shares you held.\n\n## Cash for each share held\n\nWhat a merger paid in cash for each share, besides any shares. Cash in lieu of a fractional share is\na sale of its own: record it as one.\n\n## A new share's price that day\n\nWith cash and shares, the cash is a gain only as far as the gain goes (IRC §356), and the price of\nthe acquirer's share that day tells the gain. The gain shows on Form 8949; the new shares' basis is\nthe old less the cash, plus that gain.\n",
@@ -2963,6 +2964,7 @@ ol.phrase li::marker {
 "dialog-recovery-codes":"# Recovery codes\n\nTen codes, each of which signs you in once in place of a code from the app. They are shown only now:\nMoolaKata keeps only a fingerprint of each.\n\nPrint them or keep them in a password manager, not on the phone that has the app. Profile shows how\nmany are left; make new ones before they run out.\n",
 "dialog-relationship":"# A relationship\n\nHow you are related to one of the household's people. You add relationships you are in; an admin\nadds any. Mothers, grandparents, cousins and in-laws are worked out from these.\n\n## Person\n\nFor an admin: whose relationship it is. Anyone else adds and changes only their own.\n\n## I am the {#relation}\n\nSpouse, couple, parent, child, friend, colleague, or family (with a label). At most one spouse at a\ntime, and no one is their own ancestor. A spouse counts for wash sales and a joint tax book once\nboth people have confirmed the marriage: the other confirms from their own Profile, and an admin\nconfirms for someone who isn't a user. Until then it counts for gifts only, and a change to it is\nconfirmed again.\n\n## Other person {#other-person}\n\nOne of the household's people.\n\n## From {#from-date}\n\nWhen it began. Optional.\n\n## To {#to-date}\n\nWhen it ended; empty while it holds. A divorce is the marriage's end date; a death ends a marriage\non that day by itself. The same two people can marry again: a new relationship.\n\n## Label\n\nFor family: godmother, aunt by marriage.\n\n## Remove\n\nRemoves a relationship entered by mistake. One that ended keeps its dates instead, so past years\nshow that year's family.\n",
 "dialog-remove-copy":"# Remove a copy\n\nA copy on this host, removed for good: a backup, the database as it was before a migration, or what\na restore set aside.\n\n## Recovery phrase\n\nThe server's 12 words, as they are now. Removing a copy can't be undone, so it asks for the phrase\nas well as your password: a session someone took over can't delete the backups. A wrong phrase\ncounts like a wrong password.\n",
+"dialog-rotate":"# Rotate the master key\n\nA new master key and recovery phrase, and with them a new data key. MoolaKata then restarts,\nlocked: unlock it with the new phrase, and it re-encrypts the database, the receipt files and\nevery secret before it serves, the copies on this host as you choose. For a leaked or lost\nphrase, or when the yearly reminder says it is time.\n\n## Current recovery phrase\n\nThe server's 12 words, as they are now, with your password: a session someone took over can't\nchange the phrase the household holds. A wrong phrase counts like a wrong password.\n\n## The phrase is lost {#lost-phrase}\n\nWhile the server runs, a lost phrase is replaced by rotating. A **break-glass code** stands in\nfor it: run `docker compose exec moolakata moolakata keys break-glass` on the host and type the\ncode it shows. It works once, for 15 minutes, and every admin is told one was asked for. Once\nthe server stops, a lost phrase can't be replaced, so rotate now.\n\n## Break-glass code\n\nThe code from the host, such as `BG-7K3Q-9XWM`, in any case, with or without its dashes.\n\n## The copies on this host {#copies-at-re-encryption}\n\nFor each copy, what the re-encryption does with it: **Re-encrypt** (the default) rewrites it\nunder the new data key and the new phrase; **Delete** removes it; **Leave as it is** keeps it\nunder its old keys, so it still opens with the old phrase. A copy under an earlier phrase can\nonly be left or deleted.\n\n## The new recovery phrase\n\nShown once: write the 12 words on paper, in order, and keep two copies in two places, one of\nthem offline. Keep the old phrase too until every copy made under it is gone, the host's own\nsnapshots and backups among them.\n\n## Words back\n\nThree of the new phrase's words, from your sheet. Four letters of each are enough. **Rotate and\nrestart** then rotates, and MoolaKata restarts; the page waits for it on the locked screen.\n",
 "dialog-rule":"# A rule\n\nWhat a transaction must match, and what the rule sets. It needs at least one of a category, a\nnew payee or a tag.\n\n## Payee contains\n\nText the payee holds as the bank writes it, case aside: `whole foods` matches `WHOLE FOODS\n#123`. Start with `re:` for a regular expression: `re:^AMZN` matches a payee that starts with\nAMZN. A repeat inside a repeated group, such as `(a+)+`, is refused: on a payee that nearly\nmatches it could run for ever.\n\n## Amount from\n\nThe smallest amount it matches, without its sign: 20 matches −$20.00 and $20.00. Leave it empty\nfor any.\n\n## Amount to\n\nThe largest amount it matches. With **Amount from**, a range: 0 to 20 for small purchases.\n\n## Direction\n\nMoney in, money out, or either: a payroll deposit is money in, a refund from a shop too.\n\n## Account\n\nOne account, or any of those you can change.\n\n## Category\n\nWhat a matching transaction is filed under, when it has no category yet. **Leave it as it is**\nfor a rule that only renames or tags.\n\n## Rename to\n\nThe payee shown in your lists: `Amazon` for `AMZN Mktp US*2K4LL`. The bank's text stays beside\nit, and the rules match on the bank's text.\n\n## Tags\n\nYour own tags, added to each match: `coffee, work`.\n",
 "dialog-rules":"# Categorisation rules\n\nYour rules for the transactions you import: each says what a payee looks like and what to set\nwhen one matches. They are yours alone, never shared, and never sent to a linked server.\n\n## First match wins {#first-match}\n\nA transaction takes the first rule, top to bottom, that it matches, so a narrow rule goes above a\nbroad one: `re:^KROGER FUEL` above `kroger`. Move a rule with **↑** and **↓**.\n\nRules set a category only where there is none, and never touch a split, a transfer between your\naccounts or a trade. They run on every file, statement and connector fetch you import, and on the\nreceipts you add: a rule that renames a payee renames the merchant a receipt names.\n\n**Apply to the uncategorised** runs them now over the uncategorised transactions in the accounts\nyou can change. Activity records how many it set, never an amount.\n",
 "dialog-servicer-balance":"# Type the servicer's balance\n\n## Principal owed {#owed}\n\nThe principal still owed, from the servicer's statement or site. A difference from the schedule's\nbalance on that day shows on the Overview until it is explained.\n\n## As of\n\nThe statement's date.\n",
@@ -3003,7 +3005,7 @@ ol.phrase li::marker {
 "linked-receipts":"# Receipts\n\nThe receipts that came with what this household shares with you: only for accounts its owner\nshared with **Include receipts**. Each shows its payee, date and amount, as read where it was\nuploaded; click one to open it. It is decrypted as it is shown, never written out in plain, and\nchecked against the fingerprint its source sent. One marked **not arrived** came without its file,\nwhich is asked for again at each exchange; the rest of what is shared arrived without waiting\nfor it.\n\n## The header strip {#strip}\n\nWhich server this comes from, that it is read only, when it last synced, and who unlocked it and\nwhen it locks. **Lock now** locks it for everyone at once.\n",
 "linked-taxes":"# Taxes\n\nA tax book shared with you: its panels, as its filers' server worked them out. Everything here is read only and comes from that household's server; nothing is worked\nout again here.\n\n## The header strip {#strip}\n\nWhich server this comes from, that it is read only, when it last synced, and who unlocked it and\nwhen it locks. **Lock now** locks it for everyone at once.\n",
 "linked-transactions":"# Transactions\n\nThe latest transactions of each account shared with you, one account at a time. Everything here is read only and comes from that household's server; nothing is worked\nout again here.\n\n## The header strip {#strip}\n\nWhich server this comes from, that it is read only, when it last synced, and who unlocked it and\nwhen it locks. **Lock now** locks it for everyone at once.\n",
-"locked":"# MoolaKata is locked\n\nThe server has started and holds no key: the master key is the recovery phrase, which is\nnever stored. Until an admin enters it, the server serves this screen and nothing else, and\nnobody can sign in. It locks again at every restart.\n\n## Recovery phrase\n\nThe 12 words from the recovery sheet, in order, with spaces between them. Four letters of each\nword are enough. The eye button shows what was typed. The phrase is checked against the\nserver's keyring: a wrong phrase is refused, and ten wrong ones in a row are refused for a\nquarter of an hour. Every attempt is logged.\n\n## Unlock\n\nOpens the server. On the host, `docker compose exec moolakata moolakata keys unlock` does the\nsame: the two are equal ways in. Nothing of the phrase is kept once the data key is unwrapped.\nThe field doesn't autocorrect, capitalise, spell-check or remember what is typed, and masks it\nuntil the eye shows it.\n\n## Re-encrypting\n\nWhen a re-encryption is due (scheduled in Settings › Key storage, brought by a rotation, or\ninterrupted before), the unlock runs it before the server serves: a verified backup first,\nthen the database, the secrets and the receipt files under a new data key, and the copies on\nthe host as chosen. This screen shows how far it has come; sign-in opens when it is done.\n",
+"locked":"# MoolaKata is locked\n\nThe server has started and holds no key: the master key is the recovery phrase, which is\nnever stored. Until an admin enters it, the server serves this screen and nothing else, and\nnobody can sign in. It locks again at every restart.\n\n## Recovery phrase\n\nThe 12 words from the recovery sheet, in order, with spaces between them. Four letters of each\nword are enough. The eye button shows what was typed. The phrase is checked against the\nserver's keyring: a wrong phrase is refused, and ten wrong ones in a row are refused for a\nquarter of an hour. Every attempt is logged.\n\n## Unlock\n\nOpens the server. On the host, `docker compose exec moolakata moolakata keys unlock` does the\nsame: the two are equal ways in. Nothing of the phrase is kept once the data key is unwrapped.\nThe field doesn't autocorrect, capitalise, spell-check or remember what is typed, and masks it\nuntil the eye shows it.\n\n## Re-encrypting\n\nWhen a re-encryption is due (scheduled in Settings › Key storage, brought by a rotation, or\ninterrupted before), the unlock runs it before the server serves: a verified backup first,\nthen the database, the secrets and the receipt files under a new data key, and the copies on\nthe host as chosen. This screen shows how far it has come; sign-in opens when it is done.\n\n## Restarting\n\nAfter **Rotate** or **Re-encrypt now** in Settings › Key storage, MoolaKata restarts itself and\nthis page waits for it, then shows the locked screen: unlock it with the phrase (the new one,\nafter a rotation), and the re-encryption runs first. If it hasn't come back within a minute,\nstart it on the host (`docker compose up -d`).\n",
 "new-server":"# Welcome to MoolaKata\n\nA new server's first visit: its master key, then the admin's account. Everything MoolaKata keeps\nis encrypted under one master key, which is a recovery phrase of 12 words. You write it down;\nnothing keeps it for you. MoolaKata asks for it after every restart, and nobody can recover it if\nit's lost.\n\n## Show my recovery phrase\n\nMakes a new key and shows its 12 words. Every visit, and every browser, shows new words, and only\nthe ones you confirm become the key: whoever only looked at a phrase knows nothing of the key the\nserver keeps.\n\n## Your recovery phrase\n\nWrite the 12 words on paper, in order, with the fingerprint. Keep two copies in two places, one of\nthem offline, and never with the backups. Nothing shows them again; **Verify key** in Settings ›\nKey storage checks a copy later.\n\n## Words back {#words-back}\n\nThree of the words, by their number, from your sheet. Four letters of each are enough. A wrong\none is refused: check the sheet. **Back** shows the same words again.\n\n## Make the key\n\nWrites the key, opens the server, and goes on to the admin's account. From now on the server is\nlocked after every restart until someone enters the phrase.\n",
 "portfolio-holdings":"# Portfolio: Holdings\n\nWhat the portfolio's accounts hold, added up by instrument.\n\n![A portfolio's Holdings](shots/portfolio-holdings.png)\n\n## Weight\n\nEach holding's share of the portfolio's value, cash included.\n\n## Cost basis\n\nWhat you paid for what you hold, fees included.\n\n## Stale\n\nA price older than it should be: two trading days for a stock, or 90 days for a typed price.\n\n## Options · capital at risk {#capital-at-risk}\n\nThe options' market value in these accounts, and what they put at risk: each strategy's, and each\noption on its own as a single leg.\n",
 "portfolio-performance":"# Portfolio: Performance\n\nHow the portfolio grew, apart from the money you put in.\n\n![A portfolio's Performance](shots/portfolio-performance.png)\n\n## Value\n\nWhat the portfolio's accounts you can see are worth now.\n\n## Time-weighted return\n\nHow the investments themselves did over the range, whatever you put in or took out and when: each\nday's growth chained together. Use it to compare with a benchmark or a fund.\n\n## Money-weighted return (IRR) {#money-weighted-return}\n\nYour own return, a year, counting when your money went in: money added before a rise earns more of\nit. It differs from the time-weighted return when you added or took money out.\n\n## Contributed\n\nWhat went in less what came out over the range. **Growth** is the change in value that wasn't\ncontributed.\n\n## Range\n\nHow far back the chart goes.\n\n## Benchmark\n\nThe same money put into the benchmark on the same days: VT (world stocks), SPY (US large companies)\nor a 60/40 mix of VT and BND.\n\n## Returns by period\n\nThe time-weighted return of each account and the portfolio. Three and five years are shown a year\n(annualised); a dash means the history doesn't go back that far.\n",
@@ -3022,13 +3024,13 @@ ol.phrase li::marker {
 "receipts":"# Receipts\n\nPDFs and photos of receipts, invoices and statements, kept encrypted on this server and attached to\nthe transactions they belong to.\n\n![Receipts](shots/receipts.png)\n\n## Drop PDFs or photos here {#receipt-files}\n\nPDF, JPEG, PNG, WebP and HEIC (iPhone photos), many at once, each up to the size in Settings ›\nReceipts. The type is checked from the file itself. A file you already uploaded isn't stored twice:\nyou get the receipt you have.\n\n## Show\n\n**All** your receipts, and those attached to transactions in accounts shared with you; or the\n**Inbox**: your receipts attached to nothing yet.\n\n## Search\n\nMatches the text read from each receipt (`blue bottle`, `142.18`), and its payee, amount, file name,\nnotes and tags.\n\n## Being read\n\nEach upload is read on this server in the background: **Reading…** until it's done, then its fields\nare filled in. **Couldn't read it** says why; the receipt still works with its fields typed by hand.\n\n## Sharing\n\nA receipt is seen by whoever can read a transaction it is attached to. One attached to nothing is\nyours alone. Only you can delete your receipt, and only once nothing links to it.\n",
 "reset":"# Reset your password\n\n## New password {#password}\n\nEvery session of yours is signed out when it changes.\n",
 "settings-alerts":"# Alerts\n\nHow alerts behave for everyone. Each user chooses in Profile whether alerts reach them by email.\n\n## Alert when a source has failed for {#alert-source-hours}\n\nHow long a price source, or email, may keep failing before admins are alerted. A source that fails\nnow and then and recovers raises nothing; one that keeps failing raises one alert, which resolves by\nitself when it works again. 48 hours by default.\n\n## Daily summary at {#alert-summary-time}\n\nWhen the daily summary email goes to those who chose it, in each person's own time zone. It lists\nthe alerts opened since the last one, and none is sent on a day without any.\n",
-"settings-backups":"# Settings: Backups\n\nDaily copies of the database with its keyring, made, checked and pruned by the server. Never\nthe receipt files: the host backs up the data directory, files and all, and this copy exists so\nthat the live database the host picks up has a coherent, verified twin beside it. The backup\ndirectory belongs inside what the host backs up.\n\n![Settings: Backups](shots/settings-backups.png)\n\n## Time of day\n\nWhen the daily backup runs.\n\n## Copies kept\n\nHow many backups stay; older ones are deleted. 14 by default.\n\n## Back up now\n\nMakes a backup now.\n\n## Restoring\n\nBackups are encrypted as the data is, and open with the recovery phrase of their day; each\ncarries its own keyring, and a rotation re-encrypts it when told to. A restore puts the database\nand keyring back and leaves the receipt files where they are, re-wrapped to the backup's key when\na re-encryption came between. The directory is set on the host, outside the data directory.\n",
+"settings-backups":"# Settings: Backups\n\nDaily copies of the database with its keyring, made, checked and pruned by the server. Never\nthe receipt files: the host backs up the data directory, files and all, and this copy exists so\nthat the live database the host picks up has a coherent, verified twin beside it. The backup\ndirectory belongs inside what the host backs up.\n\n![Settings: Backups](shots/settings-backups.png)\n\n## Time of day\n\nWhen the daily backup runs.\n\n## Copies kept\n\nHow many days of backups stay: every backup of each of the most recent days that have one, 14\nby default, never fewer than 3. Older days' are deleted. **Change** sets it; fewer days than\nthe backups there are asks for the recovery phrase too.\n\n## Back up now\n\nMakes a backup now.\n\n## Restoring\n\nBackups are encrypted as the data is, and open with the recovery phrase of their day; each\ncarries its own keyring, and a rotation re-encrypts it when told to. A restore puts the database\nand keyring back and leaves the receipt files where they are, re-wrapped to the backup's key when\na re-encryption came between. The directory is set on the host, outside the data directory.\n",
 "settings-bitcoin":"# Bitcoin\n\nWhere self-custody wallets' balances and history come from: a public explorer, or the\nhousehold's own node. Admins only.\n\n![Bitcoin settings](shots/settings-bitcoin.png)\n\n## Explorer or node\n\n**Public: mempool.space** or **Blockstream**: nothing to set up, but the explorer sees which\naddresses are asked about. **Own node**, which keeps them private: a **mempool or Esplora**\ninstance, an **Electrum server** (Fulcrum or electrs), or **Bitcoin Core**, where MoolaKata keeps a\nwatch-only descriptor wallet for each wallet account. Only public keys and addresses are ever sent.\n\n## Esplora address {#esplora-url}\n\nYour own instance's API: `http://umbrel.local:3006/api`, for example.\n\n## Node address {#node-host}\n\nThe node's host name or address on your network. Naming it here lets MoolaKata reach it there,\npast the guard that otherwise keeps it off local addresses. Changing it clears the node's stored\npassword, so it is never sent to the new host.\n\n## Node port {#node-port}\n\n50002 for an Electrum server with TLS (50001 without); 8332 for Bitcoin Core.\n\n## TLS\n\nAn Electrum server's TLS, usually on. Its certificate is usually one it made itself, so it is\ntrusted on first use: **Test** shows its SHA-256 fingerprint, and once you confirm it, any other\ncertificate is refused, and admins alerted, until you confirm the new one.\n\n## Certificate\n\nThe Electrum server's certificate trusted, by its SHA-256 fingerprint. Confirm a new one only if\nyou know why it changed, such as the node being set up again.\n\n## RPC user {#rpc-user}\n\nBitcoin Core's `rpcuser`, or the user of an `rpcauth` line.\n\n## Node password {#node-password}\n\nIts password. Stored encrypted, never shown again: type a new one to replace it.\n\n## Last checked {#checked}\n\nHow many wallets there are and when they were last read. Wallets are read every hour, and each\nwallet's **Check now** reads it at once. A failure lasting longer than Settings › Alerts allows\nalerts admins and each wallet's owner.\n\n## Test\n\nAsks the saved explorer or node for the chain's height, and says what failed. Save first.\n\nSetting or replacing the node's password asks for your password again when it was given over 10\nminutes ago.\n",
 "settings-connector":"# Connector\n\nThe MoolaKata Connector is a second service that keeps people's sign-ins at their institutions,\nfetches with its drivers, and pushes what it fetches into imports. MoolaKata can't reach it or\nread its vault: it only hears its signed reports, every five minutes. Admins only.\n\n![Connector](shots/settings-connector.png)\n\nThe card shows whether a connector is paired, its key's fingerprint, the version it runs, when\nit last reported and whether it is **locked**. It starts locked after every restart of its own;\nan admin unlocks it with its 12 words on its page, or on its host. A connector not heard from\nfor 15 minutes, or locked, raises an alert for admins.\n\n## Its page {#its-page}\n\nThe connector serves a small page of its own, on its own port, linked here once it has\nreported. There its vault is made and its words are given: **Unlock** after a restart,\n**Lock**, **Pair** with the code from here, **Unpair** and **Reset**. Anyone on the network can\nsee its status there, which names no institution, sign-in or account; every action asks for\nthe words. MoolaKata only links to it and never sees the words.\n\n## Pair {#pair}\n\nShows a one-time pairing code, valid 24 hours, to paste into **Pair** on the connector's page\nwith its words, or in the command to run on its host. It holds this server's address and key\nfingerprint; the connector then introduces itself, and\nboth sides show its fingerprint for you to compare. One connector is paired at a time: pairing\nanother replaces it, as Unpair does. Needs your password again when it was given over 10\nminutes ago.\n\n## Confirm {#confirm}\n\nAfter pairing, compare the fingerprint shown here with the one the connector's page showed (or\n`moolakata-connector pair` printed on its host). If they match, **Confirm**, after your password: only then does\nthe connector get sealed sign-ins and post files. If they differ, someone else answered the\npairing code first: **Unpair**. Until confirmed, people see in the connection dialog that no\nsign-in can be sealed yet.\n\n## Accept {#accept}\n\nShown when the connector reported from an address other than the one known, and kept until an\nadmin answers it, whichever address reports next. If the connector moved (a laptop on another\nnetwork, a new host), **Accept** the new address, after your password, and the alert closes. If\nit didn't, its host or volume may have been copied: **Unpair** at once, since whoever has the\ncopy can report as the connector.\n\n## Unpair {#unpair}\n\nRefuses the connector's key from then on, stops every Connection, and turns every account's\nsync off. The connector deletes the credentials it held for this server. Needs your password\nagain when it was given over 10 minutes ago. Unpair at once when the connector's host or its\nvolume is lost or stolen: its identity key is kept outside the vault, so whoever has the copy\ncan report as the connector and post files until it is unpaired. The vault itself, with the\nsign-ins and the key that opens sealed credentials, stays closed without the words.\n\n## Connections {#connections}\n\nEvery person's sign-ins, kept by the connector: who owns each, its driver (Folder, OFX Direct\nConnect or Schwab), the accounts it keeps current, and its state from the last report: ok with\nwhat the last run added, waiting for credentials, needs a sign-in, or failing with the\nconnector's words. Credentials are never shown here, or anywhere: they exist only in the\nconnector's vault. People start and change their own under Profile › Connections.\n",
 "settings-email":"# Email (SMTP)\n\nHow MoolaKata sends its emails: invitations, password resets, sign-up links and decisions, alerts.\nUntil a host is set, each email is written to the `mail` folder in the data directory instead, in\nthe clear, and listed here for an admin to pass its link on.\n\nEmails go out in the background, so nothing waits on the mail server. They wait in the database,\nwhich is encrypted. One that can't be sent stays queued and is tried again every five minutes,\nuntil its link expires; one the server refuses outright is set aside, keeping only who it was for,\nits subject and the error. This section shows the queue and the last error.\n\n## Host {#smtp-host}\n\nThe mail server's name, such as your email provider's SMTP server or a relay on your network.\nMoolaKata reaches only this host for email. Changing it asks for your password again and clears\nthe stored SMTP password, so it is never sent to the new host: type it again for that host.\n\n## Port {#smtp-port}\n\n587 for STARTTLS, 465 for TLS, 25 for a plain relay.\n\n## Security {#smtp-security}\n\n**STARTTLS** and **TLS** encrypt the connection and check the server's certificate. **None** sends\nin the clear: only for a relay on your own network.\n\n## Username {#smtp-username}\n\nThe account to sign in to the mail server with, often an email address. Leave it empty for a relay\nthat needs none.\n\n## Password {#smtp-password}\n\nKept encrypted as a secret, used only when sending, and never shown again. Many providers want an\napp password rather than your own. Your password is asked again when it was given over 10 minutes\nago.\n\n## From address {#smtp-from}\n\nThe sender emails show, such as `MoolaKata \u003cmoney@example.com>`. Your provider may insist it matches\nthe username.\n\n## Send a test email\n\nSends one to your own address now, through the saved settings, and says what failed if it couldn't.\n\n## Written to the mail folder {#written-emails}\n\nThe emails written while no host was set, newest first: who each is for, its subject and when.\n**Open** shows one, links and all, after your password: a link in it signs someone in or resets\na password. Each file is removed once its link has expired: a password reset's after an hour, an\ninvitation's after a week, the others' after a day.\n",
 "settings-general":"# Settings: General\n\nThe server's name and the household it belongs to.\n\n![Settings: General](shots/settings-general.png)\n\n## Server name\n\nShown to linked servers.\n\n## Server time zone\n\nRead from the host. A user whose time zone is **Auto** sees times in it.\n\n## Household name\n\nAt the top of the sidebar.\n\n## Household initials\n\nThe household's avatar.\n\n## Household colour\n\nThe avatar's colour.\n\n## Public URL\n\nThe address people reach MoolaKata at, such as `https://money.example.lan`. Links in emails\n(invitations, resets) are built from it, never from the request.\n",
 "settings-imports":"# Settings: Imports\n\n![Settings: Imports](shots/settings-imports.png)\n\n## File types\n\nOFX, QFX and CSV, and statements as PDF, JPEG, PNG, WebP or HEIC, checked from what's inside the\nfile, never its name.\n\n## Largest file {#largest-file}\n\nThe biggest file that can be imported, in MB.\n\n## Read statements\n\nWhether a statement's PDF or photo can be imported. It is read on this server by the receipt reader,\nin its own process, and checked by the person before anything is saved. Off, only OFX, QFX and CSV\nfiles import.\n",
-"settings-keys":"# Settings: Key storage\n\nRead only, but for **Verify key**. Everything the server stores is encrypted under one master\nkey, which is the recovery phrase: never stored, entered when the server starts, and changed only\non the host.\n\n![Settings: Key storage](shots/settings-keys.png)\n\n## Fingerprint\n\nA short name for the key that reveals nothing about it, such as `mk-3f9a…c21e`.\n\n## Unlocked\n\nWhen the phrase was last entered. The server locks again at every restart, until someone\nenters the phrase on the locked screen or with `moolakata keys unlock` on the host.\n\n## Recovery phrase\n\nThe master key written as 12 words. The welcome showed it once, when the server was new, and\nnothing shows it again: without it nothing here, no backup, and no restart of the server opens.\n\n## Verify key\n\nType the 12 words from one of your copies: MoolaKata checks that they open this server's key,\nchanges nothing, and records the check. Do it once a year for each copy, and whenever you make a\nnew one; the yearly alert opens it. `moolakata keys verify` on the host does the same.\n\n## Test\n\nChecks that the keyring on disk is the one the phrase unlocked, and that the database and a\nsecret open with the data key.\n\n## Previous keys\n\nThe master keys this server was rotated away from, each with how many copies on this host still\nneed its phrase. A rotation re-encrypts every copy it is told to, so the count is usually none; the\nhost's own snapshots and backups made before the rotation still open with that phrase for as\nlong as the host keeps them, and are yours to count. **Forget** drops a key from the list once\nnothing needs it; destroy its sheet and password-manager entry then.\n\n## Copies on this host\n\nEvery copy MoolaKata can see: the backups in the backup directory, the copies made before a\nmigration (`pre-upgrade/`) and what a restore set aside (`before-restore-*/`). Each carries its\nown keyring and says how it opens: with this phrase, with this phrase but an earlier data key,\nor only with a previous phrase. **Remove** deletes one, after your password. The host's own\nsnapshots and backups are copies too, outside this list.\n\n## Re-encrypt at the next restart\n\nSchedules a new data key for the database, the receipt files and every secret. It never runs\nwhile the server serves: the next unlock runs it first, after a verified backup, with the phrase\ngiven there wrapping the new key, its progress on the locked screen. It asks for your password\nagain. Until it begins, **Cancel it** drops it; once begun, it finishes at the next unlock. A\nrotation on the host schedules one too, since a rotation always re-encrypts.\n\n## Scheduled {#scheduled}\n\nA re-encryption waiting for the next restart, and whether it has begun.\n\n## After a restore {#after-restore}\n\nThe first unlock after a restore opens every receipt file and secret with the restored keys,\nand lists here what doesn't open: receipts to put back from the host's own backup of the same\nmoment, and secrets to enter again. A receipt file that opened under no key was set aside in\n`receipts-set-aside/` in the data directory.\n\n## The copies on this host {#copies-at-re-encryption}\n\nFor each copy, what the re-encryption does with it: **Re-encrypt** (the default) rewrites it\nunder the new data key, after the main job; **Delete** removes it; **Leave as it is** keeps it\nunder its old data key, which this phrase still opens. A copy under an earlier phrase cannot be\nrewritten: leave it or delete it.\nFor when the data key may have been read: a memory dump or a debugging session on the live server,\nor a master key or recovery phrase that leaked while any copy of the data directory or a backup\ncould have been taken with it. It closes nothing made before it: every earlier copy still opens\nwith the key it was made under, so a leak also means deleting those copies wherever they are. It\ndoesn't change the master key, which is rotated on the host with `moolakata keys rotate`.\n",
+"settings-keys":"# Settings: Key storage\n\nEverything the server stores is encrypted under one master key, which is the recovery phrase:\nnever stored, entered when the server starts, and changed with **Rotate**.\n\n![Settings: Key storage](shots/settings-keys.png)\n\n## Fingerprint\n\nA short name for the key that reveals nothing about it, such as `mk-3f9a…c21e`.\n\n## Unlocked\n\nWhen the phrase was last entered. The server locks again at every restart, until someone\nenters the phrase on the locked screen or with `moolakata keys unlock` on the host.\n\n## Recovery phrase\n\nThe master key written as 12 words. The welcome showed it once, when the server was new, and\nnothing shows it again: without it nothing here, no backup, and no restart of the server opens.\n\n## Verify key\n\nType the 12 words from one of your copies: MoolaKata checks that they open this server's key,\nchanges nothing, and records the check. Do it once a year for each copy, and whenever you make a\nnew one; the yearly alert opens it. `moolakata keys verify` on the host does the same.\n\n## Test\n\nChecks, writing nothing, that the keyring on disk is the one the phrase unlocked, and that the\ndatabase and a secret open with the data key in memory. Activity records the test.\n\n## Previous keys\n\nThe master keys this server was rotated away from, each with how many copies on this host still\nneed its phrase. A rotation re-encrypts every copy it is told to, so the count is usually none; the\nhost's own snapshots and backups made before the rotation still open with that phrase for as\nlong as the host keeps them, and are yours to count. **Forget** drops a key from the list once\nnothing needs it; destroy its sheet and password-manager entry then.\n\n## Copies on this host\n\nEvery copy MoolaKata can see: the backups in the backup directory, the copies made before a\nmigration (`pre-upgrade/`), what a restore set aside (`before-restore-*/`), and a new keyring a\nre-encryption left unexplained, set aside beside the keyring. Each carries its\nown keyring and says how it opens: with this phrase, with this phrase but an earlier data key,\nor only with a previous phrase. **Remove** deletes one, after your password and the phrase. The\nhost's own snapshots and backups are copies too, outside this list.\n\n## Last re-encryption {#last-reencryption}\n\nWhen the last re-encryption finished and why (a rotation, Settings or the host), anything it set\naside that opened under neither key, and what it did with each copy: a copy left under an old\nkey is marked, since it still opens with the old phrase. A rotation that didn't finish (the\nkeyring stayed under the old phrase) is said here: rotate again.\n\n## Rotate\n\nA new recovery phrase, and a new data key with it: for a leaked or lost phrase, or the yearly\nreminder. It asks for your password and the current phrase, or a break-glass code from the host\nwhen the phrase is lost, then shows the new phrase and takes three of its words back. MoolaKata\nrestarts, and the unlock with the new phrase re-encrypts everything before it serves.\n\n## Re-encrypt now\n\nA new data key for the database, the receipt files and every secret, the phrase unchanged. It\nnever runs while the server serves: MoolaKata restarts at once, locked, and the unlock runs it\nfirst, after a verified backup, with the phrase given there wrapping the new key, its progress\non the locked screen. It asks for your password again. Once asked for, it runs at that unlock;\na second waits until it has. A rotation re-encrypts too.\n\n## Scheduled {#scheduled}\n\nA re-encryption waiting for the restart: the unlock runs it before the server serves.\n\n## Remind admins to rotate after {#rotation-reminder}\n\nHow old the master key may get before admins are alerted to rotate it: 12 months by default, or\n**Never**.\n\n## After a restore {#after-restore}\n\nThe first unlock after a restore opens every receipt file and secret with the restored keys,\nand lists here what doesn't open: receipts to put back from the host's own backup of the same\nmoment, and secrets to enter again. A receipt file that opened under no key was set aside in\n`receipts-set-aside/` in the data directory.\n\n## The copies on this host {#copies-at-re-encryption}\n\nFor each copy, what the re-encryption does with it: **Re-encrypt** (the default) rewrites it\nunder the new data key, after the main job; **Delete** removes it; **Leave as it is** keeps it\nunder its old data key, which this phrase still opens. A copy under an earlier phrase cannot be\nrewritten: leave it or delete it. A backup made after the choices, the re-encryption's own\nfirst one among them, is re-encrypted, the first one last.\nFor when the data key may have been read: a memory dump or a debugging session on the live server,\nor a master key or recovery phrase that leaked while any copy of the data directory or a backup\ncould have been taken with it. It closes nothing made before it: every earlier copy still opens\nwith the key it was made under, so a leak also means deleting those copies wherever they are. It\ndoesn't change the master key, which **Rotate** does.\n",
 "settings-links":"# Linked servers\n\nOther MoolaKata servers that share read-only with this one: another household's, or a\npreparer's. Admins only.\n\n![Linked servers](shots/settings-links.png)\n\n**Invite a server** makes a one-time code for the other server's admin. **Enter a link code**\nanswers one: MoolaKata connects to the address in the code, checks the server's key against the\nfingerprint in it, and asks to link. The inviting side then lists it as **wants to link**: compare\nthe fingerprint shown with what the other admin sees for their own server (by phone, in person)\nand **Approve** or **Reject** it.\n\n## This server's link address {#link-address}\n\nWhere other servers reach this one, as `https://…` without a path: MoolaKata answers them under\n`/link/`. It must be reachable from the other server: a forwarded port, a reverse proxy that\npasses `/link/`, or both servers on one overlay network such as Tailscale or WireGuard (the easy\nway, with no open port). Empty, the public URL is used.\n\nA link works when either side can reach the other: each exchange carries both directions.\n\nEach link shows its state, its fingerprint and MoolaKata version, and when the last exchange\nworked. **Pull now** exchanges at once rather than at the next hour. **Pause** stops this side\nexchanging for a time you choose; it shows **paused until** then and resumes on its own, or at\nonce with **Resume now**. **End link** ends it on both sides: the other side learns at once, or\nat its next call; its users are removed here, and nothing is deleted on the server that shared.\nA server that can't be reached shows **unreachable since** and the reason. One that answers it\nhas no link with this one (restored from an older backup, say) shows **broken**: end the link, or\nlink again. Only the other server ending the link ends it here.\n\nWhat crosses a link is sealed by the server that sends it to the receiving copy's key, so\nnothing between the two servers, not even a proxy in front of one of them, reads it.\n\n## Its certificate changed {#certificate-changed}\n\nThe connection to each server is TLS, checked before anything is sent: a public certificate\nagainst the system's trusted roots, and a server's own certificate by its key, pinned when the\nlink was made. A server whose own certificate's key changes tells its peers first. One that\npresents a key it didn't announce is refused, and the link shows the new key: ask its admin to\nread out **Its own certificate's key** from their Linked servers, compare it, and **Accept it**\n(it asks for your password again). This server's own certificate's key, when it has one of its\nown, is shown at the top of this section.\n\n## Syncing {#progress}\n\nA large change, such as the first pull into a new copy, arrives in parts of about 4 MB, oldest\nfirst, so what has arrived is usable at once. While parts are still coming the link shows the date\nit has reached and how much of the change has arrived.\n\n## Linked copies {#linked-copies}\n\nWhat each link brings in is kept apart from this household's data, in its own encrypted copy under\nits own **access key**: 12 words. This server's master key can't open it, and backups leave it\nout. **Create the access key** once the link is active: MoolaKata shows the words once, for the\nhousehold's password manager, where the people its shares name can reach them. Pulls into the copy\nbegin then.\n\nThe first person its shares name who opens the household's window enters the words; the copy then\nstays unlocked for everyone it shares with, each seeing only what names them, until it goes unused.\nEach copy shows its size, the changes **waiting** (pulled while it was locked, sealed so only its\nwords open them, and applied when it is next unlocked), when its key was made and by whom, and who\nunlocked it. **Lock now**\nlocks it at once. **Reset copy** (if the words are lost) deletes the copy and its key: make a new\naccess key, and everything is pulled again from the other server, where nothing was lost.\n\n## Release linked keys after {#link-release}\n\nHow long an unlocked copy's key stays in memory with nobody viewing it: 15 minutes, 1 hour (the\ndefault) or 4 hours. Background work, such as a pull, doesn't count as viewing. A restart locks\nevery copy.\n\n## Shared from here {#outgoing}\n\nWhat this server sends each linked server at its pulls: each item shared with people there, by\nits kind and its owner here, since when, and the people there it names. They see it read only,\nand only what changes travels after the first pull.\n\n## Shared from a linked server {#incoming}\n\nWhat each linked server shares with people here, as an admin sees it: only its kind, its owner's\nname, when it was shared and the people here it names. Its name and figures stay inside the\nencrypted copy, for those people. The owner there decides who sees what; an admin here can't\nchange it, and nothing shared from there can be shared on.\n\n## Users on linked servers {#linked-users}\n\nEach linked server's active users, sent at every exchange and updated in place: a new user is\nadded, a changed name or email is updated, and a user no longer on the list is removed (and comes\nback if they return). People here can share with them, always read only. They never sign in here,\njoin a group, own anything or receive alerts.\n",
 "settings-network":"# Network\n\nWhich addresses may reach each part of this server. Each list holds address ranges, one per\nline, as `192.168.1.0/24` or a single address; an empty list allows any address. A change\napplies to the next request. Addresses outside a list get *not found*, as if the path didn't\nexist. `/healthz` and `/demo` answer any address. Admins only.\n\nThe lists are kept in the database, which can't be read while the server is locked. So until the\nphrase is given, the locked screen and the unlock answer any address that reaches the listener:\nthe reverse proxy in front of MoolaKata, and the host's firewall, are what limit them.\n\n![Network](shots/settings-network.png)\n\n## Allowed to use the app {#network-app-ranges}\n\nThe ranges that may reach the app (`/ui`), and `/mcp` with it, since an agent sits where a\nperson's browser does and its token is already the user's. Empty by default: any address the\nhost's port mapping and firewall let through.\n\n## Allowed to link {#network-link-ranges}\n\nWhere linked servers call `/link` from: an overlay network's range (Tailscale uses\n`100.64.0.0/10`), or the other household's address. Empty by default.\n\n## Allowed to connect {#network-connector-ranges}\n\nWhere the MoolaKata Connector calls `/connector` from. By default the LAN and the overlay\n(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, loopback and the private\nIPv6 range), so a connector beside the server or on the household's overlay works as it is. A\nconnector on a laptop away from home needs the range it calls from added here.\n\nChanging any of these asks for your password again when it was given over 10 minutes ago: a\nwider range lets more addresses reach the server.\n",
 "settings-passwords":"# Settings: Passwords\n\n![Settings: Passwords](shots/settings-passwords.png)\n\n## Minimum length\n\nAt least 8; 12 by default. It is the only rule: no character classes and no expiry. The 100,000 most\ncommon passwords are refused whatever their length.\n",
@@ -4980,6 +4982,12 @@ export const FIELDS = {
  * @property {Array<moolakata__ui__education__ContributionOut>} rows
  * @property {Array<GiftYearOut>} years
  * @property {boolean} canWrite
+ */
+
+/**
+ * @typedef {Object} CopiesIn
+ * @property {number} copies
+ * @property {(string | null)} [phrase]
  */
 
 /**
@@ -7212,7 +7220,7 @@ export const FIELDS = {
  * @property {string} title
  * @property {number} status
  * @property {string} detail
- * @property {("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reencrypt-running" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
+ * @property {("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-needed" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
  * @property {string} errorId
  * @property {Array<ProblemFieldError>} errors
  */
@@ -7221,7 +7229,7 @@ export const FIELDS = {
  * @typedef {Object} ProblemFieldError
  * @property {unknown} field
  * @property {string} [id]
- * @property {(("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-scheduled" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reencrypt-running" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
+ * @property {(("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-needed" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
  * @property {string} message
  */
 
@@ -7538,6 +7546,7 @@ export const FIELDS = {
  * @property {Array<string>} receiptsSetAside
  * @property {Array<string>} secretsSetAside
  * @property {Object<string, string>} copies
+ * @property {(string | null)} [rotationUnfinished]
  */
 
 /**
@@ -7631,6 +7640,16 @@ export const FIELDS = {
  */
 
 /**
+ * A re-encryption or a rotation scheduled, and the server restarting for it (S15.7.2):
+ * the browser waits for the locked screen, where the phrase starts it.
+ * @typedef {Object} Restarting
+ * @property {boolean} restarting
+ * @property {string} why
+ * @property {string} fingerprint
+ * @property {Object<string, string>} [copies]
+ */
+
+/**
  * @typedef {Object} RestoreReport
  * @property {(string | null)} at
  * @property {(string | null)} source
@@ -7721,6 +7740,15 @@ export const FIELDS = {
  * @property {import('@mk/app/dec.js').Dec} used
  * @property {import('@mk/app/dec.js').Dec} eligible
  * @property {import('@mk/app/dec.js').Dec} available
+ */
+
+/**
+ * @typedef {Object} RotateIn
+ * @property {string} token
+ * @property {Object<string, string>} [words]
+ * @property {(string | null)} [phrase]
+ * @property {(string | null)} [code]
+ * @property {Object<string, string>} [copies]
  */
 
 /**
@@ -27800,7 +27828,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '@mk/app/html.js';
 import { api } from '@mk/api/client.js';
 import { useSubmit } from '@mk/app/hooks.js';
-import { loadSession, lostChanges } from '@mk/store/session.js';
+import { loadSession, lostChanges, restarting } from '@mk/store/session.js';
 import { AuthCard } from '@mk/components/auth.js';
 import { Field, FormError } from '@mk/components/fields.js';
 import { Icon } from '@mk/components/icon.js';
@@ -27816,10 +27844,14 @@ const STAGES = /** @type {Record<string, string>} */ ({
   done: 'Done',
 });
 
+// How long a restart may take before the screen says to start the server on the host.
+const RESTART_WAIT = 60_000;
+
 export default function Locked() {
   const [words, setWords] = useState('');
   const [shown, setShown] = useState(false);
   const [lock, setLock] = useState(/** @type {any} */ (null));
+  const [late, setLate] = useState(false);
   const poll = async () => {
     const s = await api.get('/unlock');
     setLock(s);
@@ -27827,8 +27859,35 @@ export default function Locked() {
     return s;
   };
   useEffect(() => {
-    poll().catch(() => {});
+    if (!restarting.value) poll().catch(() => {});
   }, []);
+  // A restart for a re-encryption or a rotation (S15.7.2): wait for the server to answer
+  // locked, through the moment it doesn't answer at all.
+  useEffect(() => {
+    const began = restarting.value;
+    if (!began) return;
+    let stop = false;
+    const tick = async () => {
+      if (stop) return;
+      try {
+        const s = await api.get('/unlock');
+        if (s.locked) {
+          restarting.value = 0;
+          setLock(s);
+          return;
+        }
+      } catch {
+        // stopped, or not answering yet
+      }
+      if (Date.now() - began > RESTART_WAIT) setLate(true);
+      setTimeout(tick, 2000);
+    };
+    const t = setTimeout(tick, 2000);
+    return () => {
+      stop = true;
+      clearTimeout(t);
+    };
+  }, [restarting.value]);
   // While a re-encryption runs, the server answers its progress until it serves.
   useEffect(() => {
     if (!lock?.reencrypting) return;
@@ -27841,6 +27900,23 @@ export default function Locked() {
     setLock(s);
     if (!s.locked) await loadSession();
   });
+  if (restarting.value) {
+    return html`
+      <${AuthCard} title="MoolaKata is restarting" guide="locked"
+        sub="It starts again locked, so the re-encryption runs at the unlock, with the phrase entered there, before the server serves.">
+        ${late
+          ? html`
+            <div class="notice small bad" role="status">
+              <${Icon} name="alert" />
+              <div>It
+                          hasn't come back. Start it on the host (<code>docker compose up -d</code>), then
+                          unlock it here.</div>
+            </div>
+          `
+          : html`<p class="small dim">This page shows the locked screen as soon as it answers.</p>`}
+        </${AuthCard}>
+    `;
+  }
   if (lock?.uninitialised) return html`<${NewServer} refresh=${poll} />`;
   if (lock?.reencrypting) {
     const r = lock.reencrypting;
@@ -30735,7 +30811,8 @@ import { Icon } from '@mk/components/icon.js';
 import { Dialog, openDialog } from '@mk/components/dialog.js';
 import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '@mk/components/fields.js';
 import { toast } from '@mk/components/toast.js';
-import { loadSession } from '@mk/store/session.js';
+import { awaitRestart, loadSession } from '@mk/store/session.js';
+import { disconnect } from '@mk/app/stream.js';
 import { LinksSection } from '@mk/components/links.js';
 import { ConnectorSection } from '@mk/components/connector.js';
 import { withReauth } from '@mk/components/reauth.js';
@@ -31822,11 +31899,55 @@ function BitcoinSection() {
   `;
 }
 
+/**
+ * *Copies kept* (S16.12): the days of backups kept. Fewer than the backups there are deletes
+ * some at the next backup, so it asks for the recovery phrase too, as Remove does (S16.13).
+ * @param {{ close: (v?: any) => void, v: any }} p
+ */
+function CopiesKept({ close, v }) {
+  useDialogGuide('dialog-copies-kept');
+  const [n, setN] = useState(String(v.copies));
+  const [words, setWords] = useState('');
+  const days = new Set(v.backups.map((/** @type {any} */ b) => b.name.split('-')[1])).size;
+  const fewer = Number(n) < v.copies && Number(n) < days;
+  const save = useSubmit(async () => {
+    close(
+      await withReauth(() =>
+        api.post('/settings/backups/copies', {
+          copies: Number(n),
+          ...(fewer ? { phrase: words } : {}),
+        })
+      ),
+    );
+  });
+  return html`
+    <${Dialog} title="Copies kept" close=${close} onSubmit=${() => save.run().catch(() => {})}
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
+      <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
+        hint="Every backup of each of these most recent days is kept: 3 to 365.">
+        <${Input} value=${n} inputmode="numeric" onInput=${setN} required />
+        </${Field}>
+      ${fewer
+        ? html`
+          <p class="small">That is fewer than the ${days} days of backups kept, so the next backup
+            deletes some, which can't be undone. The server's recovery phrase says it is you, as
+            well as your password.</p>
+          <${Field} label="Recovery phrase" error=${errAt(save.error, 'phrase')}>
+            <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+              autocorrect="off" autocapitalize="off" spellcheck=${false} required />
+            </${Field}>
+        `
+        : null}
+      <${FormError} error=${save.error} shown=${['copies', 'phrase']} />
+      </${Dialog}>
+  `;
+}
+
 function Backups() {
   const res = useApi('/settings/backups', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
-  const fd = useSettingsDraft(s.data, ['backupTime', 'backupCopies']);
+  const fd = useSettingsDraft(s.data, ['backupTime']);
   const rec = fd.rec;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
@@ -31853,10 +31974,16 @@ function Backups() {
             /** @type {string} */ x,
           ) => rec.set('backupTime', x)} />
           </${Field}>
-          <${Field} label="Copies kept" error=${rec.error('backupCopies')}><${Input}
-          value=${rec.get('backupCopies')} inputmode="numeric" onInput=${(
-            /** @type {string} */ x,
-          ) => rec.set('backupCopies', x === '' ? '' : Number(x))} /></${Field}></div>
+          <div class="field" data-help="copies-kept"><label>Copies kept</label><div class="row"
+            style=${{ alignItems: 'center' }}><span>${v.copies} days</span><button type="button"
+            class="btn sm" onClick=${() =>
+              openDialog(CopiesKept, { v }).then((r) => {
+                if (r) {
+                  toast('Saved');
+                  res.reload();
+                  s.reload();
+                }
+              }, (e) => toast(e.message))}>Change</button></div></div></div>
         <div class=${'notice ' + (v.lastError ? 'bad' : '')}><${Icon} name=${v.lastError
           ? 'alert'
           : 'check'} /><div>${v.lastRun
@@ -31939,6 +32066,200 @@ function WrittenEmailDialog({ close, w, text }) {
   `;
 }
 
+/** The server restarts for a re-encryption (S15.7.2): the locked screen waits for it. The
+ * screen is loaded first, since the server stops answering for a moment. */
+async function restartNow(/** @type {() => Promise<any>} */ ask) {
+  await import('@mk/screens/locked.js');
+  const out = await ask();
+  disconnect();
+  awaitRestart();
+  return out;
+}
+
+/** Each copy on the host and what a re-encryption does with it (S15.7.2): re-encrypt by
+ * default; one under an earlier phrase can only be left or deleted. */
+/** @param {{ copies: any[], choices: Record<string, string>, set: (c: Record<string, string>) => void }} p */
+function CopyChoices({ copies, choices, set }) {
+  if (!copies.length) return null;
+  return html`<div class="field" data-help="copies-at-re-encryption"><label>The copies on this host</label>
+    ${
+    copies.map((/** @type {any} */ c) =>
+      html`
+        <div class="list-item">
+          <div class="grow"><code>${c.name}</code>
+            <div class="small dim">${c.what} · ${opensWith(c.opens)}</div></div>
+          <span
+            style=${{ flex: 'none', width: '180px' }}><${Select} value=${choiceOf(
+              c,
+              choices,
+            )} onChange=${(/** @type {string} */ x) => set({ ...choices, [c.name]: x })} options=${[
+              ['reencrypt', 'Re-encrypt'],
+              ['delete', 'Delete'],
+              ['leave', 'Leave as it is'],
+            ]} /></span>
+        </div>
+      `
+    )
+  }
+    <div class="small dim">A copy that needs a previous phrase can only be left or deleted.</div></div>`;
+}
+
+/** @param {any} c @param {Record<string, string>} choices */
+const choiceOf = (c, choices) =>
+  choices[c.name] ||
+  (c.kind !== 'keyring' && (c.opens === 'current' || c.opens === 'phrase') ? 'reencrypt' : 'leave');
+
+/** @param {any[]} copies @param {Record<string, string>} choices */
+const chosen = (copies, choices) =>
+  Object.fromEntries(copies.map((/** @type {any} */ c) => [c.name, choiceOf(c, choices)]));
+
+/**
+ * Rotate (S15.7.1): the current phrase, or a break-glass code from the host for a lost one
+ * (S15.5.2), and each copy's choice; then the new phrase, shown once, and three of its words
+ * typed back. The server then restarts and unlocks with the new phrase, re-encrypting first.
+ * @param {{ close: (v?: any) => void, copies: any[] }} p
+ */
+function RotateKey({ close, copies }) {
+  useDialogGuide('dialog-rotate');
+  const [step, setStep] = useState('start'); // start, phrase, check
+  const [lost, setLost] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [code, setCode] = useState('');
+  const [choices, setChoices] = useState(/** @type {Record<string, string>} */ ({}));
+  const [offer, setOffer] = useState(/** @type {any} */ (null));
+  const [typed, setTyped] = useState(/** @type {Record<string, string>} */ ({}));
+  const show = useSubmit(async () => {
+    setOffer(await api.post('/settings/keys/rotate/phrase'));
+    setTyped({});
+    setStep('phrase');
+  });
+  const rotate = useSubmit(async () => {
+    close(
+      await restartNow(() =>
+        withReauth(() =>
+          api.post('/settings/keys/rotate', {
+            token: offer.token,
+            words: typed,
+            ...(lost ? { code } : { phrase: current }),
+            copies: chosen(copies, choices),
+          })
+        )
+      ),
+    );
+  });
+  const back = /** @type {any} */ (rotate.error)?.code;
+  if (step === 'start') {
+    return html`
+      <${Dialog} title="Rotate the master key" close=${close} onSubmit=${() =>
+        show.run().catch(() => {})}
+        footer=${html`<button class="btn primary" disabled=${show.busy}>Show the new phrase</button>`}>
+        <p class="small" style=${{ marginTop: 0 }}>A new master key and recovery phrase, and with
+          them a new data key. MoolaKata then restarts; unlock it with the new phrase, and it
+          re-encrypts everything before it serves, the copies below as you choose.</p>
+        ${lost
+          ? html`
+            <${Field} label="Break-glass code" error=${errAt(rotate.error, 'code')}
+              hint="From the host: docker compose exec moolakata moolakata keys break-glass. It works once, for 15 minutes.">
+              <${Input} value=${code} onInput=${setCode} autocomplete="off" autocapitalize="characters"
+                spellcheck=${false} required />
+              </${Field}>
+          `
+          : html`
+            <${Field} label="Current recovery phrase" error=${errAt(rotate.error, 'phrase')}
+              hint="Four letters of each word are enough.">
+              <${Input} type="password" value=${current} onInput=${setCurrent} autocomplete="off"
+                autocorrect="off" autocapitalize="off" spellcheck=${false} required />
+              </${Field}>
+          `}
+        <div style=${{ marginBottom: '14px' }}><button type="button" class="btn sm"
+          data-help="lost-phrase" onClick=${() => setLost(!lost)}>${lost
+            ? 'I have the phrase'
+            : 'The phrase is lost'}</button></div>
+        <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
+        <${FormError} error=${show.error} />
+        </${Dialog}>
+    `;
+  }
+  if (step === 'phrase') {
+    return html`
+      <${Dialog} title="The new recovery phrase" close=${close} onSubmit=${() => setStep('check')}
+        footer=${html`<button class="btn primary">I've written them down</button>`}>
+        <p class="small" style=${{ marginTop: 0 }}>Write these 12 words on paper, in order. They're
+          shown here once.</p>
+        <ol class="phrase" aria-label="The new recovery phrase">${offer.words.map((
+          /** @type {string} */ w,
+        ) => html`<li><b>${w}</b></li>`)}</ol>
+        <div class="small dim">Fingerprint <code>${offer.fingerprint}</code> · ${offer
+          .serverName} · ${date(offer.made)}</div>
+        <div class="notice small mt">
+          <${Icon} name="alert" />
+          <div>Keep the old phrase too, until
+          every copy made under it is gone: the host's own snapshots and backups still need it.</div>
+        </div>
+        </${Dialog}>
+    `;
+  }
+  return html`
+    <${Dialog} title="Check what you wrote" close=${close} onSubmit=${() =>
+      rotate.run().catch(() => {})}
+      footer=${html`
+        <button type="button" class="btn" onClick=${() =>
+          setStep(
+            back === 'phrase-wrong' || back === 'code-wrong' ? 'start' : 'phrase',
+          )}>Back</button><span
+          class="spacer"></span><button class="btn primary" disabled=${rotate.busy}>${rotate.busy
+            ? 'Rotating…'
+            : 'Rotate and restart'}</button>
+      `}>
+      <p class="small" style=${{ marginTop: 0 }}>Type three of the words from your sheet. Four
+        letters of each are enough.</p>
+      ${offer.check.map((/** @type {number} */ n) =>
+        html`
+          <${Field} label=${`Word ${n}`} id=${`rotate-word-${n}`}
+            error=${errAt(rotate.error, `word${n}`)}>
+            <${Input} value=${typed[n] || ''} onInput=${(/** @type {string} */ v) =>
+              setTyped({ ...typed, [n]: v })} autocomplete="off" autocapitalize="none"
+              autocorrect="off" spellcheck=${false} required />
+            </${Field}>
+        `
+      )}
+      <${FormError} error=${rotate.error} shown=${offer.check.map((/** @type {number} */ n) =>
+        `word${n}`
+      )} />
+      </${Dialog}>
+  `;
+}
+
+/** The rotation reminder's period (S16.13, S15.8.4): months, or never. */
+function ReminderSetting() {
+  const s = useApi('/settings');
+  const fd = useSettingsDraft(s.data, ['keyReminderMonths']);
+  const rec = fd.rec;
+  if (!rec) return null;
+  const months = Number(rec.get('keyReminderMonths'));
+  const options = [0, 6, 12, 18, 24, 36, 48, 60];
+  if (!options.includes(months)) options.push(months);
+  return html`
+    <${DraftForm} f=${fd} class="card mt" where="Settings › Key storage" what="The reminder"
+      saved=${() => {
+        toast('Saved');
+        s.reload();
+      }}>
+      <${Field} label="Remind admins to rotate after" id="rotation-reminder" help="rotation-reminder"
+        error=${rec.error('keyReminderMonths')}>
+        <${Select} value=${String(months)} onChange=${(/** @type {string} */ x) =>
+          rec.set('keyReminderMonths', Number(x))} options=${options.sort((a, b) => a - b).map((
+            m,
+          ) => [String(m), m ? `${m} months` : 'Never'])} />
+        </${Field}>
+        </${DraftForm}>
+  `;
+}
+
+/** The outcome of a re-encryption's copy, marked when the copy still opens with an old key
+ * (S15.7.1.4). @param {string} o */
+const leftUnder = (o) => o.startsWith('left');
+
 function Keys() {
   const res = useApi('/settings/keys', {}, ['task']);
   const cps = useApi('/settings/keys/copies', {}, ['task']);
@@ -31960,22 +32281,12 @@ function Keys() {
     verify().catch((e) => toast(e.message));
   }, []);
   const [choices, setChoices] = useState(/** @type {Record<string, string>} */ ({}));
-  // A copy under an earlier phrase can only be left or deleted (S15.7.2).
-  const choiceOf = (/** @type {any} */ c) =>
-    choices[c.name] || (c.opens === 'current' || c.opens === 'phrase' ? 'reencrypt' : 'leave');
   const reencrypt = useSubmit(async () => {
-    const sent = Object.fromEntries(copies.map((/** @type {any} */ c) => [c.name, choiceOf(c)]));
-    await withReauth(() => api.post('/settings/keys/reencrypt', { copies: sent }));
-    toast('Scheduled for the next restart');
-    setArmed(false);
-    res.reload();
-    cps.reload();
+    await restartNow(() =>
+      withReauth(() => api.post('/settings/keys/reencrypt', { copies: chosen(copies, choices) }))
+    );
   });
-  const unschedule = useSubmit(async () => {
-    await api.del('/settings/keys/reencrypt');
-    toast('The re-encryption is cancelled');
-    res.reload();
-  });
+  const rotate = () => openDialog(RotateKey, { copies }).catch((e) => toast(e.message));
   const removeCopy = async (/** @type {any} */ c) => {
     if (await openDialog(RemoveCopy, { c })) {
       toast(`${c.name} removed`);
@@ -31999,225 +32310,209 @@ function Keys() {
   const confirmed = v.confirmations.find((/** @type {any} */ c) => c.matched);
   const needing = (/** @type {string} */ fp) =>
     copies.filter((/** @type {any} */ c) => c.masterKey === fp).length;
-  return html`<div class="card"><h3>Key storage<span class="spacer"></span>${
-    test
+  const last = v.lastReencryption;
+  const lastCopies = last ? Object.entries(last.copies) : [];
+  return html`
+    <div class="card"><h3>Key storage<span class="spacer"></span>${test
       ? test.ok
         ? html`<span class="pill ok"><${Icon} name="lock" /> everything opens</span>`
         : html`<span class="pill bad">a problem</span>`
-      : null
-  }</h3>
-    <p class="small dim" style=${{
-    marginTop: 0,
-  }}>Read only here, but for Verify key. The master key is the recovery phrase, never stored: it
-      is entered when the server starts, and changed only on the host.</p>
-    <div class="list-item"><span class="grow dim">Fingerprint</span><code>${v.fingerprint}</code></div>
-    <div class="list-item"><span class="grow dim">Made</span>${
-    day(v.created)
-  } · ${v.ageDays} days old
-      ${
-    v.reminderMonths
-      ? html`<span class="small dim"> · rotation reminder at ${v.reminderMonths} months</span>`
-      : null
-  }
-      ${
-    v.reminderDue
-      ? html`
-        <span class="pill warn">time to rotate</span>
-      `
-      : null
-  }</div>
-    <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${
-    (v.databaseBytes / 1048576).toFixed(1)
-  } MB), ${v.receipts} receipt file${v.receipts === 1 ? '' : 's'}, ${v.secrets} secret${
-    v.secrets === 1 ? '' : 's'
-  }
-      <span class="small dim">· passwords are hashed</span></div>
-    <div class="list-item"><span class="grow dim">Previous keys</span>${
-    v.previous.length
-      ? html`<span>${
-        v.previous.map((/** @type {any} */ p) =>
-          html`<div><code>${p.fingerprint}</code> <span class="small dim">· needed by ${
-            needing(p.fingerprint)
-          } ${needing(p.fingerprint) === 1 ? 'copy' : 'copies'} here${
-            p.removableAfter ? `, and by the host's snapshots until it prunes them` : ''
-          }</span>
-            <button type="button" class="btn sm" onClick=${() =>
-            forget(p.fingerprint).catch((e) => toast(e.message))}>Forget</button></div>`
-        )
-      }</span>`
-      : html`<span class="dim">none</span>`
-  }</div>
-    <div class="list-item"><div class="grow"><span class="dim">Copies on this host</span>
-      ${
-    copies.length
-      ? html`
-        <table class="t mt">
-          <caption class="sr-only">Copies on this host</caption>
-          <thead>
-            <tr>
-              <th>Copy</th>
-              <th>Made</th>
-              <th class="num">Size</th>
-              <th>Opens</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>${copies.map((/** @type {any} */ c) =>
-            html`
-              <tr>
-                <td><code>${c.name}</code><div class="small dim">${c.what}</div></td>
-                <td>${moment(c.made)}</td>
-                <td class="num">${(c.bytes / 1048576).toFixed(1)} MB</td>
-                <td class="small">${opensWith(c.opens)}${c.masterKey
-                  ? html`${' '}<code>${c.masterKey}</code>`
-                  : null}</td>
-                <td><button type="button" class="btn sm" onClick=${() =>
-                  removeCopy(c).catch((e) => toast(e.message))}>Remove</button></td>
-              </tr>
+      : null}</h3>
+        <p class="small dim" style=${{
+          marginTop: 0,
+        }}>The master key is the recovery phrase, never stored: it is entered when the server starts.
+          Rotate changes it, and re-encrypts everything under a new data key.</p>
+        <div class="list-item"><span class="grow dim">Fingerprint</span><code>${v
+          .fingerprint}</code></div>
+        <div class="list-item"><span class="grow dim">Made</span>${day(v.created)} · ${v
+          .ageDays} days old
+          ${v.reminderMonths
+            ? html`<span class="small dim"> · rotation reminder at ${v.reminderMonths} months</span>`
+            : null}
+          ${v.reminderDue
+            ? html`
+              <span class="pill warn">time to rotate</span>
             `
-          )}</tbody>
-        </table>
-      `
-      : html`<span class="small dim"> none</span>`
-  }
-      <div class="small dim">${/** @type {any} */ (cps.data)?.note || ''}</div></div></div>
-    <div class="list-item"><div class="grow">Recovery phrase<div class="small dim">${
-    confirmed
-      ? `Last confirmed ${
-        confirmed.how === 'unlock'
-          ? 'by the unlock'
-          : confirmed.how === 'app'
-          ? 'with Verify key'
-          : 'with moolakata keys verify'
-      } on ${day(confirmed.at)}.`
-      : 'Not confirmed since install. Every unlock confirms it; check each copy once a year with Verify key.'
-  }</div></div>
-      ${
-    confirmed
-      ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
-      : html`<span class="pill warn">unchecked</span>`
-  }<button type="button" class="btn sm" onClick=${() =>
-    verify().catch((e) => toast(e.message))}>Verify key</button></div>
-    <div class="notice mt"><${Icon} name="alert" /><div>Without the recovery phrase, nothing here and no backup can be
-      opened, and the server cannot even start serving. Keep the phrase in two places, one offline.</div></div>
-    ${
-    test
-      ? html`<ul class="small">${
-        test.checks.map((/** @type {any} */ c) =>
-          html`<li>${c.ok ? '✓' : '✗'} <b>${c.name}</b>: ${c.detail}</li>`
-        )
-      }</ul>`
-      : null
-  }
-    ${
-    v.scheduled
-      ? html`<div class="notice mt" role="status" data-help="scheduled"><${Icon} name="refresh" /><div
-          class="grow">A re-encryption is scheduled for the next restart${
-        v.scheduled.why ===
-            'rotation'
-          ? ', brought by a rotation on the host'
-          : ''
-      }. The next unlock runs it before the server serves, with the phrase given there,
-          its progress on the locked screen.${
-        v.scheduled.started ? ' It has begun, and finishes at the next unlock.' : ''
-      }</div>${
-        v.scheduled.started ? null : html`
-          <button type="button" class="btn sm"
-            disabled=${unschedule.busy} onClick=${() =>
-              unschedule.run().catch(() => {})}>Cancel it</button>
-        `
-      }</div>`
-      : null
-  }${
-    v.lastReencryption &&
-      (v.lastReencryption.receiptsSetAside.length || v.lastReencryption.secretsSetAside.length)
-      ? html`
-        <div class="notice small bad mt" role="status">
-          <${Icon} name="alert" />
-          <div>The last
-                  re-encryption, ${day(v.lastReencryption.finishedAt)}, set aside ${v
-                    .lastReencryption
-                    .receiptsSetAside.length} receipt files and left ${v.lastReencryption
-                    .secretsSetAside
-                    .length} secrets that opened under neither key: the files are in <code
-                  >receipts-set-aside/</code> in the data directory.</div>
-        </div>
-      `
-      : null
-  }${
-    v.lastRestore &&
-      (v.lastRestore.receiptsUnopened.length || v.lastRestore.secretsUnopened.length ||
-        v.lastRestore.receiptsSetAside.length)
-      ? html`
-        <div class="notice small bad mt" role="status" data-help="after-restore">
-          <${Icon}
-            name="alert" />
-          <div>After the restore of <code>${v.lastRestore.source}</code>:
-                  ${v.lastRestore.receiptsUnopened
-                    .length} receipts' files don't open (or are missing),
-                  ${v.lastRestore.secretsUnopened.length} secrets don't open, and
-                  ${v.lastRestore.receiptsSetAside
-                    .length} files were set aside. Put the receipts back from
-                  the host's own backup of the same moment; enter the secrets again.</div>
-        </div>
-      `
-      : null
-  }
-    <div class="toolbar mt"><button type="button" class="btn" onClick=${() =>
-    api.post('/settings/keys/test').then(setTest)}>Test</button>
-      ${
-    armed || v.scheduled
-      ? null
-      : html`<button type="button" class="btn" onClick=${() =>
-        setArmed(true)}>Re-encrypt at the next restart</button>`
-  }
-      <span class="small dim">A new data key, made at the next unlock before the server serves. For when the data key may have been read: a memory dump or a debugging session. A leaked phrase calls for a rotation, which re-encrypts too. It closes nothing made before it.</span></div>
-    ${
-    armed
-      ? html`
-        <form class="mt" onSubmit=${(/** @type {Event} */ e) => {
-          e.preventDefault();
-          reencrypt.run().catch(() => {});
-        }}>
-          <p class="small dim" style=${{ marginTop: 0 }}>At the next unlock, before the server
-            serves: a verified backup first; then the database, the receipt files and every
-            secret are rewritten under a new data key, and the copies below as you choose. The
-            phrase given at the unlock wraps the new key.</p>
-            ${copies.length
-              ? html`<div class="field" data-help="copies-at-re-encryption"><label>The copies on this host</label>
-                ${
-                copies.map((/** @type {any} */ c) =>
+            : null}</div>
+        <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${(v
+          .databaseBytes / 1048576).toFixed(1)} MB), ${v.receipts} receipt file${v.receipts === 1
+          ? ''
+          : 's'}, ${v.secrets} secret${v.secrets === 1 ? '' : 's'}
+          <span class="small dim">· passwords are hashed</span></div>
+        <div class="list-item"><span class="grow dim">Previous keys</span>${v.previous.length
+          ? html`<span>${
+            v.previous.map((/** @type {any} */ p) =>
+              html`<div><code>${p.fingerprint}</code> <span class="small dim">· needed by ${
+                needing(p.fingerprint)
+              } ${needing(p.fingerprint) === 1 ? 'copy' : 'copies'} here${
+                p.removableAfter ? `, and by the host's snapshots until it prunes them` : ''
+              }</span>
+            <button type="button" class="btn sm" onClick=${() =>
+                forget(p.fingerprint).catch((e) => toast(e.message))}>Forget</button></div>`
+            )
+          }</span>`
+          : html`<span class="dim">none</span>`}</div>
+        <div class="list-item"><div class="grow"><span class="dim">Copies on this host</span>
+          ${copies.length
+            ? html`
+              <table class="t mt">
+                <caption class="sr-only">Copies on this host</caption>
+                <thead>
+                  <tr>
+                    <th>Copy</th>
+                    <th>Made</th>
+                    <th class="num">Size</th>
+                    <th>Opens</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>${copies.map((/** @type {any} */ c) =>
                   html`
-                    <div class="list-item">
-                      <div class="grow"><code>${c.name}</code>
-                                        <div class="small dim">${c.what} · ${opensWith(
-                                          c.opens,
-                                        )}</div></div>
-                      <span
-                        style=${{ flex: 'none', width: '180px' }}><${Select} value=${choiceOf(
-                          c,
-                        )} onChange=${(/** @type {string} */ x) =>
-                          setChoices({ ...choices, [c.name]: x })} options=${[
-                          ['reencrypt', 'Re-encrypt'],
-                          ['delete', 'Delete'],
-                          ['leave', 'Leave as it is'],
-                        ]} /></span>
-                    </div>
+                    <tr>
+                      <td><code>${c.name}</code><div class="small dim">${c.what}</div></td>
+                      <td>${moment(c.made)}</td>
+                      <td class="num">${(c.bytes / 1048576).toFixed(1)} MB</td>
+                      <td class="small">${opensWith(c.opens)}${c.masterKey
+                        ? html`${' '}<code>${c.masterKey}</code>`
+                        : null}</td>
+                      <td><button type="button" class="btn sm" onClick=${() =>
+                        removeCopy(c).catch((e) => toast(e.message))}>Remove</button></td>
+                    </tr>
                   `
-                )
-              }
-                <div class="small dim">A copy that needs a previous phrase can only be left or deleted.</div></div>`
-              : null}
-            <${FormError} error=${reencrypt.error} />
-            <div class="toolbar"><button class="btn primary" disabled=${reencrypt
-              .busy}>Schedule it</button>
-                    <button type="button" class="btn" onClick=${() =>
-                      setArmed(false)}>Cancel</button></div>
+                )}</tbody>
+              </table>
+            `
+            : html`<span class="small dim"> none</span>`}
+          <div class="small dim">${/** @type {any} */ (cps.data)?.note || ''}</div></div></div>
+        <div class="list-item"><div class="grow">Recovery phrase<div class="small dim">${confirmed
+          ? `Last confirmed ${
+            confirmed.how === 'unlock'
+              ? 'by the unlock'
+              : confirmed.how === 'app'
+              ? 'with Verify key'
+              : 'with moolakata keys verify'
+          } on ${day(confirmed.at)}.`
+          : 'Not confirmed since install. Every unlock confirms it; check each copy once a year with Verify key.'}</div></div>
+          ${confirmed
+            ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
+            : html`<span class="pill warn">unchecked</span>`}<button type="button" class="btn sm" onClick=${() =>
+            verify().catch((e) => toast(e.message))}>Verify key</button></div>
+        ${last
+          ? html`
+            <div class="list-item" data-help="last-reencryption">
+              <div class="grow"><span class="dim">Last re-encryption</span>
+                      <div class="small">${day(last.finishedAt)}${last.why === 'rotation'
+                        ? ', with a rotation'
+                        : last.why === 'host'
+                        ? ', on the host'
+                        : ', from Settings'}${last.receiptsSetAside.length ||
+                          last.secretsSetAside.length
+                        ? html`
+                          : set aside ${last.receiptsSetAside.length} receipt files and left ${last
+                            .secretsSetAside
+                            .length} secrets that opened under neither key (the files are in <code
+                          >receipts-set-aside/</code> in the data directory)
+                        `
+                        : ': everything opened'}.</div>
+                      ${last.rotationUnfinished
+                        ? html`
+                          <div class="notice small bad mt" role="status">
+                            <${Icon} name="alert" />
+                            <div>The
+                                        rotation didn't finish: the keyring stayed under <code>${last
+                                          .rotationUnfinished}</code>, so it re-encrypted under that phrase. Rotate again.</div>
+                          </div>
+                        `
+                        : null}
+                      ${lastCopies.length
+                        ? html`<ul class="small" style=${{ margin: '4px 0 0' }}>${
+                          lastCopies.map(([name, o]) =>
+                            html`<li><code>${name}</code>: ${o}${
+                              leftUnder(String(o))
+                                ? html`
+                                  <span class="pill warn">still opens with an old key</span>
+                                `
+                                : null
+                            }</li>`
+                          )
+                        }</ul>`
+                        : null}</div>
+            </div>
+          `
+          : null}
+        <div class="notice mt"><${Icon} name="alert" /><div>Without the recovery phrase, nothing here and no backup can be
+          opened, and the server cannot even start serving. Keep the phrase in two places, one offline.</div></div>
+        ${test
+          ? html`<ul class="small">${
+            test.checks.map((/** @type {any} */ c) =>
+              html`<li>${c.ok ? '✓' : '✗'} <b>${c.name}</b>: ${c.detail}</li>`
+            )
+          }</ul>`
+          : null}
+        ${v.scheduled
+          ? html`
+            <div class="notice mt" role="status" data-help="scheduled">
+              <${Icon} name="refresh" />
+              <div
+                class="grow">A re-encryption${v.scheduled.why === 'rotation'
+                  ? ', brought by a rotation,'
+                  : ''} waits for the restart: the unlock runs it before the server serves, with the phrase
+                      given there, its progress on the locked screen.</div>
+            </div>
+          `
+          : null}${v.lastRestore &&
+            (v.lastRestore.receiptsUnopened.length || v.lastRestore.secretsUnopened.length ||
+              v.lastRestore.receiptsSetAside.length)
+          ? html`
+            <div class="notice small bad mt" role="status" data-help="after-restore">
+              <${Icon}
+                name="alert" />
+              <div>After the restore of <code>${v.lastRestore.source}</code>:
+                      ${v.lastRestore.receiptsUnopened
+                        .length} receipts' files don't open (or are missing),
+                      ${v.lastRestore.secretsUnopened.length} secrets don't open, and
+                      ${v.lastRestore.receiptsSetAside
+                        .length} files were set aside. Put the receipts back from
+                      the host's own backup of the same moment; enter the secrets again.</div>
+            </div>
+          `
+          : null}
+        <div class="toolbar mt"><button type="button" class="btn" onClick=${() =>
+          api.post('/settings/keys/test').then(setTest)}>Test</button>
+          ${armed || v.scheduled ? null : html`
+            <button type="button" class="btn" onClick=${rotate}>Rotate</button>
+            <button type="button" class="btn" onClick=${() =>
+              setArmed(true)}>Re-encrypt now</button>
+          `}
+          <span class="small dim">Rotate gives a new phrase, for a leaked or lost one or the yearly
+            reminder. Re-encrypt now keeps the phrase and makes a new data key, for when the data key
+            may have been read: a memory dump or a debugging session. Both restart MoolaKata, which
+            then asks for the phrase.</span></div>
+        ${armed
+          ? html`
+            <form class="mt" onSubmit=${(/** @type {Event} */ e) => {
+              e.preventDefault();
+              reencrypt.run().catch(() => {});
+            }}>
+              <p class="small dim" style=${{
+                marginTop: 0,
+              }}>MoolaKata restarts at once, locked. At the
+                unlock, before it serves: a verified backup first; then the database, the receipt
+                files and every secret are rewritten under a new data key, and the copies below as
+                you choose. The phrase given at the unlock wraps the new key.</p>
+              <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
+              <${FormError} error=${reencrypt.error} />
+              <div
+                class="toolbar"><button class="btn primary" disabled=${reencrypt
+                  .busy}>Re-encrypt and restart</button>
+                        <button type="button" class="btn" onClick=${() =>
+                          setArmed(false)}>Cancel</button></div>
             </form>
-      `
-      : null
-  }
-  </div>`;
+          `
+          : null}
+      </div>
+    <${ReminderSetting} />
+  `;
 }
 </script>
 <script type="text/plain" data-module="@mk/screens/setup.js">
@@ -34778,6 +35073,16 @@ export const session = signal(null);
  * and the sign-in or locked screen says so (S12.15.6). */
 export const lostChanges = signal(false);
 export const ended = signal('');
+/** When the server was asked to restart for a re-encryption or a rotation (S15.7.2), 0 when
+ * it wasn't: the locked screen waits for it to come back, locked. */
+export const restarting = signal(0);
+
+/** The server restarts: the session goes, and the locked screen waits for it. */
+export function awaitRestart() {
+  session.value = null;
+  restarting.value = Date.now();
+  ended.value = 'locked';
+}
 
 export async function loadSession() {
   try {

@@ -13,7 +13,9 @@ When the daily backup runs.
 
 ## Copies kept
 
-How many backups stay; older ones are deleted. 14 by default.
+How many days of backups stay: every backup of each of the most recent days that have one, 14
+by default, never fewer than 3. Older days' are deleted. **Change** sets it; fewer days than
+the backups there are asks for the recovery phrase too.
 
 ## Back up now
 

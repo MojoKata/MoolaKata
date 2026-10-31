@@ -97,10 +97,8 @@ The app itself (`/ui`) stays reachable only on the household's own network or ov
    Store it as S15.6 says: two copies in two places, one offline, never with the backups.
    Whoever reaches a new server first can finish its welcome; one that asks for words nobody
    wrote down is stopped, its `data/` emptied (the database too: a new key can't open the
-   one left behind), and started again. On a terminal instead,
-   `docker compose run --rm moolakata keys init` makes the key before the first start (it
-   shows the phrase on the terminal only, never in Docker's logs); the page then sets up the
-   first admin at the first unlock.
+   one left behind), and started again. The welcome is the only way to make the key: no
+   command shows a phrase, since Docker's log keeps what a container's terminal shows.
 5. **Unlock it after every start**: it starts locked. Open the app and enter the phrase on the
    locked screen, or run `docker compose exec moolakata moolakata keys unlock` and type it
    there.
@@ -276,25 +274,29 @@ phrase, or the keyring from another server: the line names its fingerprint).
   the phrase again: it is never stored.
 - **Check a copy of the phrase**: **Verify key** in Settings › Key storage, or `docker compose
   run --rm moolakata keys verify`.
-- **Rotate the master key** (S15.7.1): a rotation brings a new data key as well, so the data is
-  re-encrypted. With the server running, `docker compose exec moolakata moolakata keys rotate`.
-  It needs no old phrase (the running server holds the data key), shows the new one on the
-  terminal and asks three words back, so it is also the way out of a lost phrase: do it before
-  the server ever restarts. Its re-encryption runs at the next unlock, with the new phrase:
-  restart when a few minutes' downtime suits. With the server stopped, `docker compose run --rm
-  moolakata keys rotate` asks for the current phrase first and re-encrypts at once. It lists
-  every copy on the host (backups, pre-upgrade copies, before-restore folders) and asks for
-  each: **re-encrypt** (Enter), **delete**, or **leave**; `--reencrypt-all` answers for all of
-  them. Store the new phrase; the server unlocks with it from its next start. Settings › Key
-  storage then says which copies, if any, still need the previous phrase; the host's snapshots
-  and backups made before the rotation always do, until you destroy them. When nothing needs
-  it, **Forget** it there and destroy its copies.
+- **Rotate the master key** (S15.7.1): Settings › Key storage › **Rotate**. A rotation brings a
+  new data key as well, so the data is re-encrypted. It asks for your password and the current
+  phrase, lists every copy on the host (backups, pre-upgrade copies, before-restore folders)
+  with **re-encrypt** (the default), **delete** or **leave** for each, shows the new phrase and
+  asks three words back. MoolaKata then restarts itself, locked: unlock it with the new phrase
+  and the re-encryption runs first, a few minutes, its progress on the locked screen. Store the
+  new phrase before anything else. Settings › Key storage then says which copies, if any, still
+  need the previous phrase; the host's snapshots and backups made before the rotation always
+  do, until you destroy them. When nothing needs it, **Forget** it there and destroy its
+  copies.
+- **A lost phrase, the server still running** (S15.5.2): rotate before it ever restarts, with a
+  break-glass code in place of the phrase. `docker compose exec moolakata moolakata keys
+  break-glass` prints one; type it into **Rotate** within 15 minutes. It works once, and every
+  admin is alerted that one was asked for.
 - **Re-encrypt the data** (S15.7.2), the phrase unchanged: Settings › Key storage ›
-  **Re-encrypt at the next restart**, then restart and unlock; the re-encryption runs before
-  the server serves, with its progress on the locked screen. Or, with the server stopped,
+  **Re-encrypt now**. MoolaKata restarts; unlock it and the re-encryption runs before the
+  server serves, with its progress on the locked screen. Or, with the server stopped,
   `docker compose run --rm moolakata keys reencrypt`. For when the data key may have been read:
   a memory dump, or a debugging session on the live server. A leaked phrase calls for a
   rotation (below).
+- **The maintenance shell**: `docker compose exec moolakata moolakata db shell`, beside the
+  running server. Run with `docker compose run` instead (a server that won't start), it asks
+  first: Docker's log keeps what it shows there.
 
 ### 7.1 When the key or phrase may have leaked
 
@@ -303,9 +305,9 @@ A leaked phrase is a leaked copy (S15.8): whoever has the phrase and any backup 
 
 1. Revoke and reissue every secret at its source: price-source keys, the bitcoin node's
    password, the SMTP password; unpair the connector and pair it again (§8).
-2. `docker compose exec moolakata moolakata keys rotate`, store the new phrase in two places,
-   then restart and unlock with it, so its re-encryption runs. The leaked phrase no longer
-   unlocks the server, and copies made from then on don't open with it.
+2. Settings › Key storage › **Rotate**, store the new phrase in two places, then unlock with
+   it after the restart, so its re-encryption runs. The leaked phrase no longer unlocks the
+   server, and copies made from then on don't open with it.
 3. Delete every backup and copy made before step 2, wherever it is: `backups/` (prune by hand:
    `rm -r backups/moolakata-<date>-*` for the old ones), the NAS or bucket, snapshots and VM
    images, `data/pre-upgrade/` and `data/before-restore-*/`. A copy you cannot delete is one

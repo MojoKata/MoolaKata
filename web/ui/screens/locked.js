@@ -7,7 +7,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
-import { loadSession, lostChanges } from '../store/session.js';
+import { loadSession, lostChanges, restarting } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { Field, FormError } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
@@ -23,10 +23,14 @@ const STAGES = /** @type {Record<string, string>} */ ({
   done: 'Done',
 });
 
+// How long a restart may take before the screen says to start the server on the host.
+const RESTART_WAIT = 60_000;
+
 export default function Locked() {
   const [words, setWords] = useState('');
   const [shown, setShown] = useState(false);
   const [lock, setLock] = useState(/** @type {any} */ (null));
+  const [late, setLate] = useState(false);
   const poll = async () => {
     const s = await api.get('/unlock');
     setLock(s);
@@ -34,8 +38,35 @@ export default function Locked() {
     return s;
   };
   useEffect(() => {
-    poll().catch(() => {});
+    if (!restarting.value) poll().catch(() => {});
   }, []);
+  // A restart for a re-encryption or a rotation (S15.7.2): wait for the server to answer
+  // locked, through the moment it doesn't answer at all.
+  useEffect(() => {
+    const began = restarting.value;
+    if (!began) return;
+    let stop = false;
+    const tick = async () => {
+      if (stop) return;
+      try {
+        const s = await api.get('/unlock');
+        if (s.locked) {
+          restarting.value = 0;
+          setLock(s);
+          return;
+        }
+      } catch {
+        // stopped, or not answering yet
+      }
+      if (Date.now() - began > RESTART_WAIT) setLate(true);
+      setTimeout(tick, 2000);
+    };
+    const t = setTimeout(tick, 2000);
+    return () => {
+      stop = true;
+      clearTimeout(t);
+    };
+  }, [restarting.value]);
   // While a re-encryption runs, the server answers its progress until it serves.
   useEffect(() => {
     if (!lock?.reencrypting) return;
@@ -48,6 +79,23 @@ export default function Locked() {
     setLock(s);
     if (!s.locked) await loadSession();
   });
+  if (restarting.value) {
+    return html`
+      <${AuthCard} title="MoolaKata is restarting" guide="locked"
+        sub="It starts again locked, so the re-encryption runs at the unlock, with the phrase entered there, before the server serves.">
+        ${late
+          ? html`
+            <div class="notice small bad" role="status">
+              <${Icon} name="alert" />
+              <div>It
+                          hasn't come back. Start it on the host (<code>docker compose up -d</code>), then
+                          unlock it here.</div>
+            </div>
+          `
+          : html`<p class="small dim">This page shows the locked screen as soon as it answers.</p>`}
+        </${AuthCard}>
+    `;
+  }
   if (lock?.uninitialised) return html`<${NewServer} refresh=${poll} />`;
   if (lock?.reencrypting) {
     const r = lock.reencrypting;

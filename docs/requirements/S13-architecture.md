@@ -76,7 +76,7 @@
    ready, starting, re-encrypting, locked or uninitialised, it is alive, so an orchestrator
    that waits for healthy containers (TrueNAS's catalog among them) lets it wait for its
    phrase; whether it is ready is `/healthz`'s answer, for an uptime monitor. **Host commands**
-   (`keys unlock`, `keys rotate`, `db backup`, S15.4.7) reach the running server over its Unix
+   (`keys unlock`, `keys break-glass`, `db backup`, S15.4.7) reach the running server over its Unix
    socket, `/run/moolakata/sock`, in a 0700 directory of the server's account on a tmpfs
    (`web/.dev/` in dev mode), never over the listener.
 7. **Security policies**. One place for the rules every request

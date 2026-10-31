@@ -1,9 +1,10 @@
-"""Host commands' way in (requirements S13.6, S15.4.2, S15.4.7): a Unix socket,
+"""Host commands' way in (requirements S13.6, S15.4.2, S15.4.7, S15.5.2): a Unix socket,
 `/run/moolakata/sock`, in a 0700 directory of the server's account, where `keys unlock`,
-`keys rotate` and `db backup`, run inside the server's container, reach the running server.
-It is no network listener: only the server's own account (or root) inside the container can
-open it, so reaching it is the host access that authenticates these commands. Nothing that
-reaches the listener, a forged `X-Forwarded-For` included, reaches these routes."""
+`keys break-glass` and `db backup`, run inside the server's container, reach the running
+server. It is no network listener: only the server's own account (or root) inside the
+container can open it. That gives nothing new to whoever opens it: on an unlocked server they
+could already read the data key from the process's memory (S15.7.1). Nothing that reaches the
+listener, a forged `X-Forwarded-For` included, reaches these routes."""
 
 import logging
 import os
@@ -13,12 +14,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request
 from hypercorn.config import Config as HypercornConfig
-from pydantic import Field
 
 from . import errors
 from .config import Config, RefuseStart
 from .errors import Problem
-from .keys import master, phrase
 from .ui.conventions import ExactRoute, Model
 from .ui.deps import server
 
@@ -30,12 +29,6 @@ CALLER = "host"
 
 class Phrase(Model):
     phrase: str
-
-
-class RotateIn(Model):
-    phrase: str  # the new phrase
-    oldPhrase: str | None = None  # the current one when known: opens copies under earlier data keys
-    copies: dict[str, str] = Field(default_factory=dict)  # name: reencrypt, delete or leave
 
 
 @router.get("/unlock")
@@ -53,56 +46,28 @@ async def unlock(body: Phrase, request: Request):
     return (await try_unlock(server(request), body.phrase, CALLER)).model_dump(mode="json")
 
 
-@router.get("/keys/copies")
-def copies_for_rotation(request: Request):
-    """The copies on this host, for `keys rotate` to ask about (S15.7.1)."""
-    from .ui.settings import copies_out
-
-    srv = server(request)
-    if srv.store is None:
-        raise Problem(503, "locked", "Unlock the server first.")
-    return copies_out(srv).model_dump(mode="json")
-
-
-@router.post("/keys/rotate")
-def rotate(body: RotateIn, request: Request):
-    """`moolakata keys rotate` against the running server: the new phrase's key wraps the data
-    key the server holds, the old key recorded, and a re-encryption is scheduled for the next
-    unlock (S15.7.1); a copy chosen for deletion goes now, the rest are re-encrypted or left
-    then."""
+@router.post("/keys/break-glass")
+def break_glass(request: Request):
+    """`moolakata keys break-glass` (S15.5.2): a code that stands in for a lost phrase at
+    Settings › Key storage › Rotate, for 15 minutes and once. Every admin is told."""
     from . import activity
-    from .store import maintenance
 
     srv = server(request)
     if srv.store is None:
-        raise Problem(503, "locked", "Unlock the server first, or rotate it offline.")
-    try:
-        new_key = phrase.from_words(body.phrase)
-        old_key = phrase.from_words(body.oldPhrase) if body.oldPhrase else None
-    except phrase.PhraseError as e:
-        raise Problem(422, "phrase-invalid", f"Not a recovery phrase: {e}") from None
-    if any(v not in ("reencrypt", "delete", "leave") for v in body.copies.values()):
-        raise Problem(422, "choice-invalid", "Each copy: reencrypt, delete or leave.")
-    with srv.maintenance_lock:
-        old_fp = master.fingerprint(srv.store.keys.master_id)
-        try:
-            srv.store, outcomes = maintenance.rotate_running(
-                srv.config, srv.store, new_key, body.copies, old_key
-            )
-        except RefuseStart as e:
-            raise Problem(409, "reencrypt-pending", str(e)) from None
-    new_fp = master.fingerprint(new_key)
+        raise Problem(503, "locked", "Unlock the server first: a locked server issues no code.")
+    code, until = srv.break_glass.issue()
     with srv.db.tx() as s:
         activity.record(
             s,
-            "key.rotated",
+            "keys.break-glass",
             actor=None,
             via="host",
             for_admins=True,
-            detail={"from": old_fp, "to": new_fp, "copies": outcomes},
+            detail={"until": until.isoformat()},
         )
-    log.info("the master key was rotated through the running server: %s -> %s", old_fp, new_fp)
-    return {"from": old_fp, "to": new_fp, "copies": outcomes}
+    srv.tasks.run_now("alerts")
+    log.info("a break-glass code was issued, until %s", until.isoformat())
+    return {"code": code, "expiresAt": until.isoformat()}
 
 
 @router.post("/backup")

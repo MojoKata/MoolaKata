@@ -4,6 +4,8 @@ after the last."""
 import asyncio
 import datetime as dt
 import logging
+import os
+import signal
 
 from sqlalchemy import delete, select
 
@@ -17,7 +19,7 @@ from .store import maintenance
 from .store.entities.core import TaskRun
 from .store.entities.users import OneTimeToken
 from .store.repos import ledger
-from .tasks import Daily, Every, TaskContext
+from .tasks import Daily, Every, TaskContext, Tasks
 from .tasks import TaskRun as Run
 
 log = logging.getLogger("moolakata")
@@ -52,8 +54,6 @@ def last_runs(server: Server) -> dict[str, Run]:
 
 def register_tasks(server: Server) -> None:
     """The background tasks of S13.4 that this release has."""
-    from .tasks import Tasks
-
     server.tasks = Tasks(record=record_run(server))
     last = last_runs(server)
 
@@ -169,6 +169,22 @@ def register_tasks(server: Server) -> None:
     server.services.mailer.notify = lambda: server.tasks.run_now("mail")
 
 
+# What start() answers when the server stops in order to start again (main.py re-executes it).
+RESTART = 75
+
+
+def restart(server: Server, after: float = 1.0) -> None:
+    """Stop cleanly, then start again in this same process, locked (S15.7.2): a re-encryption
+    or a rotation, once scheduled, runs at the unlock that follows, with the phrase typed there.
+    Nothing of a key crosses the restart. The answer to the request that asked for it goes out
+    first."""
+    server.restarting = True
+    log.info("restarting, so the re-encryption runs at the next unlock")
+    loop = server.loop
+    if loop is not None:
+        loop.call_soon_threadsafe(loop.call_later, after, os.kill, os.getpid(), signal.SIGTERM)
+
+
 class AlreadyUnlocked(Exception):
     pass
 
@@ -176,7 +192,8 @@ class AlreadyUnlocked(Exception):
 def build(server: Server, master_key: bytes) -> None:
     """Open the store with the phrase's key and make the server whole (S15.4.3), carrying any
     re-encryption pending to its end first, before anything is served (S15.7.2). The master
-    key is used here and not kept."""
+    key is used here and not kept. A failure part-way leaves the server locked, as it was,
+    with nothing it did half kept (CR3-298)."""
     from .store import reencrypt
 
     config = server.config
@@ -184,6 +201,29 @@ def build(server: Server, master_key: bytes) -> None:
     store = maintenance.open_store(config, master_key, progress=server.reencrypting)
     pricing.install()
     server.store = store
+    try:
+        _build(server, was_pending)
+    except BaseException:
+        relock(server)
+        raise
+    reencrypt.tidy(config)
+
+
+def relock(server: Server) -> None:
+    """Back to locked after an unlock that failed part-way: the store closed, the tasks
+    registered or started dropped (CR3-298)."""
+    store, server.store, server.ready = server.store, None, False
+    server.tasks.stop()
+    server.tasks = Tasks()
+    if server.reader is not None:
+        server.reader.stop()
+        server.reader = None
+    if store is not None:
+        store.db.dispose()
+
+
+def _build(server: Server, was_pending: bool) -> None:
+    config = server.config
     with server.db.tx() as s:
         if not users.has_users(s):
             log.info("no users yet: the page sets up the first admin (S10.1.2)")
@@ -201,6 +241,7 @@ def build(server: Server, master_key: bytes) -> None:
     restored = maintenance.after_restore(config)
     if restored is not None:
         check_restored(server, restored)
+        maintenance.restore_checked(config)
     load_copy_folders(server)
     if was_pending:
         record_reencryption(server)
@@ -311,6 +352,7 @@ def take_host_events(server: Server) -> set[str]:
 
     events = maintenance.take_host_events(server.config)
     if not events:
+        maintenance.host_events_taken(server.config)
         return set()
     with server.db.tx() as s:
         for e in events:
@@ -322,6 +364,7 @@ def take_host_events(server: Server) -> set[str]:
                 for_admins=True,
                 detail={**(e.get("detail") or {}), "at": e.get("at")},
             )
+    maintenance.host_events_taken(server.config)
     return {str(e.get("kind")) for e in events}
 
 
@@ -361,13 +404,22 @@ async def _complete(server: Server, master_key: bytes, seed: bool) -> None:
         await _open(server, master_key, seed)
     except Exception as e:
         server.unlock_error = str(e) if isinstance(e, RefuseStart) else type(e).__name__
-        log.error("the re-encryption at the unlock failed: %s", server.unlock_error)
+        # The log names what failed (a file, a step), which the locked screen doesn't show.
+        log.error("the re-encryption at the unlock failed: %s: %s", type(e).__name__, e)
     finally:
         server.reencrypting = None
 
 
 async def _open(server: Server, master_key: bytes, seed: bool) -> None:
     await asyncio.to_thread(build, server, master_key)
+    try:
+        await _serve(server, seed)
+    except BaseException:
+        relock(server)
+        raise
+
+
+async def _serve(server: Server, seed: bool) -> None:
     # Every unlock is a check of the recovery phrase: a copy that unlocks is a good copy
     # (S15.6.5).
     from . import activity
@@ -403,6 +455,7 @@ async def start(config: Config, seed: bool = False) -> int:
     from .store.maintenance import lock_data_dir
 
     lock = lock_data_dir(config, "only one server may use a data directory")  # noqa: F841 - held while running
+    maintenance.clear_parts(config)  # a backup a stop cut off (CR3-299)
     # No keyring: the server starts uninitialised and its page makes the key (S15.4.4). One
     # it can't read, or a database without one, refuses the start (S15.4.5).
     master.refuse_a_database_without_its_keyring(config)
@@ -416,6 +469,7 @@ async def start(config: Config, seed: bool = False) -> int:
     parsing.use_data_dir(config.data_dir)
     server = Server(config=config)
     server.unlocking = asyncio.Lock()
+    server.loop = asyncio.get_running_loop()
     app = create_app(server)
     from .host import create_host_app
 
@@ -452,4 +506,4 @@ async def start(config: Config, seed: bool = False) -> int:
         if server.store is not None:
             server.db.dispose()
     log.info("stopped")
-    return 0
+    return RESTART if server.restarting else 0
