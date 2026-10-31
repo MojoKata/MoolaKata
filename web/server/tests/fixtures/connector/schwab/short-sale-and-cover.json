@@ -1,0 +1,81 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "MARGIN",
+   "accountNumber": "12344417",
+   "positions": [],
+   "currentBalances": {
+    "cashBalance": 20500
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000030,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 20000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000031,
+   "time": "2026-09-15T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "SHORT",
+   "description": "SELL SHORT TESLA INC",
+   "netAmount": 12500,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "TSLA",
+      "cusip": "88160R101",
+      "description": "TESLA INC"
+     },
+     "amount": -50,
+     "price": 250,
+     "cost": 12500,
+     "positionEffect": "OPENING"
+    }
+   ],
+   "tradeDate": "2026-09-15T04:00:00+0000",
+   "settlementDate": "2026-09-15T04:00:00+0000"
+  },
+  {
+   "activityId": 1000032,
+   "time": "2026-10-06T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "SHORT",
+   "description": "BUY TO COVER TESLA INC",
+   "netAmount": -12000,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "TSLA",
+      "cusip": "88160R101",
+      "description": "TESLA INC"
+     },
+     "amount": 50,
+     "price": 240,
+     "cost": -12000,
+     "positionEffect": "CLOSING"
+    }
+   ],
+   "tradeDate": "2026-10-06T04:00:00+0000",
+   "settlementDate": "2026-10-06T04:00:00+0000"
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

@@ -674,6 +674,9 @@
  * @property {boolean} credentialWaiting
  * @property {(string | null)} signInAddress
  * @property {(string | null)} [signInHost]
+ * @property {(string | null)} [host]
+ * @property {(string | null)} [address]
+ * @property {(Object<string, unknown> | null)} [settings]
  * @property {string} createdAt
  * @property {number} version
  */
@@ -696,7 +699,7 @@
  * @property {boolean} locked
  * @property {(string | null)} fingerprint
  * @property {(string | null)} sealingKey
- * @property {(string | null)} [identityKey]
+ * @property {(string | null)} [actionKey]
  * @property {(string | null)} [sealingSignature]
  */
 

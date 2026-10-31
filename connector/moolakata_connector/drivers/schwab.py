@@ -8,6 +8,7 @@ account, which MoolaKata imports as a broker's download."""
 import base64
 import datetime as dt
 import json
+import re
 import secrets
 import time
 import uuid
@@ -21,21 +22,35 @@ REDIRECT = "https://127.0.0.1"
 TOKEN = f"https://{HOST}/v1/oauth/token"
 TRADER = f"https://{HOST}/trader/v1"
 REFRESH_DAYS = 7
-SEC_KINDS = {
-    "EQUITY": "STOCKINFO",
-    "ETF": "STOCKINFO",
-    "MUTUAL_FUND": "MFINFO",
-    "OPTION": "OPTINFO",
-    "FIXED_INCOME": "DEBTINFO",
+# What each of Schwab's asset types is in OFX (protocol §6): its security's aggregate, its
+# trades' and its position's. A money market fund (Schwab's cash equivalents among them) is a
+# mutual fund there.
+KINDS = {
+    "EQUITY": ("STOCKINFO", "STOCK", "POSSTOCK"),
+    "ETF": ("STOCKINFO", "STOCK", "POSSTOCK"),
+    "COLLECTIVE_INVESTMENT": ("STOCKINFO", "STOCK", "POSSTOCK"),
+    "MUTUAL_FUND": ("MFINFO", "MF", "POSMF"),
+    "CASH_EQUIVALENT": ("MFINFO", "MF", "POSMF"),
+    "FIXED_INCOME": ("DEBTINFO", "DEBT", "POSDEBT"),
+    "OPTION": ("OPTINFO", "OPT", "POSOPT"),
 }
+# Cash in or out with nothing else: money from outside, or moved between the owner's accounts.
 CASH_KINDS = {
-    "ELECTRONIC_FUND": "XFER",
-    "JOURNAL": "XFER",
+    "ACH_RECEIPT": "CREDIT",
+    "ACH_DISBURSEMENT": "DEBIT",
     "CASH_RECEIPT": "CREDIT",
     "CASH_DISBURSEMENT": "DEBIT",
     "WIRE_IN": "CREDIT",
     "WIRE_OUT": "DEBIT",
+    "ELECTRONIC_FUND": "XFER",
+    "JOURNAL": "XFER",
 }
+# Notes that move neither cash nor shares (a memorandum, a margin account's SMA): nothing to
+# write while they move nothing.
+NOTES = ("MEMORANDUM", "SMA_ADJUSTMENT", "MARGIN_CALL")
+# An option's end, by what the transaction says of it (S3.4).
+ENDS = (("EXPIR", "EXPIRE"), ("ASSIGN", "ASSIGN"), ("EXERC", "EXERCISE"))
+OCC = re.compile(r"(\S{1,6})\s*(\d{6})([CP])(\d{8})")  # an option's symbol, in OCC's form
 HEADER = (
     "OFXHEADER:100\r\nDATA:OFXSGML\r\nVERSION:102\r\nSECURITY:NONE\r\nENCODING:USASCII\r\n"
     "CHARSET:1252\r\nCOMPRESSION:NONE\r\nOLDFILEUID:NONE\r\nNEWFILEUID:NONE\r\n\r\n"
@@ -76,121 +91,292 @@ def _num(v) -> Decimal:
     return Decimal(str(v)) if v not in (None, "") else Decimal(0)
 
 
-def _secid(inst: dict) -> str:
-    cusip = inst.get("cusip")
-    key, kind = (cusip, "CUSIP") if cusip else (inst.get("symbol", "?"), "TICKER")
-    return f"<SECID><UNIQUEID>{key}<UNIQUEIDTYPE>{kind}</SECID>"
+def _x(text) -> str:
+    """Text as SGML carries it (CR3-332): `&`, `<` and `>` escaped."""
+    return str(text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _kind(inst: dict) -> tuple[str, str, str] | None:
+    return KINDS.get(str(inst.get("assetType") or ""))
 
 
 def _key(inst: dict) -> str:
+    """How the file names a security: an option by its symbol, which a position and a trade of
+    it share, else by its CUSIP, else its symbol."""
+    if inst.get("assetType") == "OPTION":
+        return " ".join(str(inst.get("symbol") or "?").split())
     return inst.get("cusip") or inst.get("symbol", "?")
 
 
+def _secid(inst: dict) -> str:
+    kind = "CUSIP" if inst.get("assetType") != "OPTION" and inst.get("cusip") else "TICKER"
+    return f"<SECID><UNIQUEID>{_x(_key(inst))}<UNIQUEIDTYPE>{kind}</SECID>"
+
+
+def _multiplier(inst: dict) -> int:
+    """Shares per contract: Schwab's multiplier, else the standard 100."""
+    for k in ("optionPremiumMultiplier", "optionMultiplier", "multiplier"):
+        if inst.get(k):
+            return int(_num(inst[k]))
+    return 100
+
+
+def _terms(inst: dict) -> tuple[str, dt.date, Decimal] | None:
+    """An option's right, expiry and strike: from the instrument, else from its symbol, which
+    Schwab writes as OCC does (`AAPL  261120C00150000`)."""
+    m = OCC.fullmatch(str(inst.get("symbol") or "").strip())
+    right = {"CALL": "CALL", "PUT": "PUT"}.get(str(inst.get("putCall") or ""))
+    if right is None and m:
+        right = "CALL" if m.group(3) == "C" else "PUT"
+    expiry = None
+    if inst.get("expirationDate"):
+        expiry = dt.date.fromisoformat(str(inst["expirationDate"])[:10])
+    elif m:
+        expiry = dt.datetime.strptime(m.group(2), "%y%m%d").date()
+    strike = _num(inst.get("strikePrice")) if inst.get("strikePrice") is not None else None
+    if strike is None and m:
+        strike = Decimal(int(m.group(4))) / 1000
+    if right is None or expiry is None or strike is None:
+        return None
+    return right, expiry, strike
+
+
 def _invtran(fitid: str, when: str, memo: str) -> str:
-    return f"<INVTRAN><FITID>{fitid}<DTTRADE>{when}<MEMO>{memo[:60]}</INVTRAN>"
+    return f"<INVTRAN><FITID>{_x(fitid)}<DTTRADE>{when}<MEMO>{_x(memo[:60])}</INVTRAN>"
 
 
-def _trade(t: dict, item: dict, fitid: str, when: str) -> str:
+def _trade(t: dict, item: dict, fitid: str, when: str, total: Decimal, fees: Decimal) -> str | None:
+    """One security's leg of a trade; None when it can't be written whole: an option trade that
+    says neither opening nor closing, an asset type with no OFX form."""
+    inst = item.get("instrument") or {}
+    kind = _kind(inst)
+    qty = _num(item.get("amount"))
+    if kind is None or not qty:
+        return None
+    side = "BUY" if qty > 0 else "SELL"
+    effect = item.get("positionEffect")
+    agg = kind[1]
+    if agg == "OPT":
+        if effect not in ("OPENING", "CLOSING"):
+            return None
+        to = "OPEN" if effect == "OPENING" else "CLOSE"
+        typ = f"<OPT{side}TYPE>{side}TO{to}<SHPERCTRCT>{_multiplier(inst)}"
+    elif agg == "STOCK":
+        what = side
+        if side == "BUY" and effect == "CLOSING":
+            what = "BUYTOCOVER"
+        elif side == "SELL" and effect == "OPENING":
+            what = "SELLSHORT"
+        typ = f"<{side}TYPE>{what}"
+    elif agg == "MF":
+        typ = f"<{side}TYPE>{side}"
+    else:  # a bond: its units are the face value, its price a percentage of it
+        typ = "" if side == "BUY" else "<SELLREASON>SELL"
+    return (
+        f"<{side}{agg}><INV{side}>{_invtran(fitid, when, t.get('description', ''))}"
+        f"{_secid(inst)}<UNITS>{qty}<UNITPRICE>{_num(item.get('price'))}<COMMISSION>{fees}"
+        f"<TOTAL>{total}<SUBACCTSEC>CASH<SUBACCTFUND>CASH</INV{side}>{typ}</{side}{agg}>"
+    )
+
+
+def _closure(t: dict, item: dict, fitid: str, when: str) -> str | None:
+    """An option's end, by what Schwab says of it (S3.4); None when it says none of them."""
+    inst = item.get("instrument") or {}
+    said = str(t.get("description") or "").upper()
+    action = next((a for word, a in ENDS if word in said), None)
+    qty = abs(_num(item.get("amount")))
+    if action is None or not qty:
+        return None
+    return (
+        f"<CLOSUREOPT>{_invtran(fitid, when, t.get('description', ''))}{_secid(inst)}"
+        f"<OPTACTION>{action}<UNITS>{qty}<SHPERCTRCT>{_multiplier(inst)}<SUBACCTSEC>CASH"
+        "</CLOSUREOPT>"
+    )
+
+
+def _transfer(t: dict, item: dict, fitid: str, when: str) -> str | None:
+    """Shares moved in or out with no cash (from another broker, say)."""
     inst = item.get("instrument") or {}
     qty = _num(item.get("amount"))
-    fees = sum(abs(_num(x.get("cost"))) for x in (t.get("transferItems") or []) if x.get("feeType"))
-    opt = inst.get("assetType") == "OPTION"
-    side = "BUY" if qty > 0 else "SELL"
-    tag = f"{side}OPT" if opt else f"{side}STOCK"
-    typ = (
-        f"<OPT{side}TYPE>{'BUYTOOPEN' if qty > 0 else 'SELLTOCLOSE'}"
-        if opt
-        else f"<{side}TYPE>{side}"
-    )
+    if _kind(inst) is None or not qty:
+        return None
+    action = "IN" if qty > 0 else "OUT"
     return (
-        f"<{tag}><INV{side}>{_invtran(fitid, when, t.get('description', ''))}{_secid(inst)}"
-        f"<UNITS>{qty}<UNITPRICE>{_num(item.get('price'))}<COMMISSION>{fees}"
-        f"<TOTAL>{_num(t.get('netAmount'))}<SUBACCTSEC>CASH<SUBACCTFUND>CASH</INV{side}>"
-        f"{typ}</{tag}>"
+        f"<TRANSFER>{_invtran(fitid, when, t.get('description', ''))}{_secid(inst)}"
+        f"<SUBACCTSEC>CASH<UNITS>{abs(qty)}<TFERACTION>{action}<POSTYPE>LONG</TRANSFER>"
     )
 
 
 def _income(t: dict, inst: dict, fitid: str, when: str) -> str:
+    kind = "INTEREST" if inst.get("assetType") == "FIXED_INCOME" else "DIV"
     return (
         f"<INCOME>{_invtran(fitid, when, t.get('description', ''))}{_secid(inst)}"
-        f"<INCOMETYPE>DIV<TOTAL>{_num(t.get('netAmount'))}<SUBACCTSEC>CASH<SUBACCTFUND>CASH"
-        "</INCOME>"
+        f"<INCOMETYPE>{kind}<TOTAL>{_num(t.get('netAmount'))}<SUBACCTSEC>CASH"
+        "<SUBACCTFUND>CASH</INCOME>"
     )
 
 
-def _bank(fitid: str, when: str, trn: str, net: float, memo: str) -> str:
+def _bank(fitid: str, when: str, trn: str, net: Decimal, memo: str) -> str:
     return (
-        f"<INVBANKTRAN><STMTTRN><TRNTYPE>{trn}<DTPOSTED>{when}<TRNAMT>{net}<FITID>{fitid}"
-        f"<NAME>{memo[:32]}</STMTTRN><SUBACCTFUND>CASH</INVBANKTRAN>"
+        f"<INVBANKTRAN><STMTTRN><TRNTYPE>{trn}<DTPOSTED>{when}<TRNAMT>{net}<FITID>{_x(fitid)}"
+        f"<NAME>{_x(memo[:32])}</STMTTRN><SUBACCTFUND>CASH</INVBANKTRAN>"
     )
 
 
-def _position(p: dict, as_of: dt.datetime) -> str:
+def _margin_interest(fitid: str, when: str, net: Decimal, memo: str) -> str:
+    return (
+        f"<MARGININTEREST>{_invtran(fitid, when, memo)}<TOTAL>{net}<SUBACCTFUND>CASH"
+        "</MARGININTEREST>"
+    )
+
+
+def _position(p: dict, as_of: dt.datetime) -> str | None:
     inst = p.get("instrument") or {}
+    kind = _kind(inst)
+    if kind is None:
+        return None
     units = _num(p.get("longQuantity")) - _num(p.get("shortQuantity"))
-    side = "SHORT" if _num(p.get("shortQuantity")) else "LONG"
+    side = "SHORT" if units < 0 else "LONG"
+    value = _num(p.get("marketValue"))
+    per = _multiplier(inst) if kind[1] == "OPT" else 1
+    price = Decimal(0)
+    if units:
+        price = value / (units * per) * (100 if kind[1] == "DEBT" else 1)
+        price = price.quantize(Decimal("0.000001")).normalize()
     return (
-        f"<POSSTOCK><INVPOS>{_secid(inst)}<HELDINACCT>CASH<POSTYPE>{side}<UNITS>{units}"
-        f"<UNITPRICE>{_num(p.get('averagePrice'))}<MKTVAL>{_num(p.get('marketValue'))}"
-        f"<DTPRICEASOF>{as_of:%Y%m%d%H%M%S}</INVPOS></POSSTOCK>"
+        f"<{kind[2]}><INVPOS>{_secid(inst)}<HELDINACCT>CASH<POSTYPE>{side}<UNITS>{units}"
+        f"<UNITPRICE>{price}<MKTVAL>{value}<DTPRICEASOF>{as_of:%Y%m%d%H%M%S}</INVPOS>"
+        f"</{kind[2]}>"
     )
 
 
 def _secinfo(inst: dict) -> str:
-    tag = SEC_KINDS.get(inst.get("assetType"), "OTHERINFO")
-    name = (inst.get("description") or inst.get("symbol") or "")[:120]
-    return (
-        f"<{tag}><SECINFO>{_secid(inst)}<SECNAME>{name}<TICKER>{inst.get('symbol', '')}"
-        f"</SECINFO></{tag}>"
-    )
+    kind = _kind(inst)
+    tag = kind[0] if kind else "OTHERINFO"
+    name = _x((inst.get("description") or inst.get("symbol") or "")[:120])
+    ticker = _x(" ".join(str(inst.get("symbol") or "").split())[:32])
+    info = f"<SECINFO>{_secid(inst)}<SECNAME>{name}<TICKER>{ticker}</SECINFO>"
+    if tag == "OPTINFO":
+        right, expiry, strike = _terms(inst) or ("CALL", dt.date(1970, 1, 1), Decimal(0))
+        info += (
+            f"<OPTTYPE>{right}<STRIKEPRICE>{strike}<DTEXPIRE>{expiry:%Y%m%d}"
+            f"<SHPERCTRCT>{_multiplier(inst)}"
+        )
+    elif tag == "DEBTINFO":
+        info += "<PARVALUE>1000<DEBTTYPE>COUPON"
+    return f"<{tag}>{info}</{tag}>"
 
 
-def to_ofx(acct: dict, transactions: list[dict], as_of: dt.datetime) -> bytes:
-    """One account's positions, balances and transactions as an OFX investment statement."""
-    positions = acct.get("positions") or []
-    secs: dict[str, dict] = {
-        _key(p.get("instrument") or {}): p.get("instrument") or {} for p in positions
-    }
-    rows, days = [], []
-    for t in transactions:
-        kind = t.get("type")
-        items = [
-            i
-            for i in (t.get("transferItems") or [])
-            if (i.get("instrument") or {}).get("assetType") != "CURRENCY"
-        ]
-        fitid = str(t.get("activityId") or uuid.uuid4())
-        when = _stamp(t.get("time") or t.get("tradeDate") or "")
-        net = _num(t.get("netAmount"))
-        inst = (items[0].get("instrument") or {}) if items else {}
-        if kind == "TRADE" and items:
-            secs.setdefault(_key(inst), inst)
-            rows.append(_trade(t, items[0], fitid, when))
-        elif kind == "DIVIDEND_OR_INTEREST" and inst:
-            secs.setdefault(_key(inst), inst)
-            rows.append(_income(t, inst, fitid, when))
-        elif kind == "DIVIDEND_OR_INTEREST":
-            rows.append(_bank(fitid, when, "INT", net, t.get("description", "")))
-        elif kind in CASH_KINDS:
-            rows.append(_bank(fitid, when, CASH_KINDS[kind], net, t.get("description", "")))
+def _legs(t: dict) -> list[dict]:
+    return [
+        i
+        for i in (t.get("transferItems") or [])
+        if (i.get("instrument") or {}).get("assetType") != "CURRENCY"
+    ]
+
+
+def _rows(t: dict, fitid: str, when: str) -> list[str] | None:
+    """A transaction's OFX rows; None when it can't be written whole, so it is named."""
+    kind = t.get("type")
+    net = _num(t.get("netAmount"))
+    legs = _legs(t)
+    memo = str(t.get("description") or "")
+    if kind in ("TRADE", "MONEY_MARKET") and legs:
+        # Each security's leg on its own row (a spread's two options); the fees, and whatever
+        # else the cash differs by, go with the first leg.
+        fees = sum(
+            (abs(_num(x.get("cost"))) for x in (t.get("transferItems") or []) if x.get("feeType")),
+            Decimal(0),
+        )
+        totals = [_num(x.get("cost")) for x in legs]
+        if len(legs) == 1:
+            totals = [net]
         else:
+            totals[0] += net - sum(totals, Decimal(0))
+        out = []
+        for n, (leg, total) in enumerate(zip(legs, totals, strict=True)):
+            row = _trade(t, leg, fitid if n == 0 else f"{fitid}-{n + 1}", when, total,
+                         fees if n == 0 else Decimal(0))  # fmt: skip
+            if row is None:
+                return None
+            out.append(row)
+        return out
+    if kind == "RECEIVE_AND_DELIVER" and legs:
+        leg = legs[0]
+        if (leg.get("instrument") or {}).get("assetType") == "OPTION":
+            row = _closure(t, leg, fitid, when)
+        elif net:
+            # Shares delivered for cash (an assignment's or exercise's stock leg): a trade.
+            row = _trade(t, leg, fitid, when, net, Decimal(0))
+        else:
+            row = _transfer(t, leg, fitid, when)
+        return [row] if row else None
+    if kind == "DIVIDEND_OR_INTEREST" and legs:
+        return [_income(t, legs[0].get("instrument") or {}, fitid, when)]
+    if kind == "DIVIDEND_OR_INTEREST" and net < 0 and "MARGIN" in memo.upper():
+        return [_margin_interest(fitid, when, net, memo)]
+    if kind == "DIVIDEND_OR_INTEREST":
+        return [_bank(fitid, when, "INT", net, memo)]
+    if kind in CASH_KINDS and not legs:
+        return [_bank(fitid, when, CASH_KINDS[kind], net, memo)]
+    if kind in NOTES and not net and not legs:
+        return []
+    return None
+
+
+def statement(acct: dict, transactions: list[dict], as_of: dt.datetime) -> tuple[bytes, list[str]]:
+    """One account's positions, balances and transactions as an OFX investment statement, and
+    the transactions it couldn't write whole, each named, never dropped unsaid (S18.9.2)."""
+    positions = acct.get("positions") or []
+    secs: dict[str, dict] = {}
+    for p in positions:
+        inst = p.get("instrument") or {}
+        if _kind(inst):
+            secs.setdefault(_key(inst), inst)
+    rows, days, left = [], [], []
+    for t in transactions:
+        if t.get("status") in ("INVALID", "PENDING"):
             continue
-        days.append(when[:8])
+        fitid = str(t.get("activityId") or uuid.uuid4())
+        when = _stamp(t.get("tradeDate") or t.get("time") or "")
+        made = _rows(t, fitid, when)
+        if made is None:
+            left.append(f"{when[:8]} {t.get('type')}: {str(t.get('description') or '')[:60]}")
+            continue
+        for leg in _legs(t):
+            inst = leg.get("instrument") or {}
+            if _kind(inst):
+                secs.setdefault(_key(inst), inst)
+        rows += made
+        if made:
+            days.append(when[:8])
     start = min(days) if days else f"{as_of:%Y%m%d}"
     stamp = f"{as_of:%Y%m%d%H%M%S}"
-    cash = _num((acct.get("currentBalances") or {}).get("cashBalance"))
-    return (
+    balances = acct.get("currentBalances") or {}
+    cash = _num(
+        next(
+            (balances[k] for k in ("cashBalance", "totalCash") if balances.get(k) is not None),
+            0,
+        )
+    )
+    held = "".join(x for x in (_position(p, as_of) for p in positions) if x)
+    body = (
         HEADER + "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS>"
         f"<DTSERVER>{stamp}<LANGUAGE>ENG<FI><ORG>Schwab<FID>5104</FI></SONRS>"
         "</SIGNONMSGSRSV1><INVSTMTMSGSRSV1><INVSTMTTRNRS><TRNUID>1<STATUS><CODE>0<SEVERITY>INFO"
         f"</STATUS><INVSTMTRS><DTASOF>{stamp}<CURDEF>USD<INVACCTFROM><BROKERID>schwab.com"
-        f"<ACCTID>{acct.get('accountNumber', '')}</INVACCTFROM><INVTRANLIST><DTSTART>{start}120000"
-        f"<DTEND>{stamp}{''.join(rows)}</INVTRANLIST><INVPOSLIST>"
-        f"{''.join(_position(p, as_of) for p in positions)}</INVPOSLIST><INVBAL><AVAILCASH>{cash}"
-        "<MARGINBALANCE>0<SHORTBALANCE>0</INVBAL></INVSTMTRS></INVSTMTTRNRS></INVSTMTMSGSRSV1>"
-        f"<SECLISTMSGSRSV1><SECLIST>{''.join(_secinfo(i) for i in secs.values())}</SECLIST>"
-        "</SECLISTMSGSRSV1></OFX>"
-    ).encode("latin-1", "replace")
+        f"<ACCTID>{_x(acct.get('accountNumber', ''))}</INVACCTFROM><INVTRANLIST>"
+        f"<DTSTART>{start}120000<DTEND>{stamp}{''.join(rows)}</INVTRANLIST><INVPOSLIST>{held}"
+        f"</INVPOSLIST><INVBAL><AVAILCASH>{cash}<MARGINBALANCE>0<SHORTBALANCE>0</INVBAL>"
+        "</INVSTMTRS></INVSTMTTRNRS></INVSTMTMSGSRSV1><SECLISTMSGSRSV1><SECLIST>"
+        f"{''.join(_secinfo(i) for i in secs.values())}</SECLIST></SECLISTMSGSRSV1></OFX>"
+    )
+    return body.encode("cp1252", "replace"), left
+
+
+def to_ofx(acct: dict, transactions: list[dict], as_of: dt.datetime) -> bytes:
+    """One account's positions, balances and transactions as an OFX investment statement."""
+    return statement(acct, transactions, as_of)[0]
 
 
 class Schwab(Driver):
@@ -267,13 +453,19 @@ class Schwab(Driver):
                 "endDate": as_of.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
             }
         )
-        files = []
+        files, left = [], []
         for a in accounts:
             acct, h = by_last4.get(a.last4 or ""), hashes.get(a.last4 or "")
             if acct is None or not h:
                 continue
             txns = _get(http, token, f"/accounts/{h}/transactions?{window}")
             name = f"schwab-{as_of:%Y-%m-%d}.ofx"
-            files.append(File(a.id, name, to_ofx(acct, txns, as_of), "ofx"))
+            data, skipped = statement(acct, txns, as_of)
+            files.append(File(a.id, name, data, "ofx"))
+            left += [f"••{a.last4} {x}" for x in skipped]
         message = f"{len(files)} statement{'s' if len(files) != 1 else ''}"
-        return Result("ok", message, found=found, files=files, credentials=kept)
+        if left:
+            # What couldn't be written whole is named, never dropped unsaid (S18.9.2).
+            n = len(left)
+            message += f"; {n} transaction{'s' if n != 1 else ''} left out: " + "; ".join(left)
+        return Result("ok", message[:200], found=found, files=files, credentials=kept)

@@ -1,0 +1,5 @@
+about = """The sign-on is accepted, but the statement is refused (2003, account not found): the run is
+failing with the code, and nothing is posted."""
+account = { type = "checking", institution = "Credit union" }
+settings = { url = "https://ofx.cu.example/ofx", org = "CU", fid = "1204", accountType = "CHECKING", accountId = "00001204", bankId = "101000695" }
+driver = { state = "failing", message = "refused the statement (code 2003)", files = 0 }

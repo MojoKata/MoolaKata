@@ -138,6 +138,17 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
     status, _, text = call(running, "POST", "/lock", {"words": "abandon " * 11 + "about"})
     assert status == 403 and "not this vault" in text and not core.vault.locked
     assert "wrong words on its page from 127.0.0.1" in caplog.text
+    # CR3-328: a slip in one of the real words is shown to the person typing, never logged.
+    slipped = phrase.split()
+    slipped[6] = slipped[6][:3] + "zq"
+    status, _, text = call(running, "POST", "/lock", {"words": " ".join(slipped)})
+    assert status == 403 and slipped[6] in text
+    assert "not a valid phrase" in caplog.text and slipped[6] not in caplog.text
+    for rec in caplog.records:  # the address and the kind, nothing typed
+        assert re.fullmatch(
+            r"wrong words on its page from 127\.0\.0\.1: (not a valid phrase|another vault's)",
+            rec.getMessage(),
+        ), rec.getMessage()
     status, _, _ = call(running, "POST", "/lock", {"words": phrase})
     assert status == 303 and core.vault.locked
     status, _, text = call(running, "GET", "/")
@@ -162,13 +173,22 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
         {"token": token, **{f"word{n}": shown[n - 1] for n in picks}},
     )
     assert core.vault.fingerprint() == page.fingerprint(words.from_words(shown)) != before
-    # Five wrong in a row: the next waits 15 minutes, on the page as at the command line.
+    # CR3-373: five tries a minute from one address on the page, and no wait for anyone else:
+    # the host's unlock, over the socket, opens it at once (S18.3.3).
     phrase = " ".join(shown)
+    page_ = running[0]
     assert call(running, "POST", "/lock", {"words": phrase})[0] == 303
-    for _ in range(5):
+    for _ in range(6):
         call(running, "POST", "/unlock", {"words": "abandon " * 11 + "about"})
     status, _, text = call(running, "POST", "/unlock", {"words": phrase})
-    assert status == 403 and "Wait 15 minutes" in text and core.vault.locked
+    assert status == 403 and "Five wrong tries a minute" in text and core.vault.locked
+    assert "words tried too often on its page from 127.0.0.1" in caplog.text
+    from moolakata_connector import sock
+
+    assert sock.handle(page_, {"command": "unlock", "words": phrase}) == {
+        "ok": True,
+        "locked": False,
+    }
 
 
 def test_pair_and_unpair_take_the_words(running, monkeypatch):
@@ -249,6 +269,22 @@ def test_the_certificate_names_what_browsers_use_and_follows_them(tmp_path):
     assert cert.read_bytes() == again  # the same names keep it
     page.certificate(tmp_path, page.Settings(names=("money.lan",)))
     assert cert.read_bytes() != again  # other names make it again
+    # CR3-335: a key left from a remake cut short (written, its certificate not) doesn't match
+    # the certificate kept: the next start makes the pair again rather than failing to serve.
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    stray = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    key.write_bytes(stray)
+    kept = cert.read_bytes()
+    page.certificate(tmp_path, page.Settings(names=("money.lan",)))
+    assert cert.read_bytes() != kept and key.read_bytes() != stray
+    assert not list((tmp_path / "tls").glob("*.tmp"))
+    import ssl
+
+    ssl.create_default_context(ssl.Purpose.CLIENT_AUTH).load_cert_chain(cert, key)
     own = page.Settings(cert=tmp_path / "c.pem", key=tmp_path / "k.pem")
     assert page.certificate(tmp_path, own) == (tmp_path / "c.pem", tmp_path / "k.pem")
 

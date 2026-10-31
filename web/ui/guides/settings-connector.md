@@ -19,11 +19,20 @@ reported. There its vault is made and its words are given: **Unlock** after a re
 see its status there, which names no institution, sign-in or account; every action asks for
 the words. MoolaKata only links to it and never sees the words.
 
+## The connector reaches MoolaKata at {#connector-address}
+
+The address a pairing code carries, as `https://…` with its port and no path: where the
+connector sends its reports and files, under `/connector/`. The connector usually runs on the
+household's own network, so this is often the server's own address there
+(`https://money.lan:37373`), not a public URL that leads out through a proxy or a tunnel and
+back. Empty, the public URL is used. Never the link address: a proxy for linked servers may pass
+only `/link/`. A change applies to the next pairing.
+
 ## Pair {#pair}
 
 Shows a one-time pairing code, valid 24 hours, to paste into **Pair** on the connector's page
-with its words, or in the command to run on its host. It holds this server's address and key
-fingerprint; the connector then introduces itself, and
+with its words, or in the command to run on its host. It holds the address above (or the public
+URL) and this server's key fingerprint; the connector then introduces itself, and
 both sides show its fingerprint for you to compare. One connector is paired at a time: pairing
 another replaces it, as Unpair does. Needs your password again when it was given over 10
 minutes ago.
@@ -49,14 +58,22 @@ copy can report as the connector.
 Refuses the connector's key from then on, stops every Connection, and turns every account's
 sync off. The connector deletes the credentials it held for this server. Needs your password
 again when it was given over 10 minutes ago. Unpair at once when the connector's host or its
-volume is lost or stolen: its identity key is kept outside the vault, so whoever has the copy
-can report as the connector and post files until it is unpaired. The vault itself, with the
-sign-ins and the key that opens sealed credentials, stays closed without the words.
+volume is lost or stolen. The copy holds only its status key, which can say no more than that
+the connector is locked; the vault, with the sign-ins and the keys that act as the connector
+and open sealed credentials, stays closed without the words.
 
 ## Connections {#connections}
 
-Every person's sign-ins, kept by the connector: who owns each, its driver (Folder, OFX Direct
-Connect or Schwab), the accounts it keeps current, and its state from the last report: ok with
-what the last run added, waiting for credentials, needs a sign-in, or failing with the
-connector's words. Credentials are never shown here, or anywhere: they exist only in the
-connector's vault. People start and change their own under Profile › Connections.
+Every person's sign-ins, kept by the connector: who owns each, its driver (OFX Direct Connect or
+Schwab), the accounts it keeps current, the host its credentials go to and no other (the OFX
+server's, from the address its owner gave, or the institution's own), and its state from the
+last report: ok with what the last run added, waiting for credentials, needs a sign-in, or
+failing with the connector's words. Credentials are never shown here, or anywhere: they exist
+only in the connector's vault. People start and change their own under Profile › Connections.
+
+## Host {#host}
+
+The host each Connection's credentials go to, and no other: an OFX server's, from the address
+its owner gave and sealed with the sign-in, or the institution's own for a driver with a fixed
+one (`api.schwabapi.com`). An address that isn't the institution's is worth a word with its
+owner.

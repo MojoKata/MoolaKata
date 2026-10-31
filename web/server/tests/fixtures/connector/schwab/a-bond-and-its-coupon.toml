@@ -1,0 +1,18 @@
+about = """A Treasury note bought at 99.5 for 10,000 of face value, and its coupon, as interest on
+the note."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -9950.00 912828XX1 10000",
+    "2026-10-01 interest 225.00 912828XX1",
+]
+holdings = ["912828XX1 10000"]
+cash = "10275.00"
+checks = ["2026-10-15 10275.00 ok"]
+holding_checks = ["as of 2026-10-15", "912828XX1 10000 ok"]
+instruments = { 912828XX1 = "bond" }
+open = ["912828XX1 long 10000 cost 9950.00"]
+closed = []
+strategies = []

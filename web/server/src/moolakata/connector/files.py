@@ -66,7 +66,8 @@ def post(srv, c: Connection, a: Account, data: bytes, meta: dict) -> dict:
     with srv.db.read() as s:
         limit = settings.get(s, "importMaxMb") * 1024 * 1024
     if len(data) > limit:
-        raise Refused("file-refused", f"Files are up to {limit // (1024 * 1024)} MB.")
+        # Settings › Imports' size, the one statements are held to (S16.8, protocol §7).
+        raise Refused("too-large", f"Files are up to {limit // (1024 * 1024)} MB.")
     name = str(meta.get("fileName") or "file")[:200]
     want = meta.get("sha256")
     if isinstance(want, str) and want != hashlib.sha256(data).hexdigest():
@@ -74,29 +75,11 @@ def post(srv, c: Connection, a: Account, data: bytes, meta: dict) -> dict:
     media = receipts.sniff(data[:16])
     if media is not None:
         return _keep(srv, c, a, data, name, media)
-    if ofx.looks_like_ofx(data):
-        parsed = parsing.read_ofx(data)
-    elif csvfile.looks_like_csv(data):
-        with srv.db.read() as s:
-            from sqlalchemy import false, select
-
-            from ..store.entities.accounts import ImportMapping
-
-            saved = s.scalars(
-                select(ImportMapping).where(
-                    ImportMapping.ownerId == a.ownerId,
-                    ImportMapping.institution == (a.institution or ""),
-                    ImportMapping.deleted == false(),
-                )
-            ).first()
-        if saved is None:
-            raise Refused(
-                "mapping-missing",
-                "The account has no saved CSV mapping: import one file by hand first.",
-            )
-        parsed = parsing.read_csv(data, json.loads(saved.columns))
-    else:
-        raise Refused("file-refused", "Not a file MoolaKata imports (OFX, QFX, CSV, a statement).")
+    try:
+        parsed = _read(srv, a, data)
+    except ReadError as e:
+        # A file the reader can't make out is refused, signed, with its words (S18.8).
+        raise Refused("file-refused", str(e)) from None
     try:
         with srv.db.tx() as s:
             account = s.get(Account, a.id)
@@ -115,6 +98,32 @@ def post(srv, c: Connection, a: Account, data: bytes, meta: dict) -> dict:
         },
         "kept": False,
     }
+
+
+def _read(srv, a: Account, data: bytes):
+    """An OFX, QFX or CSV file read as the import reads an upload; anything else refused."""
+    if ofx.looks_like_ofx(data):
+        return parsing.read_ofx(data)
+    if csvfile.looks_like_csv(data):
+        with srv.db.read() as s:
+            from sqlalchemy import false, select
+
+            from ..store.entities.accounts import ImportMapping
+
+            saved = s.scalars(
+                select(ImportMapping).where(
+                    ImportMapping.ownerId == a.ownerId,
+                    ImportMapping.institution == (a.institution or ""),
+                    ImportMapping.deleted == false(),
+                )
+            ).first()
+        if saved is None:
+            raise Refused(
+                "mapping-missing",
+                "The account has no saved CSV mapping: import one file by hand first.",
+            )
+        return parsing.read_csv(data, json.loads(saved.columns))
+    raise Refused("file-refused", "Not a file MoolaKata imports (OFX, QFX, CSV, a statement).")
 
 
 def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) -> dict:

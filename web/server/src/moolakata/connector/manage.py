@@ -70,7 +70,9 @@ def paired(s) -> Connector | None:
 
 
 def own_address(s) -> str | None:
-    return settings.get(s, "linkAddress") or settings.get(s, "publicUrl")
+    """The address a pairing code carries (S18.4.1): Settings › Connector's own, else the
+    public URL."""
+    return settings.get(s, "connectorAddress") or settings.get(s, "publicUrl")
 
 
 def pair_code(srv, by: str) -> tuple[Connector, str]:
@@ -84,8 +86,8 @@ def pair_code(srv, by: str) -> tuple[Connector, str]:
         if not address:
             raise ConnectorError(
                 "no-address",
-                "Set this server's public URL (or link address) first, so the connector can "
-                "reach it.",
+                "Set the address the connector reaches this server at (Settings › Connector), or "
+                "the public URL, first.",
             )
         own = keys.private_key(s, srv.keys.secrets, by)
         fp = keys.fingerprint(keys.raw_public(own.public_key()))
@@ -128,42 +130,64 @@ def _end(s, row: Connector, by: str | None, reason: str) -> None:
     activity.record(s, f"connector.{reason}", actor=by, for_admins=True)
 
 
-# What the connector's identity key signs at pairing: its sealing key, so a browser seals only
-# to the key of the connector an admin confirmed (S18.4.5).
+# What a pairing's keys sign of one another (S18.4.2, S18.4.5): the action key signs the
+# sealing key, so a browser seals only to the key of the connector an admin confirmed, and the
+# status key; the status key signs the action key. So both are known to be one connector's.
 SEALING_LABEL = b"moolakata connector sealing key\x00"
+STATUS_LABEL = b"moolakata connector status key\x00"
+ACTION_LABEL = b"moolakata connector action key\x00"
 
 
-def sealing_signed(identity: bytes, sealing: bytes, signature: bytes) -> bool:
+def signed_by(signer: bytes, label: bytes, key: bytes, signature: bytes) -> bool:
     from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
     try:
-        Ed25519PublicKey.from_public_bytes(identity).verify(signature, SEALING_LABEL + sealing)
+        Ed25519PublicKey.from_public_bytes(signer).verify(signature, label + key)
     except InvalidSignature, ValueError:
         return False
     return True
 
 
+def _key_field(body: dict, name: str, size: int) -> bytes:
+    raw = keys.unb64(str(body.get(name) or ""))
+    if len(raw) != size:
+        raise ValueError(name)
+    return raw
+
+
 def answer_pair(srv, caller_public: bytes, body: dict, version: str | None, protocol: int | None):
-    """The connector introduces itself with the code (S18.4.2): the code's secret must match
-    the hash kept, within its time; the keys are then recorded, and a connector paired before
-    is replaced as Unpair would."""
+    """The connector introduces itself with the code (S18.4.2), the call signed by its new
+    action key: the code's secret must match the hash kept, within its time; the keys, each
+    signed by the other, are then recorded, and a connector paired before is replaced as Unpair
+    would."""
     try:
         c = decode_code(str(body.get("code") or ""))
-        sealing = keys.unb64(str(body.get("sealingKey") or ""))
-        if len(sealing) != 32:
-            raise ValueError
+        sealing = _key_field(body, "sealingKey", 32)
+        status = _key_field(body, "statusKey", 32)
     except ConnectorError, ValueError:
         return {"error": ("code-used", "The pairing code was used, expired or withdrawn.")}
-    try:
-        signature = keys.unb64(str(body.get("sealingSignature") or ""))
-    except ValueError:
-        signature = b""
-    if not sealing_signed(caller_public, sealing, signature):
+    signatures = {}
+    for name in ("sealingSignature", "statusSignature", "actionSignature"):
+        try:
+            signatures[name] = keys.unb64(str(body.get(name) or ""))
+        except ValueError:
+            signatures[name] = b""
+    if not signed_by(caller_public, SEALING_LABEL, sealing, signatures["sealingSignature"]):
         return {
             "error": (
                 "sealing-unsigned",
-                "The sealing key isn't signed by the connector's identity key: update it.",
+                "The sealing key isn't signed by the connector's action key: update it.",
+            )
+        }
+    if status == caller_public or not (
+        signed_by(caller_public, STATUS_LABEL, status, signatures["statusSignature"])
+        and signed_by(status, ACTION_LABEL, caller_public, signatures["actionSignature"])
+    ):
+        return {
+            "error": (
+                "keys-unsigned",
+                "The status and action keys don't sign each other: update the connector.",
             )
         }
     now = clock.now()
@@ -184,9 +208,10 @@ def answer_pair(srv, caller_public: bytes, body: dict, version: str | None, prot
         row.state = "paired"
         row.codeHash = None
         row.codeExpiresAt = None
-        row.identityKey = keys.b64(caller_public)
+        row.actionKey = keys.b64(caller_public)
+        row.statusKey = keys.b64(status)
         row.sealingKey = keys.b64(sealing)
-        row.sealingSignature = keys.b64(signature)
+        row.sealingSignature = keys.b64(signatures["sealingSignature"])
         row.pairedAt = now
         row.lastReportAt = now
         row.connectorVersion = version
@@ -259,14 +284,19 @@ def unpair(srv, by: str | None, reason: str = "unpaired") -> bool:
         return True
 
 
-def by_key(s, public: bytes) -> Connector | None:
-    return s.scalars(
+def by_key(s, public: bytes) -> tuple[Connector, str] | None:
+    """The paired connector a key is one of, and which: `action` or `status` (S18.4.2)."""
+    key = keys.b64(public)
+    row = s.scalars(
         select(Connector).where(
             Connector.deleted == false(),
             Connector.state == "paired",
-            Connector.identityKey == keys.b64(public),
+            (Connector.actionKey == key) | (Connector.statusKey == key),
         )
     ).first()
+    if row is None:
+        return None
+    return row, "action" if row.actionKey == key else "status"
 
 
 STATES = ("new", "ok", "needs-sign-in", "failing")
@@ -294,29 +324,11 @@ def apply_report(
     """A report (S18.5, protocol §4.2): what the connector says of itself and each Connection,
     answered with what waits for it. Nothing in a report is a credential, an amount or an
     account number beyond its last four digits: what it says is kept as its words."""
-    now = clock.now()
     with srv.db.tx() as s:
         row = s.get(Connector, row.id)
-        row.lastReportAt = now
-        row.locked = bool(body.get("locked", True))
-        row.connectorVersion = version
-        row.protocol = protocol
+        _heard(s, row, version, protocol, address)
+        row.locked = bool(body.get("locked", False))
         row.pageAddress = _page(body.get("page"))
-        if address and address != row.lastAddress:
-            # A report from somewhere new (S18.2.4.4): the first address is taken as known;
-            # a later change is alerted until an admin accepts it.
-            if row.lastAddress is None and row.knownAddress is None:
-                row.knownAddress = address
-            elif address != row.knownAddress:
-                row.newAddress = address  # kept until accepted or unpaired
-                activity.record(
-                    s,
-                    "connector.address-changed",
-                    actor=None,
-                    for_admins=True,
-                    detail={"from": row.lastAddress, "to": address},
-                )
-            row.lastAddress = address
         # Removed Connections (deleted here, S18.6.4) are listed so the connector deletes
         # their credentials, until it has reported without them once.
         mine = {
@@ -346,8 +358,16 @@ def apply_report(
                         if isinstance(x, dict)
                     ][:50]
                 )
+            # Held to the driver's own sign-in page, as the sign-in call is: a report is no
+            # way round that check (S18.7.1).
             address = rep.get("signInAddress")
-            c.signInAddress = address if isinstance(address, str) and len(address) < 2000 else None
+            c.signInAddress = (
+                address
+                if isinstance(address, str)
+                and len(address) < 2000
+                and sign_in_allowed(c.driver, address)
+                else None
+            )
         live = []
         removed = []
         for c in mine.values():
@@ -375,6 +395,41 @@ def apply_report(
             )
         # Whether an admin confirmed the pairing, which its page shows (S18.11.3).
         return {"connections": live, "removed": removed, "confirmed": row.confirmedAt is not None}
+
+
+def _heard(s, row: Connector, version: str | None, protocol: int | None, address: str | None):
+    """What any report tells, under either key: when, what it runs, and where from."""
+    row.lastReportAt = clock.now()
+    row.connectorVersion = version
+    row.protocol = protocol
+    if address and address != row.lastAddress:
+        # A report from somewhere new (S18.2.4.4): the first address is taken as known; a later
+        # change is alerted until an admin accepts it.
+        if row.lastAddress is None and row.knownAddress is None:
+            row.knownAddress = address
+        elif address != row.knownAddress:
+            row.newAddress = address  # kept until accepted or unpaired
+            activity.record(
+                s,
+                "connector.address-changed",
+                actor=None,
+                for_admins=True,
+                detail={"from": row.lastAddress, "to": address},
+            )
+        row.lastAddress = address
+
+
+def apply_locked(
+    srv, row: Connector, version: str | None, protocol: int | None, address: str | None = None
+) -> dict:
+    """A report under the status key (S18.5): the connector is locked, and nothing else is
+    taken from it; the answer acknowledges it and carries nothing about a Connection, an owner
+    or an account, since a copy of the connector's volume holds this key (S18.2.4.4)."""
+    with srv.db.tx() as s:
+        row = s.get(Connector, row.id)
+        _heard(s, row, version, protocol, address)
+        row.locked = True
+    return {"ok": True}
 
 
 def _short(v) -> str | None:
@@ -435,6 +490,22 @@ def credential_taken(srv, row: Connector, connection_id: str, at: str | None = N
             c.state = "ok"
             c.message = "credentials received"
         return True
+
+
+# The host a driver's credentials go to when it has one of its own; a driver without one sends
+# them to the server its settings name (S18.7.3, protocol §6).
+DRIVER_HOSTS = {"schwab": "api.schwabapi.com"}
+ADDRESS = {"ofx-direct": "url"}  # the setting naming that server
+
+
+def bound_host(driver: str, settings: dict) -> str | None:
+    """Where a Connection's credentials go (S18.7.1, S16.18): what the owner sees before
+    sealing them, and admins in Settings › Connector."""
+    if driver in ADDRESS:
+        address = settings.get(ADDRESS[driver])
+        host = urlsplit(address).hostname if isinstance(address, str) else None
+        return host.lower() if host else None
+    return DRIVER_HOSTS.get(driver)
 
 
 # The only sign-in pages a driver may send its owner to (S18.7.1): its institution's own

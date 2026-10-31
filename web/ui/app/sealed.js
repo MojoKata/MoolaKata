@@ -35,17 +35,17 @@ export async function canSeal() {
 const SIGNED = new TextEncoder().encode('moolakata connector sealing key\0');
 
 /**
- * Whether the sealing key is the paired connector's own: signed by the identity key whose
+ * Whether the sealing key is the paired connector's own: signed by the action key whose
  * fingerprint an admin confirmed (S18.4.5). Nothing is sealed to a key that isn't.
  * @param {string} sealingKey base64url
- * @param {string} identityKey base64url, Ed25519
+ * @param {string} actionKey base64url, Ed25519
  * @param {string} signature base64url
  */
-export async function sealingKeyIsSigned(sealingKey, identityKey, signature) {
+export async function sealingKeyIsSigned(sealingKey, actionKey, signature) {
   try {
     const key = await crypto.subtle.importKey(
       'raw',
-      unb64(identityKey),
+      unb64(actionKey),
       { name: 'Ed25519' },
       false,
       [

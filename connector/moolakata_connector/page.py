@@ -1,8 +1,9 @@
 """Its page (requirements S18.11): one small HTTPS page the connector serves itself, on a port
 of its own, where its vault is made, its words given after a restart and its pairing done.
 Plain forms the connector renders, no JavaScript. Anyone on the network sees its status;
-every action takes the words, and wrong ones count toward the vault's wait (S18.3.3) and are
-logged with the address they came from. MoolaKata only links here and never sees the words."""
+every action takes the words, wrong ones are logged with the address they came from, and one
+address may try wrong ones five times a minute (S18.3.3). MoolaKata only links here and never
+sees the words."""
 
 import datetime as dt
 import html
@@ -33,6 +34,7 @@ PORT = 37374
 OFFER_SECONDS = 3600  # a welcome's words stay on offer an hour
 OFFERS_KEPT = 20
 BODY_LIMIT = 16 * 1024
+TRIES = 5  # wrong words from one address in a minute (S18.3.3)
 CERT_DAYS = 825
 STYLE = Path(__file__).with_name("page.css")
 HEADERS = {
@@ -92,13 +94,8 @@ def certificate(data: Path, settings: Settings) -> tuple[Path, Path]:
     folder = data / "tls"
     cert, key = folder / "cert.pem", folder / "key.pem"
     wanted = sorted({"localhost", *settings.names})
-    if cert.exists() and key.exists():
-        have = x509.load_pem_x509_certificate(cert.read_bytes())
-        named = have.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
-        if sorted(
-            str(getattr(n, "value", n)) for n in named
-        ) == wanted and have.not_valid_after_utc - dt.datetime.now(dt.UTC) > dt.timedelta(days=30):
-            return cert, key
+    if cert.exists() and key.exists() and _fits(cert, key, wanted):
+        return cert, key
     folder.mkdir(mode=0o700, exist_ok=True)
     private = ec.generate_private_key(ec.SECP256R1())
     now = dt.datetime.now(dt.UTC)
@@ -115,18 +112,48 @@ def certificate(data: Path, settings: Settings) -> tuple[Path, Path]:
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .sign(private, hashes.SHA256())
     )
-    fd = os.open(key, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(
-            private.private_bytes(
-                serialization.Encoding.PEM,
-                serialization.PrivateFormat.PKCS8,
-                serialization.NoEncryption(),
-            )
-        )
-    cert.write_bytes(made.public_bytes(serialization.Encoding.PEM))
+    # Each through a temporary file and a rename, the certificate last: a stop between the two
+    # leaves a key that doesn't match the certificate, which the next start makes again.
+    _replace(
+        key,
+        private.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ),
+    )
+    _replace(cert, made.public_bytes(serialization.Encoding.PEM))
     log.info("made the page's certificate for %s", ", ".join(wanted))
     return cert, key
+
+
+def _fits(cert: Path, key: Path, wanted: list[str]) -> bool:
+    """The pair kept serves on: its key is the certificate's, it names what browsers use, and
+    it has more than 30 days left."""
+    try:
+        have = x509.load_pem_x509_certificate(cert.read_bytes())
+        private = serialization.load_pem_private_key(key.read_bytes(), password=None)
+        named = have.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    except ValueError, x509.ExtensionNotFound:
+        return False
+    der = serialization.Encoding.DER
+    spki = serialization.PublicFormat.SubjectPublicKeyInfo
+    if private.public_key().public_bytes(der, spki) != have.public_key().public_bytes(der, spki):
+        return False
+    left = have.not_valid_after_utc - dt.datetime.now(dt.UTC)
+    return sorted(str(getattr(n, "value", n)) for n in named) == wanted and left > dt.timedelta(
+        days=30
+    )
+
+
+def _replace(path: Path, data: bytes) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
 
 
 def _san(name: str) -> x509.GeneralName:
@@ -161,7 +188,22 @@ class Page:
         self.core = core
         self.settings = settings
         self.offers: dict[str, Offer] = {}
+        self.tried: dict[str, list[float]] = {}  # by address: when words were tried, a minute
         self._lock = threading.Lock()
+
+    def may_try(self, address: str) -> bool:
+        """Five wrong tries a minute from one address (S18.3.3): only to bound the work and the
+        log a flood makes, never a wait for anyone else, and never for the host's `unlock`."""
+        with self._lock:
+            now = time.monotonic()
+            for a in [a for a, ts in self.tried.items() if ts[-1] < now - 60]:
+                del self.tried[a]
+            self.tried[address] = [t for t in self.tried.get(address, []) if t >= now - 60]
+            return len(self.tried[address]) < TRIES
+
+    def wrong(self, address: str) -> None:
+        with self._lock:
+            self.tried.setdefault(address, []).append(time.monotonic())
 
     def offer(self, reset: bool = False) -> tuple[str, Offer]:
         with self._lock:
@@ -211,8 +253,8 @@ def words_field(label: str = "The vault’s words") -> str:
         f'<label class="field"><span>{e(label)}</span><input class="in" type="password" '
         'name="words" placeholder="twelve words, in order" autocomplete="off" '
         'autocapitalize="none" spellcheck="false" required><small>From the household’s '
-        "password manager. Four letters of each are enough. Five wrong tries in a row make "
-        "the next wait 15 minutes.</small></label>"
+        "password manager. Four letters of each are enough. Five wrong tries a minute from "
+        "one address make it wait a minute.</small></label>"
     )
 
 
@@ -372,16 +414,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _words(self, form: dict, unlock: bool = False) -> str | None:
         """The words checked against the vault (or used to unlock it); a wrong one is logged
-        with its address and counts toward the wait (S18.3.3). None when refused."""
+        with its address (S18.3.3). None when refused."""
         phrase = form.get("words", "")
         vault = self.page.core.vault
+        if not self.page.may_try(self.client_address[0]):
+            log.warning("words tried too often on its page from %s", self.client_address[0])
+            self.refused = "Five wrong tries a minute from one address: wait a minute."
+            return None
         try:
             if unlock and vault.locked:
                 self.page.core.unlock(phrase)
             else:
                 vault.check(phrase)
         except VaultError as err:
-            log.warning("wrong words on its page from %s: %s", self.client_address[0], err)
+            self.page.wrong(self.client_address[0])
+            log.warning("wrong words on its page from %s: %s", self.client_address[0], err.kind)
             self.refused = str(err)[:1].upper() + str(err)[1:] + "."
             return None
         return phrase
@@ -614,11 +661,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         core = self.page.core
         if offer.reset:
-            core.reset(" ".join(typed))
+            _, told = core.reset(" ".join(typed))
             log.info(
-                "a reset on its page made the vault %s, from %s",
+                "a reset on its page made the vault %s, from %s; MoolaKata %s",
                 core.vault.fingerprint(),
                 self.client_address[0],
+                "was told" if told else "wasn't told: unpair it in Settings › Connector",
             )
         else:
             if core.vault.exists():

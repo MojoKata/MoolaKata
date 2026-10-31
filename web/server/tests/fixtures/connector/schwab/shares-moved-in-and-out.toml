@@ -1,0 +1,18 @@
+about = """Shares moved in from another broker with no cash (their basis unknown here), and some moved
+out later: transfers in and out, never buys or sells."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-05 transfer-in 0.00 MSFT 100",
+    "2026-10-02 transfer-out 0.00 MSFT 20",
+]
+holdings = ["MSFT 80"]
+cash = "0.00"
+checks = ["2026-10-15 0.00 ok"]
+holding_checks = ["as of 2026-10-15", "MSFT 80 ok"]
+instruments = { MSFT = "equity" }
+# Moved in without their basis, which the owner gives on Positions (S2.2).
+open = ["MSFT long 80 cost -"]
+closed = []
+strategies = []

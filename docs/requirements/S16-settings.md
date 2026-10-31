@@ -109,8 +109,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     expired against the rest, the files no record names with **Remove** (S14.6), what
     expires each coming year by category, **Keep statements for** (years, empty for ever),
     each category's **Keep receipts for**, and **Prune**.
-18. **Connector** (S18): pairing with the MoolaKata Connector (**Pair**, the connector's
-    fingerprint, **Confirm** once the fingerprints were compared, who confirmed and when,
+18. **Connector** (S18): pairing with the MoolaKata Connector (**The connector reaches MoolaKata
+    at**, the address a pairing code carries, the public URL when empty, S18.4.1; **Pair**, the
+    connector's fingerprint, **Confirm** once the fingerprints were compared, who confirmed and when,
     **Unpair**), whether it is locked, its last report and the address it reports from (with
     **Accept** when that address changed, S18.2.4.4), and every Connection's state, owner,
     accounts and the host its credentials go to, never the credentials.

@@ -6,9 +6,10 @@ This document is the protocol's statement; the code that speaks it is
 on the connector's. It follows the link protocol (`link-protocol.md`) wherever the two do the
 same thing, so one reading covers both.
 
-**Terms.** The **identity key** (Ed25519) signs the connector's calls and is kept beside its
-vault; the **sealing key** (X25519) is what a browser seals a credential to, its public half
-held by MoolaKata and its private half kept in the vault; a **sealed box** is such a credential
+**Terms.** The **action key** (Ed25519) signs the connector's calls and is kept in its vault;
+the **status key** (Ed25519) is kept beside the vault and signs only a report that the
+connector is locked, and `unpaired`; the **sealing key** (X25519) is what a browser seals a
+credential to, its public half held by MoolaKata and its private half kept in the vault; a **sealed box** is such a credential
 as MoolaKata stores and hands over, unable to open it; the **vault** is the connector's
 encrypted file of credentials and the sealing key, open only while the connector is
 **unlocked** with its words; a credential's **bound host** is the one host it may ever be sent
@@ -20,27 +21,32 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
  connector                                                  MoolaKata
    |  GET  /connector/v1/hello                                 |  unsigned: {protocol, version, fingerprint, key}
    |---------------------------------------------------------->|
-   |  POST /connector/v1/pair {code, sealingKey, sealingSig}   |  once; signed by the new identity key
+   |  POST /connector/v1/pair {code, sealingKey, statusKey, …} |  once; signed by the new action key
    |---------------------------------------------------------->|
-   |  POST /connector/v1/report {locked, connections[]}        |  every 5 minutes, signed
+   |  POST /connector/v1/report {locked: true}                 |  locked: the status key's, answered
+   |---------------------------------------------------------->|   {ok, certificate} and nothing more
+   |  POST /connector/v1/report {locked: false, connections[]} |  every 5 minutes, the action key's
    |---------------------------------------------------------->|
    |<----------------------------------------------------------|  {connections: settings, accounts,
-   |                                                           |   sealed (only if unlocked)}, removed[]
+   |                                                           |   sealed (once confirmed)}, removed[],
+   |                                                           |   confirmed, certificate
    |  POST …/connections/{id}/credential/taken                 |  the box is in the vault: delete it
    |---------------------------------------------------------->|
    |  POST …/connections/{id}/sign-in {address}                |  the owner must sign in at the institution
    |---------------------------------------------------------->|
    |  POST …/accounts/{id}/files  (multipart: meta, file)      |  through the owner's import
    |---------------------------------------------------------->|
-   |  POST /connector/v1/unpaired                              |  the connector forgot this server
-   |---------------------------------------------------------->|
+   |  POST /connector/v1/unpaired                              |  the connector forgot this server;
+   |---------------------------------------------------------->|   either key
    every answer to a signed call is signed back by MoolaKata's link key
 ```
 
 ## 1. Transport
 
 1. The connector **only opens connections** (S18.2.2): HTTPS POSTs of JSON, or multipart for a
-   file, to `/connector/v1/` on MoolaKata's address, the one in the pairing code. MoolaKata
+   file, to `/connector/v1/` on MoolaKata's address, the one in the pairing code: Settings ›
+   Connector's address for the connector, or, when it is empty, the public URL (S18.4.1),
+   never the link address, whose proxy may pass only `/link/`. MoolaKata
    never calls the connector; everything the connector must learn comes back in the answers
    to its own calls.
 2. **The connector verifies MoolaKata's TLS certificate**: a public one against the system's
@@ -51,18 +57,23 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    (section 3), checked against the link key whose fingerprint the code carried, proves who
    wrote it. The connector follows no redirect, and reads at most 25 MB of an answer.
 3. Everything but `hello` is signed, and every answer to a signed call is signed back.
-4. JSON bodies are UTF-8, at most 1 MB; a file post is multipart, the file up to the upload
-   size in Settings (S13.7.6).
+4. JSON bodies are UTF-8, at most 1 MB; a file post is multipart, the file up to Settings ›
+   Imports' size (S16.8), the one statements are held to (S13.7.6).
 5. Only addresses in Settings › Network's **Allowed to connect** ranges reach `/connector`
    (S16.14); others get 404, as for `/ui`.
 
 ## 2. Keys and fingerprints
 
-1. The connector has two keys, made at pairing (S18.4.5): an **identity key** (Ed25519) that
-   signs its calls, kept beside its vault so a locked connector can still report, and a
-   **sealing key** (X25519) that credentials are sealed to (S18.7.1), whose private half is
-   kept **in** the vault, so a copy of the connector's volume opens no box without the words.
-   MoolaKata holds only their public halves.
+1. The connector has three keys, made at every pairing (S18.4.2, S18.4.5):
+   1. an **action key** (Ed25519) that signs every call but two, kept **in** the vault;
+   2. a **status key** (Ed25519), kept **beside** the vault so a locked connector can still
+      report, which signs only a report that says it is locked and `unpaired`: so a copy of the
+      connector's volume, without the words, can say no more than that (S18.2.4.4);
+   3. a **sealing key** (X25519) that credentials are sealed to (S18.7.1), whose private half is
+      kept **in** the vault, so a copy of the volume opens no box without the words.
+
+   MoolaKata holds only their public halves. The connector's **fingerprint**, the one an admin
+   compares and confirms, is its action key's.
 2. MoolaKata signs its answers with its **link key** (`link-protocol.md` §2), the same key
    its peers know; a server without a link yet makes it at the first pairing.
 3. A key's **fingerprint** is the SHA-256 of its raw 32-byte public key, in hex. The pairing
@@ -76,10 +87,11 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
 
    | Header | Value |
    |---|---|
-   | `MK-Conn-Key` | the connector's identity public key |
+   | `MK-Conn-Key` | the public half of the key that signs the call: the action key's, or the status key's (section 4) |
    | `MK-Conn-Time` | Unix seconds |
    | `MK-Conn-Nonce` | 16 random bytes, base64url |
    | `MK-Conn-Signature` | Ed25519 over the lines below, base64url |
+| `MK-Conn-Body-SHA256` | the SHA-256 of the body, hex: the hash the signature covers, named so MoolaKata checks the signature before it reads the body |
    | `MK-Conn-Protocol` | the protocol version the call speaks (section 5) |
    | `MK-Conn-Version` | the connector's version, for Settings › Connector to show |
 
@@ -99,8 +111,11 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    receiver's fingerprint means a call can't be replayed against another server.
 2. MoolaKata refuses, with the codes in section 7: a call without these headers, a time more
    than **60 seconds** from its own clock, a signature that doesn't verify, a nonce it has seen
-   from that key in the last two minutes, a key that isn't the paired connector's, and a paired
-   connector whose pairing has ended.
+   from that key in the last two minutes, a key that isn't the paired connector's (but at
+   `pair`), a key the call may not be made with (section 4), and a paired connector whose
+   pairing has ended. **All of this is checked before a byte of the body is read**, against the
+   hash `MK-Conn-Body-SHA256` names; the body is then read and must hash to it. So only a call
+   the paired connector signed has its body read, whatever key header a caller sends.
 3. **Answers** are signed the same way: `MK-Conn-Time` and `MK-Conn-Signature` over
 
    ```
@@ -114,58 +129,82 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    ```
 
    The connector refuses an answer that isn't signed by the key the pairing code named, or that
-   names another caller or another request. With TLS verified (section 1.2), a server
+   names another caller (the key that signed the call) or another request. With TLS verified (section 1.2), a server
    pretending to be MoolaKata gets nothing past it: no report, no file, and no sealed
-   credential is ever sent to it. Refusals are signed too when the call carried a nonce.
+   credential is ever sent to it. Refusals are signed too when the call carried a nonce, a
+   fault in a route included (`server-error`): only the three refusals MoolaKata makes before
+   the call reaches its route are unsigned (section 7), and the connector acts on no other
+   unsigned answer.
 4. Rate: 60 calls a minute (S13.7.5.4); a file post also counts against the upload limit of the
    Connection's owner (S18.8).
 
 ## 4. Calls
 
-| Path | Signed | What it does |
+| Path | Signed by | What it does |
 |---|---|---|
-| `GET /connector/v1/hello` | no | `{protocol, version, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a connector check the fingerprint in a pairing code before it sends anything |
-| `POST /connector/v1/pair` | by the connector's new identity key | introduces the connector with a pairing code (section 4.1) |
-| `POST /connector/v1/report` | yes | the connector's state every 5 minutes, answered with the work waiting (section 4.2) |
-| `POST /connector/v1/connections/{id}/credential/taken` | yes | the sealed credential was filed in the vault: MoolaKata deletes its copy (section 4.3) |
-| `POST /connector/v1/connections/{id}/sign-in` | yes | a driver needs the owner to sign in at the institution's page: the address to open (section 4.3) |
-| `POST /connector/v1/accounts/{id}/files` | yes | a driver posts a file for one account (section 4.4) |
-| `POST /connector/v1/unpaired` | yes | the connector was told to forget this server (`moolakata-connector unpair`): MoolaKata ends the pairing as Unpair would |
+| `GET /connector/v1/hello` | no one | `{protocol, version, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a connector check the fingerprint in a pairing code before it sends anything |
+| `POST /connector/v1/pair` | the connector's new action key | introduces the connector with a pairing code (section 4.1) |
+| `POST /connector/v1/report` | the action key; the status key while locked | the connector's state every 5 minutes, answered with the work waiting; locked, only that it is locked (section 4.2) |
+| `POST /connector/v1/connections/{id}/credential/taken` | the action key | the sealed credential was filed in the vault: MoolaKata deletes its copy (section 4.3) |
+| `POST /connector/v1/connections/{id}/sign-in` | the action key | a driver needs the owner to sign in at the institution's page: the address to open (section 4.3) |
+| `POST /connector/v1/accounts/{id}/files` | the action key | a driver posts a file for one account (section 4.4) |
+| `POST /connector/v1/unpaired` | either key | the connector was told to forget this server (`moolakata-connector unpair`): MoolaKata ends the pairing as Unpair would |
+
+A call the status key signs but may not make is refused `status-key`.
 
 ### 4.1 Pairing
 
 1. An admin's **Pair** (Settings › Connector) makes a pairing code: `mkp1.` and unpadded
    base64url of `{"a": address, "f": fingerprint, "c": secret, "t": certificate}`, as a link
-   code is (`link-protocol.md` §4.1), `t` present when MoolaKata's certificate is its own.
+   code is (`link-protocol.md` §4.1), `a` the address of section 1.1 and `t` present when
+   MoolaKata's certificate is its own.
    MoolaKata keeps only the SHA-256 of the secret and the code's expiry (24 hours); a code
    works once. Making a code needs the admin's password again (S13.7.2).
 2. `moolakata-connector pair <code>`, run with the vault unlocked (it is refused otherwise,
    since the sealing key's private half goes into the vault), connects to the address,
    verifying TLS as section 1.2 says, calls `hello` and refuses to go on unless the key it
    answers with hashes to the code's fingerprint; it keeps that key with the pairing. It makes
-   a new identity key and a new sealing key, then calls `pair`, signed by the identity key,
-   with `{code, sealingKey, sealingSignature, version, protocol}`, `sealingSignature` being the
-   identity key's signature over the sealing key, which browsers check before sealing (section
-   4.3). The new pairing is written only once `pair` succeeds, so a refused one leaves any
-   earlier pairing as it was. MoolaKata has no pairing with that key yet, so the signature only
-   proves the caller holds the key it sends, and the secret proves it was given the code.
-3. MoolaKata records the two public keys, ends any connector paired before (as Unpair does:
+   a new action key, status key and sealing key, then calls `pair`, signed by the action key,
+   with `{code, sealingKey, sealingSignature, statusKey, statusSignature, actionSignature,
+   version}`:
+   1. `sealingSignature`, the action key's signature over `moolakata connector sealing key`, a
+      zero byte and the sealing key, which browsers check before sealing (section 4.3);
+   2. `statusSignature`, the action key's over `moolakata connector status key`, a zero byte
+      and the status key; `actionSignature`, the status key's over `moolakata connector action
+      key`, a zero byte and the action key: each signed by the other, so both are one
+      connector's, and the two are never the same key.
+
+   The new pairing is written only once `pair` succeeds, so a refused one leaves any earlier
+   pairing as it was. MoolaKata has no pairing with these keys yet, so the signatures only prove
+   the caller holds the keys it sends, and the secret proves it was given the code.
+3. MoolaKata records the three public keys, ends any connector paired before (as Unpair does:
    every Connection stopped, every account's sync turned off, S18.4.4), and answers
-   `{fingerprint, serverName}`. Both sides show the connector's fingerprint for the admin to
-   compare, each working it out from the identity key itself, never from what the other says; a
-   mismatch means someone else answered the code first, and the admin unpairs. Until the admin
+   `{fingerprint, connectorFingerprint, serverName}`. Both sides show the connector's
+   fingerprint, its action key's, for the admin to compare, each working it out from the key
+   itself, never from what the other says: the connector refuses an answer whose
+   `connectorFingerprint` isn't the one it works out, keeping nothing. A mismatch on the
+   admin's side means someone else answered the code first, and the admin unpairs. Until the admin
    **confirms** the pairing in Settings (S18.4.2), the pairing is not trusted: reports are
    answered, but `sealed` is withheld and a file post is refused `not-confirmed`.
-4. The connector then keeps, per server, the address, the fingerprint, MoolaKata's key and its
-   own keys. One connector is paired with one server; `moolakata-connector unpair` forgets it
-   and deletes every credential it held for it, as a signed `not-paired` answer from MoolaKata
-   makes it do (S18.4.4).
+4. The connector then keeps with the pairing the address, the fingerprint, MoolaKata's key and
+   its own keys: the status key and the public halves beside the vault, the action and sealing
+   keys' private halves in it. One connector is paired with one server; `moolakata-connector
+   unpair` forgets it and deletes every credential it held for it and its action and sealing
+   keys, as a signed `not-paired` answer from MoolaKata makes it do (S18.4.4); a locked vault
+   is cleared at its next unlock, a mark beside it saying so. `reset` tells MoolaKata
+   `unpaired` with the status key before it forgets the pairing.
 
 ### 4.2 Reports
 
 Every 5 minutes, at once after an unlock, a run or a change the connector wants to tell of, and
 every 15 seconds for up to 10 minutes while a Connection waits for a sign-in (so the address an
-owner pastes back is exchanged within seconds), `POST /connector/v1/report`:
+owner pastes back is exchanged within seconds), `POST /connector/v1/report`.
+
+**Locked**, the report is the status key's and is `{"locked": true}`: MoolaKata takes from it
+the time, the version and the address it came from (item 3 below), marks the connector locked,
+and answers `{"ok": true, "certificate": …}` and nothing more, whatever else the body says; the
+connector runs nothing and posts nothing until it is unlocked. **Unlocked**, the report is the
+action key's:
 
 ```json
 {
@@ -204,7 +243,8 @@ owner pastes back is exchanged within seconds), `POST /connector/v1/report`:
         "sealed": {"ciphertext": "…", "sealedAt": "2026-10-15T05:30:00Z"}}
      ],
      "removed": ["Conn_01k6…"],
-     "confirmed": true
+     "confirmed": true,
+     "certificate": "9c41…"
    }
    ```
 
@@ -214,7 +254,8 @@ owner pastes back is exchanged within seconds), `POST /connector/v1/report`:
    locked connector has no sealing key to open it with) **and an admin confirmed the pairing**
    (section 4.1); `removed` names Connections whose owners removed them (S18.6.4), and the
    connector deletes their credentials and never reports them again. `confirmed` says whether
-   an admin confirmed the pairing, which the connector's page shows (S18.11.3).
+   an admin confirmed the pairing, which the connector's page shows (S18.11.3). `certificate`,
+   while MoolaKata's certificate is its own, is its key's fingerprint (section 1.2).
 3. MoolaKata records the report's time, so a connector silent for 15 minutes raises the alert
    of S18.5.2, and shows `locked` as S18.5.1 says. It records the address the report came from
    as well: the first is taken as the connector's; a report from another address is still
@@ -226,8 +267,8 @@ owner pastes back is exchanged within seconds), `POST /connector/v1/report`:
 ### 4.3 Credentials
 
 1. **Sealed in the browser** (S18.7.1): the owner's browser fetches the connector's sealing key
-   with its signature by the identity key (`GET /ui/api/connector`, the identity key's
-   fingerprint shown), checks the signature, and seals `{credentials, host, sealedAt}`, the
+   with its signature by the action key (`GET /ui/api/connector`, the action key's fingerprint
+   shown), checks the signature, and seals `{credentials, host, sealedAt}`, the
    host being the one the dialog shows the owner, as an X25519 sealed box (an ephemeral X25519
    key, HKDF-SHA256 over the exchange with the label `moolakata connector credential` and the
    Connection's id as salt, AES-256-GCM with a random 96-bit nonce; the box is the ephemeral
@@ -280,6 +321,11 @@ owner pastes back is exchanged within seconds), `POST /connector/v1/report`:
 3. The answer is `{imported: {added, matched, changed}, kept: bool}` as the import dialog would
    show it. `429` with `Retry-After` means the owner's upload limit; the connector keeps the
    file and posts it on a later run.
+4. **Each file on its own** (S18.8): the connector keeps a file for a later round on a dropped
+   connection or an answer that isn't signed, and on `locked`, `limit`, `uploads-in-flight`,
+   `not-confirmed` and `server-error`; it drops it on any other refusal, and the Connection
+   shows the refusal. Either way it posts the next file and the next Connection's, and sends
+   the report after the run. It keeps the newest ten waiting per Connection.
 
 ## 5. Versions
 
@@ -298,8 +344,8 @@ What each driver posts, and what its `settings` hold (S18.9):
 
 | Driver | Posts | Settings | Credentials (sealed, 4.3) | Size |
 |---|---|---|---|---|
-| `ofx-direct` | the OFX statement the institution's OFX server answers with, as it is | `url`, `org`, `fid`, `accountType` (`CHECKING`, `SAVINGS`, `CREDITCARD`, `INVESTMENT`), `accountId`, and `bankId` (the routing number) for a bank account | `{username, password}`, bound to the host of `url` when filed (4.3.3) | 🟢 91 |
-| `schwab` | positions, transactions and balances from the Trader API, written as an OFX investment statement, one file per account | `appKey` | `{appSecret, landed}`: the app's secret and the address the owner landed on after signing in; the driver keeps the refresh token in the vault, and asks for a new sign-in when it has run out, after seven days. Bound to no host: the driver's is fixed | 🟢 230 |
+| `ofx-direct` | the OFX statement the institution's OFX server answers with, as it is | `url`, `org`, `fid`, `accountType` (`CHECKING`, `SAVINGS`, `CREDITCARD`, `INVESTMENT`), `accountId`, `bankId` (the routing number) for a bank account, and `days`, how many days back each run asks for (1 to 90, 45 when not set) | `{username, password}`, bound to the host of `url` when filed (4.3.3) | 🟢 144 |
+| `schwab` | positions, transactions and balances from the Trader API, written as an OFX investment statement, one file per account: options whole (opening or closing, contracts' shares, expiry, assignment, exercise), an order's legs one trade each, positions by kind; a transaction it can't write whole is named in the run's message (S18.9.2) | `appKey` | `{appSecret, landed}`: the app's secret and the address the owner landed on after signing in; the driver keeps the refresh token in the vault, and asks for a new sign-in when it has run out, after seven days. Bound to no host: the driver's is fixed | 🟢 378 |
 
 **Size** is the driver's lines of code, leaving out blank lines, comments and docstrings, with
 its colour (S18.1.2.1): 🟢 under 1,000, 🟡 1,000 to 1,999, 🔴 2,000 or more, a driver to read
@@ -315,8 +361,12 @@ institution with nothing to fetch from has no driver: its files are uploaded by 
 ## 7. Refusals
 
 A refusal is JSON `{code, message}` with HTTP 403 (426 for a protocol, 429 for a limit, 404
-for an account or Connection that doesn't exist or isn't this connector's), signed as section 3
-says when the call carried a nonce.
+for an account or Connection that doesn't exist or isn't this connector's, 413 for a file too
+large, 500 for a fault), signed as section 3 says when the call carried a nonce. Three are made
+before the call reaches its route, on its headers or as its body arrives, and are **unsigned**,
+as problem JSON with `code`: `locked`, `uploads-in-flight` and `too-large` for a body past the
+hard limit. The connector acts on those three by their status and code, and on no other
+unsigned answer, which it treats as a failed call (`answer-unsigned`).
 
 | Code | When |
 |---|---|
@@ -325,16 +375,21 @@ says when the call carried a nonce.
 | `bad-signature` | the signature doesn't match the key, method, path, body, time, nonce and receiver |
 | `replayed` | the nonce was seen from that key in the last two minutes |
 | `not-paired` | the key isn't the paired connector's, or the pairing has ended |
+| `status-key` | a call the status key may not make: only a report and `unpaired` are its |
+| `keys-unsigned` | at pairing, the status and action keys don't sign each other, or are one key |
+| `sealing-unsigned` | at pairing, the sealing key isn't signed by the action key |
 | `not-confirmed` | an admin has not yet confirmed the pairing (S18.4.2); the file is kept for a later run |
 | `code-used` | the pairing code was used, expired or withdrawn |
 | `protocol-unsupported` | the call's protocol isn't one this server answers |
 | `account-not-synced` | the account's sync doesn't name this Connection |
 | `mapping-missing` | a CSV for an account with no saved mapping |
-| `file-refused` | the file's content isn't a type MoolaKata imports |
+| `file-refused` | the file's content isn't a type MoolaKata imports, or the reader can't read it (its message says why) |
 | `limit` | the owner's upload limit; `Retry-After` says when to try again. Also the 60 calls a minute of section 3.4 |
 | `not-found` | (404) the Connection or account doesn't exist, or isn't this connector's |
 | `address-invalid` | a sign-in address that isn't on the driver's own sign-in host |
-| `too-large` | (413) a body over 1 MB of JSON, or a file over the upload size |
+| `too-large` | (413) a file over Settings › Imports' size (S16.8), signed; unsigned, a body past the hard limit (1 MB of JSON, that size and the form around it), refused before it is read |
+| `uploads-in-flight` | (429, unsigned) more uploads are arriving at once than MoolaKata holds (S13.7.6); the file waits for a later round |
+| `server-error` | (500) MoolaKata failed on the call; it logged why. The file waits for a later round |
 | `locked` | (503, unsigned) MoolaKata is locked (S13.6); the connector tries again at its next report |
 
 The connector refuses on its own side, sending nothing further: `not-moolakata` (the address

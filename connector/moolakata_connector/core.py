@@ -4,6 +4,7 @@ into the vault, bound to the host they may be sent to; each Connection's driver 
 interval, never against a host its credentials aren't bound to; what it fetched posted for its
 accounts, a post refused for a limit kept for a later run."""
 
+import http.client
 import json
 import logging
 import threading
@@ -11,7 +12,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import client, keys, sealed
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from . import client, keys, sealed, signing
 from .client import Egress, ServerError, Transport
 from .drivers import Account, Driver, File, registry
 from .vault import Vault, VaultError
@@ -26,8 +29,23 @@ RETRY_FIRST = 15
 # an address pasted back is exchanged at once (S18.5).
 SIGN_IN_SECONDS = 15
 SIGN_IN_FOR = 600
+# What a pairing's keys sign of one another (S18.4.2, S18.4.5).
 SEALING_LABEL = b"moolakata connector sealing key\x00"
+STATUS_LABEL = b"moolakata connector status key\x00"
+ACTION_LABEL = b"moolakata connector action key\x00"
 SHOWN = ("label", "driver", "state", "message")  # each Connection, in `status`
+FORGET = "forget-on-unlock"  # unpaired while locked: the next unlock clears the vault
+WAITING_KEPT = 10  # files kept for a later round, per Connection: the newest
+# A post MoolaKata can't take now, kept for a later round, and what the Connection says of it
+# (S18.8, protocol §7); any other refusal drops the file.
+KEEP = {
+    "limit": "the owner's upload limit",
+    "uploads-in-flight": "too many uploads arriving at once",
+    "locked": "MoolaKata is locked",
+    "not-confirmed": "the pairing's confirmation",
+    "answer-unsigned": "MoolaKata's answer wasn't signed",
+    "server-error": "MoolaKata failed; it is logged there",
+}
 
 
 @dataclass
@@ -112,20 +130,33 @@ class Core:
                 "The server at that address doesn't have the key the code names: nothing sent.",
             )
         private, public = keys.new_sealing_key()
-        pairing = keys.make(c["a"], c["f"], public, cert)
+        action_private, action_public = keys.new_action_key()
+        action = Ed25519PrivateKey.from_private_bytes(action_private)
+        pairing = keys.make(c["a"], c["f"], action_public, public, cert)
         server = client.Server(pairing, self.transport, key, self._certificate)
-        # The identity key signs the sealing key, so a browser seals only to the key of the
-        # connector an admin confirmed (S18.4.5).
-        signed = pairing.identity.sign(SEALING_LABEL + public)
+        # The action key signs the sealing key, so a browser seals only to the key of the
+        # connector an admin confirmed (S18.4.5); the action and status keys sign each other,
+        # so MoolaKata knows both are this connector's. The call itself is the action key's.
         out = server.call(
             "/connector/v1/pair",
             {
                 "code": code,
                 "sealingKey": keys.b64(public),
-                "sealingSignature": keys.b64(signed),
+                "sealingSignature": keys.b64(action.sign(SEALING_LABEL + public)),
+                "statusKey": keys.b64(pairing.status_public),
+                "statusSignature": keys.b64(action.sign(STATUS_LABEL + pairing.status_public)),
+                "actionSignature": keys.b64(pairing.status.sign(ACTION_LABEL + action_public)),
                 "version": client.VERSION,
             },
+            key=action,
         )
+        # The fingerprint shown is worked out here, from the key itself; an answer naming
+        # another means the server took some other key, and nothing is kept (S18.4.2).
+        if out.get("connectorFingerprint") != pairing.fingerprint:
+            raise ServerError(
+                "fingerprint-mismatch",
+                "MoolaKata's answer names another connector's key: nothing kept. Pair again.",
+            )
         # Only now, MoolaKata having taken it, does the new pairing replace the old (S18.4.2).
         keys.save(self.data / "pairing.json", pairing)
         with self._lock:
@@ -133,38 +164,85 @@ class Core:
             self.connections = {}
             for cid in self.vault.ids():
                 self.vault.delete(cid)
-            self.vault.keep_sealing_key(private)
+            self.vault.keep_keys(private, action_private)
         self._wake.set()
-        return keys.short(out.get("connectorFingerprint", pairing.fingerprint))
+        return keys.short(pairing.fingerprint)
 
-    def unpair(self) -> None:
-        """Forget the server and delete every credential held for it (S18.4.4)."""
+    def unpair(self, phrase: str | None = None) -> bool:
+        """Forget the server and delete every credential held for it (S18.4.4). Locked, the
+        words, when given, open the vault for it; without them the vault is cleared at its next
+        unlock. True when the vault was cleared now."""
         with self._lock:
-            if self.server:
+            reopened = False
+            if self.vault.locked and phrase:
+                self.vault.unlock(phrase)
+                reopened = True
+            if self.pairing is not None:
                 try:
-                    self.server.call("/connector/v1/unpaired")
-                except (ServerError, Exception) as e:
+                    if self.server is None:
+                        self._attach(self.pairing)
+                    self.server.call("/connector/v1/unpaired", key=self._key())
+                except Exception as e:
                     log.warning("the server wasn't told of the unpairing: %s", e)
-            self._forget()
+            cleared = self._forget()
+            if reopened:
+                self.vault.lock()
+            return cleared
 
-    def _forget(self) -> None:
-        """The pairing gone: its file, every credential, and the sealing key, so no box sealed
-        to it opens here again (S18.4.4)."""
+    def _forget(self) -> bool:
+        """The pairing gone: its file, every credential, and the sealing and action keys, so no
+        box sealed to it opens here again and nothing is signed for it (S18.4.4). A locked
+        vault can't be changed: a mark beside it has the next unlock clear it. True when the
+        vault was cleared now."""
         keys.forget(self.data / "pairing.json")
         self.pairing = self.server = None
         self.connections = {}
         self.confirmed = None
-        if not self.vault.locked:
-            for cid in self.vault.ids():
-                self.vault.delete(cid)
-            self.vault.keep_sealing_key(b"")
+        if self.vault.locked:
+            if self.vault.exists():
+                (self.data / FORGET).touch(mode=0o600)
+            return False
+        self._clear()
+        return True
 
-    def reset(self, phrase: str) -> str:
+    def _clear(self) -> None:
+        for cid in self.vault.ids():
+            self.vault.delete(cid)
+        self.vault.keep_keys(b"", b"")
+        (self.data / FORGET).unlink(missing_ok=True)
+
+    def _action(self) -> Ed25519PrivateKey:
+        """The action key, from the vault: every call but a locked report and `unpaired` is
+        signed with it (S18.4.2). Raises while the vault is locked."""
+        raw = self.vault.action_key()
+        if not raw:
+            raise VaultError("this pairing has no action key: pair again")
+        return Ed25519PrivateKey.from_private_bytes(raw)
+
+    def _key(self) -> Ed25519PrivateKey:
+        """The key a report or `unpaired` is signed with: the action key while the vault is
+        open, else the status key, which can say no more than that it is locked."""
+        if self.vault.locked:
+            return self.pairing.status
+        return self._action()
+
+    def reset(self, phrase: str) -> tuple[str, bool]:
         """New words (S18.3.4): a new vault under the words typed at the command line or
-        confirmed on its page, and unpaired, so the next `pair` makes both keys afresh. Returns
-        its fingerprint."""
+        confirmed on its page, and unpaired, so the next `pair` makes its keys afresh. MoolaKata
+        is told first, with the status key, which needs no words (S18.4.2). Returns the new
+        vault's fingerprint, and whether MoolaKata was told."""
         with self._lock:
+            told = False
+            if self.pairing is not None:
+                try:
+                    if self.server is None:
+                        self._attach(self.pairing)
+                    self.server.call("/connector/v1/unpaired", key=self.pairing.status)
+                    told = True
+                except Exception as e:
+                    log.warning("MoolaKata wasn't told of the reset: %s", e)
             keys.forget(self.data / "pairing.json")
+            (self.data / FORGET).unlink(missing_ok=True)
             self.pairing = self.server = None
             self.connections = {}
             self.confirmed = None
@@ -173,32 +251,38 @@ class Core:
             except PhraseError as e:
                 raise VaultError(str(e)) from None
             self.unlocked_at = time.time()
-            return self.vault.fingerprint()
+            return self.vault.fingerprint(), told
 
     # ----- the loop -----
 
     def status(self) -> dict:
-        with self._lock:
-            return {
-                "paired": self.pairing is not None,
-                "server": self.pairing.address if self.pairing else None,
-                "fingerprint": keys.short(self.pairing.fingerprint) if self.pairing else None,
-                "locked": self.vault.locked,
-                "vault": self.vault.fingerprint(),
-                "confirmed": self.confirmed,
-                "unlockedAt": self.unlocked_at,
-                "page": self.page,
-                "lastReport": self.last_report,
-                "lastError": self.last_error,
-                "reachable": self.server is not None,
-                "retryIn": int(self.retry) if self.retry else None,
-                "connections": {
-                    c.id: {k: getattr(c, k) for k in SHOWN} for c in self.connections.values()
-                },
-            }
+        """What the connector is doing, without waiting for the round: a run or a post may take
+        minutes, and the health check, `status` and its page answer at once (S18.3.2). Each
+        field is read once; the Connections from a copy of the map the round may change."""
+        pairing, connections = self.pairing, self.connections.copy()
+        return {
+            "paired": pairing is not None,
+            "server": pairing.address if pairing else None,
+            "fingerprint": keys.short(pairing.fingerprint) if pairing else None,
+            "locked": self.vault.locked,
+            "vault": self.vault.fingerprint(),
+            "confirmed": self.confirmed,
+            "unlockedAt": self.unlocked_at,
+            "page": self.page,
+            "lastReport": self.last_report,
+            "lastError": self.last_error,
+            "reachable": self.server is not None,
+            "retryIn": int(self.retry) if self.retry else None,
+            "connections": {c.id: {k: getattr(c, k) for k in SHOWN} for c in connections.values()},
+        }
 
     def unlock(self, phrase: str) -> None:
         self.vault.unlock(phrase)
+        if (self.data / FORGET).exists():
+            # Unpaired while locked (S18.4.4): what the vault held for that server goes now.
+            with self._lock:
+                self._clear()
+            log.info("the vault's credentials and keys for the unpaired server are deleted")
         self.unlocked_at = time.time()
         self._wake.set()
 
@@ -301,8 +385,12 @@ class Core:
                     "waiting for it",
                 ) from e
         with self._lock:
+            locked = self.vault.locked
+            # Locked, the report is the status key's and says only that (S18.5): nothing in it
+            # or its answer is about a Connection, and nothing is run or posted.
+            report = {"locked": True} if locked else self._report()
             try:
-                answer = self.server.call("/connector/v1/report", self._report())
+                answer = self.server.call("/connector/v1/report", report, key=self._key())
             except ServerError as e:
                 if e.code == "not-paired":
                     # MoolaKata, in a signed answer, no longer knows this connector: unpaired
@@ -310,6 +398,8 @@ class Core:
                     self._forget()
                 raise
             self.last_report, self.last_error = time.time(), None
+            if locked:
+                return
             self._apply(answer)
             ran = False
             for c in list(self.connections.values()):
@@ -318,12 +408,15 @@ class Core:
                     ran = True
             self._post_backlogs()
             if ran:  # what each run came to, at once rather than at the next round (S18.5)
-                self._apply(self.server.call("/connector/v1/report", self._report()))
+                self._apply(
+                    self.server.call("/connector/v1/report", self._report(), key=self._action())
+                )
                 self.last_report = time.time()
 
     def _report(self) -> dict:
+        """The whole report, the action key's: the vault is open."""
         return {
-            "locked": self.vault.locked,
+            "locked": False,
             **({"page": self.page} if self.page else {}),
             "connections": [
                 {
@@ -382,14 +475,30 @@ class Core:
         if host != self._binds(c):
             c.state, c.message = "failing", "the credentials were sealed for another server"
             return
-        if not isinstance(at, int | float) or at <= self.vault.sealed_at(c.id):
+        held = self.vault.sealed_at(c.id)
+        if isinstance(at, int | float) and at == held:
+            # The box already filed, whose `taken` didn't reach MoolaKata: say so again.
+            self._taken(c, server_at)
+            return
+        if not isinstance(at, int | float) or at < held:
             c.state, c.message = "failing", "a box older than the credentials held was refused"
             return
         self.vault.put(c.id, opened.get("credentials") or {}, host, at)
-        self.server.call(
-            f"/connector/v1/connections/{c.id}/credential/taken", {"sealedAt": server_at}
-        )
         c.state, c.message, c.sign_in, c.last_run = "ok", "credentials received", None, None
+        self._taken(c, server_at)
+
+    def _taken(self, c: ConnectionState, server_at: str | None) -> None:
+        """MoolaKata told the box is filed, so it deletes its copy (protocol §4.3.2). A call that
+        fails is tried again when the same box comes back, and the rest of the answer is
+        applied meanwhile."""
+        try:
+            self.server.call(
+                f"/connector/v1/connections/{c.id}/credential/taken",
+                {"sealedAt": server_at},
+                key=self._action(),
+            )
+        except Exception as e:
+            log.warning("MoolaKata wasn't told a box was filed; at its next report: %s", e)
 
     def _due(self, c: ConnectionState) -> bool:
         d = self.drivers.get(c.driver)
@@ -406,9 +515,7 @@ class Core:
                 address = d.sign_in(c.settings)
                 if address and c.sign_in != address:
                     c.sign_in, c.sign_in_at = address, time.time()
-                    self.server.call(
-                        f"/connector/v1/connections/{c.id}/sign-in", {"address": address}
-                    )
+                    self._tell_sign_in(c, address)
                 c.state, c.message, c.last_run = "new", "waiting for credentials", time.time()
                 return
             bound, wanted = self.vault.host(c.id), d.binds(c.settings)
@@ -442,29 +549,56 @@ class Core:
         if r.credentials is not None:
             self.vault.put(c.id, r.credentials, self.vault.host(c.id))
         if r.sign_in:
-            self.server.call(f"/connector/v1/connections/{c.id}/sign-in", {"address": r.sign_in})
+            self._tell_sign_in(c, r.sign_in)
         c.backlog.extend(r.files)
         c.last_added = 0
+        if len(c.backlog) > WAITING_KEPT:
+            # The oldest go: a later run fetches the same days again (S18.8).
+            gone = c.backlog[: len(c.backlog) - WAITING_KEPT]
+            c.backlog = c.backlog[-WAITING_KEPT:]
+            c.message = f"{len(gone)} older file{'s' if len(gone) != 1 else ''} not posted: " + (
+                ", ".join(f.name for f in gone)
+            )
+
+    def _tell_sign_in(self, c: ConnectionState, address: str) -> None:
+        """MoolaKata told where the owner signs in (S18.7.1). A call that fails ends nothing:
+        the report carries the address too, and the round goes on (S18.5)."""
+        try:
+            self.server.call(
+                f"/connector/v1/connections/{c.id}/sign-in",
+                {"address": address},
+                key=self._action(),
+            )
+        except Exception as e:
+            log.warning("MoolaKata wasn't told of a sign-in; the report carries it: %s", e)
 
     def _post_backlogs(self) -> None:
+        """Each file on its own (S18.8, protocol §7): one MoolaKata can't take now waits for a
+        later round; one it refuses is dropped and the Connection says why; either way the next
+        file, and the next Connection, are posted."""
         for c in self.connections.values():
             kept: list[File] = []
+            why = ""
             for f in c.backlog:
                 try:
                     out = self._post(c, f)
                 except ServerError as e:
-                    if e.code in ("limit", "not-confirmed"):
-                        kept.append(f)  # a later run (S18.8), or once an admin confirms
+                    if e.code in KEEP:
+                        kept.append(f)
+                        why = KEEP[e.code]
                     else:
                         c.state, c.message = "failing", f"{f.name}: {e.message}"
+                    continue
+                except (VaultError, OSError, http.client.HTTPException, signing.Refused) as e:
+                    # Locked meanwhile, MoolaKata out of reach, or an answer that isn't its own.
+                    kept.append(f)
+                    why = f"not posted yet ({type(e).__name__}: {e})"
                     continue
                 imported = out.get("imported") or {}
                 c.last_added = (c.last_added or 0) + int(imported.get("added") or 0)
             c.backlog = kept
             if c.backlog and c.state == "ok":
-                c.message = (
-                    f"{len(c.backlog)} waiting: the upload limit, or the pairing's confirmation"
-                )
+                c.message = f"{len(c.backlog)} waiting: {why}"
 
     def _post(self, c: ConnectionState, f: File) -> dict:
         import hashlib
@@ -487,7 +621,9 @@ class Core:
             ]
         )
         path = f"/connector/v1/accounts/{f.account_id}/files"
-        return self.server.call(path, body=body, ctype=f"multipart/form-data; boundary={b}")
+        return self.server.call(
+            path, body=body, ctype=f"multipart/form-data; boundary={b}", key=self._action()
+        )
 
 
 def decode_code(code: str) -> dict:

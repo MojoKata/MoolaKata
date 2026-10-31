@@ -117,6 +117,14 @@ class Server:
             counts["users and groups"] = waiting
         return counts
 
+    def import_cap(self) -> int:
+        """The largest file the connector may post: Settings › Imports' size (S16.8), with the
+        form around it."""
+        if self.store is None:
+            return self.upload_limit
+        with self.db.read() as s:
+            return (settings.get(s, "importMaxMb") + 1) * 1024 * 1024
+
     def upload_cap(self) -> int:
         """The largest upload a request may carry: the larger of the import and receipt size
         limits in Settings (S13.7.6)."""
@@ -299,7 +307,9 @@ def create_app(server: Server) -> FastAPI:
     app.add_middleware(middleware.Created)
     app.add_middleware(middleware.Locked, locked=lambda: server.store is None and not server.ready)
     app.add_middleware(middleware.SessionCookie, max_age=server.session_max_age)
-    app.add_middleware(middleware.BodyLimit, upload_limit=server.upload_cap)
+    app.add_middleware(
+        middleware.BodyLimit, upload_limit=server.upload_cap, import_limit=server.import_cap
+    )
     app.add_middleware(middleware.OriginCheck)
     app.add_middleware(middleware.SecurityHeaders, tls=server.config.mode == "tls")
     app.add_middleware(middleware.AccessLog)

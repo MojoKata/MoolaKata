@@ -20,7 +20,9 @@ A name to tell it apart: *Schwab login*, *Credit union*.
 
 The institution's OFX Direct Connect address, from the institution or a directory such as
 ofxhome.com. The sign-in you seal is bound to this address: the connector sends it there and
-nowhere else, and if the address is changed later the connection asks for the sign-in again.
+nowhere else. When the institution moves its server, change the address here, with **Change
+credentials**: it is saved with your password again, and the sign-in you then seal is bound to
+the new one. Changed any other way, the connection asks for the sign-in again.
 
 ## ORG {#ofx-org}
 
@@ -41,13 +43,20 @@ Checking, savings, credit card or investment, as the OFX server expects it.
 
 ## Account number {#ofx-account-id}
 
-The account's number at the institution, which the OFX server asks for. It is sealed with the
-credentials, never shown here.
+The account's number at the institution, which the OFX server asks for. It is a setting, not a
+credential: MoolaKata keeps it with the Connection and hands it to the connector, which sends it
+to the OFX server.
 
 ## App key {#schwab-app-key}
 
 Your Schwab developer account's app key, which the driver signs in with. It isn't a secret: the
 sign-in is.
+
+## Sealed for {#sealed-for}
+
+The one host the connector will ever send this sign-in to: the OFX server's, from its address,
+or the institution's own (`api.schwabapi.com` for Schwab). It is sealed with the sign-in, so
+nothing MoolaKata or anyone else changes later can send it elsewhere.
 
 ## How you sign in {#how-you-sign-in}
 

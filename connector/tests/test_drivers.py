@@ -63,6 +63,20 @@ def test_the_ofx_request_names_the_account_and_signs_in():
     )
 
 
+def test_the_ofx_request_escapes_what_it_carries_and_alters_nothing():
+    # CR3-332: SGML values escape &, < and >; a character Windows-1252 can't hold is refused
+    # with a message, never sent as "?".
+    settings = {"url": "https://ofx.cu.example/ofx", "org": "A&B <CU>", "accountId": "1204"}
+    body = request(settings, {"username": "al<ice", "password": "p<ss&word>€"}, dt.date(2026, 9, 1))
+    text = body.decode("cp1252")
+    assert "<USERID>al&lt;ice<USERPASS>p&lt;ss&amp;word&gt;€<LANGUAGE>" in text
+    assert "<ORG>A&amp;B &lt;CU&gt;<FID>" in text
+    sent = Fake(lambda *a: (200, OFX_OK))
+    out = OfxDirect().run(settings, {"username": "al", "password": "zażółć"}, [], sent)
+    assert out.state == "failing" and "password holds a character" in out.message
+    assert sent.calls == [], "nothing is sent when a value can't be carried as typed"
+
+
 def test_ofx_direct_posts_the_statement_to_the_account_with_those_last_four():
     settings = {
         "url": "https://ofx.cu.example/ofx",
@@ -251,3 +265,26 @@ def test_schwab_ofx_names_every_security_once():
 def test_every_driver_is_registered_with_its_limits():
     names = set(registry())
     assert names == {"ofx-direct", "schwab"}
+
+
+def test_a_schwab_run_names_what_it_left_out(monkeypatch):
+    # CR3-67, S18.9.2: a transaction the driver can't write whole is named in the Connection's
+    # message, never dropped unsaid (the connector corpus has the rest).
+    import test_drivers as here
+
+    future = {
+        "activityId": 9100,
+        "time": "2026-09-22T14:00:00+0000",
+        "type": "TRADE",
+        "description": "BUY E-MINI S&P 500",
+        "netAmount": -2.25,
+        "transferItems": [{"instrument": {"assetType": "FUTURE", "symbol": "/ESZ26"}, "amount": 1}],
+    }
+    monkeypatch.setattr(here, "SCHWAB_TXNS", [*SCHWAB_TXNS, future])
+    d = Schwab()
+    http = Fake(schwab_answers())
+    http.egress.allow(*d.hosts)
+    creds = {"appSecret": "S", "accessToken": "at-1", "accessUntil": time.time() + 600}
+    r = d.run({"appKey": "KEY"}, creds, [Account("Acct_1", "Individual ••4417", ["ofx"])], http)
+    assert r.state == "ok" and len(r.files) == 1
+    assert "1 transaction left out: ••4417 20260922 TRADE: BUY E-MINI S&P 500" in r.message

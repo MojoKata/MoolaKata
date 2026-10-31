@@ -1,0 +1,155 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "CASH",
+   "accountNumber": "12344417",
+   "positions": [
+    {
+     "shortQuantity": 0,
+     "longQuantity": 50,
+     "settledLongQuantity": 50,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 4100,
+     "instrument": {
+      "assetType": "MUTUAL_FUND",
+      "symbol": "SWPPX",
+      "cusip": "808509855",
+      "description": "SCHWAB S&P 500 INDEX"
+     }
+    },
+    {
+     "shortQuantity": 0,
+     "longQuantity": 5012.4,
+     "settledLongQuantity": 5012.4,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 5012.4,
+     "instrument": {
+      "assetType": "CASH_EQUIVALENT",
+      "symbol": "SWVXX",
+      "cusip": "808515878",
+      "description": "SCHWAB VALUE ADVANTAGE MONEY MARKET FUND"
+     }
+    }
+   ],
+   "currentBalances": {
+    "cashBalance": 11000
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000033,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 20000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000034,
+   "time": "2026-09-03T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY SCHWAB S&P 500 INDEX",
+   "netAmount": -4000,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "MUTUAL_FUND",
+      "symbol": "SWPPX",
+      "cusip": "808509855",
+      "description": "SCHWAB S&P 500 INDEX"
+     },
+     "amount": 50,
+     "price": 80,
+     "cost": -4000,
+     "positionEffect": "OPENING"
+    }
+   ],
+   "tradeDate": "2026-09-03T04:00:00+0000",
+   "settlementDate": "2026-09-03T04:00:00+0000"
+  },
+  {
+   "activityId": 1000035,
+   "time": "2026-09-03T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "MONEY_MARKET",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "PURCHASE SCHWAB VALUE ADVANTAGE MONEY",
+   "netAmount": -5000,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "CASH_EQUIVALENT",
+      "symbol": "SWVXX",
+      "cusip": "808515878",
+      "description": "SCHWAB VALUE ADVANTAGE MONEY MARKET FUND"
+     },
+     "amount": 5000,
+     "price": 1,
+     "cost": -5000,
+     "positionEffect": "OPENING"
+    }
+   ]
+  },
+  {
+   "activityId": 1000036,
+   "time": "2026-09-30T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "DIVIDEND_OR_INTEREST",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "MONEY MARKET DIVIDEND SWVXX",
+   "netAmount": 12.4,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "CASH_EQUIVALENT",
+      "symbol": "SWVXX",
+      "cusip": "808515878",
+      "description": "SCHWAB VALUE ADVANTAGE MONEY MARKET FUND"
+     },
+     "amount": 0
+    }
+   ]
+  },
+  {
+   "activityId": 1000037,
+   "time": "2026-09-30T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "MONEY_MARKET",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "REINVEST SCHWAB VALUE ADVANTAGE MONEY",
+   "netAmount": -12.4,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "CASH_EQUIVALENT",
+      "symbol": "SWVXX",
+      "cusip": "808515878",
+      "description": "SCHWAB VALUE ADVANTAGE MONEY MARKET FUND"
+     },
+     "amount": 12.4,
+     "price": 1,
+     "cost": -12.4,
+     "positionEffect": "OPENING"
+    }
+   ]
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

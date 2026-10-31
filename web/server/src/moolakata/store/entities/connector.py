@@ -10,7 +10,7 @@ class Connector(Record):
     state: str
     codeHash: str | None = None
     codeExpiresAt: dt.datetime | None = None
-    identityKey: str | None = None
+    actionKey: str | None = None
     sealingKey: str | None = None
     pairedAt: dt.datetime | None = None
     pairedById: str | None = None
@@ -25,6 +25,7 @@ class Connector(Record):
     sealingSignature: str | None = None
     protocol: int | None = None
     pageAddress: str | None = None
+    statusKey: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

@@ -35,12 +35,13 @@ SETTINGS = {
         "accountType": str,
         "accountId": str,
         "bankId": None,  # the routing number, for bank accounts
+        "days": int,  # how many days back each run asks for: 1 to 90, 45 when not set
     },
     "schwab": {"appKey": str},
 }
 
 # The setting that names the institution's server, for the drivers that have one.
-ADDRESS = {"ofx-direct": "url"}
+ADDRESS = manage.ADDRESS
 
 
 class ConnectorInfo(Model):
@@ -51,9 +52,9 @@ class ConnectorInfo(Model):
     locked: bool
     fingerprint: str | None  # four groups of four
     sealingKey: str | None  # base64url, for sealing in the browser (S18.7.1)
-    # The connector's identity key and its signature over the sealing key: the browser checks
-    # the one against the other before sealing (S18.4.5).
-    identityKey: str | None = None
+    # The connector's action key and its signature over the sealing key: the browser checks the
+    # one against the other before sealing (S18.4.5).
+    actionKey: str | None = None
     sealingSignature: str | None = None
 
 
@@ -79,9 +80,9 @@ def _info(s) -> ConnectorInfo:
         paired=True,
         confirmed=row.confirmedAt is not None,
         locked=row.locked,
-        fingerprint=keys.short(keys.fingerprint(keys.unb64(row.identityKey))),
+        fingerprint=keys.short(keys.fingerprint(keys.unb64(row.actionKey))),
         sealingKey=row.sealingKey,
-        identityKey=row.identityKey,
+        actionKey=row.actionKey,
         sealingSignature=row.sealingSignature,
     )
 
@@ -98,27 +99,27 @@ def _check_settings(driver: str, settings: dict) -> dict:
     errors = []
     for key, kind in shape.items():
         v = settings.get(key)
+        if kind is int:  # an optional whole number of days
+            if v in (None, ""):
+                continue
+            if isinstance(v, bool) or not str(v).strip().isdigit() or not 1 <= int(v) <= 90:
+                errors.append(FieldError(f"settings.{key}", "settings-invalid", "1 to 90 days."))
+                continue
+            out[key] = int(v)
+            continue
         if kind is None:  # optional text
             if v not in (None, "") and (not isinstance(v, str) or len(v) > 500):
                 errors.append(FieldError(f"settings.{key}", "settings-invalid", "Too long."))
             elif isinstance(v, str) and v.strip():
                 out[key] = v.strip()
             continue
-        if kind is list:
-            if v is None:
-                v = []
-            if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
-                errors.append(FieldError(f"settings.{key}", "settings-invalid", "A list of rules."))
-                continue
-            out[key] = [x.strip() for x in v if x.strip()][:200]
-        else:
-            if not isinstance(v, str) or not v.strip():
-                errors.append(FieldError(f"settings.{key}", "settings-missing", "Needed."))
-                continue
-            if len(v) > 500:
-                errors.append(FieldError(f"settings.{key}", "settings-invalid", "Too long."))
-                continue
-            out[key] = v.strip()
+        if not isinstance(v, str) or not v.strip():
+            errors.append(FieldError(f"settings.{key}", "settings-missing", "Needed."))
+            continue
+        if len(v) > 500:
+            errors.append(FieldError(f"settings.{key}", "settings-invalid", "Too long."))
+            continue
+        out[key] = v.strip()
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
     return out
@@ -143,7 +144,7 @@ def list_connections(request: Request, c: Caller = Depends(caller)):
             )
             .order_by(Connection.createdAt)
         )
-        return [connection_out(s, r) for r in rows]
+        return [connection_out(s, r, mine=True) for r in rows]
 
 
 def _make(s, c: Caller, body: NewConnection, connection_id: str) -> Connection:
@@ -229,7 +230,7 @@ def put_credential(
             owner=c.id,
         )
         s.flush()
-        return connection_out(s, row)
+        return connection_out(s, row, mine=True)
 
 
 class ConnectionRecord(NewConnection):
@@ -294,6 +295,8 @@ save.register(
         current=_connection_current,
         update=_connection_update,
         delete=_connection_remove,
-        read=lambda ctx, record_id: connection_out(ctx.s, ctx.s.get(Connection, record_id)),
+        read=lambda ctx, record_id: connection_out(
+            ctx.s, ctx.s.get(Connection, record_id), mine=True
+        ),
     )
 )

@@ -66,8 +66,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | **G25** | [Real exported files for the import corpus](gaps.md#g25-real-exported-files-for-the-import-corpus--low) | Low |
 | **G26** | [Seeing and recovering what was deleted](gaps.md#g26-seeing-and-recovering-what-was-deleted--low) | Low |
 | **G27** | [Correcting an instrument's class](gaps.md#g27-correcting-an-instruments-class--low) | Low |
+| **G28** | [Short sales of stock](gaps.md#g28-short-sales-of-stock--low) | Low |
 
-A new gap takes the next id after G25.
+A new gap takes the next id after G28.
 
 ## Open questions
 
@@ -96,6 +97,7 @@ Work planned for after the first release ([later.md](later.md), S17.9.11).
 | **L10** | [Learned column positions for statements](later.md#l10-learned-column-positions-for-statements) | a statement's Debit and Credit columns found, named once and learned per institution; until then a sign comes from the line itself or its words |
 | **L11** | [Miniscript wallet policies](later.md#l11-miniscript-wallet-policies) | timelocked recovery paths and decaying multisig in `wsh()`, and taproot script trees; until then refused |
 | **L12** | [Who paid in a household budget](later.md#l12-who-paid-in-a-household-budget) | each member's share of a group budget's costs, who paid what, and who owes whom |
+| **L14** | [The drivers checked against a household's own data](later.md#l14-the-drivers-checked-against-a-households-own-data) | Schwab Trader API data and OFX servers' answers from the household's accounts, joined to the connector corpus |
 
 ## Also here
 
@@ -281,10 +283,11 @@ The rulings the rest of the requirements apply.
 25. **Strategy:** option legs, and shares, held together as one (a covered call, an iron
     condor), with its combined P/L, max profit and loss and capital at risk; a label over the
     lots, which keep their own gains (S3.5).
-26. **Identity key, sealing key:** the connector's two key pairs, made at pairing. The
-    identity key signs its calls and sits beside its vault; the sealing key is what a browser
-    encrypts a credential to (a **sealed box**), its public half held by MoolaKata and its
-    private half kept in the vault (S18.4.5).
+26. **Action key, status key, sealing key:** the connector's three key pairs, made at
+    pairing. The action key signs its calls and is kept in its vault; the status key sits
+    beside the vault and signs only a report that the connector is locked, and `unpaired`; the
+    sealing key is what a browser encrypts a credential to (a **sealed box**), its public half
+    held by MoolaKata and its private half kept in the vault (S18.4.5).
 
 # R3. Design principles
 

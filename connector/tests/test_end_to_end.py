@@ -14,6 +14,7 @@ from server_conftest import ORIGIN, make_user, sign_in
 from moolakata import ids
 
 BANK = "ofx.cu.example"
+BANK2 = "ofx2.cu.example"  # where the credit union moved its server
 
 
 def keys_short(core) -> str:
@@ -30,13 +31,15 @@ class Wired(client.Transport):
         super().__init__(egress)
         self.app = app_client
         self.bank = {"ofx": OFX}
+        self.asked: list[str] = []  # the banks' hosts asked, in order
 
     def request(self, method, url, headers, body, pins=None):
         from urllib.parse import urlsplit
 
         u = urlsplit(url)
         self.egress.check(u.hostname or "")
-        if u.hostname == BANK:
+        if u.hostname in (BANK, BANK2):
+            self.asked.append(u.hostname)
             return client.Answer(200, {}, self.bank["ofx"])
         r = self.app.request(method, u.path, content=body, headers=headers)
         return client.Answer(r.status_code, dict(r.headers), r.content)
@@ -119,7 +122,8 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     )
     c.post(f"/ui/api/profile/connections/{conn['id']}/credential", json={"sealed": box})
     core.tick()
-    assert core.vault.locked and core.connections[conn["id"]].label == "Credit union"
+    # Locked, it reports with its status key only, and hears nothing of a Connection (S18.4.2).
+    assert core.vault.locked and core.connections == {}
     assert c.get("/ui/api/profile/connections").json()["items"][0]["credentialWaiting"] is True
     core.unlock(phrase)
     core.tick()
@@ -146,6 +150,31 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     server.upload_rate.clear(alice)
     core.tick()
     assert state.backlog == []
+
+    # CR3-70, S18.7.3: the credit union moves its server. Alice changes the address in the
+    # credentials dialog, which saves it first, then seals the sign-in for the new host; the
+    # connector files it bound there, and runs against the new server alone.
+    conn = c.get("/ui/api/profile/connections").json()["items"][0]
+    assert conn["host"] == BANK and conn["address"] == f"https://{BANK}/ofx"
+    moved = {**conn["settings"], "url": f"https://{BANK2}/ofx"}
+    fields = {"driver": "ofx-direct", "label": conn["label"], "settings": moved}
+    op = {"op": "update", "entity": "Conn", "id": conn["id"], "version": conn["version"],
+          "fields": fields}  # fmt: skip
+    r = c.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 200, r.text
+    box = mk_sealed.seal(
+        json.dumps({"credentials": {"username": "alice", "password": "pw2"}, "host": BANK2,
+                    "sealedAt": 1792000001000}).encode(),
+        public,
+        conn["id"],
+    )  # fmt: skip
+    c.post(f"/ui/api/profile/connections/{conn['id']}/credential", json={"sealed": box})
+    core.transport.asked.clear()
+    state.last_run = None
+    core.tick()
+    assert core.vault.host(conn["id"]) == BANK2
+    assert core.vault.get(conn["id"]) == {"username": "alice", "password": "pw2"}
+    assert core.transport.asked == [BANK2] and state.state == "ok", state.message
 
     # Unpair from MoolaKata: the next report is refused and the connector's loop survives.
     admin.post("/ui/api/settings/connector/unpair")

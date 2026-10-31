@@ -4,6 +4,7 @@ other host. The standard library's HTTPS client, TLS always verified before anyt
 a public certificate against the system's roots, and MoolaKata's own against the key its
 pairing code pinned (protocol §1.2). The signature on each answer proves who wrote it."""
 
+import contextlib
 import hashlib
 import http.client
 import ipaddress
@@ -11,14 +12,16 @@ import json
 import os
 import socket
 import ssl
+import threading
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from cryptography import x509
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from . import PROTOCOL, VERSION, signing
-from .keys import Pairing, unb64
+from .keys import Pairing, fingerprint, unb64
 
 
 class EgressRefused(Exception):
@@ -26,21 +29,31 @@ class EgressRefused(Exception):
 
 
 MAX_ANSWER = 25 * 1024 * 1024  # what one answer may hold (S18.1.2)
+DEADLINE = 60  # seconds a whole call may take, an answer that trickles in included (S18.2.2)
 LOOPBACK_OK = os.environ.get("MOOLAKATA_CONNECTOR_DEV") == "1"  # a dev MoolaKata on localhost
 
 
+# Cloud metadata services, as MoolaKata's guard names them (S13.5): AWS's IPv6 one is a
+# unique local address, not link-local, so it is named.
+METADATA = {
+    ipaddress.ip_address("169.254.169.254"),
+    ipaddress.ip_address("fd00:ec2::254"),
+    ipaddress.ip_address("100.100.100.200"),
+}
+
+
 def vetted(host: str, port: int) -> str:
-    """The address to connect to, resolved once: loopback, link-local (cloud metadata among
-    them), multicast and unspecified addresses are refused, as MoolaKata's guard does (S13.5),
-    and the connection goes to the address checked, never a second lookup's."""
+    """The address to connect to, resolved once: cloud metadata, loopback, link-local,
+    multicast, reserved and unspecified addresses are refused, as MoolaKata's guard does
+    (S13.5), and the connection goes to the address checked, never a second lookup's."""
     addr = None
     for *_, sa in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
         ip = ipaddress.ip_address(sa[0])
         ip = ip.ipv4_mapped or ip if ip.version == 6 else ip
-        if (ip.is_loopback and not LOOPBACK_OK) or ip.is_link_local or ip.is_multicast:
+        if ip in METADATA or (ip.is_loopback and not LOOPBACK_OK) or ip.is_link_local:
             raise EgressRefused(f"{host} resolves to {ip}, an address the connector never calls")
-        if ip.is_unspecified:
-            raise EgressRefused(f"{host} resolves to {ip}")
+        if ip.is_unspecified or ip.is_multicast or ip.is_reserved:
+            raise EgressRefused(f"{host} resolves to {ip}, not a host address")
         addr = addr or sa[0]
     if addr is None:
         raise EgressRefused(f"{host} doesn't resolve")
@@ -116,10 +129,29 @@ class Transport:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
         port = u.port or 443
-        conn = http.client.HTTPSConnection(host, port, timeout=60, context=ctx)
+        conn = http.client.HTTPSConnection(host, port, timeout=DEADLINE, context=ctx)
+        # The socket's timeout bounds each read; the whole call is bounded by closing the
+        # socket at its deadline, so an answer of a byte a minute ends too.
+        ended = threading.Event()
+        live: list[socket.socket] = []  # the socket now in use: the TCP one, then the TLS one
+
+        def end() -> None:
+            ended.set()
+            for s in live[-1:]:
+                with contextlib.suppress(OSError):
+                    s.shutdown(socket.SHUT_RDWR)
+
+        timer = threading.Timer(DEADLINE, end)
+        timer.daemon = True
+        timer.start()
         try:
-            raw = socket.create_connection((vetted(host, port), port), timeout=60)
-            conn.sock = ctx.wrap_socket(raw, server_hostname=host)
+            live.append(socket.create_connection((vetted(host, port), port), timeout=DEADLINE))
+            if ended.is_set():
+                end()
+            conn.sock = ctx.wrap_socket(live[0], server_hostname=host)
+            live.append(conn.sock)
+            if ended.is_set():
+                end()
             cert = None
             if pins is not None:
                 cert = key_fingerprint(conn.sock.getpeercert(binary_form=True) or b"")
@@ -129,21 +161,43 @@ class Transport:
             conn.request(method, path, body=body, headers=headers)
             r = conn.getresponse()
             body = r.read(MAX_ANSWER + 1)
+            if ended.is_set():
+                raise TimeoutError(f"{host} took longer than {DEADLINE} seconds")
             if len(body) > MAX_ANSWER:
                 raise EgressRefused(f"{host} answered more than 25 MB")
             return Answer(r.status, {k: v for k, v in r.getheaders()}, body, cert)
+        except OSError, http.client.HTTPException:
+            if ended.is_set():
+                raise TimeoutError(f"{host} took longer than {DEADLINE} seconds") from None
+            raise
         finally:
+            timer.cancel()
             conn.close()
 
 
 class ServerError(Exception):
-    def __init__(self, code: str, message: str, status: int = 0, retry_after: int = 0):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status: int = 0,
+        retry_after: int = 0,
+        signed: bool = True,
+    ):
         super().__init__(message)
         self.code, self.message, self.status, self.retry_after = code, message, status, retry_after
+        self.signed = signed
+
+
+# The refusals MoolaKata makes before it reads a call, so unsigned (protocol §7): the connector
+# acts on these, by their status and code, and on no other unsigned answer.
+UNSIGNED = {503: "locked", 429: "uploads-in-flight", 413: "too-large"}
 
 
 class Server:
-    """MoolaKata, as the connector calls it: signed calls, signed answers."""
+    """MoolaKata, as the connector calls it: signed calls, signed answers. Each call names the
+    key that signs it: the action key from the vault, or, for a locked report and `unpaired`,
+    the status key (S18.4.2)."""
 
     def __init__(self, pairing: Pairing, transport: Transport, server_public: bytes, on_cert=None):
         self.pairing = pairing
@@ -153,25 +207,35 @@ class Server:
         # starts using the one it announced, so the pairing keeps them (protocol §1.2).
         self.on_cert = on_cert
 
-    def call(self, path: str, data: dict | None = None, body: bytes | None = None, ctype=None):
+    def call(
+        self,
+        path: str,
+        data: dict | None = None,
+        body: bytes | None = None,
+        ctype=None,
+        *,
+        key: Ed25519PrivateKey,
+    ):
         payload = body if body is not None else json.dumps(data or {}).encode()
-        headers, nonce = signing.sign(
-            self.pairing.identity, "POST", path, payload, self.pairing.server_fp
-        )
+        headers, nonce = signing.sign(key, "POST", path, payload, self.pairing.server_fp)
+        me = fingerprint(key.public_key().public_bytes_raw())  # the caller the answer names
+        call = signing.body_hash(payload)
         headers |= {
             "Content-Type": ctype or "application/json",
             "MK-Conn-Protocol": str(PROTOCOL),
             "MK-Conn-Version": VERSION,
+            # The hash the signature covers, so MoolaKata checks the signature before it reads
+            # the body (protocol §3.1).
+            "MK-Conn-Body-SHA256": call,
         }
         p, url = self.pairing, self.pairing.address.rstrip("/") + path
         try:
             r = self.transport.request("POST", url, headers, payload, pins=p.pins())
         except CertificateRefused as e:
             raise ServerError("certificate-changed", str(e)) from None
-        call = signing.body_hash(payload)
-        signing.verify_answer(
-            self.server_public, r.status, r.body, nonce, r.headers, p.fingerprint, call
-        )
+        if not _signed(r.headers):
+            raise _unsigned(r)
+        signing.verify_answer(self.server_public, r.status, r.body, nonce, r.headers, me, call)
         if r.cert is not None and r.cert == p.cert_next and self.on_cert:
             self.on_cert(r.cert, None)  # the announced key is in use now
         out = r.json()
@@ -187,6 +251,32 @@ class Server:
                 int(retry) if retry.isdigit() else 0,
             )
         return out
+
+
+def _signed(headers) -> bool:
+    return any(k.lower() == "mk-conn-signature" for k in headers)
+
+
+def _unsigned(r: Answer) -> ServerError:
+    """An answer without a signature: one of MoolaKata's refusals before it reads a call, by
+    its status and code; anything else, whoever sent it, is `answer-unsigned`."""
+    try:
+        out = r.json()
+    except ValueError:
+        out = {}
+    code = out.get("code") if isinstance(out, dict) else None
+    if r.status in UNSIGNED and code == UNSIGNED[r.status]:
+        retry = r.headers.get("Retry-After") or r.headers.get("retry-after") or "0"
+        return ServerError(
+            code,
+            str(out.get("detail") or code),
+            r.status,
+            int(retry) if retry.isdigit() else 0,
+            signed=False,
+        )
+    return ServerError(
+        "answer-unsigned", f"MoolaKata's answer ({r.status}) wasn't signed.", r.status, 0, False
+    )
 
 
 def hello(transport: Transport, address: str, pins=None) -> dict:

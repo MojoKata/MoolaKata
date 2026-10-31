@@ -1,0 +1,19 @@
+about = """A dividend reinvested, which Schwab writes as the dividend and then a buy of a fraction of a
+share for the same amount."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -2700.00 SCHD 100",
+    "2026-09-25 buy -25.00 SCHD 0.9",
+    "2026-09-25 dividend 25.00 SCHD",
+]
+holdings = ["SCHD 100.9"]
+cash = "17300.00"
+checks = ["2026-10-15 17300.00 ok"]
+holding_checks = ["as of 2026-10-15", "SCHD 100.9 ok"]
+instruments = { SCHD = "equity" }
+open = ["SCHD long 100.9 cost 2725.00"]
+closed = []
+strategies = []

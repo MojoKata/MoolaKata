@@ -473,9 +473,11 @@ services:
 
 ### 8.3 Pairing
 
-1. In MoolaKata, **Settings › General › Public URL** must be the address the connector reaches
-   it at (`https://192.168.1.50:37373` on the VM, `https://192.168.1.20:37373` on the NAS):
-   the pairing code carries it.
+1. In MoolaKata, **Settings › Connector › The connector reaches MoolaKata at** must be the
+   address the connector reaches it at (`https://192.168.1.50:37373` on the VM,
+   `https://192.168.1.20:37373` on the NAS): the pairing code carries it. Left empty, the code
+   carries **Settings › General › Public URL**, which serves when the connector reaches that
+   too.
 2. **Settings › Connector › Pair** (your password again) shows a one-time code, good for 24
    hours: **Copy the code**.
 3. On the connector's page, **Pair…**: paste the code, give the words, **Pair**. It shows the

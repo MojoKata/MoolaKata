@@ -1,0 +1,20 @@
+about = """A long call exercised: the option removed by a RECEIVE_AND_DELIVER that says "exercise",
+and the shares bought at the strike the same day, paired with it (S3.4)."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-10 buy-to-open -500.66 AAPL 09OCT26 160 C 1",
+    "2026-10-09 buy -16000.00 AAPL 100",
+    "2026-10-09 exercise 0.00 AAPL 09OCT26 160 C 1",
+]
+holdings = ["AAPL 100"]
+cash = "3499.34"
+checks = ["2026-10-15 3499.34 ok"]
+holding_checks = ["as of 2026-10-15", "AAPL 100 ok"]
+instruments = { AAPL = "equity", "AAPL 09OCT26 160 C" = "option" }
+# Exercised, the call's premium goes into the shares' basis (S3.4): 16,000 + 500.66.
+open = ["AAPL long 100 cost 16500.66"]
+closed = []
+strategies = []

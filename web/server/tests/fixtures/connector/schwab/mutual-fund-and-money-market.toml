@@ -1,0 +1,20 @@
+about = """A mutual fund bought, and a money market fund bought (Schwab's MONEY_MARKET, a cash
+equivalent) with its month's dividend reinvested."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -4000.00 SWPPX 50",
+    "2026-09-03 buy -5000.00 SWVXX 5000",
+    "2026-09-30 buy -12.40 SWVXX 12.4",
+    "2026-09-30 dividend 12.40 SWVXX",
+]
+holdings = ["SWPPX 50", "SWVXX 5012.4"]
+cash = "11000.00"
+checks = ["2026-10-15 11000.00 ok"]
+holding_checks = ["as of 2026-10-15", "SWPPX 50 ok", "SWVXX 5012.4 ok"]
+instruments = { SWPPX = "mutual-fund", SWVXX = "money-market" }
+open = ["SWPPX long 50 cost 4000.00", "SWVXX long 5012.4 cost 5012.40"]
+closed = []
+strategies = []

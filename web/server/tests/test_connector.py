@@ -39,50 +39,68 @@ NEWFILEUID:NONE
 
 
 class FakeConnector:
-    """A connector as the protocol describes it: its identity key, signed calls to the server's
-    app, and answers checked against the server's link key."""
+    """A connector as the protocol describes it: its action key and its status key, signed
+    calls to the server's app, and answers checked against the server's link key."""
 
     def __init__(self, server, client):
-        self.key = Ed25519PrivateKey.generate()
+        self.key = Ed25519PrivateKey.generate()  # the action key
+        self.status = Ed25519PrivateKey.generate()
         self.sealing = Ed25519PrivateKey.generate()  # any 32 raw bytes serve as a sealing key
         self.client = client
         with server.db.tx() as s:
             self.server_key = keys.public_of(s, server.keys.secrets)
         self.fp = keys.fingerprint(self.server_key)
 
-    def call(self, path: str, data: dict | None = None, *, raw: bytes | None = None, headers=None):
+    def call(
+        self,
+        path: str,
+        data: dict | None = None,
+        *,
+        raw: bytes | None = None,
+        headers=None,
+        status: bool = False,
+    ):
+        """Signed with the action key, or with `status` the status key."""
+        key = self.status if status else self.key
         body = raw if raw is not None else exactjson.dumps(data or {}).encode()
-        signed = signing.sign_request(self.key, "POST", path, body, self.fp, scheme=signing.CONN)
+        signed = signing.sign_request(key, "POST", path, body, self.fp, scheme=signing.CONN)
         h = {
             **signed.headers,
             "Content-Type": "application/json",
             "MK-Conn-Protocol": str(PROTOCOL),
             "MK-Conn-Version": "0.1.0-test",
+            "MK-Conn-Body-SHA256": signed.body_hash,
             **(headers or {}),
         }
         r = self.client.post(path, content=body, headers=h)
-        # The answer names this connector and this call (protocol §3.3).
-        me = keys.fingerprint(keys.raw_public(self.key.public_key()))
+        # The answer names the key that called and this call (protocol §3.3).
+        me = keys.fingerprint(keys.raw_public(key.public_key()))
         asked = signing.Asked(signed.nonce, me, signed.body_hash)
         signing.verify_answer(
             self.server_key, r.status_code, r.content, asked, r.headers, scheme=signing.CONN
         )
         return r
 
-    def pair(self, code: str, signed: bool = True):
-        from moolakata.connector.manage import SEALING_LABEL
+    def pair_body(self, code: str, sealing: bytes = b"\x11" * 32, signed: bool = True) -> dict:
+        """The pairing call's body (protocol §4.1): the sealing and status keys signed by the
+        action key, and the action key by the status key."""
+        from moolakata.connector.manage import ACTION_LABEL, SEALING_LABEL, STATUS_LABEL
 
-        sealing = b"\x11" * 32
+        action = keys.raw_public(self.key.public_key())
+        status = keys.raw_public(self.status.public_key())
         signature = self.key.sign(SEALING_LABEL + sealing) if signed else b"\x00" * 64
-        return self.call(
-            "/connector/v1/pair",
-            {
-                "code": code,
-                "sealingKey": keys.b64(sealing),
-                "sealingSignature": keys.b64(signature),
-                "version": "0.1.0-test",
-            },
-        )
+        return {
+            "code": code,
+            "sealingKey": keys.b64(sealing),
+            "sealingSignature": keys.b64(signature),
+            "statusKey": keys.b64(status),
+            "statusSignature": keys.b64(self.key.sign(STATUS_LABEL + status)),
+            "actionSignature": keys.b64(self.status.sign(ACTION_LABEL + action)),
+            "version": "0.1.0-test",
+        }
+
+    def pair(self, code: str, signed: bool = True):
+        return self.call("/connector/v1/pair", self.pair_body(code, signed=signed))
 
 
 @pytest.fixture
@@ -226,9 +244,74 @@ def test_pairing_takes_the_code_once_and_records_the_keys(server, admin, client)
     assert again.status_code == 403 and again.json()["code"] == "code-used"
     with server.db.read() as s:
         row = manage.paired(s)
-        assert row.codeHash is None and row.identityKey == keys.b64(
+        assert row.codeHash is None and row.actionKey == keys.b64(
             keys.raw_public(fake.key.public_key())
         )
+        assert row.statusKey == keys.b64(keys.raw_public(fake.status.public_key()))
+
+
+def test_a_pairing_whose_keys_dont_sign_each_other_is_refused(server, admin, client):
+    """S18.4.2: the action key signs the status key and the status key the action key, so both
+    are one connector's; a status key that is the action key itself is refused too."""
+    fake = FakeConnector(server, client)
+    code = pair_code(admin)
+    body = fake.pair_body(code)
+    for broken in (
+        {"actionSignature": body["statusSignature"]},
+        {"statusSignature": keys.b64(b"\x00" * 64)},
+        {"statusKey": keys.b64(keys.raw_public(fake.key.public_key()))},
+    ):
+        r = fake.call("/connector/v1/pair", {**body, **broken})
+        assert r.status_code == 403 and r.json()["code"] == "keys-unsigned", broken
+    assert fake.call("/connector/v1/pair", body).status_code == 200
+
+
+def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, admin):
+    """CR3-65, S18.4.2, S18.2.4.4: the status key, kept outside the vault, reports *locked*
+    and is answered with nothing about a Connection; its report sets no page, state or
+    sign-in address; every other call but `unpaired` is refused under it."""
+    alice = make_user(server, "alice")
+    with server.db.tx() as s:
+        row = manage.paired(s)
+        c = Connection(id=ids.new_id("Conn"), ownerId=alice.id, connectorId=row.id,
+                       driver="schwab", label="Alice's Schwab", state="new",
+                       settings='{"appKey": "k"}', sealedCredential="c2VhbGVk",
+                       sealedAt=clock.now())  # fmt: skip
+        s.add(c)
+        cid = c.id
+    out = paired.call("/connector/v1/report", {"locked": False, "page": "https://c.lan:37374"})
+    assert out.json()["connections"][0]["sealed"]["ciphertext"] == "c2VhbGVk"
+    lying = {
+        "locked": False,
+        "page": "https://evil.example:37374",
+        "connections": [{"id": cid, "state": "ok", "message": "fine", "signInAddress":
+                         "https://api.schwabapi.com/v1/oauth/authorize?x=1"}],
+    }  # fmt: skip
+    r = paired.call("/connector/v1/report", lying, status=True)
+    assert r.status_code == 200
+    answer = r.json()
+    assert answer["ok"] is True and "connections" not in answer and "removed" not in answer
+    assert "Alice" not in r.text and "appKey" not in r.text
+    view = admin.get("/ui/api/settings/connector").json()
+    assert view["locked"] is True and view["page"] == "https://c.lan:37374"
+    with server.db.read() as s:
+        c = s.get(Connection, cid)
+        assert c.state == "new" and c.message is None and c.signInAddress is None
+    for path, body in (
+        (f"/connector/v1/connections/{cid}/credential/taken", {}),
+        (f"/connector/v1/connections/{cid}/sign-in",
+         {"address": "https://api.schwabapi.com/v1/oauth/authorize"}),
+        ("/connector/v1/accounts/Acct_x/files", {}),
+    ):  # fmt: skip
+        r = paired.call(path, body, status=True)
+        assert r.status_code == 403 and r.json()["code"] == "status-key", path
+    with server.db.read() as s:
+        assert s.get(Connection, cid).sealedCredential == "c2VhbGVk"
+    # `unpaired` is the status key's too: a connector reset for lost words has only it.
+    r = paired.call("/connector/v1/unpaired", {}, status=True)
+    assert r.status_code == 200
+    with server.db.read() as s:
+        assert manage.paired(s) is None
 
 
 def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admin, client):
@@ -262,11 +345,55 @@ def test_calls_are_signed_and_answers_are_signed_back(server, paired, client):
         paired.key, "POST", "/connector/v1/report", body, paired.fp, scheme=signing.CONN
     )
     h = {**signed.headers, "Content-Type": "application/json"}
+    # The call names the hash its signature covers (protocol §3.1); without it, unsigned.
+    r = client.post("/connector/v1/report", content=body, headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "unsigned"
+    h["MK-Conn-Body-SHA256"] = signed.body_hash
     assert client.post("/connector/v1/report", content=body, headers=h).status_code == 200
     r = client.post("/connector/v1/report", content=body, headers=h)
     assert r.status_code == 403 and r.json()["code"] == "replayed"
     r = paired.call("/connector/v1/report", {}, headers={"MK-Conn-Protocol": "9"})
     assert r.status_code == 426 and "speaks connector protocol 1" in r.json()["message"]
+    # A body other than the one signed is refused, signed.
+    signed = signing.sign_request(
+        paired.key, "POST", "/connector/v1/report", b"{}", paired.fp, scheme=signing.CONN
+    )
+    h = {**signed.headers, "MK-Conn-Body-SHA256": signed.body_hash}
+    r = client.post("/connector/v1/report", content=b'{"locked":false}', headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "bad-signature"
+
+
+def test_a_call_is_refused_before_its_body_is_read(server, paired, client, monkeypatch):
+    """CR3-71, protocol §3.2: the signature, against the hash the call names, and the key, the
+    paired connector's, are checked before a byte of the body is read."""
+    from starlette.requests import Request
+
+    read = []
+    body = Request.body
+
+    async def watched(self):
+        read.append(self.url.path)
+        return await body(self)
+
+    monkeypatch.setattr(Request, "body", watched)
+    files = "/connector/v1/accounts/Acct_x/files"
+    stranger = FakeConnector(server, client)
+    r = stranger.call(files, raw=b"x" * 1000, headers={"Content-Type": "multipart/form-data"})
+    assert r.status_code == 403 and r.json()["code"] == "not-paired" and read == []
+    r = paired.call(files, raw=b"x" * 1000, headers={"Content-Type": "multipart/form-data"},
+                    status=True)  # fmt: skip
+    assert r.status_code == 403 and r.json()["code"] == "status-key" and read == []
+    # A forged signature under the paired key: refused, nothing read.
+    signed = signing.sign_request(stranger.key, "POST", files, b"x", paired.fp, scheme=signing.CONN)
+    h = {
+        **signed.headers,
+        "MK-Conn-Key": keys.b64(keys.raw_public(paired.key.public_key())),
+        "MK-Conn-Body-SHA256": signed.body_hash,
+        "Content-Type": "multipart/form-data",
+    }
+    r = client.post(files, content=b"x", headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "bad-signature" and read == []
+    assert paired.call("/connector/v1/report", {}).status_code == 200 and read
 
 
 def connection(server, owner_id: str, label="Alice's Schwab login", driver="schwab") -> str:
@@ -373,6 +500,13 @@ def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, 
     assert r.status_code == 403 and r.json()["code"] == "address-invalid"
     r = paired.call(f"/connector/v1/connections/{cid}/sign-in", {"address": "http://x"})
     assert r.status_code == 403 and r.json()["code"] == "address-invalid"
+    # CR3-64: a report is held to the same page; one naming another keeps no address.
+    for address, kept in (("https://api.schwabapi.com.example/v1/oauth/authorize", None),
+                          ("https://evil.example/schwab-login", None), (page, page)):  # fmt: skip
+        rep = {"id": cid, "state": "needs-sign-in", "signInAddress": address}
+        paired.call("/connector/v1/report", {"locked": False, "connections": [rep]})
+        with server.db.read() as s:
+            assert s.get(Connection, cid).signInAddress == kept, address
 
 
 def _multipart(file: bytes, meta: dict, name="schwab.ofx") -> tuple[bytes, str]:
@@ -432,6 +566,36 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
     )
     assert r.status_code == 403 and r.json()["code"] == "mapping-missing"
+    # CR3-68: a file the reader can't make out is refused, signed (paired.call checks the
+    # signature), with the reader's words, never an unsigned 500.
+    broken = OFX.replace(b"<TRNAMT>-42.37", b"<TRNAMT>lots")
+    body, ctype = _multipart(broken, {"connectionId": cid})
+    r = paired.call(
+        f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
+    )
+    assert r.status_code == 403 and r.json()["code"] == "file-refused" and r.json()["message"]
+    # CR3-333: a file over Settings › Imports' size is `too-large`, signed.
+    with server.db.tx() as s:
+        settings.put(s, "importMaxMb", 1, None)
+    body, ctype = _multipart(OFX + b" " * (1024 * 1024), {"connectionId": cid})
+    r = paired.call(
+        f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
+    )
+    assert r.status_code == 413 and r.json()["code"] == "too-large"
+
+
+def test_a_fault_in_a_connector_route_is_answered_signed(server, paired, monkeypatch):
+    """CR3-68, protocol §7: whatever fails in a route, the answer is a signed `server-error`,
+    which the connector can tell from a forgery."""
+    from moolakata.connector import manage as mk_manage
+
+    def broken(*a, **k):
+        raise RuntimeError("a bug")
+
+    monkeypatch.setattr(mk_manage, "apply_report", broken)
+    r = paired.call("/connector/v1/report", {"locked": False})  # checks the signature
+    assert r.status_code == 500 and r.json()["code"] == "server-error"
+    assert "a bug" not in r.text
 
 
 def test_a_posted_statement_is_kept_without_reading_once(server, paired):
@@ -663,3 +827,20 @@ def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, pa
     view = admin.get("/ui/api/settings/connector").json()
     assert view["knownAddress"] == "198.51.100.7" and view["newAddress"] is None
     assert not moved()
+
+
+def test_the_pairing_code_carries_the_connectors_own_address_else_the_public_url(server, admin):
+    """CR3-372, CR3-141, S18.4.1: Settings › Connector's address, else the public URL, and never
+    the link address, whose proxy may pass only /link/."""
+
+    def carried() -> str:
+        code = pair_code(admin)
+        return manage.decode_code(code)["a"]
+
+    with server.db.tx() as s:
+        settings.put(s, "linkAddress", "https://links.example.net", None)
+    assert carried() == ORIGIN
+    r = save_settings(admin, {"connectorAddress": "money.lan"})
+    assert r.status_code == 422
+    assert save_settings(admin, {"connectorAddress": "https://money.lan:37373"}).status_code == 200
+    assert carried() == "https://money.lan:37373"

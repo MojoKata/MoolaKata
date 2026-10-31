@@ -1,0 +1,21 @@
+about = """A covered call: 100 shares bought, one call written against them (sold to open, its
+premium less 66 cents of fees), and the call expiring worthless, which Schwab writes as a
+RECEIVE_AND_DELIVER removing the option "due to expiration"."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -17000.00 AAPL 100",
+    "2026-09-10 sell-to-open 199.34 AAPL 09OCT26 175 C 1",
+    "2026-10-09 expire 0.00 AAPL 09OCT26 175 C 1",
+]
+holdings = ["AAPL 100"]
+cash = "3199.34"
+checks = ["2026-10-15 3199.34 ok"]
+holding_checks = ["as of 2026-10-15", "AAPL 100 ok"]
+instruments = { AAPL = "equity", "AAPL 09OCT26 175 C" = "option" }
+# The call's whole credit is realized when it expires (S3.3).
+open = ["AAPL long 100 cost 17000.00"]
+closed = ["2026-10-09 AAPL 09OCT26 175 C short 1 expired realized 199.34"]
+strategies = []

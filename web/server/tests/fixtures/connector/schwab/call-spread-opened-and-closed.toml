@@ -1,0 +1,21 @@
+about = """A bull call spread opened as one order of two legs and closed as another: each leg its own
+trade, the order's fees with its first."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-15 buy-to-open -601.32 AAPL 20NOV26 170 C 1",
+    "2026-09-15 sell-to-open 200.00 AAPL 20NOV26 180 C 1",
+    "2026-10-06 buy-to-close -300.00 AAPL 20NOV26 180 C 1",
+    "2026-10-06 sell-to-close 798.68 AAPL 20NOV26 170 C 1",
+]
+holdings = []
+cash = "20097.36"
+checks = ["2026-10-15 20097.36 ok"]
+holding_checks = []
+instruments = { "AAPL 20NOV26 170 C" = "option", "AAPL 20NOV26 180 C" = "option" }
+# The long leg: 601.32 out (the fees with it), 798.68 back. The short leg: 200 in, 300 out.
+open = []
+closed = ["2026-10-06 AAPL 20NOV26 170 C long 1 sold realized 197.36", "2026-10-06 AAPL 20NOV26 180 C short 1 bought back realized -100.00"]
+strategies = []

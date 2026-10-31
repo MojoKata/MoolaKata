@@ -123,7 +123,7 @@ export function ConnectionDialog({ close, connection }) {
   const [f, setF] = useState({
     driver: existing?.driver || 'schwab',
     label: existing?.label || '',
-    url: '',
+    url: existing?.address || '',
     org: '',
     fid: '',
     accountType: 'CHECKING',
@@ -143,9 +143,24 @@ export function ConnectionDialog({ close, connection }) {
   const [made, setMade] = useState(/** @type {any} */ (null));
   const [start] = useState(() => JSON.stringify(f));
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
+  // Where the credentials go, shown before they are typed and sealed with them (S18.7.1): the
+  // OFX server's host as the address field names it, or the driver's own.
+  const goesTo = f.driver === 'ofx-direct' ? hostOf(f.url) : existing?.host || 'api.schwabapi.com';
+  const moved = !!existing && f.driver === 'ofx-direct' && f.url !== (existing.address || '');
   const save = useSubmit(async () => {
     const key = /** @type {any} */ (info.data)?.sealingKey;
     let c = made?.connection || existing;
+    if (moved && !made?.moved) {
+      // A new address for an existing Connection (S18.7.3): saved first, with the password
+      // again, so the connector binds the credentials sealed next to its host.
+      await withReauth(() =>
+        saveNow((d) => {
+          const r = d.load(ConnRec, existing);
+          r.set('settings', { ...(existing.settings || {}), url: f.url });
+        })
+      );
+      setMade({ connection: c, moved: true });
+    }
     if (!c) {
       // The connection is a record, made with the draft's save; its sign-in never is one.
       const settings = f.driver === 'ofx-direct'
@@ -165,7 +180,7 @@ export function ConnectionDialog({ close, connection }) {
       setMade({ connection: c });
     }
     if (f.how === 'host') {
-      setMade({ connection: c, command: command(c) });
+      setMade({ connection: c, command: command(c), moved: moved || made?.moved });
       return;
     }
     // The box holds the host the credentials are for and when they were sealed, so the
@@ -173,10 +188,10 @@ export function ConnectionDialog({ close, connection }) {
     const credentials = f.driver === 'schwab'
       ? { appSecret: f.appSecret, landed: f.landed }
       : { username: f.username, password: f.password };
-    const host = f.driver === 'ofx-direct' ? hostOf(c.settings?.url || f.url) : null;
+    const host = f.driver === 'ofx-direct' ? hostOf(f.url) : null;
     const plain = JSON.stringify({ credentials, host, sealedAt: Date.now() });
     const v = /** @type {any} */ (info.data);
-    if (!(await sealingKeyIsSigned(key, v?.identityKey, v?.sealingSignature))) {
+    if (!(await sealingKeyIsSigned(key, v?.actionKey, v?.sealingSignature))) {
       throw new Error(
         "The connector's sealing key isn't signed by the key an admin confirmed: nothing was sent. Pair the connector again.",
       );
@@ -293,6 +308,20 @@ export function ConnectionDialog({ close, connection }) {
               </${Field}>
           `}
       `}
+      ${existing && f.driver === 'ofx-direct'
+        ? html`
+          <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}
+            hint="Change it when the institution moves its server: the sign-in below is then sealed for the new one, with your password again.">
+            <${Input} value=${f.url} onInput=${set('url')} placeholder="https://ofx.example.com/"
+              required />
+            </${Field}>
+        `
+        : null}
+      <p class="small" data-help="sealed-for" style=${{ margin: '0 0 12px' }}>${goesTo
+        ? html`Sealed for <b class="mono">${goesTo}</b> only: the connector sends this sign-in
+            nowhere else.`
+        : html`<span class="dim">Sealed for the OFX server's host, once its address is
+            given.</span>`}</p>
       ${html`
         <${Field} label="How you sign in" id="how-you-sign-in">
           <${Select} value=${f.how} onChange=${set('how')} options=${[

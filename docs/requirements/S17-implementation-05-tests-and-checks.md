@@ -54,6 +54,22 @@
          check a result) for what one import leaves for the next.
       4. **The browser offers what the server takes**: the ways an account is kept and the
          columns a mapping names, read from the browser's lists, against the server's.
+      5. **The connector corpus** (S18.9): what a connector driver fetches, shaped as its
+         institution's API or server gives it, in `web/server/tests/fixtures/connector/`:
+         Schwab Trader API data (an account's positions and balances and its transactions,
+         `.json`) run through the Schwab driver, and OFX servers' answers (`.ofx`) run
+         through OFX Direct Connect against a server that answers with them; each driver's
+         file imported as the connector's post is, and compared as above, with the lots it
+         makes (each open position's side and basis, each close's realized gain and how it
+         closed) and the strategies Positions proposes (`tests/test_connector_corpus.py`). A
+         case for every kind of transaction and asset each driver handles, the four option
+         trades and an option's three ends, an order of several legs, and what each driver
+         can't do: a Schwab transaction it can't write whole is named, never dropped unsaid;
+         an OFX server's refusals give the run's state and words. **Invariant** over every
+         entry that leaves nothing out: what the institution reported, its cash and its
+         positions, is what MoolaKata works out from the rows, nothing held that it didn't
+         report; and the next day's file, the same days fetched again, adds nothing. A
+         household's own data joins as L14 says.
 
       A part that waits on a fix is an expected failure named by its claim or question
       (`[xfail]` in the file's `.toml`), strict, so the fix takes the mark away. A change to

@@ -122,3 +122,53 @@ def test_every_problem_is_logged_by_its_id_status_and_code(bare_client, caplog):
     assert r.status_code == 404
     line = f"problem {r.json()['errorId']} 404 not-found"
     assert any(rec.getMessage() == line for rec in caplog.records), caplog.text
+
+
+def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monkeypatch):
+    """CR3-71 (S13.7.6): a call to /connector reserves nothing for what it says it carries, so a
+    stranger's key header holds no budget (its route reads a body only once the paired
+    connector's signature checks out); and all callers together have a ceiling."""
+    import asyncio
+
+    from moolakata import middleware
+
+    monkeypatch.setattr(middleware, "IN_FLIGHT", 1000)
+    monkeypatch.setattr(middleware, "IN_FLIGHT_ALL", 1500)
+    answered = []
+
+    async def app(scope, receive, send):  # an app that never reads the body
+        await send({"type": "http.response.start", "status": 403, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    mw = middleware.BodyLimit(app, upload_limit=lambda: 10_000)
+
+    async def sent(message):
+        if message["type"] == "http.response.start":
+            answered.append(message["status"])
+
+    async def nothing():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    def call(path, length, key="k"):
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": path,
+            "client": ("10.0.0.5", 1),
+            "headers": [
+                (b"content-type", b"multipart/form-data; boundary=x"),
+                (b"content-length", str(length).encode()),
+                (b"mk-conn-key", key.encode()),
+            ],
+        }
+        asyncio.run(mw(scope, nothing, sent))
+        return answered[-1]
+
+    # Declared lengths on /connector reserve nothing: each is answered by the route.
+    for key in ("a", "b", "c"):
+        assert call("/connector/v1/accounts/x/files", 900, key) == 403
+    # Elsewhere, a declared length is held; past everyone's ceiling, refused at once.
+    mw.in_flight = {"session:1": 900}
+    assert call("/ui/api/receipts", 700) == 429
+    mw.in_flight = {}
+    assert call("/ui/api/receipts", 700) == 403

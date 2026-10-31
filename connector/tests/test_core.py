@@ -29,7 +29,7 @@ def test_words_round_trip_and_catch_a_wrong_word():
         words.from_words([*w[:-1], words.wordlist()[(words.wordlist().index(w[-1]) + 1) % 2048]])
 
 
-def test_the_vault_opens_only_with_its_words_and_waits_after_five_wrong(tmp_path, monkeypatch):
+def test_the_vault_opens_only_with_its_words_and_makes_no_one_wait(tmp_path):
     v = vault.Vault(tmp_path / "vault.json")
     phrase = " ".join(v.create())
     fp = v.fingerprint()
@@ -51,16 +51,11 @@ def test_the_vault_opens_only_with_its_words_and_waits_after_five_wrong(tmp_path
     # The file holds no credential in clear.
     v.put("Conn_2", {"password": "hunter2-secret"})
     assert "hunter2" not in (tmp_path / "vault.json").read_text()
-    # Five wrong in a row: the next waits 15 minutes.
+    # CR3-373: wrong words make no one wait (S18.3.3): the right ones open it at once after any.
     v.lock()
-    now = [1000.0]
-    monkeypatch.setattr(time, "monotonic", lambda: now[0])
-    for _ in range(5):
+    for _ in range(20):
         with pytest.raises(vault.VaultError):
             v.unlock(other)
-    with pytest.raises(vault.VaultError, match="wait"):
-        v.unlock(phrase)
-    now[0] += 15 * 60 + 1
     v.unlock(phrase)
     assert not v.locked
     # Reset: a new vault, new words, the old credentials gone.
@@ -71,22 +66,27 @@ def test_the_vault_opens_only_with_its_words_and_waits_after_five_wrong(tmp_path
 def test_keys_are_made_at_pairing_the_sealing_key_in_the_vault_and_forgotten(tmp_path):
     assert keys.load(tmp_path / "pairing.json") is None
     private, public = keys.new_sealing_key()
-    p = keys.make("https://money.lan", "f" * 64, public)
+    action, action_public = keys.new_action_key()
+    p = keys.make("https://money.lan", "f" * 64, action_public, public)
     assert keys.load(tmp_path / "pairing.json") is None, "nothing written until it is taken"
     keys.save(tmp_path / "pairing.json", p)
     assert not (tmp_path / "pairing.json.tmp").exists()
     again = keys.load(tmp_path / "pairing.json")
-    assert again.identity_public == p.identity_public and again.address == "https://money.lan"
-    assert again.sealing_public == public
+    assert again.status_public == p.status_public and again.address == "https://money.lan"
+    assert again.sealing_public == public and again.action_public == action_public
     assert keys.short(p.fingerprint).count(" ") == 3
-    # The pairing file holds the public half only (S18.4.5): nothing in it opens a box.
+    assert p.fingerprint == keys.fingerprint(action_public), "the fingerprint is the action key's"
+    # The pairing file holds the public halves only (S18.4.5) and the status key: nothing in it
+    # opens a box or signs more than "locked" (S18.4.2).
     text = (tmp_path / "pairing.json").read_text()
     assert keys.b64(private) not in text and "sealingPublic" in text and '"sealing"' not in text
+    assert keys.b64(action) not in text and "actionPublic" in text
     v = vault.Vault(tmp_path / "vault.json")
     v.create()
-    assert v.sealing_key() is None
-    v.keep_sealing_key(private)
+    assert v.sealing_key() is None and v.action_key() is None
+    v.keep_keys(private, action)
     assert v.sealing_key() == private and private.hex() not in (tmp_path / "vault.json").read_text()
+    assert v.action_key() == action and action.hex() not in (tmp_path / "vault.json").read_text()
     keys.forget(tmp_path / "pairing.json")
     assert keys.load(tmp_path / "pairing.json") is None
 
@@ -265,7 +265,7 @@ def test_the_socket_commands_talk_to_the_running_connector(tmp_path):
 
     key = bytes(range(16))
     out = sock.ask(path, {"command": "reset", "words": " ".join(words.to_words(key))})
-    assert out == {"ok": True, "fingerprint": fingerprint(key)}
+    assert out == {"ok": True, "fingerprint": fingerprint(key), "told": False}
     assert json.loads((tmp_path / "vault.json").read_text())["format"]
     assert core.vault.get("Conn_1") is None and core.pairing is None
     assert "error" in sock.ask(path, {"command": "reset", "words": "not twelve words"})
@@ -362,7 +362,8 @@ def test_moolakata_down_at_start_is_waited_for_with_a_growing_wait(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
     _, public = keys.new_sealing_key()
-    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, public))
+    _, action = keys.new_action_key()
+    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, action, public))
     core = Core(data, transport=Down(client.Egress()))  # no hello yet: nothing raised
     assert core.pairing is not None and core.server is None
     with pytest.raises(client.ServerError) as e:
@@ -416,6 +417,17 @@ def test_init_and_reset_show_the_words_on_the_terminal_only(tmp_path, monkeypatc
             return "RESET\n"
 
     monkeypatch.setattr(main, "DATA", tmp_path)
+    # CR3-336: no vault exists while the words are on screen, and none if they never come back.
+    seen = []
+
+    class Gone(Tty):
+        def ask(self, prompt):
+            seen.append((tmp_path / "vault.json").exists())
+            return "wrong\n"
+
+    assert main.cmd_init(None, tty=Gone()) == 78
+    assert seen and not any(seen) and not (tmp_path / "vault.json").exists()
+    shown.clear()
     assert main.cmd_init(None, tty=Tty()) == 0
     out = capsys.readouterr().out
     phrase = list(typed_back().values())
@@ -478,9 +490,20 @@ def test_an_address_the_connector_never_calls_is_refused(monkeypatch):
     import socket as socket_mod
 
     def resolving(ip):
-        return lambda *a, **k: [(socket_mod.AF_INET, socket_mod.SOCK_STREAM, 6, "", (ip, 443))]
+        family = socket_mod.AF_INET6 if ":" in ip else socket_mod.AF_INET
+        return lambda *a, **k: [(family, socket_mod.SOCK_STREAM, 6, "", (ip, 443))]
 
-    for ip in ("169.254.169.254", "127.0.0.1", "224.0.0.1", "0.0.0.0"):  # noqa: S104
+    # CR3-337: each of MoolaKata's metadata addresses, AWS's IPv6 one among them; reserved too.
+    for ip in (
+        "169.254.169.254",
+        "fd00:ec2::254",
+        "100.100.100.200",
+        "::ffff:169.254.169.254",
+        "127.0.0.1",
+        "224.0.0.1",
+        "240.0.0.1",
+        "0.0.0.0",  # noqa: S104
+    ):
         monkeypatch.setattr(socket_mod, "getaddrinfo", resolving(ip))
         with pytest.raises(client.EgressRefused):
             client.vetted("api.example", 443)
@@ -499,15 +522,17 @@ def test_a_signed_not_paired_forgets_the_credentials_and_the_sealing_key(tmp_pat
     data = tmp_path / "data"
     data.mkdir()
     _, public = keys.new_sealing_key()
-    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, public))
+    _, action = keys.new_action_key()
+    keys.save(data / "pairing.json", keys.make("https://money.lan", "f" * 64, action, public))
     core = Core(data, transport=client.Transport(client.Egress()))
     core.vault.create()
-    core.vault.keep_sealing_key(b"\x07" * 32)
+    core.vault.keep_keys(b"\x07" * 32, b"\x08" * 32)
     core.vault.put("Conn_1", {"password": "pw"}, "ofx.cu.example")
     core.server = Gone()
     with pytest.raises(client.ServerError):
         core.tick()
     assert core.vault.ids() == [] and core.vault.sealing_key() is None
+    assert core.vault.action_key() is None
     assert core.pairing is None and not (data / "pairing.json").exists()
 
 
@@ -528,7 +553,9 @@ def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
     core = Core(tmp_path, transport=client.Transport(client.Egress()))
     core.vault.create()
     private = X25519PrivateKey.generate()
-    core.vault.keep_sealing_key(private.private_bytes_raw())
+    core.vault.keep_keys(
+        private.private_bytes_raw(), Ed25519PrivateKey.generate().private_bytes_raw()
+    )
     core.server = Server()
     c = core.connections["Conn_1"] = ConnectionState("Conn_1", "schwab", "Schwab", {}, [])
     public = private.public_key().public_bytes_raw()
@@ -544,6 +571,25 @@ def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
     core._collect(c, box(3000, host="evil.example"), "t3")
     assert core.vault.get("Conn_1") == {"appSecret": "s2000"} and "another server" in c.message
     assert len(taken) == 1, "MoolaKata isn't told a refused box was taken"
+    # CR3-331: the box filed but whose `taken` failed comes back with the same time: it is
+    # acknowledged again, nothing else changes, and a failing call stops nothing.
+    failing = [True]
+
+    class Flaky:
+        def call(self, path, data=None, **kw):
+            if failing[0]:
+                raise client.ServerError("locked", "MoolaKata is locked", 503)
+            taken.append((path, data))
+            return {}
+
+    core.server = Flaky()
+    core._collect(c, box(4000), "t4")
+    assert core.vault.get("Conn_1") == {"appSecret": "s4000"} and c.state == "ok"
+    assert len(taken) == 1
+    failing[0] = False
+    core._collect(c, box(4000), "t4")
+    assert taken[-1][1] == {"sealedAt": "t4"} and c.state == "ok" and len(taken) == 2
+    assert core.vault.get("Conn_1") == {"appSecret": "s4000"}
 
 
 def _seal(plain: bytes, public: bytes, connection_id: str) -> str:
@@ -566,3 +612,358 @@ def _seal(plain: bytes, public: bytes, connection_id: str) -> str:
     nonce = os.urandom(12)
     out = once.public_key().public_bytes_raw() + nonce + AESGCM(key).encrypt(nonce, plain, None)
     return keys.b64(out)
+
+
+def test_pair_shows_the_fingerprint_it_works_out_and_refuses_an_answer_naming_another(
+    tmp_path, monkeypatch
+):
+    # CR3-326: the two sides' fingerprints are two workings; the connector never shows the
+    # one MoolaKata's answer names (S18.4.2).
+    from moolakata_connector import core as core_mod
+    from moolakata_connector.core import Core
+
+    server = Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+    code = "mkp1." + keys.b64(
+        json.dumps({"a": "https://money.lan", "f": keys.fingerprint(server), "c": "s"}).encode()
+    )
+    named = {}
+
+    def answered(self, path, data=None, **kw):
+        own = keys.fingerprint(self.pairing.action_public)
+        return {"connectorFingerprint": named["fp"] or own}
+
+    monkeypatch.setattr(core_mod.client, "hello", lambda *a, **k: {"key": keys.b64(server)})
+    monkeypatch.setattr(core_mod.client.Server, "call", answered)
+    core = Core(tmp_path, transport=client.Transport(client.Egress()))
+    core.vault.create()
+    named["fp"] = "0" * 64
+    with pytest.raises(client.ServerError, match="another connector's key"):
+        core.pair(code)
+    assert core.pairing is None and not (tmp_path / "pairing.json").exists()
+    named["fp"] = None
+    shown = core.pair(code)
+    assert shown == keys.short(core.pairing.fingerprint)
+
+
+def test_status_answers_while_a_round_holds_the_loop(tmp_path):
+    # CR3-329: a run or a post may take minutes; `status`, the health check and the page
+    # answer at once all the same (S18.3.2).
+    import threading
+
+    from moolakata_connector.core import ConnectionState, Core
+
+    core = Core(tmp_path, transport=client.Transport(client.Egress()))
+    core.vault.create()
+    core.connections["Conn_1"] = ConnectionState("Conn_1", "schwab", "Schwab", {}, [], "ok")
+    held, done = threading.Event(), threading.Event()
+
+    def a_long_round():
+        with core._lock:
+            held.set()
+            done.wait(10)
+
+    t = threading.Thread(target=a_long_round)
+    t.start()
+    held.wait(5)
+    answered = []
+    asker = threading.Thread(target=lambda: answered.append(core.status()))
+    asker.start()
+    asker.join(2)
+    done.set()
+    t.join()
+    assert answered, "status waited for the round"
+    assert answered[0]["connections"]["Conn_1"]["state"] == "ok"
+
+
+def _tls_server(tmp_path, answer):
+    """A local HTTPS server on its own certificate, answering each connection with `answer`
+    (a function of the socket); returns its port and the certificate key's pin."""
+    import contextlib
+    import socket as socket_mod
+    import ssl
+    import threading
+
+    from cryptography import x509 as x509_mod
+    from cryptography.hazmat.primitives.serialization import Encoding
+    from moolakata_connector import page
+
+    tmp_path.mkdir(parents=True)
+    cert, key = page.certificate(tmp_path, page.Settings(names=("127.0.0.1",)))
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert, key)
+    listener = socket_mod.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(4)
+
+    def serve():
+        while True:
+            try:
+                raw, _ = listener.accept()
+            except OSError:
+                return
+            with ctx.wrap_socket(raw, server_side=True) as s:
+                s.recv(65536)
+                with contextlib.suppress(OSError):
+                    answer(s)
+
+    threading.Thread(target=serve, daemon=True).start()
+    der = x509_mod.load_pem_x509_certificate(cert.read_bytes()).public_bytes(Encoding.DER)
+    return listener, client.key_fingerprint(der)
+
+
+def test_a_call_ends_at_its_deadline_however_slowly_the_answer_trickles(tmp_path, monkeypatch):
+    # CR3-330: the 60 seconds bound the whole call, not each read (S18.2.2).
+    monkeypatch.setattr(client, "LOOPBACK_OK", True)
+    monkeypatch.setattr(client, "DEADLINE", 1.5)
+
+    def trickle(s):
+        s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n")
+        for _ in range(100):
+            s.sendall(b"x")
+            time.sleep(0.4)  # each read waits less than the socket's timeout
+
+    def prompt(s):
+        s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+
+    for answer, ok in ((prompt, True), (trickle, False)):
+        listener, pin = _tls_server(tmp_path / answer.__name__, answer)
+        port = listener.getsockname()[1]
+        e = client.Egress()
+        e.allow("127.0.0.1")
+        start = time.monotonic()
+        try:
+            if ok:
+                r = client.Transport(e).request(
+                    "GET", f"https://127.0.0.1:{port}/", {}, b"", pins=frozenset([pin])
+                )
+                assert r.body == b"ok"
+            else:
+                with pytest.raises(TimeoutError, match=r"longer than 1\.5 seconds"):
+                    client.Transport(e).request(
+                        "GET", f"https://127.0.0.1:{port}/", {}, b"", pins=frozenset([pin])
+                    )
+                assert time.monotonic() - start < 5
+        finally:
+            listener.close()
+
+
+def test_locked_it_reports_with_its_status_key_and_says_nothing_else(tmp_path):
+    # CR3-65, S18.4.2: the status key, beside the vault, signs a report that says *locked*;
+    # every other call is the action key's, which only the open vault holds.
+    from moolakata_connector.core import Core
+
+    sent = []
+
+    class Watching:
+        def call(self, path, data=None, *, key, **kw):
+            sent.append((path, data, key.public_key().public_bytes_raw()))
+            return {"connections": [], "removed": []}
+
+    data = tmp_path / "data"
+    data.mkdir()
+    sealing, public = keys.new_sealing_key()
+    action, action_public = keys.new_action_key()
+    pairing = keys.make("https://money.lan", "f" * 64, action_public, public)
+    keys.save(data / "pairing.json", pairing)
+    core = Core(data, transport=client.Transport(client.Egress()))
+    phrase = " ".join(core.vault.create())
+    core.vault.keep_keys(sealing, action)
+    core.page = "https://connector.lan:37374"
+    core.server = Watching()
+    core.tick()
+    assert sent[-1][2] == action_public and sent[-1][1]["page"] == core.page
+    core.lock()
+    core.tick()
+    assert sent[-1] == ("/connector/v1/report", {"locked": True}, pairing.status_public)
+    with pytest.raises(vault.VaultError, match="locked"):
+        core._action()
+    # What a copy of the volume holds signs no more than that: the action key isn't in it.
+    held = (data / "pairing.json").read_text()
+    assert keys.b64(action) not in held and action.hex() not in held
+    core.unlock(phrase)
+    core.tick()
+    assert sent[-1][2] == action_public
+
+
+def test_a_call_names_its_body_hash_and_an_unsigned_answer_is_read_only_for_three_refusals():
+    # CR3-138, protocol §3.1, §7: MoolaKata's refusals before it reads a call are unsigned;
+    # the connector acts on `locked`, `uploads-in-flight` and `too-large` and on nothing else.
+    import hashlib
+
+    from moolakata_connector.drivers import File  # noqa: F401 - the shape posts carry
+
+    seen = []
+
+    class Answering(client.Transport):
+        def __init__(self, status, body):
+            super().__init__(client.Egress())
+            self.status, self.body = status, body
+
+        def request(self, method, url, headers, body, pins=None):
+            seen.append((headers, body))
+            return client.Answer(self.status, {"Retry-After": "30"}, self.body)
+
+    _, public = keys.new_sealing_key()
+    _, action = keys.new_action_key()
+    pairing = keys.make("https://money.lan", "f" * 64, action, public)
+    key = Ed25519PrivateKey.generate()
+    cases = [
+        (503, {"code": "locked", "detail": "MoolaKata is locked"}, "locked"),
+        (429, {"code": "uploads-in-flight", "detail": "busy"}, "uploads-in-flight"),
+        (413, {"code": "too-large", "detail": "big"}, "too-large"),
+        (500, {"code": "server-error"}, "answer-unsigned"),
+        (403, {"code": "file-refused"}, "answer-unsigned"),
+        (503, {"code": "file-refused"}, "answer-unsigned"),
+    ]
+    for status, body, code in cases:
+        server = client.Server(pairing, Answering(status, json.dumps(body).encode()), b"k" * 32)
+        with pytest.raises(client.ServerError) as e:
+            server.call("/connector/v1/report", {"locked": False}, key=key)
+        assert (e.value.code, e.value.signed) == (code, False), (status, body)
+        headers, sent = seen[-1]
+        assert headers["MK-Conn-Body-SHA256"] == hashlib.sha256(sent).hexdigest()
+    assert e.value.status == 503
+
+
+def test_each_file_is_posted_on_its_own_and_the_report_always_follows(tmp_path):
+    # CR3-69, CR3-357, S18.8: a file MoolaKata can't take now waits; one it refuses is dropped
+    # and named; neither stops the next file, the next Connection, or the after-run report.
+    from moolakata_connector.core import ConnectionState, Core
+    from moolakata_connector.drivers import Driver, File, Result
+
+    outcomes = {
+        "a.ofx": client.ServerError("file-refused", "not a statement"),
+        "b.ofx": ConnectionResetError("dropped"),
+        "c.ofx": client.ServerError("locked", "locked", 503, signed=False),
+        "d.ofx": client.ServerError("uploads-in-flight", "busy", 429, signed=False),
+        "e.ofx": client.ServerError("too-large", "big", 413, signed=False),
+        "f.ofx": {"imported": {"added": 3}},
+    }
+    calls = []
+
+    class Server:
+        def call(self, path, data=None, body=None, ctype=None, *, key):
+            calls.append(path)
+            if path.endswith("/sign-in"):
+                raise client.ServerError("limit", "slow down")
+            if path.endswith("/files"):
+                name = re.search(rb'filename="([^"]+)"', body).group(1).decode()
+                out = outcomes[name]
+                if isinstance(out, Exception):
+                    raise out
+                return out
+            listed = [{"id": c, "driver": "fetching", "label": c} for c in core.connections]
+            return {"connections": listed, "removed": []}
+
+    class Fetching(Driver):
+        name, needs = "fetching", ()
+
+        def run(self, settings, credentials, accounts, http):
+            files = [File("Acct_1", n, b"OFX", "ofx") for n in outcomes]
+            return Result("ok", "6 statements", files=files, sign_in="https://x.example/s")
+
+    core = Core(tmp_path, transport=client.Transport(client.Egress()),
+                drivers={"fetching": Fetching()})  # fmt: skip
+    core.vault.create()
+    core.vault.keep_keys(b"\x01" * 32, Ed25519PrivateKey.generate().private_bytes_raw())
+    _, public = keys.new_sealing_key()
+    _, action = keys.new_action_key()
+    core.pairing = keys.make("https://money.lan", "f" * 64, action, public)
+    core.server = Server()
+    first = core.connections["Conn_1"] = ConnectionState("Conn_1", "fetching", "One", {}, [])
+    second = core.connections["Conn_2"] = ConnectionState("Conn_2", "fetching", "Two", {}, [])
+    core.tick()
+    for c in (first, second):
+        assert [f.name for f in c.backlog] == ["b.ofx", "c.ofx", "d.ofx"]
+        assert c.state == "failing" and "e.ofx" in c.message
+        assert c.last_added == 3
+    assert calls.count("/connector/v1/report") == 2, "the after-run report went"
+    assert sum(p.endswith("/files") for p in calls) == 12
+    # More than ten waiting: the oldest go, named.
+    first.backlog = [File("Acct_1", f"old{n}.ofx", b"", "ofx") for n in range(9)] + first.backlog
+    first.state = "ok"
+    first.last_run = None
+    del outcomes["a.ofx"]
+    core.connections.pop("Conn_2")
+    core._run(first)
+    assert len(first.backlog) == 10 and "not posted: old0.ofx" in first.message
+
+
+def test_unpaired_while_locked_the_vault_is_cleared_at_its_next_unlock(tmp_path):
+    # CR3-327, S18.4.4: a locked vault can't be changed, so a mark beside it has the next unlock
+    # delete what it held for the unpaired server; the host's `unpair` takes the words to do it
+    # at once; a signed `not-paired` while locked marks it too.
+    from moolakata_connector.core import FORGET, Core
+
+    told = []
+
+    class Server:
+        def call(self, path, data=None, *, key, **kw):
+            told.append((path, key.public_key().public_bytes_raw()))
+            if path.endswith("/report"):
+                raise client.ServerError("not-paired", "This server has no pairing with you.")
+            return {"state": "ended"}
+
+    def paired_core(name):
+        data = tmp_path / name
+        data.mkdir()
+        sealing, public = keys.new_sealing_key()
+        action, action_public = keys.new_action_key()
+        keys.save(
+            data / "pairing.json", keys.make("https://money.lan", "f" * 64, action_public, public)
+        )
+        core = Core(data, transport=client.Transport(client.Egress()))
+        phrase = " ".join(core.vault.create())
+        core.vault.keep_keys(sealing, action)
+        core.vault.put("Conn_1", {"password": "pw"}, "ofx.cu.example")
+        core.server = Server()
+        core.lock()
+        return core, phrase, data
+
+    core, phrase, data = paired_core("plain")
+    status = core.pairing.status_public
+    assert core.unpair() is False
+    assert told[-1] == ("/connector/v1/unpaired", status), "locked, with the status key"
+    assert (data / FORGET).exists() and core.pairing is None
+    core.unlock(phrase)
+    assert core.vault.ids() == [] and core.vault.sealing_key() is None
+    assert core.vault.action_key() is None and not (data / FORGET).exists()
+
+    core, phrase, data = paired_core("words")
+    assert core.unpair(phrase) is True and core.vault.locked
+    assert not (data / FORGET).exists()
+    core.unlock(phrase)
+    assert core.vault.ids() == [] and core.vault.action_key() is None
+
+    core, phrase, data = paired_core("refused")
+    with pytest.raises(client.ServerError):
+        core.tick()
+    assert (data / FORGET).exists() and core.pairing is None
+    core.unlock(phrase)
+    assert core.vault.ids() == []
+
+
+def test_reset_tells_moolakata_with_the_status_key(tmp_path):
+    # CR3-334, S18.3.4: lost words leave only the status key, which may say `unpaired`.
+    from moolakata_connector.core import Core
+
+    told = []
+
+    class Server:
+        def call(self, path, data=None, *, key, **kw):
+            told.append((path, key.public_key().public_bytes_raw()))
+            return {"state": "ended"}
+
+    data = tmp_path / "data"
+    data.mkdir()
+    _, public = keys.new_sealing_key()
+    _, action_public = keys.new_action_key()
+    pairing = keys.make("https://money.lan", "f" * 64, action_public, public)
+    keys.save(data / "pairing.json", pairing)
+    core = Core(data, transport=client.Transport(client.Egress()))
+    core.vault.create()
+    core.lock()
+    core.server = Server()
+    fp, was_told = core.reset(" ".join(words.to_words(bytes(range(16)))))
+    assert was_told and told == [("/connector/v1/unpaired", pairing.status_public)]
+    assert core.pairing is None and fp == vault.fingerprint(bytes(range(16)))

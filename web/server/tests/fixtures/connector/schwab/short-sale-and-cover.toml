@@ -1,0 +1,20 @@
+about = """A short sale (sold to open, in the margin account's short subaccount) and its cover (bought
+to close), written SELLSHORT and BUYTOCOVER."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+xfail = { holdings = "G28: a short sale of stock opens no short lot, so its cover is a long buy", open = "G28", closed = "G28", reported = "G28" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-15 sell 12500.00 TSLA 50",
+    "2026-10-06 buy -12000.00 TSLA 50",
+]
+holdings = []
+cash = "20500.00"
+checks = ["2026-10-15 20500.00 ok"]
+holding_checks = []
+instruments = { TSLA = "equity" }
+# Sold short at 250, covered at 240: 500 realized, short-term (G28).
+open = []
+closed = ["2026-10-06 TSLA short 50 bought back realized 500.00"]
+strategies = []

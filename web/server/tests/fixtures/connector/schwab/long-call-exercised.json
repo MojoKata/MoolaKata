@@ -1,0 +1,151 @@
+{
+ "account": {
+  "securitiesAccount": {
+   "type": "CASH",
+   "accountNumber": "12344417",
+   "positions": [
+    {
+     "shortQuantity": 0,
+     "longQuantity": 100,
+     "settledLongQuantity": 100,
+     "settledShortQuantity": 0,
+     "averagePrice": 0,
+     "marketValue": 17500,
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "AAPL",
+      "cusip": "037833100",
+      "description": "APPLE INC"
+     }
+    }
+   ],
+   "currentBalances": {
+    "cashBalance": 3499.34
+   }
+  }
+ },
+ "transactions": [
+  {
+   "activityId": 1000026,
+   "time": "2026-09-02T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "ACH_RECEIPT",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "CLIENT REQUESTED ELECTRONIC FUNDING RECEIPT (FUNDS NOW)",
+   "netAmount": 20000,
+   "activityType": "TRANSFER",
+   "transferItems": []
+  },
+  {
+   "activityId": 1000027,
+   "time": "2026-09-10T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY TO OPEN AAPL CALL",
+   "netAmount": -500.66,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "OPTION",
+      "symbol": "AAPL  261009C00160000",
+      "description": "AAPL 10/09/2026 160.00 C",
+      "putCall": "CALL",
+      "strikePrice": 160,
+      "expirationDate": "2026-10-09T20:00:00+0000",
+      "underlyingSymbol": "AAPL",
+      "optionPremiumMultiplier": 100,
+      "type": "VANILLA"
+     },
+     "amount": 1,
+     "price": 5.0,
+     "cost": -500.0,
+     "positionEffect": "OPENING"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -0.01,
+     "feeType": "OPT_REG_FEE"
+    },
+    {
+     "instrument": {
+      "assetType": "CURRENCY",
+      "symbol": "CURRENCY_USD",
+      "description": "USD currency"
+     },
+     "amount": 0,
+     "cost": -0.65,
+     "feeType": "COMMISSION"
+    }
+   ],
+   "tradeDate": "2026-09-10T04:00:00+0000",
+   "settlementDate": "2026-09-10T04:00:00+0000"
+  },
+  {
+   "activityId": 1000028,
+   "time": "2026-10-09T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "RECEIVE_AND_DELIVER",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "OPTION EXERCISE AAPL 10/09/2026 160.00 C",
+   "netAmount": 0,
+   "activityType": "TRANSFER",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "OPTION",
+      "symbol": "AAPL  261009C00160000",
+      "description": "AAPL 10/09/2026 160.00 C",
+      "putCall": "CALL",
+      "strikePrice": 160,
+      "expirationDate": "2026-10-09T20:00:00+0000",
+      "underlyingSymbol": "AAPL",
+      "optionPremiumMultiplier": 100,
+      "type": "VANILLA"
+     },
+     "amount": -1,
+     "price": 0,
+     "cost": 0,
+     "positionEffect": "CLOSING"
+    }
+   ]
+  },
+  {
+   "activityId": 1000029,
+   "time": "2026-10-09T14:31:05+0000",
+   "accountNumber": "12344417",
+   "type": "TRADE",
+   "status": "VALID",
+   "subAccount": "CASH",
+   "description": "BUY APPLE INC (EXERCISED)",
+   "netAmount": -16000,
+   "activityType": "EXECUTION",
+   "transferItems": [
+    {
+     "instrument": {
+      "assetType": "EQUITY",
+      "symbol": "AAPL",
+      "cusip": "037833100",
+      "description": "APPLE INC"
+     },
+     "amount": 100,
+     "price": 160,
+     "cost": -16000,
+     "positionEffect": "OPENING"
+    }
+   ],
+   "tradeDate": "2026-10-09T04:00:00+0000",
+   "settlementDate": "2026-10-09T04:00:00+0000"
+  }
+ ],
+ "asOf": "2026-10-15T21:00:00+00:00"
+}

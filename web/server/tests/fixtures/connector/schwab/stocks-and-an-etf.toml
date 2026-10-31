@@ -1,0 +1,22 @@
+about = """Shares of a stock and an ETF (Schwab's COLLECTIVE_INVESTMENT) bought, some of the stock
+sold with an SEC fee, and the ETF's dividend: the plain case."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[expect]
+transactions = [
+    "2026-09-02 deposit 20000.00 | CLIENT REQUESTED ELECTRONIC FUND",
+    "2026-09-03 buy -825.00 SCHD 30",
+    "2026-09-03 buy -8500.00 AAPL 50",
+    "2026-09-24 sell 3599.98 AAPL 20",
+    "2026-09-25 dividend 6.30 SCHD",
+]
+holdings = ["AAPL 30", "SCHD 30"]
+# 20,000 in, 9,325 spent, 3,599.98 back from the sale (less its 2-cent fee), 6.30 earned.
+cash = "14281.28"
+checks = ["2026-10-15 14281.28 ok"]
+holding_checks = ["as of 2026-10-15", "AAPL 30 ok", "SCHD 30 ok"]
+instruments = { AAPL = "equity", SCHD = "equity" }
+# 20 of the 50 shares, at 3,400 of their 8,500 cost, sold for 3,599.98.
+open = ["AAPL long 30 cost 5100.00", "SCHD long 30 cost 825.00"]
+closed = ["2026-09-24 AAPL long 20 sold realized 199.98"]
+strategies = []

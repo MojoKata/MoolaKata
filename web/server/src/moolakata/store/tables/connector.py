@@ -16,7 +16,9 @@ Connector = record(
     Column("state", Text, nullable=False),  # pairing, paired, ended
     Column("codeHash", Text),  # the one-time pairing code's secret (S18.4.1)
     Column("codeExpiresAt", UtcTimestamp),
-    Column("identityKey", Text),  # its Ed25519 public key, base64url (S18.4.2)
+    # Its two Ed25519 public keys, base64url (S18.4.2): the action key signs its calls, and the
+    # status key, kept outside its vault, only a report that it is locked and `unpaired`.
+    Column("actionKey", Text),
     Column("sealingKey", Text),  # its X25519 public key, base64url (S18.7.1)
     Column("pairedAt", UtcTimestamp),
     Column("pairedById", Text, ForeignKey("User.id")),
@@ -38,14 +40,16 @@ Connector = record(
     # An address it reported from that no admin has accepted: kept, and alerted, until one
     # accepts it or unpairs, whatever the connector reports from next (S18.5.4).
     Column("newAddress", Text),
-    # Its identity key's signature over its sealing key (S18.4.5), which a browser checks
+    # Its action key's signature over its sealing key (S18.4.5), which a browser checks
     # before sealing, so the key sealed to is the paired connector's own.
     Column("sealingSignature", Text),
     # Its page's address, from its reports (S18.11.1), which Settings › Connector links to.
     Column("pageAddress", Text),
+    Column("statusKey", Text),
     CheckConstraint("state IN ('pairing', 'paired', 'ended')", name="state"),
 )
-unique_live(Connector, "identityKey")
+unique_live(Connector, "actionKey")
+unique_live(Connector, "statusKey")
 
 # A Connection (S18.6): one sign-in at one institution, kept by the connector and owned by
 # the user whose sign-in it is. Its state and last run come from the connector's reports; the
