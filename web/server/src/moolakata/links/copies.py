@@ -120,7 +120,7 @@ def orphans(srv, link_id: str) -> int:
         return 0
     with o.engine.connect() as conn:
         kept = set(conn.execute(select(copydb.File.c.fileName)).scalars())
-    waiting = set(DELIVERED.get(link_id, {}).values())
+    waiting = DELIVERED.names(link_id)
     # Receipts fetched after their change, waiting to be placed in the copy (S11.4).
     from ..store.entities.links import LinkFile
 

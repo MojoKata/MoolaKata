@@ -16,9 +16,12 @@ preparer.
       compares it with B's admin, and approves or rejects it. B's link waits for the approval,
       which reaches it at once or at its next exchange.
    3. Each server then holds the other's **Ed25519 public key**. Every call between them is
-      signed with the sender's key over the method, path, body hash, a timestamp and a nonce.
-      The receiver refuses a bad signature, a timestamp more than 60 seconds off, and a nonce
-      it has seen; a refusal for the clock is named as such on the link, since the fix is NTP
+      signed with the sender's key over the method, path, body hash, a timestamp and a nonce,
+      and names its body's hash in a header, so all of it is checked before a byte of the body
+      is read. The receiver refuses a bad signature, a timestamp more than 60 seconds off when
+      the call arrives, and a nonce it has seen; a body that then takes minutes to arrive (a
+      large receipt over a slow line) is no clock problem, and an answer's time is held to
+      when its headers arrived the same way. A refusal for the clock is named as such on the link, since the fix is NTP
       on one host, not the network (S12.11.1.1). The code's one-time secret crosses once, in
       the join; what makes the link is the key each side records and the fingerprint the admins
       compare, and no secret is shared after that. The connection itself is TLS that each side

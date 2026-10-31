@@ -362,11 +362,12 @@ institution with nothing to fetch from has no driver: its files are uploaded by 
 
 A refusal is JSON `{code, message}` with HTTP 403 (426 for a protocol, 429 for a limit, 404
 for an account or Connection that doesn't exist or isn't this connector's, 413 for a file too
-large, 500 for a fault), signed as section 3 says when the call carried a nonce. Three are made
-before the call reaches its route, on its headers or as its body arrives, and are **unsigned**,
-as problem JSON with `code`: `locked`, `uploads-in-flight` and `too-large` for a body past the
-hard limit. The connector acts on those three by their status and code, and on no other
-unsigned answer, which it treats as a failed call (`answer-unsigned`).
+large, 500 for a fault), signed as section 3 says when the call carried a nonce. Four are made
+before the call's signature is checked, on its headers or as its body arrives, and are
+**unsigned**, as JSON with `code`: `locked`, `uploads-in-flight`, `limit` for an address past
+the calls that failed their checks (S13.7.5.4), and `too-large` for a body past the hard limit.
+The connector acts on those four by their status and code, and on no other unsigned answer,
+which it treats as a failed call (`answer-unsigned`).
 
 | Code | When |
 |---|---|
@@ -384,7 +385,7 @@ unsigned answer, which it treats as a failed call (`answer-unsigned`).
 | `account-not-synced` | the account's sync doesn't name this Connection |
 | `mapping-missing` | a CSV for an account with no saved mapping |
 | `file-refused` | the file's content isn't a type MoolaKata imports, or the reader can't read it (its message says why) |
-| `limit` | the owner's upload limit; `Retry-After` says when to try again. Also the 60 calls a minute of section 3.4 |
+| `limit` | the owner's upload limit; `Retry-After` says when to try again. Also the 60 calls a minute of section 3.4, counted only once the paired connector's signature checks; a call that fails its checks counts against its address instead (S13.7.5.4), and one from an address past that is refused unsigned, before it is checked |
 | `not-found` | (404) the Connection or account doesn't exist, or isn't this connector's |
 | `address-invalid` | a sign-in address that isn't on the driver's own sign-in host |
 | `too-large` | (413) a file over Settings › Imports' size (S16.8), signed; unsigned, a body past the hard limit (1 MB of JSON, that size and the form around it), refused before it is read |

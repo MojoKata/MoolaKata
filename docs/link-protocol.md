@@ -46,6 +46,7 @@ document is the protocol's statement; the code that speaks it is `web/server/src
    | `MK-Link-Time` | Unix seconds |
    | `MK-Link-Nonce` | 16 random bytes, base64url |
    | `MK-Link-Signature` | Ed25519 over the lines below, base64url |
+   | `MK-Link-Body-SHA256` | the SHA-256 of the body, hex: the hash the signature covers, named so the receiver checks the signature before it reads the body |
    | `MK-Link-Protocol` | the protocol version the call speaks (section 5) |
    | `MK-Link-Version` | the caller's MoolaKata version, for Settings to show |
 
@@ -65,8 +66,13 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 2. The receiver refuses, with the codes in section 7: a call without these headers, a time
    more than **60 seconds** from its own clock, a signature that doesn't verify, a nonce it
    has seen from that key in the last two minutes, and a key it has no link with or whose
-   link is not in a state that allows the call. Both hosts therefore keep their clocks with
-   NTP; a `clock-skew` refusal is named as such on the link's state (S12.11.1.1).
+   link is not in a state that allows the call. **All of this is checked before a byte of the
+   body is read**, against the hash `MK-Link-Body-SHA256` names; the body is then read and
+   must hash to it. So only a call a linked server signed has its body read, and only such a
+   call counts against its link's limit (S13.7.5.4), whatever key header a caller sends; one
+   that fails counts against its address. The time is the call's when it arrives: a body that
+   takes long to come is no clock problem. Both hosts therefore keep their clocks with NTP; a
+   `clock-skew` refusal is named as such on the link's state (S12.11.1.1).
 3. **Answers** are signed the same way: `MK-Link-Time` and `MK-Link-Signature` over
 
    ```
@@ -80,8 +86,10 @@ document is the protocol's statement; the code that speaks it is `web/server/src
    ```
 
    The caller refuses an answer that isn't signed by the key it expects, or names another
-   caller or another request, so an answer can't be handed on to anyone else. Refusals are
-   signed too when the call carried a nonce, so a refusal can be told from a forgery.
+   caller or another request, so an answer can't be handed on to anyone else, and holds its
+   time to when the answer's headers arrived, not to when its body was read. Refusals are
+   signed too when the call carried a nonce, a fault in a route included (`server-error`), so
+   a refusal can be told from a forgery.
 
 ## 4. Calls
 
@@ -260,9 +268,11 @@ message into an alert or an email (S13.7.9).
 | `clock-skew` | the call's time is more than 60 seconds off |
 | `bad-signature` | the signature doesn't match the key, method, path, body, time, nonce and receiver |
 | `replayed` | the nonce was seen from that key in the last two minutes |
-| `not-linked` | the key has no link here; unsigned when the call's body is over 1 MB, refused on its headers before the body is read (S13.7.5.4) |
+| `not-linked` | the key has no link here, refused on the call's headers before its body is read |
 | `link-<state>` | the link exists here but its state doesn't allow the call |
-| `limit` | (429, unsigned, with `Retry-After`) the 60 calls a minute of S13.7.5.4; the caller tries again at its next exchange |
+| `limit` | (429, with `Retry-After`) the 60 calls a minute of S13.7.5.4: signed when they are the link's, unsigned when they are an address's, refused before the call is checked; the caller tries again at its next exchange |
+| `too-large` | (413) a `join` over 16 KB, signed; unsigned, a body past the hard limit (20 MB of JSON, the largest sealed receipt), refused before it is read |
+| `server-error` | (500) a fault in the route, logged on the answering side |
 | `locked` | (503, unsigned) the answering server is locked (S13.6); the caller tries again at its next exchange |
 | `not-shared` | a file no share to that link includes |
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |
@@ -273,5 +283,5 @@ message into an alert or an email (S13.7.9).
 A `link-ended` answer to a signed call ends the link on the calling side, as `end` would: its
 copy, the shares to it and its remote users go. A `not-linked` answer (a peer restored from an
 older backup, say) only marks the link broken and alerts admins (S11.6). A caller takes an
-unsigned `limit` or `locked` as the table says, and refuses any other answer that isn't signed
-as `answer-unsigned`.
+unsigned `limit`, `locked` or `too-large` as the table says, and refuses any other answer that
+isn't signed as `answer-unsigned`.

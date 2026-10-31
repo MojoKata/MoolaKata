@@ -157,6 +157,17 @@
       `web/dev.sh coverage [pytest arguments]` measures the tests named (all by default) and
       the browser modules' unit tests the same way, and reports them, without the floor, with
       a preview of the coverage site.
+   9. **Signed calls**: every route a linked server or the connector calls goes through one
+      gate (`links/gate.py`), and the gate is tested on its axes (`tests/test_gate.py`): each
+      way a call fails its checks (no signature, a forged one naming a real key, an unknown
+      key, a nonce again, a stale time, a body past its size, a body other than the one
+      signed) × each protocol × each kind of body (JSON, a receipt's sealed bytes, a
+      multipart file). Each is refused before a byte of its body is read and leaves no trace:
+      nothing counted against the key it names, no upload held, no file written, no row
+      added. A body whose pieces move the server's clock past a minute is still taken. A test
+      reads both routers and fails on a signed route that skips the gate, and a forged call
+      naming a real key leaves no trace on any route. While one call's work runs, held on an
+      event, another is answered.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

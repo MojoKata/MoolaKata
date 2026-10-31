@@ -369,13 +369,14 @@ def test_a_call_is_refused_before_its_body_is_read(server, paired, client, monke
     from starlette.requests import Request
 
     read = []
-    body = Request.body
+    stream = Request.stream
 
     async def watched(self):
         read.append(self.url.path)
-        return await body(self)
+        async for chunk in stream(self):
+            yield chunk
 
-    monkeypatch.setattr(Request, "body", watched)
+    monkeypatch.setattr(Request, "stream", watched)
     files = "/connector/v1/accounts/Acct_x/files"
     stranger = FakeConnector(server, client)
     r = stranger.call(files, raw=b"x" * 1000, headers={"Content-Type": "multipart/form-data"})

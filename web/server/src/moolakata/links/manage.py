@@ -643,7 +643,7 @@ def answer_deliver(srv, link: Link, body: dict) -> dict:
     from .routes import DELIVERED
 
     if body.get("change"):
-        receive.take(srv, link.id, body["change"], DELIVERED.pop(link.id, None))
+        receive.take(srv, link.id, body["change"], DELIVERED.take(link.id))
     with srv.db.read() as s:
         return {"have": _get(s, link.id).gotSeq}
 

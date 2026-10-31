@@ -211,8 +211,9 @@ class BodyLimit:
     """JSON bodies up to 1 MB; uploads (multipart) up to the size Settings allow, and at most
     100 MB of them arriving at once for one caller (S13.7.6): a session, a linked server's key
     or the connector, else an address; and at most four times that for every caller together.
-    The connector's are counted as they are read, never by what a call says it carries: its
-    route reads a body only once the paired connector's signature checks out (protocol §3.2).
+    The connector's and a linked server's are counted as they are read, never by what a call
+    says it carries: the gate reads a body only once its signature checks out (protocol §3.2,
+    link-protocol.md §3.2).
     """
 
     def __init__(
@@ -276,10 +277,11 @@ class BodyLimit:
         upload = limit != JSON_LIMIT and limit != LINK_LIMIT
         who = self._caller(scope, headers) if upload else ""
         # What it says it carries is held for it before the app runs, so a caller past the
-        # cap is answered at once; a body without a length is counted as it arrives, and so is
-        # the connector's, read only once its signature is checked.
+        # cap is answered at once; a body without a length is counted as it arrives, and so are
+        # the connector's and a linked server's, read only once their signature is checked
+        # (links/gate.py), so the key a call names costs that key nothing until then.
         declared = int(length) if upload and length and length.isdigit() else 0
-        if who == "connector":
+        if who == "connector" or who.startswith("key:"):
             declared = 0
         everyone = sum(self.in_flight.values())
         if upload and (

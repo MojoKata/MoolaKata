@@ -189,9 +189,9 @@ class ServerError(Exception):
         self.signed = signed
 
 
-# The refusals MoolaKata makes before it reads a call, so unsigned (protocol §7): the connector
+# The refusals MoolaKata makes before it checks a call, so unsigned (protocol §7): the connector
 # acts on these, by their status and code, and on no other unsigned answer.
-UNSIGNED = {503: "locked", 429: "uploads-in-flight", 413: "too-large"}
+UNSIGNED = {(503, "locked"), (429, "uploads-in-flight"), (429, "limit"), (413, "too-large")}
 
 
 class Server:
@@ -265,7 +265,7 @@ def _unsigned(r: Answer) -> ServerError:
     except ValueError:
         out = {}
     code = out.get("code") if isinstance(out, dict) else None
-    if r.status in UNSIGNED and code == UNSIGNED[r.status]:
+    if (r.status, code) in UNSIGNED:
         retry = r.headers.get("Retry-After") or r.headers.get("retry-after") or "0"
         return ServerError(
             code,

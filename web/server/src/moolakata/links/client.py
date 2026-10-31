@@ -5,6 +5,7 @@ against the key pinned for it), and their signed answers checked against the cal
 import json
 import logging
 import re
+import time
 from urllib.parse import urlsplit, urlunsplit
 
 from .. import exactjson, net
@@ -13,6 +14,8 @@ from . import PROTOCOL, keys, signing
 log = logging.getLogger("moolakata.links")
 
 _CODE = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
+# The refusals made before a call's signature could be checked, so unsigned (§7), by status.
+UNSIGNED = {429: "limit", 503: "locked", 413: "too-large"}
 # A peer's refusal in this server's own words, by its code (link-protocol.md §7).
 REFUSALS = {
     "unsigned": "The other server says the call wasn't signed.",
@@ -27,6 +30,8 @@ REFUSALS = {
     "code-used": "The link code was used, has expired, or was withdrawn.",
     "already-linked": "The two servers are already linked.",
     "change-refused": "The other server refused a change this one sent.",
+    "too-large": "The other server says the call is larger than it takes.",
+    "server-error": "The other server failed on the call; its admin can read its log.",
 }
 
 
@@ -118,27 +123,34 @@ def call(
     signed = signing.sign_request(own, "POST", path, body, keys.fingerprint(peer_key))
     headers = {
         **signed.headers,
+        "MK-Link-Body-SHA256": signed.body_hash,
         "Content-Type": "application/json",
         "MK-Link-Protocol": str(PROTOCOL),
         "MK-Link-Version": srv.version,
     }
     try:
-        r = _client(srv, pins).post(_url(address, path), content=body, headers=headers)
+        with _client(srv, pins).stream(
+            "POST", _url(address, path), content=body, headers=headers
+        ) as r:
+            # The answer's time is held to when it arrived, not to when its body was read
+            # (link-protocol.md §3.3): a large change over a slow line is no clock problem.
+            arrived = time.time()
+            content = r.read()
     except net.httpx.HTTPError as e:
         raise _unreachable(address, e) from None
-    if r.status_code in (429, 503) and "mk-link-signature" not in r.headers:
-        # Refused before the answering server could sign to the call: it limits calls, or it
-        # is locked; asked again at the next exchange (link-protocol.md §7).
-        code = "limit" if r.status_code == 429 else "locked"
+    if r.status_code in UNSIGNED and "mk-link-signature" not in r.headers:
+        # Refused before the answering server could sign to the call: it limits calls, it is
+        # locked, or the call is past its size; asked again later (link-protocol.md §7).
+        code = UNSIGNED[r.status_code]
         raise LinkError(code, refusal(code, r.status_code))
     asked = signing.Asked(signed.nonce, own_fp, signed.body_hash)
     try:
-        signing.verify_answer(peer_key, r.status_code, r.content, asked, r.headers)
+        signing.verify_answer(peer_key, r.status_code, content, asked, r.headers, now=arrived)
     except signing.Refused as e:
         raise LinkError(e.code, e.message) from None
     if seen is not None and (key := net.presented(r)):
         seen.append(key)
-    out = exactjson.loads(r.content) if r.content else {}
+    out = exactjson.loads(content) if content else {}
     if r.status_code >= 400:
         code = out.get("code")
         code = code if isinstance(code, str) and _CODE.match(code) else "refused"
@@ -164,6 +176,7 @@ def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list
     signed = signing.sign_request(own, "POST", path, body, keys.fingerprint(peer_key))
     headers = {
         **signed.headers,
+        "MK-Link-Body-SHA256": signed.body_hash,
         "Content-Type": "application/json",
         "MK-Link-Protocol": str(PROTOCOL),
         "MK-Link-Version": srv.version,
@@ -172,6 +185,8 @@ def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list
     try:
         c = _client(srv, pins, max_receipt())
         with c.stream("POST", _url(address, path), content=body, headers=headers) as r:
+            # Its time is held to when it arrived: a receipt takes as long as the line needs.
+            arrived = time.time()
             if r.status_code != 200:
                 r.read()
                 raise LinkError("file-refused", f"The file was refused ({r.status_code}).")
@@ -184,7 +199,7 @@ def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list
     digest = h.hexdigest()
     asked = signing.Asked(signed.nonce, own_fp, signed.body_hash)
     try:
-        signing.verify_answer(peer_key, 200, b"", asked, answer_headers, digest=digest)
+        signing.verify_answer(peer_key, 200, b"", asked, answer_headers, now=arrived, digest=digest)
     except signing.Refused as e:
         raise LinkError(e.code, e.message) from None
     digest_out.append(digest)
@@ -199,6 +214,7 @@ def send_file(srv, address: str, peer_key: bytes, file_id: str, path, digest: st
     signed = signing.sign_request_digest(own, "POST", call_path, digest, keys.fingerprint(peer_key))
     headers = {
         **signed.headers,
+        "MK-Link-Body-SHA256": digest,
         "Content-Type": "application/octet-stream",
         "MK-Link-File": file_id,
         "MK-Link-Protocol": str(PROTOCOL),
@@ -214,6 +230,9 @@ def send_file(srv, address: str, peer_key: bytes, file_id: str, path, digest: st
         r = _client(srv, pins).post(_url(address, call_path), content=body(), headers=headers)
     except net.httpx.HTTPError as e:
         raise _unreachable(address, e) from None
+    if r.status_code in UNSIGNED and "mk-link-signature" not in r.headers:
+        code = UNSIGNED[r.status_code]
+        raise LinkError(code, refusal(code, r.status_code))
     asked = signing.Asked(signed.nonce, own_fp, digest)
     try:
         signing.verify_answer(peer_key, r.status_code, r.content, asked, r.headers)

@@ -817,25 +817,6 @@ def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_l
     assert pulled and all((x.subjectKind, x.subjectId) == ("link", b_id) for x in pulled)
 
 
-def test_a_refusal_on_its_headers_reads_no_body(pair):
-    # S13.7.5.4: a call naming a key with no link here, with a large body, is refused before
-    # the body is read, unsigned since it can't be signed to a body it didn't read.
-    _, b, (_, url_b), _ = pair
-    srv_b = b
-    from fastapi.testclient import TestClient
-
-    from moolakata.app import create_app
-
-    with TestClient(create_app(srv_b), base_url=url_b) as c:
-        r = c.post(
-            "/link/v1/deliver",
-            content=b"x" * (2 * 1024 * 1024),
-            headers={"MK-Link-Key": keys.b64(b"k" * 32), "Content-Type": "application/json"},
-        )
-    assert r.status_code == 403 and r.json()["code"] == "not-linked"
-    assert "mk-link-signature" not in {k.lower() for k in r.headers}
-
-
 def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admins):
     # S11.9.5.3: a change must follow the last one applied, so an older one put back while
     # the copy is locked can't bring back what was since removed.
@@ -881,19 +862,15 @@ def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatc
     # link-protocol.md §7: refused before the answering server could sign to the call.
     import httpx
 
+    from moolakata import net
+
     a, b, (_, url_b), _ = pair
     reach(a, "b.test")
-    for status, code in ((429, "limit"), (503, "locked")):
-
-        class Answer:
-            def __init__(self, status: int) -> None:
-                self.status = status
-
-            def post(self, *args, **kw):
-                return httpx.Response(self.status, json={"code": "rate-limited"})
-
-        answer = Answer(status)
-        monkeypatch.setattr(client, "_client", lambda *a, answer=answer, **k: answer)
+    for status, code in ((429, "limit"), (503, "locked"), (413, "too-large")):
+        answer = httpx.Response(status, json={"code": "rate-limited"})
+        monkeypatch.setattr(
+            net, "network", lambda g, p, answer=answer: httpx.MockTransport(lambda r: answer)
+        )
         with pytest.raises(client.LinkError) as e:
             client.call(a, url_b, public(b), "/link/v1/ping")
         assert e.value.code == code

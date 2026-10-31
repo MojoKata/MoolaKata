@@ -36,6 +36,16 @@ class Window:
             q.append(now)
             return 0.0
 
+    def wait(self, key: str) -> float:
+        """The seconds to wait before an event would be counted, without counting one."""
+        with self._lock:
+            now = self._clock()
+            q = self._seen.get(key)
+            if not q:
+                return 0.0
+            self._trim(q, now)
+            return self.seconds - (now - q[0]) if len(q) >= self.limit else 0.0
+
     def count(self, key: str) -> int:
         with self._lock:
             q = self._seen.get(key)
