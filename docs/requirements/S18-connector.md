@@ -123,8 +123,9 @@ ask it for anything. People give it its words on **its page**, which it serves i
          after the theft opens. This is why the action and sealing keys live in the vault.
       5. **Someone on the network without the words** can open its page and read its status
          (S18.11.3), which names no institution, Connection, account or credential, and can
-         make wrong guesses, each logged with their address and counted toward the wait of
-         S18.3.3. They can't unlock, lock, pair, unpair or reset it. On a connector with no
+         make wrong guesses, each logged with their address, five a minute from one address
+         (S18.3.3). They can't unlock, lock, pair, unpair or reset it, nor keep the household
+         from unlocking it. On a connector with no
          vault yet they could make one, whose words the household never saw: its page then
          asks for words nobody wrote down, and the household starts it again empty
          (S18.11.2), having lost nothing.
@@ -156,9 +157,13 @@ ask it for anything. People give it its words on **its page**, which it serves i
       state. The image's health check runs `status`, which answers whenever the connector
       runs, with a vault or without one, locked or not: healthy means alive.
    3. **Wrong words**: the checksum catches most typing slips at once; a phrase that is a
-      valid one but not this vault's is refused by the vault's fingerprint. Five wrong
-      attempts in a row, on its page and at the command line alike, make the next wait 15
-      minutes. Each wrong attempt on its page is logged with the address it came from.
+      valid one but not this vault's is refused by the vault's fingerprint. Wrong words make no
+      one wait: the key is 128 random bits (S18.3.1), which no guessing rate reaches, and a
+      wait would only let anyone on the network keep the connector locked. Its page takes five
+      wrong tries a minute from one address, to bound the work and the log a flood makes; the
+      host's `unlock` is never limited, its access being the authority (S18.3.4). Each wrong
+      attempt on its page is logged with the address it came from and the kind of mistake,
+      never what was typed.
    4. **Lost words**: the vault can't be opened. `moolakata-connector reset` on its host asks
       for it to be confirmed, deletes the vault, makes new words (shown as at `init`, three
       typed back), and unpairs: it tells MoolaKata first, with the status key, which needs no

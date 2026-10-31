@@ -173,13 +173,22 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
         {"token": token, **{f"word{n}": shown[n - 1] for n in picks}},
     )
     assert core.vault.fingerprint() == page.fingerprint(words.from_words(shown)) != before
-    # Five wrong in a row: the next waits 15 minutes, on the page as at the command line.
+    # CR3-373: five tries a minute from one address on the page, and no wait for anyone else:
+    # the host's unlock, over the socket, opens it at once (S18.3.3).
     phrase = " ".join(shown)
+    page_ = running[0]
     assert call(running, "POST", "/lock", {"words": phrase})[0] == 303
-    for _ in range(5):
+    for _ in range(6):
         call(running, "POST", "/unlock", {"words": "abandon " * 11 + "about"})
     status, _, text = call(running, "POST", "/unlock", {"words": phrase})
-    assert status == 403 and "Wait 15 minutes" in text and core.vault.locked
+    assert status == 403 and "Five wrong tries a minute" in text and core.vault.locked
+    assert "words tried too often on its page from 127.0.0.1" in caplog.text
+    from moolakata_connector import sock
+
+    assert sock.handle(page_, {"command": "unlock", "words": phrase}) == {
+        "ok": True,
+        "locked": False,
+    }
 
 
 def test_pair_and_unpair_take_the_words(running, monkeypatch):

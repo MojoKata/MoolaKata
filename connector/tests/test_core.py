@@ -29,7 +29,7 @@ def test_words_round_trip_and_catch_a_wrong_word():
         words.from_words([*w[:-1], words.wordlist()[(words.wordlist().index(w[-1]) + 1) % 2048]])
 
 
-def test_the_vault_opens_only_with_its_words_and_waits_after_five_wrong(tmp_path, monkeypatch):
+def test_the_vault_opens_only_with_its_words_and_makes_no_one_wait(tmp_path):
     v = vault.Vault(tmp_path / "vault.json")
     phrase = " ".join(v.create())
     fp = v.fingerprint()
@@ -51,16 +51,11 @@ def test_the_vault_opens_only_with_its_words_and_waits_after_five_wrong(tmp_path
     # The file holds no credential in clear.
     v.put("Conn_2", {"password": "hunter2-secret"})
     assert "hunter2" not in (tmp_path / "vault.json").read_text()
-    # Five wrong in a row: the next waits 15 minutes.
+    # CR3-373: wrong words make no one wait (S18.3.3): the right ones open it at once after any.
     v.lock()
-    now = [1000.0]
-    monkeypatch.setattr(time, "monotonic", lambda: now[0])
-    for _ in range(5):
+    for _ in range(20):
         with pytest.raises(vault.VaultError):
             v.unlock(other)
-    with pytest.raises(vault.VaultError, match="wait"):
-        v.unlock(phrase)
-    now[0] += 15 * 60 + 1
     v.unlock(phrase)
     assert not v.locked
     # Reset: a new vault, new words, the old credentials gone.

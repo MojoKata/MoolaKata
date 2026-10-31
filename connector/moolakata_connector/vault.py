@@ -3,12 +3,12 @@ may be sent to (S18.7.3), the sealing key that credentials are sealed to (S18.4.
 action key that signs the connector's calls but a locked report (S18.4.2), all
 sealed with AES-256-GCM under a key derived from the 12 words, in one file. It opens only with
 the words, which are never stored: the key stays in memory while the connector is unlocked, and
-a restart locks it. Five wrong attempts in a row make the next wait 15 minutes."""
+a restart locks it. Wrong words make no one wait: the key is 128 random bits, which no guessing
+reaches (S18.3.3); its page limits how often one address may try."""
 
 import hashlib
 import json
 import os
-import time
 from pathlib import Path
 
 from cryptography.exceptions import InvalidTag
@@ -19,8 +19,6 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from . import words
 
 FORMAT = "moolakata-connector-vault-1"
-WAIT_AFTER = 5
-WAIT_SECONDS = 15 * 60
 
 
 class VaultError(Exception):
@@ -48,8 +46,6 @@ class Vault:
     def __init__(self, path: Path):
         self.path = path
         self._key: bytes | None = None
-        self._wrong = 0
-        self._wait_until = 0.0
 
     # ----- making and opening -----
 
@@ -78,42 +74,26 @@ class Vault:
     def locked(self) -> bool:
         return self._key is None
 
-    def waiting(self) -> float:
-        return max(0.0, self._wait_until - time.monotonic())
-
     def unlock(self, phrase: str) -> None:
         self._key = self._key_of(phrase)
 
     def check(self, phrase: str) -> None:
         """Whether these are the vault's words, changing nothing: what each action on the page
-        asks first (S18.11.4). Wrong ones count toward the wait as at the unlock."""
+        asks first (S18.11.4)."""
         self._key_of(phrase)
 
     def _key_of(self, phrase: str) -> bytes:
-        if self.waiting():
-            raise VaultError(
-                f"wait {int(self.waiting() // 60) + 1} minutes: too many wrong words", "waiting"
-            )
         try:
             key = words.from_words(phrase)
         except words.PhraseError as e:
-            self._wrong_one()
             # The message may name a mistyped word, for the person typing; the kind never does.
             raise VaultError(str(e), "not a valid phrase") from None
         stored = self._header()
         if stored["fingerprint"] != fingerprint(key):
-            self._wrong_one()
             raise VaultError(
                 "those words are a valid phrase, but not this vault's", "another vault's"
             )
-        self._wrong = 0
         return key
-
-    def _wrong_one(self) -> None:
-        self._wrong += 1
-        if self._wrong >= WAIT_AFTER:
-            self._wait_until = time.monotonic() + WAIT_SECONDS
-            self._wrong = 0
 
     def lock(self) -> None:
         if self._key is not None:

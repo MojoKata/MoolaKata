@@ -1,8 +1,9 @@
 """Its page (requirements S18.11): one small HTTPS page the connector serves itself, on a port
 of its own, where its vault is made, its words given after a restart and its pairing done.
 Plain forms the connector renders, no JavaScript. Anyone on the network sees its status;
-every action takes the words, and wrong ones count toward the vault's wait (S18.3.3) and are
-logged with the address they came from. MoolaKata only links here and never sees the words."""
+every action takes the words, wrong ones are logged with the address they came from, and one
+address may try wrong ones five times a minute (S18.3.3). MoolaKata only links here and never sees the
+words."""
 
 import datetime as dt
 import html
@@ -33,6 +34,7 @@ PORT = 37374
 OFFER_SECONDS = 3600  # a welcome's words stay on offer an hour
 OFFERS_KEPT = 20
 BODY_LIMIT = 16 * 1024
+TRIES = 5  # wrong words from one address in a minute (S18.3.3)
 CERT_DAYS = 825
 STYLE = Path(__file__).with_name("page.css")
 HEADERS = {
@@ -186,7 +188,22 @@ class Page:
         self.core = core
         self.settings = settings
         self.offers: dict[str, Offer] = {}
+        self.tried: dict[str, list[float]] = {}  # by address: when words were tried, a minute
         self._lock = threading.Lock()
+
+    def may_try(self, address: str) -> bool:
+        """Five wrong tries a minute from one address (S18.3.3): only to bound the work and the
+        log a flood makes, never a wait for anyone else, and never for the host's `unlock`."""
+        with self._lock:
+            now = time.monotonic()
+            for a in [a for a, ts in self.tried.items() if ts[-1] < now - 60]:
+                del self.tried[a]
+            self.tried[address] = [t for t in self.tried.get(address, []) if t >= now - 60]
+            return len(self.tried[address]) < TRIES
+
+    def wrong(self, address: str) -> None:
+        with self._lock:
+            self.tried.setdefault(address, []).append(time.monotonic())
 
     def offer(self, reset: bool = False) -> tuple[str, Offer]:
         with self._lock:
@@ -236,8 +253,8 @@ def words_field(label: str = "The vault’s words") -> str:
         f'<label class="field"><span>{e(label)}</span><input class="in" type="password" '
         'name="words" placeholder="twelve words, in order" autocomplete="off" '
         'autocapitalize="none" spellcheck="false" required><small>From the household’s '
-        "password manager. Four letters of each are enough. Five wrong tries in a row make "
-        "the next wait 15 minutes.</small></label>"
+        "password manager. Four letters of each are enough. Five wrong tries a minute from "
+        "one address make it wait a minute.</small></label>"
     )
 
 
@@ -397,15 +414,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _words(self, form: dict, unlock: bool = False) -> str | None:
         """The words checked against the vault (or used to unlock it); a wrong one is logged
-        with its address and counts toward the wait (S18.3.3). None when refused."""
+        with its address (S18.3.3). None when refused."""
         phrase = form.get("words", "")
         vault = self.page.core.vault
+        if not self.page.may_try(self.client_address[0]):
+            log.warning("words tried too often on its page from %s", self.client_address[0])
+            self.refused = "Five wrong tries a minute from one address: wait a minute."
+            return None
         try:
             if unlock and vault.locked:
                 self.page.core.unlock(phrase)
             else:
                 vault.check(phrase)
         except VaultError as err:
+            self.page.wrong(self.client_address[0])
             log.warning("wrong words on its page from %s: %s", self.client_address[0], err.kind)
             self.refused = str(err)[:1].upper() + str(err)[1:] + "."
             return None
