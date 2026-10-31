@@ -80,19 +80,27 @@ class Terminal:
 
 
 def cmd_init(args, tty=None) -> int:
+    """The key is made in memory and the vault written only once three of its words come back
+    (S18.3.1): a terminal closed meanwhile leaves no vault whose words nobody kept."""
+    from .vault import fingerprint
+
     t = tty or Terminal()
     DATA.mkdir(parents=True, exist_ok=True)
     v = Vault(DATA / "vault.json")
-    try:
-        phrase = v.create()
-    except VaultError as e:
-        print(f"refused: {e}", file=sys.stderr)
+    if v.exists():
+        print(f"refused: {v.path} already exists; `reset` replaces it", file=sys.stderr)
         return 78
-    t.say(sheet(phrase, v.fingerprint()))
+    key = secrets.token_bytes(16)
+    phrase = words.to_words(key)
+    t.say(sheet(phrase, fingerprint(key)))
     t.say("\nType back three of the words to show they are written down.")
     if not confirm_three(phrase, ask=t.ask, say=t.say):
-        (DATA / "vault.json").unlink()
         print("refused: the words were not confirmed; no vault was made", file=sys.stderr)
+        return 78
+    try:
+        v.create(key)
+    except VaultError as e:
+        print(f"refused: {e}", file=sys.stderr)
         return 78
     print(f"Made {v.fingerprint()}. Start the connector, then unlock it with the words.")
     return 0

@@ -416,6 +416,17 @@ def test_init_and_reset_show_the_words_on_the_terminal_only(tmp_path, monkeypatc
             return "RESET\n"
 
     monkeypatch.setattr(main, "DATA", tmp_path)
+    # CR3-336: no vault exists while the words are on screen, and none if they never come back.
+    seen = []
+
+    class Gone(Tty):
+        def ask(self, prompt):
+            seen.append((tmp_path / "vault.json").exists())
+            return "wrong\n"
+
+    assert main.cmd_init(None, tty=Gone()) == 78
+    assert seen and not any(seen) and not (tmp_path / "vault.json").exists()
+    shown.clear()
     assert main.cmd_init(None, tty=Tty()) == 0
     out = capsys.readouterr().out
     phrase = list(typed_back().values())
