@@ -216,3 +216,27 @@ def test_a_connection_needs_a_paired_connector(server, admin_client):
         },
     )
     assert r.status_code == 409 and r.json()["errors"][0]["code"] == "no-connector"
+
+
+def test_an_ofx_connection_may_name_how_many_days_back_each_run_asks_for(server, paired):
+    """CR3-140: `days` is one of OFX Direct Connect's settings (protocol §6, S18.9.1)."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    base = {
+        "url": "https://ofx.cu.example/ofx",
+        "org": "CU",
+        "fid": "1",
+        "accountType": "CHECKING",
+        "accountId": "4417",
+    }
+    for days in (0, 91, "many", True):
+        r = make(c, "Conn", driver="ofx-direct", label="CU", settings={**base, "days": days})
+        assert r.json()["errors"][0]["field"] == "settings.days", days
+    made = make(c, "Conn", driver="ofx-direct", label="CU", settings={**base, "days": 30}).json()
+    out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
+    (conn,) = [x for x in out["connections"] if x["id"] == made["id"]]
+    assert conn["settings"]["days"] == 30
+    other = make(c, "Conn", driver="ofx-direct", label="CU 2", settings=base).json()
+    out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
+    (conn,) = [x for x in out["connections"] if x["id"] == other["id"]]
+    assert "days" not in conn["settings"]

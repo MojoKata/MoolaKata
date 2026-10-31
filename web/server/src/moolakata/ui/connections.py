@@ -35,6 +35,7 @@ SETTINGS = {
         "accountType": str,
         "accountId": str,
         "bankId": None,  # the routing number, for bank accounts
+        "days": int,  # how many days back each run asks for: 1 to 90, 45 when not set
     },
     "schwab": {"appKey": str},
 }
@@ -98,6 +99,14 @@ def _check_settings(driver: str, settings: dict) -> dict:
     errors = []
     for key, kind in shape.items():
         v = settings.get(key)
+        if kind is int:  # an optional whole number of days
+            if v in (None, ""):
+                continue
+            if isinstance(v, bool) or not str(v).strip().isdigit() or not 1 <= int(v) <= 90:
+                errors.append(FieldError(f"settings.{key}", "settings-invalid", "1 to 90 days."))
+                continue
+            out[key] = int(v)
+            continue
         if kind is None:  # optional text
             if v not in (None, "") and (not isinstance(v, str) or len(v) > 500):
                 errors.append(FieldError(f"settings.{key}", "settings-invalid", "Too long."))

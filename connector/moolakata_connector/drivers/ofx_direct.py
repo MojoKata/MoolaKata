@@ -102,7 +102,9 @@ class OfxDirect(Driver):
         since = dt.date.today() - dt.timedelta(days=90)
         for a in accounts:
             if a.last4 and a.last4 == str(settings.get("accountId", ""))[-4:]:
-                since = dt.date.today() - dt.timedelta(days=int(settings.get("days") or 45))
+                days = settings.get("days")
+                days = days if isinstance(days, int) and 1 <= days <= 90 else 45
+                since = dt.date.today() - dt.timedelta(days=days)
         try:
             body = request(settings, credentials or {}, since)
         except Unsendable as e:
