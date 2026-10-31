@@ -198,3 +198,46 @@ Given Oct 31, 10:58 AM, for decisions 1 to 6 as the testing decisions revise the
 and 3 through T1's gate; decision 4 through T6's `FileStore`) and T1 to T8. Applied on
 `cr3-links`, in this order: T8; T3 and decision 6; T1, T2, decisions 2 and 3; T4 and decision
 1; T6, T5, decision 4 and CR3-375; decision 5 and T7; review 3's table, L15 and L16.
+
+## Applied
+
+On branch `cr3-links` (PR #26), one commit per step of the approved order, each with its
+requirements, protocol, mockup and tests.
+
+| Step | Claims | Commit | What changed |
+|---|---|---|---|
+| T8 | — | `3ebb35a` | pytest-xdist; the server's tests under `-n auto`, the browser modules in one process; S17.5's *How tests are written*; L16 |
+| T3, 6 | CR3-57 | `363aa6e` | `net.network`, the seam where the sockets are; `Wire` beneath the real client; the decoded-byte ceiling; `tests/test_net.py` |
+| T1, T2, 2, 3 | CR3-51, CR3-52, CR3-53, CR3-72 | `065e90f` | `links/gate.py` for both routers; `MK-Link-Body-SHA256`; answers' time on arrival; `tests/test_gate.py`; L15 |
+| T4, 1 | CR3-50, CR3-150 | `0fbe06e` | `links/lifecycle.py`; linking again; link-protocol §4.6; `tests/test_lifecycle.py` |
+| T6, T5, 4 | CR3-54, CR3-375 | `40e5201` | `filestore.py`; `checkpoints.py`; `tests/test_races.py` and its inventory |
+| 5, T7 | CR3-55 | `fbf75d2` | the inbox entry sealed (`.mke`); `tests/test_canaries.py` |
+
+Where the work differs from the decisions as written, and why:
+
+1. **T1**: the gate is `links/gate.py`, not part of `signing`: `signing` stays the crypto with
+   no web framework in it. Unknown keys' bodies are no longer read at all: a signed refusal
+   needs only the hash the call names, so `UNKNOWN_BODY` went. `/connector` gained the same
+   per-address count for calls that fail (`conn_unknown`), and the connector takes an
+   address's unsigned `limit` as it says. `pair` takes 64 KB at most, as `join` takes 16 KB.
+2. **Decision 1**: the broken row's hint stays short (*end it, or link again*): the longer one
+   made the row twice its height; the *Broken* guide says linking again replaces the link.
+3. **T5**: the pull's checkpoint is each fetched receipt (`receipt.fetched`), which a pull and
+   a late receipt's fetch share. The inventory found **CR3-376**: two pulls of one link at once
+   take a change out of order. It is a strict xfail in `tests/test_races.py`, for the user to
+   decide (below). Remove orphans in the upload test reads in its own read transaction: today
+   the upload's write lock (CR3-48) keeps the two apart, so CR3-375 is latent until CR3-48 is
+   fixed.
+4. **T6**: a delivered receipt holds the copy's store busy while it is kept and named, as a
+   pull does; prune's removal goes through the store too (`FileStore.remove`), with the upload
+   holding a reused file.
+5. **T7**: the scenario leaves out the connector's report and file (they go through the same
+   import as an upload), a change sent in parts, an email with SMTP off (the mail folder is
+   plain by S15.7) and a restart; the backup is made directly, as its task makes it.
+
+### Left for the user
+
+1. **CR3-376**: how the two sides serialize pulls of one link. A lock held across a call to the
+   peer deadlocks when both servers pull at once; the choices weigh a per-link lock on the
+   pulling side, a refusal to the peer while one runs (`busy`, taken like `limit`), and taking a
+   change already held as a repeat.
