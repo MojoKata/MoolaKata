@@ -117,3 +117,13 @@ expected results written by reading them; what they show the driver got wrong is
 them.
 
 **Touches:** S18.9, S17.5.7.
+
+## L16: The browser tests in parallel
+
+**What it is:** the browser modules' tests run across workers as the server's do (S17.5). Each
+worker then seeds a household of its own and drives a Chromium of its own, and the browser
+app's coverage (S17.5.8) is read from the pages of every worker. Before then, a test that
+counts on what an earlier one left in the shared household is found and made to set up what it
+needs.
+
+**Touches:** S17.5, S17.5.2, S17.5.8.

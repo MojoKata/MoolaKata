@@ -77,6 +77,7 @@ for amd64 and arm64 (S17.8.1). *Direct* means named in `pyproject.toml`.
 | Tool | Version | Purpose | Risks |
 |---|---|---|---|
 | pytest | from `uv.lock` | the tests | — |
+| pytest-xdist, execnet | from `uv.lock` | the server tests across workers, one process each (S17.5) | none; execnet starts its workers as local subprocesses, and its files name only its documentation |
 | ruff | from `uv.lock` | lint and format | — |
 | coverage | from `uv.lock` | what the tests reach, in `web/check` and `web/dev.sh coverage` (S17.5.8) | none; its files name only its documentation |
 | playwright | from `uv.lock` | browser tests; downloads its Chromium (`web/pins`) | **egress** at `web/dev.sh setup` only |

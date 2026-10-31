@@ -7,6 +7,19 @@
    the dependency register's hash check (S17.2.1), and the requirements' own checks: every id
    cited in the documents or the code names an item, the README's tables match the files,
    no section file passes 500 lines, and the schema's prefixes are in order.
+
+   **How tests are written.** The server's tests run across a worker per core
+   (`pytest -n auto`, pytest-xdist), so each test makes what it needs (its database, its
+   servers, its files under its own temporary folder) and leaves nothing another can see; the
+   browser modules run in one process, sharing the household seeded once (later work, L16).
+   Code is shaped for this: what a route, a task or a call does lives in functions beneath it,
+   tested without a running server or a network, and a fake stands where the network or the
+   clock begins, never in place of the code above it. A test waits on an event or a
+   condition, with a generous timeout, never for a fixed time unless the time is what it tests;
+   a test that waits for time passing moves an injected clock. Code that turns on the shape of
+   its data has its axes named and a case for each combination, and where they multiply past
+   reason the choice of cases is written down. A bug that got past the tests is fixed with the
+   test that covers its kind, not just its case.
    Browser tests use a small in-page runner (`web/ui/tests/run.js`) and a fake API; one
    smoke test drives a running dev server. **Golden files**: a fixture portfolio with known
    8949 rows and TXF output, checked byte for byte. **Receipt reading**: the field parser is

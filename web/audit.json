@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-10-30",
+  "auditedAt": "2026-10-31",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -896,6 +896,13 @@
       "inImage": false,
       "words": []
     },
+    "pytest-xdist": {
+      "hosts": [
+        "pytest.org"
+      ],
+      "inImage": false,
+      "words": []
+    },
     "python-multipart": {
       "hosts": [
         "www.rfc-editor.org"
@@ -1128,6 +1135,6 @@
   },
   "hashes": {
     "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
-    "uv.lock": "sha256:131e69489d38f02680335ec6c6f264baf940fb5f182b9ff9334bd78b0ee13f1c"
+    "uv.lock": "sha256:c12c8d30bffb425582dd672c908dd0eb1daaec500cf9d30d45371d67813267da"
   }
 }
