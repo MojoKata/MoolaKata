@@ -3719,6 +3719,17 @@
             "title": "Accounts",
             "type": "array"
           },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
           "createdAt": {
             "format": "date-time",
             "title": "Createdat",
@@ -3731,6 +3742,17 @@
           "driver": {
             "title": "Driver",
             "type": "string"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
           },
           "id": {
             "title": "Id",
@@ -3788,6 +3810,18 @@
           "ownerName": {
             "title": "Ownername",
             "type": "string"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
           },
           "signInAddress": {
             "anyOf": [

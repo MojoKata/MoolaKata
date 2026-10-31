@@ -195,6 +195,7 @@ export function ConnectorSection() {
                   <th>Connection</th>
                   <th>Owner</th>
                   <th>Accounts</th>
+                  <th data-help="host">Host</th>
                   <th>State</th>
                 </tr>
               </thead>
@@ -209,6 +210,8 @@ export function ConnectorSection() {
                         `${a.name}${a.syncAccount ? ` (${a.syncAccount})` : ''}`
                       ).join(' · ')
                       : html`<span class="dim">none yet</span>`}</td>
+                    <td class="mono small">${c.host ||
+                      html`<span class="dim">not set</span>`}</td>
                     <td>${connectionState(c)}${c.credentialWaiting
                       ? html`<div class="small dim">credentials waiting for the connector</div>`
                       : null}</td>

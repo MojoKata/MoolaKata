@@ -291,8 +291,12 @@ ask it for anything. People give it its words on **its page**, which it serves i
       only once that owner turns its sync on for their own account.
    4. **Profile › Connections** lists a user's own, with their state and accounts, **Sign
       in again**, **Change credentials** and **Remove**; removing one turns its accounts'
-      sync off and the connector deletes its credentials. **Settings › Connector** lists
-      every Connection's state for admins, never its credentials.
+      sync off and the connector deletes its credentials. The credentials dialog of an OFX
+      Connection shows its server address, which its owner may change there when the
+      institution moves its server: the new address is saved first, with the password again,
+      and the credentials typed then are sealed for its host (S18.7.3). **Settings ›
+      Connector** lists every Connection's state for admins and the host its credentials go
+      to, never its credentials or its settings.
 7. **Entering credentials**, chosen per Connection.
    1. **Sealed for the connector** (the usual way): the owner types the credentials in
       MoolaKata, with their password again (S13.7.2) and only once an admin confirmed the
@@ -301,7 +305,8 @@ ask it for anything. People give it its words on **its page**, which it serves i
       which current Chrome, Edge, Safari and Firefox provide; a browser without it is offered
       only the stricter way below). The browser first checks the sealing key's signature by the
       action key the admin confirmed (S18.4.2), and seals, with the credentials, the host the
-      dialog shows the owner they go to and the time; the connector refuses a box older than
+      dialog shows the owner they go to (*Sealed for ofx.example.com only*: the OFX server's,
+      from the address the dialog shows, or the driver's own) and the time; the connector refuses a box older than
       the credential it holds. MoolaKata keeps only the ciphertext, which it can't open, until
       the connector collects it on its next report, files it in its vault and confirms which
       box it took (by its time); MoolaKata then deletes that box. A sign-in through the
@@ -345,7 +350,10 @@ ask it for anything. People give it its words on **its page**, which it serves i
       Connection's settings name. Before every run it compares that bound host with what the
       settings name now: if they differ, it sends nothing, drops the credential, and reports
       the Connection as *needs a sign-in: the server address changed from A to B*, so the owner
-      enters the credentials again, knowingly, for the new host. A compromised MoolaKata, or
+      enters the credentials again, knowingly, for the new host. The owner's own way to change
+      the address is the credentials dialog (S18.6.4): the address is saved and the new
+      credentials sealed for its host in one step, and the connector, taking both from one
+      report's answer, files them bound to the new host before its next run. A compromised MoolaKata, or
       anyone who can change a Connection's settings, can therefore never redirect a stored
       password to a host of their choosing.
 

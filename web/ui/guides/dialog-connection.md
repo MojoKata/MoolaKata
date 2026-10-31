@@ -20,7 +20,15 @@ A name to tell it apart: *Schwab login*, *Credit union*.
 
 The institution's OFX Direct Connect address, from the institution or a directory such as
 ofxhome.com. The sign-in you seal is bound to this address: the connector sends it there and
-nowhere else, and if the address is changed later the connection asks for the sign-in again.
+nowhere else. When the institution moves its server, change the address here, with **Change
+credentials**: it is saved with your password again, and the sign-in you then seal is bound to
+the new one. Changed any other way, the connection asks for the sign-in again.
+
+## Sealed for {#sealed-for}
+
+The one host the connector will ever send this sign-in to: the OFX server's, from its address,
+or the institution's own (`api.schwabapi.com` for Schwab). It is sealed with the sign-in, so
+nothing MoolaKata or anyone else changes later can send it elsewhere.
 
 ## ORG {#ofx-org}
 

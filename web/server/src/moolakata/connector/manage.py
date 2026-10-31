@@ -492,6 +492,22 @@ def credential_taken(srv, row: Connector, connection_id: str, at: str | None = N
         return True
 
 
+# The host a driver's credentials go to when it has one of its own; a driver without one sends
+# them to the server its settings name (S18.7.3, protocol §6).
+DRIVER_HOSTS = {"schwab": "api.schwabapi.com"}
+ADDRESS = {"ofx-direct": "url"}  # the setting naming that server
+
+
+def bound_host(driver: str, settings: dict) -> str | None:
+    """Where a Connection's credentials go (S18.7.1, S16.18): what the owner sees before
+    sealing them, and admins in Settings › Connector."""
+    if driver in ADDRESS:
+        address = settings.get(ADDRESS[driver])
+        host = urlsplit(address).hostname if isinstance(address, str) else None
+        return host.lower() if host else None
+    return DRIVER_HOSTS.get(driver)
+
+
 # The only sign-in pages a driver may send its owner to (S18.7.1): its institution's own
 # OAuth page, so a connector that isn't ours can't phish a password with "Open Schwab's
 # sign-in".

@@ -47,6 +47,12 @@ class ConnectionOut(Model):
     credentialWaiting: bool  # sealed for the connector, not yet collected
     signInAddress: str | None
     signInHost: str | None = None  # shown on the button, so the page is known (S18.7.1)
+    # Where its credentials go: the host they are sealed for (S18.7.1, S18.7.3), and for a
+    # driver whose server its owner names, that address (the owner's own view only).
+    host: str | None = None
+    address: str | None = None
+    # Its settings, for its owner's draft; never in Settings › Connector's list for admins.
+    settings: dict | None = None
     createdAt: dt.datetime
     version: int
 
@@ -84,8 +90,11 @@ def _host(address: str | None) -> str | None:
     return urlsplit(address).hostname if address else None
 
 
-def connection_out(s, c: Connection) -> ConnectionOut:
+def connection_out(s, c: Connection, mine: bool = False) -> ConnectionOut:
+    """`mine`: for its owner, with its settings and the address they name."""
     owner = s.get(User, c.ownerId)
+    settings = json.loads(c.settings or "{}")
+    address = settings.get(manage.ADDRESS.get(c.driver, ""))
     return ConnectionOut(
         id=c.id,
         ownerId=c.ownerId,
@@ -111,6 +120,9 @@ def connection_out(s, c: Connection) -> ConnectionOut:
         credentialWaiting=bool(c.sealedCredential),
         signInAddress=c.signInAddress,
         signInHost=_host(c.signInAddress),
+        host=manage.bound_host(c.driver, settings),
+        address=address if mine and isinstance(address, str) else None,
+        settings=settings if mine else None,
         createdAt=c.createdAt,
         version=c.version,
     )

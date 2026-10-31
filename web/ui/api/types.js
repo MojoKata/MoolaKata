@@ -674,6 +674,9 @@
  * @property {boolean} credentialWaiting
  * @property {(string | null)} signInAddress
  * @property {(string | null)} [signInHost]
+ * @property {(string | null)} [host]
+ * @property {(string | null)} [address]
+ * @property {(Object<string, unknown> | null)} [settings]
  * @property {string} createdAt
  * @property {number} version
  */

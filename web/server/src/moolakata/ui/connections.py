@@ -41,7 +41,7 @@ SETTINGS = {
 }
 
 # The setting that names the institution's server, for the drivers that have one.
-ADDRESS = {"ofx-direct": "url"}
+ADDRESS = manage.ADDRESS
 
 
 class ConnectorInfo(Model):
@@ -144,7 +144,7 @@ def list_connections(request: Request, c: Caller = Depends(caller)):
             )
             .order_by(Connection.createdAt)
         )
-        return [connection_out(s, r) for r in rows]
+        return [connection_out(s, r, mine=True) for r in rows]
 
 
 def _make(s, c: Caller, body: NewConnection, connection_id: str) -> Connection:
@@ -230,7 +230,7 @@ def put_credential(
             owner=c.id,
         )
         s.flush()
-        return connection_out(s, row)
+        return connection_out(s, row, mine=True)
 
 
 class ConnectionRecord(NewConnection):
@@ -295,6 +295,8 @@ save.register(
         current=_connection_current,
         update=_connection_update,
         delete=_connection_remove,
-        read=lambda ctx, record_id: connection_out(ctx.s, ctx.s.get(Connection, record_id)),
+        read=lambda ctx, record_id: connection_out(
+            ctx.s, ctx.s.get(Connection, record_id), mine=True
+        ),
     )
 )

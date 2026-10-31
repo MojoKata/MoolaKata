@@ -64,8 +64,16 @@ and open sealed credentials, stays closed without the words.
 
 ## Connections {#connections}
 
-Every person's sign-ins, kept by the connector: who owns each, its driver (Folder, OFX Direct
-Connect or Schwab), the accounts it keeps current, and its state from the last report: ok with
-what the last run added, waiting for credentials, needs a sign-in, or failing with the
-connector's words. Credentials are never shown here, or anywhere: they exist only in the
-connector's vault. People start and change their own under Profile › Connections.
+Every person's sign-ins, kept by the connector: who owns each, its driver (OFX Direct Connect or
+Schwab), the accounts it keeps current, the host its credentials go to and no other (the OFX
+server's, from the address its owner gave, or the institution's own), and its state from the
+last report: ok with what the last run added, waiting for credentials, needs a sign-in, or
+failing with the connector's words. Credentials are never shown here, or anywhere: they exist
+only in the connector's vault. People start and change their own under Profile › Connections.
+
+## Host {#host}
+
+The host each Connection's credentials go to, and no other: an OFX server's, from the address
+its owner gave and sealed with the sign-in, or the institution's own for a driver with a fixed
+one (`api.schwabapi.com`). An address that isn't the institution's is worth a word with its
+owner.
