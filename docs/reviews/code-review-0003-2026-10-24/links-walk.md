@@ -212,6 +212,7 @@ requirements, protocol, mockup and tests.
 | T4, 1 | CR3-50, CR3-150 | `0fbe06e` | `links/lifecycle.py`; linking again; link-protocol §4.6; `tests/test_lifecycle.py` |
 | T6, T5, 4 | CR3-54, CR3-375 | `40e5201` | `filestore.py`; `checkpoints.py`; `tests/test_races.py` and its inventory |
 | 5, T7 | CR3-55 | `fbf75d2` | the inbox entry sealed (`.mke`); `tests/test_canaries.py` |
+| CR3-376 | CR3-376 | `1f26cc3` | `manage.PULLS`: one pull of a link at a time, `busy` to the peer; two race tests |
 
 Where the work differs from the decisions as written, and why:
 
@@ -235,9 +236,21 @@ Where the work differs from the decisions as written, and why:
    import as an upload), a change sent in parts, an email with SMTP off (the mail folder is
    plain by S15.7) and a restart; the backup is made directly, as its task makes it.
 
+6. **The dev seed** (`045bc82`) wrote its linked change's inbox entry itself, still plain, so
+   the seeded household opened empty (the full check's browser test caught it): one writer,
+   `changes.keep`, serves the pull and the seed.
+
 ### Left for the user
 
-1. **CR3-376**: how the two sides serialize pulls of one link. A lock held across a call to the
-   peer deadlocks when both servers pull at once; the choices weigh a per-link lock on the
-   pulling side, a refusal to the peer while one runs (`busy`, taken like `limit`), and taking a
-   change already held as a repeat.
+1. **CR3-376**: put to the user at 12:14 PM and decided at 12:19 PM (below); applied in `1f26cc3`.
+
+### CR3-376, decided (Oct 31, 12:19 PM)
+
+Approved: a per-link lock for pulls, and a signed `busy` from the answering side. A pull holds
+its link's lock, and a second pull of that link from the same server waits for it; answering
+the peer's `exchange`, `next` or `deliver`, a server only tries the lock and, while it is held,
+refuses `busy` (signed, 429 with `Retry-After`), which the peer takes like `limit`: it tries at
+its next exchange and isn't alerted. Neither server waits on the other, so the two can't
+deadlock, and each one's own pull carries both directions. Weighed: the pulling side's lock
+alone (the peer's delivery during a pull stays open); a repeated change taken as a repeat (a
+second serving can carry other content under the same number).
