@@ -788,3 +788,107 @@ def test_locked_it_reports_with_its_status_key_and_says_nothing_else(tmp_path):
     core.unlock(phrase)
     core.tick()
     assert sent[-1][2] == action_public
+
+
+def test_a_call_names_its_body_hash_and_an_unsigned_answer_is_read_only_for_three_refusals():
+    # CR3-138, protocol §3.1, §7: MoolaKata's refusals before it reads a call are unsigned;
+    # the connector acts on `locked`, `uploads-in-flight` and `too-large` and on nothing else.
+    import hashlib
+
+    from moolakata_connector.drivers import File  # noqa: F401 - the shape posts carry
+
+    seen = []
+
+    class Answering(client.Transport):
+        def __init__(self, status, body):
+            super().__init__(client.Egress())
+            self.status, self.body = status, body
+
+        def request(self, method, url, headers, body, pins=None):
+            seen.append((headers, body))
+            return client.Answer(self.status, {"Retry-After": "30"}, self.body)
+
+    _, public = keys.new_sealing_key()
+    _, action = keys.new_action_key()
+    pairing = keys.make("https://money.lan", "f" * 64, action, public)
+    key = Ed25519PrivateKey.generate()
+    cases = [
+        (503, {"code": "locked", "detail": "MoolaKata is locked"}, "locked"),
+        (429, {"code": "uploads-in-flight", "detail": "busy"}, "uploads-in-flight"),
+        (413, {"code": "too-large", "detail": "big"}, "too-large"),
+        (500, {"code": "server-error"}, "answer-unsigned"),
+        (403, {"code": "file-refused"}, "answer-unsigned"),
+        (503, {"code": "file-refused"}, "answer-unsigned"),
+    ]
+    for status, body, code in cases:
+        server = client.Server(pairing, Answering(status, json.dumps(body).encode()), b"k" * 32)
+        with pytest.raises(client.ServerError) as e:
+            server.call("/connector/v1/report", {"locked": False}, key=key)
+        assert (e.value.code, e.value.signed) == (code, False), (status, body)
+        headers, sent = seen[-1]
+        assert headers["MK-Conn-Body-SHA256"] == hashlib.sha256(sent).hexdigest()
+    assert e.value.status == 503
+
+
+def test_each_file_is_posted_on_its_own_and_the_report_always_follows(tmp_path):
+    # CR3-69, CR3-357, S18.8: a file MoolaKata can't take now waits; one it refuses is dropped
+    # and named; neither stops the next file, the next Connection, or the after-run report.
+    from moolakata_connector.core import ConnectionState, Core
+    from moolakata_connector.drivers import Driver, File, Result
+
+    outcomes = {
+        "a.ofx": client.ServerError("file-refused", "not a statement"),
+        "b.ofx": ConnectionResetError("dropped"),
+        "c.ofx": client.ServerError("locked", "locked", 503, signed=False),
+        "d.ofx": client.ServerError("uploads-in-flight", "busy", 429, signed=False),
+        "e.ofx": client.ServerError("too-large", "big", 413, signed=False),
+        "f.ofx": {"imported": {"added": 3}},
+    }
+    calls = []
+
+    class Server:
+        def call(self, path, data=None, body=None, ctype=None, *, key):
+            calls.append(path)
+            if path.endswith("/sign-in"):
+                raise client.ServerError("limit", "slow down")
+            if path.endswith("/files"):
+                name = re.search(rb'filename="([^"]+)"', body).group(1).decode()
+                out = outcomes[name]
+                if isinstance(out, Exception):
+                    raise out
+                return out
+            listed = [{"id": c, "driver": "fetching", "label": c} for c in core.connections]
+            return {"connections": listed, "removed": []}
+
+    class Fetching(Driver):
+        name, needs = "fetching", ()
+
+        def run(self, settings, credentials, accounts, http):
+            files = [File("Acct_1", n, b"OFX", "ofx") for n in outcomes]
+            return Result("ok", "6 statements", files=files, sign_in="https://x.example/s")
+
+    core = Core(tmp_path, transport=client.Transport(client.Egress()),
+                drivers={"fetching": Fetching()})  # fmt: skip
+    core.vault.create()
+    core.vault.keep_keys(b"\x01" * 32, Ed25519PrivateKey.generate().private_bytes_raw())
+    _, public = keys.new_sealing_key()
+    _, action = keys.new_action_key()
+    core.pairing = keys.make("https://money.lan", "f" * 64, action, public)
+    core.server = Server()
+    first = core.connections["Conn_1"] = ConnectionState("Conn_1", "fetching", "One", {}, [])
+    second = core.connections["Conn_2"] = ConnectionState("Conn_2", "fetching", "Two", {}, [])
+    core.tick()
+    for c in (first, second):
+        assert [f.name for f in c.backlog] == ["b.ofx", "c.ofx", "d.ofx"]
+        assert c.state == "failing" and "e.ofx" in c.message
+        assert c.last_added == 3
+    assert calls.count("/connector/v1/report") == 2, "the after-run report went"
+    assert sum(p.endswith("/files") for p in calls) == 12
+    # More than ten waiting: the oldest go, named.
+    first.backlog = [File("Acct_1", f"old{n}.ofx", b"", "ofx") for n in range(9)] + first.backlog
+    first.state = "ok"
+    first.last_run = None
+    del outcomes["a.ofx"]
+    core.connections.pop("Conn_2")
+    core._run(first)
+    assert len(first.backlog) == 10 and "not posted: old0.ofx" in first.message

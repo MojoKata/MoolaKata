@@ -121,10 +121,15 @@
          above.
       5. The counters are held in memory: a restart clears them.
    6. **Request limits**: JSON bodies up to 1 MB (a linked server's up to 20 MB,
-      `docs/link-protocol.md` §1.4), uploads up to the size in Settings (25 MB by default), a
-      receipt a linked server delivers up to the largest receipt Settings allows, sealed (link
-      protocol §1.4), at most 100 MB of uploads in flight per user (never less than that
-      largest sealed receipt), and request headers up to 16 KB. Each upload's
+      `docs/link-protocol.md` §1.4); uploads up to the sizes in Settings (25 MB by default): a
+      receipt up to S16.10's, a statement or other import file up to S16.8's, and a file the
+      connector posts, a statement, up to S16.8's; a receipt a linked server delivers up to the
+      largest receipt Settings allows, sealed (link protocol §1.4); at most 100 MB of uploads in
+      flight per user (never less than that largest sealed receipt), and four times that for
+      every caller together; and request headers up to 16 KB. The connector's uploads are
+      counted as they are read, never by the length a call declares: its route reads a body
+      only once the paired connector's signature, over the hash the call names, checks out
+      (`docs/connector-protocol.md` §3.2). Each upload's
       type is checked from its content, never its name (S9.1), and an upload is held in memory,
       never spooled to a temporary file. An import waiting for its mapping or its check (S1.3)
       counts against its user's uploads in flight while it waits: past them, the user's

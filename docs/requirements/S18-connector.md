@@ -343,10 +343,14 @@ ask it for anything. People give it its words on **its page**, which it serves i
    statement. Imports are idempotent, so a repeated post adds nothing. A post counts against
    the upload limit of the Connection's owner (S13.7.5.3); refused for the limit, the connector
    keeps the file and posts it on a later run, so a backlog (a long history fetched at once)
-   arrives over a few hours rather than failing. Files waiting, for the limit or for the
-   pairing's confirmation, are held in memory: after a restart the drivers fetch again, and the
-   import's idempotence drops what arrived before. A file refused for any other reason is
-   dropped, and its Connection shows the refusal. A PDF is kept without reading (S1.3.3.6), or,
+   arrives over a few hours rather than failing. Each file is posted on its own: one MoolaKata
+   can't take now (the limit, the pairing's confirmation, MoolaKata locked or busy with
+   uploads, out of reach, or an answer that isn't signed) waits for a later round; one it
+   refuses for any other reason (a file it can't read, one over Settings › Imports' size,
+   S16.8) is dropped, and its Connection shows the refusal; either way the next file and the
+   next Connection are posted, and the report after the run is sent. Files waiting are held in
+   memory, the newest ten per Connection (the Connection names any older one let go): after a
+   restart the drivers fetch again, and the import's idempotence drops what arrived before. A PDF is kept without reading (S1.3.3.6), or,
    where MoolaKata reads that kind, waits in the account's inbox for its owner to check:
    nothing read from a PDF is saved unchecked. Every post is recorded in Activity as *by
    MoolaKata Connector, Alice's Schwab login*.

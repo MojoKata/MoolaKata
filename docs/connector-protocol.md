@@ -55,8 +55,8 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    (section 3), checked against the link key whose fingerprint the code carried, proves who
    wrote it. The connector follows no redirect, and reads at most 25 MB of an answer.
 3. Everything but `hello` is signed, and every answer to a signed call is signed back.
-4. JSON bodies are UTF-8, at most 1 MB; a file post is multipart, the file up to the upload
-   size in Settings (S13.7.6).
+4. JSON bodies are UTF-8, at most 1 MB; a file post is multipart, the file up to Settings ›
+   Imports' size (S16.8), the one statements are held to (S13.7.6).
 5. Only addresses in Settings › Network's **Allowed to connect** ranges reach `/connector`
    (S16.14); others get 404, as for `/ui`.
 
@@ -89,6 +89,7 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    | `MK-Conn-Time` | Unix seconds |
    | `MK-Conn-Nonce` | 16 random bytes, base64url |
    | `MK-Conn-Signature` | Ed25519 over the lines below, base64url |
+| `MK-Conn-Body-SHA256` | the SHA-256 of the body, hex: the hash the signature covers, named so MoolaKata checks the signature before it reads the body |
    | `MK-Conn-Protocol` | the protocol version the call speaks (section 5) |
    | `MK-Conn-Version` | the connector's version, for Settings › Connector to show |
 
@@ -108,8 +109,11 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    receiver's fingerprint means a call can't be replayed against another server.
 2. MoolaKata refuses, with the codes in section 7: a call without these headers, a time more
    than **60 seconds** from its own clock, a signature that doesn't verify, a nonce it has seen
-   from that key in the last two minutes, a key that isn't the paired connector's, and a paired
-   connector whose pairing has ended.
+   from that key in the last two minutes, a key that isn't the paired connector's (but at
+   `pair`), a key the call may not be made with (section 4), and a paired connector whose
+   pairing has ended. **All of this is checked before a byte of the body is read**, against the
+   hash `MK-Conn-Body-SHA256` names; the body is then read and must hash to it. So only a call
+   the paired connector signed has its body read, whatever key header a caller sends.
 3. **Answers** are signed the same way: `MK-Conn-Time` and `MK-Conn-Signature` over
 
    ```
@@ -125,7 +129,10 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
    The connector refuses an answer that isn't signed by the key the pairing code named, or that
    names another caller (the key that signed the call) or another request. With TLS verified (section 1.2), a server
    pretending to be MoolaKata gets nothing past it: no report, no file, and no sealed
-   credential is ever sent to it. Refusals are signed too when the call carried a nonce.
+   credential is ever sent to it. Refusals are signed too when the call carried a nonce, a
+   fault in a route included (`server-error`): only the three refusals MoolaKata makes before
+   the call reaches its route are unsigned (section 7), and the connector acts on no other
+   unsigned answer.
 4. Rate: 60 calls a minute (S13.7.5.4); a file post also counts against the upload limit of the
    Connection's owner (S18.8).
 
@@ -309,6 +316,11 @@ action key's:
 3. The answer is `{imported: {added, matched, changed}, kept: bool}` as the import dialog would
    show it. `429` with `Retry-After` means the owner's upload limit; the connector keeps the
    file and posts it on a later run.
+4. **Each file on its own** (S18.8): the connector keeps a file for a later round on a dropped
+   connection or an answer that isn't signed, and on `locked`, `limit`, `uploads-in-flight`,
+   `not-confirmed` and `server-error`; it drops it on any other refusal, and the Connection
+   shows the refusal. Either way it posts the next file and the next Connection's, and sends
+   the report after the run. It keeps the newest ten waiting per Connection.
 
 ## 5. Versions
 
@@ -344,8 +356,12 @@ institution with nothing to fetch from has no driver: its files are uploaded by 
 ## 7. Refusals
 
 A refusal is JSON `{code, message}` with HTTP 403 (426 for a protocol, 429 for a limit, 404
-for an account or Connection that doesn't exist or isn't this connector's), signed as section 3
-says when the call carried a nonce.
+for an account or Connection that doesn't exist or isn't this connector's, 413 for a file too
+large, 500 for a fault), signed as section 3 says when the call carried a nonce. Three are made
+before the call reaches its route, on its headers or as its body arrives, and are **unsigned**,
+as problem JSON with `code`: `locked`, `uploads-in-flight` and `too-large` for a body past the
+hard limit. The connector acts on those three by their status and code, and on no other
+unsigned answer, which it treats as a failed call (`answer-unsigned`).
 
 | Code | When |
 |---|---|
@@ -362,11 +378,13 @@ says when the call carried a nonce.
 | `protocol-unsupported` | the call's protocol isn't one this server answers |
 | `account-not-synced` | the account's sync doesn't name this Connection |
 | `mapping-missing` | a CSV for an account with no saved mapping |
-| `file-refused` | the file's content isn't a type MoolaKata imports |
+| `file-refused` | the file's content isn't a type MoolaKata imports, or the reader can't read it (its message says why) |
 | `limit` | the owner's upload limit; `Retry-After` says when to try again. Also the 60 calls a minute of section 3.4 |
 | `not-found` | (404) the Connection or account doesn't exist, or isn't this connector's |
 | `address-invalid` | a sign-in address that isn't on the driver's own sign-in host |
-| `too-large` | (413) a body over 1 MB of JSON, or a file over the upload size |
+| `too-large` | (413) a file over Settings › Imports' size (S16.8), signed; unsigned, a body past the hard limit (1 MB of JSON, that size and the form around it), refused before it is read |
+| `uploads-in-flight` | (429, unsigned) more uploads are arriving at once than MoolaKata holds (S13.7.6); the file waits for a later round |
+| `server-error` | (500) MoolaKata failed on the call; it logged why. The file waits for a later round |
 | `locked` | (503, unsigned) MoolaKata is locked (S13.6); the connector tries again at its next report |
 
 The connector refuses on its own side, sending nothing further: `not-moolakata` (the address

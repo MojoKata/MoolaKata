@@ -4,6 +4,7 @@ into the vault, bound to the host they may be sent to; each Connection's driver 
 interval, never against a host its credentials aren't bound to; what it fetched posted for its
 accounts, a post refused for a limit kept for a later run."""
 
+import http.client
 import json
 import logging
 import threading
@@ -13,7 +14,7 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from . import client, keys, sealed
+from . import client, keys, sealed, signing
 from .client import Egress, ServerError, Transport
 from .drivers import Account, Driver, File, registry
 from .vault import Vault, VaultError
@@ -33,6 +34,17 @@ SEALING_LABEL = b"moolakata connector sealing key\x00"
 STATUS_LABEL = b"moolakata connector status key\x00"
 ACTION_LABEL = b"moolakata connector action key\x00"
 SHOWN = ("label", "driver", "state", "message")  # each Connection, in `status`
+WAITING_KEPT = 10  # files kept for a later round, per Connection: the newest
+# A post MoolaKata can't take now, kept for a later round, and what the Connection says of it
+# (S18.8, protocol §7); any other refusal drops the file.
+KEEP = {
+    "limit": "the owner's upload limit",
+    "uploads-in-flight": "too many uploads arriving at once",
+    "locked": "MoolaKata is locked",
+    "not-confirmed": "the pairing's confirmation",
+    "answer-unsigned": "MoolaKata's answer wasn't signed",
+    "server-error": "MoolaKata failed; it is logged there",
+}
 
 
 @dataclass
@@ -465,11 +477,7 @@ class Core:
                 address = d.sign_in(c.settings)
                 if address and c.sign_in != address:
                     c.sign_in, c.sign_in_at = address, time.time()
-                    self.server.call(
-                        f"/connector/v1/connections/{c.id}/sign-in",
-                        {"address": address},
-                        key=self._action(),
-                    )
+                    self._tell_sign_in(c, address)
                 c.state, c.message, c.last_run = "new", "waiting for credentials", time.time()
                 return
             bound, wanted = self.vault.host(c.id), d.binds(c.settings)
@@ -503,33 +511,56 @@ class Core:
         if r.credentials is not None:
             self.vault.put(c.id, r.credentials, self.vault.host(c.id))
         if r.sign_in:
-            self.server.call(
-                f"/connector/v1/connections/{c.id}/sign-in",
-                {"address": r.sign_in},
-                key=self._action(),
-            )
+            self._tell_sign_in(c, r.sign_in)
         c.backlog.extend(r.files)
         c.last_added = 0
+        if len(c.backlog) > WAITING_KEPT:
+            # The oldest go: a later run fetches the same days again (S18.8).
+            gone = c.backlog[: len(c.backlog) - WAITING_KEPT]
+            c.backlog = c.backlog[-WAITING_KEPT:]
+            c.message = f"{len(gone)} older file{'s' if len(gone) != 1 else ''} not posted: " + (
+                ", ".join(f.name for f in gone)
+            )
+
+    def _tell_sign_in(self, c: ConnectionState, address: str) -> None:
+        """MoolaKata told where the owner signs in (S18.7.1). A call that fails ends nothing:
+        the report carries the address too, and the round goes on (S18.5)."""
+        try:
+            self.server.call(
+                f"/connector/v1/connections/{c.id}/sign-in",
+                {"address": address},
+                key=self._action(),
+            )
+        except Exception as e:
+            log.warning("MoolaKata wasn't told of a sign-in; the report carries it: %s", e)
 
     def _post_backlogs(self) -> None:
+        """Each file on its own (S18.8, protocol §7): one MoolaKata can't take now waits for a
+        later round; one it refuses is dropped and the Connection says why; either way the next
+        file, and the next Connection, are posted."""
         for c in self.connections.values():
             kept: list[File] = []
+            why = ""
             for f in c.backlog:
                 try:
                     out = self._post(c, f)
                 except ServerError as e:
-                    if e.code in ("limit", "not-confirmed"):
-                        kept.append(f)  # a later run (S18.8), or once an admin confirms
+                    if e.code in KEEP:
+                        kept.append(f)
+                        why = KEEP[e.code]
                     else:
                         c.state, c.message = "failing", f"{f.name}: {e.message}"
+                    continue
+                except (VaultError, OSError, http.client.HTTPException, signing.Refused) as e:
+                    # Locked meanwhile, MoolaKata out of reach, or an answer that isn't its own.
+                    kept.append(f)
+                    why = f"not posted yet ({type(e).__name__}: {e})"
                     continue
                 imported = out.get("imported") or {}
                 c.last_added = (c.last_added or 0) + int(imported.get("added") or 0)
             c.backlog = kept
             if c.backlog and c.state == "ok":
-                c.message = (
-                    f"{len(c.backlog)} waiting: the upload limit, or the pairing's confirmation"
-                )
+                c.message = f"{len(c.backlog)} waiting: {why}"
 
     def _post(self, c: ConnectionState, f: File) -> dict:
         import hashlib

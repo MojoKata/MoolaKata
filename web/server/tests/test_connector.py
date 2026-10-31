@@ -69,6 +69,7 @@ class FakeConnector:
             "Content-Type": "application/json",
             "MK-Conn-Protocol": str(PROTOCOL),
             "MK-Conn-Version": "0.1.0-test",
+            "MK-Conn-Body-SHA256": signed.body_hash,
             **(headers or {}),
         }
         r = self.client.post(path, content=body, headers=h)
@@ -344,11 +345,55 @@ def test_calls_are_signed_and_answers_are_signed_back(server, paired, client):
         paired.key, "POST", "/connector/v1/report", body, paired.fp, scheme=signing.CONN
     )
     h = {**signed.headers, "Content-Type": "application/json"}
+    # The call names the hash its signature covers (protocol §3.1); without it, unsigned.
+    r = client.post("/connector/v1/report", content=body, headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "unsigned"
+    h["MK-Conn-Body-SHA256"] = signed.body_hash
     assert client.post("/connector/v1/report", content=body, headers=h).status_code == 200
     r = client.post("/connector/v1/report", content=body, headers=h)
     assert r.status_code == 403 and r.json()["code"] == "replayed"
     r = paired.call("/connector/v1/report", {}, headers={"MK-Conn-Protocol": "9"})
     assert r.status_code == 426 and "speaks connector protocol 1" in r.json()["message"]
+    # A body other than the one signed is refused, signed.
+    signed = signing.sign_request(
+        paired.key, "POST", "/connector/v1/report", b"{}", paired.fp, scheme=signing.CONN
+    )
+    h = {**signed.headers, "MK-Conn-Body-SHA256": signed.body_hash}
+    r = client.post("/connector/v1/report", content=b'{"locked":false}', headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "bad-signature"
+
+
+def test_a_call_is_refused_before_its_body_is_read(server, paired, client, monkeypatch):
+    """CR3-71, protocol §3.2: the signature, against the hash the call names, and the key, the
+    paired connector's, are checked before a byte of the body is read."""
+    from starlette.requests import Request
+
+    read = []
+    body = Request.body
+
+    async def watched(self):
+        read.append(self.url.path)
+        return await body(self)
+
+    monkeypatch.setattr(Request, "body", watched)
+    files = "/connector/v1/accounts/Acct_x/files"
+    stranger = FakeConnector(server, client)
+    r = stranger.call(files, raw=b"x" * 1000, headers={"Content-Type": "multipart/form-data"})
+    assert r.status_code == 403 and r.json()["code"] == "not-paired" and read == []
+    r = paired.call(files, raw=b"x" * 1000, headers={"Content-Type": "multipart/form-data"},
+                    status=True)  # fmt: skip
+    assert r.status_code == 403 and r.json()["code"] == "status-key" and read == []
+    # A forged signature under the paired key: refused, nothing read.
+    signed = signing.sign_request(stranger.key, "POST", files, b"x", paired.fp, scheme=signing.CONN)
+    h = {
+        **signed.headers,
+        "MK-Conn-Key": keys.b64(keys.raw_public(paired.key.public_key())),
+        "MK-Conn-Body-SHA256": signed.body_hash,
+        "Content-Type": "multipart/form-data",
+    }
+    r = client.post(files, content=b"x", headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "bad-signature" and read == []
+    assert paired.call("/connector/v1/report", {}).status_code == 200 and read
 
 
 def connection(server, owner_id: str, label="Alice's Schwab login", driver="schwab") -> str:
@@ -521,6 +566,36 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
     )
     assert r.status_code == 403 and r.json()["code"] == "mapping-missing"
+    # CR3-68: a file the reader can't make out is refused, signed (paired.call checks the
+    # signature), with the reader's words, never an unsigned 500.
+    broken = OFX.replace(b"<TRNAMT>-42.37", b"<TRNAMT>lots")
+    body, ctype = _multipart(broken, {"connectionId": cid})
+    r = paired.call(
+        f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
+    )
+    assert r.status_code == 403 and r.json()["code"] == "file-refused" and r.json()["message"]
+    # CR3-333: a file over Settings › Imports' size is `too-large`, signed.
+    with server.db.tx() as s:
+        settings.put(s, "importMaxMb", 1, None)
+    body, ctype = _multipart(OFX + b" " * (1024 * 1024), {"connectionId": cid})
+    r = paired.call(
+        f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
+    )
+    assert r.status_code == 413 and r.json()["code"] == "too-large"
+
+
+def test_a_fault_in_a_connector_route_is_answered_signed(server, paired, monkeypatch):
+    """CR3-68, protocol §7: whatever fails in a route, the answer is a signed `server-error`,
+    which the connector can tell from a forgery."""
+    from moolakata.connector import manage as mk_manage
+
+    def broken(*a, **k):
+        raise RuntimeError("a bug")
+
+    monkeypatch.setattr(mk_manage, "apply_report", broken)
+    r = paired.call("/connector/v1/report", {"locked": False})  # checks the signature
+    assert r.status_code == 500 and r.json()["code"] == "server-error"
+    assert "a bug" not in r.text
 
 
 def test_a_posted_statement_is_kept_without_reading_once(server, paired):

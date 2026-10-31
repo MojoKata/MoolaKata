@@ -202,18 +202,28 @@ class OriginCheck:
 
 
 # Uploads arriving at once, per user (S13.7.6): 100 MB, and never less than one receipt of the
-# largest size a linked server may deliver, sealed.
+# largest size a linked server may deliver, sealed; and for the whole server, four times that.
 IN_FLIGHT = max(100 * 1024 * 1024, max_receipt())
+IN_FLIGHT_ALL = 4 * IN_FLIGHT
 
 
 class BodyLimit:
     """JSON bodies up to 1 MB; uploads (multipart) up to the size Settings allow, and at most
     100 MB of them arriving at once for one caller (S13.7.6): a session, a linked server's key
-    or the connector's, else an address."""
+    or the connector, else an address; and at most four times that for every caller together.
+    The connector's are counted as they are read, never by what a call says it carries: its
+    route reads a body only once the paired connector's signature checks out (protocol §3.2).
+    """
 
-    def __init__(self, app, upload_limit: Callable[[], int]):
+    def __init__(
+        self,
+        app,
+        upload_limit: Callable[[], int],
+        import_limit: Callable[[], int] | None = None,
+    ):
         self.app = app
         self.upload_limit = upload_limit
+        self.import_limit = import_limit or upload_limit
         self.in_flight: dict[str, int] = {}
 
     def limit_for(self, path: str, ctype: str) -> int:
@@ -224,6 +234,8 @@ class BodyLimit:
             # the largest receipt Settings allows, whatever this server's own setting.
             return max_receipt()
         if ctype.startswith("multipart/"):
+            if path.startswith("/connector/"):
+                return self.import_limit()  # statements, Settings › Imports' size (S16.8)
             return self.upload_limit()
         return LINK_LIMIT if to_link else JSON_LIMIT
 
@@ -240,9 +252,10 @@ class BodyLimit:
             cookie = SimpleCookie()
         if COOKIE in cookie:
             return "session:" + hashlib.sha256(cookie[COOKIE].value.encode()).hexdigest()
-        for h in (b"mk-link-key", b"mk-conn-key"):
-            if headers.get(h):
-                return "key:" + headers[h]
+        if scope["path"].startswith("/connector/"):
+            return "connector"
+        if headers.get(b"mk-link-key"):
+            return "key:" + headers[b"mk-link-key"]
         client = scope.get("client")
         return "address:" + (client[0] if client else "-")
 
@@ -263,9 +276,15 @@ class BodyLimit:
         upload = limit != JSON_LIMIT and limit != LINK_LIMIT
         who = self._caller(scope, headers) if upload else ""
         # What it says it carries is held for it before the app runs, so a caller past the
-        # cap is answered at once; a body without a length is counted as it arrives.
+        # cap is answered at once; a body without a length is counted as it arrives, and so is
+        # the connector's, read only once its signature is checked.
         declared = int(length) if upload and length and length.isdigit() else 0
-        if upload and self.in_flight.get(who, 0) + declared > IN_FLIGHT:
+        if who == "connector":
+            declared = 0
+        everyone = sum(self.in_flight.values())
+        if upload and (
+            self.in_flight.get(who, 0) + declared > IN_FLIGHT or everyone + declared > IN_FLIGHT_ALL
+        ):
             await _send_problem(
                 429,
                 "uploads-in-flight",
@@ -288,7 +307,10 @@ class BodyLimit:
                     raise _TooLarge
                 if upload and seen > declared:
                     self.in_flight[who] = self.in_flight.get(who, 0) + min(n, seen - declared)
-                    if self.in_flight[who] > IN_FLIGHT:
+                    if (
+                        self.in_flight[who] > IN_FLIGHT
+                        or sum(self.in_flight.values()) > IN_FLIGHT_ALL
+                    ):
                         raise _Busy
             return message
 

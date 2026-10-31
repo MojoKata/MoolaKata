@@ -176,9 +176,22 @@ class Transport:
 
 
 class ServerError(Exception):
-    def __init__(self, code: str, message: str, status: int = 0, retry_after: int = 0):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status: int = 0,
+        retry_after: int = 0,
+        signed: bool = True,
+    ):
         super().__init__(message)
         self.code, self.message, self.status, self.retry_after = code, message, status, retry_after
+        self.signed = signed
+
+
+# The refusals MoolaKata makes before it reads a call, so unsigned (protocol §7): the connector
+# acts on these, by their status and code, and on no other unsigned answer.
+UNSIGNED = {503: "locked", 429: "uploads-in-flight", 413: "too-large"}
 
 
 class Server:
@@ -206,17 +219,22 @@ class Server:
         payload = body if body is not None else json.dumps(data or {}).encode()
         headers, nonce = signing.sign(key, "POST", path, payload, self.pairing.server_fp)
         me = fingerprint(key.public_key().public_bytes_raw())  # the caller the answer names
+        call = signing.body_hash(payload)
         headers |= {
             "Content-Type": ctype or "application/json",
             "MK-Conn-Protocol": str(PROTOCOL),
             "MK-Conn-Version": VERSION,
+            # The hash the signature covers, so MoolaKata checks the signature before it reads
+            # the body (protocol §3.1).
+            "MK-Conn-Body-SHA256": call,
         }
         p, url = self.pairing, self.pairing.address.rstrip("/") + path
         try:
             r = self.transport.request("POST", url, headers, payload, pins=p.pins())
         except CertificateRefused as e:
             raise ServerError("certificate-changed", str(e)) from None
-        call = signing.body_hash(payload)
+        if not _signed(r.headers):
+            raise _unsigned(r)
         signing.verify_answer(self.server_public, r.status, r.body, nonce, r.headers, me, call)
         if r.cert is not None and r.cert == p.cert_next and self.on_cert:
             self.on_cert(r.cert, None)  # the announced key is in use now
@@ -233,6 +251,32 @@ class Server:
                 int(retry) if retry.isdigit() else 0,
             )
         return out
+
+
+def _signed(headers) -> bool:
+    return any(k.lower() == "mk-conn-signature" for k in headers)
+
+
+def _unsigned(r: Answer) -> ServerError:
+    """An answer without a signature: one of MoolaKata's refusals before it reads a call, by
+    its status and code; anything else, whoever sent it, is `answer-unsigned`."""
+    try:
+        out = r.json()
+    except ValueError:
+        out = {}
+    code = out.get("code") if isinstance(out, dict) else None
+    if r.status in UNSIGNED and code == UNSIGNED[r.status]:
+        retry = r.headers.get("Retry-After") or r.headers.get("retry-after") or "0"
+        return ServerError(
+            code,
+            str(out.get("detail") or code),
+            r.status,
+            int(retry) if retry.isdigit() else 0,
+            signed=False,
+        )
+    return ServerError(
+        "answer-unsigned", f"MoolaKata's answer ({r.status}) wasn't signed.", r.status, 0, False
+    )
 
 
 def hello(transport: Transport, address: str, pins=None) -> dict:
