@@ -240,6 +240,7 @@ class Reader:
                 log.exception("reading a receipt failed")
 
     def read_one(self, rid: str, worker: Worker) -> None:
+        from .. import parsing
         from . import whole
 
         srv = self.server
@@ -258,11 +259,15 @@ class Reader:
             r.readStatus = "reading"
             media = r.mediaType
             owner = r.ownerId
+            drawn = r.thumbnail is not None
             file = SimpleNamespace(fileId=r.fileId, sha256=r.sha256)
         srv.events.publish("receipt", {"id": rid}, users=[owner])
+        thumb = None
         try:
             data = whole(srv, file)
             outcome = worker.read(data, media)
+            if not drawn:  # one the upload couldn't draw is tried again (CR3-48)
+                thumb = parsing.thumbnail(data, media)
         except Exception as e:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")
         self.last_run = clock.now()
@@ -270,6 +275,8 @@ class Reader:
             r = s.get(Receipt, rid)
             if r is None:
                 return
+            if thumb is not None and r.thumbnail is None:
+                r.thumbnail = thumb
             if outcome[0] == "ok":
                 _, lines, method, engine = outcome
                 save_reading(s, r, lines, method, engine)

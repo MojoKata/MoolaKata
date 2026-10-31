@@ -235,3 +235,35 @@ def test_a_reader_sees_only_the_links_they_read_and_how_many_more(server, alice)
     assert saved(attach(bob, rid, his["id"]))
     assert alice.get(f"/ui/api/receipts/{rid}").json()["alsoKeptWith"] == 1
     assert alice.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"] == []
+
+
+def test_a_slow_thumbnail_holds_no_one_elses_write(server, alice, monkeypatch):
+    """CR3-48 (S9.5): an upload's thumbnail is drawn before its transaction, so another
+    user's save goes through while the reader's worker is still drawing it."""
+    import threading
+
+    drawing, go = threading.Event(), threading.Event()
+
+    class Slow:
+        @staticmethod
+        def thumbnail(data, media):
+            drawing.set()
+            assert go.wait(30)
+            return None
+
+    monkeypatch.setattr(receipts, "_parsing", lambda: Slow)
+    make_user(server, "bob")
+    bob = sign_in(server, "bob")
+    acct = new_account(bob, name="Bob's")
+    answers = []
+    t = threading.Thread(target=lambda: answers.append(upload(alice, png((9, 9, 9)))))
+    t.start()
+    try:
+        assert drawing.wait(30), "the upload reached its thumbnail"
+        made = add(bob, acct["id"], "-5.00", "2026-10-02", payee="Meanwhile")
+        assert made["payee"] == "Meanwhile"
+    finally:
+        go.set()
+        t.join(30)
+    assert answers and answers[0].status_code == 201, answers
+    assert answers[0].json()["hasThumbnail"] is False, "it keeps its icon"

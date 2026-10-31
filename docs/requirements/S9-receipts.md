@@ -32,7 +32,10 @@
    server checks the type by the file's content, never by its name, and refuses anything else.
 5. **Thumbnails** are made on upload, in the reader's worker (S9.8.4: Pillow for images, with
    their EXIF orientation applied, pypdfium2 for a PDF's first page) and kept in the database,
-   which is encrypted (S15.1.1), as small WebP images.
+   which is encrypted (S15.1.1), as small WebP images. The thumbnail is drawn and the file
+   written before the upload's row is recorded, so no one else's change waits on them; one
+   that can't be drawn leaves the receipt with its file type's icon, and **Read again** tries
+   it again.
 6. **Sharing** follows what the receipt is attached to: whoever can read a transaction can see
    its receipts, a gift's through the gift plans that show the gift, a donation's by its
    owner and those who see the giving plan it counts in, and a tax document's file by the tax

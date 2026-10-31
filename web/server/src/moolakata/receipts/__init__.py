@@ -21,6 +21,7 @@ import io
 import logging
 import secrets
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -142,7 +143,21 @@ class Stored:
     existing: bool
 
 
-def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
+@dataclass
+class Prepared:
+    """A file made ready to be a receipt, outside any transaction (S9.5): checked, hashed,
+    written encrypted and its thumbnail drawn, or found to be one its owner has already."""
+
+    name: str
+    media: str
+    size: int
+    digest: str
+    fileId: str | None = None
+    thumbnail: bytes | None = None
+    existing: str | None = None  # the owner's receipt of the same file
+
+
+def _media(name: str, data: bytes) -> str:
     media = sniff(data[:16])
     if media is None:
         raise refuse(
@@ -151,10 +166,64 @@ def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
             f"{name}: only PDF, JPEG, PNG, WebP and HEIC files can be receipts.",
             415,
         )
+    return media
+
+
+@contextmanager
+def prepared(server, owner_id: str, name: str, data: bytes) -> Iterator[Prepared]:
+    """Everything slow about keeping a file, before the transaction that records it (CR3-48):
+    the database's write lock is never held while the reader's worker draws a thumbnail or the
+    file is written. The file is kept from the orphan sweep until the block ends; `record`
+    holds it on until its row is committed, and a row that never commits leaves the file to
+    the sweep (S14.6)."""
+    media = _media(name, data)
     digest = hashlib.sha256(data).hexdigest()
+    store = server.files.of(server.config.receipts_dir)
+    with store.writing() as hold:
+        # Whether the file is kept already, the owner's or anyone's: the server's to know, to
+        # keep one copy.
+        with server.db.read(unscoped="receipts: whether a file is kept already") as s:
+            mine = s.scalars(
+                select(Receipt.id).where(
+                    Receipt.sha256 == digest,
+                    Receipt.ownerId == owner_id,
+                    Receipt.deleted == false(),
+                    Receipt.filePrunedAt.is_(None),
+                )
+            ).first()
+            any_file = s.scalars(select(Receipt.fileId).where(Receipt.sha256 == digest)).first()
+        if mine is not None:
+            yield Prepared(name, media, len(data), digest, existing=mine)
+            return
+        path = None
+        if any_file is not None:
+            file_id = any_file
+            path = file_path(server.config.receipts_dir, file_id)
+            # Reused: held from a prune of the receipt it was another's (S14.10.5), held
+            # before it is looked for, until this row is committed.
+            hold(path.name)
+            checkpoint("receipt.reused")
+        if path is None or not path.exists():
+            file_id = secrets.token_hex(16)
+            path = file_path(server.config.receipts_dir, file_id)
+            hold(path.name)
+            files.write(
+                path,
+                (data[i : i + files.CHUNK] for i in range(0, len(data), files.CHUNK)),
+                server.keys.receipts.public_key(),
+                file_id,
+            )
+        checkpoint("receipt.written")
+        # Drawn in the reader's worker, never here (S9.5, S9.8.4.2); None when it can't be.
+        thumb = _parsing().thumbnail(data, media)
+        yield Prepared(name, media, len(data), digest, file_id, thumb)
+
+
+def record(s: Session, server, owner_id: str, p: Prepared) -> Stored:
+    """The receipt's row, in the caller's transaction: quick, its file already written."""
     mine = s.scalars(
         select(Receipt).where(
-            Receipt.sha256 == digest,
+            Receipt.sha256 == p.digest,
             Receipt.ownerId == owner_id,
             Receipt.deleted == false(),
             Receipt.filePrunedAt.is_(None),
@@ -162,43 +231,18 @@ def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
     ).first()
     if mine is not None:
         return Stored(mine, True)
-    # Whether the file is kept already, for anyone: the server's to know, to keep one copy.
-    any_file = s.scalars(
-        scoping.unscoped(
-            select(Receipt.fileId).where(Receipt.sha256 == digest), "whether a file is kept"
-        )
-    ).first()
-    path = None
     store = server.files.of(server.config.receipts_dir)
-    if any_file is not None:
-        file_id = any_file
-        path = file_path(server.config.receipts_dir, file_id)
-        # Reused: held from a prune of the receipt it was another's (S14.10.5), held before it
-        # is looked for, until this row is committed.
-        store.hold_until_done(s, path.name)
-        checkpoint("receipt.reused")
-    if path is None or not path.exists():
-        file_id = secrets.token_hex(16)
-        path = file_path(server.config.receipts_dir, file_id)
-        # Kept from the orphan sweep until this row is committed, or the upload fails (S9.7).
-        store.hold_until_done(s, path.name)
-        files.write(
-            path,
-            (data[i : i + files.CHUNK] for i in range(0, len(data), files.CHUNK)),
-            server.keys.receipts.public_key(),
-            file_id,
-        )
-    checkpoint("receipt.written")
+    # Kept from the orphan sweep until this row is committed (S9.7).
+    store.hold_until_done(s, file_path(server.config.receipts_dir, p.fileId).name)
     r = Receipt(
         id=ids.new_id("Rcpt"),
         ownerId=owner_id,
-        fileName=Path(name).name[:200] or "receipt",
-        mediaType=media,
-        size=len(data),
-        sha256=digest,
-        fileId=file_id,
-        # Drawn in the reader's worker, never here (S9.5, S9.8.4.2).
-        thumbnail=_parsing().thumbnail(data, media),
+        fileName=Path(p.name).name[:200] or "receipt",
+        mediaType=p.media,
+        size=p.size,
+        sha256=p.digest,
+        fileId=p.fileId,
+        thumbnail=p.thumbnail,
         readStatus="waiting" if settings.get(s, "readReceipts") else "off",
     )
     s.add(r)

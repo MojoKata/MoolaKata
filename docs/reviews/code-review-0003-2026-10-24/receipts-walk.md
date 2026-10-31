@@ -61,3 +61,13 @@ a child view joined through it keeps the child on its own index.
 Given by the user Oct 31, 5:55 PM, for all three as written above.
 
 ## Applied
+1. **CR3-47** (237b37e): as decided. The leak itself was closed by the access views (their
+   step 3a); `alsoKeptWith` and the masked reason are this commit's. The owner's inbox leaves
+   out a receipt kept only with what they can't read.
+2. **CR3-48**: `receipts.prepared` (a context: the file written and the thumbnail drawn,
+   held from the sweep for the block) and `receipts.record` (the row, in the caller's
+   transaction); the upload, an import's statement (four routes) and the connector use them,
+   and the dev seed through a helper. *Read again* draws a missing thumbnail.
+   `test_a_slow_thumbnail_holds_no_one_elses_write` holds the thumbnail on an event while
+   another user saves; with the thumbnail inside the transaction it fails with *database is
+   locked*.

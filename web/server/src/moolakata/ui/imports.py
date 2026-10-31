@@ -3,6 +3,7 @@ mapping saved per institution, and statements (a PDF or a photo of one) read on 
 checked before anything is saved. An import is long work: it answers 202 with a job, and the
 live stream announces its end (S13.8.7)."""
 
+import contextlib
 import datetime as dt
 import hashlib
 import json
@@ -740,7 +741,10 @@ def save_brokerage(
     if bad is not None:
         raise refuse("rows", "row-not-cash", "Trades aren't added here: enter them as trades.")
     cash = next((p for p in body.positions if p.cash and p.marketValue is not None), None)
-    with srv.db.tx(user=c.id) as s:
+    with (
+        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
+        srv.db.tx(user=c.id) as s,
+    ):
         account, _ = access.account(s, c.id, held.accountId, "write")
         # A line already in the account (its file brought it) is matched, never added again.
         present = _marked(body.rows, _present(s, account.id))
@@ -814,7 +818,7 @@ def save_brokerage(
                 cash=p.cash,
             )
         r = _keep_file(
-            s, srv, c, held, [account.id], b.institution, body.periodStart, body.periodEnd
+            s, srv, c, ready, held, [account.id], b.institution, body.periodStart, body.periodEnd
         )
         key = (account.institution or b.institution or "").strip()
         if key and (body.remember or body.forget):
@@ -948,11 +952,13 @@ def _apply(s, c: Caller, held: Held, account: Account, st, body: StatementIn, ke
     return applied
 
 
-def _keep_file(s, srv, c: Caller, held: Held, account_ids: list[str], institution, start, end):
+def _keep_file(
+    s, srv, c: Caller, ready, held: Held, account_ids: list[str], institution, start, end
+):
     """The file kept once as a receipt, named by its period, on each account it filled."""
     from ..receipts import reading
 
-    stored = receipts.store(s, srv, c.id, held.fileName or "statement.pdf", held.data)
+    stored = receipts.record(s, srv, c.id, ready)
     r = stored.receipt
     if held.lines:
         r.readStatus, r.readMethod, r.readAt = "read", held.method, clock.now()
@@ -993,11 +999,14 @@ def save_statement(
         present = _marked(body.rows, _present(s, held.accountId))
     kept = _checked(body, present)
     st = held.statement
-    with srv.db.tx(user=c.id) as s:
+    with (
+        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
+        srv.db.tx(user=c.id) as s,
+    ):
         account, _ = access.account(s, c.id, held.accountId, "write")
         applied = _apply(s, c, held, account, st, body, kept)
         r = _keep_file(
-            s, srv, c, held, [account.id], st.institution, body.periodStart, body.periodEnd
+            s, srv, c, ready, held, [account.id], st.institution, body.periodStart, body.periodEnd
         )
     with _held_lock:
         _held.pop(upload_id, None)
@@ -1037,7 +1046,14 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
         return _done(srv, c, {"part": body.part, "remaining": left}, [])
     saved = [(i, d) for i, d in sorted(held.decisions.items()) if not d.leftOut]
     results, accounts = [], []
-    with srv.db.tx(user=c.id) as s:
+    with (
+        (
+            receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data)
+            if saved
+            else contextlib.nullcontext()
+        ) as ready,
+        srv.db.tx(user=c.id) as s,
+    ):
         for i, d in saved:
             account, _ = access.account(s, c.id, d.accountId, "write")
             kept = _checked(d, _marked(d.rows, _present(s, account.id)))
@@ -1052,6 +1068,7 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
                 s,
                 srv,
                 c,
+                ready,
                 held,
                 list(dict.fromkeys(accounts)),
                 held.parts[saved[0][0]].institution,
@@ -1140,7 +1157,10 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
     if body.periodEnd < body.periodStart:
         raise refuse("periodEnd", "period-backwards", "The period ends before it starts.")
     digest = hashlib.sha256(held.data).hexdigest()
-    with srv.db.tx(user=c.id) as s:
+    with (
+        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
+        srv.db.tx(user=c.id) as s,
+    ):
         account, _ = access.account(s, c.id, held.accountId, "write")
         twice = s.scalars(
             select(Import).where(
@@ -1156,6 +1176,7 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
             s,
             srv,
             c,
+            ready,
             held,
             [account.id],
             account.institution or inst,

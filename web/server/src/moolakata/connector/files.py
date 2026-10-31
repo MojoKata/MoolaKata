@@ -138,7 +138,10 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
             lines = None
         if lines:
             start, end, institution = statements.period_and_institution(lines)
-    with srv.db.tx(unscoped="connector.files: keep") as s:
+    with (
+        receipts.prepared(srv, c.ownerId, name, data) as ready,
+        srv.db.tx(unscoped="connector.files: keep") as s,
+    ):
         from sqlalchemy import false, select
 
         twice = s.scalars(
@@ -148,7 +151,7 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
         ).first()
         if twice is not None:
             return {"imported": None, "kept": True, "repeated": True}
-        stored = receipts.store(s, srv, c.ownerId, name, data)
+        stored = receipts.record(s, srv, c.ownerId, ready)
         r = stored.receipt
         r.date = end
         r.payee = statements.name(institution or a.institution, start, end)

@@ -342,8 +342,11 @@ async def upload(request: Request, file: UploadFile = File(...), c: Caller = Dep
         raise Problem(413, "too-large", f"Receipts are up to {limit // (1024 * 1024)} MB.")
     if not data:
         raise refuse("file", "file-empty", "The file is empty.")
-    with srv.db.tx(user=c.id) as s:
-        stored = receipts.store(s, srv, c.id, file.filename or "receipt", data)
+    with (
+        receipts.prepared(srv, c.id, file.filename or "receipt", data) as ready,
+        srv.db.tx(user=c.id) as s,
+    ):
+        stored = receipts.record(s, srv, c.id, ready)
         if not stored.existing:
             activity.record(s, "receipt.uploaded", actor=c.id, owner=c.id)
         out = row(s, stored.receipt, "owner", c.id)
