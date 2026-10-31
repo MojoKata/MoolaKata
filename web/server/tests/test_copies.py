@@ -145,11 +145,11 @@ def test_files_no_row_names_are_swept_once_old_enough(server, setup):
         (d / name).write_bytes(b"x")
         if name != "new.mkr":
             os.utime(d / name, (old, old))
-    DELIVERED[link_id] = {"Rcpt_1": "waiting.mkr"}
+    DELIVERED.put(link_id, "Rcpt_1", "waiting.mkr")
     try:
         assert copies.orphans(server, link_id) == 2
     finally:
-        DELIVERED.pop(link_id, None)
+        DELIVERED.take(link_id)
     assert sorted(p.name for p in d.iterdir()) == ["new.mkr", "waiting.mkr"]
 
 

@@ -665,7 +665,7 @@ def test_only_link_ended_ends_a_link_and_not_linked_marks_it_broken(admins):
     assert manage.pins  # the module is there for what follows
 
 
-def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins, monkeypatch):
+def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins):
     """S11.9.6, link-protocol.md §4.4: in transit, a change shows its registry only; its items'
     names and figures, and its receipts, open only with the receiving copy's key."""
     from test_accounts import add
@@ -682,26 +682,10 @@ def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins, monkeypatch
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
     seen: list[bytes] = []
-    original = wire.client
-
-    def watching(guard=None, **kw):
-        c = original(guard, **kw)
-        post = c.post
-
-        def spy(url, **k):
-            r = post(url, **k)
-            seen.append(r.content)
-            seen.append(k.get("content") or b"")
-            return r
-
-        c.post = spy
-        return c
-
-    from moolakata.links import client as link_client
-
-    monkeypatch.setattr(link_client.net, "Client", watching)
+    wire.watch = lambda request, body: seen.extend([request.content, body])
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    wire_bytes = b"".join(x if isinstance(x, bytes) else b"" for x in seen)
+    wire.watch = None
+    wire_bytes = b"".join(seen)
     assert b"Secret Brokerage" not in wire_bytes and b"A very private payee" not in wire_bytes
     assert b'"sealed"' in wire_bytes, "the change crossed, sealed"
     carol = sign_in(b, "carol")
@@ -741,16 +725,17 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
         assert link.needsFull and "asked for" in link.lastError
 
 
-def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins, monkeypatch):
+def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins):
     """link-protocol.md §4.5: an announced key is accepted beside the pinned one and becomes
     the pinned one once in use; one presented unannounced waits for an admin to accept it,
     after the password again."""
     from moolakata.links import client as link_client
     from moolakata.links import manage
 
-    a, _b, ca, cb, _ = admins
+    a, _b, ca, cb, wire = admins
     a_id, _ = linked(ca, cb)
     old, new, rogue = "aa" * 32, "bb" * 32, "cc" * 32
+    wire.certs["b.test"] = old
     with a.db.tx() as s:
         s.get(Link, a_id).peerCert = old
     with a.db.read() as s:
@@ -759,27 +744,12 @@ def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins, monkey
         manage.answer_certificate(a, s.get(Link, a_id), {"fingerprint": new})
     with a.db.read() as s:
         assert manage.pins(s.get(Link, a_id)) == {old, new}
-    real = link_client.call
-
-    def over(key):
-        def fake(*args, seen=None, **kw):
-            out = real(*args, **kw)
-            if seen is not None:
-                seen.append(key)
-            return out
-
-        return fake
-
-    monkeypatch.setattr(link_client, "call", over(new))
+    wire.certs["b.test"] = new  # B moves to the key it announced
     manage.call(a, a_id, "/link/v1/ping")
     with a.db.read() as s:
         row = s.get(Link, a_id)
         assert (row.peerCert, row.peerCertNext) == (new, None), "in use: now the pinned one"
-
-    def refused(*args, **kw):
-        raise link_client.LinkError("certificate-changed", "changed", offered=rogue)
-
-    monkeypatch.setattr(link_client, "call", refused)
+    wire.certs["b.test"] = rogue  # one it never announced
     with pytest.raises(link_client.LinkError):
         manage.call(a, a_id, "/link/v1/ping")
     shown = next(x for x in links_of(ca)["links"] if x["id"] == a_id)
@@ -847,25 +817,6 @@ def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_l
     assert pulled and all((x.subjectKind, x.subjectId) == ("link", b_id) for x in pulled)
 
 
-def test_a_refusal_on_its_headers_reads_no_body(pair):
-    # S13.7.5.4: a call naming a key with no link here, with a large body, is refused before
-    # the body is read, unsigned since it can't be signed to a body it didn't read.
-    _, b, (_, url_b), _ = pair
-    srv_b = b
-    from fastapi.testclient import TestClient
-
-    from moolakata.app import create_app
-
-    with TestClient(create_app(srv_b), base_url=url_b) as c:
-        r = c.post(
-            "/link/v1/deliver",
-            content=b"x" * (2 * 1024 * 1024),
-            headers={"MK-Link-Key": keys.b64(b"k" * 32), "Content-Type": "application/json"},
-        )
-    assert r.status_code == 403 and r.json()["code"] == "not-linked"
-    assert "mk-link-signature" not in {k.lower() for k in r.headers}
-
-
 def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admins):
     # S11.9.5.3: a change must follow the last one applied, so an older one put back while
     # the copy is locked can't bring back what was since removed.
@@ -911,19 +862,15 @@ def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatc
     # link-protocol.md §7: refused before the answering server could sign to the call.
     import httpx
 
+    from moolakata import net
+
     a, b, (_, url_b), _ = pair
     reach(a, "b.test")
-    for status, code in ((429, "limit"), (503, "locked")):
-
-        class Answer:
-            def __init__(self, status: int) -> None:
-                self.status = status
-
-            def post(self, *args, **kw):
-                return httpx.Response(self.status, json={"code": "rate-limited"})
-
-        answer = Answer(status)
-        monkeypatch.setattr(client, "_client", lambda *a, answer=answer, **k: answer)
+    for status, code in ((429, "limit"), (503, "locked"), (413, "too-large")):
+        answer = httpx.Response(status, json={"code": "rate-limited"})
+        monkeypatch.setattr(
+            net, "network", lambda g, p, answer=answer: httpx.MockTransport(lambda r: answer)
+        )
         with pytest.raises(client.LinkError) as e:
             client.call(a, url_b, public(b), "/link/v1/ping")
         assert e.value.code == code
@@ -1066,3 +1013,30 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     assert check(settings.RECEIPT_MAX_MB) == settings.RECEIPT_MAX_MB
     with pytest.raises(settings.Invalid):
         check(settings.RECEIPT_MAX_MB + 1)
+
+
+def test_a_locked_copys_inbox_names_no_one(admins):
+    """CR3-55, S11.9.1: what waits in a locked copy's inbox is sealed, the change's registry
+    beside it too: no owner's name, item id or user id in the clear; the unlock still checks
+    and applies it."""
+    from moolakata.store.entities.users import User
+
+    a, b, ca, cb, _ = admins
+    make_user(b, "carol")
+    alice, words, b_id, _image = _shared_receipt(a, ca, cb)
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    inbox = lcopy.folder(b.config.data_dir, b_id) / "inbox"
+    files = list(inbox.iterdir())
+    assert files and {f.suffix for f in files} == {".mks", ".mke"}
+    acct = alice.get("/ui/api/accounts").json()["items"][0]["id"]
+    with b.db.read() as s:
+        carol_id = s.query(User).filter(User.username == "carol").one().id
+    for f in files:
+        body = f.read_bytes()
+        assert body.startswith(b"MKR1"), f.name
+        for plain in (b"Alice", acct.encode(), carol_id.encode()):
+            assert plain not in body, (f.name, plain)
+    carol = sign_in(b, "carol")
+    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    assert carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    assert not any(inbox.iterdir()), "applied"

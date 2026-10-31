@@ -10,7 +10,7 @@ import json
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from .. import clock, exactjson, ids
+from .. import clock, ids
 from ..keys import phrase
 from ..links import changes, keys
 from ..links.copy import public_of
@@ -116,17 +116,12 @@ def seed_links(server, s, people: dict) -> None:
 
 
 def _keep(server, link_id: str, change: dict) -> None:
-    """The change in the copy's inbox as a pull keeps it: its sealed part as it came, beside
-    its registry (link-protocol.md §4.4)."""
-    from ..links import sealed
+    """The change in the copy's inbox as a pull keeps it (link-protocol.md §4.4)."""
     from ..links.copy import folder
 
     d = folder(server.config.data_dir, link_id) / "inbox"
     d.mkdir(parents=True, exist_ok=True)
-    registry = {k: v for k, v in change.items() if k != "sealed"}
-    entry = exactjson.dumps({"change": registry, "local": {}}, separators=(",", ":"))
-    sealed.write(d / "0000000001.json", [entry.encode()])
-    sealed.write(d / "0000000001.mks", [keys.unb64(change["sealed"])])
+    changes.keep(d, link_id, "0000000001", change, {}, keys.unb64(public_of(DEV_COPY_KEY)))
 
 
 def _months(n: int, end: float, start: float) -> list[dict]:

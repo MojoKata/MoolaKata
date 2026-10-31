@@ -129,8 +129,10 @@
        password again if given over 10 minutes ago (S13.7.2), removes the files, and records
        the file pruning in Activity with its counts. No backup is made first: a backup holds no
        files (S14.6). A file several receipts share is removed once no live receipt needs it (a
-       deleted one doesn't count), and the same file uploaded again after it is a new receipt
-       with its file. Each record keeps its row, amounts and links, and shows *File pruned Jan
+       deleted one doesn't count), nor one an upload of the same bytes is reusing as the prune
+       runs, and the same file uploaded again after it is a new receipt with its file. Removing
+       the files no record names (S16.17) goes by the linked copies' rule (S11.9.6.6): never a
+       file an upload is still writing, and only one half an hour old. Each record keeps its row, amounts and links, and shows *File pruned Jan
        3, 2034* once its file is gone. A pruned file survives only in the host's own backups of
        the data directory, for as long as the host keeps them.
     6. **Linked copies follow their source.** File pruning never touches a linked copy

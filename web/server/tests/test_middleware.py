@@ -87,8 +87,11 @@ def test_an_outbound_client_always_verifies_tls():
 
     with pytest.raises(TypeError):
         net.Client(net.Guard(), verify=False)
-    assert net.Client(net.Guard())._transport._pool._ssl_context.verify_mode == ssl.CERT_REQUIRED
-    pinned = net.Client(net.Guard(), pins=["ab" * 32])._transport._pool._ssl_context
+    assert (
+        net.Client(net.Guard())._transport._inner._pool._ssl_context.verify_mode
+        == ssl.CERT_REQUIRED
+    )
+    pinned = net.Client(net.Guard(), pins=["ab" * 32])._transport._inner._pool._ssl_context
     assert pinned.verify_mode == ssl.CERT_NONE, "the key decides, checked after the handshake"
 
 

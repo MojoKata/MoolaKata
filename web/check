@@ -52,7 +52,10 @@ step "OpenAPI and typedef drift" py python -m moolakata.contract check
 if [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check
 fi
-step "pytest (server, schema, browser)" py coverage run -m pytest
+# The server's tests across a worker per core (S17.5.2), each its own process measured as the
+# rest are; the browser modules' share one seeded household, so they run in one (L16).
+step "pytest (server, schema)" py coverage run -m pytest -n auto -m "not browser and not audit"
+step "pytest (browser)" py coverage run -m pytest -m browser
 step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
 step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check
 step "hand-written mockup" py python "$ROOT/docs/mockups/check.py" "$WEB/.dev/check-shots"

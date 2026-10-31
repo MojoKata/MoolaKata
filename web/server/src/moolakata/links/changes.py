@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 from sqlalchemy import delete, func, select
 
 from .. import clock, exactjson
+from ..checkpoints import checkpoint
 from ..store.entities.links import Link
 from . import copydb, sealed
 from .copy import folder, private_key
@@ -98,9 +99,24 @@ def inbox(data_dir, link_id: str):
     return folder(data_dir, link_id) / "inbox"
 
 
+ENTRY = ".mke"  # beside each waiting change: its registry and local names, sealed
+
+
 def waiting(data_dir, link_id: str) -> list:
     d = inbox(data_dir, link_id)
     return sorted(d.glob("*.mks")) if d.exists() else []
+
+
+def keep(d, link_id: str, name: str, change: dict, local: dict | None, public: bytes) -> None:
+    """One change in the inbox `d`, as it came: its sealed part, and beside it its registry
+    and what this side added, sealed to the copy's key as the change is, so who shares what,
+    with whom and since when is never in the clear on the disk (S11.9.1, S11.9.10)."""
+    registry = {k: v for k, v in change.items() if k != "sealed"}
+    entry = exactjson.dumps({"change": registry, "local": local or {}}, separators=(",", ":"))
+    sealed.write(
+        d / f"{name}{ENTRY}", sealed.seal(public, sealed.ENTRY, link_id, name, [entry.encode()])
+    )
+    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])])
 
 
 def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
@@ -110,23 +126,20 @@ def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
     next pull asks for everything."""
     with srv.db.read() as s:
         link = s.get(Link, link_id)
-        has_key = bool(link and link.copyPublicKey)
-    if not has_key or not change.get("sealed"):
+        public = unb64(link.copyPublicKey) if link and link.copyPublicKey else None
+    if public is None or not change.get("sealed"):
         return True  # no copy yet: nothing is kept until its access key is made
     d = inbox(srv.config.data_dir, link_id)
     d.mkdir(parents=True, exist_ok=True)
     have = waiting(srv.config.data_dir, link_id)
     seq = int(have[-1].stem) + 1 if have else 1
     name = f"{seq:010d}"
-    registry = {k: v for k, v in change.items() if k != "sealed"}
-    entry = exactjson.dumps({"change": registry, "local": local or {}}, separators=(",", ":"))
-    sealed.write(d / f"{name}.json", [entry.encode()])
-    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])])
+    keep(d, link_id, name, change, local, public)
     have = waiting(srv.config.data_dir, link_id)
     if len(have) > MAX_CHANGES or sum(p.stat().st_size for p in have) > MAX_BYTES:
         for p in have:
             p.unlink(missing_ok=True)
-            p.with_suffix(".json").unlink(missing_ok=True)
+            p.with_suffix(ENTRY).unlink(missing_ok=True)
         with srv.db.tx() as s:
             row = s.get(Link, link_id)
             row.needsFull, row.inboxAsOf = True, None
@@ -167,7 +180,10 @@ def apply(srv, link_id: str) -> int:
     changes = []
     try:
         for p in files:
-            entry = exactjson.loads(p.with_suffix(".json").read_bytes())
+            with open(p.with_suffix(ENTRY), "rb") as f:
+                entry = exactjson.loads(
+                    b"".join(sealed.open_sealed(priv, sealed.ENTRY, link_id, p.stem, f))
+                )
             raw = p.read_bytes()
             change, local = entry["change"], entry.get("local") or {}
             verify(peer, {**change, "sealed": b64(raw)})
@@ -183,6 +199,7 @@ def apply(srv, link_id: str) -> int:
             opened = open_part(priv, change, way, raw)
             _shape(opened)
             changes.append((opened, local))
+            checkpoint("apply.opened")
     except (
         sealed.SealError,
         ChangeError,
@@ -198,7 +215,7 @@ def apply(srv, link_id: str) -> int:
         shutil.rmtree(aside, ignore_errors=True)
         aside.mkdir(parents=True, exist_ok=True)
         for f in files:
-            for part in (f, f.with_suffix(".json")):
+            for part in (f, f.with_suffix(ENTRY)):
                 with contextlib.suppress(OSError):
                     part.rename(aside / part.name)
         with srv.db.tx() as s:
@@ -207,9 +224,14 @@ def apply(srv, link_id: str) -> int:
             row.needsFull, row.inboxAsOf = True, None
         raise ChangeError(str(e)) from None
     receipts_dir = folder(srv.config.data_dir, link_id) / "receipts"
+    lost: list[str] = []
     with o.engine.begin() as conn:
         for change, local in changes:
             names = local.get("fileNames") or {}
+            # A receipt whose file is gone (whatever took it) is one not yet arrived, asked
+            # for again (S11.4), never a row naming a file that isn't there.
+            lost += [fid for fid, n in names.items() if not (receipts_dir / n).is_file()]
+            names = {fid: n for fid, n in names.items() if (receipts_dir / n).is_file()}
             types = {fid: _type_of(priv, way, fid, receipts_dir / n) for fid, n in names.items()}
             for name in _apply_one(conn, change, names, types):
                 (receipts_dir / name).unlink(missing_ok=True)
@@ -219,9 +241,15 @@ def apply(srv, link_id: str) -> int:
             )
     for p in files:
         p.unlink(missing_ok=True)
-        p.with_suffix(".json").unlink(missing_ok=True)
+        p.with_suffix(ENTRY).unlink(missing_ok=True)
     with srv.db.tx() as s:
         s.get(Link, link_id).inboxAsOf = None
+        from ..store.entities.links import LinkFile
+        from .receive import _missing
+
+        for fid in lost:
+            if _missing(s, link_id, fid) is None:
+                s.add(LinkFile(linkId=link_id, fileId=fid, missedAt=clock.now()))
     from .receive import place_arrived
 
     place_arrived(srv, link_id)

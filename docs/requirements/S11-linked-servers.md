@@ -16,9 +16,12 @@ preparer.
       compares it with B's admin, and approves or rejects it. B's link waits for the approval,
       which reaches it at once or at its next exchange.
    3. Each server then holds the other's **Ed25519 public key**. Every call between them is
-      signed with the sender's key over the method, path, body hash, a timestamp and a nonce.
-      The receiver refuses a bad signature, a timestamp more than 60 seconds off, and a nonce
-      it has seen; a refusal for the clock is named as such on the link, since the fix is NTP
+      signed with the sender's key over the method, path, body hash, a timestamp and a nonce,
+      and names its body's hash in a header, so all of it is checked before a byte of the body
+      is read. The receiver refuses a bad signature, a timestamp more than 60 seconds off when
+      the call arrives, and a nonce it has seen; a body that then takes minutes to arrive (a
+      large receipt over a slow line) is no clock problem, and an answer's time is held to
+      when its headers arrived the same way. A refusal for the clock is named as such on the link, since the fix is NTP
       on one host, not the network (S12.11.1.1). The code's one-time secret crosses once, in
       the join; what makes the link is the key each side records and the fingerprint the admins
       compare, and no secret is shared after that. The connection itself is TLS that each side
@@ -65,7 +68,11 @@ preparer.
       well arrives as its own item. The receiving server never recomputes; it shows what
       arrived, with its age.
 4. **How data moves**: the receiving server **pulls a snapshot** of each linked share on a
-   schedule (hourly by default, and on demand). The snapshot holds each shared item as S11.3.1
+   schedule (hourly by default, and on demand), **one pull of a link at a time**: a second
+   pull of a link waits for the one under way, and a server answering the peer's pull while
+   its own pull of that link runs refuses it as busy, never waiting on the peer, so two
+   servers pulling each other at once never hold each other up; the refused side asks again
+   at its next exchange, unalerted. The snapshot holds each shared item as S11.3.1
    says (for an account: balances, holdings, positions, transactions and series), and receipts
    and documents when the share includes them. It is versioned, and only changes travel. Each
    change is **sealed by the source to the receiving copy's public key** (S11.9.2.2), which the
@@ -103,8 +110,14 @@ preparer.
    call and deletes its copies. Only the peer's signed `link-ended` ends a link there: a
    `not-linked` answer (a peer restored from an older backup, say) marks the link broken and
    alerts admins, who end it or link again. Ending a link deletes nothing on the source.
+   **Linking again** is a new link code and join, from either side: the old link with that
+   server, ended or broken, makes way for the new one (a broken one is ended first, its copy
+   deleted), and the new link pulls everything afresh. A link that is neither is the one the
+   two servers have, and a second join with it is refused. The states and what moves a link
+   between them are `docs/link-protocol.md` §4.6.
 7. **Settings › Linked servers** lists each link: the peer's name and address, its
-   fingerprint, state (active, paused until…, unreachable since…, ended), the last pull, and
+   fingerprint, state (invited, requested, pending, active, paused until…, unreachable
+   since…, broken, ended), the last pull, and
    what flows each way, with *Pull now*, *Pause* and *End link*.
    1. **Progress**: while a pull is under way, how far it has come both in time and in
       quantity: *Up to July 2022 (47 MB of 2 GB)*, the date being the newest record applied so
@@ -143,7 +156,10 @@ preparer.
       names or values), the household's name and avatar, the copy's public key, the copy's
       folder name, and the inbox's length and newest `as_of`. File and folder names are
       random, so the folder shows no names, payees or dates, and not even when the link was
-      made.
+      made. A change waiting in the inbox is kept as it came, sealed, beside what is needed to
+      check and apply it (its registry, which the source's signature covers with it, and the
+      random names its receipts were kept under), sealed to the copy's public key too: the
+      inbox shows only random names, sizes and file times.
    2. **The access key.** Each linked copy has a random 128-bit **copy key**, shown once as
       **12 words** from the BIP39 English word list (the last word carries a checksum). The
       words are the copy's **access key**.
@@ -228,7 +244,12 @@ preparer.
          thumbnails are kept in `shared.db`.
       6. **Writing**: each file is written under a temporary name, synced to disk and renamed
          before its row is committed. A sweeper removes files that no row names, left behind
-         after a crash.
+         after a crash, by the one rule every receipts folder has: never while a pull or an
+         unlock's apply is under way (their receipts are named only in what they hold, or in
+         the inbox, until their rows are written), never a file a delivered or a late receipt
+         waits in, and only once a file is half an hour old. A change whose receipt's file is
+         gone by the time it is applied, whatever took it, keeps that receipt as not arrived,
+         asked for again (S11.4).
       7. This is the AES-GCM-HKDF streaming construction (the one Tink uses), built on the
          `cryptography` library. It needs no further dependency.
    7. **Who can open what.** The owner's shares decide what each user sees (S11.3), and the

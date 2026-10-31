@@ -5,7 +5,10 @@
    MoolaKata Connector posts its reports and files (S18.4.3). `/mcp` is the read-only
    endpoint for agents (S10.9). `/healthz` is the health check. `/demo` serves the clickable mockup (S12.9) to
    anyone, without signing in: it holds only sample data, runs in a sandbox with an opaque
-   origin, and can reach neither the app's cookie nor its API.
+   origin, and can reach neither the app's cookie nor its API. One process answers all of
+   them on one event loop, so no request holds the loop with database, file or network work:
+   that runs on a thread, and the loop only reads and writes the requests (a signed call's
+   route, `links/gate.py`, as every other).
 2. **Authentication**: server-side sessions for `/ui/api` (a random token stored hashed, in an
    HttpOnly, Secure, SameSite=Strict cookie, with an `Origin` check on every change; idle and
    absolute lifetimes are Settings). Signed peer requests for `/link` (S11.1), and the paired
@@ -49,7 +52,9 @@
    it could reach on its own, each time a dependency changes (S17.2.1), and any switch that
    turns such a call off is thrown before the library is first used. Each call connects within
    10 seconds and waits at most 20 seconds for each read, and every answer is cut off past 20
-   MB, whether or not it announces its length. SMTP waits 20 seconds.
+   MB, whether or not it announces its length, counted in the bytes it decodes to: only gzip
+   and deflate are asked for, decoded by MoolaKata as they arrive, and an answer in any other
+   content coding is refused. SMTP waits 20 seconds.
 6. **Stopping**: on SIGTERM the server ends every event stream, lets requests in flight finish
    for up to 5 seconds, and stops; a second signal stops at once. **A refused start**: when it
    cannot start for a reason only an operator can fix (a config file it can't use or with a key
@@ -116,9 +121,12 @@
       2. linked copies' access keys: S11.9.3.3;
       3. the API: 600 requests a minute per session; uploads: 60 files an hour per user;
       4. `/mcp`: 60 calls a minute per token (S10.9.4); `/link`: 60 calls a minute per link,
-         and calls not yet signed by a known key 60 a minute per address, checked before a body
-         is read; `/connector`: 60 calls a minute, its files counted against the upload limit
-         above.
+         counted only once a call's signature checks, so a call naming a linked server's key
+         costs that link nothing unless that server signed it; a call that fails its checks, a
+         stranger's join and the hello count 60 a minute against their address instead, and an
+         address past them is refused before its call is checked; `/connector`: the same, 60
+         calls a minute for the paired connector, its files counted against the upload limit
+         above. All of it is checked on a call's headers, before a byte of its body is read.
       5. The counters are held in memory: a restart clears them.
    6. **Request limits**: JSON bodies up to 1 MB (a linked server's up to 20 MB,
       `docs/link-protocol.md` §1.4); uploads up to the sizes in Settings (25 MB by default): a
@@ -126,10 +134,12 @@
       connector posts, a statement, up to S16.8's; a receipt a linked server delivers up to the
       largest receipt Settings allows, sealed (link protocol §1.4); at most 100 MB of uploads in
       flight per user (never less than that largest sealed receipt), and four times that for
-      every caller together; and request headers up to 16 KB. The connector's uploads are
-      counted as they are read, never by the length a call declares: its route reads a body
-      only once the paired connector's signature, over the hash the call names, checks out
-      (`docs/connector-protocol.md` §3.2). Each upload's
+      every caller together; and request headers up to 16 KB. The connector's and a linked
+      server's uploads are counted as they are read, never by the length a call declares: a
+      signed call's body is read only once its signature, over the hash the call names,
+      checks out (`docs/connector-protocol.md` §3.2, `docs/link-protocol.md` §3.2), so the key
+      a call names is never charged for a body its holder didn't sign. A link's `join` and the
+      connector's `pair` take a body of 16 KB and 64 KB at most. Each upload's
       type is checked from its content, never its name (S9.1), and an upload is held in memory,
       never spooled to a temporary file. An import waiting for its mapping or its check (S1.3)
       counts against its user's uploads in flight while it waits: past them, the user's

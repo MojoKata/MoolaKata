@@ -117,3 +117,23 @@ expected results written by reading them; what they show the driver got wrong is
 them.
 
 **Touches:** S18.9, S17.5.7.
+
+## L15: Holding the event loop caught by the tests
+
+**What it is:** the test server runs asyncio's debug mode, which reports any callback that
+holds the event loop past a threshold, and a test fails on such a report, so a route that does
+database, file or network work on the loop (S13.1) is caught the first time it runs, not only
+where a test holds a call on purpose (S17.5.9). The threshold is set from CI's runners, high
+enough never to flake on a slow one.
+
+**Touches:** S13.1, S17.5.
+
+## L16: The browser tests in parallel
+
+**What it is:** the browser modules' tests run across workers as the server's do (S17.5). Each
+worker then seeds a household of its own and drives a Chromium of its own, and the browser
+app's coverage (S17.5.8) is read from the pages of every worker. Before then, a test that
+counts on what an earlier one left in the shared household is found and made to set up what it
+needs.
+
+**Touches:** S17.5, S17.5.2, S17.5.8.

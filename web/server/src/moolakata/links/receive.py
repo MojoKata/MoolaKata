@@ -10,6 +10,7 @@ import json
 from sqlalchemy import delete, select
 
 from .. import activity, clock, ids
+from ..checkpoints import checkpoint
 from ..store.entities.links import Link, LinkedItem, LinkFile
 from ..store.entities.users import User
 from . import changes
@@ -190,6 +191,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
             (d / (name + ".tmp")).unlink(missing_ok=True)
             raise
         names[fid] = name
+        checkpoint("receipt.fetched")
     return names, failed
 
 

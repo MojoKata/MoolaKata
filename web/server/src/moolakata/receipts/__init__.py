@@ -29,6 +29,7 @@ from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, ids, settings
+from ..checkpoints import checkpoint
 from ..errors import Problem, refuse
 from ..keys import files
 from ..store.entities.accounts import Account, Transaction
@@ -162,18 +163,26 @@ def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
         return Stored(mine, True)
     any_row = s.scalars(select(Receipt).where(Receipt.sha256 == digest)).first()
     path = None
+    store = server.files.of(server.config.receipts_dir)
     if any_row is not None:
         file_id = any_row.fileId
         path = file_path(server.config.receipts_dir, file_id)
+        # Reused: held from a prune of the receipt it was another's (S14.10.5), held before it
+        # is looked for, until this row is committed.
+        store.hold_until_done(s, path.name)
+        checkpoint("receipt.reused")
     if path is None or not path.exists():
         file_id = secrets.token_hex(16)
         path = file_path(server.config.receipts_dir, file_id)
+        # Kept from the orphan sweep until this row is committed, or the upload fails (S9.7).
+        store.hold_until_done(s, path.name)
         files.write(
             path,
             (data[i : i + files.CHUNK] for i in range(0, len(data), files.CHUNK)),
             server.keys.receipts.public_key(),
             file_id,
         )
+    checkpoint("receipt.written")
     r = Receipt(
         id=ids.new_id("Rcpt"),
         ownerId=owner_id,

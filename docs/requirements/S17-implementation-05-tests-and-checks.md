@@ -7,6 +7,19 @@
    the dependency register's hash check (S17.2.1), and the requirements' own checks: every id
    cited in the documents or the code names an item, the README's tables match the files,
    no section file passes 500 lines, and the schema's prefixes are in order.
+
+   **How tests are written.** The server's tests run across a worker per core
+   (`pytest -n auto`, pytest-xdist), so each test makes what it needs (its database, its
+   servers, its files under its own temporary folder) and leaves nothing another can see; the
+   browser modules run in one process, sharing the household seeded once (later work, L16).
+   Code is shaped for this: what a route, a task or a call does lives in functions beneath it,
+   tested without a running server or a network, and a fake stands where the network or the
+   clock begins, never in place of the code above it. A test waits on an event or a
+   condition, with a generous timeout, never for a fixed time unless the time is what it tests;
+   a test that waits for time passing moves an injected clock. Code that turns on the shape of
+   its data has its axes named and a case for each combination, and where they multiply past
+   reason the choice of cases is written down. A bug that got past the tests is fixed with the
+   test that covers its kind, not just its case.
    Browser tests use a small in-page runner (`web/ui/tests/run.js`) and a fake API; one
    smoke test drives a running dev server. **Golden files**: a fixture portfolio with known
    8949 rows and TXF output, checked byte for byte. **Receipt reading**: the field parser is
@@ -28,8 +41,11 @@
    3. **Workflows** that carry what one use learned or saved into the next (import, correct,
       import the next statement) run end to end through the API.
    4. **Faults one at a time**: a link's or the connector's exchange is made to fail at one
-      call or one file, through fakes that keep the real transport's limits and timeouts; the
-      rest goes through, and the failure is recorded and alerted.
+      call or one file, through a fake that stands where the sockets are (`net.network`), so
+      the real client's guard, decoding, ceiling and pins run above it; the rest goes
+      through, and the failure is recorded and alerted. The client's ceiling is checked on
+      every content coding × announced length × way of reading × size
+      (`tests/test_net.py`), and over real sockets in `tests/test_core.py`.
    5. **Limits that fit**: every size a setting allows (S16) is checked against every path
       it travels (a request, an answer, a link's file, an upload in flight).
    6. **A hostile worker**: code run under the reader's worker's sandbox (S9.8.4) tries what
@@ -141,6 +157,33 @@
       `web/dev.sh coverage [pytest arguments]` measures the tests named (all by default) and
       the browser modules' unit tests the same way, and reports them, without the floor, with
       a preview of the coverage site.
+   9. **Signed calls**: every route a linked server or the connector calls goes through one
+      gate (`links/gate.py`), and the gate is tested on its axes (`tests/test_gate.py`): each
+      way a call fails its checks (no signature, a forged one naming a real key, an unknown
+      key, a nonce again, a stale time, a body past its size, a body other than the one
+      signed) × each protocol × each kind of body (JSON, a receipt's sealed bytes, a
+      multipart file). Each is refused before a byte of its body is read and leaves no trace:
+      nothing counted against the key it names, no upload held, no file written, no row
+      added. A body whose pieces move the server's clock past a minute is still taken. A test
+      reads both routers and fails on a signed route that skips the gate, and a forged call
+      naming a real key leaves no trace on any route. While one call's work runs, held on an
+      event, another is answered.
+   10. **Races**: an operation that writes files or rows in more than one step (a receipt's
+      upload, a pull, a delivered receipt, an unlock's apply) has named checkpoints
+      (`moolakata/checkpoints.py`), and a test runs what could race it at each, every run
+      (`tests/test_races.py`): the linked copies' sweep during a pull, a delivery and an apply,
+      *Remove orphans* during an upload, a prune while an upload reuses the file, two pulls
+      of one link from one server, and two servers pulling each other at once. Its inventory names every background task and what it shares outside one
+      transaction, and fails when a task is added without its row.
+   11. **Nothing readable on the disk** (S11.9.10, S15.7): one scenario puts distinctive
+      strings in the fields that carry a person's data (an owner's name, an account, a payee,
+      a memo, an amount, an imported payee, a receipt's file name), runs what writes files (a
+      link and a share with receipts, a pull while the copy is locked, an upload, an OFX
+      import, a CSV held for its mapping, a backup), and reads every file under the data and
+      backups folders, and the logs, for each, as UTF-8, UTF-16 and JSON escapes
+      (`tests/test_canaries.py`). Only the mail folder may hold one; and every file must be
+      a kind known by its header (a SQLCipher database, a sealed file, a keyring, a backup's
+      manifest), so a new kind of file fails before it ever holds data.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

@@ -58,12 +58,14 @@ CONN = Scheme("Conn", "MK-CONN-1")
 
 
 class Refused(Exception):
-    """A call that isn't from a linked server, or not now."""
+    """A call that isn't from a linked server, or not now. `retry_after`: the seconds a caller
+    waits before asking again, for a refusal that is only for now."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, retry_after: float | None = None):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.retry_after = retry_after
 
 
 def _lines(*parts) -> bytes:

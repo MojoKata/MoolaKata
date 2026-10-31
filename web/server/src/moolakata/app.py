@@ -12,6 +12,7 @@ from . import errors, middleware, net, paths, ratelimit, settings, static
 from .auth.users import Services
 from .config import Config
 from .events import STREAM_SECONDS, Broker
+from .filestore import FileStores
 from .jobs import Jobs
 from .keys.breakglass import BreakGlass
 from .keys.welcome import Phrases
@@ -72,11 +73,17 @@ class Server:
     # The paired connector's calls (S18.4.3): its nonces, and 60 calls a minute (S13.7.5.4).
     conn_nonces: Nonces = field(default_factory=Nonces)
     conn_limit: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
-    # Linked servers' calls (S13.7.5.4): 60 a minute per link, and those not yet signed by a
-    # known key 60 a minute per address, counted before a body is read.
+    # Calls to /connector that fail their checks, or that a stranger's key signs (a pairing),
+    # 60 a minute per address: never against the key a call names.
+    conn_unknown: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
+    # Linked servers' calls (S13.7.5.4): 60 a minute per link, counted once a call's
+    # signature checks; those that fail their checks, a stranger's join and the hello, 60 a
+    # minute per address, never against the key a call names.
     link_limit: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
     link_unknown: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
     # The unlocked linked copies, in memory only (S11.9.3).
+    # The folders of files rows name, and who may sweep them (filestore.py).
+    files: FileStores = field(default_factory=FileStores)
     copies: Copies = field(default_factory=Copies)
     # This server's link key's public half and fingerprint, once worked out (S11.1).
     link_public: tuple[bytes, str] | None = None

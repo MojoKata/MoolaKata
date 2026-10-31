@@ -20,7 +20,8 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 3. Everything but `hello` is signed, and every answer to a signed call is signed back, but for
    the refusals §7 marks unsigned, which come before the answering server can sign to the call.
 4. Bodies are JSON, UTF-8, at most 20 MB. A caller waits 10 seconds to connect and 20 seconds
-   for each read, and cuts off an answer past 20 MB. A receipt's sealed bytes (a `deliver`
+   for each read, and cuts off an answer past 20 MB as it decodes (a caller asks for gzip or
+   deflate at most, and refuses any other content coding). A receipt's sealed bytes (a `deliver`
    body with `MK-Link-File`, a `file` answer) are read as they arrive, never whole in memory,
    and are bounded instead by the largest receipt Settings allows (S16.10, 100 MB) sealed: its
    header and a 16-byte tag for each 64 KiB chunk (section 4.4). Each side bounds them so,
@@ -45,6 +46,7 @@ document is the protocol's statement; the code that speaks it is `web/server/src
    | `MK-Link-Time` | Unix seconds |
    | `MK-Link-Nonce` | 16 random bytes, base64url |
    | `MK-Link-Signature` | Ed25519 over the lines below, base64url |
+   | `MK-Link-Body-SHA256` | the SHA-256 of the body, hex: the hash the signature covers, named so the receiver checks the signature before it reads the body |
    | `MK-Link-Protocol` | the protocol version the call speaks (section 5) |
    | `MK-Link-Version` | the caller's MoolaKata version, for Settings to show |
 
@@ -64,8 +66,13 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 2. The receiver refuses, with the codes in section 7: a call without these headers, a time
    more than **60 seconds** from its own clock, a signature that doesn't verify, a nonce it
    has seen from that key in the last two minutes, and a key it has no link with or whose
-   link is not in a state that allows the call. Both hosts therefore keep their clocks with
-   NTP; a `clock-skew` refusal is named as such on the link's state (S12.11.1.1).
+   link is not in a state that allows the call. **All of this is checked before a byte of the
+   body is read**, against the hash `MK-Link-Body-SHA256` names; the body is then read and
+   must hash to it. So only a call a linked server signed has its body read, and only such a
+   call counts against its link's limit (S13.7.5.4), whatever key header a caller sends; one
+   that fails counts against its address. The time is the call's when it arrives: a body that
+   takes long to come is no clock problem. Both hosts therefore keep their clocks with NTP; a
+   `clock-skew` refusal is named as such on the link's state (S12.11.1.1).
 3. **Answers** are signed the same way: `MK-Link-Time` and `MK-Link-Signature` over
 
    ```
@@ -79,8 +86,10 @@ document is the protocol's statement; the code that speaks it is `web/server/src
    ```
 
    The caller refuses an answer that isn't signed by the key it expects, or names another
-   caller or another request, so an answer can't be handed on to anyone else. Refusals are
-   signed too when the call carried a nonce, so a refusal can be told from a forgery.
+   caller or another request, so an answer can't be handed on to anyone else, and holds its
+   time to when the answer's headers arrived, not to when its body was read. Refusals are
+   signed too when the call carried a nonce, a fault in a route included (`server-error`), so
+   a refusal can be told from a forgery.
 
 ## 4. Calls
 
@@ -138,7 +147,10 @@ S10.10.1), used only for gifts.
 ### 4.3 Exchanges
 
 1. Either side may make an exchange, hourly and when an admin presses **Pull now**; whichever
-   can reach the other does, so one reachable side is enough.
+   can reach the other does, so one reachable side is enough. A server makes one exchange of a
+   link at a time; while its own runs, it answers the peer's `exchange`, `next` and change
+   `deliver` for that link with `busy` (section 7) rather than wait, so two servers exchanging
+   with each other at once never wait on each other.
 2. The caller sends `{…directory, have, wantFull, copyKey}`: `have` is the sequence number of
    the last change it took from the answering side, `wantFull` asks for everything (a new or
    reset copy, an overflowed inbox, a change out of sequence), and `copyKey` is the public key
@@ -210,8 +222,9 @@ when they are shown, and its type is found from the bytes then, never from the c
    restarts `next` answers nothing and the caller's next exchange asks for everything.
 4. The receiver checks the signature and that `seq` follows its `have` (or that the change is
    `full`); otherwise it asks for everything at its next exchange. It keeps the registry in its
-   main database and writes `sealed` into the link's copy's inbox as it came (S11.9.5), where
-   it is applied, its signature and its sequence checked again, once the copy is unlocked.
+   main database and writes `sealed` into the link's copy's inbox as it came (S11.9.5), its
+   registry beside it sealed to the copy's key (S11.9.1), where it is applied, its signature
+   and its sequence checked again, once the copy is unlocked.
    Until the copy has an access key (S11.9.2.1), a pull keeps the registry only; making the key
    asks for everything at the next exchange.
 
@@ -224,6 +237,33 @@ own link address); the peer keeps the new fingerprint beside the old, and accept
 an exchange over the new one succeeds. A certificate whose key changes unannounced is refused, and the link shows *the
 peer's certificate changed* until an admin there accepts the new fingerprint, which the peer's
 admin reads out from their Settings › Linked servers.
+
+### 4.6 A link's states
+
+A link is **invited**, **requested**, **pending**, **active**, **paused** or **ended**; the
+calls each allows are the table's in section 4. **Broken** is a mark on a pending, active or
+paused link, never a state: the peer answered `not-linked`. These events move a link, and
+nothing else does (`links/lifecycle.py`, held to this table by a test):
+
+| Event | From | To |
+|---|---|---|
+| `invite`: an admin makes a link code | — | invited |
+| `join-here`: an admin enters the other server's code | — | pending |
+| `join-arrives`: the other server answers this one's code | invited | requested |
+| `approve` | requested | active |
+| `peer-active`: the other side's exchange, or its answer, says active | pending, active | active |
+| `pause` | active | paused |
+| `resume`: an admin, or the pause running out | paused | active |
+| `end-here` | invited, requested, pending, active, paused | ended |
+| `link-ended`: the peer's signed `link-ended` | requested, pending, active, paused, ended | ended |
+| `not-linked`: the peer's answer; marks the link broken | pending, active, paused | the same |
+| `good-call`: any answered call; the broken mark goes | any | the same |
+| `link-again`: a new link with the same peer, either side's join | ended; a broken pending, active or paused | ended, and put aside |
+
+Linking again (S11.6) is a join like any other, from either side: the link already held with
+that key, ended or broken, is put aside in the join's own transaction (a broken one ended
+first, its copy deleted), and the new link takes its place; a link that is neither is the one
+the two servers have, and the join is refused `already-linked`. The new link pulls in full.
 
 ## 5. Versions
 
@@ -259,18 +299,21 @@ message into an alert or an email (S13.7.9).
 | `clock-skew` | the call's time is more than 60 seconds off |
 | `bad-signature` | the signature doesn't match the key, method, path, body, time, nonce and receiver |
 | `replayed` | the nonce was seen from that key in the last two minutes |
-| `not-linked` | the key has no link here; unsigned when the call's body is over 1 MB, refused on its headers before the body is read (S13.7.5.4) |
+| `not-linked` | the key has no link here, refused on the call's headers before its body is read |
 | `link-<state>` | the link exists here but its state doesn't allow the call |
-| `limit` | (429, unsigned, with `Retry-After`) the 60 calls a minute of S13.7.5.4; the caller tries again at its next exchange |
+| `limit` | (429, with `Retry-After`) the 60 calls a minute of S13.7.5.4: signed when they are the link's, unsigned when they are an address's, refused before the call is checked; the caller tries again at its next exchange |
+| `too-large` | (413) a `join` over 16 KB, signed; unsigned, a body past the hard limit (20 MB of JSON, the largest sealed receipt), refused before it is read |
+| `server-error` | (500) a fault in the route, logged on the answering side |
+| `busy` | (429, with `Retry-After`) the answering server is making its own exchange of this link (section 4.3); the caller tries again at its next exchange, and isn't alerted |
 | `locked` | (503, unsigned) the answering server is locked (S13.6); the caller tries again at its next exchange |
 | `not-shared` | a file no share to that link includes |
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |
 | `code-used` | a link code was used, expired or withdrawn |
-| `already-linked` | the two servers already have a link |
+| `already-linked` | the two servers already have a link that is neither ended nor broken (section 4.6) |
 | `change-refused` | a delivered change fails its signature check |
 
 A `link-ended` answer to a signed call ends the link on the calling side, as `end` would: its
 copy, the shares to it and its remote users go. A `not-linked` answer (a peer restored from an
 older backup, say) only marks the link broken and alerts admins (S11.6). A caller takes an
-unsigned `limit` or `locked` as the table says, and refuses any other answer that isn't signed
-as `answer-unsigned`.
+unsigned `limit`, `locked` or `too-large` as the table says, and refuses any other answer that
+isn't signed as `answer-unsigned`.

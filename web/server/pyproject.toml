@@ -35,6 +35,7 @@ dev = [
     "playwright",
     "sigstore>=4.5",
     "coverage",
+    "pytest-xdist>=3.8.0",
 ]
 
 [build-system]
