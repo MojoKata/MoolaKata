@@ -35,16 +35,20 @@ class Seen:
     share: str | None = None  # a root's share kind (Share.kind)
     key: str | None = None  # a child's parent key, a per-user table's user column
     configurable: bool = False  # a per-user table whose rows hold secrets (Connection)
+    # Changing these asks `configurable`, not `writable` (§7.6): an account's settings.
+    settings: tuple[str, ...] = ()
+    # What any write of a row asks: `configurable` for what a record covers (its accounts).
+    writes: str = "writable"
 
     @staticmethod
-    def root(share: str) -> Seen:
+    def root(share: str, settings: tuple[str, ...] = ()) -> Seen:
         """One of the shareable kinds, by the plain rule: its owner, and its shares."""
-        return Seen("root", share=share)
+        return Seen("root", share=share, settings=settings)
 
     @staticmethod
-    def child(key: str) -> Seen:
+    def child(key: str, writes: str = "writable") -> Seen:
         """Seen as the record its NOT NULL key names is."""
-        return Seen("child", key=key)
+        return Seen("child", key=key, writes=writes)
 
     @staticmethod
     def rule(share: str | None = None) -> Seen:

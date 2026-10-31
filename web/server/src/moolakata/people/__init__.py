@@ -97,10 +97,14 @@ def join(s: Session, user_id: str, p: Person, remote: User) -> None:
     person stays as private as it was, and the remote user's own person goes."""
     if remote not in may_join(s, user_id, p):
         raise Problem(409, "cannot-join", "That user can't be joined to this person.")
-    own = s.get(Person, remote.personId)
-    remote.personId = p.id
-    s.flush()
-    own.mark_deleted(user_id)
+    # The remote user's record and its own person are the link's, not the joiner's to
+    # change: the server joins them, for one who may change the person.
+    with scoping.as_server(s, "a linked server's user joined to a person") as srv:
+        r = srv.get(User, remote.id)
+        own = srv.get(Person, r.personId)
+        r.personId = p.id
+        srv.flush()
+        own.mark_deleted(user_id)
 
 
 def of_user(s: Session, user_id: str) -> Person | None:

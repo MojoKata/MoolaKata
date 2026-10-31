@@ -634,3 +634,44 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
     with srv.db.read(unscoped="test: holders") as s:
         held = access.holders_of(s, Account, shared.id)
         assert held[n["alice"]].level() == "owner" and n["bob"] in held
+
+
+# ---- The write check at flush (decision 5.4) ----
+
+
+def test_a_users_session_writes_only_what_their_views_allow(household):
+    """Past the routes: a change needs writable, a setting configurable, a delete deletable,
+    a new record writable on itself; each refusal undoes the whole transaction."""
+    from moolakata.errors import Problem
+    from moolakata.store.entities.accounts import Account, Transaction
+
+    srv, n = household
+
+    def first(s, name):
+        a = s.scalars(select(Account).where(Account.name == name)).one()
+        t = s.scalars(
+            select(Transaction).where(Transaction.accountId == a.id).order_by(Transaction.id)
+        ).first()
+        return a, t
+
+    def refused(change):
+        with pytest.raises(Problem) as e, srv.db.tx(user=n["bob"]) as s:
+            change(s)
+        assert e.value.status == 403 and e.value.code == "write-refused"
+
+    # Everyday checking: read through the Household group; Emergency savings: write.
+    refused(lambda s: setattr(first(s, "Everyday checking")[1], "memo", "mine now"))
+    refused(lambda s: setattr(first(s, "Emergency savings")[0], "name", "renamed"))
+    refused(lambda s: first(s, "Emergency savings")[0].mark_deleted(n["bob"]))
+
+    def add_to_read_only(s):
+        a, t = first(s, "Everyday checking")
+        s.add(Transaction(id=ids.new_id("Txn"), accountId=a.id, date=t.date, kind=t.kind,
+                          amount=t.amount))  # fmt: skip
+
+    refused(add_to_read_only)
+    with srv.db.tx(user=n["bob"]) as s:
+        _, t = first(s, "Emergency savings")
+        was, t.memo = t.memo, "allowed"
+    with srv.db.tx(user=n["bob"]) as s:
+        first(s, "Emergency savings")[1].memo = was

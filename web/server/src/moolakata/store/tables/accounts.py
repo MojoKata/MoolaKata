@@ -157,7 +157,23 @@ Account = record(
         name="statement_interval",
     ),
     Index("ix_Account_ownerId", "ownerId"),
-    seen=Seen.root("account"),
+    seen=Seen.root(
+        "account",
+        settings=(
+            "lotMethod",
+            "keptBy",
+            "active",
+            "countInNetWorth",
+            "name",
+            "institution",
+            "mask",
+            "statementInterval",
+            "statementIntervalDismissed",
+            "connectionId",
+            "syncAccount",
+            "withdrawalsAMonth",
+        ),
+    ),
 )
 
 Instrument = record(

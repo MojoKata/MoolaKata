@@ -52,7 +52,7 @@ TaxBookAccount = record(
     Column("counted", Boolean, nullable=False),
     # The filer who added it: an added account counts only while they can see it (S8.14.2).
     Column("addedById", Text, ForeignKey("User.id")),
-    seen=Seen.child("bookId"),
+    seen=Seen.child("bookId", writes="configurable"),
 )
 unique_live(TaxBookAccount, "bookId", "accountId")
 

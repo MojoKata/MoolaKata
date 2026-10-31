@@ -41,7 +41,7 @@ BudgetAccount = record(
     # worked out when not set.
     Column("movedFromId", Text, ForeignKey("Account.id")),
     Column("paidFromId", Text, ForeignKey("Account.id")),
-    seen=Seen.child("budgetId"),
+    seen=Seen.child("budgetId", writes="configurable"),
 )
 unique_live(BudgetAccount, "budgetId", "accountId")
 

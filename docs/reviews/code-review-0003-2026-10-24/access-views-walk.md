@@ -341,3 +341,11 @@ Given by the user Oct 31, 3:17 PM, for all sixteen decisions as written above.
    5 with it. Deviation from 6.1: the single-record fetchers stay as names (one line over
    `access.need` each, giving the API's level), as they read better at the ~100 call sites
    than `access.need` with an entity.
+6. **Step 4: the write check.** As 5.4, with two choices the tests made: a change is checked
+   before the flush, against the view as it stands; a new record is checked at the commit, so
+   that what is made with it counts (a gift is in its plans only once its people are). Setting
+   columns: `Account`'s twelve (`ui/accounts.py`'s list), `Projection.active`, its baseline;
+   `BudgetAccount` and `TaxBookAccount` ask `configurable` for any write. Activity, Alert and
+   QueuedEmail are written for everyone and not checked. Found: joining a linked server's
+   user to a person changed their User row and their own person, which the joiner doesn't
+   hold; the server does it, for one who may change the person.

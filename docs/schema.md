@@ -362,3 +362,13 @@ ever read for them.
    spouses, an import matching the rows the owner deleted), runs in a second session on the
    same connection, unscoped and named (`scoping.as_server`), in a savepoint of the same
    transaction; the user's session reads afresh what it changed.
+7. **Writes are checked too.** In a user's session, changing a record needs `writable` on it,
+   `configurable` when one of its declared settings changes (an account's name, method and
+   connection; which projection is active), and `deletable` to delete it, asked of its view
+   as it stands before the change; a record made in the transaction needs `writable` on
+   itself when the transaction commits, so with everything made with it (a child its
+   parent's; a share its item's `shareable`; a budget's or tax book's accounts the record's
+   `configurable`). A refusal answers 403 and undoes the whole transaction. The routes keep
+   their own checks, with their own messages; this one stops a write they missed. Activity's
+   entries, alerts and emails waiting are the server's on everyone's behalf and aren't
+   checked; neither is a session the server reads in.
