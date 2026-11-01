@@ -104,7 +104,7 @@ export default function Budgets({ id, tab }) {
         value=${b.id} onChange=${(/** @type {any} */ e) =>
           location.assign(`/ui/budgets/${e.currentTarget.value}/${current}`)}>
         ${budgets.map((x) =>
-          html`<option value=${x.id}>${x.name}${x.level === 'owner' ? '' : ` (${x.ownerName})`}${
+          html`<option value=${x.id}>${x.name}${x.access.mine ? '' : ` (${x.ownerName})`}${
             x.active ? ' (active)' : ''
           }</option>`
         )}
@@ -182,7 +182,7 @@ function ThisMonth({ b, month, reloadList }) {
   const edit = () => openDialog(PlanDialog, { b, month }).then((x) => x && res.reload());
   const estimate = () =>
     openDialog(EstimateDialog, { b, month, months: 6 }).then((x) => x && res.reload());
-  const canMove = b.moves && v.canWrite;
+  const canMove = b.moves && b.access.writable;
   const moveTo = (/** @type {string} */ to = '') =>
     openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: v.cards }).then((x) =>
       x && res.reload()
@@ -276,16 +276,16 @@ function ThisMonth({ b, month, reloadList }) {
         </div>
       `}
     <div class="card mt"><h3>${envelope ? 'Envelopes' : 'Categories'}<span class="spacer"></span>
-      <span class="small dim" style=${{ fontWeight: 400 }}>${b.level === 'owner'
+      <span class="small dim" style=${{ fontWeight: 400 }}>${b.access.mine
         ? b.sharedWith ? `shared with ${b.sharedWith}` : 'yours'
-        : `${b.ownerName}'s · ${b.level}`}</span>
-      ${b.level === 'owner'
+        : `${b.ownerName}'s · ${b.access.writable ? 'write' : 'read'}`}</span>
+      ${b.access.shareable
         ? html`<button type="button" class="btn sm" onClick=${() =>
           openDialog(ShareDialog, { kind: 'budget', id: b.id, name: b.name }).then(
             reloadList,
           )}><${Icon} name="share" /> Share</button>`
         : null}
-      ${v.canWrite
+      ${b.access.writable
         ? html`
           <button type="button" class="btn sm" onClick=${settings}>Settings</button>
           <button type="button" class="btn sm" onClick=${estimate}>Estimate from history…</button>
@@ -297,7 +297,7 @@ function ThisMonth({ b, month, reloadList }) {
           html`<${BudgetRow} r=${r} cover=${canMove ? () => moveTo(r.categoryId) : null} />`
         )
         : html`<p class="small dim">Nothing planned for this month yet.${
-          v.canWrite
+          b.access.writable
             ? html`
               <button type="button" class="linklike" onClick=${edit}>Plan it</button>
             `
@@ -389,7 +389,7 @@ function ThisMonth({ b, month, reloadList }) {
                     class="small dim">${date(m.createdAt.slice(0, 10))}${m.byName
                       ? ` · ${m.byName}`
                       : ''}${m.note ? ` · “${m.note}”` : ''}</div></div>
-                  ${v.canWrite
+                  ${b.access.writable
                     ? html`
                       <button type="button" class="icon-btn" aria-label="Delete the move"
                         onClick=${() => unmove(m).catch((e) => toast(e.message))}><${Icon}
@@ -505,7 +505,7 @@ function Review({ b }) {
   });
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} lines=${5} />`;
-  const write = b.level === 'owner' || b.level === 'write';
+  const write = b.access.writable;
   const months = Array.from({ length: 12 }, (_, i) => monthKey(new Date(y, m - 2 - i, 1)));
   return html`
     <div class="toolbar">
@@ -629,8 +629,7 @@ function BudgetList({ budgets, reload }) {
           : null}
           <div class="small dim">${x.accountIds.length} account${x.accountIds.length === 1
             ? ''
-            : 's'}${x.reserves ? ' · reserves' : ''}${x.moves ? ' · moves' : ''} · ${x.level ===
-              'owner'
+            : 's'}${x.reserves ? ' · reserves' : ''}${x.moves ? ' · moves' : ''} · ${x.access.mine
             ? (x.sharedWith ? `shared with ${x.sharedWith}` : 'yours')
             : `${x.ownerName}'s`}</div></div>
         <a href=${`/ui/budgets/${x.id}/month`}>Open</a>
@@ -1513,7 +1512,8 @@ function BudgetSettingsDialog({ close, b }) {
   }, [b.id]);
   const rec = /** @type {BudgetRec | undefined} */ (f.draft?.records[0]);
   const learned = Object.fromEntries(b.roles.map((/** @type {any} */ r) => [r.accountId, r]));
-  const owner = b.level === 'owner';
+  // What a budget covers is a setting (S7.1): its accounts.
+  const owner = b.access.configurable;
   const roles = /** @type {any[]} */ (rec?.get('roles') || []);
   const role = (/** @type {string} */ id) => roles.find((r) => r.accountId === id) || {};
   const inBudget = b.accountIds.map((/** @type {string} */ x) => byId[x]).filter(Boolean);

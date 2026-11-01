@@ -73,7 +73,7 @@ export default function Projections({ id }) {
             <div class="grow"><b>${r.name}</b> ${r.status
               ? html`<span class=${'pill ' + (TONE[r.status] || '')}>${r.status}</span>`
               : null}
-              <div class="small dim">${r.headline} · on ${r.builtOnLabel}${r.level === 'owner'
+              <div class="small dim">${r.headline} · on ${r.builtOnLabel}${r.access.mine
                 ? ''
                 : ` · shared by ${r.ownerName}`}</div></div></a>
     `;
@@ -106,7 +106,7 @@ function Detail({ id, reloadList }) {
   if (!x) return html`<${Loading} lines=${8} />`;
   const r = x.result;
   const a = r.answer;
-  const owner = x.level === 'owner';
+  const mine = x.access.mine;
   const reload = () => {
     res.reload();
     reloadList();
@@ -141,23 +141,26 @@ function Detail({ id, reloadList }) {
         }</span>`
         : html`<span class="pill">scenario</span>`}
       <span class="spacer"></span>
-      ${owner
+      ${x.access.shareable
         ? html`<button type="button" class="btn" onClick=${() =>
           openDialog(ShareDialog, { kind: 'projection', id: x.id, name: x.name }).then(
             reload,
           )}><${Icon} name="share" /> Share</button>`
-        : html`<label class="small dim" style=${{
+        : null}
+      ${!mine
+        ? html`<label class="small dim" style=${{
           display: 'flex',
           gap: '6px',
           alignItems: 'center',
         }}>
           <input type="checkbox" id="f-show-on-dashboard" checked=${x.shown} onChange=${() =>
           showOnDashboard(x).then(reload, (e) => toast(e.message))} /> Show on my
-          Dashboard</label>`}
-      ${owner && !x.active
+          Dashboard</label>`
+        : null}
+      ${x.access.configurable && !x.active
         ? html`<button type="button" class="btn primary" onClick=${activate}>Make active</button>`
         : null}
-      ${owner && x.active
+      ${x.access.configurable && x.active
         ? html`<button type="button" class="btn" onClick=${() =>
           api.post(`/projections/${x.id}/deactivate`).then(() => {
             toast('It is a scenario again');
@@ -181,7 +184,7 @@ function Detail({ id, reloadList }) {
         <${FanChart} label=${`${x.name}: projected value by year`} years=${r.years} p=${p}
           paths=${real === 'nominal' ? r.scenarios : null} marks=${marks} />
         <p class="small dim">A model, not a forecast. Starts from ${dollars(r.start)} (${classes}).
-          Returns from ${owner ? 'your' : `${x.ownerName}'s`} assumptions (${Object.entries(
+          Returns from ${mine ? 'your' : `${x.ownerName}'s`} assumptions (${Object.entries(
             r.weights,
           ).map(([k]) =>
             `${labelOf(k)} ${r.assumptions.classes[k].return}% ± ${
@@ -217,7 +220,7 @@ function Detail({ id, reloadList }) {
                 )} a month would reach it with a 90% chance</div>
             </div>
           `}
-        ${x.level !== 'read' ? html`<${Inputs} x=${x} reload=${reload} />` : html`
+        ${x.access.writable ? html`<${Inputs} x=${x} reload=${reload} />` : html`
           <div class="card">
             <p class="small dim">Shared with you to read.</p>
           </div>
@@ -610,7 +613,7 @@ function MakeActive({ close, p }) {
     close(true);
   });
   const others = (/** @type {any[]} */ (list.data) || []).filter((r) =>
-    r.active && r.goal === p.goal && r.id !== p.id && r.level === 'owner'
+    r.active && r.goal === p.goal && r.id !== p.id && r.access.mine
   );
   return html`
     <${Dialog} title=${`Make “${p.name}” active?`} close=${close}

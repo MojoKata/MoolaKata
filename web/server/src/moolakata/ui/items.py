@@ -10,11 +10,13 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, assets, clock, loans, receipts, valuation
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     IdOf,
     Model,
@@ -139,7 +141,7 @@ class ItemDetail(ItemRow):
     improvements: list[ImprovementOut]
     documents: list[ReceiptRow]
     history: list[tuple[dt.date, Money]]
-    canWrite: bool
+    access: Access
 
 
 class MetalOut(Model):
@@ -159,7 +161,6 @@ class ItemsView(Model):
     value: Money
     basis: Money
     gain: Money
-    canWrite: bool
 
 
 class ValuationIn(Model):
@@ -175,19 +176,19 @@ class ImprovementIn(Model):
     amount: Money
 
 
-def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, str]:
-    a, lvl = access.account(s, c.id, account_id, need)
+def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, Perms]:
+    a, held = access.account(s, c.id, account_id, need)
     if not assets.is_physical(a.type):
         raise Problem(409, "not-physical", "This account doesn't hold items.")
-    return a, lvl
+    return a, held
 
 
-def _item(s, c: Caller, item_id: str, need: str = "read") -> tuple[Item, Account, str]:
+def _item(s, c: Caller, item_id: str, need: str = "read") -> tuple[Item, Account, Perms]:
     it = s.get(Item, item_id)
     if it is None or it.deleted:
         raise Problem(404, "not-found", "No such item.")
-    a, lvl = _account(s, c, it.accountId, need)
-    return it, a, lvl
+    a, held = _account(s, c, it.accountId, need)
+    return it, a, held
 
 
 def _secured(s, item_ids: list[str], day: dt.date) -> dict[str, list[SecuredLoan]]:
@@ -264,7 +265,7 @@ def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRo
     )
 
 
-def view(s, a: Account, lvl: str) -> ItemsView:
+def view(s, a: Account) -> ItemsView:
     today = clock.today()
     items = assets.items_of(s, a)
     ds = assets.details(s, items)
@@ -281,11 +282,11 @@ def view(s, a: Account, lvl: str) -> ItemsView:
         value=sum((r.value for r in held), Decimal(0)),
         basis=sum((r.basis for r in held), Decimal(0)),
         gain=sum((r.gain for r in held), Decimal(0)),
-        canWrite=lvl in ("owner", "write"),
     )
 
 
-def detail(s, c: Caller, it: Item, a: Account, lvl: str) -> ItemDetail:
+def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
+    """An item; `held` is the reader's on its account, the item its child."""
     today = clock.today()
     d = assets.details(s, [it])[it.id]
     sp = assets.spots(s, [it], today).get(it.metal or "")
@@ -334,11 +335,11 @@ def detail(s, c: Caller, it: Item, a: Account, lvl: str) -> ItemDetail:
         valuations=[_valuation_out(v) for v in reversed(d.valuations)],
         improvements=[_improvement_out(m) for m in reversed(d.improvements)],
         documents=[
-            receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
+            receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, it.id)
         ],
         history=history,
-        canWrite=lvl in ("owner", "write"),
+        access=Access.of(held.child()),
     )
 
 
@@ -423,15 +424,15 @@ def _record(s, kind: str, c: Caller, a: Account) -> None:
 @router.get("/accounts/{account_id}/items", response_model=ItemsView)
 def list_items(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        a, lvl = _account(s, c, account_id)
-        return view(s, a, lvl)
+        a, _ = _account(s, c, account_id)
+        return view(s, a)
 
 
 @router.get("/items/{item_id}", response_model=ItemDetail)
 def get_item(item_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        it, a, lvl = _item(s, c, item_id)
-        return detail(s, c, it, a, lvl)
+        it, a, held = _item(s, c, item_id)
+        return detail(s, c, it, a, held)
 
 
 class Securable(Model):
@@ -574,8 +575,8 @@ def _item_delete(ctx, it: Item) -> None:
 
 
 def _item_read(ctx, record_id: str) -> ItemDetail:
-    it, a, lvl = _item(ctx.s, ctx.caller, record_id)
-    return detail(ctx.s, ctx.caller, it, a, lvl)
+    it, a, held = _item(ctx.s, ctx.caller, record_id)
+    return detail(ctx.s, ctx.caller, it, a, held)
 
 
 def _valuation_create(ctx, record_id: str, body: ValuationRecord) -> None:

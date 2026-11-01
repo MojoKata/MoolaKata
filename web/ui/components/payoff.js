@@ -108,7 +108,7 @@ export function Payoff({ a }) {
   // It opens on the plan being followed.
   const followed = saved.find((p) => p.following);
   return html`
-    <${Planner} a=${a} canWrite=${v.canWrite} plans=${saved} reload=${plans.reload}
+    <${Planner} a=${a} canWrite=${a.access.writable} plans=${saved} reload=${plans.reload}
       start=${followed ? form(followed.inputs) : BLANK} />
   `;
 }

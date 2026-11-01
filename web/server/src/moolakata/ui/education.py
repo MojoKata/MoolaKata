@@ -11,13 +11,14 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, education, exactjson, ids, people, projections, receipts
+from ..access import Perms
 from ..errors import Problem, refuse
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.education import Contribution, EducationPlan, Person, QualifiedExpense
 from ..store.entities.projections import Projection
 from ..store.entities.users import User
 from . import save
-from .conventions import ExactRoute, IdOf, Model, Money
+from .conventions import Access, ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 from .projections import ProjectionDetail
 from .projections import detail as projection_detail
@@ -65,17 +66,17 @@ class PlanOut(Model):
     stateDeduction: Money | None
     contributedThisYear: Money
     rollover: RolloverOut
-    canWrite: bool
+    access: Access
     id: str | None = None  # the plan's, once it is set
     beneficiaryId: str | None = None  # their person
     version: int = 0  # the plan's: 0 until it is set (S13.8.6)
 
 
-def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, str]:
-    a, lvl = access.account(s, c.id, account_id, need)
+def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, Perms]:
+    a, held = access.account(s, c.id, account_id, need)
     if a.type != "529":
         raise Problem(409, "not-a-529", "This account isn't a 529 plan.")
-    return a, lvl
+    return a, held
 
 
 def _beneficiary_out(b: education.Beneficiary | None) -> BeneficiaryOut | None:
@@ -86,7 +87,8 @@ def _beneficiary_out(b: education.Beneficiary | None) -> BeneficiaryOut | None:
     )
 
 
-def plan_view(s, a: Account, lvl: str) -> PlanOut:
+def plan_view(s, a: Account, held: Perms) -> PlanOut:
+    """The 529's plan; `held` is the reader's on the account, the plan its child."""
     today = clock.today()
     plan = education.plan_of(s, a)
     rows = education.contributions(s, a)
@@ -99,7 +101,7 @@ def plan_view(s, a: Account, lvl: str) -> PlanOut:
         stateDeduction=plan.stateDeduction if plan else None,
         contributedThisYear=sum((x.amount for x in rows if x.date.year == today.year), Decimal(0)),
         rollover=RolloverOut(**r.__dict__),
-        canWrite=lvl in ("owner", "write"),
+        access=Access.of(held.child()),
         id=plan.id if plan else None,
         beneficiaryId=plan.beneficiaryId if plan else None,
         version=plan.version if plan else 0,
@@ -129,8 +131,8 @@ def _check_beneficiary(s, c: Caller, b: BeneficiaryRef | None, owner_id: str) ->
 @router.get("/accounts/{account_id}/plan529", response_model=PlanOut)
 def get_plan(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        a, lvl = _account(s, c, account_id)
-        return plan_view(s, a, lvl)
+        a, held = _account(s, c, account_id)
+        return plan_view(s, a, held)
 
 
 class EducationPlanRecord(Model):
@@ -207,8 +209,8 @@ def _plan_delete(ctx, plan: EducationPlan) -> None:
 
 def _plan_read(ctx, record_id: str) -> PlanOut:
     plan = ctx.s.get(EducationPlan, record_id)
-    a, lvl = _account(ctx.s, ctx.caller, plan.accountId)
-    return plan_view(ctx.s, a, lvl)
+    a, held = _account(ctx.s, ctx.caller, plan.accountId)
+    return plan_view(ctx.s, a, held)
 
 
 save.register(
@@ -257,7 +259,6 @@ class GiftYearOut(Model):
 class ContributionsView(Model):
     rows: list[ContributionOut]
     years: list[GiftYearOut]
-    canWrite: bool
 
 
 def _contributor(s, c: Caller, key: str, owner_id: str) -> str | None:
@@ -278,7 +279,7 @@ def _tag_of(s, txn_id: str) -> Contribution | None:
     ).first()
 
 
-def contributions_view(s, a: Account, lvl: str) -> ContributionsView:
+def contributions_view(s, a: Account) -> ContributionsView:
     rows = education.contributions(s, a)
     tags = {
         t.transactionId: t
@@ -299,15 +300,14 @@ def contributions_view(s, a: Account, lvl: str) -> ContributionsView:
             for r in reversed(rows)
         ],
         years=[GiftYearOut(**g.__dict__) for g in education.gift_years(s, rows)],
-        canWrite=lvl in ("owner", "write"),
     )
 
 
 @router.get("/accounts/{account_id}/contributions", response_model=ContributionsView)
 def list_contributions(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        a, lvl = _account(s, c, account_id)
-        return contributions_view(s, a, lvl)
+        a, _ = _account(s, c, account_id)
+        return contributions_view(s, a)
 
 
 def _new_deposit(s, c: Caller, a: Account, body) -> Transaction:
@@ -407,8 +407,8 @@ def _contribution_update(ctx, t: Contribution, body: ContributionRecord) -> None
 
 def _contribution_read(ctx, record_id: str) -> ContributionOut:
     t = ctx.s.get(Contribution, record_id)
-    a, lvl = _account(ctx.s, ctx.caller, ctx.s.get(Transaction, t.transactionId).accountId)
-    return next(x for x in contributions_view(ctx.s, a, lvl).rows if x.id == record_id)
+    a, _ = _account(ctx.s, ctx.caller, ctx.s.get(Transaction, t.transactionId).accountId)
+    return next(x for x in contributions_view(ctx.s, a).rows if x.id == record_id)
 
 
 save.register(
@@ -461,10 +461,9 @@ class WithdrawalsView(Model):
     years: list[WithdrawalYearOut]
     expenses: list[ExpenseOut]
     kinds: list[tuple[str, str]]
-    canWrite: bool
 
 
-def withdrawals_view(s, c: Caller, a: Account, lvl: str) -> WithdrawalsView:
+def withdrawals_view(s, c: Caller, a: Account) -> WithdrawalsView:
     return WithdrawalsView(
         years=[WithdrawalYearOut(**w.__dict__) for w in education.withdrawals(s, a)],
         expenses=[
@@ -477,7 +476,7 @@ def withdrawals_view(s, c: Caller, a: Account, lvl: str) -> WithdrawalsView:
                 description=e.description,
                 amount=e.amount,
                 documents=[
-                    receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
+                    receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
                     for r in receipts.of_item(s, e.id, "expense")
                 ],
                 version=e.version,
@@ -485,15 +484,14 @@ def withdrawals_view(s, c: Caller, a: Account, lvl: str) -> WithdrawalsView:
             for e in education.expenses(s, a)
         ],
         kinds=list(education.KINDS.items()),
-        canWrite=lvl in ("owner", "write"),
     )
 
 
 @router.get("/accounts/{account_id}/withdrawals", response_model=WithdrawalsView)
 def list_withdrawals(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        a, lvl = _account(s, c, account_id)
-        return withdrawals_view(s, c, a, lvl)
+        a, _ = _account(s, c, account_id)
+        return withdrawals_view(s, c, a)
 
 
 def _expense_values(body) -> dict:
@@ -514,8 +512,8 @@ def _expense(s, c: Caller, expense_id: str) -> tuple[QualifiedExpense, Account, 
     e = s.get(QualifiedExpense, expense_id)
     if e is None or e.deleted:
         raise Problem(404, "not-found", "No such expense.")
-    a, lvl = _account(s, c, e.accountId, "write")
-    return e, a, lvl
+    a, held = _account(s, c, e.accountId, "write")
+    return e, a, held
 
 
 class ExpenseRecord(ExpenseIn):
@@ -540,8 +538,8 @@ def _expense_update(ctx, e: QualifiedExpense, body: ExpenseRecord) -> None:
 
 def _expense_read(ctx, record_id: str) -> ExpenseOut:
     e = ctx.s.get(QualifiedExpense, record_id)
-    a, lvl = _account(ctx.s, ctx.caller, e.accountId)
-    return next(x for x in withdrawals_view(ctx.s, ctx.caller, a, lvl).expenses if x.id == e.id)
+    a, _ = _account(ctx.s, ctx.caller, e.accountId)
+    return next(x for x in withdrawals_view(ctx.s, ctx.caller, a).expenses if x.id == e.id)
 
 
 save.register(
@@ -594,11 +592,10 @@ def get_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
         if not found:
             return GoalView(beneficiary=_beneficiary_out(b), projection=None, others=0)
         p = found[0]
-        perms = access.perms(s, Projection, p.id, c.id)
-        lvl = perms.level() if perms is not None else "read"
+        perms = access.perms(s, Projection, p.id, c.id) or access.READ
         return GoalView(
             beneficiary=_beneficiary_out(b),
-            projection=projection_detail(s, c.id, p, lvl),
+            projection=projection_detail(s, c.id, p, perms),
             others=len(found) - 1,
         )
 
@@ -645,6 +642,6 @@ def start_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
         )
         return GoalView(
             beneficiary=_beneficiary_out(b),
-            projection=projection_detail(s, c.id, p, "owner"),
+            projection=projection_detail(s, c.id, p, access.OWNER),
             others=0,
         )

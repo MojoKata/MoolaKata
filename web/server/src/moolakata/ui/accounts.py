@@ -5,13 +5,13 @@ import datetime as dt
 import json
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 from sqlalchemy import false, func, select
 
 from .. import access, activity, clock, exactjson, valuation
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..ledger import expected, holdingcheck, reconcile
 from ..ledger import types as atypes
@@ -30,6 +30,7 @@ from ..store.repos import ledger as repo
 from ..store.tables.accounts import ACCOUNT_TYPES, LOT_METHODS
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     IdOf,
     Model,
@@ -58,7 +59,7 @@ class AccountRow(Model):
     active: bool
     ownerId: str
     ownerName: str
-    level: Literal["owner", "write", "read"]
+    access: Access
     sharedWith: int
     ownerAvatar: str | None
     counted: bool
@@ -337,9 +338,7 @@ def context(s, user_id: str, account_ids: list[str]) -> Context:
     )
 
 
-def row(
-    s, a: Account, level: str, ctx: Context, detail: bool = False
-) -> AccountRow | AccountDetail:
+def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountRow | AccountDetail:
     from . import wallets
 
     today = ctx.today
@@ -363,9 +362,9 @@ def row(
         ownerId=a.ownerId,
         ownerName=owner.displayName if owner else "",
         ownerAvatar=owner.avatar if owner else None,
-        level=level,
-        sharedWith=len(access.holders_of(s, Account, a.id)) - 1 if level == "owner" else 0,
-        counted=a.countInNetWorth if level == "owner" else a.id in ctx.counted,
+        access=Access.of(p),
+        sharedWith=len(access.holders_of(s, Account, a.id)) - 1 if p.shareable else 0,
+        counted=a.countInNetWorth if p.mine else a.id in ctx.counted,
         balance=value,
         change=value - month_ago if ledger.transactions else None,
         lastUpdated=ctx.updated.get(a.id),
@@ -391,20 +390,20 @@ def row(
         openingStandIn=start.standIn,
         tax=atypes.TAX[a.type],
         statementInterval=a.statementInterval,
-        connectionId=a.connectionId if level == "owner" else None,
-        syncAccount=a.syncAccount if level == "owner" else None,
+        connectionId=a.connectionId if p.configurable else None,
+        syncAccount=a.syncAccount if p.configurable else None,
         statementIntervalDefault=expected.default_interval(a.type, json.loads(a.keptBy)),
         statementIntervalProposal=expected.proposal(a, imports_of(s, a.id)),
         statementIntervalDismissed=a.statementIntervalDismissed,
         withdrawalsAMonth=a.withdrawalsAMonth,
         **_options_risk(s, a, ledger),
         **wallets.current(s, a),
-        **_counted_ref(s, ctx.userId, a, level),
+        **_counted_ref(s, ctx.userId, a, p),
     )
 
 
-def _counted_ref(s, user_id: str, a: Account, level: str) -> dict:
-    if level == "owner":
+def _counted_ref(s, user_id: str, a: Account, p: Perms) -> dict:
+    if p.mine:
         return {}
     from ..store.entities.sharing import CountedAccount
     from ..store.rows import by_key
@@ -441,7 +440,7 @@ def list_accounts(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         visible = access.accounts(s, c.id)
         ctx = context(s, c.id, [a.id for a, _ in visible])
-        return [row(s, a, p.level(), ctx) for a, p in visible]
+        return [row(s, a, p, ctx) for a, p in visible]
 
 
 def _make(s, c: Caller, body, account_id: str) -> Account:
@@ -472,8 +471,8 @@ def _make(s, c: Caller, body, account_id: str) -> Account:
 @router.get("/accounts/{account_id}", response_model=AccountDetail)
 def get_account(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        a, level = access.account(s, c.id, account_id)
-        return row(s, a, level, context(s, c.id, [a.id]), detail=True)
+        a, p = access.account(s, c.id, account_id)
+        return row(s, a, p, context(s, c.id, [a.id]), detail=True)
 
 
 ACCOUNT_FIELDS = (
@@ -489,8 +488,8 @@ ACCOUNT_FIELDS = (
 )
 
 
-def _change(s, c: Caller, a: Account, level: str, body, sent: set[str]) -> None:
-    """The fields `sent` set on an account: its settings by its owner alone (S10.3)."""
+def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
+    """The fields `sent` set on an account: its settings with `configurable` (S10.3)."""
     settings_fields = {
         "lotMethod",
         "keptBy",
@@ -505,7 +504,7 @@ def _change(s, c: Caller, a: Account, level: str, body, sent: set[str]) -> None:
         "syncAccount",
         "withdrawalsAMonth",
     }
-    if level != "owner" and sent & settings_fields:
+    if not p.configurable and sent & settings_fields:
         raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
     changed = []
     for f in ACCOUNT_FIELDS:
@@ -998,7 +997,7 @@ def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
         if getattr(body, f) != AccountRecord.model_fields[f].default
     }
     if later:
-        _change(ctx.s, ctx.caller, a, "owner", body, later)
+        _change(ctx.s, ctx.caller, a, access.OWNER, body, later)
     if body.walletKeys:
         from . import wallets
 
@@ -1033,8 +1032,8 @@ def _account_update(ctx, a: Account, body: AccountRecord) -> None:
     if "type" in sent:
         raise refuse("type", "type-fixed", "An account keeps its type.")
     _raise(_check(body, new=False))
-    level = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
-    _change(ctx.s, ctx.caller, a, level, body, sent - set(WALLET_FIELDS))
+    p = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
+    _change(ctx.s, ctx.caller, a, p, body, sent - set(WALLET_FIELDS))
     if sent & set(WALLET_FIELDS):
         wallets.replace(ctx, a, body.walletKeys, body.gapLimit)
         a.updatedAt = clock.now()  # its keys are the account's: its version moves with them
@@ -1055,8 +1054,8 @@ def _account_delete(ctx, a: Account) -> None:
 
 
 def _account_read(ctx, record_id: str) -> AccountDetail:
-    a, level = access.account(ctx.s, ctx.caller.id, record_id)
-    return row(ctx.s, a, level, context(ctx.s, ctx.caller.id, [a.id]), detail=True)
+    a, p = access.account(ctx.s, ctx.caller.id, record_id)
+    return row(ctx.s, a, p, context(ctx.s, ctx.caller.id, [a.id]), detail=True)
 
 
 save.register(

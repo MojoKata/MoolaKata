@@ -10,6 +10,7 @@ from sqlalchemy import and_, false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
 from .. import access, activity, clock, ids, reimbursements, tags, washes
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..ledger import lots
 from ..ledger import types as atypes
@@ -32,6 +33,7 @@ from ..store.types import Cents
 from ..taxes import closed
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     IdOf,
     Model,
@@ -123,7 +125,7 @@ class TxnOut(Model):
     tags: list[str]  # the reader's own, by name
     tagIds: list[str]
     receipts: int
-    level: str
+    access: Access
     version: int
 
 
@@ -195,8 +197,10 @@ def _tags(s: Session, user_id: str, txn_ids: list[str]) -> dict[str, list]:
 
 
 def shape(
-    s: Session, user_id: str, rows: list[Transaction], levels: dict[str, str]
+    s: Session, user_id: str, rows: list[Transaction], held: dict[str, Perms]
 ) -> list[TxnOut]:
+    """Transactions as the API answers them; `held` is what the reader holds of each one's
+    account, from which each transaction's own access follows (a child's, schema.md §7)."""
     ids_ = [t.id for t in rows]
     accounts = {
         a.id: a
@@ -296,7 +300,7 @@ def shape(
                 tags=[x.name for x in tagged.get(t.id, [])],
                 tagIds=[x.id for x in tagged.get(t.id, [])],
                 receipts=len(attached.get(t.id, [])),
-                level=levels[t.accountId],
+                access=Access.of(held[t.accountId].child()),
                 version=t.version,
             )
         )
@@ -319,7 +323,7 @@ def list_transactions(
     sort: str = Query("-date", pattern="^-?(date|amount|payee)$"),
 ):
     with server(request).db.read(user=c.id) as s:
-        visible = {a.id: p.level() for a, p in access.accounts(s, c.id)}
+        visible = {a.id: p for a, p in access.accounts(s, c.id)}
         wanted = [a for a in account if a in visible] if account else list(visible)
         if account and not wanted:
             return paging.wrap([], 0)
@@ -545,7 +549,7 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
 def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
     """A transaction made, with its lot, picks, splits and tags; the closed-year question
     (S2.8) refused unless confirmed, or asked through `ask` for a draft's save."""
-    a, level = access.account(s, c.id, body.accountId, "write")
+    a, held = access.account(s, c.id, body.accountId, "write")
     investing = atypes.investing(a.type)
     _raise(_check(s, body, body.kind, investing))
     guard = closed.Guard(s, a, confirm, c.id, ask=ask) if investing else None
@@ -633,7 +637,7 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
         washes.recompute(s, a.ownerId)
     if guard is not None:
         guard.check()
-    return t, a, level
+    return t, a, held
 
 
 def _editable(
@@ -642,9 +646,9 @@ def _editable(
     t = s.get(Transaction, txn_id)
     if t is None or t.deleted:
         raise Problem(404, "not-found", "Not found")
-    a, level = access.account(s, c.id, t.accountId, "write")
+    a, held = access.account(s, c.id, t.accountId, "write")
     if t.version != version:
-        raise stale(shape(s, c.id, [t], {a.id: level})[0])
+        raise stale(shape(s, c.id, [t], {a.id: held})[0])
     if t.reconciliationId and not confirm:
         r = s.get(Reconciliation, t.reconciliationId)
         if r is not None and r.finishedAt is not None:
@@ -653,7 +657,7 @@ def _editable(
                 "reconciled-period",
                 "This transaction is in a reconciled period. Change it anyway?",
             )
-    return t, a, level
+    return t, a, held
 
 
 @router.get("/transactions/{txn_id}", response_model=TxnOut)
@@ -669,8 +673,8 @@ def get_transaction(txn_id: str, request: Request, c: Caller = Depends(caller)):
 def _read_one(s: Session, c: Caller, t: Transaction) -> TxnOut:
     """A transaction as one read gives it, with the budgets it is left out of: what a dialog's
     draft starts from (S12.15.1)."""
-    a, level = access.account(s, c.id, t.accountId)
-    out = shape(s, c.id, [t], {a.id: level})[0]
+    a, held = access.account(s, c.id, t.accountId)
+    out = shape(s, c.id, [t], {a.id: held})[0]
     out.leftOutOf = _left_out_of(s, c, t)
     return out
 
@@ -840,7 +844,7 @@ def both_real(txn_id: str, request: Request, c: Caller = Depends(caller)):
         t = s.get(Transaction, txn_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "Not found")
-        a, level = access.account(s, c.id, t.accountId, "write")
+        a, held = access.account(s, c.id, t.accountId, "write")
         base = (t.fitId or "").rpartition("#")[0] or t.fitId
         same = and_(Transaction.date == t.date, Transaction.amount == t.amount)
         if base:
@@ -852,7 +856,7 @@ def both_real(txn_id: str, request: Request, c: Caller = Depends(caller)):
         ):
             twin.duplicateAnswer = "both-real"
         s.flush()
-        return shape(s, c.id, [t], {a.id: level})[0]
+        return shape(s, c.id, [t], {a.id: held})[0]
 
 
 # ---------- categories and instruments ----------
@@ -1015,12 +1019,12 @@ def keep_off_chain(
     """Keep a bitcoin transaction the explorer or node no longer has: its mark is cleared
     (S1.6.2.7). Deleting it is the usual delete."""
     with server(request).db.tx(user=c.id) as s:
-        t, a, level = _editable(s, c, txn_id, version, True)
+        t, a, held = _editable(s, c, txn_id, version, True)
         if t.offChainAt is None:
             raise refuse(None, "on-chain", "It is still on the chain.")
         t.offChainAt, t.offChainMissedAt, t.offChainKeptAt = None, None, clock.now()
         s.flush()
-        return shape(s, c.id, [t], {a.id: level})[0]
+        return shape(s, c.id, [t], {a.id: held})[0]
 
 
 # ---------- transactions and their splits in a dialog's draft (S12.15, S13.8.11) ----------

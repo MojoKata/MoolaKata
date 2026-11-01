@@ -87,12 +87,12 @@ export default function Transactions() {
         ${cats.list.map((c) => html`<option value=${c.id}>${c.path}</option>`)}</select>
       <span class="spacer"></span>
       <button type="button" class="btn" onClick=${() => openRules().then(fresh)}>Rules</button>
-      <button type="button" class="btn" disabled=${!all.some((a) => a.level !== 'read')}
+      <button type="button" class="btn" disabled=${!all.some((a) => a.access.writable)}
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all }).then(
             fresh,
           )}><${Icon} name="upload" /> Import</button>
-      <button type="button" class="btn primary" disabled=${!all.some((a) => a.level !== 'read')}
+      <button type="button" class="btn primary" disabled=${!all.some((a) => a.access.writable)}
         onClick=${() =>
           openDialog(TransactionDialog, { accounts: all }).then((v) =>
             v && fresh()

@@ -13,9 +13,47 @@
       }
     },
     "schemas": {
+      "Access": {
+        "additionalProperties": false,
+        "description": "What the reader may do with a record, and whether it is theirs (docs/schema.md §7), as\nits access view says. It travels only from the server: no request body has it.",
+        "properties": {
+          "configurable": {
+            "title": "Configurable",
+            "type": "boolean"
+          },
+          "deletable": {
+            "title": "Deletable",
+            "type": "boolean"
+          },
+          "mine": {
+            "title": "Mine",
+            "type": "boolean"
+          },
+          "shareable": {
+            "title": "Shareable",
+            "type": "boolean"
+          },
+          "writable": {
+            "title": "Writable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mine",
+          "writable",
+          "deletable",
+          "shareable",
+          "configurable"
+        ],
+        "title": "Access",
+        "type": "object"
+      },
       "AccountDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -144,15 +182,6 @@
               }
             ],
             "title": "Lastupdated"
-          },
-          "level": {
-            "enum": [
-              "owner",
-              "write",
-              "read"
-            ],
-            "title": "Level",
-            "type": "string"
           },
           "lotMethod": {
             "title": "Lotmethod",
@@ -378,7 +407,7 @@
           "active",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "sharedWith",
           "ownerAvatar",
           "counted",
@@ -678,6 +707,9 @@
       "AccountRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -747,15 +779,6 @@
               }
             ],
             "title": "Lastupdated"
-          },
-          "level": {
-            "enum": [
-              "owner",
-              "write",
-              "read"
-            ],
-            "title": "Level",
-            "type": "string"
           },
           "mask": {
             "anyOf": [
@@ -831,7 +854,7 @@
           "active",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "sharedWith",
           "ownerAvatar",
           "counted",
@@ -1929,6 +1952,9 @@
       "BookDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accounts": {
             "items": {
               "$ref": "#/components/schemas/AccountRef"
@@ -1946,10 +1972,6 @@
           "bitcoinFees": {
             "title": "Bitcoinfees",
             "type": "string"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "claimedElsewhere": {
             "items": {
@@ -2020,10 +2042,6 @@
             "title": "Leftout",
             "type": "array"
           },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          },
           "received": {
             "items": {
               "$ref": "#/components/schemas/DocumentOut"
@@ -2044,7 +2062,7 @@
           "id",
           "year",
           "filers",
-          "level",
+          "access",
           "label",
           "version",
           "bitcoinFees",
@@ -2058,8 +2076,7 @@
           "expected",
           "received",
           "lastYear",
-          "federalDue",
-          "canWrite"
+          "federalDue"
         ],
         "title": "BookDetail",
         "type": "object"
@@ -2107,6 +2124,9 @@
       "BookRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "filers": {
             "items": {
               "$ref": "#/components/schemas/Filer"
@@ -2122,10 +2142,6 @@
             "title": "Label",
             "type": "string"
           },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -2139,11 +2155,36 @@
           "id",
           "year",
           "filers",
-          "level",
+          "access",
           "label",
           "version"
         ],
         "title": "BookRow",
+        "type": "object"
+      },
+      "BooksView": {
+        "additionalProperties": false,
+        "properties": {
+          "books": {
+            "items": {
+              "$ref": "#/components/schemas/BookRow"
+            },
+            "title": "Books",
+            "type": "array"
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingBook"
+            },
+            "title": "Waiting",
+            "type": "array"
+          }
+        },
+        "required": [
+          "books",
+          "waiting"
+        ],
+        "title": "BooksView",
         "type": "object"
       },
       "BoxTotal": {
@@ -2370,6 +2411,9 @@
       "BudgetRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountIds": {
             "items": {
               "type": "string"
@@ -2383,10 +2427,6 @@
           },
           "id": {
             "title": "Id",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
             "type": "string"
           },
           "method": {
@@ -2446,7 +2486,7 @@
           "name",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "accountIds",
           "sharedWith",
           "method",
@@ -4428,10 +4468,6 @@
       "ContributionsView": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/moolakata__ui__education__ContributionOut"
@@ -4449,8 +4485,7 @@
         },
         "required": [
           "rows",
-          "years",
-          "canWrite"
+          "years"
         ],
         "title": "ContributionsView",
         "type": "object"
@@ -5300,6 +5335,9 @@
       "DonationOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "acknowledged": {
             "title": "Acknowledged",
             "type": "boolean"
@@ -5326,10 +5364,6 @@
               }
             ],
             "title": "Basis"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "counted": {
             "title": "Counted",
@@ -5495,7 +5529,7 @@
           "longTerm",
           "granted",
           "notes",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "DonationOut",
@@ -7125,9 +7159,8 @@
       "GiftOut": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
+          "access": {
+            "$ref": "#/components/schemas/Access"
           },
           "cash": {
             "title": "Cash",
@@ -7268,7 +7301,7 @@
           "cash",
           "thankYou",
           "documents",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "GiftOut",
@@ -9008,13 +9041,12 @@
         "additionalProperties": false,
         "description": "A budget counting a transaction, what it counts as there, and its leave-out (S7.3.5).",
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "budgetId": {
             "title": "Budgetid",
             "type": "string"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "countsAs": {
             "anyOf": [
@@ -9041,7 +9073,7 @@
           "name",
           "countsAs",
           "leftOut",
-          "canWrite"
+          "access"
         ],
         "title": "InBudget",
         "type": "object"
@@ -9343,6 +9375,9 @@
       "ItemDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountId": {
             "title": "Accountid",
             "type": "string"
@@ -9374,10 +9409,6 @@
             "format": "money",
             "title": "Basis",
             "type": "number"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "category": {
             "anyOf": [
@@ -9801,7 +9832,7 @@
           "improvements",
           "documents",
           "history",
-          "canWrite"
+          "access"
         ],
         "title": "ItemDetail",
         "type": "object"
@@ -10325,10 +10356,6 @@
             "title": "Basis",
             "type": "number"
           },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "gain": {
             "examples": [
               1234.5
@@ -10365,8 +10392,7 @@
           "metals",
           "value",
           "basis",
-          "gain",
-          "canWrite"
+          "gain"
         ],
         "title": "ItemsView",
         "type": "object"
@@ -11480,10 +11506,6 @@
             "title": "Balance",
             "type": "number"
           },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "equity": {
             "anyOf": [
               {
@@ -11643,8 +11665,7 @@
           "principalThisYear",
           "overpaid",
           "rows",
-          "servicer",
-          "canWrite"
+          "servicer"
         ],
         "title": "LoanView",
         "type": "object"
@@ -12413,10 +12434,6 @@
             ],
             "title": "Assignedbymoves"
           },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "cards": {
             "items": {
               "$ref": "#/components/schemas/CardLine"
@@ -12542,7 +12559,6 @@
           "plannedSpending",
           "uncategorised",
           "daysLeft",
-          "canWrite",
           "version"
         ],
         "title": "MonthView",
@@ -13675,9 +13691,8 @@
       "OrganisationOut": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
+          "access": {
+            "$ref": "#/components/schemas/Access"
           },
           "causes": {
             "items": {
@@ -13764,7 +13779,7 @@
           "name",
           "id",
           "given",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "OrganisationOut",
@@ -14094,37 +14109,6 @@
           "limit"
         ],
         "title": "Page[AwaitingRow]",
-        "type": "object"
-      },
-      "Page_BookRow_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BookRow"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "offset",
-          "limit"
-        ],
-        "title": "Page[BookRow]",
         "type": "object"
       },
       "Page_BudgetRow_": {
@@ -16050,6 +16034,9 @@
         "additionalProperties": false,
         "description": "A gift plan the caller sees, with its person.",
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "birthDay": {
             "anyOf": [
               {
@@ -16140,10 +16127,6 @@
           "leadDays": {
             "title": "Leaddays",
             "type": "integer"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -16287,7 +16270,7 @@
           "next",
           "spent",
           "lastGift",
-          "level",
+          "access",
           "ownerName",
           "version",
           "personVersion"
@@ -17122,6 +17105,9 @@
       "PortfolioRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountIds": {
             "items": {
               "type": "string"
@@ -17140,10 +17126,6 @@
           "implicit": {
             "title": "Implicit",
             "type": "boolean"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -17203,7 +17185,7 @@
           "ownerId",
           "ownerName",
           "ownerAvatar",
-          "level",
+          "access",
           "benchmark",
           "accountIds",
           "value",
@@ -18619,6 +18601,9 @@
       "ProjectionDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -18660,10 +18645,6 @@
             "additionalProperties": true,
             "title": "Inputs",
             "type": "object"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -18719,7 +18700,7 @@
           "name",
           "goal",
           "active",
-          "level",
+          "access",
           "ownerName",
           "builtOn",
           "builtOnLabel",
@@ -18776,6 +18757,9 @@
       "ProjectionRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -18799,10 +18783,6 @@
           },
           "id": {
             "title": "Id",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
             "type": "string"
           },
           "name": {
@@ -18842,7 +18822,7 @@
           "name",
           "goal",
           "active",
-          "level",
+          "access",
           "ownerName",
           "builtOn",
           "builtOnLabel",
@@ -19306,6 +19286,9 @@
       "ReceiptDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "alsoKeptWith": {
             "title": "Alsokeptwith",
             "type": "integer"
@@ -19406,10 +19389,6 @@
               }
             ],
             "title": "Keptwhy"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "links": {
             "items": {
@@ -19562,7 +19541,7 @@
           "uploadedAt",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "date",
           "amount",
           "payee",
@@ -19709,6 +19688,9 @@
       "ReceiptRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "alsoKeptWith": {
             "title": "Alsokeptwith",
             "type": "integer"
@@ -19774,10 +19756,6 @@
           "keep": {
             "title": "Keep",
             "type": "boolean"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "links": {
             "items": {
@@ -19871,7 +19849,7 @@
           "uploadedAt",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "date",
           "amount",
           "payee",
@@ -23140,6 +23118,9 @@
       "StrategyOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountId": {
             "title": "Accountid",
             "type": "string"
@@ -23158,10 +23139,6 @@
             },
             "title": "Breakevens",
             "type": "array"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "capitalAtRiskAtOpen": {
             "anyOf": [
@@ -23375,7 +23352,7 @@
           "returnPct",
           "cashSecured",
           "marginRequirement",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "StrategyOut",
@@ -24560,6 +24537,9 @@
       "TxnOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountId": {
             "title": "Accountid",
             "type": "string"
@@ -24710,10 +24690,6 @@
               }
             ],
             "title": "Leftoutof"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "memo": {
             "anyOf": [
@@ -24924,7 +24900,7 @@
           "tags",
           "tagIds",
           "receipts",
-          "level",
+          "access",
           "version"
         ],
         "title": "TxnOut",
@@ -25962,6 +25938,39 @@
         "title": "Via",
         "type": "object"
       },
+      "WaitingBook": {
+        "additionalProperties": false,
+        "description": "A book the user is named in as a filer and hasn't accepted (S8.14.1): its year and\nfilers, to accept, and nothing more. They read no row of it, so it carries no access.",
+        "properties": {
+          "filers": {
+            "items": {
+              "$ref": "#/components/schemas/Filer"
+            },
+            "title": "Filers",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "year",
+          "filers",
+          "label"
+        ],
+        "title": "WaitingBook",
+        "type": "object"
+      },
       "WalletAddressOut": {
         "additionalProperties": false,
         "properties": {
@@ -26299,10 +26308,6 @@
       "WithdrawalsView": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "expenses": {
             "items": {
               "$ref": "#/components/schemas/ExpenseOut"
@@ -26338,8 +26343,7 @@
         "required": [
           "years",
           "expenses",
-          "kinds",
-          "canWrite"
+          "kinds"
         ],
         "title": "WithdrawalsView",
         "type": "object"
@@ -26607,6 +26611,9 @@
       "moolakata__ui__education__PlanOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "beneficiary": {
             "anyOf": [
               {
@@ -26627,10 +26634,6 @@
               }
             ],
             "title": "Beneficiaryid"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "contributedThisYear": {
             "examples": [
@@ -26717,7 +26720,7 @@
           "stateDeduction",
           "contributedThisYear",
           "rollover",
-          "canWrite"
+          "access"
         ],
         "title": "PlanOut",
         "type": "object"
@@ -26749,6 +26752,9 @@
       "moolakata__ui__giving__PlanOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "amount": {
             "anyOf": [
               {
@@ -26789,10 +26795,6 @@
           },
           "incomeBasis": {
             "title": "Incomebasis",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
             "type": "string"
           },
           "ownerName": {
@@ -26836,7 +26838,7 @@
           "incomeBasis",
           "income",
           "dafCounted",
-          "level",
+          "access",
           "ownerName",
           "version"
         ],
@@ -36397,44 +36399,16 @@
       "get": {
         "description": "The books the user holds or helps with, and those they are named in, to accept.",
         "operationId": "list_books_ui_api_tax_books_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 500,
-              "maximum": 1000,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_BookRow_"
+                  "$ref": "#/components/schemas/BooksView"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
           },
           "default": {
             "$ref": "#/components/responses/Problem"

@@ -517,7 +517,9 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
     with srv.db.read(user=n["bob"]) as s:
         shared = s.scalars(select(Account).where(Account.name == "Everyday checking")).one()
         got, p = access.need(s, Account, shared.id, n["bob"])
-        assert got.id == shared.id and p.level() == "read"
+        assert got.id == shared.id and p == access.READ
+        with pytest.raises(ValueError):  # nothing is allowed by `mine` (mine walk, decision 7)
+            access.need(s, Account, shared.id, n["bob"], "mine")
         with pytest.raises(Problem) as e:
             access.need(s, Account, shared.id, n["bob"], "writable", "account")
         assert e.value.status == 403
@@ -528,7 +530,7 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
         assert {a.id for a, _ in listed} == {k[0] for k in rows(s, "Account") if k[1] == n["bob"]}
     with srv.db.read(unscoped="test: holders") as s:
         held = access.holders_of(s, Account, shared.id)
-        assert held[n["alice"]].level() == "owner" and n["bob"] in held
+        assert held[n["alice"]] == access.OWNER and n["bob"] in held
 
 
 # ---- The write check at flush (decision 5.4) ----

@@ -186,7 +186,7 @@ export function Contributions({ a }) {
   };
   const r = pl.rollover;
   return html`
-    ${v.canWrite ? html`<${AddContribution} a=${a} done=${again} />` : null}
+    ${a.access.writable ? html`<${AddContribution} a=${a} done=${again} />` : null}
     <div class="card mt" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>Against the annual gift exclusion</h3>
       ${v.years.length
@@ -235,7 +235,7 @@ export function Contributions({ a }) {
               <caption class="sr-only">Contributions</caption>
               <thead>
                 <tr><th>Date</th><th>From</th><th class="num">Amount</th>
-                      ${v.canWrite ? html`<th></th>` : null}</tr>
+                      ${a.access.writable ? html`<th></th>` : null}</tr>
               </thead>
               <tbody>${v.rows.map((/** @type {any} */ c) =>
                 html`<tr><td>${date(c.date)}</td><td>${c.name}${
@@ -247,7 +247,7 @@ export function Contributions({ a }) {
                     `
                     : null
                 }</td><td class="num"><${Amt} v=${c.amount} /></td>${
-                  v.canWrite
+                  a.access.writable
                     ? html`
                       <td>
                         <${Retag} a=${a} c=${c} done=${again} />
@@ -302,7 +302,7 @@ function AddContribution({ a, done }) {
   const people = useList('/persons');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
-    x.group === 'banking' && x.active && ['owner', 'write'].includes(x.level)
+    x.group === 'banking' && x.active && x.access.writable
   );
   const f = useDraft((draft) => {
     draft.add(ContribRec, { accountId: a.id, date: today(), contributor: 'owner' });
@@ -421,12 +421,12 @@ export function Withdrawals({ a }) {
         : html`<${Empty}>No withdrawals yet. When school starts, each year lists what was taken
           out against the qualified expenses and their receipts.</${Empty}>`}
     </div>
-    ${v.canWrite ? html`<${AddExpense} a=${a} kinds=${v.kinds} done=${res.reload} />` : null}
+    ${a.access.writable ? html`<${AddExpense} a=${a} kinds=${v.kinds} done=${res.reload} />` : null}
     ${v.expenses.length
       ? html`<div class="card mt"><h3>Qualified expenses</h3>${
         v.expenses.map((
           /** @type {any} */ x,
-        ) => html`<${Expense} x=${x} canWrite=${v.canWrite} done=${res.reload} />`)
+        ) => html`<${Expense} x=${x} canWrite=${a.access.writable} done=${res.reload} />`)
       }</div>`
       : null}
   `;

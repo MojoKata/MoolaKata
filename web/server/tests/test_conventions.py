@@ -1,6 +1,9 @@
 """The API conventions every route keeps (requirements S13.8), checked on the routes themselves
 so a new route can't drift from them."""
 
+import json
+import re
+
 from fastapi.routing import APIRoute
 
 from moolakata.app import Server, create_app
@@ -113,6 +116,31 @@ def test_the_document_lists_the_problems_and_their_codes():
                 method,
                 path,
             )
+
+
+def test_what_the_reader_may_do_never_travels_back():
+    """`access` (the reader's permissions and whether a record is theirs) goes only from the
+    server (mine walk, decision 1.4): no request body, nor anything one refers to, has it."""
+    from moolakata import contract
+
+    doc = contract.openapi_document()
+    schemas = doc["components"]["schemas"]
+    sent = {n for n, sc in schemas.items() if "x-entity" in sc}
+    for ops in doc["paths"].values():
+        for op in ops.values():
+            for media in op.get("requestBody", {}).get("content", {}).values():
+                ref = media.get("schema", {}).get("$ref", "")
+                if ref:
+                    sent.add(ref.rsplit("/", 1)[1])
+    todo, seen = list(sent), set()
+    while todo:
+        name = todo.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        props = schemas.get(name, {}).get("properties", {})
+        assert "access" not in props and name != "Access", name
+        todo += [m for m in re.findall(r'"#/components/schemas/([^"]+)"', json.dumps(props))]
 
 
 def test_every_201_names_what_it_made_and_every_202_is_a_job(store, keyed_config):

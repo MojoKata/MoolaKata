@@ -184,7 +184,7 @@ export function LoanSummary({ a, reload }) {
   const t = v.terms;
   const s = v.servicer;
   return html`
-    <div class="card facts"><h3>Loan<span class="spacer"></span>${v.canWrite
+    <div class="card facts"><h3>Loan<span class="spacer"></span>${a.access.writable
       ? html`<button class="btn sm" onClick=${() =>
         openDialog(PaymentDialog, { a, v }).then((ok) => ok && again())}><${Icon}
           name="plus" /> Record a payment</button>`
@@ -255,12 +255,12 @@ export function LoanSummary({ a, reload }) {
             ? html`<span class="pill ok"><${Icon} name="check" /> matches</span>`
             : html`<span class="pill warn">off by <${Amt} v=${s.difference} signed /></span>`
         }</span>`
-        : html`<span class="dim">not typed</span>`}${v.canWrite
+        : html`<span class="dim">not typed</span>`}${a.access.writable
         ? html`${'\u00a0'}<button class="btn sm" onClick=${() =>
           openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type it</button>`
         : null}</div>
     </div>
-    ${v.canWrite ? html`<${Candidates} a=${a} again=${again} />` : null}
+    ${a.access.writable ? html`<${Candidates} a=${a} again=${again} />` : null}
   `;
 }
 
@@ -429,7 +429,7 @@ export function PaymentDialog({ close, a, v }) {
   useDialogGuide('dialog-loan-payment');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
-    x.group === 'banking' && x.active && ['owner', 'write'].includes(x.level)
+    x.group === 'banking' && x.active && x.access.writable
   );
   const f = useDraft((draft) => {
     draft.add(PayTxn, { accountId: a.id, date: v.nextDate || today(), amount: v.total });

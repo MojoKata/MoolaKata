@@ -26,7 +26,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
   const cats = useCategories();
   const [sel, setSel] = useState(/** @type {Set<string>} */ (new Set()));
   const [bulk, setBulk] = useState('');
-  const writable = rows.filter((t) => t.level !== 'read');
+  const writable = rows.filter((t) => t.access.writable);
   const all = writable.length > 0 && writable.every((t) => sel.has(t.id));
   const toggle = (/** @type {string} */ id) => {
     const next = new Set(sel);
@@ -68,7 +68,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
           <tbody>${rows.map((t) =>
             html`<tr class=${sel.has(t.id) ? 'tr-sel' : ''}>
         <td><input type="checkbox" aria-label=${'Select ' + (t.payee || 'transaction')}
-          disabled=${t.level === 'read'} checked=${sel.has(t.id)} onChange=${() =>
+          disabled=${!t.access.writable} checked=${sel.has(t.id)} onChange=${() =>
               toggle(t.id)} /></td>
         <td class="dim" style=${{ whiteSpace: 'nowrap' }}>${date(t.date)}</td>
         <td><button type="button" class="linklike" style=${{
@@ -136,7 +136,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                 ? html`<span class="pill">Split ${t.splits.length} ways</span>`
                 : t.transferId || t.symbol
                 ? html`<span class="dim small">—</span>`
-                : t.level === 'read'
+                : !t.access.writable
                 ? (t.categoryId
                   ? html`<span class="pill">${cats.byId[t.categoryId]?.path}</span>`
                   : html`<span class="pill warn">Uncategorised</span>`)

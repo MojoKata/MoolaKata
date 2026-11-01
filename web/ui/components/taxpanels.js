@@ -622,7 +622,7 @@ function Issues({ p, b, reload }) {
         html`
           <div
             class="list-item"><${Icon} name="alert" /><span class="grow">${i.text}</span>${i
-                    .kind === 'changed-after-filing' && b.canWrite
+                    .kind === 'changed-after-filing' && b.access.writable
               ? html`
                 <a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><button class="btn sm"
                   onClick=${waive}>No amendment needed</button>

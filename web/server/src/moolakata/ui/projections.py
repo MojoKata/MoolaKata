@@ -11,12 +11,14 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, projections
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..projections import assumptions, bitcoin, taxtables
 from ..store.entities.projections import AssumptionSet, Projection, ShownProjection, TaxFigure
 from ..store.entities.users import User
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     Loose,
     Model,
@@ -34,7 +36,7 @@ class ProjectionRow(Model):
     name: str
     goal: str
     active: bool
-    level: str
+    access: Access
     ownerName: str
     builtOn: dict
     builtOnLabel: str
@@ -68,7 +70,7 @@ def _shown(s, user_id: str, projection_id: str) -> bool:
     return row is not None and not row.deleted
 
 
-def row(s, c_id: str, p: Projection, level: str, result: dict | None = None) -> ProjectionRow:
+def row(s, c_id: str, p: Projection, held: Perms, result: dict | None = None) -> ProjectionRow:
     result = result or projections.compute(s, p, c_id)
     track = projections.tracking(s, p, c_id) if p.active else None
     owner = s.get(User, p.ownerId)
@@ -77,21 +79,21 @@ def row(s, c_id: str, p: Projection, level: str, result: dict | None = None) -> 
         name=p.name,
         goal=p.goal,
         active=p.active,
-        level=level,
+        access=Access.of(held),
         ownerName=owner.displayName if owner else "",
         builtOn=json.loads(p.builtOn),
         builtOnLabel=result["builtOnLabel"],
         headline=projections.headline(p, result["answer"]),
         status=track["status"] if track else None,
-        shown=level == "owner" or _shown(s, c_id, p.id),
-        sharedWith=len(access.holders_of(s, Projection, p.id)) - 1 if level == "owner" else 0,
+        shown=held.mine or _shown(s, c_id, p.id),
+        sharedWith=len(access.holders_of(s, Projection, p.id)) - 1 if held.shareable else 0,
         version=p.version,
     )
 
 
-def detail(s, c_id: str, p: Projection, level: str) -> ProjectionDetail:
+def detail(s, c_id: str, p: Projection, held: Perms) -> ProjectionDetail:
     result = projections.compute(s, p, c_id)
-    base = row(s, c_id, p, level, result)
+    base = row(s, c_id, p, held, result)
     return ProjectionDetail(
         **base.model_dump(),
         inputs=json.loads(p.inputs),
@@ -101,7 +103,7 @@ def detail(s, c_id: str, p: Projection, level: str) -> ProjectionDetail:
     )
 
 
-def _get(s, user_id: str, pid: str, need: str = "read") -> tuple[Projection, str]:
+def _get(s, user_id: str, pid: str, need: str = "read") -> tuple[Projection, Perms]:
     """`need`: *read*, *write*, or a permission's name (which one is active: *configurable*;
     deleting it: *deletable*)."""
     perms = access.perms(s, Projection, pid, user_id)
@@ -111,7 +113,7 @@ def _get(s, user_id: str, pid: str, need: str = "read") -> tuple[Projection, str
     want = {"read": None, "write": "writable"}.get(need, need)
     if want is not None and not getattr(perms, want):
         raise Problem(403, "owner-only", "Only the projection's owner can do this.")
-    return p, perms.level()
+    return p, perms
 
 
 def _check(s, user_id: str, name, goal, built, inputs) -> list[FieldError]:
@@ -249,14 +251,14 @@ def _raise(errors: list[FieldError]) -> None:
 @router.get("/projections", response_model=list[ProjectionRow])
 def list_projections(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        return [row(s, c.id, p, lvl) for p, lvl in projections.visible(s, c.id)]
+        return [row(s, c.id, p, held) for p, held in projections.visible(s, c.id)]
 
 
 @router.get("/projections/{projection_id}", response_model=ProjectionDetail)
 def get_projection(projection_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        p, lvl = _get(s, c.id, projection_id)
-        return detail(s, c.id, p, lvl)
+        p, held = _get(s, c.id, projection_id)
+        return detail(s, c.id, p, held)
 
 
 @router.post("/projections/{projection_id}/activate", response_model=Activated)
@@ -267,11 +269,11 @@ def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
         p, _ = _get(s, c.id, projection_id, "configurable")
         mine = projections.subject(p)
         replaced = None
-        for other, lvl in projections.visible(s, c.id):
+        for other, held in projections.visible(s, c.id):
             if (
                 other.id != p.id
                 and other.active
-                and lvl == "owner"
+                and held.mine
                 and projections.subject(other) == mine
             ):
                 other.active, other.baseline, other.baselineAt = False, None, None
@@ -359,8 +361,8 @@ def _projection_delete(ctx, p: Projection) -> None:
 
 
 def _projection_read(ctx, record_id: str) -> ProjectionDetail:
-    p, lvl = _get(ctx.s, ctx.caller.id, record_id)
-    return detail(ctx.s, ctx.caller.id, p, lvl)
+    p, held = _get(ctx.s, ctx.caller.id, record_id)
+    return detail(ctx.s, ctx.caller.id, p, held)
 
 
 save.register(
@@ -397,8 +399,8 @@ class Plan(Model):
 def plans(request: Request, c: Caller = Depends(caller)):
     out = []
     with server(request).db.read(user=c.id) as s:
-        for p, lvl in projections.visible(s, c.id):
-            if not p.active or (lvl != "owner" and not _shown(s, c.id, p.id)):
+        for p, held in projections.visible(s, c.id):
+            if not p.active or (not held.mine and not _shown(s, c.id, p.id)):
                 continue
             result = projections.compute(s, p, c.id)
             track = projections.tracking(s, p, c.id) or {}
@@ -412,7 +414,7 @@ def plans(request: Request, c: Caller = Depends(caller)):
                     headline=projections.headline(p, result["answer"]),
                     actual=track.get("points", []),
                     baseline=[(d, mid) for d, _, mid, _ in track.get("band", [])],
-                    sharedBy=None if lvl == "owner" else owner.displayName,
+                    sharedBy=None if held.mine else owner.displayName,
                     builtOn=json.loads(p.builtOn),
                 )
             )

@@ -34,8 +34,8 @@ export function PortfolioDialog({ close, portfolio }) {
   }, [portfolio?.id]);
   const rec = /** @type {PortfolioRec | undefined} */ (f.draft?.records[0]);
   const list = /** @type {any[]} */ (accounts.data) || [];
-  // Only the owner chooses the accounts (S5.1).
-  const owner = !portfolio || portfolio.level === 'owner';
+  // Only the owner chooses the accounts (S5.1): what a portfolio covers is a setting.
+  const owner = !portfolio || portfolio.access.configurable;
   const ids = new Set(/** @type {string[]} */ (rec?.get('accountIds') || []));
   return html`
     <${DraftDialog} f=${f} title=${portfolio ? 'Portfolio' : 'New portfolio'} close=${close}
@@ -59,7 +59,7 @@ export function PortfolioDialog({ close, portfolio }) {
                   }} /><span class="grow">${a.name} <span class="small dim">${
                     a.institution || ''
                   }</span></span>${
-                    a.level !== 'owner' ? html`<span class="pill">shared</span>` : null
+                    !a.access.mine ? html`<span class="pill">shared</span>` : null
                   }</label>`
                 )}
                 ${rec.error('accountIds')

@@ -467,7 +467,7 @@ class Recorder:
             paths += ["/ui/users"] + [f"/ui/settings/{s}" for s in SETTINGS]
         jobs: list[tuple] = [("visit", p) for p in paths]
         for a in self.api("/accounts")["items"]:
-            jobs.append(("account", a["id"], a["level"] != "read", a["name"]))
+            jobs.append(("account", a["id"], a["access"]["writable"], a["name"]))
         for p in self.api("/portfolios")["items"]:
             jobs += [("visit", f"/ui/portfolios/{p['id']}/{tab}")
                      for tab in ("performance", "holdings", "projections")]  # fmt: skip

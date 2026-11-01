@@ -26,30 +26,29 @@ NOT_YET = ("idea", "planned")
 
 @dataclass
 class Plan:
-    """A gift plan the user can see, with its person and the user's level on it."""
+    """A gift plan the user can see, with its person and what the user holds of it."""
 
     plan: GiftPlan
     person: Person
-    level: str
+    perms: access.Perms
 
 
 def visible_plans(s: Session, user_id: str) -> list[Plan]:
     """The user's own gift plans and those shared with them, one per person: their own when
-    they have one, else the shared one they hold the higher level on (GiftPlanAccess)."""
+    they have one, else the shared one they may change, else any (GiftPlanAccess)."""
     best: dict[str, Plan] = {}
     for gp, perms in access.listing(s, GiftPlan, user_id):
         p = s.get(Person, gp.personId)
         if p is None or p.deleted:
             continue
-        lvl = perms.level()
         have = best.get(p.id)
-        if have is None or _rank(lvl) > _rank(have.level):
-            best[p.id] = Plan(gp, p, lvl)
+        if have is None or _rank(perms) > _rank(have.perms):
+            best[p.id] = Plan(gp, p, perms)
     return sorted(best.values(), key=lambda x: x.person.name)
 
 
-def _rank(level: str) -> int:
-    return {"read": 1, "write": 2, "owner": 3}[level]
+def _rank(perms: access.Perms) -> tuple[bool, bool]:
+    return perms.mine, perms.writable
 
 
 def plan_for(s: Session, user_id: str, person_id: str, need: str = "read") -> Plan:
@@ -58,7 +57,7 @@ def plan_for(s: Session, user_id: str, person_id: str, need: str = "read") -> Pl
     found = next((x for x in visible_plans(s, user_id) if x.person.id == person_id), None)
     if found is None:
         raise Problem(404, "not-found", "Not found")
-    if need != "read" and found.level == "read":
+    if need != "read" and not found.perms.writable:
         raise Problem(403, "read-only", "This gift plan is shared with you to read.")
     return found
 
@@ -75,7 +74,7 @@ def plan_by_id(s: Session, user_id: str, plan_id: str, need: str = "read") -> Pl
     want = {"read": None, "write": "writable"}.get(need, need)
     if want is not None and not getattr(perms, want):
         raise Problem(403, "read-only", "This gift plan is shared with you to read.")
-    return Plan(gp, p, perms.level())
+    return Plan(gp, p, perms)
 
 
 def occasions_of(s: Session, plan_ids: list[str]) -> dict[str, list[Occasion]]:

@@ -12,6 +12,7 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, budgets, clock, ids
+from ..access import Perms
 from ..budgets import plan, recurring
 from ..errors import FieldError, Problem, refuse
 from ..store import scoping
@@ -20,6 +21,7 @@ from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine, BudgetMo
 from ..store.entities.users import User
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     IdOf,
     Model,
@@ -52,7 +54,7 @@ class BudgetRow(Model):
     name: str
     ownerId: str
     ownerName: str
-    level: str
+    access: Access
     accountIds: list[str]
     sharedWith: int
     method: str  # tracking or envelope (S7.1.3)
@@ -273,7 +275,7 @@ class InBudget(Model):
     name: str
     countsAs: str | None  # the category's path, or none when uncategorised
     leftOut: bool
-    canWrite: bool
+    access: Access  # the budget's: leaving the transaction out is a change to it
 
 
 class CardLine(Model):
@@ -304,7 +306,6 @@ class MonthView(Model):
     plannedSpending: Money
     uncategorised: int
     daysLeft: int
-    canWrite: bool
     version: int  # the budget's: a change to the plan is made against it (S13.8.6)
 
 
@@ -361,9 +362,9 @@ def _names(s, viewer: str, account_ids: set[str]) -> dict[str, str]:
     return {a.id: a.name for a, _ in access.accounts(s, viewer, Account.id.in_(account_ids))}
 
 
-def shape(s, b: Budget, level: str, viewer: str | None = None) -> BudgetRow:
+def shape(s, b: Budget, held: Perms, viewer: str | None = None) -> BudgetRow:
     owner = s.get(User, b.ownerId)
-    shared = len(access.holders_of(s, Budget, b.id)) - 1 if level == "owner" else 0
+    shared = len(access.holders_of(s, Budget, b.id)) - 1 if held.shareable else 0
     accts = _accounts_of(s, b, viewer)
     rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
     return BudgetRow(
@@ -371,7 +372,7 @@ def shape(s, b: Budget, level: str, viewer: str | None = None) -> BudgetRow:
         name=b.name,
         ownerId=b.ownerId,
         ownerName=owner.displayName,
-        level=level,
+        access=Access.of(held),
         accountIds=accts,
         sharedWith=shared,
         method=b.method,
@@ -458,7 +459,7 @@ def _month(value: str | None) -> dt.date:
 def list_budgets(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         return [
-            shape(s, b, perms.level(), c.id)
+            shape(s, b, perms, c.id)
             for b, perms in access.listing(s, Budget, c.id, order_by=Budget.name)
         ]
 
@@ -510,8 +511,8 @@ def left_out(
 def get_budget(budget_id: str, request: Request, c: Caller = Depends(caller)):
     """One budget, as its list shows it: where a new one's Location leads (S13.8.4)."""
     with server(request).db.read(user=c.id) as s:
-        b, lvl = access.budget(s, c.id, budget_id)
-        return shape(s, b, lvl, c.id)
+        b, held = access.budget(s, c.id, budget_id)
+        return shape(s, b, held, c.id)
 
 
 def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
@@ -545,15 +546,15 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
     return b
 
 
-def _change_budget(s, c: Caller, b: Budget, lvl: str, body, sent: set[str]) -> None:
-    """The fields `sent`: its name, accounts (its owner's choice), options and roles."""
+def _change_budget(s, c: Caller, b: Budget, held: Perms, body, sent: set[str]) -> None:
+    """The fields `sent`: its name, accounts (with `configurable`), options and roles."""
     _raise(_check(s, b.ownerId, body))
     fields = []
     if "name" in sent and body.name.strip() != b.name:
         b.name = body.name.strip()
         fields.append("name")
     if "accountIds" in sent:
-        if lvl != "owner":
+        if not held.configurable:
             raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
         _set_accounts(s, b, body.accountIds, c.id)
         b.updatedAt = clock.now()
@@ -586,7 +587,7 @@ def budget_month(
     budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None
 ):
     with server(request).db.read(user=c.id) as s:
-        b, lvl = access.budget(s, c.id, budget_id)
+        b, _ = access.budget(s, c.id, budget_id)
         m = budgets.month_view(s, b, _month(month), clock.today(), c.id)
         names = _names(
             s, c.id, {x.accountId for x in m.moved} | {x.otherAccountId for x in m.moved}
@@ -635,7 +636,6 @@ def budget_month(
             plannedSpending=m.plannedSpending,
             uncategorised=m.uncategorised,
             daysLeft=m.daysLeft,
-            canWrite=lvl in ("owner", "write"),
             version=b.version,
         )
 
@@ -1051,7 +1051,6 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
         counts_as = ", ".join(sorted(tr.label(x) for x in cats if x in tr.by_id)) or None
         out = []
         for b, perms in access.listing(s, Budget, c.id, order_by=Budget.name):
-            lvl = perms.level()
             if t.accountId not in budgets.account_ids(s, b, c.id):
                 continue
             left = s.get(BudgetLeaveOut, (b.id, t.id))
@@ -1061,7 +1060,7 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
                     name=b.name,
                     countsAs=counts_as,
                     leftOut=left is not None and not left.deleted,
-                    canWrite=lvl in ("owner", "write"),
+                    access=Access.of(perms),
                 )
             )
         return out
@@ -1290,7 +1289,7 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
             s, "budget.created", actor=c.id, subject_kind="budget", subject_id=b.id, owner=c.id
         )
         s.flush()
-        out = shape(s, b, "owner", c.id)
+        out = shape(s, b, access.OWNER, c.id)
     return JSONResponse(
         out.model_dump(mode="json"),
         status_code=201,
@@ -1679,8 +1678,8 @@ def _budget_update(ctx, b: Budget, body: BudgetRecord) -> None:
     have = {r["accountId"]: r for r in current["roles"]}
     if any(r.model_dump() != have.get(r.accountId) for r in body.roles):
         sent.add("roles")
-    _, lvl = access.budget(ctx.s, ctx.caller.id, b.id, "write")
-    _change_budget(ctx.s, ctx.caller, b, lvl, body, sent)
+    _, held = access.budget(ctx.s, ctx.caller.id, b.id, "write")
+    _change_budget(ctx.s, ctx.caller, b, held, body, sent)
 
 
 def _budget_delete(ctx, b: Budget) -> None:
@@ -1693,8 +1692,8 @@ def _budget_delete(ctx, b: Budget) -> None:
 
 
 def _budget_read(ctx, record_id: str) -> BudgetRow:
-    b, lvl = access.budget(ctx.s, ctx.caller.id, record_id)
-    return shape(ctx.s, b, lvl, ctx.caller.id)
+    b, held = access.budget(ctx.s, ctx.caller.id, record_id)
+    return shape(ctx.s, b, held, ctx.caller.id)
 
 
 def _move_create(ctx, record_id: str, body: MoveRecord) -> None:

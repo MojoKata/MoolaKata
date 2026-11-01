@@ -233,8 +233,8 @@ def _attention(
     from ..taxes import books as taxbooks
     from ..taxes import closed
 
-    for b, lvl in taxbooks.visible(s, c.id):
-        if lvl not in ("owner", "write"):
+    for b, held in taxbooks.visible(s, c.id):
+        if not held.writable:
             continue
         for f in taxbooks.filings(s, b):
             if taxbooks.overdue(f, today):

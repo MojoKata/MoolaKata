@@ -10,6 +10,7 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, figures, valuation
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..ledger import performance as perf
 from ..ledger import types as atypes
@@ -21,6 +22,7 @@ from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     IdOf,
     Model,
@@ -43,7 +45,7 @@ class PortfolioRow(Model):
     ownerId: str
     ownerName: str
     ownerAvatar: str | None
-    level: str
+    access: Access
     benchmark: str
     accountIds: list[str]
     value: Money
@@ -103,7 +105,12 @@ def value_of(s, accounts: list[Account], day: dt.date | None = None) -> Decimal:
     return total
 
 
-def shape(s, user: User, p: Portfolio | None, level: str) -> PortfolioRow:
+# "All my accounts": the reader's own, made of their accounts, never changed, shared or
+# deleted (S5.1).
+IMPLICIT = Perms(False, False, False, False, True)
+
+
+def shape(s, user: User, p: Portfolio | None, held: Perms) -> PortfolioRow:
     seen = seen_accounts(s, user.id, p)
     if p is None:
         return PortfolioRow(
@@ -113,7 +120,7 @@ def shape(s, user: User, p: Portfolio | None, level: str) -> PortfolioRow:
             ownerId=user.id,
             ownerName=user.displayName,
             ownerAvatar=user.avatar,
-            level="owner",
+            access=Access.of(IMPLICIT),
             benchmark="VT",
             accountIds=[a.id for a in seen],
             value=value_of(s, seen),
@@ -122,7 +129,7 @@ def shape(s, user: User, p: Portfolio | None, level: str) -> PortfolioRow:
             version=1,
         )
     owner = s.get(User, p.ownerId)
-    shared = len(access.holders_of(s, Portfolio, p.id)) - 1 if level == "owner" else 0
+    shared = len(access.holders_of(s, Portfolio, p.id)) - 1 if held.shareable else 0
     return PortfolioRow(
         id=p.id,
         name=p.name,
@@ -130,7 +137,7 @@ def shape(s, user: User, p: Portfolio | None, level: str) -> PortfolioRow:
         ownerId=p.ownerId,
         ownerName=owner.displayName,
         ownerAvatar=owner.avatar,
-        level=level,
+        access=Access.of(held),
         benchmark=p.benchmark,
         accountIds=[a.id for a in seen],
         value=value_of(s, seen),
@@ -184,8 +191,8 @@ def _set_members(s, p: Portfolio, wanted: list[str], by: str) -> None:
 @router.get("/portfolios", response_model=list[PortfolioRow])
 def list_portfolios(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        return [shape(s, c.user, None, "owner")] + [
-            shape(s, c.user, p, perms.level())
+        return [shape(s, c.user, None, IMPLICIT)] + [
+            shape(s, c.user, p, perms)
             for p, perms in access.listing(s, Portfolio, c.id, order_by=Portfolio.name)
         ]
 
@@ -194,9 +201,9 @@ def list_portfolios(request: Request, c: Caller = Depends(caller)):
 def get_portfolio(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         if portfolio_id == ALL:
-            return shape(s, c.user, None, "owner")
-        p, lvl = access.portfolio(s, c.id, portfolio_id)
-        return shape(s, c.user, p, lvl)
+            return shape(s, c.user, None, IMPLICIT)
+        p, held = access.portfolio(s, c.id, portfolio_id)
+        return shape(s, c.user, p, held)
 
 
 class PortfolioRecord(Model):
@@ -233,7 +240,7 @@ def _portfolio_current(ctx, p: Portfolio) -> dict:
 
 def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
     s, c = ctx.s, ctx.caller
-    _, lvl = access.portfolio(s, c.id, p.id, "write")
+    _, held = access.portfolio(s, c.id, p.id, "write")
     _raise(_check(s, p.ownerId, body))
     fields = []
     for f in ("name", "benchmark", "notes"):
@@ -242,7 +249,7 @@ def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
             setattr(p, f, value.strip() if isinstance(value, str) and f == "name" else value)
             fields.append(f)
     if set(body.accountIds) != set(member_ids(s, p.id)):
-        if lvl != "owner":
+        if not held.configurable:
             raise refuse("accountIds", "owner-only", "Only the owner chooses the accounts.", 403)
         _set_members(s, p, body.accountIds, c.id)
         p.updatedAt = clock.now()
@@ -261,8 +268,8 @@ def _portfolio_delete(ctx, p: Portfolio) -> None:
 
 
 def _portfolio_read(ctx, record_id: str) -> PortfolioRow:
-    p, lvl = access.portfolio(ctx.s, ctx.caller.id, record_id)
-    return shape(ctx.s, ctx.caller.user, p, lvl)
+    p, held = access.portfolio(ctx.s, ctx.caller.id, record_id)
+    return shape(ctx.s, ctx.caller.user, p, held)
 
 
 save.register(

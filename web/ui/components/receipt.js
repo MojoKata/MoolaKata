@@ -162,7 +162,7 @@ export function ReceiptDialog({ close, id }) {
     const x = l.rec || draft.get(l.id);
     if (x) draft.remove(x);
   };
-  const canEdit = r.level === 'owner' || r.level === 'write';
+  const canEdit = r.access.writable;
   const reading = r.readStatus === 'waiting' || r.readStatus === 'reading';
   /** "Read from the receipt" under a field still holding what was read from it. */
   const hint = (/** @type {string} */ field, /** @type {string} */ key) =>
@@ -174,7 +174,7 @@ export function ReceiptDialog({ close, id }) {
     <${DraftDialog} f=${f} title=${r.fileName} wide close=${close} what="This receipt"
       done=${rec.removed ? 'Receipt deleted' : 'Saved'} hideSave=${!canEdit}
       extra=${({ save }) =>
-        r.level === 'owner'
+        r.access.deletable
           ? html`
             <button type="button" class="btn danger" style=${{ marginRight: 'auto' }}
               disabled=${save.busy || r.links.length > 0 || r.alsoKeptWith > 0 ||
@@ -250,9 +250,7 @@ export function ReceiptDialog({ close, id }) {
           `}
           <p class="small dim">${KIND[r.mediaType]} · ${(r.size / 1024).toFixed(
             0,
-          )} KB · uploaded ${day(r.uploadedAt)}${r.level !== 'owner'
-            ? ` by ${r.ownerName}`
-            : ''}</p>
+          )} KB · uploaded ${day(r.uploadedAt)}${!r.access.mine ? ` by ${r.ownerName}` : ''}</p>
         </div>
         <div style=${{ flex: '0 1 280px' }}>
           ${reading

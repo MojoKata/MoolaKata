@@ -171,7 +171,7 @@ function RuleDialog({ close, rule, fill }) {
     }
   }, [rule?.id]);
   const rec = /** @type {RuleRec | undefined} */ (f.draft?.records[0]);
-  const writable = (/** @type {any[]} */ (accounts.data) || []).filter((a) => a.level !== 'read');
+  const writable = (/** @type {any[]} */ (accounts.data) || []).filter((a) => a.access.writable);
   return html`
     <${DraftDialog} f=${f} title=${rule ? 'Edit a rule' : 'New rule'} close=${close}
       what="This rule" label=${rule ? 'Save' : 'Add the rule'}

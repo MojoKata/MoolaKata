@@ -196,6 +196,28 @@ class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=False)
 
 
+class Access(Model):
+    """What the reader may do with a record, and whether it is theirs (docs/schema.md §7), as
+    its access view says. It travels only from the server: no request body has it."""
+
+    mine: bool
+    writable: bool
+    deletable: bool
+    shareable: bool
+    configurable: bool
+
+    @classmethod
+    def of(cls, p) -> Access:
+        """From an `access.Perms`."""
+        return cls(
+            mine=p.mine,
+            writable=p.writable,
+            deletable=p.deletable,
+            shareable=p.shareable,
+            configurable=p.configurable,
+        )
+
+
 class Page[T](BaseModel):
     """A list (S13.8.5): this page's rows, how many the caller can see in all, and where the
     page starts."""

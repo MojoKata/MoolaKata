@@ -124,7 +124,7 @@ function Overview({ a, reload }) {
   const s = /** @type {any} */ (series.data);
   return html`
     <${PlansFor} kind="account" id=${a.id} />
-    ${a.type.startsWith('crypto') && a.level === 'owner'
+    ${a.type.startsWith('crypto') && a.access.configurable
       ? html`<${BitcoinPairs} a=${a} reload=${reload} />`
       : null}
     <div class="grid g-main">
@@ -204,7 +204,7 @@ function Holdings({ a }) {
   const h = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!h) return html`<${Loading} />`;
-  const trade = a.level !== 'read'
+  const trade = a.access.writable
     ? html`
       <div
         class="toolbar"><span class="spacer"></span><button class="btn sm" onClick=${() =>
@@ -350,7 +350,7 @@ function Transactions({ a, all }) {
   const d = /** @type {any} */ (res.data);
   return html`<div class="toolbar"><span class="spacer"></span>
     ${
-    a.level !== 'read'
+    a.access.writable
       ? html`
         <button type="button" class="btn" onClick=${() =>
           openDialog(ImportDialog, {
@@ -432,7 +432,7 @@ function Reconcile({ a, all, reload }) {
           date(g[1])
         }.</div>
         ${
-          a.level !== 'read'
+          a.access.writable
             ? html`<button type="button" class="btn sm" onClick=${() =>
               openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                 again,
@@ -463,7 +463,7 @@ function Reconcile({ a, all, reload }) {
         </div>
       `
       : null}
-    <div class="card mt"><h3>Balance checks<span class="spacer"></span>${a.level !== 'read'
+    <div class="card mt"><h3>Balance checks<span class="spacer"></span>${a.access.writable
       ? html`
         <button type="button" class="btn sm" onClick=${() =>
           openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's balance</button>
@@ -561,7 +561,7 @@ function Mismatch({ a, check, all, again }) {
           html`<div class="list-item"><${Icon} name="receipt" />
       <div class="grow"><b>Possible duplicate</b>: ${ids.length} identical rows on one day.</div>
       ${
-            a.level !== 'read'
+            a.access.writable
               ? html`
                 <button type="button" class="btn sm" onClick=${() =>
                   both.run(ids[0])}>Both are real</button>
@@ -588,7 +588,7 @@ function Mismatch({ a, check, all, again }) {
               class="list-item"><${Icon} name="alert" /><div class="grow"><b>Gap</b>: ${date(
                 g[0],
               )} to ${date(g[1])} has no imports.</div>
-                  ${a.level !== 'read'
+                  ${a.access.writable
                     ? html`<button type="button" class="btn sm" onClick=${() =>
                       openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                         again,
@@ -605,7 +605,7 @@ function Mismatch({ a, check, all, again }) {
             </div>
           `
           : null}
-        ${a.level !== 'read'
+        ${a.access.writable
           ? html`<div class="toolbar mt"><span class="spacer"></span><button type="button" class="btn sm"
       onClick=${() =>
             openDialog(Adjust, { a, check }).then((x) =>
@@ -795,15 +795,17 @@ function TickOff({ close, a }) {
 
 /** @param {{ a: any, reload: () => void }} p */
 function Sharing({ a, reload }) {
-  const res = useApi(a.level === 'owner' ? `/shares/account/${a.id}` : null, {}, ['share']);
+  const res = useApi(a.access.shareable ? `/shares/account/${a.id}` : null, {}, ['share']);
   const v = /** @type {any} */ (res.data);
-  if (a.level !== 'owner') {
+  if (!a.access.shareable) {
     return html`
       <div class="card">
         <h3>Shared with you</h3>
         <div class="list-item">
           <div class="grow">
-            ${a.ownerName} shares this account with you at <b>${a.level}</b>.${a.level === 'write'
+            ${a.ownerName} shares this account with you at <b>${a.access.writable
+              ? 'write'
+              : 'read'}</b>.${a.access.writable
               ? ' You can change what it holds: transactions, imports and categories. Its settings and sharing stay with the owner.'
               : ' You can see everything about it, and change nothing.'}</div>
         </div>
@@ -854,7 +856,9 @@ function Sharing({ a, reload }) {
  */
 function Settings({ a, reload }) {
   const { route } = useLocation();
-  const owner = a.level === 'owner';
+  // Its settings are its `configurable` holder's (S10.3); one it is shared with has their own
+  // view of it.
+  const owner = a.access.configurable;
   const loan = BY_TYPE[a.type]?.loan;
   const physical = BY_TYPE[a.type]?.physical;
   const wallet = BY_TYPE[a.type]?.wallet;
@@ -878,6 +882,7 @@ function Settings({ a, reload }) {
     reload();
   });
   if (!owner) {
+    if (a.access.mine) return null;
     return html`
       <div class="card content-narrow">
         <h3>Your view of it</h3>

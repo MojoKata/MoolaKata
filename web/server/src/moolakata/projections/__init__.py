@@ -515,9 +515,6 @@ def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> d
     }
 
 
-def visible(s: Session, user_id: str) -> list[tuple[Projection, str]]:
-    """The projections the user reads (ProjectionAccess), by name, with their level."""
-    return [
-        (p, perms.level())
-        for p, perms in access.listing(s, Projection, user_id, order_by=Projection.name)
-    ]
+def visible(s: Session, user_id: str) -> list[tuple[Projection, access.Perms]]:
+    """The projections the user reads (ProjectionAccess), by name, with what they hold."""
+    return access.listing(s, Projection, user_id, order_by=Projection.name)

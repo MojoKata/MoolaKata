@@ -3,13 +3,14 @@ filers and the accounts they count, filings with their estimated payments and th
 carry forward, and tax documents received and filed, against the documents expected."""
 
 import datetime as dt
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, people, receipts
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
@@ -26,7 +27,7 @@ from ..store.entities.users import User
 from ..store.rows import by_key
 from ..taxes import books, closed, dependents
 from . import save
-from .conventions import ExactRoute, IdOf, Model, Money
+from .conventions import Access, ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["taxes"])
@@ -75,7 +76,7 @@ class BookRow(Model):
     id: str
     year: int
     filers: list[Filer]
-    level: str  # owner, write, read; pending for a filer yet to accept
+    access: Access
     label: str
     version: int
 
@@ -89,18 +90,39 @@ def _filers(s, b: TaxBook) -> list[Filer]:
     ]
 
 
-def _row(s, b: TaxBook, lvl: str) -> BookRow:
-    fs = _filers(s, b)
+def _book_label(s, b: TaxBook, fs: list[Filer]) -> str:
     who = " & ".join(f.name.split(" ")[0] for f in fs)
-    label = f"{b.year} · {who}" + (" (joint)" if len(fs) > 1 else "")
-    return BookRow(id=b.id, year=b.year, filers=fs, level=lvl, label=label, version=b.version)
+    return f"{b.year} · {who}" + (" (joint)" if len(fs) > 1 else "")
 
 
-@router.get("/tax-books", response_model=list[BookRow])
+def _row(s, b: TaxBook, held: Perms) -> BookRow:
+    fs = _filers(s, b)
+    label = _book_label(s, b, fs)
+    return BookRow(
+        id=b.id, year=b.year, filers=fs, access=Access.of(held), label=label, version=b.version
+    )
+
+
+class WaitingBook(Model):
+    """A book the user is named in as a filer and hasn't accepted (S8.14.1): its year and
+    filers, to accept, and nothing more. They read no row of it, so it carries no access."""
+
+    id: str
+    year: int
+    filers: list[Filer]
+    label: str
+
+
+class BooksView(Model):
+    books: list[BookRow]
+    waiting: list[WaitingBook]
+
+
+@router.get("/tax-books", response_model=BooksView)
 def list_books(request: Request, c: Caller = Depends(caller)):
     """The books the user holds or helps with, and those they are named in, to accept."""
     with server(request).db.read(user=c.id) as s:
-        found = [(b, p.level()) for b, p in access.listing(s, TaxBook, c.id)]
+        found = access.listing(s, TaxBook, c.id)
         waiting = s.scalars(
             select(TaxBookFiler.bookId).where(
                 TaxBookFiler.userId == c.id,
@@ -108,7 +130,9 @@ def list_books(request: Request, c: Caller = Depends(caller)):
                 TaxBookFiler.deleted == false(),
             )
         ).all()
-        rows = [(b.year, b.createdAt, _row(s, b, lvl)) for b, lvl in found]
+        rows = sorted(found, key=lambda r: (-r[0].year, r[0].createdAt))
+        held = [_row(s, b, p) for b, p in rows]
+        out: list[tuple[int, Any, WaitingBook]] = []
         if waiting:
             # A book they are named in shows its year and filers, to accept, and nothing more
             # until they do (S8.14.1): read as the server.
@@ -116,9 +140,13 @@ def list_books(request: Request, c: Caller = Depends(caller)):
                 for b in srv.scalars(
                     select(TaxBook).where(TaxBook.id.in_(waiting), TaxBook.deleted == false())
                 ):
-                    rows.append((b.year, b.createdAt, _row(srv, b, "pending")))
-        rows.sort(key=lambda r: (-r[0], r[1]))
-        return [r[2] for r in rows]
+                    fs = _filers(srv, b)
+                    book = WaitingBook(
+                        id=b.id, year=b.year, filers=fs, label=_book_label(srv, b, fs)
+                    )
+                    out.append((b.year, b.createdAt, book))
+        out.sort(key=lambda r: (-r[0], r[1]))
+        return BooksView(books=held, waiting=[r[2] for r in out])
 
 
 class NewBookOut(BookRow):
@@ -219,7 +247,7 @@ def accept(book_id: str, request: Request, c: Caller = Depends(caller)):
             raise Problem(404, "not-found", "Not found")
         _from_last_year(s, b, clock.now())
         s.flush()
-        return _row(s, b, "owner")
+        return _row(s, b, access.perms(s, TaxBook, b.id, c.id) or access.OWNER)
 
 
 # ---- A book in full ----
@@ -367,7 +395,6 @@ class BookDetail(BookRow):
     received: list[DocumentOut]  # received documents not on the expected list
     lastYear: list[LastYear]
     federalDue: dt.date
-    canWrite: bool
 
 
 def _dependent(d: dependents.Dependent) -> DependentOut:
@@ -486,15 +513,15 @@ def _filing(s, f: Filing, docs: list[TaxDocument], today: dt.date) -> FilingOut:
     )
 
 
-def detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
+def detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
     """A book the caller reads, in full: its accounts, documents and dependents are the
     book's, worked out as the server over every filer's accounts (S8.14.2, decision 8.1 of
     the access-views walk)."""
     with scoping.as_server(s, "a tax book in full, for one who reads it") as srv:
-        return _detail(srv, c, srv.get(TaxBook, b.id), lvl)
+        return _detail(srv, c, srv.get(TaxBook, b.id), held)
 
 
-def _detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
+def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
     today = clock.today()
     cnt = books.counted(s, b)
     docs = books.documents(s, b)
@@ -506,7 +533,7 @@ def _detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
         for a, _ in access.accounts(s, c.id)
         if a.id not in counted_ids and a.id not in {x.id for x in cnt.leftOut}
     ]
-    base = _row(s, b, lvl)
+    base = _row(s, b, held)
     deps = dependents.listed(s, b)
     return BookDetail(
         **base.model_dump(),
@@ -541,15 +568,14 @@ def _detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
             for f, figures in books.carried_from_last_year(s, b)
         ],
         federalDue=books.federal_due(s, b.year),
-        canWrite=lvl in ("owner", "write"),
     )
 
 
 @router.get("/tax-books/{book_id}", response_model=BookDetail)
 def get_book(book_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        b, lvl = books.get(s, c.id, book_id)
-        return detail(s, c, b, lvl)
+        b, held = books.get(s, c.id, book_id)
+        return detail(s, c, b, held)
 
 
 class BookAccountRecord(Model):
@@ -563,8 +589,8 @@ class BookAccountRecord(Model):
 
 
 def _book_account_filer(ctx, book_id: str):
-    b, lvl = books.get(ctx.s, ctx.caller.id, book_id, "read")
-    if lvl != "owner":  # a helper edits filings, never what the book counts (S8.14.3)
+    b, held = books.get(ctx.s, ctx.caller.id, book_id, "read")
+    if not held.configurable:  # a helper edits filings, never what the book counts (S8.14.3)
         raise refuse(None, "filers-only", "Only its filers add or leave out accounts.", 403)
     return b
 
@@ -603,8 +629,8 @@ def _book_account_update(ctx, row: TaxBookAccount, body: BookAccountRecord) -> N
 
 def _book_account_read(ctx, record_id: str) -> BookDetail:
     row = ctx.s.get(TaxBookAccount, record_id)
-    b, lvl = books.get(ctx.s, ctx.caller.id, row.bookId, "read")
-    return detail(ctx.s, ctx.caller, b, lvl)
+    b, held = books.get(ctx.s, ctx.caller.id, row.bookId, "read")
+    return detail(ctx.s, ctx.caller, b, held)
 
 
 save.register(
@@ -697,8 +723,8 @@ def _own_dependent(s, c: Caller, dep_id: str) -> tuple[TaxBookDependent, TaxBook
     d = s.get(TaxBookDependent, dep_id)
     if d is None or d.deleted:
         raise Problem(404, "not-found", "Not found")
-    b, lvl = books.get(s, c.id, d.bookId, "write")
-    return d, b, lvl
+    b, held = books.get(s, c.id, d.bookId, "write")
+    return d, b, held
 
 
 # ---- Filings (S8.15) ----
@@ -811,8 +837,8 @@ def _own_filing(s, c: Caller, filing_id: str) -> tuple[Filing, TaxBook, str]:
     f = s.get(Filing, filing_id)
     if f is None or f.deleted:
         raise Problem(404, "not-found", "Not found")
-    b, lvl = books.get(s, c.id, f.bookId, "write")
-    return f, b, lvl
+    b, held = books.get(s, c.id, f.bookId, "write")
+    return f, b, held
 
 
 # ---- Tax documents (S8.16) ----
@@ -861,8 +887,8 @@ def _own_doc(s, c: Caller, doc_id: str) -> tuple[TaxDocument, TaxBook, str]:
     d = s.get(TaxDocument, doc_id)
     if d is None or d.deleted:
         raise Problem(404, "not-found", "Not found")
-    b, lvl = books.get(s, c.id, d.bookId, "write")
-    return d, b, lvl
+    b, held = books.get(s, c.id, d.bookId, "write")
+    return d, b, held
 
 
 class Forms(Model):
@@ -1101,8 +1127,8 @@ def _book_delete(ctx, b: TaxBook) -> None:
 
 
 def _book_read(ctx, record_id: str) -> NewBookOut:
-    b, lvl = books.get(ctx.s, ctx.caller.id, record_id)
-    return NewBookOut(**_row(ctx.s, b, lvl).model_dump(),
+    b, held = books.get(ctx.s, ctx.caller.id, record_id)
+    return NewBookOut(**_row(ctx.s, b, held).model_dump(),
                       dependentsLeftOut=ctx.notes.get(record_id, []))  # fmt: skip
 
 

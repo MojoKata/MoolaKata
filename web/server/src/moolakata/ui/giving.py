@@ -11,6 +11,7 @@ from pydantic import Field
 from sqlalchemy import select
 
 from .. import access, activity, clock, exactjson, giving, ids, receipts
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..ledger.lots import long_term as held_long
 from ..store.entities.accounts import Account, Category, Instrument, Lot, LotPick, Transaction
@@ -18,6 +19,7 @@ from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
 from . import save
 from .conventions import (
+    Access,
     ExactRoute,
     IdOf,
     Model,
@@ -52,7 +54,7 @@ class PlanOut(Model):
     incomeBasis: str
     income: Money | None
     dafCounted: str
-    level: str
+    access: Access
     ownerName: str
     version: int
 
@@ -95,7 +97,7 @@ class GivingView(Model):
     notes: list[str]
 
 
-def _plan_out(s, p: GivingPlan, lvl: str) -> PlanOut:
+def _plan_out(s, p: GivingPlan, held: Perms) -> PlanOut:
     from ..store.entities.users import User
 
     return PlanOut(
@@ -107,7 +109,7 @@ def _plan_out(s, p: GivingPlan, lvl: str) -> PlanOut:
         incomeBasis=p.incomeBasis,
         income=p.income,
         dafCounted=p.dafCounted,
-        level=lvl,
+        access=Access.of(held),
         ownerName=s.get(User, p.ownerId).displayName,
         version=p.version,
     )
@@ -122,7 +124,7 @@ def get_giving(request: Request, year: int | None = None, c: Caller = Depends(ca
     today = clock.today()
     year = year or today.year
     with server(request).db.read(user=c.id) as s:
-        plan, lvl = giving.plan_for(s, c.id, year)
+        plan, held = giving.plan_for(s, c.id, year)
         who = giving.givers(s, plan, c.id)
         gifts = giving.donations(s, who, year)
         counted = [g for g in gifts if giving.counts(plan, g)]
@@ -161,7 +163,7 @@ def get_giving(request: Request, year: int | None = None, c: Caller = Depends(ca
             )
         return GivingView(
             year=year,
-            plan=_plan_out(s, plan, lvl) if plan else None,
+            plan=_plan_out(s, plan, held) if plan else None,
             income=earned,
             target=goal,
             given=given,
@@ -224,7 +226,7 @@ class OrganisationIn(Model):
 class OrganisationOut(OrganisationIn):
     id: str
     given: Money  # this year
-    canWrite: bool
+    access: Access
     version: int
 
 
@@ -247,7 +249,7 @@ def _orgs_view(s, c: Caller) -> list[OrganisationOut]:
             pledgeEvery=o.pledgeEvery,
             notes=o.notes,
             given=given.get(o.id, Decimal(0)),
-            canWrite=o.ownerId == c.id,
+            access=Access.of(access.perms(s, Organisation, o.id, c.id) or access.READ),
             version=o.version,
         )
         for o in sorted(giving.organisations(s, who).values(), key=lambda o: o.name.lower())
@@ -331,7 +333,9 @@ class DonationOut(Model):
     longTerm: bool | None
     granted: bool | None
     notes: str | None
-    canWrite: bool
+    # A donation's own; for a gift that is only a categorised transaction, its transaction's
+    # (making it a donation is a change to it).
+    access: Access
     version: int | None  # None for a gift that is only a categorised transaction
 
 
@@ -358,7 +362,14 @@ def _donation_out(s, c: Caller, plan, g: giving.Gift) -> DonationOut:
         longTerm=d.longTerm if d else None,
         granted=d.granted if d else None,
         notes=d.notes if d else None,
-        canWrite=(d.ownerId == c.id) if d else True,
+        access=Access.of(
+            (
+                access.perms(s, Donation, d.id, c.id)
+                if d is not None
+                else access.perms(s, Transaction, g.transactionId, c.id)
+            )
+            or access.READ
+        ),
         version=d.version if d else None,
     )
 
@@ -494,9 +505,9 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
     org = None
-    plan, lvl = giving.plan_for(s, c.id, body.date.year)
+    plan, held = giving.plan_for(s, c.id, body.date.year)
     # Recorded in the plan the caller writes to: its owner's giving (S7.9.1).
-    owner = plan.ownerId if plan is not None and lvl == "write" else c.id
+    owner = plan.ownerId if plan is not None and held.writable and not held.mine else c.id
     if body.organisationId:
         org = s.get(Organisation, body.organisationId)
         if org is None or org.deleted or org.ownerId not in giving.givers(s, plan, c.id):
@@ -587,8 +598,8 @@ def _gplan_editable(ctx, record_id: str) -> GivingPlan:
     p = ctx.s.get(GivingPlan, record_id)
     if p is None or p.deleted:
         raise Problem(404, "not-found", "Not found")
-    _, lvl = giving.plan_for(ctx.s, ctx.caller.id, p.year)
-    if lvl not in ("owner", "write"):
+    _, held = giving.plan_for(ctx.s, ctx.caller.id, p.year)
+    if held is None or not held.writable:
         raise Problem(403, "read-only", "This plan is shared with you to read.")
     return p
 
@@ -603,8 +614,8 @@ def _gplan_update(ctx, p: GivingPlan, body: GivingPlanRecord) -> None:
 
 def _gplan_read(ctx, record_id: str) -> PlanOut:
     p = ctx.s.get(GivingPlan, record_id)
-    _, lvl = giving.plan_for(ctx.s, ctx.caller.id, p.year)
-    return _plan_out(ctx.s, p, lvl or "owner")
+    _, held = giving.plan_for(ctx.s, ctx.caller.id, p.year)
+    return _plan_out(ctx.s, p, held or access.OWNER)
 
 
 class OrganisationRecord(OrganisationIn):

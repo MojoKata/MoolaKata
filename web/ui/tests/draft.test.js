@@ -303,3 +303,21 @@ Deno.test('a new record is sent after the new records it refers to', () => {
   s.set('transactionId', t.id);
   equal(d.ops().map((o) => o.id), [t.id, s.id]);
 });
+
+Deno.test('a record keeps the access it was read with beside its fields, never among them', () => {
+  const access = {
+    mine: false,
+    writable: true,
+    deletable: true,
+    shareable: false,
+    configurable: false,
+  };
+  const r = new Record('Txn_1', { payee: 'Shop', access }, { state: 'read' });
+  equal(r.access, access);
+  equal(r.get('access'), undefined);
+  r.set('payee', 'Store');
+  equal(Object.keys(r.changes()), ['payee']);
+  equal(Object.keys(r.snapshot().data), ['payee']);
+  equal(Object.isFrozen(r.access), true);
+  equal(new Record('Txn_2', { payee: 'New' }, { state: 'new' }).access, null);
+});

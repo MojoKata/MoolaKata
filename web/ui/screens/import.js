@@ -47,7 +47,7 @@ const COLUMNS = /** @type {[string, string, string, boolean?][]} */ ([
 /** @param {{ close: (v?: any) => void, accounts: any[], accountId?: string }} p */
 export function ImportDialog({ close, accounts, accountId }) {
   useDialogGuide('dialog-import');
-  const writable = accounts.filter((a) => a.level !== 'read');
+  const writable = accounts.filter((a) => a.access.writable);
   const [target, setTarget] = useState(accountId || writable[0]?.id || '');
   const [file, setFile] = useState(/** @type {File | null} */ (null));
   const [busy, setBusy] = useState(false);

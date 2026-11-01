@@ -114,7 +114,8 @@ def test_attach_suggest_and_share_through_the_transaction(server, alice):
     }
     r = share(alice, "account", acct["id"], users={users["Bob"]: "read"}, groups={})
     assert r.status_code == 200, r.text
-    assert bob.get(f"/ui/api/receipts/{rid}").json()["level"] == "read"
+    held = bob.get(f"/ui/api/receipts/{rid}").json()["access"]
+    assert not held["writable"] and not held["mine"]
     assert bob.get(f"/ui/api/receipts/{rid}/file").status_code == 200
     assert drop(bob, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 403
     # A read share shows it and attaches it nowhere: not to Bob's own transaction (S9.6, P3).

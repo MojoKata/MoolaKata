@@ -29,7 +29,7 @@ def test_read_and_write_shares(server):
     assert c["bob"].get(f"/ui/api/accounts/{a['id']}").status_code == 404
     share(c["alice"], "account", a["id"], users={u["bob"].id: "read"})
     seen = c["bob"].get("/ui/api/accounts").json()["items"]
-    assert len(seen) == 1 and seen[0]["level"] == "read" and seen[0]["ownerName"] == "Alice"
+    assert len(seen) == 1 and not seen[0]["access"]["writable"] and seen[0]["ownerName"] == "Alice"
     assert seen[0]["counted"] is False  # Count in my totals is off by default (S10.7)
     assert c["alice"].get("/ui/api/accounts").json()["items"][0]["sharedWith"] == 1
     assert len(c["bob"].get("/ui/api/transactions").json()["items"]) == 1
@@ -56,8 +56,8 @@ def test_groups_via_and_the_higher_level(server, admin_client):
     carol = next(x for x in view["users"] if x["id"] == u["carol"].id)
     assert bob["allow"] == "write" and bob["via"][0]["groupName"] == "Household"
     assert carol["allow"] == "none" and carol["via"][0]["allow"] == "read"
-    assert c["carol"].get("/ui/api/accounts").json()["items"][0]["level"] == "read"
-    assert c["bob"].get("/ui/api/accounts").json()["items"][0]["level"] == "write"
+    assert not c["carol"].get("/ui/api/accounts").json()["items"][0]["access"]["writable"]
+    assert c["bob"].get("/ui/api/accounts").json()["items"][0]["access"]["writable"]
     saved(change(admin_client, "Group", g, active=False))
     assert (
         c["carol"].get("/ui/api/accounts").json()["items"] == []

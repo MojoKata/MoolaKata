@@ -34,14 +34,16 @@ export default function Portfolios() {
           : `${p.accountIds.length} account${p.accountIds.length === 1 ? '' : 's'}`
       }</div></div><span class="spacer"></span>
         ${
-        p.level === 'owner'
+        p.access.mine
           ? p.sharedWith
             ? html`<span class="mark" data-tip="Shared by me"><${Icon} name="share" /> ${p.sharedWith}</span>`
             : null
-          : html`<span class="mark" data-tip=${`Shared with me by ${p.ownerName} (${p.level})`}><${Avatar} sm name=${p.ownerName}
+          : html`<span class="mark" data-tip=${`Shared with me by ${p.ownerName} (${
+            p.access.writable ? 'write' : 'read'
+          })`}><${Avatar} sm name=${p.ownerName}
             image=${p.ownerAvatar} id=${p.ownerId} /><${Icon} name=${
-            p.level === 'write' ? 'pencil' : 'eye'
-          } label=${p.level} /></span>`
+            p.access.writable ? 'pencil' : 'eye'
+          } label=${p.access.writable ? 'write' : 'read'} /></span>`
       }</h3>
       <div style=${{
         fontSize: '22px',

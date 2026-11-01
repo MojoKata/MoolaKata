@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .errors import Problem
 from .store import access_views
-from .store.access_views import PERMISSIONS
+from .store.access_views import COLUMNS, PERMISSIONS
 from .store.entities.accounts import Account
 from .store.entities.budgets import Budget
 from .store.entities.sharing import Portfolio
@@ -20,23 +20,31 @@ from .store.entities.sharing import Portfolio
 
 @dataclass(frozen=True)
 class Perms:
-    """What a user may do with a record they read, from its access view."""
+    """What a user may do with a record they read, and whether it is theirs, from its access
+    view. `mine` is a fact, never a permission: nothing is allowed by it (`need` asks only
+    the four)."""
 
     writable: bool
     deletable: bool
     shareable: bool
     configurable: bool
+    mine: bool
 
-    def level(self, owner: tuple[str, ...] = PERMISSIONS) -> str:
-        """The API's level (decision 6.4 of the access-views walk): *owner* with every
-        permission an owner of the kind holds, *write* with `writable`, else *read*."""
-        if all(getattr(self, p) for p in owner):
-            return "owner"
-        return "write" if self.writable else "read"
+    def child(self) -> Perms:
+        """A child's, from its parent's, as its generated view has it (docs/schema.md §7.1)."""
+        return Perms(
+            writable=self.writable,
+            deletable=self.writable,
+            shareable=False,
+            configurable=self.configurable,
+            mine=self.mine,
+        )
 
 
-# What an owner holds of a kind with no sharing and no settings.
-RECORD_OWNER = ("writable", "deletable")
+# An owner's: everything, and theirs (a portfolio made of one's own accounts, S5.1).
+OWNER = Perms(True, True, True, True, True)
+# Reading alone.
+READ = Perms(False, False, False, False, False)
 
 
 def _view(entity):
@@ -47,7 +55,7 @@ def perms(s: Session, entity, item_id: str, user_id: str) -> Perms | None:
     """The user's permissions on a record, or None when they don't read it."""
     v = _view(entity)
     row = s.execute(
-        select(*(v.c[p] for p in PERMISSIONS)).where(v.c.targetId == item_id, v.c.userId == user_id)
+        select(*(v.c[p] for p in COLUMNS)).where(v.c.targetId == item_id, v.c.userId == user_id)
     ).first()
     return None if row is None else Perms(*(bool(x) for x in row))
 
@@ -55,6 +63,8 @@ def perms(s: Session, entity, item_id: str, user_id: str) -> Perms | None:
 def need(s: Session, entity, item_id: str, user_id: str, permission: str | None = None, what=None):
     """The record and the user's permissions on it: 404 when they don't read it, never
     saying whether it exists; 403 without the permission asked for."""
+    if permission is not None and permission not in PERMISSIONS:
+        raise ValueError(f"{permission!r} is not a permission")
     p = perms(s, entity, item_id, user_id) if item_id else None
     obj = s.get(entity, item_id) if p is not None else None
     if obj is None:
@@ -74,7 +84,7 @@ def listing(s: Session, entity, user_id: str, *where, order_by=None) -> list[tup
     view: the same in a user's session and in the server's."""
     v = _view(entity)
     q = (
-        select(entity, *(v.c[p] for p in PERMISSIONS))
+        select(entity, *(v.c[p] for p in COLUMNS))
         .join(v, and_(v.c.targetId == entity.id, v.c.userId == user_id))
         .where(*where)
     )
@@ -88,20 +98,17 @@ def _want(want: str) -> str | None:
     return {"read": None, "write": "writable"}.get(want, want)
 
 
-def account(s: Session, user_id: str, account_id: str, want: str = "read") -> tuple[Any, str]:
-    """An account the user reads, and their level on it as the API names it."""
-    a, p = need(s, Account, account_id, user_id, _want(want), "account")
-    return a, p.level()
+def account(s: Session, user_id: str, account_id: str, want: str = "read") -> tuple[Any, Perms]:
+    """An account the user reads, and what they may do with it."""
+    return need(s, Account, account_id, user_id, _want(want), "account")
 
 
-def portfolio(s: Session, user_id: str, portfolio_id: str, want: str = "read") -> tuple[Any, str]:
-    p_, p = need(s, Portfolio, portfolio_id, user_id, _want(want), "portfolio")
-    return p_, p.level()
+def portfolio(s: Session, user_id: str, portfolio_id: str, want: str = "read") -> tuple[Any, Perms]:
+    return need(s, Portfolio, portfolio_id, user_id, _want(want), "portfolio")
 
 
-def budget(s: Session, user_id: str, budget_id: str, want: str = "read") -> tuple[Any, str]:
-    b, p = need(s, Budget, budget_id, user_id, _want(want), "budget")
-    return b, p.level()
+def budget(s: Session, user_id: str, budget_id: str, want: str = "read") -> tuple[Any, Perms]:
+    return need(s, Budget, budget_id, user_id, _want(want), "budget")
 
 
 def accounts(s: Session, user_id: str, *where) -> list[tuple[Any, Perms]]:
@@ -123,6 +130,6 @@ def holders_of(s: Session, entity, item_id: str) -> dict[str, Perms]:
     return {
         r[0]: Perms(*(bool(x) for x in r[1:]))
         for r in s.execute(
-            select(v.c.userId, *(v.c[p] for p in PERMISSIONS)).where(v.c.targetId == item_id)
+            select(v.c.userId, *(v.c[p] for p in COLUMNS)).where(v.c.targetId == item_id)
         )
     }

@@ -2,6 +2,17 @@
 // Do not edit: web/check fails when this file differs from what the routes give.
 
 /**
+ * What the reader may do with a record, and whether it is theirs (docs/schema.md §7), as
+ * its access view says. It travels only from the server: no request body has it.
+ * @typedef {Object} Access
+ * @property {boolean} mine
+ * @property {boolean} writable
+ * @property {boolean} deletable
+ * @property {boolean} shareable
+ * @property {boolean} configurable
+ */
+
+/**
  * @typedef {Object} AccountDetail
  * @property {string} id
  * @property {string} name
@@ -13,7 +24,7 @@
  * @property {boolean} active
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {("owner" | "write" | "read")} level
+ * @property {Access} access
  * @property {number} sharedWith
  * @property {(string | null)} ownerAvatar
  * @property {boolean} counted
@@ -103,7 +114,7 @@
  * @property {boolean} active
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {("owner" | "write" | "read")} level
+ * @property {Access} access
  * @property {number} sharedWith
  * @property {(string | null)} ownerAvatar
  * @property {boolean} counted
@@ -347,7 +358,7 @@
  * @property {string} id
  * @property {number} year
  * @property {Array<Filer>} filers
- * @property {string} level
+ * @property {Access} access
  * @property {string} label
  * @property {number} version
  * @property {string} bitcoinFees
@@ -362,7 +373,6 @@
  * @property {Array<DocumentOut>} received
  * @property {Array<LastYear>} lastYear
  * @property {string} federalDue
- * @property {boolean} canWrite
  */
 
 /**
@@ -380,9 +390,15 @@
  * @property {string} id
  * @property {number} year
  * @property {Array<Filer>} filers
- * @property {string} level
+ * @property {Access} access
  * @property {string} label
  * @property {number} version
+ */
+
+/**
+ * @typedef {Object} BooksView
+ * @property {Array<BookRow>} books
+ * @property {Array<WaitingBook>} waiting
  */
 
 /**
@@ -435,7 +451,7 @@
  * @property {string} name
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {string} level
+ * @property {Access} access
  * @property {Array<string>} accountIds
  * @property {number} sharedWith
  * @property {string} method
@@ -778,7 +794,6 @@
  * @typedef {Object} ContributionsView
  * @property {Array<moolakata__ui__education__ContributionOut>} rows
  * @property {Array<GiftYearOut>} years
- * @property {boolean} canWrite
  */
 
 /**
@@ -955,7 +970,7 @@
  * @property {(boolean | null)} longTerm
  * @property {(boolean | null)} granted
  * @property {(string | null)} notes
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {(number | null)} version
  */
 
@@ -1249,7 +1264,7 @@
  * @property {boolean} cash
  * @property {boolean} thankYou
  * @property {Array<ReceiptRow>} documents
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -1546,7 +1561,7 @@
  * @property {string} name
  * @property {(string | null)} countsAs
  * @property {boolean} leftOut
- * @property {boolean} canWrite
+ * @property {Access} access
  */
 
 /**
@@ -1659,7 +1674,7 @@
  * @property {Array<ImprovementOut>} improvements
  * @property {Array<ReceiptRow>} documents
  * @property {Array<Array<unknown>>} history
- * @property {boolean} canWrite
+ * @property {Access} access
  */
 
 /**
@@ -1729,7 +1744,6 @@
  * @property {import('../app/dec.js').Dec} value
  * @property {import('../app/dec.js').Dec} basis
  * @property {import('../app/dec.js').Dec} gain
- * @property {boolean} canWrite
  */
 
 /**
@@ -1938,7 +1952,6 @@
  * @property {(ServicerCheck | null)} servicer
  * @property {(Equity | null)} [equity]
  * @property {(Following | null)} [following]
- * @property {boolean} canWrite
  * @property {number} [version]
  */
 
@@ -2081,7 +2094,6 @@
  * @property {import('../app/dec.js').Dec} plannedSpending
  * @property {number} uncategorised
  * @property {number} daysLeft
- * @property {boolean} canWrite
  * @property {number} version
  */
 
@@ -2278,7 +2290,7 @@
  * @property {(string | null)} [notes]
  * @property {string} id
  * @property {import('../app/dec.js').Dec} given
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -2342,14 +2354,6 @@
 /**
  * @typedef {Object} Page_AwaitingRow_
  * @property {Array<AwaitingRow>} items
- * @property {number} total
- * @property {number} offset
- * @property {number} limit
- */
-
-/**
- * @typedef {Object} Page_BookRow_
- * @property {Array<BookRow>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -2840,7 +2844,7 @@
  * @property {(NextDate | null)} next
  * @property {import('../app/dec.js').Dec} spent
  * @property {(string | null)} lastGift
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {number} version
  * @property {number} personVersion
@@ -2995,7 +2999,7 @@
  * @property {string} ownerId
  * @property {string} ownerName
  * @property {(string | null)} ownerAvatar
- * @property {string} level
+ * @property {Access} access
  * @property {string} benchmark
  * @property {Array<string>} accountIds
  * @property {import('../app/dec.js').Dec} value
@@ -3114,7 +3118,7 @@
  * @property {string} name
  * @property {string} goal
  * @property {boolean} active
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {Object<string, unknown>} builtOn
  * @property {string} builtOnLabel
@@ -3147,7 +3151,7 @@
  * @property {string} name
  * @property {string} goal
  * @property {boolean} active
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {Object<string, unknown>} builtOn
  * @property {string} builtOnLabel
@@ -3263,7 +3267,7 @@
  * @property {string} uploadedAt
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {string} level
+ * @property {Access} access
  * @property {(string | null)} date
  * @property {(import('../app/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
@@ -3323,7 +3327,7 @@
  * @property {string} uploadedAt
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {string} level
+ * @property {Access} access
  * @property {(string | null)} date
  * @property {(import('../app/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
@@ -4004,7 +4008,7 @@
  * @property {(import('../app/dec.js').Dec | null)} returnPct
  * @property {boolean} cashSecured
  * @property {(import('../app/dec.js').Dec | null)} marginRequirement
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -4310,7 +4314,7 @@
  * @property {Array<string>} tags
  * @property {Array<string>} tagIds
  * @property {number} receipts
- * @property {string} level
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -4480,6 +4484,16 @@
  */
 
 /**
+ * A book the user is named in as a filer and hasn't accepted (S8.14.1): its year and
+ * filers, to accept, and nothing more. They read no row of it, so it carries no access.
+ * @typedef {Object} WaitingBook
+ * @property {string} id
+ * @property {number} year
+ * @property {Array<Filer>} filers
+ * @property {string} label
+ */
+
+/**
  * @typedef {Object} WalletAddressOut
  * @property {string} address
  * @property {string} keyId
@@ -4548,7 +4562,6 @@
  * @property {Array<WithdrawalYearOut>} years
  * @property {Array<ExpenseOut>} expenses
  * @property {Array<Array<unknown>>} kinds
- * @property {boolean} canWrite
  */
 
 /**
@@ -4623,7 +4636,7 @@
  * @property {(import('../app/dec.js').Dec | null)} stateDeduction
  * @property {import('../app/dec.js').Dec} contributedThisYear
  * @property {RolloverOut} rollover
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {(string | null)} [id]
  * @property {(string | null)} [beneficiaryId]
  * @property {number} [version]
@@ -4646,7 +4659,7 @@
  * @property {string} incomeBasis
  * @property {(import('../app/dec.js').Dec | null)} income
  * @property {string} dafCounted
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {number} version
  */

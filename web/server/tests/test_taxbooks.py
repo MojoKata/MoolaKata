@@ -52,10 +52,18 @@ def test_a_joint_book_counts_a_filer_once_they_accept(server, couple):
     assert b["label"] == "2026 · Alice & Bob (joint)" and not b["filers"][1]["accepted"]
     d = alice.get(f"/ui/api/tax-books/{b['id']}").json()
     assert [a["name"] for a in d["accounts"]] == ["Alice's brokerage"]
-    pending = bob.get("/ui/api/tax-books").json()["items"]
-    assert pending[0]["level"] == "pending"
+    listed = bob.get("/ui/api/tax-books").json()
+    assert listed["books"] == [] and listed["waiting"][0]["id"] == b["id"]
+    assert "access" not in listed["waiting"][0]  # an invitation, read of nothing (decision 5)
     assert bob.get(f"/ui/api/tax-books/{b['id']}").status_code == 404
-    assert bob.post(f"/ui/api/tax-books/{b['id']}/accept").json()["level"] == "owner"
+    held = bob.post(f"/ui/api/tax-books/{b['id']}/accept").json()["access"]
+    assert held == {
+        "mine": True,
+        "writable": True,
+        "deletable": True,
+        "shareable": True,
+        "configurable": True,
+    }
     d = bob.get(f"/ui/api/tax-books/{b['id']}").json()
     assert {a["name"] for a in d["accounts"]} == {"Alice's brokerage", "Bob's checking"}
     make_user(server, "carol")

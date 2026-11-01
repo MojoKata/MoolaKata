@@ -20,7 +20,7 @@ from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.education import Gift, GiftPerson, GiftPlan, Occasion, Person
 from ..store.entities.users import User
 from . import save
-from .conventions import ExactRoute, IdOf, Model, Money
+from .conventions import Access, ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
 from .receipts import row as receipt_row
@@ -108,7 +108,7 @@ class PersonOut(Model):
     next: NextDate | None
     spent: Money  # this year
     lastGift: str | None
-    level: str
+    access: Access
     ownerName: str
     version: int  # the plan's
     personVersion: int
@@ -224,7 +224,7 @@ def people_view(s, c: Caller) -> list[PersonOut]:
                 next=_next(p, occs[gp.id], today, wedding),
                 spent=spent.get(p.id, Decimal(0)),
                 lastGift=None if me and p.id == me.personId else last.get(p.id, (0, None))[1],
-                level=x.level,
+                access=Access.of(x.perms),
                 ownerName=owner.displayName,
                 version=gp.version,
                 personVersion=p.version,
@@ -392,7 +392,7 @@ class GiftOut(Model):
     cash: bool
     thankYou: bool
     documents: list[ReceiptRow]
-    canWrite: bool
+    access: Access
     version: int
 
 
@@ -460,10 +460,10 @@ def _gift_out(s, c: Caller, g: Gift, ps: list[str]) -> GiftOut:
         cash=g.cash,
         thankYou=g.thankYou,
         documents=[
-            receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
+            receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, g.id, "gift")
         ],
-        canWrite=perms is not None and perms.writable,
+        access=Access.of(perms or access.READ),
         version=g.version,
     )
 
@@ -496,7 +496,7 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
         here = {
             x.plan.ownerId
             for x in gifts.visible_plans(s, c.id)
-            if x.person.id == pid and x.level == "write"
+            if x.person.id == pid and x.perms.writable and not x.perms.mine
         }
         owners = here if owners is None else owners & here
     return next(iter(sorted(owners))) if owners else c.id
@@ -605,7 +605,7 @@ def _editable(s, c: Caller, gift_id: str) -> Gift:
     found = [x for x in gifts_view(s, c) if x.id == gift_id]
     if not found:
         raise Problem(404, "not-found", "Not found")
-    if not found[0].canWrite:
+    if not found[0].access.writable:
         raise Problem(403, "read-only", "This gift is shared with you to read.")
     return g
 

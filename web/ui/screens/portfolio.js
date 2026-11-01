@@ -34,10 +34,10 @@ export default function Portfolio({ id, tab }) {
     <div
       class="toolbar"><${Tile} group="investing" icon="pie" /><b style=${{ fontSize: '16px' }}>${p
         .name}</b>
-        ${p.level !== 'owner'
-          ? html`<span class="pill">${p.ownerName} · ${p.level}</span>`
+        ${!p.access.mine
+          ? html`<span class="pill">${p.ownerName} · ${p.access.writable ? 'write' : 'read'}</span>`
           : null}<span class="spacer"></span>
-        ${p.level === 'owner' && !p.implicit
+        ${p.access.shareable && !p.implicit
           ? html`
             <button type="button" class="btn" onClick=${() =>
               openDialog(ShareDialog, { kind: 'portfolio', id: p.id, name: p.name }).then(
@@ -46,7 +46,7 @@ export default function Portfolio({ id, tab }) {
               <${Icon} name="share" /> Share</button>
           `
           : null}
-        ${p.level !== 'read' && !p.implicit
+        ${p.access.writable && !p.implicit
           ? html`
             <button type="button" class="btn"
               onClick=${() =>

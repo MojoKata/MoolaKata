@@ -160,7 +160,7 @@ function People() {
                       `
                       : null}<div class="small dim">${[
                       p.relation,
-                      p.level === 'owner' ? null : `shared by ${p.ownerName}`,
+                      p.access.mine ? null : `shared by ${p.ownerName}`,
                     ].filter(Boolean).join(' · ')}</div></td>
                     <td class="small">${p.next
                       ? html`${p.next.label} · ${
@@ -420,7 +420,7 @@ function PersonDialog({ close, p }) {
     (draft?.records || []).filter((r) => r instanceof OccasionRec)
   );
   const dated = occasions.filter((o) => !o.removed && o.get('kind') !== 'holiday');
-  const canWrite = !p || p.level !== 'read';
+  const canWrite = !p || p.access.writable;
   const ownPerson = !p || p.canChangePerson;
   // One person, once (S10.10.3): a name already here shows that person instead.
   const [clash, setClash] = useState(/** @type {any} */ (null));
@@ -496,7 +496,7 @@ function PersonDialog({ close, p }) {
           if (out?.status !== 'asks' && out?.status !== 'saved') draft.unremove(r);
         };
         return html`${
-          p && p.level === 'owner'
+          p && p.access.shareable
             ? html`<button type="button" class="btn" onClick=${() =>
               openDialog(ShareDialog, {
                 kind: 'gift-plan',
@@ -505,7 +505,7 @@ function PersonDialog({ close, p }) {
               })}><${Icon} name="share" /> Share</button>`
             : null
         }${
-          p && p.level === 'owner'
+          p && p.access.deletable
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
                 onClick=${() => drop('plan')}>Delete plan</button>
@@ -757,7 +757,7 @@ function GiftDialog({ close, gift, start }) {
   }, [gift?.id]);
   const rec = /** @type {GiftRec | undefined} */ (f.draft?.records[0]);
   const list = /** @type {any[]} */ (people.data) || [];
-  const canWrite = !gift || gift.canWrite;
+  const canWrite = !gift || gift.access.writable;
   const year = thisYear();
   const who = /** @type {string[]} */ (rec?.get('people') || []);
   // The occasions of the chosen people, this year and next.

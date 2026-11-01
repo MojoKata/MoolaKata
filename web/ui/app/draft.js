@@ -294,7 +294,13 @@ export class Record {
     /** The record whose removal removed this one. @type {string | null} */
     this.removedBy = null;
     this.key = ++serial;
-    this.#data = { ...data };
+    // What the reader may do with it, and whether it is theirs, as the server said: kept
+    // beside its fields, never among them, so it is never edited nor sent back (S12.15). A new
+    // record has none: it is the reader's to fill in until it is saved.
+    const { access = null, ...fields } = data;
+    /** @type {Readonly<{ mine: boolean, writable: boolean, deletable: boolean, shareable: boolean, configurable: boolean }> | null} */
+    this.access = access ? Object.freeze({ ...access }) : null;
+    this.#data = fields;
   }
 
   /** @returns {typeof Record} */

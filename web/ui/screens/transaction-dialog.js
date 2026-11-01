@@ -99,8 +99,8 @@ class Part extends Record {
 export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   useDialogGuide('dialog-transaction');
   const editing = !!txn;
-  const readOnly = editing && txn.level === 'read';
-  const writable = accounts.filter((a) => a.level !== 'read');
+  const readOnly = editing && !txn.access.writable;
+  const writable = accounts.filter((a) => a.access.writable);
   const kindsOf = (/** @type {string} */ id) => {
     const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
     return (type.investing ? TRADE_KINDS : BANK_KINDS).map(([k]) => k);
@@ -354,7 +354,8 @@ function InBudgets({ txn, rec }) {
         }</div></span>
           <span class="small dim">Leave out</span>
           <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
-            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.canWrite} /></div>`;
+            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
+          .writable} /></div>`;
       })}
       <div class="hint">The category is the transaction's: changing it changes every budget that
         counts it.</div>

@@ -436,8 +436,8 @@ class CountedRecord(Model):
 
 def _counted_create(ctx, record_id: str, body: CountedRecord) -> None:
     s, c = ctx.s, ctx.caller
-    a, level = access.account(s, c.id, body.accountId)
-    if level == "owner":
+    a, held = access.account(s, c.id, body.accountId)
+    if held.mine:
         raise refuse(
             None,
             "owner-counts",

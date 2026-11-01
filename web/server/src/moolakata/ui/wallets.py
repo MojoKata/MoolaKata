@@ -54,8 +54,8 @@ MAX_TEXT = 200_000  # characters: well over a thousand addresses
 MAX_ENTRIES = 1000  # keys, descriptors and addresses
 
 
-def _wallet_account(s, c: Caller, account_id: str, level: str):
-    a, lv = access.account(s, c.id, account_id, level)
+def _wallet_account(s, c: Caller, account_id: str, want: str):
+    a, lv = access.account(s, c.id, account_id, want)
     if a.type != "crypto-wallet":
         raise refuse(None, "not-a-wallet", "Only a self-custody wallet holds keys and addresses.")
     return a, lv
