@@ -15,9 +15,9 @@ from dataclasses import dataclass, field
 import httpx
 import pytest
 from edits import edit, giving_plan, make, save_settings, saved, share, tag, terms, wallet
-from jscoverage import SETTLED, TRACK_FETCHES
 
 from moolakata.config import load
+from moolakata.dev.settled import SETTLED, TRACK_FETCHES
 from moolakata.keys import master, phrase
 
 PASSWORD = "a long admin passphrase"

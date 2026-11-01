@@ -159,7 +159,10 @@
    2. **`docs/mockups/MoolaKata-app.html`**, generated: `web/ui/mockup/build.py` inlines the
       app and an in-page fake backend, for the screens built so far, the linked household
       window among them (recorded from a seeded peer with its copy unlocked), and `web/check`
-      fails while it is out of date.
+      fails while it is out of date. It records each sample user in turn, as each signs in
+      (what one sees can show who has signed in so far): several browsers in that user's
+      session open the screens, tabs, ranges and dialogs at once, and each answer is asked of
+      the server once and kept as one browser opening them all in order would keep it.
 
    When the generated file covers every screen, it replaces the hand-written one and takes
    its name. `docs/mockups/check.py` opens every screen, tab, Settings section and dialog of

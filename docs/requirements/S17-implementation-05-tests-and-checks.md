@@ -191,4 +191,6 @@
    none for 150 ms, the time for a screen to start what it fetches next), no Loading
    placeholder showing, and each chart drawn. A test then leaves each screen in the same state
    every run, and what the tests reach doesn't depend on how soon a test moves on. What still
-   varies is the order in which a screen's parallel requests answer.
+   varies is the order in which a screen's parallel requests answer. The generated mockup's crawl
+   (S12.9) waits the same way before each step, and until the page has stayed settled for
+   100 ms more, so what a screen starts once it has drawn (a fetch, a dialog's keys) has begun.

@@ -12,7 +12,8 @@ from pathlib import Path
 
 import httpx
 import pytest
-from jscoverage import SETTLED, TRACK_FETCHES
+
+from moolakata.dev.settled import SETTLED, TRACK_FETCHES
 
 pytestmark = pytest.mark.browser
 
