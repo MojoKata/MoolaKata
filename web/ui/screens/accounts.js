@@ -3,6 +3,7 @@
 // marks (S10.6). New account and Import start here.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
+import { canAdd } from '../app/draft.js';
 import { useList } from '../app/hooks.js';
 import { ago } from '../app/format.js';
 import { useTitle } from '../components/frame.js';
@@ -78,7 +79,7 @@ export default function Accounts() {
     <div
       class="toolbar"><${Chips} label="Show" value=${filter} onChange=${setFilter} options=${FILTERS} />
       <span class="spacer"></span>
-      <button type="button" class="btn" disabled=${!all.some((a) => a.access.writable)}
+      <button type="button" class="btn" disabled=${!all.some((a) => canAdd('Txn', a))}
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all })}><${Icon} name="upload" /> Import</button>
       <button type="button" class="btn primary" onClick=${() => openDialog(NewAccount)}><${Icon}

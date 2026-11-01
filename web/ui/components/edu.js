@@ -15,7 +15,7 @@ import { ACCEPT, ReceiptLinkRec, uploadAll } from './receipt.js';
 import { FanChart } from '../charts/chart.js';
 import { EducationAnswer } from '../screens/projections.js';
 import { num } from '../app/dec.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
 
@@ -185,8 +185,10 @@ export function Contributions({ a }) {
     plan.reload();
   };
   const r = pl.rollover;
+  // A contribution is a deposit made into the account: a transaction of it.
+  const contributes = canAdd('Txn', a);
   return html`
-    ${a.access.writable ? html`<${AddContribution} a=${a} done=${again} />` : null}
+    ${contributes ? html`<${AddContribution} a=${a} done=${again} />` : null}
     <div class="card mt" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>Against the annual gift exclusion</h3>
       ${v.years.length
@@ -302,7 +304,7 @@ function AddContribution({ a, done }) {
   const people = useList('/persons');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
-    x.group === 'banking' && x.active && x.access.writable
+    x.group === 'banking' && x.active && canAdd('Txn', x)
   );
   const f = useDraft((draft) => {
     draft.add(ContribRec, { accountId: a.id, date: today(), contributor: 'owner' });
@@ -421,7 +423,9 @@ export function Withdrawals({ a }) {
         : html`<${Empty}>No withdrawals yet. When school starts, each year lists what was taken
           out against the qualified expenses and their receipts.</${Empty}>`}
     </div>
-    ${a.access.writable ? html`<${AddExpense} a=${a} kinds=${v.kinds} done=${res.reload} />` : null}
+    ${canAdd('QExpn', a)
+      ? html`<${AddExpense} a=${a} kinds=${v.kinds} done=${res.reload} />`
+      : null}
     ${v.expenses.length
       ? html`<div class="card mt"><h3>Qualified expenses</h3>${
         v.expenses.map((

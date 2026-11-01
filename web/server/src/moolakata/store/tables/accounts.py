@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, Dec, UtcTimestamp
-from ._base import Seen, pairs, record, unique_live
+from ._base import AllOf, Seen, Via, pairs, record, unique_live
 
 ACCOUNT_TYPES = (
     "checking",
@@ -116,7 +116,7 @@ Category = record(
     CheckConstraint(
         '"keepReceiptsYears" IS NULL OR "keepReceiptsYears" >= 1', name="keep_receipts_years"
     ),
-    seen=Seen.household(),
+    seen=Seen.household(creates="anyone"),
 )
 unique_live(Category, "parentId", "name")
 
@@ -185,7 +185,7 @@ Instrument = record(
     Column("instrumentClass", Text, nullable=False),
     Column("cusip", Text),
     _in("instrumentClass", INSTRUMENT_CLASSES, "instrument_class"),
-    seen=Seen.household(),
+    seen=Seen.household(creates="code"),  # as files and typed trades name them
 )
 # A coin and a listed share may share a ticker (SOL, LINK): a symbol is one instrument among the
 # coins and one among the rest (S2.1).
@@ -384,7 +384,7 @@ Reimbursement = record(
     CheckConstraint("amount > 0", name="amount"),
     Index("ix_Reimbursement_spendingId", "spendingId"),
     Index("ix_Reimbursement_paybackId", "paybackId"),
-    seen=Seen.rule(),
+    seen=Seen.rule(creates=AllOf((Via("spendingId"), Via("paybackId")))),
 )
 
 # A user's own tag (S2.6): its name, lower case, once a user; transactions, receipts and the

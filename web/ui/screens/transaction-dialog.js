@@ -7,7 +7,7 @@ import { ACCEPT, ReceiptLinkRec, uploadAll } from '../components/receipt.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { FIELDS } from '../api/fields.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
@@ -100,7 +100,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   useDialogGuide('dialog-transaction');
   const editing = !!txn;
   const readOnly = editing && !txn.access.writable;
-  const writable = accounts.filter((a) => a.access.writable);
+  const writable = accounts.filter((a) => canAdd('Txn', a));
   const kindsOf = (/** @type {string} */ id) => {
     const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
     return (type.investing ? TRADE_KINDS : BANK_KINDS).map(([k]) => k);

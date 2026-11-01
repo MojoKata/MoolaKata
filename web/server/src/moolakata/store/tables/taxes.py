@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, UtcTimestamp
-from ._base import Seen, pairs, record, unique_live
+from ._base import Seen, Via, pairs, record, unique_live
 
 TaxBook = record(
     "TaxBook",
@@ -28,7 +28,7 @@ TaxBook = record(
     Column("fromLastYear", Boolean, nullable=False, server_default=text("0")),
     CheckConstraint("\"bitcoinFees\" IN ('sale', 'not-taxed')", name="bitcoin_fees"),
     Index("ix_TaxBook_owner", "ownerId", "year"),
-    seen=Seen.rule("tax-book", "TbShr"),
+    seen=Seen.rule("tax-book", "TbShr", creates="anyone"),
 )
 
 # Its filers: one user, or two who are married; one named by someone else accepts first.
@@ -52,7 +52,15 @@ TaxBookAccount = record(
     Column("counted", Boolean, nullable=False),
     # The filer who added it: an added account counts only while they can see it (S8.14.2).
     Column("addedById", Text, ForeignKey("User.id")),
-    seen=Seen.child("bookId", writes="configurable"),
+    seen=Seen.child(
+        "bookId",
+        writes="configurable",
+        creates=Via(
+            "bookId",
+            "configurable",
+            refused=("filers-only", "Only its filers add or leave out accounts."),
+        ),
+    ),
 )
 unique_live(TaxBookAccount, "bookId", "accountId")
 

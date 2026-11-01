@@ -391,3 +391,18 @@ ever read for them.
    `includeReceipts` (a linked server's user, S11.5.1) and `createdById`, one live share per
    item and grantee. A root's view gives each grantee the permissions of their share's class.
    Code that reads shares of every kind goes through the registry of share tables.
+9. **Who may make a record.** Each table declares it beside how it is seen (`creates` on
+   `Seen`), and the save asks it before a kind's own code runs:
+   - *through a key*: that permission on the record a key of the new one names, by default a
+     child's key and what changing it asks (`writes`); a share asks `shareable` on its item;
+   - *all of* several: a reimbursement, both its transactions `writable`;
+   - *by kind*: a kind column picks the table its key names (a receipt's link);
+   - *anyone* signed in (roots, receipts, categories), *own* (per-user tables: the row is the
+     caller's), *admin*, *never* (the server's own), or *code*: a rule of its own, in the
+     kind's code (a relationship, a person, a user).
+
+   A parent the caller can't read answers 404, never saying whether it exists; one they read
+   without the permission, 403, at the key's field. Until it is saved, a new record is the
+   caller's to fill in. The API document carries each kind's rule (`x-creates`), so the browser
+   offers Add from the parent's `access` as the save will judge it.
+

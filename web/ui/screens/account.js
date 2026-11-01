@@ -55,7 +55,7 @@ import {
   useDraft,
 } from '../components/draft-form.js';
 import { TransactionDialog, Txn } from './transaction-dialog.js';
-import { Record as Rec } from '../app/draft.js';
+import { canAdd, Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../components/pager.js';
 import { pageSize } from '../store/prefs.js';
@@ -204,7 +204,7 @@ function Holdings({ a }) {
   const h = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!h) return html`<${Loading} />`;
-  const trade = a.access.writable
+  const trade = canAdd('Txn', a)
     ? html`
       <div
         class="toolbar"><span class="spacer"></span><button class="btn sm" onClick=${() =>
@@ -350,7 +350,7 @@ function Transactions({ a, all }) {
   const d = /** @type {any} */ (res.data);
   return html`<div class="toolbar"><span class="spacer"></span>
     ${
-    a.access.writable
+    canAdd('Txn', a)
       ? html`
         <button type="button" class="btn" onClick=${() =>
           openDialog(ImportDialog, {
@@ -432,7 +432,7 @@ function Reconcile({ a, all, reload }) {
           date(g[1])
         }.</div>
         ${
-          a.access.writable
+          canAdd('Txn', a)
             ? html`<button type="button" class="btn sm" onClick=${() =>
               openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                 again,
@@ -463,7 +463,7 @@ function Reconcile({ a, all, reload }) {
         </div>
       `
       : null}
-    <div class="card mt"><h3>Balance checks<span class="spacer"></span>${a.access.writable
+    <div class="card mt"><h3>Balance checks<span class="spacer"></span>${canAdd('Anchr', a)
       ? html`
         <button type="button" class="btn sm" onClick=${() =>
           openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's balance</button>
@@ -588,7 +588,7 @@ function Mismatch({ a, check, all, again }) {
               class="list-item"><${Icon} name="alert" /><div class="grow"><b>Gap</b>: ${date(
                 g[0],
               )} to ${date(g[1])} has no imports.</div>
-                  ${a.access.writable
+                  ${canAdd('Txn', a)
                     ? html`<button type="button" class="btn sm" onClick=${() =>
                       openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                         again,
@@ -605,7 +605,7 @@ function Mismatch({ a, check, all, again }) {
             </div>
           `
           : null}
-        ${a.access.writable
+        ${canAdd('Txn', a)
           ? html`<div class="toolbar mt"><span class="spacer"></span><button type="button" class="btn sm"
       onClick=${() =>
             openDialog(Adjust, { a, check }).then((x) =>

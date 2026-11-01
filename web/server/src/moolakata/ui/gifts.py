@@ -842,7 +842,7 @@ def _occasion_values(body: OccasionRecord) -> dict:
 
 
 def _occasion_create(ctx, record_id: str, body: OccasionRecord) -> None:
-    gifts.plan_by_id(ctx.s, ctx.caller.id, body.giftPlanId, "write")
+    gifts.plan_by_id(ctx.s, ctx.caller.id, body.giftPlanId)
     ctx.s.add(Occasion(id=record_id, giftPlanId=body.giftPlanId, **_occasion_values(body)))
 
 

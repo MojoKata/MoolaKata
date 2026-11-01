@@ -59,6 +59,6 @@ TaxFigure = record(
     Column("key", Text, nullable=False),
     Column("value", Text, nullable=False),
     Column("changedById", Text, ForeignKey("User.id")),
-    seen=Seen.household(),
+    seen=Seen.household(creates="admin"),  # an admin's correction (S6.11)
 )
 unique_live(TaxFigure, "year", "key")

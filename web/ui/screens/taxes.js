@@ -18,7 +18,7 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
-import { Record as Rec, TYPES } from '../app/draft.js';
+import { canAdd, Record as Rec, TYPES } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -212,7 +212,7 @@ function Summary({ b, done }) {
         html`
           <div
             class="list-item"><div class="grow">${a.name}<div class="small dim">${a
-              .ownerName}</div></div>${b.access.writable
+              .ownerName}</div></div>${b.access.configurable
               ? html`<button class="btn sm" onClick=${() =>
                 count.run(a, false).catch(() => {})}>Leave out</button>`
               : null}</div>
@@ -233,7 +233,7 @@ function Summary({ b, done }) {
               class="small dim">The panels leave these out, and say so.</p>
           `
           : null}
-        ${b.access.writable && b.addable.length
+        ${canAdd('TxBkA', b) && b.addable.length
           ? html`
             <div class="row mt">
               <${Field} label="Add an account" id="add-account"
@@ -463,7 +463,7 @@ function Filings({ b, done }) {
   const open = (/** @type {any} */ f) => openDialog(FilingDialog, { b, f }).then(done);
   return html`
     <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
-      of its own.</span><span class="spacer"></span>${b.access.writable
+      of its own.</span><span class="spacer"></span>${canAdd('Filng', b)
         ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add a
         filing</button>`
         : null}</div>
@@ -596,8 +596,9 @@ function Documents({ b, done }) {
       </div>
     </div>
     <div
-      class="toolbar mt"><h3 style=${{ margin: 0 }}>Filed</h3><span class="spacer"></span>${b
-          .access.writable && b.filings.length
+      class="toolbar mt"><h3 style=${{
+        margin: 0,
+      }}>Filed</h3><span class="spacer"></span>${canAdd('TxDoc', b) && b.filings.length
         ? html`<button class="btn sm" onClick=${() =>
           add({
             direction: 'filed',

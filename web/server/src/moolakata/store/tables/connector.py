@@ -76,6 +76,6 @@ Connection = record(
     Column("removedAt", UtcTimestamp),  # Remove (S18.6.4): the connector deletes its credentials
     CheckConstraint("state IN ('new', 'ok', 'needs-sign-in', 'failing', 'removed')", name="state"),
     CheckConstraint("driver IN ('folder', 'ofx-direct', 'schwab')", name="driver"),
-    seen=Seen.rule(),
+    seen=Seen.rule(creates="own"),
 )
 unique_live(Connection, "ownerId", "label")

@@ -33,7 +33,7 @@ Price = record(
     Column("fetchedAt", UtcTimestamp, nullable=False),
     Column("enteredById", Text, ForeignKey("User.id")),
     Index("ix_Price_date", "date"),
-    seen=Seen.household(),
+    seen=Seen.household(creates="never"),  # the price sources' closes
 )
 unique_live(Price, "instrumentId", "date")
 

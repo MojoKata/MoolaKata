@@ -3,6 +3,7 @@
 // from an institution seen for the first time asks for its columns, then remembers them.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
+import { canAdd } from '../app/draft.js';
 import { api } from '../api/client.js';
 import { changes } from '../app/stream.js';
 import { cents, date, fromCents, money } from '../app/format.js';
@@ -47,7 +48,7 @@ const COLUMNS = /** @type {[string, string, string, boolean?][]} */ ([
 /** @param {{ close: (v?: any) => void, accounts: any[], accountId?: string }} p */
 export function ImportDialog({ close, accounts, accountId }) {
   useDialogGuide('dialog-import');
-  const writable = accounts.filter((a) => a.access.writable);
+  const writable = accounts.filter((a) => canAdd('Txn', a));
   const [target, setTarget] = useState(accountId || writable[0]?.id || '');
   const [file, setFile] = useState(/** @type {File | null} */ (null));
   const [busy, setBusy] = useState(false);

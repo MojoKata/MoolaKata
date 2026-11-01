@@ -657,6 +657,9 @@
         ],
         "title": "AccountRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Acct"
       },
       "AccountRef": {
@@ -929,6 +932,10 @@
         ],
         "title": "AccountShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "AcShr"
       },
       "Activated": {
@@ -1368,6 +1375,10 @@
         ],
         "title": "AnchorRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Anchr"
       },
       "Applied": {
@@ -1427,6 +1438,9 @@
         ],
         "title": "AssumptionsRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Asmpt"
       },
       "AssumptionsView": {
@@ -1947,6 +1961,10 @@
         ],
         "title": "BookAccountRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "configurable",
+          "via": "bookId"
+        },
         "x-entity": "TxBkA"
       },
       "BookDetail": {
@@ -2119,6 +2137,9 @@
         ],
         "title": "BookRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "TaxBk"
       },
       "BookRow": {
@@ -2406,6 +2427,9 @@
         ],
         "title": "BudgetRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Bdgt"
       },
       "BudgetRow": {
@@ -2558,6 +2582,10 @@
         ],
         "title": "BudgetShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "BdShr"
       },
       "Candidate": {
@@ -3219,6 +3247,9 @@
         ],
         "title": "CategoryRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Cat"
       },
       "CategorySize": {
@@ -3642,6 +3673,9 @@
         ],
         "title": "ColourRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "LkCol"
       },
       "CompareRow": {
@@ -4058,6 +4092,9 @@
         ],
         "title": "ConnectionRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Conn"
       },
       "ConnectorInfo": {
@@ -4463,6 +4500,10 @@
         ],
         "title": "ContributionRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "transactionId"
+        },
         "x-entity": "Cntrb"
       },
       "ContributionsView": {
@@ -4744,6 +4785,10 @@
         ],
         "title": "CorporateActionRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "CorpA"
       },
       "CountedRecord": {
@@ -4767,6 +4812,9 @@
         ],
         "title": "CountedRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "CntAc"
       },
       "Credential": {
@@ -5129,6 +5177,10 @@
         ],
         "title": "DependentRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "bookId"
+        },
         "x-entity": "TxDep"
       },
       "DocumentOut": {
@@ -5330,6 +5382,10 @@
         ],
         "title": "DocumentRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "bookId"
+        },
         "x-entity": "TxDoc"
       },
       "DonationOut": {
@@ -5698,6 +5754,9 @@
         ],
         "title": "DonationRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Dnatn"
       },
       "DonationRow": {
@@ -5916,6 +5975,10 @@
         ],
         "title": "EducationPlanRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "EdPln"
       },
       "EmailChange": {
@@ -6257,6 +6320,10 @@
         ],
         "title": "ExpenseRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "QExpn"
       },
       "Expiring": {
@@ -6313,6 +6380,9 @@
         ],
         "title": "FigureRecord",
         "type": "object",
+        "x-creates": {
+          "who": "admin"
+        },
         "x-entity": "TaxFg"
       },
       "Filer": {
@@ -6786,6 +6856,10 @@
         ],
         "title": "FilingRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "bookId"
+        },
         "x-entity": "Filng"
       },
       "FirstAdmin": {
@@ -7365,6 +7439,10 @@
         ],
         "title": "GiftPlanShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "GpShr"
       },
       "GiftRecord": {
@@ -7504,6 +7582,9 @@
         ],
         "title": "GiftRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Gift"
       },
       "GiftTaxOut": {
@@ -7726,6 +7807,9 @@
         ],
         "title": "GivingPlanRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "GvPln"
       },
       "GivingPlanShareRecord": {
@@ -7786,6 +7870,10 @@
         ],
         "title": "GivingPlanShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "GvShr"
       },
       "GivingView": {
@@ -8120,6 +8208,9 @@
         ],
         "title": "GroupRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Group"
       },
       "GroupRow": {
@@ -9035,6 +9126,10 @@
         ],
         "title": "ImprovementRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "itemId"
+        },
         "x-entity": "Imprv"
       },
       "InBudget": {
@@ -10162,6 +10257,10 @@
         ],
         "title": "ItemRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Item"
       },
       "ItemRow": {
@@ -10960,6 +11059,10 @@
         ],
         "title": "LineIn",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "budgetId"
+        },
         "x-entity": "BdgLn"
       },
       "LineOut": {
@@ -11493,6 +11596,10 @@
         ],
         "title": "LoanRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Loan"
       },
       "LoanView": {
@@ -12755,6 +12862,10 @@
         ],
         "title": "MoveRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "budgetId"
+        },
         "x-entity": "BdgMv"
       },
       "MovedRow": {
@@ -13128,6 +13239,10 @@
         ],
         "title": "OccasionRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "giftPlanId"
+        },
         "x-entity": "Occsn"
       },
       "Offer": {
@@ -13863,6 +13978,9 @@
         ],
         "title": "OrganisationRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Orgzn"
       },
       "OutcomeOut": {
@@ -15536,6 +15654,18 @@
         ],
         "title": "PairIn",
         "type": "object",
+        "x-creates": {
+          "allOf": [
+            {
+              "needs": "writable",
+              "via": "spendingId"
+            },
+            {
+              "needs": "writable",
+              "via": "paybackId"
+            }
+          ]
+        },
         "x-entity": "Rmbrs"
       },
       "PairingOut": {
@@ -15837,6 +15967,10 @@
         ],
         "title": "PaymentRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "filingId"
+        },
         "x-entity": "EstPy"
       },
       "PaymentView": {
@@ -15999,6 +16133,10 @@
         ],
         "title": "PayoffRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Pyoff"
       },
       "PeriodRow": {
@@ -16363,6 +16501,9 @@
         ],
         "title": "PersonRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Persn"
       },
       "PersonRef": {
@@ -16571,6 +16712,10 @@
         ],
         "title": "PersonShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "PnShr"
       },
       "PersonSpend": {
@@ -16885,6 +17030,9 @@
         ],
         "title": "PlanRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "GfPln"
       },
       "PlanView": {
@@ -17100,6 +17248,9 @@
         ],
         "title": "PortfolioRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Portf"
       },
       "PortfolioRow": {
@@ -17336,6 +17487,10 @@
         ],
         "title": "PortfolioShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "PfShr"
       },
       "PositionIn": {
@@ -17850,6 +18005,7 @@
               "secret-refused",
               "sent-invalid",
               "server-error",
+              "server-only",
               "session-expired",
               "setting-fixed",
               "setting-saved",
@@ -18298,6 +18454,7 @@
                   "secret-refused",
                   "sent-invalid",
                   "server-error",
+                  "server-only",
                   "session-expired",
                   "setting-fixed",
                   "setting-saved",
@@ -18752,6 +18909,9 @@
         ],
         "title": "ProjectionRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Prjct"
       },
       "ProjectionRow": {
@@ -18893,6 +19053,10 @@
         ],
         "title": "ProjectionShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "PjShr"
       },
       "Proposal": {
@@ -19606,6 +19770,19 @@
         ],
         "title": "ReceiptLinkRecord",
         "type": "object",
+        "x-creates": {
+          "allOf": [
+            {
+              "needs": "writable",
+              "via": "receiptId"
+            },
+            {
+              "byKind": "kind",
+              "needs": "writable",
+              "via": "itemId"
+            }
+          ]
+        },
         "x-entity": "RcLnk"
       },
       "ReceiptRecord": {
@@ -19683,6 +19860,9 @@
         },
         "title": "ReceiptRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Rcpt"
       },
       "ReceiptRow": {
@@ -20001,6 +20181,10 @@
         ],
         "title": "ReconciliationRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Recon"
       },
       "ReconciliationRow": {
@@ -20555,6 +20739,9 @@
         ],
         "title": "RelationshipRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Rltn"
       },
       "ReserveHeld": {
@@ -21527,6 +21714,9 @@
         ],
         "title": "RuleRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Rule"
       },
       "Sale": {
@@ -22024,6 +22214,9 @@
         ],
         "title": "SettingRecord",
         "type": "object",
+        "x-creates": {
+          "who": "admin"
+        },
         "x-entity": "Setng"
       },
       "SettingRef": {
@@ -22531,6 +22724,9 @@
         ],
         "title": "SourceRecord",
         "type": "object",
+        "x-creates": {
+          "who": "admin"
+        },
         "x-entity": "Src"
       },
       "SourceRow": {
@@ -22844,6 +23040,10 @@
         ],
         "title": "SplitRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "transactionId"
+        },
         "x-entity": "Split"
       },
       "Spouse": {
@@ -23419,6 +23619,10 @@
         ],
         "title": "StrategyRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Strat"
       },
       "StudentOut": {
@@ -23683,6 +23887,9 @@
         ],
         "title": "TagRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Tag"
       },
       "TaxBookShareRecord": {
@@ -23743,6 +23950,10 @@
         ],
         "title": "TaxBookShareRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
         "x-entity": "TbShr"
       },
       "TaxRow": {
@@ -24248,6 +24459,9 @@
         ],
         "title": "TokenRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Token"
       },
       "TransferAnswer": {
@@ -25242,6 +25456,10 @@
         ],
         "title": "TxnRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Txn"
       },
       "TypedPriceRecord": {
@@ -25275,6 +25493,9 @@
         ],
         "title": "TypedPriceRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "TyPrc"
       },
       "Unlock": {
@@ -25628,6 +25849,9 @@
         ],
         "title": "UserRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "User"
       },
       "UserRow": {
@@ -25841,6 +26065,10 @@
         ],
         "title": "ValuationRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "itemId"
+        },
         "x-entity": "Valtn"
       },
       "ValueCheckRow": {

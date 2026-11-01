@@ -15,7 +15,7 @@ import { ShareDialog } from '../components/share.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Record as Rec } from '../app/draft.js';
+import { canAdd, Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -543,7 +543,7 @@ function DonationDialog({ close, from }) {
   const kind = rec?.get('kind') || 'cash';
   const fromId = rec?.get('fromAccountId') || '';
   const all = /** @type {any[]} */ (accounts.data) || [];
-  const writable = all.filter((a) => a.active && a.access.writable);
+  const writable = all.filter((a) => a.active && canAdd('Txn', a));
   const funds = writable.filter((a) => a.type === 'daf');
   const shares = kind === 'securities' ||
     (kind === 'daf-contribution' && writable.find((a) => a.id === fromId)?.investing);

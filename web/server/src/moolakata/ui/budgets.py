@@ -1697,7 +1697,7 @@ def _budget_read(ctx, record_id: str) -> BudgetRow:
 
 
 def _move_create(ctx, record_id: str, body: MoveRecord) -> None:
-    b, _ = access.budget(ctx.s, ctx.caller.id, body.budgetId, "write")
+    b, _ = access.budget(ctx.s, ctx.caller.id, body.budgetId)
     if body.transactionId:
         _give_landed(ctx.s, ctx.caller, b, body, record_id)
     else:

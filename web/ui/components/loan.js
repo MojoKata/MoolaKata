@@ -2,7 +2,7 @@
 // Schedule tab, the payment dialog that splits a payment by the schedule, the servicer's
 // balance against the computed one, and the terms form shared by New account and Settings.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
@@ -184,7 +184,7 @@ export function LoanSummary({ a, reload }) {
   const t = v.terms;
   const s = v.servicer;
   return html`
-    <div class="card facts"><h3>Loan<span class="spacer"></span>${a.access.writable
+    <div class="card facts"><h3>Loan<span class="spacer"></span>${canAdd('Txn', a)
       ? html`<button class="btn sm" onClick=${() =>
         openDialog(PaymentDialog, { a, v }).then((ok) => ok && again())}><${Icon}
           name="plus" /> Record a payment</button>`
@@ -255,7 +255,7 @@ export function LoanSummary({ a, reload }) {
             ? html`<span class="pill ok"><${Icon} name="check" /> matches</span>`
             : html`<span class="pill warn">off by <${Amt} v=${s.difference} signed /></span>`
         }</span>`
-        : html`<span class="dim">not typed</span>`}${a.access.writable
+        : html`<span class="dim">not typed</span>`}${canAdd('Anchr', a)
         ? html`${'\u00a0'}<button class="btn sm" onClick=${() =>
           openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type it</button>`
         : null}</div>
@@ -429,7 +429,7 @@ export function PaymentDialog({ close, a, v }) {
   useDialogGuide('dialog-loan-payment');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
-    x.group === 'banking' && x.active && x.access.writable
+    x.group === 'banking' && x.active && canAdd('Txn', x)
   );
   const f = useDraft((draft) => {
     draft.add(PayTxn, { accountId: a.id, date: v.nextDate || today(), amount: v.total });

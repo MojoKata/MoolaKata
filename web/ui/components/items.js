@@ -16,7 +16,7 @@ import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 
@@ -110,7 +110,7 @@ export function Items({ a }) {
       }</div>`
       : null}
     <div class=${'card' + (v.metals.length ? ' mt' : '')} style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span>${a.access.writable
+      <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span>${canAdd('Item', a)
         ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add an
           item</button>`
         : null}</h3>
@@ -187,7 +187,7 @@ export function Items({ a }) {
           </div>
         `
         : html`<${Empty}>No items yet.${
-          a.access.writable
+          canAdd('Item', a)
             ? ' Add each with its purchase date, cost basis and how it is valued.'
             : ''
         }</${Empty}>`}

@@ -278,7 +278,7 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
 def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
     """Legs grouped by hand or as proposed, or a proposal turned down."""
     s, c = ctx.s, ctx.caller
-    a, _ = access.account(s, c.id, body.accountId, "write")
+    a, _ = access.account(s, c.id, body.accountId)
     if not body.legs:
         raise refuse("legs", "legs-missing", "The legs it groups.")
     if len({x.instrumentId for x in body.legs}) != len(body.legs):

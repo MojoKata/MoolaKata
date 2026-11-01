@@ -34,7 +34,7 @@ OptionContract = record(
     CheckConstraint("strike > 0", name="strike"),
     CheckConstraint("multiplier > 0", name="multiplier"),
     Index("ix_OptionContract_underlying", "underlyingId", "expiry"),
-    seen=Seen.household(),
+    seen=Seen.household(creates="code"),  # with the option a trade names
 )
 unique_live(OptionContract, "instrumentId")
 

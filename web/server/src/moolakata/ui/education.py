@@ -175,7 +175,7 @@ def _plan_changed(ctx, a: Account) -> None:
 
 
 def _plan_create(ctx, record_id: str, body: EducationPlanRecord) -> None:
-    a, _ = _account(ctx.s, ctx.caller, body.accountId, "write")
+    a, _ = _account(ctx.s, ctx.caller, body.accountId)
     if education.plan_of(ctx.s, a) is not None:
         raise refuse("accountId", "plan-exists", "This 529 has its plan; change it.", 409)
     ctx.s.add(EducationPlan(id=record_id, accountId=a.id, **_plan_values(ctx, body)))
@@ -524,7 +524,7 @@ class ExpenseRecord(ExpenseIn):
 
 def _expense_create(ctx, record_id: str, body: ExpenseRecord) -> None:
     values = _expense_values(body)
-    a, _ = _account(ctx.s, ctx.caller, body.accountId, "write")
+    a, _ = _account(ctx.s, ctx.caller, body.accountId)
     ctx.s.add(QualifiedExpense(id=record_id, accountId=a.id, **values))
 
 

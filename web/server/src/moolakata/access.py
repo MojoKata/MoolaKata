@@ -124,6 +124,13 @@ def entity_of(kind: str):
     return next(m.class_ for m in mapper_registry.mappers if m.local_table.name == table)
 
 
+def entity_of_table(name: str):
+    """The entity mapped onto a table, by the table's name."""
+    from .store.mapping import mapper_registry
+
+    return next(m.class_ for m in mapper_registry.mappers if m.local_table.name == name)
+
+
 def holders_of(s: Session, entity, item_id: str) -> dict[str, Perms]:
     """Everyone who reads a record, with their permissions."""
     v = _view(entity)

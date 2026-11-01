@@ -945,7 +945,7 @@ FILING_FIELDS = tuple(f for f in FilingRecord.model_fields if f not in ("bookId"
 
 def _filing_create(ctx, record_id: str, body: FilingRecord) -> None:
     s, c = ctx.s, ctx.caller
-    b, _ = books.get(s, c.id, body.bookId, "write")
+    b, _ = books.get(s, c.id, body.bookId)
     f = Filing(id=record_id, bookId=b.id, **_filing_values(s, c, b, body))
     s.add(f)
     s.flush()
@@ -1134,7 +1134,7 @@ def _book_read(ctx, record_id: str) -> NewBookOut:
 
 def _dep_create(ctx, record_id: str, body: DependentRecord) -> None:
     s, c = ctx.s, ctx.caller
-    b, _ = books.get(s, c.id, body.bookId, "write")
+    b, _ = books.get(s, c.id, body.bookId)
     d = TaxBookDependent(id=record_id, bookId=b.id, **_dependent_values(s, c, b, body, record_id))
     s.add(d)
     s.flush()
@@ -1170,7 +1170,7 @@ def _dep_read(ctx, record_id: str) -> DependentOut:
 
 def _doc_create(ctx, record_id: str, body: DocumentRecord) -> None:
     s, c = ctx.s, ctx.caller
-    b, _ = books.get(s, c.id, body.bookId, "write")
+    b, _ = books.get(s, c.id, body.bookId)
     s.add(TaxDocument(id=record_id, bookId=b.id, **_doc_values(s, c, b, body)))
 
 

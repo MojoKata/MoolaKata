@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 // Editing records (requirements S12.15, S17.3.9): what a draft sends, puts back and saves.
-import { countedIds, Draft, idMaker, isId, Record, typeOf } from '../app/draft.js';
+import { canAdd, countedIds, Draft, idMaker, isId, Record, typeOf } from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { equal, truthy } from './assert.js';
 
@@ -320,4 +320,37 @@ Deno.test('a record keeps the access it was read with beside its fields, never a
   equal(Object.keys(r.snapshot().data), ['payee']);
   equal(Object.isFrozen(r.access), true);
   equal(new Record('Txn_2', { payee: 'New' }, { state: 'new' }).access, null);
+});
+
+Deno.test('Add is offered as the server will judge it: the parent holds what its rule asks', () => {
+  const held = (/** @type {object} */ o) => ({
+    access: {
+      mine: false,
+      writable: false,
+      deletable: false,
+      shareable: false,
+      configurable: false,
+      ...o,
+    },
+  });
+  const Txn = { prefix: 'Txn' }, BookAccount = { prefix: 'TxBkA' }, Link = { prefix: 'RcLnk' };
+  equal(canAdd(Txn, held({ writable: true })), true);
+  equal(canAdd(Txn, held({})), false);
+  equal(canAdd(Txn, null), false);
+  equal(canAdd(BookAccount, held({ writable: true })), false); // what a book counts: configurable
+  equal(canAdd(BookAccount, held({ writable: true, configurable: true })), true);
+  equal(canAdd({ prefix: 'AcShr' }, held({ writable: true, shareable: true })), true);
+  equal(canAdd({ prefix: 'Acct' }, null), true);
+  equal(canAdd({ prefix: 'Setng' }, null), false);
+  equal(canAdd({ prefix: 'Setng' }, null, { admin: true }), true);
+  const both = { receiptId: held({ writable: true }), itemId: held({ writable: true }) };
+  equal(canAdd(Link, both), true);
+  equal(canAdd(Link, { ...both, itemId: held({}) }), false);
+  let thrown = false;
+  try {
+    canAdd({ prefix: 'Rltn' }, null);
+  } catch {
+    thrown = true;
+  }
+  equal(thrown, true);
 });

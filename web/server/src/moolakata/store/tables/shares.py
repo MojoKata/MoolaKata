@@ -52,7 +52,7 @@ AccessClass = record(
     CheckConstraint(
         "writable OR NOT (deletable OR shareable OR configurable)", name="implies_writable"
     ),
-    seen=Seen.household(),
+    seen=Seen.household(creates="never"),  # fixed rows, made by a migration
 )
 unique_live(AccessClass, "name")
 

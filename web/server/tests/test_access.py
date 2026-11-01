@@ -472,6 +472,90 @@ def test_mine_is_the_owners_row_and_a_childs_its_parents(household):
                 assert off == 0, f"{view}: mine is not its parent's"
 
 
+# ---- Who may make a record (the mine walk, decision 2) ----
+
+
+def _parent_rules(table):
+    """Each rule of a kind's creation that names a parent: (key, parent table, fields that
+    pick it, permission)."""
+    from moolakata.store.tables._base import AllOf, ByKind, Via, creates_of
+
+    rule = creates_of(table)
+    for r in rule.rules if isinstance(rule, AllOf) else (rule,):
+        if isinstance(r, Via):
+            fk = next(f for f in table.foreign_keys if f.parent.name == r.key)
+            yield r.key, fk.column.table, {}, r.permission
+        elif isinstance(r, ByKind):
+            for kind, name in r.tables:
+                parent = next(t for t in metadata.sorted_tables if t.name == name)
+                yield r.key, parent, {r.kind: kind}, r.permission
+
+
+# What the household holds no record to try with: (kind's prefix, key, parent, status).
+UNTRIED = {
+    # Every budget a user reads they may change (the Household group's share is at Write).
+    ("BdgLn", "budgetId", "Budget", 403),
+    ("BdgMv", "budgetId", "Budget", 403),
+    # A gift others read, and a 529's qualified expenses: none in the household.
+    ("RcLnk", "itemId", "Gift", 403),
+    ("RcLnk", "itemId", "QualifiedExpense", 403),
+    ("RcLnk", "itemId", "QualifiedExpense", 404),
+}
+
+TRIERS = ("bob", "dave", "erin", "alice")
+
+
+def _candidate(s, n, sql: str) -> tuple[str, str] | None:
+    """The first record and user, among the household's, the query finds."""
+    for who in TRIERS:
+        row = s.execute(text(sql), {"u": n[who]}).first()
+        if row is not None:
+            return row[0], n[who]
+    return None
+
+
+def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
+    """For every kind the save takes whose rule names a parent: one the user can't read
+    answers 404, one they read without the permission 403, before the kind's own code (the
+    mine walk, decision 2.4)."""
+    from types import SimpleNamespace
+
+    from sqlalchemy import inspect
+
+    from moolakata import contract
+    from moolakata.errors import Problem
+    from moolakata.ui import save
+
+    contract.openapi_document()  # every kind registered
+    srv, n = household
+    tried, untried = 0, set()
+    for prefix, kind in sorted(save.KINDS.items()):
+        table = inspect(kind.entity).local_table
+        for key, parent, pick, permission in _parent_rules(table):
+            view = access_views.access_name(parent.name)
+            queries = {
+                404: f'SELECT t.id FROM "{parent.name}" AS t WHERE NOT EXISTS (SELECT 1 FROM '
+                f'"{view}" AS a WHERE a."targetId" = t.id AND a."userId" = :u) ORDER BY t.id',
+                403: f'SELECT "targetId" FROM "{view}" WHERE "userId" = :u AND NOT "{permission}" '
+                'ORDER BY "targetId"',
+            }
+            for status, sql in queries.items():
+                with srv.db.read(unscoped="test: a record to try") as s:
+                    found = _candidate(s, n, sql)
+                if found is None:
+                    untried.add((prefix, key, parent.name, status))
+                    continue
+                item, user = found
+                with srv.db.read(user=user) as s:
+                    ctx = SimpleNamespace(s=s, caller=SimpleNamespace(id=user, admin=False))
+                    with pytest.raises(Problem) as e:
+                        save.may_create(ctx, kind, {**pick, key: item})
+                assert e.value.status == status, (prefix, key, parent.name, status)
+                tried += 1
+    assert tried > 60
+    assert untried == UNTRIED
+
+
 # ---- Scoped sessions (decision 5) ----
 
 

@@ -322,7 +322,7 @@ def _action_create(ctx, record_id: str, body: CorporateActionRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.kind not in corporate.KINDS:
         raise refuse("kind", "kind-invalid", "A split, symbol change, spin-off or merger.")
-    a, _ = access.account(s, c.id, body.accountId, "write")
+    a, _ = access.account(s, c.id, body.accountId)
     if not atypes.investing(a.type):
         raise refuse("kind", "kind-not-for-account", "These belong in an investing account.")
     inst = s.get(Instrument, body.instrumentId)

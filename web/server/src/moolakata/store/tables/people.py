@@ -80,7 +80,7 @@ GiftPlan = record(
     Column("notes", Text),
     CheckConstraint('"leadDays" >= 0', name="lead_days"),
     Index("ix_GiftPlan_personId", "personId"),
-    seen=Seen.rule("gift-plan", "GpShr"),
+    seen=Seen.rule("gift-plan", "GpShr", creates="anyone"),
 )
 unique_live(GiftPlan, "ownerId", "personId")
 

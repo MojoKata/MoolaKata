@@ -9,6 +9,7 @@
 import { signal } from '@preact/signals-core';
 import { Dec } from './dec.js';
 import { api } from '../api/client.js';
+import { CREATES } from '../api/fields.js';
 
 /**
  * A field's type, as `api/fields.js` gives it.
@@ -575,6 +576,47 @@ export class Record {
  * @typedef {{ status: 'saved', saved: any[] } | { status: 'asks', asks: any[] } |
  *   { status: 'refused', message: string } | { status: 'stale' }} Outcome
  */
+
+/**
+ * Who may make a record of a kind, as the server declares it (`api/fields.js`'s CREATES): the
+ * permission a parent's `access` must hold, all of several, or who.
+ * @typedef {{ via?: string, needs?: string, byKind?: string, allOf?: CreateRule[], who?: string }} CreateRule
+ */
+
+/**
+ * Whether the reader may make a record of a kind (docs/schema.md §7.9), as the save will judge
+ * it: the record it is made under holds the permission its rule asks, in its `access`;
+ * *anyone* and *own* always; *admin* for an admin. Every Add control asks this. A kind made as
+ * its own code says has no rule to ask here: the screen offering it says from what it read.
+ * @param {string | { prefix: string }} kind a record class, or its prefix
+ * @param {any} parent the record its rule's key names; for a rule of several, those records
+ *   by key (`{ receiptId: receipt, itemId: transaction }`)
+ * @param {{ admin?: boolean }} [who]
+ * @returns {boolean}
+ */
+export function canAdd(kind, parent, who = {}) {
+  const prefix = typeof kind === 'string' ? kind : kind.prefix;
+  const rule = CREATES[/** @type {keyof typeof CREATES} */ (prefix)];
+  if (!rule) throw new Error(`${prefix}: no rule for making one`);
+  return allows(prefix, rule, parent, who, false);
+}
+
+/**
+ * @param {string} prefix @param {CreateRule} rule @param {any} parent
+ * @param {{ admin?: boolean }} who @param {boolean} keyed
+ * @returns {boolean}
+ */
+function allows(prefix, rule, parent, who, keyed) {
+  if (rule.allOf) return rule.allOf.every((r) => allows(prefix, r, parent, who, true));
+  if (rule.via) {
+    const p = keyed ? parent?.[rule.via] : parent;
+    return !!p?.access?.[/** @type {string} */ (rule.needs)];
+  }
+  if (rule.who === 'anyone' || rule.who === 'own') return true;
+  if (rule.who === 'admin') return !!who.admin;
+  if (rule.who === 'never') return false;
+  throw new Error(`${prefix} is made as its own code says: ask what the screen read`);
+}
 
 /**
  * The records one dialog edits (S17.3.9.5), saved together in one request.

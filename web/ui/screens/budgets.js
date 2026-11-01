@@ -17,7 +17,7 @@ import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import {
   DraftDialog,
   RecField,
@@ -182,7 +182,7 @@ function ThisMonth({ b, month, reloadList }) {
   const edit = () => openDialog(PlanDialog, { b, month }).then((x) => x && res.reload());
   const estimate = () =>
     openDialog(EstimateDialog, { b, month, months: 6 }).then((x) => x && res.reload());
-  const canMove = b.moves && b.access.writable;
+  const canMove = b.moves && canAdd('BdgMv', b);
   const moveTo = (/** @type {string} */ to = '') =>
     openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: v.cards }).then((x) =>
       x && res.reload()
