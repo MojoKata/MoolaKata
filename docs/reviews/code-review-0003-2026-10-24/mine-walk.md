@@ -116,3 +116,44 @@ requirements name only a share's level.
    that nothing authorises on it (`need()` takes only the four permissions). It stays a fact,
    never a permission (access walk, decision 2); the views' docstring and schema.md §7 say so.
 
+## Final approval
+
+All seven approved Nov 1, 4:23 PM. Built on PR #29 (`cr3-mine`), commits pushed as made, CI as
+the full check.
+
+## Applied
+
+Commits: 65e62b7 (decision 4, the `mine` column of 7), f43ac8f (1, 3, 5, 6), 114b4c4 (2).
+
+Where the build parted from the decisions, or filled in what they left open:
+
+1. **Hand checks (2.4).** The create hooks lost the permission they repeated where the rule
+   asks the same key and permission (anchors, reconciliations, budget moves, a 529's plan and
+   expenses, occasions, items, valuations, improvements, corporate actions, strategies,
+   filings, dependents, tax documents); they still read the parent, as their fetch. The rest
+   stay: a contribution's body names its account, not the transaction its rule names; helpers
+   shared with updates; and the `code` kinds.
+2. **Rules beyond the walk's list (2.2).** Gift, Donation and Organisation are `code` (made by
+   their owner or through a shared plan, the owner's); Connection is `own`; ImportMapping,
+   TaxBookFiler and the read-only rule tables are `code`; Category `anyone`, TaxFigure `admin`,
+   Price `never`, Instrument and OptionContract `code`.
+3. **Shares (2.3 with 4).** With a table per kind, a share's rule is a plain key
+   (`targetId`, `shareable`); only a receipt's link is by kind.
+4. **Refusals (2.4).** A rule may carry the kind's own words for its 403 and 404 at the key's
+   field (a tax book's accounts: *filers-only*; a receipt read only: *receipt-read-only*; a
+   link's target: *read-only*, *not-found*). Without them, the access check's words, at the
+   key's field.
+5. **Add a contribution** asks `canAdd('Txn', account)`: a contribution is a deposit into it.
+6. **A tax book's Add an account and Leave out** showed on `writable`, though the save asked
+   the filers' `configurable`: they show only to its filers now.
+7. **"All my accounts"** (a portfolio of one's own accounts, never saved) carries `mine` and
+   no permission.
+8. **A gift that is only a categorised transaction** carries its transaction's `access`
+   (making it a donation changes it).
+9. **A reimbursement's `mine`** is both sides' (`min`), as its permissions are.
+10. **Activity entries** of a share keep what it allows as `allow` (was `level`).
+
+**Left for the user:** four fields outside the walk say what the reader may do in their own
+words: PersonRow `canChange`, PersonOut `canChangePerson`, RelationshipOut `canChange`,
+LinkOut `canDetach`. (PersonOut `canMakePrivate` and RelationshipOut `canConfirm` are state
+rules.) Moving them into `access` would follow decision 1.
