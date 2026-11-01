@@ -3,9 +3,10 @@
 # Playwright for Python. Run `web/dev.sh setup` once first.
 #
 #   web/check                    every part, in turn
-#   web/check <part> [<part>…]   those parts only: static, mockups, server, browser, connector,
-#                                coverage. CI runs them as jobs side by side (S17.10.1); the
-#                                coverage part reads what the test parts measured.
+#   web/check <part> [<part>…]   those parts only: static, app-mockup, hand-mockup, server,
+#                                browser, connector, coverage (mockups: both mockups). CI runs
+#                                them as jobs side by side (S17.10.1); the coverage part reads
+#                                what the test parts measured.
 set -uo pipefail
 
 WEB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,11 +27,14 @@ step() {
   fi
 }
 
-PARTS=(static mockups server browser connector coverage)
-parts=("$@")
+PARTS=(static app-mockup hand-mockup server browser connector coverage)
+parts=()
+for p in "$@"; do
+  if [[ $p == mockups ]]; then parts+=(app-mockup hand-mockup); else parts+=("$p"); fi
+done
 ((${#parts[@]})) || parts=("${PARTS[@]}")
 for p in "${parts[@]}"; do
-  [[ " ${PARTS[*]} " == *" $p "* ]] || { echo "web/check: no part $p (${PARTS[*]})" >&2; exit 2; }
+  [[ " ${PARTS[*]} " == *" $p "* ]] || { echo "web/check: no part $p (${PARTS[*]} mockups)" >&2; exit 2; }
 done
 want() { [[ " ${parts[*]} " == *" $1 "* ]]; }
 
@@ -66,7 +70,7 @@ step "deno test" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
   --import-map "$WEB/ui/tests/import_map.json" --coverage="$COVERAGE/js" "$WEB/ui/tests/"
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
 fi
-if want mockups && [[ -f "$WEB/ui/mockup/build.py" ]]; then
+if want app-mockup && [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check
 fi
 # The server's tests across a worker per core (S17.5), each its own process measured as the rest
@@ -79,7 +83,7 @@ want browser &&
 want connector && step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
 want coverage &&
   step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check
-want mockups &&
+want hand-mockup &&
   step "hand-written mockup" py python "$ROOT/docs/mockups/check.py" "$WEB/.dev/check-shots"
 
 if ((${#failed[@]})); then

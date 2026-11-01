@@ -8,10 +8,11 @@
        side by side (the server's tests in three parts, each part every third test
        (`MK_TEST_PART`), the first with the static checks and the last with the connector's
        tests; the browser tests in two parts the same way, a module whose tests run one after
-       another kept whole; the mockups), then the coverage of the test jobs together,
-       from their measurements passed on as artifacts; the `check` job, the status the rulesets
-       require, passes when every part does. Each job fetches the commit before as well, for
-       the coverage of the changed lines, and the coverage reports (S17.5.8) are kept as the
+       another kept whole; the generated mockup's drift; the hand-written mockup's screens),
+       then the coverage of the test jobs together, from their measurements passed on as
+       artifacts; the `check` job, the status the rulesets require, passes when every part
+       does. Each job fetches the commit before as well, for the coverage of the changed
+       lines, and the coverage reports (S17.5.8) are kept as the
        run's artifact. A newer push to a pull request cancels its older run; on `main`,
        runs queue instead, and after a passing check the `coverage site` job publishes the
        coverage site (S17.5.8.5) to the repository's GitHub Pages, through the

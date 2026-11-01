@@ -129,10 +129,15 @@ jobs:
         if: failure()
         run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
 
+  # The mockups side by side: the generated one's drift, and the hand-written one's screens.
   mockups:
-    name: mockups
+    name: ${{ matrix.part }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [app-mockup, hand-mockup]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -147,10 +152,10 @@ jobs:
           echo "$RUNNER_TEMP/uv/bin" >> "$GITHUB_PATH"
       - name: web/dev.sh setup (Python 3.14, Deno and Chromium, each pinned)
         run: web/dev.sh setup
-      - name: web/check mockups
+      - name: web/check ${{ matrix.part }}
         run: |
           set -o pipefail
-          web/check mockups 2>&1 | tee "$RUNNER_TEMP/check.log"
+          web/check ${{ matrix.part }} 2>&1 | tee "$RUNNER_TEMP/check.log"
       - name: say what failed
         if: failure()
         run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
