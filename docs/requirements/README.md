@@ -99,7 +99,6 @@ Work planned for after the first release ([later.md](later.md), S17.9.11).
 | **L12** | [Who paid in a household budget](later.md#l12-who-paid-in-a-household-budget) | each member's share of a group budget's costs, who paid what, and who owes whom |
 | **L14** | [The drivers checked against a household's own data](later.md#l14-the-drivers-checked-against-a-households-own-data) | Schwab Trader API data and OFX servers' answers from the household's accounts, joined to the connector corpus |
 | **L15** | [Holding the event loop caught by the tests](later.md#l15-holding-the-event-loop-caught-by-the-tests) | asyncio's debug mode in the test server, failing a test whose callback holds the loop |
-| **L16** | [The browser tests in parallel](later.md#l16-the-browser-tests-in-parallel) | each worker with a seeded household and a Chromium of its own, the browser coverage read from all |
 
 ## Also here
 

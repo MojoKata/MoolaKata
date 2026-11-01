@@ -69,11 +69,13 @@ fi
 if want mockups && [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check
 fi
-# The server's tests across a worker per core (S17.5.2), each its own process measured as the
-# rest are; the browser modules' share one seeded household, so they run in one (L16).
+# The server's tests across a worker per core (S17.5), each its own process measured as the rest
+# are. The browser modules' across four, each worker with its own servers, seeded household and
+# Chromium; a module whose tests share one page keeps to one worker (its xdist_group).
 want server &&
   step "pytest (server, schema)" py coverage run -m pytest -n auto -m "not browser and not audit"
-want browser && step "pytest (browser)" py coverage run -m pytest -m browser
+want browser &&
+  step "pytest (browser)" py coverage run -m pytest -n 4 --dist loadgroup -m browser
 want connector && step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
 want coverage &&
   step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check
