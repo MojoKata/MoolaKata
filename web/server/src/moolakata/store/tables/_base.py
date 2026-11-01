@@ -1,10 +1,12 @@
-"""The columns and constraints every table carries (docs/schema.md §2, §4).
+"""The columns and constraints every table carries (docs/schema.md §2, §4, §7).
 
 A record table has a prefixed id with its CHECK, is WITHOUT ROWID, and carries the
 soft-delete fields with their CHECK, plus `version`, `createdAt` and `updatedAt` for the API's
 concurrency rule (requirements S13.8.6). Tables removed outright (schema.md §4.4) say so in
-`info["exception"]`.
+`info["exception"]`. Every table says how it is seen (`Seen`, schema.md §7) in `info["seen"]`.
 """
+
+from dataclasses import dataclass
 
 from sqlalchemy import (
     Boolean,
@@ -21,6 +23,61 @@ from sqlalchemy import (
 )
 
 from ..types import UtcTimestamp
+
+
+@dataclass(frozen=True)
+class Seen:
+    """How a table's records are seen (docs/schema.md §7), which decides its `<Table>Access`
+    view: generated for a root, a child, a per-user table or admin data; written by hand for a
+    rule of its own; none for a relation, household data or the server's own."""
+
+    how: str
+    share: str | None = None  # a root's share kind (Share.kind)
+    key: str | None = None  # a child's parent key, a per-user table's user column
+    configurable: bool = False  # a per-user table whose rows hold secrets (Connection)
+    # Changing these asks `configurable`, not `writable` (§7.6): an account's settings.
+    settings: tuple[str, ...] = ()
+    # What any write of a row asks: `configurable` for what a record covers (its accounts).
+    writes: str = "writable"
+
+    @staticmethod
+    def root(share: str, settings: tuple[str, ...] = ()) -> Seen:
+        """One of the shareable kinds, by the plain rule: its owner, and its shares."""
+        return Seen("root", share=share, settings=settings)
+
+    @staticmethod
+    def child(key: str, writes: str = "writable") -> Seen:
+        """Seen as the record its NOT NULL key names is."""
+        return Seen("child", key=key, writes=writes)
+
+    @staticmethod
+    def rule(share: str | None = None) -> Seen:
+        """A view written by hand; `share` when it is a shareable kind with rules of its own."""
+        return Seen("rule", share=share)
+
+    @staticmethod
+    def per_user(key: str, configurable: bool = False) -> Seen:
+        return Seen("per-user", key=key, configurable=configurable)
+
+    @staticmethod
+    def relation() -> Seen:
+        """A pure many-to-many table: reached through one of its sides' views."""
+        return Seen("relation")
+
+    @staticmethod
+    def household() -> Seen:
+        """Read by every signed-in local user; written as code allows."""
+        return Seen("household")
+
+    @staticmethod
+    def admin() -> Seen:
+        return Seen("admin")
+
+    @staticmethod
+    def server() -> Seen:
+        """Read only by the server's own code, never by a user's query."""
+        return Seen("server")
+
 
 NAMING = {
     "ix": "ix_%(table_name)s_%(column_0_N_name)s",
@@ -46,7 +103,7 @@ def soft_delete(table: str) -> list:
     ]
 
 
-def record(name: str, prefix: str, *columns, **kw) -> Table:
+def record(name: str, prefix: str, *columns, seen: Seen, **kw) -> Table:
     """A table of records with a prefixed id (schema.md §2) and soft deletes (§4)."""
     length = len(prefix) + 1 + 26
     return Table(
@@ -60,7 +117,7 @@ def record(name: str, prefix: str, *columns, **kw) -> Table:
         *soft_delete(name),
         CheckConstraint(f"id GLOB '{prefix}_*' AND length(id) = {length}", name="id"),
         sqlite_with_rowid=False,
-        info={"prefix": prefix, "softDelete": True},
+        info={"prefix": prefix, "softDelete": True, "seen": seen},
         **kw,
     )
 
@@ -73,12 +130,12 @@ def pairs(name: str, *columns, **kw) -> Table:
         *columns,
         *soft_delete(name),
         Column("createdAt", UtcTimestamp, nullable=False),
-        info={"softDelete": True, "pairs": True},
+        info={"softDelete": True, "pairs": True, "seen": Seen.relation()},
         **kw,
     )
 
 
-def keyed(name: str, *columns, **kw) -> Table:
+def keyed(name: str, *columns, seen: Seen, **kw) -> Table:
     """A table keyed by name rather than an id, with soft deletes (Settings)."""
     return Table(
         name,
@@ -87,15 +144,17 @@ def keyed(name: str, *columns, **kw) -> Table:
         Column("version", Integer, nullable=False, server_default=text("1")),
         Column("updatedAt", UtcTimestamp, nullable=False),
         *soft_delete(name),
-        info={"softDelete": True},
+        info={"softDelete": True, "seen": seen},
         **kw,
     )
 
 
-def exception(name: str, reason: str, *columns, prefix: str | None = None, **kw) -> Table:
+def exception(
+    name: str, reason: str, *columns, seen: Seen, prefix: str | None = None, **kw
+) -> Table:
     """A table that schema.md §4.4 removes outright, or never deletes from at all."""
     cols = list(columns)
-    info = {"softDelete": False, "exception": reason}
+    info = {"softDelete": False, "exception": reason, "seen": seen}
     if prefix:
         length = len(prefix) + 1 + 26
         cols.insert(0, Column("id", Text, primary_key=True))

@@ -27,7 +27,7 @@ log = logging.getLogger("moolakata")
 
 def record_run(server: Server):
     def record(name: str, run: Run) -> None:
-        with server.db.tx() as s:
+        with server.db.tx(unscoped="runtime: record") as s:
             row = s.get(TaskRun, name)
             if row is None:
                 s.add(
@@ -48,7 +48,7 @@ def record_run(server: Server):
 
 
 def last_runs(server: Server) -> dict[str, Run]:
-    with server.db.read() as s:
+    with server.db.read(unscoped="runtime: last runs") as s:
         return {r.name: Run(r.startedAt, r.finishedAt, r.error) for r in s.scalars(select(TaskRun))}
 
 
@@ -59,7 +59,7 @@ def register_tasks(server: Server) -> None:
 
     def setting_time(key: str):
         def at() -> tuple[dt.time, str]:
-            with server.db.read() as s:
+            with server.db.read(unscoped="runtime: at") as s:
                 return settings.time_of(s, key), timezones.host_zone()
 
         return at
@@ -69,7 +69,7 @@ def register_tasks(server: Server) -> None:
         # replacing. The lock makes one wait for the other.
         with server.maintenance_lock:
             maintenance.backup(server.config, server.store)
-            with server.db.read() as s:
+            with server.db.read(unscoped="runtime: backup") as s:
                 keep = settings.get(s, "backupCopies")
             maintenance.prune(server.config, keep)
 
@@ -77,14 +77,14 @@ def register_tasks(server: Server) -> None:
 
     def prune(ctx: TaskContext) -> None:
         """Expired sessions and one-time tokens are removed outright (schema.md §4.4.1)."""
-        with server.db.tx() as s:
+        with server.db.tx(unscoped="runtime: prune") as s:
             sessions.prune(s)
             s.execute(delete(OneTimeToken).where(OneTimeToken.expiresAt <= sessions.now()))
 
     server.tasks.register("pruning", prune, Every(3600), last.get("pruning"))
 
     def price_time() -> tuple[dt.time, str]:
-        with server.db.read() as s:
+        with server.db.read(unscoped="runtime: price time") as s:
             return settings.time_of(s, "priceRefreshTime"), settings.get(s, "priceRefreshZone")
 
     server.tasks.register(
@@ -102,7 +102,7 @@ def register_tasks(server: Server) -> None:
         mailer.expire()
         if not mailer.waiting():
             return
-        with server.db.read() as s:
+        with server.db.read(unscoped="runtime: mail") as s:
             smtp = smtp_settings(s, server.keys.secrets)
         server.services.mailer.send_waiting(smtp, server.guard, ctx.stop)
 
@@ -112,7 +112,7 @@ def register_tasks(server: Server) -> None:
         """Options that expired out of the money end the day after (S3.6)."""
         from . import options
 
-        with server.db.tx() as s:
+        with server.db.tx(unscoped="runtime: expire options") as s:
             options.expire_due(s, clock.today())
 
     server.tasks.register("options", expire_options, Every(3600), last.get("options"))
@@ -224,7 +224,7 @@ def relock(server: Server) -> None:
 
 def _build(server: Server, was_pending: bool) -> None:
     config = server.config
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="runtime: build") as s:
         if not users.has_users(s):
             log.info("no users yet: the page sets up the first admin (S10.1.2)")
         ledger.ensure_categories(s)
@@ -263,7 +263,7 @@ def check_restored(server: Server, restored: dict) -> None:
     keys = server.store.keys.keys
     folder = server.config.receipts_dir
     unopened = []
-    with server.db.read() as s:
+    with server.db.read(unscoped="runtime: check restored") as s:
         for r in s.scalars(
             sql_select(Receipt).where(Receipt.deleted.is_(False), Receipt.filePrunedAt.is_(None))
         ):
@@ -282,7 +282,7 @@ def check_restored(server: Server, restored: dict) -> None:
                 )
             except sealing.SecretError:
                 secrets.append(f"{row.recordType}/{row.field}")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="runtime: check restored") as s:
         for link in s.scalars(sql_select(Link).where(Link.deleted.is_(False))):
             link.copyPublicKey = link.copyKeyAt = link.copyKeyById = link.copyFolder = None
             link.inboxAsOf = None
@@ -316,7 +316,7 @@ def record_reencryption(server: Server) -> None:
     done = reencrypt.report(server.config)
     if not done:
         return
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="runtime: record reencryption") as s:
         activity.record(
             s,
             "keys.reencrypted",
@@ -338,7 +338,7 @@ def load_copy_folders(server: Server) -> None:
     from .links import copy as linked
     from .store.entities.links import Link
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="runtime: load copy folders") as s:
         for link_id, name in s.execute(
             select(Link.id, Link.copyFolder).where(Link.copyFolder.is_not(None))
         ):
@@ -354,7 +354,7 @@ def take_host_events(server: Server) -> set[str]:
     if not events:
         maintenance.host_events_taken(server.config)
         return set()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="runtime: take host events") as s:
         for e in events:
             activity.record(
                 s,
@@ -425,7 +425,7 @@ async def _serve(server: Server, seed: bool) -> None:
     from . import activity
     from .keys import master
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="runtime: serve") as s:
         activity.record(
             s,
             "key.unlocked",

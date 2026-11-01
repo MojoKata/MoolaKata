@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 
 from ..types import UtcTimestamp
-from ._base import exception, record, unique_live
+from ._base import Seen, exception, record, unique_live
 
 # An extended public key (xpub, ypub, zpub) or one address, as entered (S1.6.1).
 WalletKey = record(
@@ -27,6 +27,7 @@ WalletKey = record(
     Column("gapLimit", Integer, nullable=False, server_default=text("20")),
     CheckConstraint("kind IN ('xpub', 'descriptor', 'address')", name="kind"),
     CheckConstraint('"gapLimit" BETWEEN 1 AND 1000', name="gapLimit"),
+    seen=Seen.child("accountId"),
 )
 unique_live(WalletKey, "accountId", "value")
 
@@ -48,6 +49,7 @@ WalletAddress = exception(
     Column("createdAt", UtcTimestamp, nullable=False),
     CheckConstraint("chain IS NULL OR chain IN (0, 1)", name="chain"),
     prefix="WAddr",
+    seen=Seen.child("accountId"),
 )
 Index(
     "ux_WalletAddress_account_address",

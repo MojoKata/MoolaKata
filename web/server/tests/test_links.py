@@ -29,12 +29,12 @@ def pair(tmp_path, monkeypatch):
 
 
 def public(srv) -> bytes:
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         return keys.public_of(s, srv.keys.secrets)
 
 
 def link(srv, peer_url, peer_key, state="active", role="inviter") -> str:
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         row = Link(
             id=ids.new_id("Link"),
             state=state,
@@ -58,7 +58,7 @@ def test_a_linked_server_answers_a_signed_call_and_signs_its_answer(pair):
     assert hi["fingerprint"] == keys.fingerprint(kb) and hi["protocol"] == 1
     out = client.call(a, url_b, kb, "/link/v1/ping")
     assert out["state"] == "active"
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         row = s.query(Link).one()
         assert row.lastOkAt is not None and row.peerVersion == a.version
 
@@ -173,7 +173,7 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     assert req["state"] == "requested" and req["fingerprint"] == links_of(cb)["fingerprint"]
     # Nothing of either household crosses before the approval (S10.10.1, P5).
     assert req["users"] == [] and links_of(cb)["links"][0]["users"] == []
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert s.query(Person).filter(Person.name == "Carol").count() == 0
     again = cb.post("/ui/api/settings/links/join", json={"code": code})
     assert again.status_code == 422 and again.json()["code"] in ("code-used", "already-linked")
@@ -197,11 +197,11 @@ def test_the_directory_follows_the_peers_users(admins):
     assert "dave" in names
     from moolakata.store.entities.users import User
 
-    with b.db.tx() as s:
+    with b.db.tx(unscoped="test") as s:
         s.query(User).filter(User.username == "dave").one().active = False
     ca.post(f"/ui/api/settings/links/{a_id}/pull")
     assert "dave" not in {u["username"] for u in links_of(ca)["links"][0]["users"]}
-    with b.db.tx() as s:
+    with b.db.tx(unscoped="test") as s:
         s.query(User).filter(User.username == "dave").one().active = True
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     assert "dave" in {u["username"] for u in links_of(ca)["links"][0]["users"]}, (
@@ -278,7 +278,7 @@ def test_an_item_is_shared_read_only_with_a_linked_servers_people(admins):
     assert v["links"] == []
     from moolakata.store.entities.sharing import Share
 
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert s.query(Share).filter(Share.deleted.is_(False)).count() == 0
 
 
@@ -360,10 +360,10 @@ def test_a_shared_account_reaches_the_people_it_names_as_its_screens_show_it(adm
     nothing = a  # the next exchange with nothing new sends no change
     from moolakata.store.entities.links import Link
 
-    with nothing.db.read() as s:
+    with nothing.db.read(unscoped="test") as s:
         seq = s.get(Link, a_id).sentSeq
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert s.get(Link, a_id).sentSeq == seq
     # A share removed: the item goes.
     share(alice, "account", acct["id"], users={carol_here["id"]: "none"})
@@ -610,7 +610,7 @@ def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins)
     plan = make(alice, "GfPln", name="Carol", sex="female", private=True).json()
     make_user(b, "carol")
     linked(ca, cb)
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         carol = s.query(User).filter(User.username == "carol", User.linkId.is_not(None)).one()
         assert carol.personId != plan["id"], "not joined by name"
         assert s.get(Person, plan["id"]).private
@@ -618,12 +618,12 @@ def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins)
     assert [r["id"] for r in row["sameAs"]] == [carol.id]
     r = alice.post(f"/ui/api/persons/{plan['id']}/join", json={"userId": carol.id})
     assert r.status_code == 200, r.text
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert s.get(User, carol.id).personId == plan["id"]
         assert s.get(Person, plan["id"]).private, "joining never changes whether it is private"
     # Exchanges keep the joined person's name as it is here.
     ca.post(f"/ui/api/settings/links/{links_of(ca)['links'][0]['id']}/pull")
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert s.get(Person, plan["id"]).name == "Carol"
 
 
@@ -654,11 +654,11 @@ def test_only_link_ended_ends_a_link_and_not_linked_marks_it_broken(admins):
     a, b, ca, cb, _ = admins
     a_id, _b_id = linked(ca, cb)
     other = keys.b64(keys.raw_public(signing.Ed25519PrivateKey.generate().public_key()))
-    with b.db.tx() as s:  # b has no link with a's key, as an older backup wouldn't
+    with b.db.tx(unscoped="test") as s:  # b has no link with a's key, as an older backup wouldn't
         s.query(Link).update({Link.peerKey: other})
     out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
     assert out["state"] == "active" and "no link with this one" in out["lastError"]
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert s.get(Link, a_id).brokenAt is not None
     alerts.evaluate(a)
     assert any(x["kind"] == "link-broken" for x in ca.get("/ui/api/alerts").json()["open"])
@@ -720,7 +720,7 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
     r = carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     assert r.status_code == 200, r.text
     assert changes.waiting(b.config.data_dir, b_id) == []
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         link = s.get(Link, b_id)
         assert link.needsFull and "asked for" in link.lastError
 
@@ -736,17 +736,17 @@ def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins):
     a_id, _ = linked(ca, cb)
     old, new, rogue = "aa" * 32, "bb" * 32, "cc" * 32
     wire.certs["b.test"] = old
-    with a.db.tx() as s:
+    with a.db.tx(unscoped="test") as s:
         s.get(Link, a_id).peerCert = old
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert manage.pins(s.get(Link, a_id)) == {old}
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         manage.answer_certificate(a, s.get(Link, a_id), {"fingerprint": new})
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         assert manage.pins(s.get(Link, a_id)) == {old, new}
     wire.certs["b.test"] = new  # B moves to the key it announced
     manage.call(a, a_id, "/link/v1/ping")
-    with a.db.read() as s:
+    with a.db.read(unscoped="test") as s:
         row = s.get(Link, a_id)
         assert (row.peerCert, row.peerCertNext) == (new, None), "in use: now the pinned one"
     wire.certs["b.test"] = rogue  # one it never announced
@@ -812,7 +812,7 @@ def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_l
     assert got.status_code == 200 and got.json()["items"] == []
     from moolakata.store.entities.core import Activity
 
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         pulled = [x for x in s.query(Activity) if x.kind == "link.pulled"]
     assert pulled and all((x.subjectKind, x.subjectId) == ("link", b_id) for x in pulled)
 
@@ -842,7 +842,7 @@ def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admi
     for f in kept.iterdir():
         sh.copy(f, inbox / f.name)
     carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": words})
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         link = s.get(Link, b_id)
         assert link.needsFull and "doesn't follow the last one applied" in (link.lastError or "")
 
@@ -921,7 +921,7 @@ def test_a_receipt_that_cant_be_fetched_holds_nothing_back_and_comes_later(admin
     assert got.status_code == 404 and got.json()["code"] == "not-arrived"
     link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
     assert link["lastError"] is None and link["failingSince"] is None, "the link is fine"
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         (row,) = s.query(LinkFile).all()
         assert row.fileName is None and row.tries == 1 and row.error
     # The next exchange asks for it again, and it reaches the open copy.
@@ -931,7 +931,7 @@ def test_a_receipt_that_cant_be_fetched_holds_nothing_back_and_comes_later(admin
     assert f["arrived"] is True
     got = carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
     assert got.status_code == 200 and got.content == image
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         assert s.query(LinkFile).count() == 0
 
 
@@ -1029,7 +1029,7 @@ def test_a_locked_copys_inbox_names_no_one(admins):
     files = list(inbox.iterdir())
     assert files and {f.suffix for f in files} == {".mks", ".mke"}
     acct = alice.get("/ui/api/accounts").json()["items"][0]["id"]
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         carol_id = s.query(User).filter(User.username == "carol").one().id
     for f in files:
         body = f.read_bytes()

@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 
 from ..types import UtcTimestamp
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 # A user's expected returns and volatility per asset class, inflation and bitcoin model (S6.3).
 AssumptionSet = record(
@@ -21,6 +21,7 @@ AssumptionSet = record(
     "Asmpt",
     Column("ownerId", Text, ForeignKey("User.id"), nullable=False),
     Column("figures", Text, nullable=False, server_default=text("'{}'")),
+    seen=Seen.per_user("ownerId"),
 )
 unique_live(AssumptionSet, "ownerId")
 
@@ -39,6 +40,7 @@ Projection = record(
     Column("baselineAt", UtcTimestamp),
     CheckConstraint("goal IN ('retirement', 'savings', 'education')", name="goal"),
     Index("ix_Projection_ownerId", "ownerId"),
+    seen=Seen.root("projection", settings=("active", "baseline", "baselineAt")),
 )
 
 # A receiver's "Show on my Dashboard" on an active projection shared with them (S6.8.3).
@@ -57,5 +59,6 @@ TaxFigure = record(
     Column("key", Text, nullable=False),
     Column("value", Text, nullable=False),
     Column("changedById", Text, ForeignKey("User.id")),
+    seen=Seen.household(),
 )
 unique_live(TaxFigure, "year", "key")

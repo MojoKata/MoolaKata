@@ -89,7 +89,7 @@ def server(store, keyed_config):
     from moolakata.store.repos.ledger import ensure_categories
 
     srv = Server(config=keyed_config, store=store, ready=True)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         # The first admin, as the welcome makes it (S10.1.2).
         accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", ADMIN_PW)
         ensure_categories(s)
@@ -180,7 +180,7 @@ def make_user(
     from moolakata import ids, people
     from moolakata.store.entities.users import User, UserGroup
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         u = User(
             id=ids.new_id("User"),
             personId=people.make(s, username.title(), sex, birth_year=born).id,
@@ -216,6 +216,6 @@ def stale(srv) -> None:
 
     from moolakata.store.entities.users import Session
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         for row in s.scalars(select(Session)):
             row.authAt -= dt.timedelta(minutes=11)

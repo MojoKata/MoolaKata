@@ -133,8 +133,12 @@
       receipt up to S16.10's, a statement or other import file up to S16.8's, and a file the
       connector posts, a statement, up to S16.8's; a receipt a linked server delivers up to the
       largest receipt Settings allows, sealed (link protocol §1.4); at most 100 MB of uploads in
-      flight per user (never less than that largest sealed receipt), and four times that for
-      every caller together; and request headers up to 16 KB. The connector's and a linked
+      flight per user (never less than that largest sealed receipt), past which 429, and
+      256 MB for every caller together, past which 503 with `Retry-After: 30`; and request
+      headers up to 16 KB. An upload to the app's API (a form's file, or any body past
+      64 KB) has its session checked on its headers, before a byte of its body is read:
+      without a live one it is refused (401), and the user it names is the one it counts
+      against. The connector's and a linked
       server's uploads are counted as they are read, never by the length a call declares: a
       signed call's body is read only once its signature, over the hash the call names,
       checks out (`docs/connector-protocol.md` §3.2, `docs/link-protocol.md` §3.2), so the key

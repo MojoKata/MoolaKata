@@ -99,7 +99,7 @@ def bitcoin_saved(request):
     from moolakata import settings
 
     srv = request.getfixturevalue("server")
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="test") as s:
         settings.put(s, "bitcoinSource", "esplora", None)
 
 
@@ -236,9 +236,9 @@ def test_a_coinjoins_fee_is_the_wallets_share_never_the_whole(server, alice):
     from moolakata.store.entities.accounts import Transaction
 
     w = new_account(alice, name="Mixer", type="crypto-wallet")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         sync.record(s, w["id"], [sources.Tx("f" * 64, T2, -1_500, 12_000, {FIRST})])
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         rows = {t.kind: t for t in s.query(Transaction).filter_by(accountId=w["id"])}
     assert rows["transfer-out"].quantity == 0 and rows["transfer-out"].payee == "Network fee"
     assert str(rows["sell"].quantity) == "0.000015"
@@ -268,7 +268,7 @@ def test_the_stub_source_gives_dev_wallets_a_history(server, alice, admin_client
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
     saved(wallet(alice, w["id"], ZPUB))
     # The stub too waits for Settings › Bitcoin (S16.7, S17.7), and is a source saved there.
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.delete(settings.row_of(s, "bitcoinSource"))
     assert sync.sync_all(server) is None and sync_count(server, w["id"]) == 0
     assert save_settings(admin_client, {"bitcoinSource": "stub"}).status_code == 200
@@ -285,7 +285,7 @@ def sync_count(server, account_id):
 
     from moolakata.store.entities.accounts import Transaction
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         return s.scalar(
             select(func.count())
             .select_from(Transaction)
@@ -393,7 +393,7 @@ def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server,
     assert r.status_code == 200 and "rpc-pass-1" not in r.text
     v = c.get("/ui/api/settings/bitcoin").json()
     assert v["password"]["setBy"] and "rpc-pass-1" not in str(v)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         cfg = sync.config(s, server.keys.secrets)
     assert (cfg.kind, cfg.host, cfg.port, cfg.password) == (
         "core",
@@ -423,7 +423,7 @@ def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, alice, m
 
     one = new_account(alice, name="Hot wallet", type="crypto-wallet")
     two = new_account(alice, name="Cold storage", type="crypto-wallet")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         btc = repo.instrument(s, "BTC", "Bitcoin", "crypto")
         buy = Transaction(
             id=ids.new_id("Txn"),
@@ -552,7 +552,7 @@ def test_one_wallet_failing_leaves_the_others_read(server, alice, monkeypatch):
 def test_a_node_certificate_is_trusted_once_confirmed(server, admin_client):
     from moolakata import alerts, settings
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "bitcoinNodeCertOffered", "ab" * 32, None)
     alerts.evaluate(server)
     titles = [a["title"] for a in admin_client.get("/ui/api/alerts").json()["open"]]
@@ -573,14 +573,14 @@ def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, alice):
 
     w = new_account(alice, name="Cold storage", type="crypto-wallet")
     saved(wallet(alice, w["id"], ZPUB))
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.delete(settings.row_of(s, "bitcoinSource"))
     r = alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
     assert r.status_code == 409 and r.json()["code"] == "bitcoin-not-set"
     assert sync.sync_all(server) is None
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "bitcoinSource", "esplora", None)
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert sync.chosen(server, s)
 
 

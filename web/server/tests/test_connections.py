@@ -32,13 +32,13 @@ def admin(server, admin_client):
 
     from moolakata import settings
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     return admin_client
 
 
 def account(server, owner_id: str, name="Everyday Checking") -> str:
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a = Account(id=ids.new_id("Acct"), ownerId=owner_id, name=name, type="checking")
         s.add(a)
         return a.id

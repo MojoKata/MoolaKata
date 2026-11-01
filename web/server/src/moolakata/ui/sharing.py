@@ -7,6 +7,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, sharing
 from ..errors import Problem, refuse
+from ..store import scoping
 from ..store.entities.sharing import CountedAccount, Share
 from ..store.entities.users import Group, User, UserGroup
 from ..store.rows import by_key
@@ -122,7 +123,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
     hidden: dict[str, list[str]] = {}
     accounts: list[AccountName] = []
     if kind == "portfolio":
-        people = [u for u in access.holders(s, kind, item_id, obj.ownerId) if u != owner.id]
+        people = [u for u in access.holders_of(s, access.entity_of(kind), item_id) if u != owner.id]
         hidden = sharing.hidden_accounts(s, obj, people)
         accounts = [
             AccountName(id=a.id, name=a.name, yours=a.ownerId == owner.id)
@@ -198,26 +199,14 @@ def _linked(s, current) -> list[LinkedPeople]:
 
 
 def _owner_only(s, c: Caller, kind: str, item_id: str) -> None:
-    obj = sharing.item(s, kind, item_id)
-    if kind == "person":  # a private person: whoever may change them shares them (S10.10.2)
-        from .. import people
-
-        lvl = people.level(s, c.id, obj)
-    elif kind == "tax-book":  # its filers hold it as its owners, and any changes its sharing
-        from ..taxes import books
-
-        lvl = books.level(s, c.id, obj)
-    else:
-        lvl = access.level_of(s, c.id, kind, obj.ownerId, obj.id, obj.deleted)
-    if lvl is None:
-        raise Problem(404, "not-found", "Not found")
-    if lvl != "owner":
-        raise Problem(403, "owner-only", "Only the owner changes who this is shared with.")
+    """Whoever may share the item changes its sharing: its owner; a tax book's filers; whoever
+    may change a person (S10.10.2)."""
+    access.need(s, access.entity_of(kind), item_id, c.id, "shareable", kind.replace("-", " "))
 
 
 @router.get("/shares/{kind}/{item_id}", response_model=ShareView)
 def get_shares(kind: Kind, item_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         _owner_only(s, c, kind, item_id)
         return view(s, c.user, kind, item_id)
 
@@ -240,8 +229,16 @@ def _grantee(s, c: Caller, body: ShareRecord):
     if (body.userId is None) == (body.groupId is None):
         raise refuse("userId", "grantee-missing", "A user or a group.")
     if body.userId:
-        u = s.get(User, body.userId)
-        if u is None or u.deleted or u.id == c.id:
+        # Checked as the server: an inactive user is in no one's view but an admin's.
+        u = s.execute(
+            scoping.unscoped(
+                select(User.id, User.deletedAt, User.linkId, User.active, User.displayName).where(
+                    User.id == body.userId
+                ),
+                "the user a share is for",
+            )
+        ).first()
+        if u is None or u.deletedAt is not None or u.id == c.id:
             raise refuse("userId", "user-unknown", "Choose a user.")
         if u.linkId and body.level == "write":
             raise refuse(
@@ -255,13 +252,20 @@ def _grantee(s, c: Caller, body: ShareRecord):
             raise refuse(
                 "userId", "user-inactive", f"{u.displayName} is not active and can't be added."
             )
-        return u
-    g = s.get(Group, body.groupId)
-    if g is None or g.deleted:
+        return s.get(User, u.id)
+    g = s.execute(
+        scoping.unscoped(
+            select(Group.id, Group.deletedAt, Group.active, Group.name).where(
+                Group.id == body.groupId
+            ),
+            "the group a share is for",
+        )
+    ).first()
+    if g is None or g.deletedAt is not None:
         raise refuse("groupId", "group-unknown", "Choose a group.")
     if not g.active:
         raise refuse("groupId", "group-inactive", f"{g.name} is not active and can't be added.")
-    return g
+    return s.get(Group, g.id)
 
 
 def _reaches(ctx, grantee, receipts: bool) -> None:
@@ -366,11 +370,10 @@ def _share_update(ctx, row: Share, body: ShareRecord) -> None:
 def _share_delete(ctx, row: Share) -> None:
     """Taken away: a receiver who no longer reaches an account loses their tags on it (S10.4)."""
     s = ctx.s
-    obj = sharing.item(s, row.kind, row.itemId)
-    before = access.holders(s, row.kind, row.itemId, obj.ownerId)
+    before = access.holders_of(s, access.entity_of(row.kind), row.itemId)
     row.mark_deleted(ctx.caller.id)
     s.flush()
-    after = access.holders(s, row.kind, row.itemId, obj.ownerId)
+    after = access.holders_of(s, access.entity_of(row.kind), row.itemId)
     if row.kind == "account":
         for uid in [u for u in before if u not in after]:
             sharing.drop_annotations(s, uid, row.itemId)

@@ -144,7 +144,7 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, alice):
 
     assert realized() == "0.00", "all 200 disallowed"
     # Wash sales gone stale, as a rerun would put right.
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.execute(delete(WashSale))
     assert realized() == "-200.00"
     acct = alice.get(f"/ui/api/accounts/{brk['id']}").json()
@@ -152,7 +152,7 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, alice):
     assert r.status_code == 200, r.text
     # By LIFO the sale would take the $50 lot, a 300 gain with nothing to disallow.
     assert realized() == "0.00", "worked out again, by the FIFO recorded on the sale"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         sale = s.query(Transaction).filter_by(accountId=brk["id"], kind="sell").one()
         assert sale.lotMethod == "fifo"
         assert s.query(WashSale).filter_by(saleId=sale.id).count() == 1
@@ -170,7 +170,7 @@ def _lots(server, acct):
     from moolakata.store.entities.accounts import Account, Instrument
     from moolakata.store.repos import ledger as repo
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         rp = repo.load(s, s.get(Account, acct)).replay()
         out = {}
         for x in rp.open:

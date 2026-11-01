@@ -71,7 +71,7 @@ def shared_items(srv, link_id: str) -> tuple[dict[str, Item], dict[str, User]]:
     from .. import sharing
     from ..store.entities.education import GiftPlan
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.serve: shared items") as s:
         people = {
             u.id: u
             for u in s.scalars(
@@ -189,7 +189,7 @@ def _paths(srv, it: Item) -> list[tuple[str, callable]]:
     if it.kind == "gift-plan":
         from ..store.entities.education import GiftPlan
 
-        with srv.db.read() as s:
+        with srv.db.read(unscoped="links.serve: paths") as s:
             person = s.get(GiftPlan, i).personId
         return [(f"/gifts?person={i}", lambda c: gifts.list_gifts(r, None, person, c))]
     return []
@@ -281,7 +281,7 @@ def receipt_files(srv, account_id: str) -> list[dict]:
     from ..store.entities.accounts import Transaction
     from ..store.entities.receipts import Receipt, ReceiptLink
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.serve: receipt files") as s:
         txns = list(
             s.scalars(
                 select(Transaction.id).where(
@@ -349,7 +349,7 @@ def change_for(srv, link_id: str, have: int, full: bool) -> list[dict]:
     asks, or when its sequence isn't the one last sent; else only what changed. Empty when
     nothing has; more than one when it is large, oldest first (S11.4)."""
     items, docs = work_out(srv, link_id)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.serve: change for") as s:
         link = s.get(Link, link_id)
         full = full or have != link.sentSeq
         sent = {
@@ -425,7 +425,7 @@ def sealed_receipt(srv, link_id: str, receipt_id: str):
     from ..store.entities.receipts import Receipt
     from . import sealed
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.serve: sealed receipt") as s:
         link = s.get(Link, link_id)
         r = s.get(Receipt, receipt_id)
         own = keys.public_of(s, srv.keys.secrets)

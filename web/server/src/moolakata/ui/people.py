@@ -8,9 +8,10 @@ import datetime as dt
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import false, select
 
-from .. import activity, clock, gifts, people
+from .. import access, activity, clock, gifts, people
 from ..errors import Problem, refuse
 from ..people import tree
+from ..store import scoping
 from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
 from . import save
@@ -84,7 +85,7 @@ def _row(s, c: Caller, person_id: str) -> PersonRow:
 @router.get("/persons", response_model=list[PersonRow])
 def list_persons(request: Request, c: Caller = Depends(caller)):
     """The household's people the caller can see, with how each is related to them."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return _rows(s, c)
 
 
@@ -105,24 +106,23 @@ def person_clash(
 ):
     """The person a new one by this name would be, when there is one: what a dialog shows when
     its save is refused as `person-exists`."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         other = people.clash(s, name.strip(), birthYear, None)
         if other is None:
             return None
-        creator = s.get(User, other.ownerId) if other.ownerId else None
         return Clash(
             id=other.id,
             name=other.name,
-            visible=people.level(s, c.id, other) is not None,
+            visible=access.perms(s, Person, other.id, c.id) is not None,
             private=other.private,
-            createdBy=creator.displayName if creator else None,
+            createdBy=other.creator,
         )
 
 
 @router.get("/persons/{person_id}", response_model=PersonRow)
 def get_person(person_id: str, request: Request, c: Caller = Depends(caller)):
     """One person the caller can see: where a new one's Location leads (S13.8.4)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         people.get(s, c.id, person_id)
         return _row(s, c, person_id)
 
@@ -138,7 +138,7 @@ class JoinIn(Model):
 @router.post("/persons/{person_id}/join", response_model=PersonRow)
 def join_person(person_id: str, body: JoinIn, request: Request, c: Caller = Depends(caller)):
     """A remote user is this person (S10.10.1): confirmed by someone who may change it."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         p = people.get(s, c.id, person_id, "owner")
         remote = s.get(User, body.userId)
         if remote is None or remote.linkId is None:
@@ -152,11 +152,19 @@ def join_person(person_id: str, body: JoinIn, request: Request, c: Caller = Depe
 @router.post("/persons/{person_id}/ask-to-share", response_model=Asked)
 def ask_to_share(person_id: str, request: Request, c: Caller = Depends(caller)):
     """Ask whoever added a private person, and the admins, to share them (S10.10.3)."""
-    with server(request).db.tx() as s:
-        p = s.get(Person, person_id)
-        if p is None or p.deleted or not p.private:
+    with server(request).db.tx(user=c.id) as s:
+        # A private person the caller learned of from a clash (S10.10.3), read as the server.
+        p = s.execute(
+            scoping.unscoped(
+                select(Person.id, Person.ownerId).where(
+                    Person.id == person_id, Person.deletedAt.is_(None), Person.private
+                ),
+                "a private person asked to be shared",
+            )
+        ).first()
+        if p is None:
             raise Problem(404, "not-found", "Not found")
-        if people.level(s, c.id, p) is not None:
+        if access.perms(s, Person, p.id, c.id) is not None:
             return Asked(asked=False)
         activity.record(
             s,
@@ -184,7 +192,7 @@ def person_relations(
     person_id: str, request: Request, on: dt.date | None = None, c: Caller = Depends(caller)
 ):
     """Everyone the person is related to as of a day, stored and worked out (S10.10.5)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         people.get(s, c.id, person_id)
         g = tree.graph(s, on or clock.today())
         return [
@@ -197,7 +205,7 @@ def person_relations(
                 label=r.label,
             )
             for r in g.relations(person_id)
-            if people.level(s, c.id, g.people[r.personId]) is not None
+            if people.readable(s, c.id, r.personId)
         ]
 
 
@@ -272,7 +280,7 @@ def _rel_out(s, c: Caller, r: Relationship) -> RelationshipOut:
 @router.get("/relationships", response_model=list[RelationshipOut])
 def list_relationships(request: Request, person: str | None = None, c: Caller = Depends(caller)):
     """The stored relationships of a person (the caller's own by default)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         me = s.get(User, c.id)
         pid = person or me.personId
         people.get(s, c.id, pid)
@@ -281,7 +289,7 @@ def list_relationships(request: Request, person: str | None = None, c: Caller = 
             for r in people.live_relationships(s, [pid])
             if all(
                 (x := s.get(Person, i)) is not None
-                and (x.deleted or people.level(s, c.id, x) is not None)
+                and (x.deleted or people.readable(s, c.id, x.id))
                 for i in (r.person1Id, r.person2Id)
             )
         ]
@@ -357,7 +365,7 @@ def _editable(s, c: Caller, rel_id: str) -> Relationship:
 def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(caller)):
     """A spouse confirms the marriage from their own Profile, or an admin for a person who
     isn't a user (S10.10.4); once both have, it counts for wash sales and tax books."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         r = s.get(Relationship, rel_id)
         if r is None or r.deleted:
             raise Problem(404, "not-found", "Not found")

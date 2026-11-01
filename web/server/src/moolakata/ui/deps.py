@@ -39,7 +39,7 @@ def _resolve(request: Request, allow_setup: bool, touch: bool) -> Caller:
     session, to rotate the token, or to note the session's use once a minute."""
     srv = server(request)
     token = request.cookies.get(sessions.COOKIE)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="sign-in: who the session is") as s:
         found = sessions.find(s, token)
         user = s.get(User, found.session.userId) if found else None
         admin = is_admin(s, user.id) if user is not None else False
@@ -52,7 +52,7 @@ def _resolve(request: Request, allow_setup: bool, touch: bool) -> Caller:
     )
     stale_touch = touch and (sessions.now() - row.lastSeenAt).total_seconds() >= TOUCH_SECONDS
     if found.ended or gone or rotate or stale_touch:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="sign-in: the session ended, rotated or touched") as s:
             if found.ended:
                 # Removed outright, and committed before the refusal (schema.md §4.4.1).
                 sessions.end(s, row.tokenHash)

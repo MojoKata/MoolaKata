@@ -63,12 +63,8 @@ def account_ids(s: Session, budget: Budget, viewer: str | None = None) -> list[s
     ).all()
     if viewer is None or viewer == budget.ownerId:
         return [a.id for a in rows]
-    reach = access.reach(s, viewer)
-    return [
-        a.id
-        for a in rows
-        if a.ownerId == budget.ownerId or access.account_level(s, viewer, a, reach) is not None
-    ]
+    theirs = {a.id for a, _ in access.accounts(s, viewer, Account.id.in_([a.id for a in rows]))}
+    return [a.id for a in rows if a.ownerId == budget.ownerId or a.id in theirs]
 
 
 def active_id(s: Session, user_id: str) -> str | None:

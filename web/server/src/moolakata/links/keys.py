@@ -60,11 +60,11 @@ def private_key(s, secrets_key: bytes, by: str | None = None) -> Ed25519PrivateK
 def signing_key(srv) -> Ed25519PrivateKey:
     """The link key, to sign with: opened in a read transaction, made in a write one only the
     first time (S13.7.5.4: a call takes no write lock before it is checked)."""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.keys: signing key") as s:
         raw = secret_repo.use(s, srv.keys.secrets, *SECRET)
     if raw is not None:
         return Ed25519PrivateKey.from_private_bytes(unb64(raw))
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.keys: signing key") as s:
         return private_key(s, srv.keys.secrets)
 
 

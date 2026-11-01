@@ -135,7 +135,7 @@ def apply_egress(srv) -> None:
     from ..bitcoin import sync as bitcoin
     from ..links.peers import hosts as link_hosts
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="the price sources' network settings") as s:
         smtp = [h] if (h := settings.get(s, "smtpHost")) else []
         btc, btc_named = bitcoin.hosts(s)
         peers = link_hosts(s)
@@ -150,7 +150,7 @@ def apply_egress(srv) -> None:
 @router.get("/prices/status", response_model=PriceStatus)
 def price_status(request: Request, c: Caller = Depends(caller)):
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         st = pricing.status(s, srv.config.dev, c.id)
     running = srv.tasks.status().get("prices", {}).get("running", False)
     return PriceStatus(**st, running=running)
@@ -169,7 +169,7 @@ def refresh_prices(request: Request, c: Caller = Depends(caller)):
 @router.get("/price-sources", response_model=SourcesView)
 def list_sources(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return _view(s, srv.config.dev)
 
 
@@ -315,11 +315,7 @@ def _held_writable(s, user_id: str, instrument_id: str) -> bool:
             )
         )
     )
-    return any(
-        access.RANK[lvl] >= access.RANK["write"]
-        for a, lvl in access.visible_accounts(s, user_id)
-        if a.id in account_ids
-    )
+    return any(p.writable for a, p in access.accounts(s, user_id) if a.id in account_ids)
 
 
 class TypedPriceRecord(Model):
@@ -422,7 +418,7 @@ def closes(
     start: dt.date | None = Query(None, alias="from"),
     end: dt.date | None = Query(None, alias="to"),
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         inst = s.get(Instrument, instrument_id)
         if inst is None or inst.deleted:
             raise Problem(404, "not-found", "Not found")

@@ -84,16 +84,16 @@ def _scan(src, account_id: str, s) -> tuple[list[sources.Tx], set[str]]:
 
 def sync_account(server, account_id: str) -> int:
     """Read one wallet now; returns the transactions recorded. Raises SourceError."""
-    with server.db.read() as s:
+    with server.db.read(unscoped="bitcoin.sync: sync account") as s:
         if not chosen(server, s):
             raise SourceError("no wallet is read until an admin saves Settings › Bitcoin")
         src = source(server, s)
     txs: dict[str, sources.Tx] = {}
     for _ in range(ROUNDS):
-        with server.db.read() as s:
+        with server.db.read(unscoped="bitcoin.sync: sync account") as s:
             found, used = _scan(src, account_id, s)
         txs.update({t.txid: t for t in found})
-        with server.db.tx() as s:
+        with server.db.tx(unscoped="bitcoin.sync: sync account") as s:
             now = clock.now()
             counts: dict[str, int] = {}
             for t in txs.values():
@@ -107,7 +107,7 @@ def sync_account(server, account_id: str) -> int:
             added = sum(wallet.extend(s, k) for k in wallet.keys_of(s, account_id))
         if not added:
             break
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="bitcoin.sync: sync account") as s:
         made = record(s, account_id, list(txs.values()))
         mark_gone(s, account_id, list(txs.values()))
         a = s.get(Account, account_id)
@@ -268,7 +268,7 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
 def sync_all(server, ctx=None) -> str | None:
     """Every wallet, for the hourly task; returns the first error, if any. Nothing until
     Settings › Bitcoin is saved."""
-    with server.db.read() as s:
+    with server.db.read(unscoped="bitcoin.sync: sync all") as s:
         if not chosen(server, s):
             return None
         wallets = list(
@@ -288,7 +288,7 @@ def sync_all(server, ctx=None) -> str | None:
             sync_account(server, account_id)
         except sources.CertificateChanged as e:
             # Kept for an admin to confirm, and alerted (S1.6.2.4).
-            with server.db.tx() as s:
+            with server.db.tx(unscoped="bitcoin.sync: sync all") as s:
                 settings.put(s, "bitcoinNodeCertOffered", e.sha256, None)
             error = error or str(e)
             log.warning("bitcoin: %s", e)

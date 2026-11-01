@@ -8,7 +8,7 @@ from decimal import Decimal
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import select
 
-from ..receipts import store
+from ..receipts import prepared, record
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.receipts import ReceiptLink
 
@@ -34,6 +34,12 @@ def _bytes(img: Image.Image, fmt: str) -> bytes:
     out = io.BytesIO()
     img.save(out, fmt, **({"quality": 90} if fmt == "JPEG" else {}))
     return out.getvalue()
+
+
+def store(s, server, owner_id: str, name: str, data: bytes):
+    """A receipt as an upload keeps it: prepared, then recorded in the seed's transaction."""
+    with prepared(server, owner_id, name, data) as ready:
+        return record(s, server, owner_id, ready)
 
 
 def seed_receipts(server, s, people: dict) -> None:

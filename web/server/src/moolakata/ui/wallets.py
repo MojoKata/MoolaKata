@@ -125,7 +125,7 @@ def _view(s, account_id: str) -> WalletView:
 
 @router.get("/accounts/{account_id}/wallet", response_model=WalletView)
 def get_wallet(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         _wallet_account(s, c, account_id, "read")
         return _view(s, account_id)
 
@@ -184,7 +184,7 @@ def sync_wallet(account_id: str, request: Request, c: Caller = Depends(caller)):
     from ..bitcoin.sources import SourceError
 
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         a, _ = _wallet_account(s, c, account_id, "write")
         if not sync.chosen(srv, s):
             raise refuse(
@@ -197,7 +197,7 @@ def sync_wallet(account_id: str, request: Request, c: Caller = Depends(caller)):
         made = sync.sync_account(srv, a.id)
     except SourceError as e:
         raise Problem(502, "source-failed", str(e)) from None
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return SyncOut(recorded=made, wallet=_view(s, a.id))
 
 
@@ -219,7 +219,7 @@ def bitcoin_transfers(request: Request, c: Caller = Depends(caller)):
     """The pairs proposed for the caller's own accounts, to confirm or reject."""
     from ..bitcoin import transfers as btcmatch
 
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [TransferPair(**btcmatch.describe(s, m)) for m in btcmatch.pending(s, c.id)]
 
 
@@ -242,7 +242,7 @@ def answer_transfer(
     from ..store.entities.accounts import TransferMatch
     from .conventions import check
 
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         m = s.get(TransferMatch, match_id)
         if m is None or m.deleted or m.ownerId != c.id or m.state != "proposed":
             raise Problem(404, "not-found", "Not found")

@@ -86,7 +86,7 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
         "month": today - dt.timedelta(days=30),
         "year": today - dt.timedelta(days=365),
     }
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         mine = figures.net_worth_accounts(s, c.id, counted_for(s, c.id))
         # Each account's ledger is loaded once and valued on the four days the screen needs.
         values: dict[str, dict[str, Decimal]] = {}
@@ -106,8 +106,8 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
         groups: dict[str, list] = {}
         for a in mine:
             groups.setdefault(atypes.GROUPS[a.type], []).append(a)
-        visible = access.visible_accounts(s, c.id)
-        writable = [a.id for a, lvl in visible if access.RANK[lvl] >= access.RANK["write"]]
+        visible = access.accounts(s, c.id)
+        writable = [a.id for a, p in visible if p.writable]
         attention = _attention(s, c, [a for a, _ in visible], writable, today, srv.config.dev)
         updated = repo.latest_activity(s, [a.id for a in banking])
         card = None
@@ -278,7 +278,7 @@ def net_worth_series(
 ):
     """Net worth over time, with its composition by account group (S5.3)."""
     today = figures.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         mine = figures.net_worth_accounts(s, c.id, counted_for(s, c.id))
         first = figures.first_day(range, today, figures.earliest(s, mine))
         comb = figures.combine(s, mine, first, today, figures.step_for(first, today))

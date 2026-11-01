@@ -8,10 +8,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
-from sqlalchemy import false, select, text
+from sqlalchemy import false, func, select, text
 
 from .. import activity, clock, settings, timezones
 from ..errors import FieldError, Problem, refuse
+from ..store import scoping
 from ..store.entities.core import Setting
 from . import save
 from .conventions import Deleted, ExactRoute, Model
@@ -71,7 +72,7 @@ SECRETS = {"smtpPassword": "smtpHost", "bitcoinPassword": "bitcoinNodeHost"}
 
 @router.get("/settings", response_model=SettingsView)
 def get_settings(request: Request, c: Caller = Depends(admin)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return view(s)
 
 
@@ -270,7 +271,7 @@ def _email_view(srv, s) -> EmailView:
 @router.get("/settings/email", response_model=EmailView)
 def email_status(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return _email_view(srv, s)
 
 
@@ -316,7 +317,7 @@ def written_email(name: str, request: Request, c: Caller = Depends(admin)):
     head = dict(
         line.split(": ", 1) for line in text.split("\n\n", 1)[0].splitlines() if ": " in line
     )
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         to = by_login(s, head.get("To", "").strip())
         activity.record(
             s,
@@ -361,10 +362,14 @@ def _bitcoin_view(s) -> BitcoinView:
         password=SecretSet(setAt=info.setAt, setBy=by.displayName if by else None)
         if info
         else None,
+        # How many wallets the household's settings read: counted as the server (S16.7).
         wallets=s.scalar(
-            select(func.count())
-            .select_from(Account)
-            .where(Account.type == "crypto-wallet", Account.deleted == false())
+            scoping.unscoped(
+                select(func.count())
+                .select_from(Account)
+                .where(Account.type == "crypto-wallet", Account.deleted == false()),
+                "the household's wallets counted, for an admin",
+            )
         ),
         lastRun=run.finishedAt if run else None,
         lastError=run.error if run else None,
@@ -375,7 +380,7 @@ def _bitcoin_view(s) -> BitcoinView:
 
 @router.get("/settings/bitcoin", response_model=BitcoinView)
 def bitcoin_status(request: Request, c: Caller = Depends(admin)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return _bitcoin_view(s)
 
 
@@ -394,7 +399,7 @@ def bitcoin_certificate(body: TrustCertificate, request: Request, c: Caller = De
         from ..errors import refuse
 
         raise refuse("sha256", "fingerprint-invalid", "The SHA-256 fingerprint Test showed.")
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         settings.put(s, "bitcoinNodeCert", sha, c.id)
         settings.put(s, "bitcoinNodeCertOffered", None, c.id)
         activity.record(
@@ -415,7 +420,7 @@ def bitcoin_test(request: Request, c: Caller = Depends(admin)):
     from ..bitcoin.sources import SourceError
 
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         cfg = sync.config(s, srv.keys.secrets)
         src = sync.source(srv, s)
     hosts, named = cfg.hosts()
@@ -441,7 +446,7 @@ def email_test(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
     if not c.user.email:
         raise Problem(409, "no-email", "Your profile has no email address to send to.")
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         smtp = smtp_settings(s, srv.keys.secrets)
         name = settings.get(s, "serverName")
     if smtp is None:
@@ -488,15 +493,22 @@ class ReadingQueue(Model):
 
 
 def _queue(s, srv) -> ReadingQueue:
+    """The reading queue's counts, every receipt's: the server's to count, for an admin."""
+    from ..store.entities.receipts import Receipt
+
     counts = dict(
         s.execute(
-            text(
-                'SELECT "readStatus", count(*) FROM "Receipt" WHERE NOT deleted '
-                'GROUP BY "readStatus"'
+            scoping.unscoped(
+                select(Receipt.readStatus, func.count())
+                .where(Receipt.deleted == false())
+                .group_by(Receipt.readStatus),
+                "the reading queue counted, for an admin",
             )
         ).all()
     )
-    last = s.execute(text('SELECT max("readAt") FROM "Receipt"')).scalar()
+    last = s.execute(
+        scoping.unscoped(select(func.max(Receipt.readAt)), "the reader's last run")
+    ).scalar()
     return ReadingQueue(
         waiting=counts.get("waiting", 0),
         reading=counts.get("reading", 0),
@@ -514,7 +526,7 @@ def receipts_queue(request: Request, c: Caller = Depends(admin)):
 
     srv = server(request)
     sandboxed = parsing.file_sandbox(start=True)
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         out = _queue(s, srv)
     out.fileSandbox = sandboxed
     return out
@@ -527,7 +539,8 @@ def reread_all(request: Request, c: Caller = Depends(admin)):
     from ..store.entities.receipts import Receipt
 
     srv = server(request)
-    with srv.db.tx() as s:
+    # Every receipt in the household, whoever's: the server's work, for an admin.
+    with srv.db.tx(unscoped="receipts: every one read again, for an admin") as s:
         if not settings.get(s, "readReceipts"):
             raise Problem(409, "reading-off", "Turn on Read receipts first.")
         ids = []
@@ -636,7 +649,7 @@ def key_storage(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
     ring = srv.store.keys.ring
     now = clock.now()
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         keep_days = settings.get(s, "backupCopies")
         months = settings.get(s, "keyReminderMonths")
         database_bytes = _database_bytes(s)
@@ -783,7 +796,7 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
         master.unwrap(key, ring)
     except ValueError:  # a valid phrase, but not the key that wrapped this keyring
         guard.failed(LOGIN, address)
-        with srv.db.tx() as s:
+        with srv.db.tx(user=c.id) as s:
             activity.record(
                 s,
                 "key.check-failed",
@@ -793,7 +806,7 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
             )
         raise Problem(403, "phrase-wrong", "Those words are not this server's key.") from None
     fingerprint = master.fingerprint(key)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         entry = activity.record(
             s, "key.checked", actor=c.id, for_admins=True, detail={"fingerprint": fingerprint}
         )
@@ -834,7 +847,7 @@ def key_test(request: Request, c: Caller = Depends(admin)):
         checks.append(CheckOut(name="Database", ok=True, detail="opens with the data key"))
     except (RefuseStart, ValueError, WrongKey) as e:
         checks.append(CheckOut(name="Key storage", ok=False, detail=str(e)))
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         row = s.scalars(select(Secret)).first()
         if row is not None:
             try:
@@ -848,7 +861,7 @@ def key_test(request: Request, c: Caller = Depends(admin)):
                 checks.append(CheckOut(name="Secrets", ok=True, detail="a secret opens"))
             except sealing.SecretError:
                 checks.append(CheckOut(name="Secrets", ok=False, detail="a secret does not open"))
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         activity.record(s, "keys.tested", actor=c.id, for_admins=True)
     return KeyTest(ok=all(x.ok for x in checks), checks=checks)
 
@@ -896,7 +909,7 @@ def key_reencrypt(body: ReencryptIn, request: Request, c: Caller = Depends(admin
             reencrypt.schedule(srv.config, choices, c.id, "settings")
         except RefuseStart as e:
             raise Problem(409, "reencrypt-pending", str(e)) from None
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         activity.record(
             s, "keys.reencrypt-scheduled", actor=c.id, for_admins=True, detail={"copies": choices}
         )
@@ -970,7 +983,7 @@ def rotate(body: RotateIn, request: Request, c: Caller = Depends(admin)):
             right = False
         how = "phrase"
     if not right:
-        with srv.db.tx() as s:
+        with srv.db.tx(user=c.id) as s:
             count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
         if how == "break-glass":
             raise refuse(
@@ -987,7 +1000,7 @@ def rotate(body: RotateIn, request: Request, c: Caller = Depends(admin)):
             raise Problem(409, "reencrypt-pending", str(e)) from None
     srv.rotations.clear()
     new_fp = master.fingerprint(made.key)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         activity.record(
             s,
             "key.rotated",
@@ -1079,14 +1092,14 @@ def remove_copy(name: str, body: PhraseIn, request: Request, c: Caller = Depends
     except phrase.PhraseError:
         right = False
     if not right:
-        with srv.db.tx() as s:
+        with srv.db.tx(user=c.id) as s:
             count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
         raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
     found = copies.find(srv.config, name)
     if found is None:
         raise Problem(404, "not-found", "No such copy.")
     copies.remove(found)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         activity.record(s, "keys.copy-removed", actor=c.id, for_admins=True, detail={"name": name})
     return Deleted(deleted={"id": name, "deletedAt": clock.now(), "version": 0}, parent=None)
 
@@ -1108,7 +1121,7 @@ def forget_previous_key(fingerprint: str, request: Request, c: Caller = Depends(
     srv.store.keys = master.Unlocked(
         k.master_id, master.read_keyring(srv.config.keyring_path), k.keys, k.data_key
     )
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         activity.record(
             s, "keys.previous-forgotten", actor=c.id, for_admins=True, detail={"key": fingerprint}
         )
@@ -1158,7 +1171,7 @@ def backups(request: Request, c: Caller = Depends(admin)):
             )
         )
     status = srv.tasks.status().get("backups", {})
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         return Backups(
             directory=str(srv.config.backup_dir),
             time=settings.get(s, "backupTime"),
@@ -1207,7 +1220,7 @@ def backup_copies(body: CopiesIn, request: Request, c: Caller = Depends(admin)):
         value = settings.coerce("backupCopies", body.copies)
     except Problem:
         raise refuse("copies", "value-invalid", "Between 3 and 365.") from None
-    with srv.db.read() as s:
+    with srv.db.read(user=c.id) as s:
         was = settings.get(s, "backupCopies")
     if value < was and value < maintenance.backup_days(srv.config):
         recent_auth(c)
@@ -1219,10 +1232,10 @@ def backup_copies(body: CopiesIn, request: Request, c: Caller = Depends(admin)):
         except phrase.PhraseError:
             right = False
         if not right:
-            with srv.db.tx() as s:
+            with srv.db.tx(user=c.id) as s:
                 count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
             raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         settings.put(s, "backupCopies", value, c.id)
         activity.record(
             s,
@@ -1241,7 +1254,7 @@ def backup_now(request: Request, c: Caller = Depends(admin)):
     job = srv.jobs.create("backup", c.id)
     if not srv.tasks.run_now("backups", srv.jobs.follow(job)):
         raise Problem(503, "not-available", "Backups can't run right now.")
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         activity.record(s, "backups.started", actor=c.id, for_admins=True)
     return accepted(job)
 
@@ -1286,7 +1299,8 @@ def storage(request: Request, c: Caller = Depends(admin)):
     from ..receipts import retention
 
     srv = server(request)
-    with srv.db.read() as s:
+    # The household's files, by sizes and counts: the server's to count, for an admin.
+    with srv.db.read(unscoped="storage: the household's files counted, for an admin") as s:
         st = retention.storage(s, srv.config.receipts_dir)
         return StorageOut(
             databaseBytes=_database_bytes(s),
@@ -1334,13 +1348,14 @@ def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
 
     recent_auth(c)
     srv = server(request)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="storage: the household's expired files, for an admin") as s:
         rows = retention.prunable(s, body.categories)
     if not rows:
         raise refuse("categories", "nothing-to-prune", "No expired files in what is ticked.")
     if body.count != len(rows):
         raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
-    with srv.db.tx() as s:
+    # Whether a file is still named is every receipt's to say, whoever's it is.
+    with srv.db.tx(unscoped="storage: expired files pruned by an admin") as s:
         rows = retention.prunable(s, body.categories)
         freed = retention.prune_files(srv, s, rows, c.id)
         activity.record(
@@ -1362,7 +1377,8 @@ def remove_orphans(request: Request, c: Caller = Depends(admin)):
 
     recent_auth(c)
     srv = server(request)
-    with srv.db.tx() as s:
+    # A file is an orphan only if no record of anyone's names it.
+    with srv.db.tx(unscoped="storage: files no record names, removed by an admin") as s:
         n, freed = retention.remove_orphans(srv, s)
         activity.record(
             s,

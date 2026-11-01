@@ -149,6 +149,6 @@ def test_a_receipts_merchant_is_renamed_by_the_rules(server, alice):
     buf = io.BytesIO()
     Image.new("RGB", (40, 40), "white").save(buf, "PNG")
     rid = upload_receipt(alice, buf.getvalue()).json()["id"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         save_reading(s, s.get(Receipt, rid), ["BLUEBOTTLE CAFE", "TOTAL 5.75"], "text", "test")
     assert alice.get(f"/ui/api/receipts/{rid}").json()["payee"] == "Blue Bottle"

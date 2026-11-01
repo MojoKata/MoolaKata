@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, Dec, UtcTimestamp
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 ACCOUNT_TYPES = (
     "checking",
@@ -116,6 +116,7 @@ Category = record(
     CheckConstraint(
         '"keepReceiptsYears" IS NULL OR "keepReceiptsYears" >= 1', name="keep_receipts_years"
     ),
+    seen=Seen.household(),
 )
 unique_live(Category, "parentId", "name")
 
@@ -156,6 +157,23 @@ Account = record(
         name="statement_interval",
     ),
     Index("ix_Account_ownerId", "ownerId"),
+    seen=Seen.root(
+        "account",
+        settings=(
+            "lotMethod",
+            "keptBy",
+            "active",
+            "countInNetWorth",
+            "name",
+            "institution",
+            "mask",
+            "statementInterval",
+            "statementIntervalDismissed",
+            "connectionId",
+            "syncAccount",
+            "withdrawalsAMonth",
+        ),
+    ),
 )
 
 Instrument = record(
@@ -166,6 +184,7 @@ Instrument = record(
     Column("instrumentClass", Text, nullable=False),
     Column("cusip", Text),
     _in("instrumentClass", INSTRUMENT_CLASSES, "instrument_class"),
+    seen=Seen.household(),
 )
 # A coin and a listed share may share a ticker (SOL, LINK): a symbol is one instrument among the
 # coins and one among the rest (S2.1).
@@ -183,6 +202,7 @@ ImportMapping = record(
     Column("ownerId", Text, ForeignKey("User.id"), nullable=False),
     Column("institution", Text, nullable=False),
     Column("columns", Text, nullable=False),
+    seen=Seen.rule(),
 )
 unique_live(ImportMapping, "ownerId", "institution")
 
@@ -203,6 +223,7 @@ Rule = record(
     Column("payee", Text),
     CheckConstraint("direction IN ('any', 'in', 'out')", name="direction"),
     Index("ix_Rule_owner", "ownerId", "position"),
+    seen=Seen.per_user("ownerId"),
 )
 
 # The tags a rule sets on what it matches, its owner's (Tag).
@@ -221,6 +242,7 @@ StatementLayout = record(
     Column("ownerId", Text, ForeignKey("User.id"), nullable=False),
     Column("institution", Text, nullable=False),
     Column("layout", Text, nullable=False, server_default=text("'{}'")),
+    seen=Seen.per_user("ownerId"),
 )
 unique_live(StatementLayout, "ownerId", "institution")
 
@@ -240,6 +262,7 @@ Import = record(
     # kept: a statement kept without reading (S1.3.3.6), its period recorded, nothing added.
     _in("format", ("ofx", "csv", "statement", "kept"), "format"),
     Index("ix_Import_accountId", "accountId"),
+    seen=Seen.child("accountId"),
 )
 
 # A corporate action on a holding (S2.4): a split, a symbol change, a spin-off or a merger, as
@@ -259,6 +282,7 @@ CorporateAction = record(
     Column("createdById", Text, ForeignKey("User.id")),
     _in("kind", ("split", "symbol-change", "spin-off", "merger"), "kind"),
     Index("ix_CorporateAction_accountId", "accountId"),
+    seen=Seen.child("accountId"),
 )
 
 Transaction = record(
@@ -329,6 +353,7 @@ Transaction = record(
     Index("ix_Transaction_account_date", "accountId", "date"),
     Index("ix_Transaction_corporateActionId", "corporateActionId"),
     Index("ix_Transaction_instrument", "instrumentId"),
+    seen=Seen.child("accountId"),
 )
 unique_live(Transaction, "accountId", "fitId")
 
@@ -342,6 +367,7 @@ Split = record(
     Column("reimbursable", Cents),  # as a transaction's (S2.9)
     Column("owedBy", Text),
     Index("ix_Split_transactionId", "transactionId"),
+    seen=Seen.child("transactionId"),
 )
 
 # A deposit paired with reimbursable spending, or one split of it (S2.9): how much of the
@@ -357,6 +383,7 @@ Reimbursement = record(
     CheckConstraint("amount > 0", name="amount"),
     Index("ix_Reimbursement_spendingId", "spendingId"),
     Index("ix_Reimbursement_paybackId", "paybackId"),
+    seen=Seen.rule(),
 )
 
 # A user's own tag (S2.6): its name, lower case, once a user; transactions, receipts and the
@@ -366,6 +393,7 @@ Tag = record(
     "Tag",
     Column("ownerId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
     Column("name", Text, nullable=False),
+    seen=Seen.per_user("ownerId"),
 )
 unique_live(Tag, "ownerId", "name")
 
@@ -390,6 +418,7 @@ Lot = record(
     Column("costBasis", Cents),
     Column("basisMissing", Boolean, nullable=False, server_default=text("0")),
     Index("ix_Lot_account_instrument", "accountId", "instrumentId"),
+    seen=Seen.child("accountId"),
 )
 
 LotPick = record(
@@ -398,6 +427,7 @@ LotPick = record(
     Column("saleId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("lotId", Text, ForeignKey("Lot.id", ondelete="CASCADE"), nullable=False),
     Column("quantity", Dec, nullable=False),
+    seen=Seen.child("lotId"),
 )
 unique_live(LotPick, "saleId", "lotId")
 
@@ -411,6 +441,7 @@ Holding = record(
     Column("marketValue", Cents),
     Column("importId", Text, ForeignKey("Import.id")),
     Index("ix_Holding_account_asOf", "accountId", "asOf"),
+    seen=Seen.child("accountId"),
 )
 
 Anchor = record(
@@ -427,6 +458,7 @@ Anchor = record(
     # checked against the account's value rather than its cash (S1.3.3.8.1).
     _in("source", ("running-balance", "ofx", "statement", "typed", "statement-value"), "source"),
     Index("ix_Anchor_account_date", "accountId", "date"),
+    seen=Seen.child("accountId"),
 )
 
 # A bitcoin transfer out of one of the owner's accounts and in to another, proposed as a pair
@@ -440,6 +472,7 @@ TransferMatch = record(
     Column("state", Text, nullable=False, server_default=text("'proposed'")),
     _in("state", ("proposed", "confirmed", "rejected"), "state"),
     Index("ix_TransferMatch_owner", "ownerId", "state"),
+    seen=Seen.rule(),
 )
 unique_live(TransferMatch, "outId", "inId")
 
@@ -459,6 +492,7 @@ HoldingCheck = record(
     Column("costBasis", Cents),
     Column("cash", Boolean, nullable=False, server_default=text("0")),
     Index("ix_HoldingCheck_account_asOf", "accountId", "asOf"),
+    seen=Seen.child("accountId"),
 )
 
 Reconciliation = record(
@@ -469,4 +503,5 @@ Reconciliation = record(
     Column("statementBalance", Cents, nullable=False),
     Column("finishedAt", UtcTimestamp),
     Column("finishedById", Text, ForeignKey("User.id")),
+    seen=Seen.child("accountId"),
 )

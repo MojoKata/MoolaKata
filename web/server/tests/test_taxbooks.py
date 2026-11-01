@@ -310,11 +310,11 @@ def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adde
     joint = book(alice, 2026, [a_id, b_id], fromLastYear=True)
     from moolakata.store.entities.taxes import TaxBook, TaxBookAccount
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.query(TaxBookAccount).filter_by(bookId=joint["id"]).count() == 0
         assert s.get(TaxBook, joint["id"]).fromLastYear
     assert bob.post(f"/ui/api/tax-books/{joint['id']}/accept").status_code == 200
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         copied = s.query(TaxBookAccount).filter_by(bookId=joint["id"]).one()
         assert copied.accountId == kid["id"] and copied.addedById == b_id
         assert not s.get(TaxBook, joint["id"]).fromLastYear

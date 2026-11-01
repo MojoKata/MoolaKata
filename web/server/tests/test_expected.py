@@ -78,7 +78,7 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
     c = sign_in(server, "alice")
     a = new_account(c, keptBy=["file"])
     assert (a["statementInterval"], a["statementIntervalDefault"]) == (None, "monthly")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         for end in (dt.date(2026, 3, 31), dt.date(2026, 6, 30), dt.date(2026, 9, 30)):
             s.add(
                 Import(

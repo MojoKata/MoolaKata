@@ -235,7 +235,10 @@ A test fails when:
    twice, or a list in §3 is not sorted by prefix;
 3. a table with an `id` lacks the `WITHOUT ROWID` option or the ID's `CHECK` constraint.
 4. a table outside the exceptions of §4.4 lacks the fields of §4.1 or their `CHECK`, or its
-   `<Table>Effective` view is missing or does not match its cascading foreign keys.
+   `<Table>Effective` view is missing or does not match its cascading foreign keys;
+5. a table doesn't say how it is seen (§7), a child's key is not a `NOT NULL` foreign key to
+   a table with an access view, a table needing an access view has none or one that differs
+   from what its declaration makes now, or an access view lacks the six columns of §7.2.
 
 ## 6. Ended records
 
@@ -296,3 +299,76 @@ as they change.
    S7.8.6).
 5. **Prices** never end (requirements S4.6), and the exceptions of §4.4 are removed on
    their own schedules.
+
+## 7. Access views
+
+Who reads a record, and what more they may do with it, is decided in the database, once per
+table, by a view named `<Table>Access` (`AccountAccess`). Every query a user's request makes
+joins the views of the tables it reads (requirements S10.3), so nothing a user can't see is
+ever read for them.
+
+1. **How a table is seen.** Each table declares it with its columns (`Seen` in
+   `store/tables/_base.py`):
+
+   | Declared | Tables | Its view |
+   |---|---|---|
+   | root (its share kind) | `Account`, `Portfolio`, `Budget`, `GivingPlan`, `Projection` | generated: its owner holds everything, a share (S10.3) gives read or `writable`, directly or through an active group |
+   | child (its key) | the records of one record: `Transaction` (`accountId`), `Split` (`transactionId`), `BudgetLine` (`budgetId`), `Filing` (`bookId`), `Occasion` (`giftPlanId`), … | generated: seen as the record its `NOT NULL` key names is; `writable` and `deletable` are that record's `writable`, `configurable` its `configurable`, never `shareable` |
+   | rule (its share kind, for a root) | `TaxBook`, `Person`, `GiftPlan` (roots with rules of their own); `Receipt`, `ReceiptLink`, `Gift`, `Donation`, `Organisation`, `Reimbursement`, `TransferMatch`, `Relationship`, `WashSale`, `Alert`, `ImportMapping`, `TaxBookFiler`, `Activity`, `User`, `Group`, `Share`, `LinkedItem` | written by hand in `store/access_views.py`, one function each, citing its requirement |
+   | per-user (its user column) | `AccessToken`, `AlertState`, `CountedAccount`, `LinkColour`, `TypedPrice`, `Tag`, `Rule`, `StatementLayout`, `AssumptionSet`, `Connection` | generated: its user's alone, `writable` and `deletable`; `Connection` also `configurable` (its credentials) |
+   | admin | `Setting`, `PriceSource`, `Connector`, `Link`, `LinkFile`, `LinkSent`, `QueuedEmail`, `SignupRequest` | generated: every admin holds everything; no one else reads it |
+   | relation | the many-to-many tables (§1.2) | none: a query asks for one side's records and joins that side's view, and the other side's when it returns both |
+   | household | `Category`, `Instrument`, `OptionContract`, `Price`, `TaxFigure` | none: every signed-in user reads it |
+   | server | `Secret`, `TaskRun`, `Session`, `RecoveryCode`, `OneTimeToken` | none: only the server's own code reads it |
+
+2. **Columns.** One row per live record and user who reads it:
+
+   | Column | Meaning |
+   |---|---|
+   | `targetId` | the record's `id` |
+   | `userId` | the user who reads it |
+   | `writable` | changes what it holds (S10.3.2) |
+   | `deletable` | deletes it |
+   | `shareable` | changes its sharing, and sees who holds it |
+   | `configurable` | changes its settings and what it covers, and sees and changes its secrets |
+
+   The four are 0 or 1. Each implies `writable`. Several ways to a record (its owner, a share,
+   a group's share, a tax book's filers) collapse to one row with the highest of each. Being
+   the owner is not a column: whether a record is one's own is a fact of the record
+   (`ownerId`, or its parent's; a tax book's accepted filers' too).
+3. **Who holds anything.** Only active, live users (S10.1.7) and live memberships of active
+   groups (S10.5); being an admin is a live membership of the active Admins group (S10.1.8). A
+   linked server's user only ever reads, and only what is shared with them (S10.3.3).
+4. **Live records only.** The views read the `<Table>Effective` views (§4.2): a deleted
+   record has no rows, and seeing deleted records is the server's alone.
+5. **Kept current** as the Effective views are: dropped before a migration and made again
+   after it, at every start, each after the views it reads, from the declarations. They are
+   no migration's business.
+6. **Scoped sessions.** A session opened for a user's request names the user
+   (`db.read(user=…)`, `db.tx(user=…)`), and every ORM query in it reads only what the user's
+   views give them: each table with a view that the query reads at its top level, joined
+   or aliased, gets `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND userId =
+   :user)` beside whatever the query asks (on the optional side of an outer join, or none
+   there); lists, a record fetched by its id and joined tables alike. A subquery only filters
+   and is left as written. Reloading a record already in the session is not scoped again.
+   Code that needs the permissions joins the view itself.
+   The server's own work opens a session unscoped, naming why (`db.tx(unscoped="…")`): a
+   sweep, a job, sign-in, a link's pull. Inside a user's session, one statement may read as
+   the server, naming why (`scoping.unscoped`), when what it reads serves the server (a
+   setting's value, whether a file is kept already) and is never handed to the user; such a
+   statement selects columns, never records, so a user's session holds only records they
+   read. Work that must read across users inside a user's request, once the user's access is
+   checked (an item's figures over the accounts its own rules count, wash sales across
+   spouses, an import matching the rows the owner deleted), runs in a second session on the
+   same connection, unscoped and named (`scoping.as_server`), in a savepoint of the same
+   transaction; the user's session reads afresh what it changed.
+7. **Writes are checked too.** In a user's session, changing a record needs `writable` on it,
+   `configurable` when one of its declared settings changes (an account's name, method and
+   connection; which projection is active), and `deletable` to delete it, asked of its view
+   as it stands before the change; a record made in the transaction needs `writable` on
+   itself when the transaction commits, so with everything made with it (a child its
+   parent's; a share its item's `shareable`; a budget's or tax book's accounts the record's
+   `configurable`). A refusal answers 403 and undoes the whole transaction. The routes keep
+   their own checks, with their own messages; this one stops a write they missed. Activity's
+   entries, alerts and emails waiting are the server's on everyone's behalf and aren't
+   checked; neither is a session the server reads in.

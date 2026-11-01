@@ -156,8 +156,9 @@ def net_worth_accounts(s: Session, user_id: str, counted: set[str]) -> list[Acco
     from . import access
 
     out = []
-    for a, lvl in access.visible_accounts(s, user_id):
-        if (lvl == "owner" and a.countInNetWorth) or (lvl != "owner" and a.id in counted):
+    for a, _ in access.accounts(s, user_id):
+        mine = a.ownerId == user_id
+        if (mine and a.countInNetWorth) or (not mine and a.id in counted):
             out.append(a)
     return out
 

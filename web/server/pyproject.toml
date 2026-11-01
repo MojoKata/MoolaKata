@@ -65,6 +65,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]
 "src/moolakata/store/alembic/versions/*" = ["E501"]
+# The access views' SQL text is built from the table declarations, never from input.
+"src/moolakata/store/access_views.py" = ["S608"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

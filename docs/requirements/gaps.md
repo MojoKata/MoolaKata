@@ -54,6 +54,8 @@ never brings it back.
 
 **Settled:** nothing yet. **Waits on:** a *Show deleted* choice on the lists that delete
 (transactions first), each deleted row with **Recover**, which undeletes it through the save.
+The access views hold live records only (`schema.md` §7.4), so who may see a deleted record
+needs a rule of its own here (its owner's, most likely).
 
 ## G27: Correcting an instrument's class — Low
 

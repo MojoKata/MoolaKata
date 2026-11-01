@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, UtcTimestamp
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 Receipt = record(
     "Receipt",
@@ -59,6 +59,7 @@ Receipt = record(
     ),
     Index("ix_Receipt_ownerId", "ownerId"),
     Index("ix_Receipt_sha256", "sha256"),
+    seen=Seen.rule(),
 )
 
 # A receipt's tags (S9.1), each its tagger's own (Tag).
@@ -85,6 +86,7 @@ ReceiptLink = record(
         name="kind",
     ),
     Index("ix_ReceiptLink_item", "kind", "itemId"),
+    seen=Seen.rule(),
 )
 unique_live(ReceiptLink, "receiptId", "kind", "itemId")
 

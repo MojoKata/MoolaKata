@@ -143,7 +143,9 @@ def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monke
         await send({"type": "http.response.start", "status": 403, "headers": []})
         await send({"type": "http.response.body", "body": b""})
 
-    mw = middleware.BodyLimit(app, upload_limit=lambda: 10_000)
+    mw = middleware.BodyLimit(
+        app, upload_limit=lambda: 10_000, session_user=lambda t: "u1" if t == "live" else None
+    )
 
     async def sent(message):
         if message["type"] == "http.response.start":
@@ -152,7 +154,7 @@ def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monke
     async def nothing():
         return {"type": "http.request", "body": b"", "more_body": False}
 
-    def call(path, length, key="k"):
+    def call(path, length, key="k", token="live"):
         scope = {
             "type": "http",
             "method": "POST",
@@ -162,6 +164,7 @@ def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monke
                 (b"content-type", b"multipart/form-data; boundary=x"),
                 (b"content-length", str(length).encode()),
                 (b"mk-conn-key", key.encode()),
+                (b"cookie", f"mk_session={token}".encode()),
             ],
         }
         asyncio.run(mw(scope, nothing, sent))
@@ -171,7 +174,57 @@ def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monke
     for key in ("a", "b", "c"):
         assert call("/connector/v1/accounts/x/files", 900, key) == 403
     # Elsewhere, a declared length is held; past everyone's ceiling, refused at once.
-    mw.in_flight = {"session:1": 900}
-    assert call("/ui/api/receipts", 700) == 429
+    mw.in_flight = {"user:u2": 900}
+    assert call("/ui/api/receipts", 700) == 503  # everyone's ceiling (CR3-56)
+    mw.in_flight = {"user:u1": 900}
+    assert call("/ui/api/receipts", 200) == 429  # the user's own
+    # CR3-56: an upload to /ui/api without a live session is refused on its headers.
+    mw.in_flight = {}
+    assert call("/ui/api/receipts", 500, token="forged") == 401
+    assert mw.in_flight == {}
     mw.in_flight = {}
     assert call("/ui/api/receipts", 700) == 403
+
+
+def test_an_upload_without_a_live_session_is_refused_before_its_body_is_read(server):
+    """CR3-56 (S13.7.6): through the whole app, a 5 MB upload with a forged session cookie
+    is answered 401 on its headers; next to none of its body is read."""
+    import asyncio
+
+    from moolakata.app import create_app
+
+    app = create_app(server)
+    size, chunk = 5 * 1024 * 1024, 64 * 1024
+    taken = 0
+    statuses = []
+
+    async def receive():
+        nonlocal taken
+        taken += chunk
+        return {"type": "http.request", "body": b"x" * chunk, "more_body": taken < size}
+
+    async def send(message):
+        if message["type"] == "http.response.start":
+            statuses.append(message["status"])
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/ui/api/receipts",
+        "raw_path": b"/ui/api/receipts",
+        "query_string": b"",
+        "scheme": "http",
+        "server": ("mk.test", 80),
+        "client": ("127.0.0.1", 50000),
+        "http_version": "1.1",
+        "headers": [
+            (b"host", b"mk.test"),
+            (b"origin", b"http://mk.test"),
+            (b"content-type", b"multipart/form-data; boundary=x"),
+            (b"content-length", str(size).encode()),
+            (b"cookie", b"mk_session=forged-not-a-session"),
+        ],
+    }
+    asyncio.run(app(scope, receive, send))
+    assert statuses == [401]
+    assert taken <= chunk, "the body was not read"

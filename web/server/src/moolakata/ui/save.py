@@ -15,13 +15,14 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import clock, exactjson, ids
 from ..errors import FieldError, Problem, refuse
-from .conventions import ExactRoute, Gone, Model, check, gone
+from ..store import scoping
+from .conventions import ExactRoute, Gone, Model, check
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["save"])
@@ -288,8 +289,20 @@ def apply(s: Session, c: Caller, request: Request, body: SaveIn) -> tuple[list[S
     for op in body.ops:
         kind = KINDS[op.entity]
         if op.op == "delete":
-            record = s.get(kind.entity, op.id)
-            saved.append(Saved(entity=op.entity, id=op.id, deleted=gone(record)))
+            # Deleted, it is in no view: what the caller just did, read as the server.
+            e = kind.entity
+            row = s.execute(
+                scoping.unscoped(
+                    select(e.deletedAt, e.version).where(e.id == op.id), "a record just deleted"
+                )
+            ).first()
+            saved.append(
+                Saved(
+                    entity=op.entity,
+                    id=op.id,
+                    deleted=Gone(id=op.id, deletedAt=row[0], version=row[1]),
+                )
+            )
         else:
             out = _as_dict(kind.read(ctx, op.id))
             saved.append(Saved(entity=op.entity, id=op.id, version=out.get("version"), record=out))
@@ -306,7 +319,7 @@ def save(body: SaveIn, request: Request, c: Caller = Depends(caller)):
         status, payload, headers = again
         return JSONResponse(payload, status_code=status, headers=headers)
     try:
-        with srv.db.tx() as s:
+        with srv.db.tx(user=c.id) as s:
             saved, ctx = apply(s, c, request, body)
     except IntegrityError as e:
         raise Problem(

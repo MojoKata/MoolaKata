@@ -217,7 +217,7 @@ def test_remove_orphans_during_an_upload(server, monkeypatch):
         # Read only: the upload holds the write lock today (CR3-48); the rule, not the lock,
         # is what keeps its file once the thumbnail is drawn outside it.
         age(folder)
-        with server.db.read() as s:
+        with server.db.read(unscoped="test") as s:
             removed.append(retention.remove_orphans(server, s))
 
     ran = at(monkeypatch, "receipt.written", remove)
@@ -248,7 +248,7 @@ def test_a_prune_while_an_upload_reuses_the_file(server, monkeypatch):
         "/ui/api/receipts", files={"file": ("r.png", image, "application/octet-stream")}
     )
     freed = []
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         name = f"{s.get(Receipt, first.json()['id']).fileId}.mkr"
 
     def prune():
@@ -301,7 +301,7 @@ def test_the_hourly_pull_and_pull_now_on_one_link(admins, monkeypatch):  # noqa:
     assert errors == []
     link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
     assert link["lastError"] is None
-    with b.db.read() as s:
+    with b.db.read(unscoped="test") as s:
         assert not s.get(Link, b_id).needsFull, "no change was taken twice or out of order"
     opened(carol, b_id, image)
 

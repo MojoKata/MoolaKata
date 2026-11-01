@@ -11,7 +11,7 @@ from sqlalchemy import (
     text,
 )
 
-from ._base import pairs, record, unique_live
+from ._base import Seen, pairs, record, unique_live
 
 Portfolio = record(
     "Portfolio",
@@ -22,6 +22,7 @@ Portfolio = record(
     Column("benchmark", Text, nullable=False, server_default=text("'VT'")),
     Column("notes", Text),
     Index("ix_Portfolio_ownerId", "ownerId"),
+    seen=Seen.root("portfolio"),
 )
 
 PortfolioAccounts = pairs(
@@ -55,6 +56,7 @@ Share = record(
     Index("ix_Share_item", "kind", "itemId"),
     Index("ix_Share_userId", "userId"),
     Index("ix_Share_groupId", "groupId"),
+    seen=Seen.rule(),
 )
 
 # A receiver's "Count in my totals" on an account shared with them (S10.7).
@@ -64,5 +66,6 @@ CountedAccount = record(
     Column("userId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
     Column("counted", Boolean, nullable=False, server_default=text("1")),
+    seen=Seen.per_user("userId"),
 )
 unique_live(CountedAccount, "userId", "accountId")

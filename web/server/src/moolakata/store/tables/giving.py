@@ -4,7 +4,7 @@ organisations given to, and donations of every type."""
 from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, Text, text
 
 from ..types import Cents, Day, Dec
-from ._base import record
+from ._base import Seen, record
 
 # A year's giving plan, a user's own or shared with a group as budgets are (S7.9.1).
 GivingPlan = record(
@@ -25,6 +25,7 @@ GivingPlan = record(
     CheckConstraint("\"incomeBasis\" IN ('take-home', 'gross', 'agi')", name="income_basis"),
     CheckConstraint("\"dafCounted\" IN ('funded', 'granted')", name="daf_counted"),
     Index("ix_GivingPlan_owner", "ownerId", "year"),
+    seen=Seen.root("giving-plan"),
 )
 
 # An organisation given to (S7.9.5).
@@ -44,6 +45,7 @@ Organisation = record(
         "\"pledgeEvery\" IS NULL OR \"pledgeEvery\" IN ('month', 'year')", name="pledge_every"
     ),
     Index("ix_Organisation_ownerId", "ownerId"),
+    seen=Seen.rule(),
 )
 
 # A donation (S7.9.3): to an organisation, into a donor-advised fund, or a grant from one.
@@ -75,4 +77,5 @@ Donation = record(
     ),
     CheckConstraint("amount >= 0", name="amount"),
     Index("ix_Donation_owner", "ownerId", "date"),
+    seen=Seen.rule(),
 )

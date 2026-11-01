@@ -5,7 +5,6 @@ Plain ASGI middleware, so streaming responses (the live stream, receipt files) p
 through.
 """
 
-import hashlib
 import ipaddress
 import json
 import logging
@@ -202,15 +201,18 @@ class OriginCheck:
 
 
 # Uploads arriving at once, per user (S13.7.6): 100 MB, and never less than one receipt of the
-# largest size a linked server may deliver, sealed; and for the whole server, four times that.
+# largest size a linked server may deliver, sealed; and for the whole server, 256 MB.
 IN_FLIGHT = max(100 * 1024 * 1024, max_receipt())
-IN_FLIGHT_ALL = 4 * IN_FLIGHT
+IN_FLIGHT_ALL = max(256 * 1024 * 1024, IN_FLIGHT)  # every caller together (CR3-56)
+# A body past this to /ui/api is an upload's: its session is checked before it is read.
+SIGNED_IN_PAST = 64 * 1024
 
 
 class BodyLimit:
     """JSON bodies up to 1 MB; uploads (multipart) up to the size Settings allow, and at most
-    100 MB of them arriving at once for one caller (S13.7.6): a session, a linked server's key
-    or the connector, else an address; and at most four times that for every caller together.
+    100 MB of them arriving at once for one caller (S13.7.6): a signed-in user, whose session is
+    checked on the headers before a byte of the body is read, a linked server's key or the
+    connector, else an address; and at most 256 MB for every caller together.
     The connector's and a linked server's are counted as they are read, never by what a call
     says it carries: the gate reads a body only once its signature checks out (protocol §3.2,
     link-protocol.md §3.2).
@@ -221,10 +223,12 @@ class BodyLimit:
         app,
         upload_limit: Callable[[], int],
         import_limit: Callable[[], int] | None = None,
+        session_user: Callable[[str], str | None] | None = None,
     ):
         self.app = app
         self.upload_limit = upload_limit
         self.import_limit = import_limit or upload_limit
+        self.session_user = session_user or (lambda token: None)
         self.in_flight: dict[str, int] = {}
 
     def limit_for(self, path: str, ctype: str) -> int:
@@ -241,7 +245,7 @@ class BodyLimit:
         return LINK_LIMIT if to_link else JSON_LIMIT
 
     @staticmethod
-    def _caller(scope, headers: dict) -> str:
+    def _token(headers: dict) -> str | None:
         from http.cookies import SimpleCookie
 
         from .auth.sessions import COOKIE
@@ -250,9 +254,17 @@ class BodyLimit:
         try:
             cookie.load(headers.get(b"cookie", ""))
         except Exception:  # a malformed cookie is no session
-            cookie = SimpleCookie()
-        if COOKIE in cookie:
-            return "session:" + hashlib.sha256(cookie[COOKIE].value.encode()).hexdigest()
+            return None
+        return cookie[COOKIE].value if COOKIE in cookie else None
+
+    def _caller(self, scope, headers: dict) -> str | None:
+        """Whom an upload counts against: a signed-in user (their session checked on the
+        headers, before a byte of the body is read: None when there is none, CR3-56), a linked
+        server's key or the connector, else an address."""
+        if scope["path"].startswith("/ui/api/"):
+            token = self._token(headers)
+            user = self.session_user(token) if token else None
+            return f"user:{user}" if user else None
         if scope["path"].startswith("/connector/"):
             return "connector"
         if headers.get(b"mk-link-key"):
@@ -275,7 +287,13 @@ class BodyLimit:
             await too_large(send)
             return
         upload = limit != JSON_LIMIT and limit != LINK_LIMIT
-        who = self._caller(scope, headers) if upload else ""
+        big = scope["path"].startswith("/ui/api/") and (
+            not length or not length.isdigit() or int(length) > SIGNED_IN_PAST
+        )
+        who = self._caller(scope, headers) if upload or big else ""
+        if who is None:
+            await _send_problem(401, "not-signed-in", "Sign in to continue.")(send)
+            return
         # What it says it carries is held for it before the app runs, so a caller past the
         # cap is answered at once; a body without a length is counted as it arrives, and so are
         # the connector's and a linked server's, read only once their signature is checked
@@ -284,9 +302,10 @@ class BodyLimit:
         if who == "connector" or who.startswith("key:"):
             declared = 0
         everyone = sum(self.in_flight.values())
-        if upload and (
-            self.in_flight.get(who, 0) + declared > IN_FLIGHT or everyone + declared > IN_FLIGHT_ALL
-        ):
+        if upload and everyone + declared > IN_FLIGHT_ALL:
+            await _server_busy(send)
+            return
+        if upload and self.in_flight.get(who, 0) + declared > IN_FLIGHT:
             await _send_problem(
                 429,
                 "uploads-in-flight",
@@ -309,10 +328,9 @@ class BodyLimit:
                     raise _TooLarge
                 if upload and seen > declared:
                     self.in_flight[who] = self.in_flight.get(who, 0) + min(n, seen - declared)
-                    if (
-                        self.in_flight[who] > IN_FLIGHT
-                        or sum(self.in_flight.values()) > IN_FLIGHT_ALL
-                    ):
+                    if sum(self.in_flight.values()) > IN_FLIGHT_ALL:
+                        raise _ServerBusy
+                    if self.in_flight[who] > IN_FLIGHT:
                         raise _Busy
             return message
 
@@ -327,6 +345,9 @@ class BodyLimit:
         except _TooLarge:
             if not started:
                 await too_large(send)
+        except _ServerBusy:
+            if not started:
+                await _server_busy(send)
         except _Busy:
             if not started:
                 await _send_problem(
@@ -346,6 +367,20 @@ class BodyLimit:
 
 class _TooLarge(Exception):
     pass
+
+
+class _ServerBusy(Exception):
+    pass
+
+
+async def _server_busy(send) -> None:
+    """Every caller's uploads together past the server's ceiling (S13.7.6)."""
+    await _send_problem(
+        503,
+        "uploads-busy",
+        "The server is taking in as many uploads as it can. Try again in a moment.",
+        [(b"retry-after", b"30")],
+    )(send)
 
 
 class _Busy(Exception):

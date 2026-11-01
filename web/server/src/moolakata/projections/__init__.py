@@ -12,11 +12,12 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import false, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, valuation
 from ..ledger import types as atypes
+from ..store import scoping
 from ..store.entities.accounts import Account, Instrument
 from ..store.entities.projections import Projection
 from ..store.entities.users import User
@@ -101,7 +102,7 @@ def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
         accounts = seen_accounts(s, user_id, p)
         label = f"Portfolio: {p.name}"
     else:
-        visible = {a.id: a for a, _ in access.visible_accounts(s, user_id)}
+        visible = {a.id: a for a, _ in access.accounts(s, user_id)}
         accounts = [visible[i] for i in spec.get("ids", []) if i in visible]
         label = (
             (accounts[0].name if len(accounts) == 1 else f"{len(accounts)} accounts")
@@ -447,9 +448,15 @@ def tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None = None
     """The actual balance of what it is built on since the baseline, against the band, and
     whether it is on track, ahead or behind (on the last day given: the alert checks it as of
     the end of the last month). A viewer who isn't shared every account it is built on sees
-    the status, and the balance of only the accounts shared with them, with no band (S6.1)."""
+    the status, and the balance of only the accounts shared with them, with no band (S6.1):
+    worked out as the server over the owner's accounts."""
     if not p.active or not p.baseline or p.baselineAt is None:
         return None
+    with scoping.as_server(s, "a projection's tracking, over its owner's accounts") as srv:
+        return _tracking(srv, srv.get(Projection, p.id), viewer, upto)
+
+
+def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> dict | None:
     base = json.loads(p.baseline)
     spec = json.loads(p.builtOn)
     start = p.baselineAt.date()
@@ -461,7 +468,7 @@ def tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None = None
     seen = (
         None
         if viewer == p.ownerId
-        else {a.id for a, _ in access.visible_accounts(s, viewer)} & {a.id for a in on.accounts}
+        else {a.id for a, _ in access.accounts(s, viewer)} & {a.id for a in on.accounts}
     )
     totals: dict[dt.date, Decimal] = {}
     theirs: dict[dt.date, Decimal] = {}
@@ -509,18 +516,8 @@ def tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None = None
 
 
 def visible(s: Session, user_id: str) -> list[tuple[Projection, str]]:
-    r = access.reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "projection"]
-    rows = s.scalars(
-        select(Projection)
-        .where(
-            Projection.deleted == false(),
-            (Projection.ownerId == user_id) | Projection.id.in_(shared),
-        )
-        .order_by(Projection.name)
-    ).all()
+    """The projections the user reads (ProjectionAccess), by name, with their level."""
     return [
-        (p, lvl)
-        for p in rows
-        if (lvl := access.level_of(s, user_id, "projection", p.ownerId, p.id, p.deleted, r))
+        (p, perms.level())
+        for p, perms in access.listing(s, Projection, user_id, order_by=Projection.name)
     ]

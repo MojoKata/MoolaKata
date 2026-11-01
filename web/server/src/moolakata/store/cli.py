@@ -72,7 +72,7 @@ def _backup(args) -> int:
         store = open_store(config, read_phrase(), read_only=True)
         try:
             path = backup(config, store)
-            with store.db.read() as s:
+            with store.db.read(unscoped="store.cli: backup") as s:
                 keep = settings.get(s, "backupCopies")
         finally:
             store.db.dispose()

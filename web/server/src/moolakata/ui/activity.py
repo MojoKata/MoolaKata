@@ -2,14 +2,13 @@
 made it and what it is about, to the people concerned: the owner, those an item is shared
 with, and admins for users, groups and Settings. Amounts are never named (R3.8)."""
 
-import contextlib
 import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, or_, select
 
-from .. import access
+from ..store import access_views, scoping
 from ..store.entities.accounts import Account
 from ..store.entities.core import Activity
 from ..store.entities.sharing import Portfolio
@@ -251,49 +250,11 @@ def render(a: Activity, names: dict[tuple[str, str], str]) -> str:
 
 
 def _visible(s, c: Caller):
-    """Entries the caller may see (S10.8): their own, about them, about whatever is shared with
-    them, the one that says a share with them was removed, and for admins, about users,
-    groups, Settings and keys."""
-    from ..taxes import books
-
-    accounts = [a.id for a, _ in access.visible_accounts(s, c.id)]
-    portfolios = [p.id for p, _ in access.visible_portfolios(s, c.id)]
-    shared: dict[str, set[str]] = {}
-    for kind, item in access.reach(s, c.id).levels:
-        shared.setdefault(kind, set()).add(item)
-    shared.setdefault("tax-book", set()).update(b.id for b, _ in books.visible(s, c.id))
-    groups = access.groups_of(s, c.id)
-    grantee = func.json_extract(Activity.detail, "$.granteeId")
-    conds = [
-        Activity.actorId == c.id,
-        Activity.ownerId == c.id,
-        and_(Activity.subjectKind == "account", Activity.subjectId.in_(accounts)),
-        and_(Activity.subjectKind == "portfolio", Activity.subjectId.in_(portfolios)),
-        and_(
-            Activity.subjectKind == "budget",
-            Activity.subjectId.in_([b.id for b, _ in access.visible_budgets(s, c.id)]),
-        ),
-        *(
-            and_(Activity.subjectKind == kind, Activity.subjectId.in_(sorted(items)))
-            for kind, items in shared.items()
-            if kind not in ("account", "portfolio", "budget")
-        ),
-        and_(
-            Activity.kind == "share.removed",
-            or_(grantee == c.id, grantee.in_(groups)),
-        ),
-    ]
-    if c.admin:
-        conds.append(
-            and_(
-                Activity.forAdmins,
-                or_(
-                    Activity.subjectKind.is_(None),
-                    Activity.subjectKind.in_(("user", "group", "link")),
-                ),
-            )
-        )
-    return or_(*conds)
+    """Entries the caller may see (S10.8), as Activity's access view says: their own, about
+    them, about whatever they read, the one that says a share with them was removed, and for
+    admins those about users, groups, links, Settings and keys."""
+    v = access_views.access_table(Activity.__mapper__.local_table)
+    return exists().where(v.c.targetId == Activity.id, v.c.userId == c.id)
 
 
 @router.get("/activity", response_model=Page[ActivityItem])
@@ -304,7 +265,7 @@ def list_activity(
     account: str | None = None,
     person: str | None = None,
 ):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         q = select(Activity).where(_visible(s, c))
         if account:
             q = q.where(Activity.subjectKind == "account", Activity.subjectId == account)
@@ -336,7 +297,7 @@ def list_activity(
 @router.get("/activity/newer", response_model=Newer)
 def newer(request: Request, c: Caller = Depends(caller), since: str = Query(...)):
     """How many entries arrived after one the page shows: the +N new pill (S12.1.3)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         first = s.get(Activity, since)
         if first is None:
             return Newer(count=0)
@@ -348,43 +309,52 @@ def newer(request: Request, c: Caller = Depends(caller), since: str = Query(...)
 
 
 def _names(s, rows: list[Activity]) -> dict[tuple[str, str], str]:
-    names: dict[tuple[str, str], str] = {}
-    for u in s.scalars(select(User)):
-        names[("user", u.id)] = u.displayName
-    for g in s.scalars(select(Group)):
-        names[("group", g.id)] = g.name
-    acct_ids = {a.subjectId for a in rows if a.subjectKind == "account"}
-    for a in s.scalars(select(Account).where(Account.id.in_(acct_ids))):
-        names[("account", a.id)] = a.name
-    port_ids = {a.subjectId for a in rows if a.subjectKind == "portfolio"}
-    for p in s.scalars(select(Portfolio).where(Portfolio.id.in_(port_ids))):
-        names[("portfolio", p.id)] = p.name
+    """What the entries name, as they were named: read as the server, since an entry the
+    reader sees may name what they no longer read (a share removed, S10.8)."""
     from ..store.entities.budgets import Budget
-    from ..store.entities.projections import Projection
-
-    proj_ids = {a.subjectId for a in rows if a.subjectKind == "projection"}
-    for p in s.scalars(select(Projection).where(Projection.id.in_(proj_ids))):
-        names[("projection", p.id)] = p.name
-    budget_ids = {a.subjectId for a in rows if a.subjectKind == "budget"}
-    for b in s.scalars(select(Budget).where(Budget.id.in_(budget_ids))):
-        names[("budget", b.id)] = b.name
+    from ..store.entities.education import GiftPlan, Person
+    from ..store.entities.giving import GivingPlan
     from ..store.entities.links import Link
+    from ..store.entities.projections import Projection
+    from ..store.entities.taxes import TaxBook
 
-    link_ids = {a.subjectId for a in rows if a.subjectKind == "link"}
-    for k in s.scalars(select(Link).where(Link.id.in_(link_ids))):
-        names[("link", k.id)] = k.householdName or k.peerName or "a linked household"
-    # The other kinds that are shared (S10.3), named as the Share dialog names them.
-    from .. import sharing
-    from ..errors import Problem
+    def read(*cols, where=None):
+        q = select(*cols) if where is None else select(*cols).where(where)
+        return s.execute(scoping.unscoped(q, "the names Activity's entries give")).all()
 
-    for a in rows:
-        key = (a.subjectKind or "", a.subjectId or "")
-        if key[0] in ("person", "gift-plan", "giving-plan", "tax-book") and key not in names:
-            with contextlib.suppress(Problem):  # deleted since: "something"
-                obj = sharing.item(s, key[0], key[1])
-                names[key] = (
-                    sharing.name_of(s, key[0], obj)
-                    if hasattr(obj, "name") or key[0] == "gift-plan"
-                    else f"the {key[0].replace('-', ' ')} for {obj.year}"
-                )
+    def ids(kind):
+        return {a.subjectId for a in rows if a.subjectKind == kind}
+
+    names: dict[tuple[str, str], str] = {}
+    for i, n in read(User.id, User.displayName):
+        names[("user", i)] = n
+    for i, n in read(Group.id, Group.name):
+        names[("group", i)] = n
+    for kind, e in (
+        ("account", Account),
+        ("portfolio", Portfolio),
+        ("projection", Projection),
+        ("budget", Budget),
+        ("person", Person),
+    ):
+        for i, n, gone in read(e.id, e.name, e.deletedAt, where=e.id.in_(ids(kind))):
+            if kind not in ("person",) or gone is None:
+                names[(kind, i)] = n
+    for i, h, p in read(Link.id, Link.householdName, Link.peerName, where=Link.id.in_(ids("link"))):
+        names[("link", i)] = h or p or "a linked household"
+    # The other kinds that are shared (S10.3), named as the Share dialog names them; one
+    # deleted since is "something".
+    for i, n in read(
+        GiftPlan.id,
+        Person.name,
+        where=and_(
+            GiftPlan.id.in_(ids("gift-plan")),
+            GiftPlan.personId == Person.id,
+            GiftPlan.deletedAt.is_(None),
+        ),
+    ):
+        names[("gift-plan", i)] = f"Gift plan for {n}"
+    for kind, e in (("giving-plan", GivingPlan), ("tax-book", TaxBook)):
+        for i, year in read(e.id, e.year, where=and_(e.id.in_(ids(kind)), e.deletedAt.is_(None))):
+            names[(kind, i)] = f"the {kind.replace('-', ' ')} for {year}"
     return names

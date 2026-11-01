@@ -35,12 +35,12 @@ def last_link(server) -> tuple[str, str]:
 
 
 def kinds(server) -> list[str]:
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         return [a.kind for a in s.scalars(select(Activity).order_by(Activity.at))]
 
 
 def set_public_url(server):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", "https://money.home.lan", None)
 
 
@@ -52,7 +52,7 @@ def _legacy_admin(server) -> None:
     from moolakata import ids, people
     from moolakata.store.entities.users import User, UserGroup
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         u = User(
             id=ids.new_id("User"),
             personId=people.make(s, "Admin", "male").id,
@@ -115,7 +115,7 @@ def test_sign_in_by_username_or_email_with_a_strict_cookie(client, server):
     for part in ("mk_session=", "Path=/ui", "HttpOnly", "Secure", "SameSite=Strict"):
         assert part in cookie
     token = client.cookies.get("mk_session")
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         hashes = list(s.scalars(select(Session.tokenHash)))
     assert token not in hashes  # stored as a hash only
     assert len(token) >= 43
@@ -159,13 +159,13 @@ def test_sign_out_ends_every_session_of_the_user(server):
 def test_sessions_expire_when_idle_and_absolutely(server):
     make_user(server, "dan")
     c = sign_in(server, "dan")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         row = s.scalars(select(Session)).one()
         row.lastSeenAt -= dt.timedelta(hours=9)
     r = c.get("/ui/api/session")
     assert r.status_code == 401 and r.json()["code"] == "session-expired"
     c = sign_in(server, "dan")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         row = s.scalars(select(Session)).one()
         row.expiresAt = accounts.now() - dt.timedelta(seconds=1)
     assert c.get("/ui/api/session").status_code == 401
@@ -175,7 +175,7 @@ def test_a_change_of_privilege_gives_a_new_token(server, admin_client):
     bob = make_user(server, "bob")
     c = sign_in(server, "bob")
     before = c.cookies.get("mk_session")
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         admins = accounts.admins_group(s)
     groups = admin_client.get("/ui/api/groups").json()["items"]
     g = next(g for g in groups if g["id"] == admins.id)
@@ -308,7 +308,7 @@ def test_email_change_needs_recent_password_and_a_confirmed_link(server):
     set_public_url(server)
     make_user(server, "hal")
     c = sign_in(server, "hal")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         row = s.scalars(select(Session)).one()
         row.authAt -= dt.timedelta(minutes=11)
     r = c.post("/ui/api/profile/email", json={"email": "hal@new.lan"})
@@ -387,7 +387,7 @@ def test_a_wrong_password_asked_again_counts_toward_the_lockout(server, monkeypa
 
 
 def test_the_last_admin_stays(admin_client, server):
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         admin = s.scalars(select(User).where(User.username == "admin")).one()
         admins = accounts.admins_group(s)
     row = next(u for u in admin_client.get("/ui/api/users").json()["items"] if u["id"] == admin.id)
@@ -511,7 +511,7 @@ def test_making_an_admin_needs_the_password_again(admin_client, server):
 
     from moolakata.auth import users as accounts
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         admins = accounts.admins_group(s).id
     make_user(server, "ivy")
     listed = admin_client.get("/ui/api/users").json()["items"]

@@ -88,3 +88,11 @@ reason.
     the app keeps out one who sets out to look; a household with one admin couldn't use a
     second approval. Admins are trusted operators, and the app keeps others' money off their
     screens by default (S10.2).
+24. **One polymorphic access view for every kind**, `ItemAccess(kind, targetId, userId, …)`,
+    in place of a view per table: every join would have to carry the kind, a child's view
+    couldn't chain to its parent's by name, and the view's name would no longer say whose
+    records it holds ([`schema.md`](schema.md) §7).
+25. **Visibility checked per route in Python**, each route asking a level function before
+    it reads: every route had to remember, and one that read a related record without asking
+    (a receipt's other links, CR3-47) leaked it. Every read and write goes through the
+    tables' access views instead ([`schema.md`](schema.md) §7).

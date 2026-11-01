@@ -5,11 +5,12 @@ until Save, which replaces the item's grants as a whole. Removing a share ends t
 access on their next request and deletes their own annotations on the item (their tags).
 """
 
-from sqlalchemy import false, select
+from sqlalchemy import false, select, update
 from sqlalchemy.orm import Session
 
 from . import access, clock
 from .errors import Problem
+from .store import scoping
 from .store.entities.accounts import Account, Tag, Transaction, TransactionTag
 from .store.entities.sharing import Portfolio, PortfolioAccount, Share
 from .store.entities.users import User
@@ -81,34 +82,42 @@ def hidden_accounts(s: Session, p: Portfolio, user_ids: list[str]) -> dict[str, 
     accounts = portfolio_accounts(s, p.id)
     out = {}
     for uid in user_ids:
-        r = access.reach(s, uid)
-        missing = [a.id for a in accounts if not access.account_level(s, uid, a, r)]
+        seen = {a.id for a, _ in access.accounts(s, uid)}
+        missing = [a.id for a in accounts if a.id not in seen]
         if missing:
             out[uid] = missing
     return out
 
 
 def drop_annotations(s: Session, user_id: str, account_id: str) -> None:
-    """A removed receiver's own tags on the account's transactions are deleted (S10.4)."""
-    now = clock.now()
-    for tag in s.scalars(
-        select(TransactionTag)
-        .join(Transaction, Transaction.id == TransactionTag.transactionId)
-        .join(Tag, Tag.id == TransactionTag.tagId)
+    """A removed receiver's own tags on the account's transactions are deleted (S10.4): the
+    server's bookkeeping on the receiver's rows, whoever removed the share."""
+    s.execute(
+        update(TransactionTag)
         .where(
-            Transaction.accountId == account_id,
-            Tag.ownerId == user_id,
-            TransactionTag.deleted == false(),
+            TransactionTag.transactionId.in_(
+                select(Transaction.id).where(Transaction.accountId == account_id)
+            ),
+            TransactionTag.tagId.in_(select(Tag.id).where(Tag.ownerId == user_id)),
+            TransactionTag.deletedAt.is_(None),
         )
-    ):
-        tag.mark_deleted(user_id, now)
+        .values(deletedAt=clock.now(), deletedById=user_id)
+        .execution_options(synchronize_session=False)
+    )
 
 
 def link_live(s: Session, link_id: str) -> bool:
+    """Whether a link is live, as the server knows it for whoever asks (links are admin
+    data)."""
     from .store.entities.links import Link
 
-    link = s.get(Link, link_id)
-    return link is not None and not link.deleted and link.state in ("active", "paused")
+    state = s.scalars(
+        scoping.unscoped(
+            select(Link.state).where(Link.id == link_id, Link.deletedAt.is_(None)),
+            "whether a link is live",
+        )
+    ).first()
+    return state in ("active", "paused")
 
 
 def remove_link_shares(s: Session, link_id: str, by: str | None = None) -> int:

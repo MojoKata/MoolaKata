@@ -157,7 +157,7 @@ def post(c, ops, confirm=(), **kw):
 def count(server, entity) -> int:
     from sqlalchemy import func, select
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         return s.scalar(select(func.count()).select_from(entity).where(entity.deleted.is_(False)))
 
 

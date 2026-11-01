@@ -34,7 +34,7 @@ def tag_out(t: Tag) -> TagOut:
 @router.get("/tags", response_model=list[TagOut])
 def list_tags(request: Request, c: Caller = Depends(caller)):
     """The caller's own tags, by name."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         rows = s.scalars(
             select(Tag).where(Tag.ownerId == c.id, Tag.deleted == false()).order_by(Tag.name)
         )

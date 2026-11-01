@@ -89,7 +89,7 @@ def _info(s) -> ConnectorInfo:
 
 @router.get("/connector", response_model=ConnectorInfo)
 def connector_info(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return _info(s)
 
 
@@ -134,7 +134,7 @@ def _mine(s, c: Caller, connection_id: str) -> Connection:
 
 @router.get("/profile/connections", response_model=list[ConnectionOut])
 def list_connections(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         rows = s.scalars(
             select(Connection)
             .where(
@@ -208,7 +208,7 @@ def put_credential(
     recent_auth(c)
     if not sealed.looks_sealed(body.sealed) or len(body.sealed) > 20000:
         raise refuse("sealed", "sealed-invalid", "Not a sealed credential.")
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         paired = manage.paired(s)
         if paired is None or paired.confirmedAt is None:
             raise refuse(

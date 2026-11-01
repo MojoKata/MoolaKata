@@ -10,10 +10,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import false, or_, select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import access, valuation
+from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
@@ -32,27 +33,17 @@ FORM_8283_AT = Decimal(500)  # goods over this in a year
 APPRAISAL_AT = Decimal(5000)  # an item over this needs an appraisal
 
 
-def visible_plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
-    r = access.reach(s, user_id)
-    shared = [i for (k, i) in r.levels if k == "giving-plan"]
-    rows = s.scalars(
-        select(GivingPlan)
-        .where(
-            GivingPlan.deleted == false(),
-            or_(GivingPlan.ownerId == user_id, GivingPlan.id.in_(shared)),
-        )
-        .order_by(GivingPlan.year.desc())
-    ).all()
+def plans(s: Session, user_id: str) -> list[tuple[GivingPlan, str]]:
+    """The giving plans the user reads (GivingPlanAccess), newest first, with their level."""
     return [
-        (p, lvl)
-        for p in rows
-        if (lvl := access.level_of(s, user_id, "giving-plan", p.ownerId, p.id, p.deleted, r))
+        (p, perms.level())
+        for p, perms in access.listing(s, GivingPlan, user_id, order_by=GivingPlan.year.desc())
     ]
 
 
 def plan_for(s: Session, user_id: str, year: int) -> tuple[GivingPlan | None, str | None]:
     """The year's plan: the user's own, else one shared with them."""
-    rows = [(p, lvl) for p, lvl in visible_plans(s, user_id) if p.year == year]
+    rows = [(p, lvl) for p, lvl in plans(s, user_id) if p.year == year]
     rows.sort(key=lambda x: x[1] != "owner")
     return rows[0] if rows else (None, None)
 
@@ -166,9 +157,15 @@ def counts(plan: GivingPlan | None, g: Gift) -> bool:
 
 
 def income(s: Session, plan: GivingPlan | None, owners: list[str], year: int) -> Decimal:
-    """The income the target's percentage is of: typed, or the year's income transactions."""
+    """The income the target's percentage is of: typed, or the year's income transactions,
+    the plan's owner's, worked out as the server for whoever reads the plan (S7.9.1)."""
     if plan is not None and plan.incomeBasis in ("gross", "agi"):
         return plan.income or ZERO
+    with scoping.as_server(s, "a giving plan's income, its owner's") as srv:
+        return _income(srv, owners, year)
+
+
+def _income(s: Session, owners: list[str], year: int) -> Decimal:
     cats = [c.id for c in s.scalars(select(Category).where(Category.kind == "income"))]
     accounts = [
         a.id

@@ -35,7 +35,7 @@ def paired(status: bool = False):
     connector is locked, or unpaired (S18.4.2). Its calls count against that connector."""
 
     def find(srv, caller: signing.Caller):
-        with srv.db.read() as s:
+        with srv.db.read(unscoped="connector.routes: find") as s:
             got = manage.by_key(s, caller.public)
         if got is None:
             raise signing.Refused("not-paired", "This server has no pairing with that connector.")
@@ -150,7 +150,7 @@ def post_file(call: Call, account_id: str):
     except ValueError as e:
         raise signing.Refused("file-refused", str(e)) from None
     connection_id = str(meta.get("connectionId") or "")
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="connector.routes: post file") as s:
         c = manage.connection_of(s, row, connection_id)
         a = s.scalars(
             select(Account).where(Account.id == account_id, Account.deleted == false())

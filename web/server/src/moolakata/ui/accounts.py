@@ -364,9 +364,7 @@ def row(
         ownerName=owner.displayName if owner else "",
         ownerAvatar=owner.avatar if owner else None,
         level=level,
-        sharedWith=len(access.holders(s, "account", a.id, a.ownerId)) - 1
-        if level == "owner"
-        else 0,
+        sharedWith=len(access.holders_of(s, Account, a.id)) - 1 if level == "owner" else 0,
         counted=a.countInNetWorth if level == "owner" else a.id in ctx.counted,
         balance=value,
         change=value - month_ago if ledger.transactions else None,
@@ -440,10 +438,10 @@ def imports_of(s, account_id: str) -> list[Import]:
 
 @router.get("/accounts", response_model=list[AccountRow])
 def list_accounts(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
-        visible = access.visible_accounts(s, c.id)
+    with server(request).db.read(user=c.id) as s:
+        visible = access.accounts(s, c.id)
         ctx = context(s, c.id, [a.id for a, _ in visible])
-        return [row(s, a, level, ctx) for a, level in visible]
+        return [row(s, a, p.level(), ctx) for a, p in visible]
 
 
 def _make(s, c: Caller, body, account_id: str) -> Account:
@@ -473,7 +471,7 @@ def _make(s, c: Caller, body, account_id: str) -> Account:
 
 @router.get("/accounts/{account_id}", response_model=AccountDetail)
 def get_account(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, level = access.account(s, c.id, account_id)
         return row(s, a, level, context(s, c.id, [a.id]), detail=True)
 
@@ -599,7 +597,7 @@ def account_series(
     range: str = Query("1Y", pattern="^(1M|3M|YTD|1Y|5Y|All)$"),
 ):
     today = clock.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         if range == "YTD":
@@ -617,7 +615,7 @@ def account_series(
 
 @router.get("/accounts/{account_id}/holdings", response_model=Holdings)
 def account_holdings(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         replay = ledger.replay()
@@ -704,7 +702,7 @@ def _reconciliation_row(s, r: Reconciliation) -> ReconciliationRow:
 
 @router.get("/accounts/{account_id}/reconcile", response_model=ReconcileView)
 def account_reconcile(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         cover = reconcile.coverage(ledger.imports)
@@ -1044,7 +1042,7 @@ def _account_update(ctx, a: Account, body: AccountRecord) -> None:
 
 def _account_delete(ctx, a: Account) -> None:
     """Soft-deleted with everything that belongs to it (schema.md §4); only by its owner."""
-    access.account(ctx.s, ctx.caller.id, a.id, "owner")
+    access.account(ctx.s, ctx.caller.id, a.id, "deletable")
     a.mark_deleted(ctx.caller.id)
     activity.record(
         ctx.s,

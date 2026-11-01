@@ -1,6 +1,6 @@
 """Bringing the database to this release's revision (requirements S14.1.3): at start the
 server copies the database (verified), then migrates it one revision per transaction, then
-regenerates the Effective views. A database from a newer release refuses the start.
+regenerates the Effective and access views. A database from a newer release refuses the start.
 
 Revisions are only ever added, never changed once committed: databases made by earlier
 releases migrate forward like any other. Before the first release they may be folded into one

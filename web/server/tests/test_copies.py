@@ -19,7 +19,7 @@ def setup(server, admin_client):
     make_user(server, "bob")
     alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
     alice_id = alice.get("/ui/api/session").json()["user"]["id"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         link = Link(
             id=ids.new_id("Link"),
             state="active",
@@ -63,7 +63,7 @@ def test_an_admin_makes_the_words_and_a_named_person_unlocks_with_them(server, s
     assert path.exists() and not path.read_bytes().startswith(b"SQLite format 3")
     with pytest.raises(sqlite3.DatabaseError):
         sqlite3.connect(path).execute("select * from sqlite_master").fetchall()
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         row = s.get(Link, link_id)
         assert row.copyPublicKey and " ".join(words) not in str(vars(row))
     assert alice.get(f"/ui/api/linked/{link_id}").json()["household"]["locked"]

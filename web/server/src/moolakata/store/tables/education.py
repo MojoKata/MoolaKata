@@ -4,7 +4,7 @@ came from, and the qualified expenses its withdrawals are matched with."""
 from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, Text, text
 
 from ..types import Cents, Day
-from ._base import record, unique_live
+from ._base import Seen, record, unique_live
 
 EducationPlan = record(
     "EducationPlan",
@@ -15,6 +15,7 @@ EducationPlan = record(
     Column("beneficiaryId", Text, ForeignKey("Person.id")),  # a person (S10.10)
     Column("openedOn", Day),
     Column("stateDeduction", Cents),  # what the owner expects a year, typed (S8.18)
+    seen=Seen.child("accountId"),
 )
 unique_live(EducationPlan, "accountId")
 
@@ -26,6 +27,7 @@ Contribution = record(
     Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("fromPersonId", Text, ForeignKey("Person.id")),
     Column("fiveYear", Boolean, nullable=False, server_default=text("0")),
+    seen=Seen.child("transactionId"),
 )
 unique_live(Contribution, "transactionId")
 
@@ -47,4 +49,5 @@ QualifiedExpense = record(
     ),
     CheckConstraint("amount > 0", name="amount"),
     Index("ix_QualifiedExpense_account", "accountId", "year"),
+    seen=Seen.child("accountId"),
 )

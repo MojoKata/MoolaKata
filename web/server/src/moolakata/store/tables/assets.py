@@ -4,7 +4,7 @@ valuations, and a property's improvements."""
 from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Text, text
 
 from ..types import Cents, Day, Dec
-from ._base import record
+from ._base import Seen, record
 
 Item = record(
     "Item",
@@ -61,6 +61,7 @@ Item = record(
     CheckConstraint("quantity > 0", name="quantity"),
     CheckConstraint('("soldOn" IS NULL) = (proceeds IS NULL)', name="sale"),
     Index("ix_Item_accountId", "accountId"),
+    seen=Seen.child("accountId"),
 )
 
 ItemValuation = record(
@@ -74,6 +75,7 @@ ItemValuation = record(
     Column("createdById", Text, ForeignKey("User.id")),
     CheckConstraint("source IN ('appraisal', 'sale', 'guide', 'estimate')", name="source"),
     Index("ix_ItemValuation_item", "itemId", "date"),
+    seen=Seen.child("itemId"),
 )
 
 Improvement = record(
@@ -85,4 +87,5 @@ Improvement = record(
     Column("amount", Cents, nullable=False),
     Column("createdById", Text, ForeignKey("User.id")),
     Index("ix_Improvement_item", "itemId"),
+    seen=Seen.child("itemId"),
 )

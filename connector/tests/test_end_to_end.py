@@ -49,7 +49,7 @@ class Wired(client.Transport):
 def money(server, admin_client, client):
     from moolakata import settings
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     return server, admin_client, client
 
@@ -95,7 +95,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     r = c.post("/ui/api/save", json={"ops": [made]})
     assert r.status_code == 200, r.text
     conn = r.json()["saved"][0]["record"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a = Account(
             id="Acct_01m4zzbtececftrsacpbatewws", ownerId=alice, name="Checking", type="checking"
         )
@@ -131,13 +131,13 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     assert c.get("/ui/api/profile/connections").json()["items"][0]["credentialWaiting"] is False
     state = core.connections[conn["id"]]
     assert state.state == "ok" and state.last_added == 2 and state.message == "1 statement"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.query(Transaction).filter_by(accountId=aid).count() == 2
     # The run is reported at once, and Settings shows it; nothing is posted twice.
     shown = admin.get("/ui/api/settings/connector").json()["connections"][0]
     assert shown["state"] == "ok" and shown["lastRunAt"]
     core.tick()
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.query(Transaction).filter_by(accountId=aid).count() == 2
 
     # The owner's upload limit: the file waits for a later run.

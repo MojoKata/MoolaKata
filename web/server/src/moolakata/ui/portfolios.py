@@ -14,6 +14,7 @@ from ..errors import FieldError, Problem, refuse
 from ..ledger import performance as perf
 from ..ledger import types as atypes
 from ..options import strategies as strat
+from ..store import scoping
 from ..store.entities.accounts import Account
 from ..store.entities.sharing import Portfolio, PortfolioAccount
 from ..store.entities.users import User
@@ -64,22 +65,15 @@ def member_ids(s, portfolio_id: str) -> list[str]:
 def all_mine(s, user_id: str) -> list[Account]:
     """My own accounts, and those shared with me that I count in my totals (S10.7)."""
     counted = counted_for(s, user_id)
-    return [
-        a for a, lvl in access.visible_accounts(s, user_id) if lvl == "owner" or a.id in counted
-    ]
+    return [a for a, _ in access.accounts(s, user_id) if a.ownerId == user_id or a.id in counted]
 
 
 def seen_accounts(s, user_id: str, p: Portfolio | None) -> list[Account]:
     """The portfolio's accounts this user can see (S5.1.1)."""
     if p is None:
         return all_mine(s, user_id)
-    r = access.reach(s, user_id)
-    out = []
-    for aid in member_ids(s, p.id):
-        a = s.get(Account, aid)
-        if a is not None and access.account_level(s, user_id, a, r):
-            out.append(a)
-    return sorted(out, key=lambda a: a.name)
+    ids = member_ids(s, p.id)
+    return [a for a, _ in access.accounts(s, user_id, Account.id.in_(ids))]
 
 
 def with_deleted(s, user_id: str, p: Portfolio | None, accounts: list[Account]) -> list[Account]:
@@ -128,7 +122,7 @@ def shape(s, user: User, p: Portfolio | None, level: str) -> PortfolioRow:
             version=1,
         )
     owner = s.get(User, p.ownerId)
-    shared = len(access.holders(s, "portfolio", p.id, p.ownerId)) - 1 if level == "owner" else 0
+    shared = len(access.holders_of(s, Portfolio, p.id)) - 1 if level == "owner" else 0
     return PortfolioRow(
         id=p.id,
         name=p.name,
@@ -153,7 +147,7 @@ def _check(s, user_id: str, body) -> list[FieldError]:
     if body.benchmark is not None and body.benchmark not in BENCHMARKS:
         errors.append(FieldError("benchmark", "benchmark-invalid", "VT, SPY or a 60/40 mix."))
     if body.accountIds is not None:
-        mine = {a.id for a, _ in access.visible_accounts(s, user_id)}
+        mine = {a.id for a, _ in access.accounts(s, user_id)}
         if any(a not in mine for a in body.accountIds):
             errors.append(
                 FieldError(
@@ -189,15 +183,16 @@ def _set_members(s, p: Portfolio, wanted: list[str], by: str) -> None:
 
 @router.get("/portfolios", response_model=list[PortfolioRow])
 def list_portfolios(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return [shape(s, c.user, None, "owner")] + [
-            shape(s, c.user, p, lvl) for p, lvl in access.visible_portfolios(s, c.id)
+            shape(s, c.user, p, perms.level())
+            for p, perms in access.listing(s, Portfolio, c.id, order_by=Portfolio.name)
         ]
 
 
 @router.get("/portfolios/{portfolio_id}", response_model=PortfolioRow)
 def get_portfolio(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         if portfolio_id == ALL:
             return shape(s, c.user, None, "owner")
         p, lvl = access.portfolio(s, c.id, portfolio_id)
@@ -259,7 +254,7 @@ def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
 
 def _portfolio_delete(ctx, p: Portfolio) -> None:
     s, c = ctx.s, ctx.caller
-    access.portfolio(s, c.id, p.id, "owner")
+    access.portfolio(s, c.id, p.id, "deletable")
     p.mark_deleted(c.id)
     activity.record(s, "portfolio.deleted", actor=c.id, subject_kind="portfolio",
                     subject_id=p.id, owner=p.ownerId)  # fmt: skip
@@ -356,72 +351,80 @@ def portfolio_series(
     """Value over time with contributions apart from growth, against the benchmark, and the
     period's time- and money-weighted returns (S5.2.1, S5.2.3)."""
     today = figures.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         p, accounts, bench = _target(s, c, portfolio_id)
-        accounts = with_deleted(s, c.id, p, accounts)
-        first = figures.first_day(range, today, figures.earliest(s, accounts))
-        comb = figures.combine(s, accounts, first, today, figures.step_for(first, today))
-        values = comb.values
-        contrib = figures.contributions(values, comb.flow)
-        index = figures.benchmark_index(s, bench, first, today)
-        bench_values = dict(perf.benchmark(values, comb.flow, index))
-        start = values[0][1] if values else Decimal(0)
-        end = values[-1][1] if values else Decimal(0)
-        put_in = (contrib[-1][1] - start) if contrib else Decimal(0)
-        rate = perf.irr(values[0][0], start, comb.flow, values[-1][0], end) if values else None
-        return PortfolioSeries(
-            points=[
-                SeriesPoint(date=d, value=v, contributions=cv, benchmark=bench_values.get(d))
-                for (d, v), (_, cv) in zip(values, contrib, strict=True)
-            ],
-            benchmark=bench,
-            twr=figures.fmt_rate(perf.twr(values, comb.flow)),
-            irr=figures.fmt_rate(rate),
-            contributed=put_in,
-            growth=end - start - put_in,
-            start=start,
-            end=end,
-        )
+        with scoping.as_server(
+            s, "a portfolio's figures, over what its viewer reads and their own deleted accounts"
+        ) as srv:
+            accounts = [srv.get(Account, a.id) for a in accounts]
+            accounts = with_deleted(srv, c.id, p, accounts)
+            first = figures.first_day(range, today, figures.earliest(srv, accounts))
+            comb = figures.combine(srv, accounts, first, today, figures.step_for(first, today))
+            values = comb.values
+            contrib = figures.contributions(values, comb.flow)
+            index = figures.benchmark_index(srv, bench, first, today)
+            bench_values = dict(perf.benchmark(values, comb.flow, index))
+            start = values[0][1] if values else Decimal(0)
+            end = values[-1][1] if values else Decimal(0)
+            put_in = (contrib[-1][1] - start) if contrib else Decimal(0)
+            rate = perf.irr(values[0][0], start, comb.flow, values[-1][0], end) if values else None
+            return PortfolioSeries(
+                points=[
+                    SeriesPoint(date=d, value=v, contributions=cv, benchmark=bench_values.get(d))
+                    for (d, v), (_, cv) in zip(values, contrib, strict=True)
+                ],
+                benchmark=bench,
+                twr=figures.fmt_rate(perf.twr(values, comb.flow)),
+                irr=figures.fmt_rate(rate),
+                contributed=put_in,
+                growth=end - start - put_in,
+                start=start,
+                end=end,
+            )
 
 
 @router.get("/portfolios/{portfolio_id}/returns", response_model=list[ReturnRow])
 def portfolio_returns(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
     """Time-weighted returns per period, per account and for the portfolio (S5.2.3)."""
     today = figures.today()
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         p, accounts, _ = _target(s, c, portfolio_id)
-        first = today - dt.timedelta(days=figures.RANGE_DAYS["5Y"])
-        step = 7
-        rows = []
-        # The portfolio's own returns keep an account deleted since, up to its deletion, as its
-        # value series does (R3.10); the rows are the accounts it holds now.
-        total = figures.combine(s, with_deleted(s, c.id, p, accounts), first, today, step)
-        for a in accounts:
-            led = repo.load(s, a)
-            series = total.byAccount[a.id]
+        with scoping.as_server(
+            s, "a portfolio's returns, over what its viewer reads and their own deleted accounts"
+        ) as srv:
+            accounts = [srv.get(Account, a.id) for a in accounts]
+            first = today - dt.timedelta(days=figures.RANGE_DAYS["5Y"])
+            step = 7
+            rows = []
+            # The portfolio's own returns keep an account deleted since, up to its deletion, as its
+            # value series does (R3.10); the rows are the accounts it holds now.
+            total = figures.combine(srv, with_deleted(srv, c.id, p, accounts), first, today, step)
+            for a in accounts:
+                led = repo.load(srv, a)
+                series = total.byAccount[a.id]
+                rows.append(
+                    ReturnRow(
+                        id=a.id,
+                        name=a.name,
+                        periods={
+                            k: figures.fmt_rate(v)
+                            for k, v in figures.period_returns(
+                                series, perf.flows(led.transactions), today
+                            ).items()
+                        },
+                    )
+                )
             rows.append(
                 ReturnRow(
-                    id=a.id,
-                    name=a.name,
+                    id=portfolio_id,
+                    name=p.name if p else "All my accounts",
                     periods={
                         k: figures.fmt_rate(v)
-                        for k, v in figures.period_returns(
-                            series, perf.flows(led.transactions), today
-                        ).items()
+                        for k, v in figures.period_returns(total.values, total.flow, today).items()
                     },
                 )
             )
-        rows.append(
-            ReturnRow(
-                id=portfolio_id,
-                name=p.name if p else "All my accounts",
-                periods={
-                    k: figures.fmt_rate(v)
-                    for k, v in figures.period_returns(total.values, total.flow, today).items()
-                },
-            )
-        )
-        return rows
+            return rows
 
 
 @router.get("/portfolios/{portfolio_id}/holdings", response_model=PortfolioHoldings)
@@ -429,7 +432,7 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
     """What the portfolio's visible accounts hold, added up by instrument."""
     from ..store.entities.accounts import Instrument
 
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         _, accounts, _ = _target(s, c, portfolio_id)
         by: dict[str, dict] = {}
         cash = Decimal(0)

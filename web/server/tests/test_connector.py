@@ -47,7 +47,7 @@ class FakeConnector:
         self.status = Ed25519PrivateKey.generate()
         self.sealing = Ed25519PrivateKey.generate()  # any 32 raw bytes serve as a sealing key
         self.client = client
-        with server.db.tx() as s:
+        with server.db.tx(unscoped="test") as s:
             self.server_key = keys.public_of(s, server.keys.secrets)
         self.fp = keys.fingerprint(self.server_key)
 
@@ -105,7 +105,7 @@ class FakeConnector:
 
 @pytest.fixture
 def admin(server, admin_client):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     return admin_client
 
@@ -242,7 +242,7 @@ def test_pairing_takes_the_code_once_and_records_the_keys(server, admin, client)
     # The code worked once.
     again = FakeConnector(server, client).pair(code)
     assert again.status_code == 403 and again.json()["code"] == "code-used"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         row = manage.paired(s)
         assert row.codeHash is None and row.actionKey == keys.b64(
             keys.raw_public(fake.key.public_key())
@@ -271,7 +271,7 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
     and is answered with nothing about a Connection; its report sets no page, state or
     sign-in address; every other call but `unpaired` is refused under it."""
     alice = make_user(server, "alice")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         row = manage.paired(s)
         c = Connection(id=ids.new_id("Conn"), ownerId=alice.id, connectorId=row.id,
                        driver="schwab", label="Alice's Schwab", state="new",
@@ -294,7 +294,7 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
     assert "Alice" not in r.text and "appKey" not in r.text
     view = admin.get("/ui/api/settings/connector").json()
     assert view["locked"] is True and view["page"] == "https://c.lan:37374"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         c = s.get(Connection, cid)
         assert c.state == "new" and c.message is None and c.signInAddress is None
     for path, body in (
@@ -305,21 +305,21 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
     ):  # fmt: skip
         r = paired.call(path, body, status=True)
         assert r.status_code == 403 and r.json()["code"] == "status-key", path
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.get(Connection, cid).sealedCredential == "c2VhbGVk"
     # `unpaired` is the status key's too: a connector reset for lost words has only it.
     r = paired.call("/connector/v1/unpaired", {}, status=True)
     assert r.status_code == 200
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert manage.paired(s) is None
 
 
 def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admin, client):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", None, None)
     r = admin.post("/ui/api/settings/connector/pairings")
     assert r.status_code == 422 and r.json()["code"] == "no-address"
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", ORIGIN, None)
     code = pair_code(admin)
     clock.fix(dt.datetime.now(dt.UTC) + dt.timedelta(hours=25))
@@ -398,7 +398,7 @@ def test_a_call_is_refused_before_its_body_is_read(server, paired, client, monke
 
 
 def connection(server, owner_id: str, label="Alice's Schwab login", driver="schwab") -> str:
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         row = manage.paired(s)
         c = Connection(
             id=ids.new_id("Conn"),
@@ -415,7 +415,7 @@ def connection(server, owner_id: str, label="Alice's Schwab login", driver="schw
 
 
 def account(server, owner_id: str, connection_id: str | None = None, **kw) -> str:
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a = Account(
             id=ids.new_id("Acct"),
             ownerId=owner_id,
@@ -492,7 +492,7 @@ def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, 
     page = "https://api.schwabapi.com/v1/oauth/authorize?client_id=KEY&state=s"
     r = paired.call(f"/connector/v1/connections/{cid}/sign-in", {"address": page})
     assert r.status_code == 200
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         c = s.get(Connection, cid)
         assert c.state == "needs-sign-in" and c.signInAddress == page
     r = paired.call(
@@ -506,7 +506,7 @@ def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, 
                           ("https://evil.example/schwab-login", None), (page, page)):  # fmt: skip
         rep = {"id": cid, "state": "needs-sign-in", "signInAddress": address}
         paired.call("/connector/v1/report", {"locked": False, "connections": [rep]})
-        with server.db.read() as s:
+        with server.db.read(unscoped="test") as s:
             assert s.get(Connection, cid).signInAddress == kept, address
 
 
@@ -540,7 +540,7 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
     )
     assert r.json()["imported"] == {"added": 0, "matched": 2, "changed": 0}, "idempotent"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.query(Transaction).filter_by(accountId=aid).count() == 2
         imp = s.query(Import).filter_by(accountId=aid).first()
         assert imp.userId == alice and imp.format == "ofx"
@@ -576,7 +576,7 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
     )
     assert r.status_code == 403 and r.json()["code"] == "file-refused" and r.json()["message"]
     # CR3-333: a file over Settings › Imports' size is `too-large`, signed.
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "importMaxMb", 1, None)
     body, ctype = _multipart(OFX + b" " * (1024 * 1024), {"connectionId": cid})
     r = paired.call(
@@ -614,7 +614,7 @@ def test_a_posted_statement_is_kept_without_reading_once(server, paired):
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
     )
     assert r.json()["repeated"] is True
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         imps = s.query(Import).filter_by(accountId=aid).all()
         assert len(imps) == 1 and imps[0].format == "kept"
     c = sign_in(server, "alice")
@@ -641,7 +641,7 @@ def test_unpair_stops_every_connection_and_turns_sync_off(server, paired, admin,
     aid = account(server, alice, cid)
     r = admin.post("/ui/api/settings/connector/unpair")
     assert r.status_code == 200 and r.json()["state"] == "none"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.get(Connection, cid).state == "removed"
         assert s.get(Account, aid).connectionId is None
     r = paired.call("/connector/v1/report", {})
@@ -657,7 +657,7 @@ def test_unpair_stops_every_connection_and_turns_sync_off(server, paired, admin,
     # And the connector's own unpair ends it here.
     assert second.call("/connector/v1/unpaired", {}).json()["state"] == "ended"
     assert admin.get("/ui/api/settings/connector").json()["state"] == "none"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert [r.state for r in s.query(Connector).order_by(Connector.createdAt)] == [
             "ended",
             "ended",
@@ -734,7 +734,7 @@ def test_an_admin_who_owns_the_connection_is_alerted_once(server, paired, admin)
     other = sign_in(server, "root2")
     theirs = [a for a in other.get("/ui/api/alerts").json()["open"] if "sign-in" in a["title"]]
     assert [a["fix"] for a in theirs] == ["Connector settings"]
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         told = sorted(u.username for a in opened for u in alerts.recipients(s, a))
     assert told == sorted([me["username"], "root2"])
 
@@ -776,7 +776,7 @@ def test_network_ranges_decide_who_reaches_each_path(server, admin):
 def activity_rows(server):
     from moolakata.store.entities.core import Activity
 
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         return list(s.query(Activity))
 
 
@@ -805,7 +805,7 @@ def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, pa
     from moolakata.connector import manage
 
     def report(address):
-        with server.db.read() as s:
+        with server.db.read(unscoped="test") as s:
             row = manage.paired(s)
         manage.apply_report(server, row, {"locked": False}, "0.1.0", 1, address=address)
 
@@ -813,7 +813,7 @@ def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, pa
         from moolakata.store.entities.alerts import Alert
 
         alerts.evaluate(server)
-        with server.db.read() as s:
+        with server.db.read(unscoped="test") as s:
             return (
                 s.query(Alert).filter_by(kind="connector-moved", resolvedAt=None).first()
                 is not None
@@ -838,7 +838,7 @@ def test_the_pairing_code_carries_the_connectors_own_address_else_the_public_url
         code = pair_code(admin)
         return manage.decode_code(code)["a"]
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "linkAddress", "https://links.example.net", None)
     assert carried() == ORIGIN
     r = save_settings(admin, {"connectorAddress": "money.lan"})

@@ -114,7 +114,7 @@ def _person_of(s, c: Caller, kind: str, ident: str) -> Person | None:
     if kind not in ("person", "user"):
         return None
     p = s.get(Person, ident)
-    return p if p is not None and people.level(s, c.id, p) is not None else None
+    return p if p is not None and people.readable(s, c.id, p.id) else None
 
 
 def _check_beneficiary(s, c: Caller, b: BeneficiaryRef | None, owner_id: str) -> dict:
@@ -128,7 +128,7 @@ def _check_beneficiary(s, c: Caller, b: BeneficiaryRef | None, owner_id: str) ->
 
 @router.get("/accounts/{account_id}/plan529", response_model=PlanOut)
 def get_plan(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, lvl = _account(s, c, account_id)
         return plan_view(s, a, lvl)
 
@@ -305,7 +305,7 @@ def contributions_view(s, a: Account, lvl: str) -> ContributionsView:
 
 @router.get("/accounts/{account_id}/contributions", response_model=ContributionsView)
 def list_contributions(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, lvl = _account(s, c, account_id)
         return contributions_view(s, a, lvl)
 
@@ -477,7 +477,7 @@ def withdrawals_view(s, c: Caller, a: Account, lvl: str) -> WithdrawalsView:
                 description=e.description,
                 amount=e.amount,
                 documents=[
-                    receipt_row(s, r, receipts.level(s, c.id, r) or "read", c.id)
+                    receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
                     for r in receipts.of_item(s, e.id, "expense")
                 ],
                 version=e.version,
@@ -491,7 +491,7 @@ def withdrawals_view(s, c: Caller, a: Account, lvl: str) -> WithdrawalsView:
 
 @router.get("/accounts/{account_id}/withdrawals", response_model=WithdrawalsView)
 def list_withdrawals(account_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, lvl = _account(s, c, account_id)
         return withdrawals_view(s, c, a, lvl)
 
@@ -585,7 +585,7 @@ def _goals(s, c: Caller, b: education.Beneficiary) -> list[Projection]:
 @router.get("/accounts/{account_id}/goal", response_model=GoalView)
 def get_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
     """The beneficiary's education projection: the active one, else the first made."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         b = education.beneficiary(s, education.plan_of(s, a))
         if b is None:
@@ -594,7 +594,8 @@ def get_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
         if not found:
             return GoalView(beneficiary=_beneficiary_out(b), projection=None, others=0)
         p = found[0]
-        lvl = access.level_of(s, c.id, "projection", p.ownerId, p.id, p.deleted) or "read"
+        perms = access.perms(s, Projection, p.id, c.id)
+        lvl = perms.level() if perms is not None else "read"
         return GoalView(
             beneficiary=_beneficiary_out(b),
             projection=projection_detail(s, c.id, p, lvl),
@@ -606,12 +607,12 @@ def get_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
 def start_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
     """An education projection for the beneficiary, built on their 529s the caller can see,
     starting from the shipped public-college average and this year's contributions."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         a, _ = _account(s, c, account_id, "write")
         b = education.beneficiary(s, education.plan_of(s, a))
         if b is None:
             raise Problem(409, "no-beneficiary", "Choose the beneficiary in Settings first.")
-        mine = [x.id for x, _ in access.visible_accounts(s, c.id)]
+        mine = [x.id for x, _ in access.accounts(s, c.id)]
         built = education.accounts_for(s, b.id, mine) or [a.id]
         rows = education.contributions(s, a)
         year = clock.today().year

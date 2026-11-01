@@ -64,7 +64,7 @@ def test_turning_it_on_needs_a_code_from_the_seed(server, frozen):
     me = c.get("/ui/api/profile").json()["twoStep"]
     assert me["on"] is True and me["recoveryCodesLeft"] == 10
     # The seed is sealed as a secret, and the one being set up is gone.
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         fields = {x.field for x in s.scalars(select(Secret).where(Secret.recordType == "User"))}
         assert fields == {"totp"}
     assert "user.two-step-on" in kinds(server)
@@ -124,7 +124,7 @@ def test_a_recovery_code_works_once(server, frozen):
             ]
             r = b.post("/ui/api/session/two-step", json={"token": token, "code": codes[0].upper()})
             assert r.status_code == expected
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert len(s.scalars(select(RecoveryCode)).all()) == 9
     assert "signin.recovery-code" in kinds(server)
     # N12: the sign-in with a recovery code is emailed, with how many are left.
@@ -210,7 +210,7 @@ def test_an_admins_reset_turns_it_off_and_ends_the_users_sessions(server, admin_
     r = admin_client.post(f"/ui/api/users/{alice.id}/two-step/reset")
     assert r.status_code == 200 and r.json()["twoStep"] is False
     assert c.get("/ui/api/session").status_code == 401
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.scalars(select(Session).where(Session.userId == alice.id)).first() is None
         assert s.scalars(select(Secret).where(Secret.recordId == alice.id)).first() is None
     assert "user.two-step-reset" in kinds(server)
@@ -226,7 +226,7 @@ def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):
 
     make_user(server, "alice")
     seed, _ = turn_on(sign_in(server, "alice"))
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         u = s.query(User).filter_by(username="alice").one()
         u.recentAddresses = '{"192.0.2.1": "2026-10-01T00:00:00+00:00"}'
     later(30)

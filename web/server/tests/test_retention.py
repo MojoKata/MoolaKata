@@ -25,7 +25,7 @@ def frozen():
 
 
 def cat(server, name, years=None):
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         c = s.scalars(select(Category).where(Category.name == name)).first()
         c.keepReceiptsYears = years
         return c.id, c.parentId
@@ -47,7 +47,7 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
     c = sign_in(server, "alice")
     acct = new_account(c)
     child, parent = cat(server, "Doctor")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(Category, parent).keepReceiptsYears = 3  # the subcategory takes its parent's
     t = add(c, acct["id"], "-42.18", "2029-10-02", payee="Clinic", categoryId=child)
     rid = receipt_on(c, t["id"], png((1, 2, 3)))
@@ -68,7 +68,7 @@ def test_a_lots_receipt_is_kept_while_the_lot_is_open(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     acct = new_account(c, type="brokerage")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         any_cat = s.scalars(select(Category)).first()
         any_cat.keepReceiptsYears = 2
         cid = any_cat.id
@@ -116,7 +116,7 @@ def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     st = admin_client.get("/ui/api/settings/storage").json()
     assert st["expired"]["files"] == 1 and st["expiredBy"][0]["category"] == "Groceries"
     assert "text" not in str(st), "sizes and counts only"
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         for row in s.scalars(select(Session)):
             row.authAt -= dt.timedelta(minutes=11)
     body = {"categories": ["Groceries"], "count": 1}
@@ -148,7 +148,7 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     c = sign_in(server, "alice")
     acct = new_account(c)
     rid = upload(c, png((90, 91, 92))).json()["id"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         r = s.get(Receipt, rid)
         r.date = dt.date(2027, 9, 30)
         receipts.attach_account(s, alice.id, r, acct["id"])
@@ -172,7 +172,7 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
     c = sign_in(server, "alice")
     first = upload(c, png((9, 8, 7))).json()["id"]
     second = upload(c, png((9, 8, 7))).json()["id"]
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         a, b = s.get(Receipt, first), s.get(Receipt, second)
         assert a.fileId == b.fileId, "one file for the same bytes"
         b.mark_deleted(None)
@@ -198,3 +198,37 @@ def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_clien
     )
     r = change(admin_client, "Cat", food, name="Eating")
     assert r.json()["errors"][0]["code"] == "category-fixed"
+
+
+def test_an_admins_household_wide_file_work_counts_every_users_files(server, admin_client):
+    """Storage's counts, its pruning and *Remove orphans* are the household's: a file is an
+    orphan only when no one's record names it, never when the admin can't read that record
+    (schema.md §7.6)."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    acct = new_account(c)
+    t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger")
+    rid = receipt_on(c, t["id"], png((10, 20, 30)))
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["orphans"]["files"] == 0 and st["receiptsBytes"] > 0
+    admin_client.post("/ui/api/session/reauth", json={"password": "a long admin passphrase"})
+    r = admin_client.post("/ui/api/settings/storage/orphans/remove")
+    assert r.status_code == 200 and r.json()["files"] == 0, r.text
+    assert c.get(f"/ui/api/receipts/{rid}/file").status_code == 200
+
+
+def test_an_admins_reading_queue_and_wallets_are_the_households(server, admin_client):
+    """Settings › Receipts counts and reads again every user's receipts, and Settings ›
+    Bitcoin counts every wallet, not only what the admin reads (schema.md §7.6)."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    acct = new_account(c)
+    t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger")
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    rid = receipt_on(c, t["id"], png((40, 50, 60)))
+    assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "off"
+    new_account(c, name="Cold storage", type="crypto-wallet")
+    assert admin_client.get("/ui/api/settings/bitcoin").json()["wallets"] == 1
+    assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
+    admin_client.post("/ui/api/settings/receipts/reread")
+    assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] != "off", "hers too"

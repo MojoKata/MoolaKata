@@ -17573,6 +17573,7 @@
               "unsupported-type",
               "until-before-from",
               "upload-gone",
+              "uploads-busy",
               "uploads-in-flight",
               "user-delete",
               "user-inactive",
@@ -17588,6 +17589,7 @@
               "weight-invalid",
               "word-wrong",
               "words-wrong",
+              "write-refused",
               "year-invalid",
               "year-missing",
               "year-unknown",
@@ -18019,6 +18021,7 @@
                   "unsupported-type",
                   "until-before-from",
                   "upload-gone",
+                  "uploads-busy",
                   "uploads-in-flight",
                   "user-delete",
                   "user-inactive",
@@ -18034,6 +18037,7 @@
                   "weight-invalid",
                   "word-wrong",
                   "words-wrong",
+                  "write-refused",
                   "year-invalid",
                   "year-missing",
                   "year-unknown",
@@ -18877,6 +18881,10 @@
       "ReceiptDetail": {
         "additionalProperties": false,
         "properties": {
+          "alsoKeptWith": {
+            "title": "Alsokeptwith",
+            "type": "integer"
+          },
           "amount": {
             "anyOf": [
               {
@@ -19137,6 +19145,7 @@
           "tags",
           "tagIds",
           "links",
+          "alsoKeptWith",
           "hasThumbnail",
           "readStatus",
           "readError",
@@ -19275,6 +19284,10 @@
       "ReceiptRow": {
         "additionalProperties": false,
         "properties": {
+          "alsoKeptWith": {
+            "title": "Alsokeptwith",
+            "type": "integer"
+          },
           "amount": {
             "anyOf": [
               {
@@ -19441,6 +19454,7 @@
           "tags",
           "tagIds",
           "links",
+          "alsoKeptWith",
           "hasThumbnail",
           "readStatus",
           "readError",
@@ -35960,6 +35974,7 @@
     },
     "/ui/api/tax-books": {
       "get": {
+        "description": "The books the user holds or helps with, and those they are named in, to accept.",
         "operationId": "list_books_ui_api_tax_books_get",
         "parameters": [
           {

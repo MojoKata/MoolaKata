@@ -52,7 +52,7 @@ def test_month_figures_are_kept_and_refreshed(server, frozen):
     )
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "50.00"
     # A change the kept figures don't see (written past the session's flush): Refresh does.
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.execute(update(Transaction).where(Transaction.id == t["id"]).values(amount=-80))
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "50.00"
     r = c.post(f"/ui/api/budgets/{b['id']}/refresh", params={"month": "2026-10"})

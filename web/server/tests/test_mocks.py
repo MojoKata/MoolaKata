@@ -97,7 +97,7 @@ def test_a_wallet_syncs_from_the_fake_esplora_through_the_server(server, mocks):
 
     make_user(server, "alice")
     c = sign_in(server, "alice")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "bitcoinSource", "esplora", None)
         settings.put(
             s, "bitcoinEsploraUrl", f"http://127.0.0.1:{mocks.ports()['esplora']}/api", None

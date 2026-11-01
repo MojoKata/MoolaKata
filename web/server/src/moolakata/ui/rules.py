@@ -90,7 +90,7 @@ def _out(s, r: Rule, paths: dict) -> RuleOut:
 
 
 def _writable(s, user_id: str) -> list[str]:
-    return [a.id for a, lvl in access.visible_accounts(s, user_id) if lvl in ("owner", "write")]
+    return [a.id for a, p in access.accounts(s, user_id) if p.writable]
 
 
 def _uncategorised(s, user_id: str) -> list[Transaction]:
@@ -196,7 +196,7 @@ def _renumber(rules: list[Rule]) -> None:
 
 @router.get("/rules", response_model=RuleList)
 def list_rules(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return _list(s, c.id)
 
 
@@ -283,7 +283,7 @@ save.register(
 def apply_rules(request: Request, c: Caller = Depends(caller)):
     """The rules over the uncategorised transactions in the accounts the user can change; how
     many changed is recorded, never which (S2.7.4)."""
-    with server(request).db.tx() as s:
+    with server(request).db.tx(user=c.id) as s:
         rules = repo.Rules(s, c.id)
         changed = sum(rules.apply(t) for t in _uncategorised(s, c.id)) if rules else 0
         s.flush()

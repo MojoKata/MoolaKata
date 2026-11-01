@@ -11,6 +11,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, people, receipts
 from ..errors import FieldError, Problem, refuse
+from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.taxes import (
     EstimatedPayment,
@@ -97,8 +98,27 @@ def _row(s, b: TaxBook, lvl: str) -> BookRow:
 
 @router.get("/tax-books", response_model=list[BookRow])
 def list_books(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
-        return [_row(s, b, lvl) for b, lvl in books.visible(s, c.id)]
+    """The books the user holds or helps with, and those they are named in, to accept."""
+    with server(request).db.read(user=c.id) as s:
+        found = [(b, p.level()) for b, p in access.listing(s, TaxBook, c.id)]
+        waiting = s.scalars(
+            select(TaxBookFiler.bookId).where(
+                TaxBookFiler.userId == c.id,
+                TaxBookFiler.acceptedAt.is_(None),
+                TaxBookFiler.deleted == false(),
+            )
+        ).all()
+        rows = [(b.year, b.createdAt, _row(s, b, lvl)) for b, lvl in found]
+        if waiting:
+            # A book they are named in shows its year and filers, to accept, and nothing more
+            # until they do (S8.14.1): read as the server.
+            with scoping.as_server(s, "tax books waiting for a filer to accept") as srv:
+                for b in srv.scalars(
+                    select(TaxBook).where(TaxBook.id.in_(waiting), TaxBook.deleted == false())
+                ):
+                    rows.append((b.year, b.createdAt, _row(srv, b, "pending")))
+        rows.sort(key=lambda r: (-r[0], r[1]))
+        return [r[2] for r in rows]
 
 
 class NewBookOut(BookRow):
@@ -181,17 +201,22 @@ def _from_last_year(s, b: TaxBook, now: dt.datetime) -> list[str]:
 @router.post("/tax-books/{book_id}/accept", response_model=BookRow)
 def accept(book_id: str, request: Request, c: Caller = Depends(caller)):
     """A filer named by someone else accepts; then the book counts their accounts."""
-    with server(request).db.tx() as s:
-        b = s.get(TaxBook, book_id)
-        f = (
-            next((x for x in books.filers(s, b) if x.userId == c.id), None)
-            if b is not None and not b.deleted
-            else None
-        )
+    with server(request).db.tx(user=c.id) as s:
+        # Their own invitation, which they read before accepting (S8.14.1).
+        f = s.scalars(
+            select(TaxBookFiler).where(
+                TaxBookFiler.bookId == book_id,
+                TaxBookFiler.userId == c.id,
+                TaxBookFiler.deleted == false(),
+            )
+        ).first()
         if f is None:
             raise Problem(404, "not-found", "Not found")
         f.acceptedAt = f.acceptedAt or clock.now()
         s.flush()
+        b = s.get(TaxBook, book_id)  # theirs now, as a filer's
+        if b is None:
+            raise Problem(404, "not-found", "Not found")
         _from_last_year(s, b, clock.now())
         s.flush()
         return _row(s, b, "owner")
@@ -462,6 +487,14 @@ def _filing(s, f: Filing, docs: list[TaxDocument], today: dt.date) -> FilingOut:
 
 
 def detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
+    """A book the caller reads, in full: its accounts, documents and dependents are the
+    book's, worked out as the server over every filer's accounts (S8.14.2, decision 8.1 of
+    the access-views walk)."""
+    with scoping.as_server(s, "a tax book in full, for one who reads it") as srv:
+        return _detail(srv, c, srv.get(TaxBook, b.id), lvl)
+
+
+def _detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
     today = clock.today()
     cnt = books.counted(s, b)
     docs = books.documents(s, b)
@@ -470,7 +503,7 @@ def detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
     counted_ids = {a.id for a in cnt.accounts}
     addable = [
         a
-        for a, _ in access.visible_accounts(s, c.id)
+        for a, _ in access.accounts(s, c.id)
         if a.id not in counted_ids and a.id not in {x.id for x in cnt.leftOut}
     ]
     base = _row(s, b, lvl)
@@ -514,7 +547,7 @@ def detail(s, c: Caller, b: TaxBook, lvl: str) -> BookDetail:
 
 @router.get("/tax-books/{book_id}", response_model=BookDetail)
 def get_book(book_id: str, request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, lvl = books.get(s, c.id, book_id)
         return detail(s, c, b, lvl)
 
@@ -609,7 +642,7 @@ class CandidateOut(Model):
 def dependent_candidates(book_id: str, request: Request, c: Caller = Depends(caller)):
     """The household's people the caller sees, with their relation to the filers on Dec 31
     and how the family tree suggests claiming them (S8.14.5.1)."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         b, _ = books.get(s, c.id, book_id, "write")
         return [
             CandidateOut(
@@ -1063,7 +1096,7 @@ def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
 
 
 def _book_delete(ctx, b: TaxBook) -> None:
-    books.get(ctx.s, ctx.caller.id, b.id, "owner")
+    books.get(ctx.s, ctx.caller.id, b.id, "deletable")
     b.mark_deleted(ctx.caller.id)
 
 

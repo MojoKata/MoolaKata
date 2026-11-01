@@ -157,7 +157,7 @@ def test_an_assignment_follows_its_opening_trade_and_goes_with_its_stock_trade(s
         f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle",
         json={"how": "assign", "date": "2026-11-20"},
     ).json()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(Transaction, sold["id"]).amount = D("700.00")
     assert _held(alice, brk["id"], "MSFT")["cost"] == "47300.00"
     r = remove(alice, "Txn", end)
@@ -227,7 +227,7 @@ def test_out_of_the_money_expires_the_day_after(server, alice):
         expiry="2026-10-09",
         fees="0",
     )
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         msft = s.query(Instrument).filter_by(symbol="MSFT").one()
         s.add(
             Price(
@@ -239,7 +239,7 @@ def test_out_of_the_money_expires_the_day_after(server, alice):
                 updatedAt=clock.now(),
             )
         )
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         assert options.expire_due(s, dt.date(2026, 10, 13)) == 1, "the 480 put; the 530 is ITM"
     v = alice.get("/ui/api/positions").json()
     assert [r["symbol"] for r in v["open"]] == ["MSFT 09OCT26 530 P"]
@@ -322,7 +322,7 @@ def test_only_the_expiry_days_close_decides_an_expiry(server, alice):
     pricing.install()
     brk = new_account(alice, name="Brokerage", type="brokerage")
     opt(alice, brk["id"], "sell-to-open", "2026-09-02", "6.40", expiry="2026-10-09", fees="0")
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         msft = s.query(Instrument).filter_by(symbol="MSFT").one()
         s.add(
             Price(
@@ -334,7 +334,7 @@ def test_only_the_expiry_days_close_decides_an_expiry(server, alice):
                 updatedAt=clock.now(),
             )
         )
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         assert options.expire_due(s, dt.date(2026, 10, 13)) == 0
 
 

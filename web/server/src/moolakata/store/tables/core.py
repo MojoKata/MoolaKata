@@ -3,7 +3,7 @@
 from sqlalchemy import Column, ForeignKey, Index, LargeBinary, Text, UniqueConstraint
 
 from ..types import UtcTimestamp
-from ._base import exception, record, unique_live
+from ._base import Seen, exception, record, unique_live
 
 # A setting an admin saved (S16): one live row a key; a key with none stands at its default.
 Setting = record(
@@ -12,6 +12,7 @@ Setting = record(
     Column("key", Text, nullable=False),
     Column("value", Text, nullable=False),
     Column("updatedById", Text, ForeignKey("User.id")),
+    seen=Seen.admin(),
 )
 unique_live(Setting, "key")
 
@@ -28,6 +29,7 @@ Secret = exception(
     Column("setById", Text, ForeignKey("User.id")),
     UniqueConstraint("recordType", "recordId", "field"),
     prefix="Secr",
+    seen=Seen.server(),
 )
 
 TaskRun = exception(
@@ -37,6 +39,7 @@ TaskRun = exception(
     Column("startedAt", UtcTimestamp, nullable=False),
     Column("finishedAt", UtcTimestamp),
     Column("error", Text),
+    seen=Seen.server(),
 )
 
 # An email waiting to go out through SMTP (S16.2), in the database, which is encrypted: removed
@@ -54,4 +57,5 @@ QueuedEmail = exception(
     Column("error", Text),
     Index("ix_QueuedEmail_queuedAt", "queuedAt"),
     prefix="Email",
+    seen=Seen.admin(),
 )

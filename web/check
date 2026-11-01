@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Every check, as CI runs it (requirements S17.5). No Node.js: pytest, ruff, Deno and
 # Playwright for Python. Run `web/dev.sh setup` once first.
+#
+#   web/check                    every part, in turn
+#   web/check <part> [<part>…]   those parts only: static, mockups, server, browser, connector,
+#                                coverage. CI runs them as jobs side by side (S17.10.1); the
+#                                coverage part reads what the test parts measured.
 set -uo pipefail
 
 WEB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,14 +26,25 @@ step() {
   fi
 }
 
+PARTS=(static mockups server browser connector coverage)
+parts=("$@")
+((${#parts[@]})) || parts=("${PARTS[@]}")
+for p in "${parts[@]}"; do
+  [[ " ${PARTS[*]} " == *" $p "* ]] || { echo "web/check: no part $p (${PARTS[*]})" >&2; exit 2; }
+done
+want() { [[ " ${parts[*]} " == *" $1 "* ]]; }
+
 py() { (cd "$SERVER" && uv run --frozen --quiet "$@"); }
 # What the tests reach (S17.5.8): every Python process the tests start, and the browser app
 # in Deno's tests and the browser tests' pages, measured into one place for the report.
 COVERAGE="$WEB/.dev/coverage"
-rm -rf "$COVERAGE" && mkdir -p "$COVERAGE/server" "$COVERAGE/js"
+# The coverage part alone reads what is there already (in CI, the test jobs' measurements).
+[[ "${parts[*]}" == coverage ]] || rm -rf "$COVERAGE"
+mkdir -p "$COVERAGE/server" "$COVERAGE/js"
 export COVERAGE_FILE="$COVERAGE/server/.coverage" COVERAGE_CORE=sysmon MK_JS_COVERAGE="$COVERAGE/js"
 deno() { "$WEB/dev.sh" deno "$@"; }
 
+if want static; then
 step "uv.lock matches pyproject.toml" bash -c "cd '$SERVER' && uv lock --check --quiet"
 step "every dependency has amd64 and arm64 wheels" py python -m moolakata.dev.wheels
 step "the dependency register is audited (S17.2.1)" py python -m moolakata.dev.audit check
@@ -49,16 +65,20 @@ step "deno fmt" deno fmt --check --quiet --config "$WEB/ui/deno.json"
 step "deno test" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
   --import-map "$WEB/ui/tests/import_map.json" --coverage="$COVERAGE/js" "$WEB/ui/tests/"
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
-if [[ -f "$WEB/ui/mockup/build.py" ]]; then
+fi
+if want mockups && [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check
 fi
 # The server's tests across a worker per core (S17.5.2), each its own process measured as the
 # rest are; the browser modules' share one seeded household, so they run in one (L16).
-step "pytest (server, schema)" py coverage run -m pytest -n auto -m "not browser and not audit"
-step "pytest (browser)" py coverage run -m pytest -m browser
-step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
-step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check
-step "hand-written mockup" py python "$ROOT/docs/mockups/check.py" "$WEB/.dev/check-shots"
+want server &&
+  step "pytest (server, schema)" py coverage run -m pytest -n auto -m "not browser and not audit"
+want browser && step "pytest (browser)" py coverage run -m pytest -m browser
+want connector && step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
+want coverage &&
+  step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check
+want mockups &&
+  step "hand-written mockup" py python "$ROOT/docs/mockups/check.py" "$WEB/.dev/check-shots"
 
 if ((${#failed[@]})); then
   printf '\nFAILED: %s\n' "${failed[*]}"

@@ -121,7 +121,7 @@ def _shares(d: dict[str, Decimal]) -> list[Share]:
 def get_giving(request: Request, year: int | None = None, c: Caller = Depends(caller)):
     today = clock.today()
     year = year or today.year
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         plan, lvl = giving.plan_for(s, c.id, year)
         who = giving.givers(s, plan, c.id)
         gifts = giving.donations(s, who, year)
@@ -281,7 +281,7 @@ def _org_values(body: OrganisationIn) -> dict:
 
 @router.get("/giving/organisations", response_model=list[OrganisationOut])
 def list_organisations(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return _orgs_view(s, c)
 
 
@@ -371,7 +371,7 @@ def donations_view(s, c: Caller, year: int) -> list[DonationOut]:
 
 @router.get("/giving/donations", response_model=list[DonationOut])
 def list_donations(request: Request, year: int | None = None, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         return donations_view(s, c, year or clock.today().year)
 
 
@@ -588,7 +588,7 @@ def _gplan_editable(ctx, record_id: str) -> GivingPlan:
     if p is None or p.deleted:
         raise Problem(404, "not-found", "Not found")
     _, lvl = giving.plan_for(ctx.s, ctx.caller.id, p.year)
-    if access.RANK.get(lvl or "", 0) < access.RANK["write"]:
+    if lvl not in ("owner", "write"):
         raise Problem(403, "read-only", "This plan is shared with you to read.")
     return p
 

@@ -167,7 +167,7 @@ def _held_by(s: Session, viewer: str) -> list[str]:
 
     ids = {
         lot.instrumentId
-        for a, _ in access.visible_accounts(s, viewer)
+        for a, _ in access.accounts(s, viewer)
         for lot in repo.load(s, a).replay().open
         if lot.quantity
     }
@@ -294,7 +294,7 @@ def build(server, src: PriceSource, ctx: TaskContext | None) -> TickerSource:
     cls = SOURCES[src.name]
     key = None
     if cls.needs_key:
-        with server.db.read() as s:
+        with server.db.read(unscoped="prices.refresh: build") as s:
             key = secret_repo.use(s, server.keys.secrets, "PriceSource", src.id, "apiKey")
     if ctx is not None:
         ctx.limits.set(src.name, cls.limits)
@@ -308,7 +308,7 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
     """Load what is missing up to today for every priced instrument."""
     dev = server.config.dev
     today = clock.today()
-    with server.db.read() as s:
+    with server.db.read(unscoped="prices.refresh: refresh") as s:
         sources = enabled(s, dev)
         wanted = priced(s)
         last = last_stored(s)
@@ -330,7 +330,7 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         end = today
         if inst.instrumentClass == "option":
             # An option is fetched by its OCC ticker, and only until it expires (S4.4).
-            with server.db.read() as s:
+            with server.db.read(unscoped="prices.refresh: refresh") as s:
                 c = options.contract_of(s, inst.id)
                 under = s.get(Instrument, c.underlyingId) if c else None
             if c is None or under is None or c.expiry < start:
@@ -345,7 +345,7 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             ref = Ref(inst.id, symbol, cls)
             per_share = Decimal(1)
             if figure:
-                with server.db.read() as s:
+                with server.db.read(unscoped="prices.refresh: refresh") as s:
                     per_share = Decimal(str(taxtables.figures(s)[figure]))
         if not candidates:
             missing += 1
@@ -370,11 +370,11 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             run["ok"] = True
             if per_share:
                 closes = [(d, (c / per_share).quantize(Decimal("0.01"))) for d, c in closes]
-            with server.db.tx() as s:
+            with server.db.tx(unscoped="prices.refresh: refresh") as s:
                 stored += store(s, inst.id, closes, src.name)
             break
     now = clock.now()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="prices.refresh: refresh") as s:
         for src in s.scalars(select(PriceSource).where(PriceSource.id.in_(list(runs)))):
             run = runs[src.id]
             if not run["used"]:

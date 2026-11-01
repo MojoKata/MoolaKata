@@ -81,7 +81,7 @@ def pair_code(srv, by: str) -> tuple[Connector, str]:
     from .. import certs
 
     cert = certs.own_key(srv)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: pair code") as s:
         address = own_address(s)
         if not address:
             raise ConnectorError(
@@ -191,7 +191,7 @@ def answer_pair(srv, caller_public: bytes, body: dict, version: str | None, prot
             )
         }
     now = clock.now()
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: answer pair") as s:
         row = s.scalars(
             select(Connector).where(
                 Connector.deleted == false(),
@@ -234,7 +234,7 @@ def answer_pair(srv, caller_public: bytes, body: dict, version: str | None, prot
 def confirm(srv, by: str) -> bool:
     """Settings › Connector › Confirm (S18.4.3): an admin compared the fingerprints. Only then
     are sealed credentials handed over and files taken."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: confirm") as s:
         row = paired(s)
         if row is None:
             return False
@@ -248,7 +248,7 @@ def confirm(srv, by: str) -> bool:
 def accept_address(srv, by: str) -> bool:
     """Settings › Connector › Accept: the address the connector now reports from is its own
     (S18.2.4.4)."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: accept address") as s:
         row = paired(s)
         if row is None:
             return False
@@ -268,7 +268,7 @@ def unpair(srv, by: str | None, reason: str = "unpaired") -> bool:
     """Settings › Connector › Unpair, or the connector's own `unpaired` call: the paired
     connector ends, and so does any code still out, which a thief could otherwise use
     (S18.4.4)."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: unpair") as s:
         rows = list(
             s.scalars(
                 select(Connector).where(
@@ -324,7 +324,7 @@ def apply_report(
     """A report (S18.5, protocol §4.2): what the connector says of itself and each Connection,
     answered with what waits for it. Nothing in a report is a credential, an amount or an
     account number beyond its last four digits: what it says is kept as its words."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: apply report") as s:
         row = s.get(Connector, row.id)
         _heard(s, row, version, protocol, address)
         row.locked = bool(body.get("locked", False))
@@ -425,7 +425,7 @@ def apply_locked(
     """A report under the status key (S18.5): the connector is locked, and nothing else is
     taken from it; the answer acknowledges it and carries nothing about a Connection, an owner
     or an account, since a copy of the connector's volume holds this key (S18.2.4.4)."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: apply locked") as s:
         row = s.get(Connector, row.id)
         _heard(s, row, version, protocol, address)
         row.locked = True
@@ -477,7 +477,7 @@ def credential_taken(srv, row: Connector, connection_id: str, at: str | None = N
     """The connector filed the sealed credential in its vault: MoolaKata deletes its copy
     (S18.7.1); the Connection waits for its first run. The call names the box taken by when
     it was sealed (protocol §4.3.2): a newer one sealed since stays for the next report."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: credential taken") as s:
         c = connection_of(s, row, connection_id)
         if c is None:
             return False
@@ -525,7 +525,7 @@ def sign_in_allowed(driver: str, address: str) -> bool:
 def sign_in_address(srv, row: Connector, connection_id: str, address: str) -> bool | None:
     """A driver needs the owner to sign in at the institution's page (S18.7.1): the address is
     shown to the owner under Profile › Connections. None when it isn't the driver's own page."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="connector.manage: sign in address") as s:
         c = connection_of(s, row, connection_id)
         if c is None:
             return False

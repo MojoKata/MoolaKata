@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, Dec, UtcTimestamp
-from ._base import exception, record, unique_live
+from ._base import Seen, exception, record, unique_live
 
 OptionContract = record(
     "OptionContract",
@@ -34,6 +34,7 @@ OptionContract = record(
     CheckConstraint("strike > 0", name="strike"),
     CheckConstraint("multiplier > 0", name="multiplier"),
     Index("ix_OptionContract_underlying", "underlyingId", "expiry"),
+    seen=Seen.household(),
 )
 unique_live(OptionContract, "instrumentId")
 
@@ -51,6 +52,7 @@ Strategy = record(
     Column("marginRequirement", Cents),
     Column("dismissed", Boolean, nullable=False, server_default=text("0")),
     Index("ix_Strategy_accountId", "accountId"),
+    seen=Seen.child("accountId"),
 )
 
 # A strategy's legs: each an instrument held in its account (an option contract, or the
@@ -62,6 +64,7 @@ StrategyLeg = record(
     Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
     Column("quantity", Dec),  # shares, for a stock leg; none: the whole position
     Column("addedOn", Day, nullable=False),
+    seen=Seen.child("strategyId"),
 )
 unique_live(StrategyLeg, "strategyId", "instrumentId")
 
@@ -79,6 +82,7 @@ WashSale = exception(
     Column("heldFrom", Day, nullable=False),  # the replacement's holding period starts here
     Column("createdAt", UtcTimestamp, nullable=False),
     prefix="WashS",
+    seen=Seen.rule(),
 )
 Index("ix_WashSale_owner", WashSale.c.ownerId)
 Index("ix_WashSale_sale", WashSale.c.saleId)

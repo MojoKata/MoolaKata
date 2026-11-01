@@ -3,12 +3,14 @@ household's unless private, one person is added once, and dated relationships sa
 married to whom on a given day, for wash sales (S3.8) and joint tax books (S8.14.1)."""
 
 import datetime as dt
+from dataclasses import dataclass
 
 from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, ids
 from ..errors import FieldError, Problem
+from ..store import scoping
 from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
 
@@ -45,7 +47,7 @@ def for_new_user(s: Session, name: str, sex: str, by: str | None = None) -> Pers
     taken = set(s.scalars(select(User.personId).where(User.deleted == false())))
     free = [p for p in same_name(s, name) if p.id not in taken]
     if len(free) == 1:
-        p = free[0]
+        p = s.get(Person, free[0].id)
         p.sex, p.private = sex, False
         return p
     return make(s, name, sex, by)
@@ -74,7 +76,7 @@ def may_join(s: Session, user_id: str, p: Person) -> list[User]:
     """The remote users who may be this person (S10.10.1): of the same name, with a person of
     their own that nothing names yet; offered to someone who may change this one, a person
     who isn't a user."""
-    if p.deleted or user_of(s, p.id) is not None or level(s, user_id, p) != "owner":
+    if p.deleted or user_of(s, p.id) is not None or not changeable(s, user_id, p.id):
         return []
     out = []
     for u in s.scalars(
@@ -95,10 +97,14 @@ def join(s: Session, user_id: str, p: Person, remote: User) -> None:
     person stays as private as it was, and the remote user's own person goes."""
     if remote not in may_join(s, user_id, p):
         raise Problem(409, "cannot-join", "That user can't be joined to this person.")
-    own = s.get(Person, remote.personId)
-    remote.personId = p.id
-    s.flush()
-    own.mark_deleted(user_id)
+    # The remote user's record and its own person are the link's, not the joiner's to
+    # change: the server joins them, for one who may change the person.
+    with scoping.as_server(s, "a linked server's user joined to a person") as srv:
+        r = srv.get(User, remote.id)
+        own = srv.get(Person, r.personId)
+        r.personId = p.id
+        srv.flush()
+        own.mark_deleted(user_id)
 
 
 def of_user(s: Session, user_id: str) -> Person | None:
@@ -130,58 +136,30 @@ def is_admin(s: Session, user_id: str) -> bool:
     return user_id in admin_ids(s)
 
 
-def level(s: Session, user_id: str, p: Person, r: access.Reach | None = None) -> str | None:
-    """'owner' for those who may change it, 'read' for the rest who see it, else None."""
-    if p.deleted:
-        return None
-    u = s.get(User, user_id)
-    if u is None:
-        return None
-    # A linked server's user sees a person only through a share, of them or of a gift plan
-    # for them, read only (S10.3.3).
-    if u.linkId is None:
-        if p.id == u.personId or is_admin(s, user_id):
-            return "owner"
-        # Once they are a user here, a person is changed by that user (and admins) alone;
-        # until then, and for a linked server's user, who never signs in here, by whoever
-        # added them (S10.10.2).
-        mine = user_of(s, p.id)
-        if mine is not None and mine.id == user_id:
-            return "owner"
-        if (mine is None or mine.linkId is not None) and p.ownerId == user_id:
-            return "owner"
-        if not p.private:
-            return "read"
-    r = r or access.reach(s, user_id)
-    if r.levels.get(("person", p.id)):
-        return "read"
-    # Holding a gift plan for them shows them too.
-    from ..store.entities.education import GiftPlan
-
-    plans = s.scalars(
-        select(GiftPlan.id).where(GiftPlan.personId == p.id, GiftPlan.deleted == false())
-    ).all()
-    if any(r.levels.get(("gift-plan", i)) for i in plans):
-        return "read"
-    return None
-
-
 def visible(s: Session, user_id: str) -> list[tuple[Person, str]]:
-    r = access.reach(s, user_id)
-    out = []
-    for p in s.scalars(select(Person).where(Person.deleted == false()).order_by(Person.name)):
-        lvl = level(s, user_id, p, r)
-        if lvl is not None:
-            out.append((p, lvl))
-    return out
+    """The people the user reads (PersonAccess), by name: *owner* for those they may change,
+    *read* for the rest."""
+    return [
+        (p, "owner" if perms.writable else "read")
+        for p, perms in access.listing(s, Person, user_id, order_by=Person.name)
+    ]
+
+
+def readable(s: Session, user_id: str, person_id: str) -> bool:
+    return access.perms(s, Person, person_id, user_id) is not None
+
+
+def changeable(s: Session, user_id: str, person_id: str) -> bool:
+    p = access.perms(s, Person, person_id, user_id)
+    return p is not None and p.writable
 
 
 def get(s: Session, user_id: str, person_id: str, need: str = "read") -> Person:
-    p = s.get(Person, person_id)
-    lvl = level(s, user_id, p) if p is not None else None
-    if lvl is None:
+    perms = access.perms(s, Person, person_id, user_id)
+    p = s.get(Person, person_id) if perms is not None else None
+    if p is None:
         raise Problem(404, "not-found", "Not found")
-    if access.RANK[lvl] < access.RANK[need]:
+    if need != "read" and not perms.writable:
         raise Problem(
             403,
             "person-read-only",
@@ -206,13 +184,28 @@ def change(s: Session, p: Person, values: dict) -> None:
 # ---- One person, once (S10.10.3) ----
 
 
-def same_name(s: Session, name: str, exclude: str | None = None) -> list[Person]:
-    q = select(Person).where(
-        Person.deleted == false(), func.lower(Person.name) == name.strip().lower()
+@dataclass(frozen=True)
+class Named:
+    """A person as the one-person-once check sees them, read as the server: the check names
+    one the user may not read (S10.10.3)."""
+
+    id: str
+    name: str
+    birthYear: int | None
+    private: bool
+    ownerId: str | None
+    creator: str | None  # who added them, by name
+
+
+def same_name(s: Session, name: str, exclude: str | None = None) -> list[Named]:
+    q = (
+        select(Person.id, Person.name, Person.birthYear, Person.private, Person.ownerId)
+        .add_columns(select(User.displayName).where(User.id == Person.ownerId).scalar_subquery())
+        .where(Person.deletedAt.is_(None), func.lower(Person.name) == name.strip().lower())
     )
     if exclude:
         q = q.where(Person.id != exclude)
-    return list(s.scalars(q))
+    return [Named(*r) for r in s.execute(scoping.unscoped(q, "one person, once"))]
 
 
 def told_apart(a: int | None, b: int | None) -> bool:

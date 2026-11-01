@@ -52,7 +52,7 @@ def test_nothing_leaves_the_server_with_no_network(server, admin_client, watched
     from moolakata.prices import refresh
     from moolakata.store import maintenance
 
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         settings.put(s, "readReceipts", True, None)
     # A receipt read in the worker process (native OCR), a price refresh (the stub source
     # only), a backup, and every alert check.

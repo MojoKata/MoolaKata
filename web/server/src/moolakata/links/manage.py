@@ -108,7 +108,7 @@ def call(srv, link_id: str, path: str, data: dict | None = None) -> dict:
     """A signed call to a linked server, its TLS checked against the certificate keys pinned
     for it. One it announced, once presented, becomes the one pinned; one it didn't is kept
     for an admin to accept, and the link says so (link-protocol.md §4.5)."""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: call") as s:
         link = _get(s, link_id)
         address, peer, pinned = link.address, keys.unb64(link.peerKey), pins(link)
         announced = link.peerCertNext
@@ -117,7 +117,7 @@ def call(srv, link_id: str, path: str, data: dict | None = None) -> dict:
         out = client.call(srv, address, peer, path, data, pins=pinned, seen=seen)
     except LinkError as e:
         if e.code == "certificate-changed" and e.offered:
-            with srv.db.tx() as s:
+            with srv.db.tx(unscoped="links.manage: call") as s:
                 row = _get(s, link_id)
                 row.peerCertOffered = e.offered
                 row.lastError = e.message
@@ -127,7 +127,7 @@ def call(srv, link_id: str, path: str, data: dict | None = None) -> dict:
         elif e.code == "not-linked":
             # A peer restored from an older backup, say: broken, for an admin to end or link
             # again, never ended by an answer that isn't the peer's `link-ended` (S11.6).
-            with srv.db.tx() as s:
+            with srv.db.tx(unscoped="links.manage: call") as s:
                 row = _get(s, link_id)
                 with contextlib.suppress(LinkError):  # an ended or new link takes no mark
                     lifecycle.apply(row, "not-linked")
@@ -135,7 +135,7 @@ def call(srv, link_id: str, path: str, data: dict | None = None) -> dict:
                 row.failingSince = row.failingSince or clock.now()
         raise
     if seen and announced and seen[0] == announced:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="links.manage: call") as s:
             row = _get(s, link_id)
             row.peerCert, row.peerCertNext = row.peerCertNext, None
     return out
@@ -146,7 +146,7 @@ def ended_by_peer(srv, link_id: str) -> None:
     users with it (S11.6)."""
     from . import receive
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: ended by peer") as s:
         row = _get(s, link_id)
         if not lifecycle.apply(row, "link-ended").ended:
             return
@@ -158,7 +158,7 @@ def ended_by_peer(srv, link_id: str) -> None:
 def accept_certificate(srv, link_id: str, by: str) -> Link:
     """An admin accepts the certificate key a peer presented unannounced, once they have
     compared it with the peer's admin (link-protocol.md §4.5)."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: accept certificate") as s:
         link = _get(s, link_id)
         if not link.peerCertOffered:
             raise LinkError("no-certificate", "No other certificate is waiting to be accepted.")
@@ -176,7 +176,7 @@ def announce_certificate(srv) -> int:
     from .. import certs
 
     key = certs.own_key(srv)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: announce certificate") as s:
         told = settings.get(s, "linkCertificate")
         ids_ = list(
             s.scalars(
@@ -190,7 +190,7 @@ def announce_certificate(srv) -> int:
         with contextlib.suppress(LinkError):  # it learns at the next exchange instead
             call(srv, link_id, "/link/v1/certificate", {"fingerprint": key})
             n += 1
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: announce certificate") as s:
         settings.put(s, "linkCertificate", key, None)
     return n
 
@@ -198,7 +198,7 @@ def announce_certificate(srv) -> int:
 def answer_certificate(srv, link: Link, body: dict) -> dict:
     """A peer announces its next certificate key; either is accepted until it is in use."""
     key = _cert(body.get("fingerprint"))
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: answer certificate") as s:
         row = _get(s, link.id)
         if key and key != row.peerCert:
             row.peerCertNext = key
@@ -213,7 +213,7 @@ def invite(srv, by: str) -> tuple[Link, str]:
     from .. import certs
 
     cert = certs.own_key(srv)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: invite") as s:
         address = own_address(s)
         if not address:
             raise LinkError(
@@ -253,7 +253,7 @@ def join(srv, code: str, by: str) -> Link:
             "fingerprint-mismatch",
             "The server at that address doesn't have the key the code names: nothing was sent.",
         )
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: join") as s:
         address = own_address(s)
         if not address:
             raise LinkError(
@@ -268,7 +268,7 @@ def join(srv, code: str, by: str) -> Link:
     mine = certs.own_key(srv)
     body = {"code": c["c"], "address": address, **({"t": mine} if mine else {})}
     client.call(srv, c["a"], peer, "/link/v1/join", body, pins=pinned)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: join") as s:
         gone = _link_again(s, peer, by)
         link = Link(
             id=ids.new_id("Link"),
@@ -295,7 +295,7 @@ def join(srv, code: str, by: str) -> Link:
 def answer_join(srv, caller_key: bytes, body: dict) -> dict:
     """The inviting side: a live code turns its invitation into a request from that key."""
     code = body.get("code") or ""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: answer join") as s:
         link = s.scalars(
             select(Link).where(
                 Link.codeHash == _hash(code), Link.state == "invited", Link.deleted == false()
@@ -415,7 +415,7 @@ def _link_again(s, peer: bytes, by: str | None = None) -> str | None:
 
 
 def approve(srv, link_id: str, by: str) -> Link:
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: approve") as s:
         link = _get(s, link_id)
         lifecycle.apply(link, "approve")
         link.approvedById = by
@@ -430,7 +430,7 @@ def set_state(
     srv, link_id: str, by: str | None, state: str, until: dt.datetime | None = None
 ) -> Link:
     """Reject a request, pause (until a time), resume or end a link on this side."""
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: set state") as s:
         link = _get(s, link_id)
         was = link.state
         event = {"paused": "pause", "active": "resume", "ended": "end-here"}[state]
@@ -503,14 +503,14 @@ def exchange(srv, link_id: str) -> None:
 def _exchange(srv, link_id: str) -> None:
     from ..ui.prices import apply_egress
 
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: exchange") as s:
         link = _get(s, link_id)
         if link.state not in ("active", "pending"):
             return
     # A peer's host joins the egress guard's list when its request arrives; make sure the
     # guard knows it before calling (S13.5).
     apply_egress(srv)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: exchange") as s:
         link = _get(s, link_id)
         pending = link.state == "pending"
         # A link not yet approved over there gets no directory (link-protocol.md §4.1).
@@ -528,7 +528,7 @@ def _exchange(srv, link_id: str) -> None:
             return  # not approved there yet; or ended, here too now
         if e.code in ("not-linked", "certificate-changed"):
             raise  # recorded on the link as it is (S11.6, link-protocol.md §4.5)
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="links.manage: exchange") as s:
             link = _get(s, link_id)
             if e.code in FOR_NOW:
                 # Paused on the other side, or it is pulling from this one: waits, and isn't
@@ -542,7 +542,7 @@ def _exchange(srv, link_id: str) -> None:
                 )
                 link.failingSince = link.failingSince or clock.now()
         raise
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: exchange") as s:
         link = _get(s, link_id)
         if out.get("state") == "active":
             lifecycle.apply(link, "peer-active")
@@ -563,7 +563,7 @@ def _exchange(srv, link_id: str) -> None:
         # What fails after the first call is recorded on the link like a failed call, so a
         # link that keeps failing is alerted (S12.11.1), never left showing a good exchange.
         message = e.message if isinstance(e, LinkError) else f"A change failed: {e}"
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="links.manage: exchange") as s:
             link = _get(s, link_id)
             link.lastError = message
             if getattr(e, "code", None) not in FOR_NOW:
@@ -588,7 +588,7 @@ def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
             # The rest of a large change, part by part, oldest first (S11.4).
             more = int(out.get("more") or 0)
             while more > 0:
-                with srv.db.read() as s:
+                with srv.db.read(unscoped="links.manage: rest of exchange") as s:
                     got = _get(s, link_id).gotSeq
                 nxt = call(srv, link_id, "/link/v1/next", {"have": got})
                 if not nxt.get("change"):
@@ -626,7 +626,7 @@ def _deliver_file(srv, link_id: str, file_id: str) -> None:
     from . import serve
 
     path, digest = serve.sealed_receipt(srv, link_id, file_id)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: deliver file") as s:
         link = _get(s, link_id)
         address, peer, pinned = link.address, keys.unb64(link.peerKey), pins(link)
     try:
@@ -638,7 +638,7 @@ def _deliver_file(srv, link_id: str, file_id: str) -> None:
 def _served(srv, link_id: str, change: dict) -> None:
     from .receive import shares_of
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: served") as s:
         activity.record(
             s,
             "link.served",
@@ -656,7 +656,7 @@ def _served(srv, link_id: str, change: dict) -> None:
 def answer_exchange(srv, link: Link, body: dict, version: str | None) -> dict:
     from . import serve
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: answer exchange") as s:
         row = _get(s, link.id)
         lifecycle.apply(row, "peer-active")  # only an approved link calls this way
         lifecycle.apply(row, "good-call")
@@ -710,14 +710,14 @@ def answer_deliver(srv, link: Link, body: dict) -> dict:
     if body.get("change"):
         with receipt_files(srv, link.id).busy():
             receive.take(srv, link.id, body["change"], DELIVERED.take(link.id))
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: answer deliver") as s:
         return {"have": _get(s, link.id).gotSeq}
 
 
 def answer_end(srv, link: Link) -> None:
     from . import receive
 
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="links.manage: answer end") as s:
         row = _get(s, link.id)
         if lifecycle.apply(row, "link-ended").ended:
             end_users(s, row)
@@ -727,7 +727,7 @@ def answer_end(srv, link: Link) -> None:
 
 def resume_due(srv) -> int:
     """Links whose pause has run out resume on their own (S11.7.2)."""
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: resume due") as s:
         due = list(
             s.scalars(
                 select(Link.id).where(
@@ -747,7 +747,7 @@ def exchange_all(srv, ctx=None) -> None:
     """Every link that exchanges: active ones, and joined ones waiting for approval; a pause
     that has run out ends first."""
     resume_due(srv)
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="links.manage: exchange all") as s:
         wanted = list(
             s.scalars(
                 select(Link.id).where(

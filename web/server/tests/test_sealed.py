@@ -79,7 +79,7 @@ def signed_change(key, seq, server, link_id, **body):
     from moolakata.links.keys import direction, fingerprint, public_of, unb64
 
     part = {"seq": seq, "asOf": clock.now().isoformat(), **body}
-    with server.db.tx() as s:  # this server's link key is made on first use
+    with server.db.tx(unscoped="test") as s:  # this server's link key is made on first use
         link = s.get(Link, link_id)
         way = direction(
             fingerprint(unb64(link.peerKey)), fingerprint(public_of(s, server.keys.secrets))
@@ -91,7 +91,7 @@ def signed_change(key, seq, server, link_id, **body):
 def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setup):  # noqa: F811
     link_id, admin, alice, _ = setup
     peer = Ed25519PrivateKey.generate()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(Link, link_id).peerKey = b64(
             peer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         )
@@ -132,7 +132,7 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
     inbox = changes.waiting(server.config.data_dir, link_id)
     assert [p.name for p in inbox] == ["0000000001.mks", "0000000002.mks"]
     assert all(b"Roth" not in p.read_bytes() for p in inbox), "sealed: no names on disk"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.get(Link, link_id).inboxAsOf is not None
     r = alice.post(f"/ui/api/linked/{link_id}/unlock", json={"words": " ".join(words)})
     assert r.status_code == 200
@@ -152,7 +152,7 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
 def test_a_change_not_signed_by_the_peer_stops_the_apply(server, setup):  # noqa: F811
     link_id, admin, alice, _ = setup
     peer, stranger = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(Link, link_id).peerKey = b64(
             peer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         )
@@ -165,7 +165,7 @@ def test_a_change_not_signed_by_the_peer_stops_the_apply(server, setup):  # noqa
     assert changes.waiting(server.config.data_dir, link_id) == []
     aside = lcopy.folder(server.config.data_dir, link_id) / "set-aside"
     assert len(list(aside.glob("*.mks"))) == 2
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         link = s.get(Link, link_id)
         assert "signature" in link.lastError and link.needsFull
     with server.copies.get(link_id).engine.connect() as conn:
@@ -177,7 +177,7 @@ def test_an_overflowing_inbox_is_discarded_for_a_full_snapshot(server, setup, mo
     peer = Ed25519PrivateKey.generate()
     admin.post(f"/ui/api/settings/links/{link_id}/copy-key")
     monkeypatch.setattr(changes, "MAX_CHANGES", 3)
-    with server.db.tx() as s:
+    with server.db.tx(unscoped="test") as s:
         s.get(Link, link_id).peerKey = b64(
             peer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         )
@@ -185,5 +185,5 @@ def test_an_overflowing_inbox_is_discarded_for_a_full_snapshot(server, setup, mo
         assert changes.enqueue(server, link_id, signed_change(peer, n, server, link_id))
     assert not changes.enqueue(server, link_id, signed_change(peer, 4, server, link_id))
     assert changes.waiting(server.config.data_dir, link_id) == []
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert s.get(Link, link_id).needsFull

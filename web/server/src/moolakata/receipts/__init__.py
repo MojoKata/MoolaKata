@@ -21,17 +21,19 @@ import io
 import logging
 import secrets
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import false, select
+from sqlalchemy import and_, exists, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import access, clock, ids, settings
 from ..checkpoints import checkpoint
 from ..errors import Problem, refuse
 from ..keys import files
+from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import QualifiedExpense
@@ -141,7 +143,21 @@ class Stored:
     existing: bool
 
 
-def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
+@dataclass
+class Prepared:
+    """A file made ready to be a receipt, outside any transaction (S9.5): checked, hashed,
+    written encrypted and its thumbnail drawn, or found to be one its owner has already."""
+
+    name: str
+    media: str
+    size: int
+    digest: str
+    fileId: str | None = None
+    thumbnail: bytes | None = None
+    existing: str | None = None  # the owner's receipt of the same file
+
+
+def _media(name: str, data: bytes) -> str:
     media = sniff(data[:16])
     if media is None:
         raise refuse(
@@ -150,10 +166,64 @@ def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
             f"{name}: only PDF, JPEG, PNG, WebP and HEIC files can be receipts.",
             415,
         )
+    return media
+
+
+@contextmanager
+def prepared(server, owner_id: str, name: str, data: bytes) -> Iterator[Prepared]:
+    """Everything slow about keeping a file, before the transaction that records it (CR3-48):
+    the database's write lock is never held while the reader's worker draws a thumbnail or the
+    file is written. The file is kept from the orphan sweep until the block ends; `record`
+    holds it on until its row is committed, and a row that never commits leaves the file to
+    the sweep (S14.6)."""
+    media = _media(name, data)
     digest = hashlib.sha256(data).hexdigest()
+    store = server.files.of(server.config.receipts_dir)
+    with store.writing() as hold:
+        # Whether the file is kept already, the owner's or anyone's: the server's to know, to
+        # keep one copy.
+        with server.db.read(unscoped="receipts: whether a file is kept already") as s:
+            mine = s.scalars(
+                select(Receipt.id).where(
+                    Receipt.sha256 == digest,
+                    Receipt.ownerId == owner_id,
+                    Receipt.deleted == false(),
+                    Receipt.filePrunedAt.is_(None),
+                )
+            ).first()
+            any_file = s.scalars(select(Receipt.fileId).where(Receipt.sha256 == digest)).first()
+        if mine is not None:
+            yield Prepared(name, media, len(data), digest, existing=mine)
+            return
+        path = None
+        if any_file is not None:
+            file_id = any_file
+            path = file_path(server.config.receipts_dir, file_id)
+            # Reused: held from a prune of the receipt it was another's (S14.10.5), held
+            # before it is looked for, until this row is committed.
+            hold(path.name)
+            checkpoint("receipt.reused")
+        if path is None or not path.exists():
+            file_id = secrets.token_hex(16)
+            path = file_path(server.config.receipts_dir, file_id)
+            hold(path.name)
+            files.write(
+                path,
+                (data[i : i + files.CHUNK] for i in range(0, len(data), files.CHUNK)),
+                server.keys.receipts.public_key(),
+                file_id,
+            )
+        checkpoint("receipt.written")
+        # Drawn in the reader's worker, never here (S9.5, S9.8.4.2); None when it can't be.
+        thumb = _parsing().thumbnail(data, media)
+        yield Prepared(name, media, len(data), digest, file_id, thumb)
+
+
+def record(s: Session, server, owner_id: str, p: Prepared) -> Stored:
+    """The receipt's row, in the caller's transaction: quick, its file already written."""
     mine = s.scalars(
         select(Receipt).where(
-            Receipt.sha256 == digest,
+            Receipt.sha256 == p.digest,
             Receipt.ownerId == owner_id,
             Receipt.deleted == false(),
             Receipt.filePrunedAt.is_(None),
@@ -161,38 +231,18 @@ def store(s: Session, server, owner_id: str, name: str, data: bytes) -> Stored:
     ).first()
     if mine is not None:
         return Stored(mine, True)
-    any_row = s.scalars(select(Receipt).where(Receipt.sha256 == digest)).first()
-    path = None
     store = server.files.of(server.config.receipts_dir)
-    if any_row is not None:
-        file_id = any_row.fileId
-        path = file_path(server.config.receipts_dir, file_id)
-        # Reused: held from a prune of the receipt it was another's (S14.10.5), held before it
-        # is looked for, until this row is committed.
-        store.hold_until_done(s, path.name)
-        checkpoint("receipt.reused")
-    if path is None or not path.exists():
-        file_id = secrets.token_hex(16)
-        path = file_path(server.config.receipts_dir, file_id)
-        # Kept from the orphan sweep until this row is committed, or the upload fails (S9.7).
-        store.hold_until_done(s, path.name)
-        files.write(
-            path,
-            (data[i : i + files.CHUNK] for i in range(0, len(data), files.CHUNK)),
-            server.keys.receipts.public_key(),
-            file_id,
-        )
-    checkpoint("receipt.written")
+    # Kept from the orphan sweep until this row is committed (S9.7).
+    store.hold_until_done(s, file_path(server.config.receipts_dir, p.fileId).name)
     r = Receipt(
         id=ids.new_id("Rcpt"),
         ownerId=owner_id,
-        fileName=Path(name).name[:200] or "receipt",
-        mediaType=media,
-        size=len(data),
-        sha256=digest,
-        fileId=file_id,
-        # Drawn in the reader's worker, never here (S9.5, S9.8.4.2).
-        thumbnail=_parsing().thumbnail(data, media),
+        fileName=Path(p.name).name[:200] or "receipt",
+        mediaType=p.media,
+        size=p.size,
+        sha256=p.digest,
+        fileId=p.fileId,
+        thumbnail=p.thumbnail,
         readStatus="waiting" if settings.get(s, "readReceipts") else "off",
     )
     s.add(r)
@@ -228,64 +278,6 @@ def links(s: Session, receipt_id: str) -> list[ReceiptLink]:
     )
 
 
-def level(s: Session, user_id: str, r: Receipt) -> str | None:
-    """owner, write or read; None when the user can't see it."""
-    if r.deleted:
-        return None
-    if r.ownerId == user_id:
-        return "owner"
-    best = None
-    reach = access.reach(s, user_id)
-    for ln in links(s, r.id):
-        if ln.kind in ("gift", "donation"):
-            best = access.higher(best, _kept_level(s, user_id, ln))
-            continue
-        if ln.kind == "account":
-            a = s.get(Account, ln.itemId)
-        elif ln.kind == "item":
-            it = s.get(Item, ln.itemId)
-            a = s.get(Account, it.accountId) if it and not it.deleted else None
-        elif ln.kind == "expense":
-            ex = s.get(QualifiedExpense, ln.itemId)
-            a = s.get(Account, ex.accountId) if ex and not ex.deleted else None
-        else:
-            t = s.get(Transaction, ln.itemId)
-            a = s.get(Account, t.accountId) if t and not t.deleted else None
-        if a is None:
-            continue
-        lvl = access.account_level(s, user_id, a, reach)
-        best = access.higher(best, "write" if lvl in ("owner", "write") else lvl)
-    if best is None and _on_tax_document(s, user_id, r.id):
-        best = "read"  # a tax document's file, for the book's filers (S8.16)
-    return best
-
-
-def _kept_level(s: Session, user_id: str, ln) -> str | None:
-    """A receipt kept with a gift or a donation is seen as that is (S9.6): a gift through its
-    owner's gift plans, a donation by its owner and the giving plan it counts in."""
-    if ln.kind == "gift":
-        from .. import gifts
-        from ..store.entities.education import Gift
-
-        g = s.get(Gift, ln.itemId)
-        if g is None or g.deleted:
-            return None
-        lvl = gifts.level_on_gift(s, user_id, g, gifts.people_of_gifts(s, [g.id]).get(g.id, []))
-        return "write" if lvl in ("owner", "write") else lvl
-    from .. import giving
-    from ..store.entities.giving import Donation
-
-    d = s.get(Donation, ln.itemId)
-    if d is None or d.deleted:
-        return None
-    if d.ownerId == user_id:
-        return "write"
-    for plan, _ in giving.visible_plans(s, user_id):
-        if plan.year == d.date.year and d.ownerId in giving.givers(s, plan, user_id):
-            return "read"
-    return None
-
-
 def on_tax_documents(s: Session, receipt_id: str) -> list:
     from ..store.entities.taxes import TaxDocument
 
@@ -298,27 +290,57 @@ def on_tax_documents(s: Session, receipt_id: str) -> list:
     )
 
 
-def _on_tax_document(s: Session, user_id: str, receipt_id: str) -> bool:
-    from ..store.entities.taxes import TaxBook
-    from ..taxes import books
+def kept_with(s: Session, receipt_id: str) -> int:
+    """How many things a receipt is kept with, whoever reads them: its live links to live
+    records, counted as the server and never named (S9.3)."""
+    from ..store import views
+    from ..store.entities.education import Gift
+    from ..store.entities.giving import Donation
+    from ..store.tables import metadata
 
-    for doc in on_tax_documents(s, receipt_id):
-        book = s.get(TaxBook, doc.bookId)
-        if book is None or book.deleted:
-            continue
-        if any(f.userId == user_id and f.acceptedAt for f in books.filers(s, book)):
-            return True
-    return False
+    rl = metadata.tables["ReceiptLink"]
+    live = views.view_table(rl)
+    found = []
+    for kind, entity in (
+        ("transaction", Transaction),
+        ("account", Account),
+        ("item", Item),
+        ("expense", QualifiedExpense),
+        ("gift", Gift),
+        ("donation", Donation),
+    ):
+        t = views.view_table(entity.__mapper__.local_table)
+        found.append(
+            and_(
+                rl.c.kind == kind,
+                exists().where(t.c.id == rl.c.itemId, t.c.effectiveDeleted == false()),
+            )
+        )
+    q = (
+        select(func.count())
+        .select_from(rl)
+        .join(live, live.c.id == rl.c.id)
+        .where(rl.c.receiptId == receipt_id, live.c.effectiveDeleted == false(), or_(*found))
+    )
+    return s.scalar(scoping.unscoped(q, "how many things a receipt is kept with"))
+
+
+def level_for(s: Session, user_id: str, r: Receipt) -> str | None:
+    """The user's level on a receipt as the API names it (ReceiptAccess), or None."""
+    p = access.perms(s, Receipt, r.id, user_id)
+    return None if p is None else p.level(access.RECORD_OWNER)
 
 
 def get(s: Session, user_id: str, receipt_id: str, need: str = "read") -> tuple[Receipt, str]:
-    r = s.get(Receipt, receipt_id)
-    lvl = level(s, user_id, r) if r is not None else None
-    if lvl is None:
+    """`need`: *read*, *write*, or a permission's name (deleting it: *deletable*)."""
+    p = access.perms(s, Receipt, receipt_id, user_id)
+    r = s.get(Receipt, receipt_id) if p is not None else None
+    if r is None:
         raise Problem(404, "not-found", "Not found")
-    if access.RANK[lvl] < access.RANK[need]:
+    want = {"read": None, "write": "writable"}.get(need, need)
+    if want is not None and not getattr(p, want):
         raise Problem(403, "owner-only", "Only the receipt's owner can do this.")
-    return r, lvl
+    return r, p.level(access.RECORD_OWNER)
 
 
 def to_attach(s: Session, user_id: str, receipt_id: str, field: str = "receiptId") -> Receipt:
@@ -336,68 +358,12 @@ def to_attach(s: Session, user_id: str, receipt_id: str, field: str = "receiptId
 
 
 def visible(s: Session, user_id: str) -> list[tuple[Receipt, str]]:
-    """The user's own receipts, and those attached to transactions in accounts they read."""
-    own = s.scalars(
-        select(Receipt).where(Receipt.ownerId == user_id, Receipt.deleted == false())
-    ).all()
-    accounts = [a.id for a, _ in access.visible_accounts(s, user_id)]
-    linked = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .join(Transaction, Transaction.id == ReceiptLink.itemId)
-        .where(
-            ReceiptLink.kind == "transaction",
-            ReceiptLink.deleted == false(),
-            Transaction.deleted == false(),
-            Transaction.accountId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    statements = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .where(
-            ReceiptLink.kind == "account",
-            ReceiptLink.deleted == false(),
-            ReceiptLink.itemId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    documents = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .join(Item, Item.id == ReceiptLink.itemId)
-        .where(
-            ReceiptLink.kind == "item",
-            ReceiptLink.deleted == false(),
-            Item.deleted == false(),
-            Item.accountId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    expenses = s.scalars(
-        select(Receipt)
-        .join(ReceiptLink, ReceiptLink.receiptId == Receipt.id)
-        .join(QualifiedExpense, QualifiedExpense.id == ReceiptLink.itemId)
-        .where(
-            ReceiptLink.kind == "expense",
-            ReceiptLink.deleted == false(),
-            QualifiedExpense.deleted == false(),
-            QualifiedExpense.accountId.in_(accounts),
-            Receipt.deleted == false(),
-            Receipt.ownerId != user_id,
-        )
-    ).all()
-    out = [(r, "owner") for r in own]
-    seen = {r.id for r in own}
-    for r in [*linked, *statements, *documents, *expenses]:
-        if r.id not in seen:
-            seen.add(r.id)
-            out.append((r, level(s, user_id, r) or "read"))
-    return out
+    """The receipts the user reads (ReceiptAccess): their own, and those kept with what they
+    read."""
+    return [
+        (r, p.level(access.RECORD_OWNER))
+        for r, p in access.listing(s, Receipt, user_id, order_by=Receipt.createdAt)
+    ]
 
 
 # What a link of each kind names, by the prefix of its id (schema.md §3).
@@ -422,18 +388,27 @@ def _account_of(s: Session, ln: ReceiptLink) -> Account | None:
     return a if a is not None and not a.deleted else None
 
 
-def target_level(s: Session, user_id: str, ln: ReceiptLink) -> str | None:
-    """The user's level on what a link names, while it is there: its account's, or a gift's
-    or donation's as it is seen (S9.6)."""
-    if ln.kind in ("gift", "donation"):
-        return _kept_level(s, user_id, ln)
-    a = _account_of(s, ln)
-    return access.account_level(s, user_id, a) if a is not None else None
+def target(s: Session, user_id: str, kind: str, item_id: str) -> access.Perms | None:
+    """The user's permissions on what a link of this kind names, while it is there (S9.6),
+    from its own access view."""
+    from ..store.entities.education import Gift
+    from ..store.entities.giving import Donation
+
+    entity = {
+        "transaction": Transaction,
+        "account": Account,
+        "item": Item,
+        "expense": QualifiedExpense,
+        "gift": Gift,
+        "donation": Donation,
+    }[kind]
+    return access.perms(s, entity, item_id, user_id)
 
 
 def can_unlink(s: Session, user_id: str, ln: ReceiptLink) -> bool:
     """Whoever can change what a receipt is kept with can detach it from that (S9.3)."""
-    return target_level(s, user_id, ln) in ("owner", "write")
+    p = target(s, user_id, ln.kind, ln.itemId)
+    return p is not None and p.writable
 
 
 def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):
@@ -446,10 +421,10 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
         createdAt=clock.now(),
         linkedById=user_id,
     )
-    lvl = target_level(s, user_id, ln)
-    if lvl is None:
+    p = target(s, user_id, kind, item_id)
+    if p is None:
         raise refuse("itemId", "not-found", "That is not there.", 404)
-    if lvl not in ("owner", "write"):
+    if not p.writable:
         raise refuse("itemId", "read-only", "That is shared with you to read.", 403)
     have = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if have is not None and not have.deleted:
@@ -462,10 +437,15 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
 def unlink(s: Session, user_id: str, ln: ReceiptLink) -> None:
     """A link taken away by whoever can change what it names, or, once that is gone, by the
     receipt's owner."""
-    lvl = target_level(s, user_id, ln)
-    if lvl is None and s.get(Receipt, ln.receiptId).ownerId != user_id:
+    p = target(s, user_id, ln.kind, ln.itemId)
+    owner = s.scalars(
+        scoping.unscoped(
+            select(Receipt.ownerId).where(Receipt.id == ln.receiptId), "a receipt's owner"
+        )
+    ).first()
+    if p is None and owner != user_id:
         raise Problem(404, "not-found", "Not found")
-    if lvl is not None and lvl not in ("owner", "write"):
+    if p is not None and not p.writable:
         raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     ln.mark_deleted(user_id, clock.now())
 
@@ -535,7 +515,8 @@ def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -
     row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if row is None or row.deleted or kind not in ("gift", "donation"):
         raise Problem(404, "not-found", "The receipt is not kept with that.")
-    if _kept_level(s, user_id, row) != "write":
+    held = target(s, user_id, kind, item_id)
+    if held is None or not held.writable:
         raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     row.mark_deleted(user_id, clock.now())
 
@@ -610,7 +591,7 @@ def matches(s: Session, user_id: str, r: Receipt, limit: int = 3) -> list[Match]
         return []
     amount = abs(r.amount)
     day = r.date or r.createdAt.date()
-    writable = [a for a, lvl in access.visible_accounts(s, user_id) if lvl in ("owner", "write")]
+    writable = [a for a, p in access.accounts(s, user_id) if p.writable]
     by_id = {a.id: a for a in writable}
     if not by_id:
         return []

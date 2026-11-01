@@ -87,7 +87,7 @@ def test_no_canary_is_readable_on_the_disk_or_in_the_logs(admins, caplog):  # no
     a, b, ca, cb, _ = admins
     make_user(b, "carol")
     make_user(a, "alice")
-    with a.db.tx() as s:  # the owner's name, as the share carries it across
+    with a.db.tx(unscoped="test") as s:  # the owner's name, as the share carries it across
         s.query(User).filter(User.username == "alice").update({User.displayName: CANARIES["owner"]})
     alice = sign_in(a, "alice")
     a_id, b_id = linked(ca, cb)

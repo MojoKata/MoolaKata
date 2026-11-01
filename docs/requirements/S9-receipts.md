@@ -19,8 +19,9 @@
    an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement),
    529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
    one suggests matching transactions by amount and date. A receipt kept with anything is out
-   of the inbox, and its dialog names each thing it is kept with; whoever can change one of
-   them can detach it from that. Each attachment is a record of its own (`ReceiptLink`),
+   of the inbox, and its dialog names each thing it is kept with that its reader can see,
+   and counts the rest, never naming them (*Also kept with 2 things not shared with you*);
+   whoever can change one of them can detach it from that. Each attachment is a record of its own (`ReceiptLink`),
    made or taken away, never changed: attaching and detaching are changes of the dialog's
    draft, saved with the rest (S12.15), whether in the receipt's dialog or in what it is
    attached to (a file added to a transaction is uploaded at once, into the inbox, and
@@ -31,7 +32,10 @@
    server checks the type by the file's content, never by its name, and refuses anything else.
 5. **Thumbnails** are made on upload, in the reader's worker (S9.8.4: Pillow for images, with
    their EXIF orientation applied, pypdfium2 for a PDF's first page) and kept in the database,
-   which is encrypted (S15.1.1), as small WebP images.
+   which is encrypted (S15.1.1), as small WebP images. The thumbnail is drawn and the file
+   written before the upload's row is recorded, so no one else's change waits on them; one
+   that can't be drawn leaves the receipt with its file type's icon, and **Read again** tries
+   it again.
 6. **Sharing** follows what the receipt is attached to: whoever can read a transaction can see
    its receipts, a gift's through the gift plans that show the gift, a donation's by its
    owner and those who see the giving plan it counts in, and a tax document's file by the tax
@@ -44,8 +48,10 @@
    file stays while any live receipt names its hash; a deleted receipt doesn't keep it from
    file pruning (S14.10.5). Backups leave the receipts directory out: the host backs it up with
    the data directory (S14.6). Its file is kept for as long as its category says, shown on the
-   receipt as *Kept until…* or *Kept for ever*, and the receipt's **Keep** toggle holds it for
-   ever (S14.10).
+   receipt as *Kept until…* or *Kept for ever*: the file's own date, over everything it is
+   kept with, its category named only to someone who can see what sets it (*Kept for
+   something not shared with you*, else). The receipt's **Keep** toggle holds it for ever
+   (S14.10).
 8. **Reading receipts (OCR)**: MoolaKata reads the date, total and merchant from each receipt
    **on the server, with RapidOCR**, and suggests the transaction it belongs to. Nothing
    leaves the server, and no external service, model download or GPU is involved.

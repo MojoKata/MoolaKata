@@ -130,7 +130,7 @@ def gather(s, c: Caller, kind: str = "all"):
     """The open rows, the closing trades, and every disposal, for the user's investing
     accounts."""
     today = clock.today()
-    accts = [a for a, _ in access.visible_accounts(s, c.id) if atypes.investing(a.type)]
+    accts = [a for a, _ in access.accounts(s, c.id) if atypes.investing(a.type)]
     classes = KINDS.get(kind)
     open_rows, closed_rows, disposals = [], [], []
     insts: dict[str, Instrument] = {}
@@ -245,7 +245,7 @@ def gather(s, c: Caller, kind: str = "all"):
 @router.get("/positions", response_model=PositionsView)
 def list_positions(request: Request, kind: str = "all", c: Caller = Depends(caller)):
     year = clock.today().year
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         open_rows, closed_rows, disposals, _ = gather(s, c, kind)
         this_year = [d for _, d in disposals if d.soldOn.year == year and d.gain is not None]
         return PositionsView(
@@ -285,7 +285,7 @@ def gains(request: Request, by: str = "year", year: int | None = None, c: Caller
     """Realized gains grouped by year, month, account, instrument or term (S3.9), and
     unrealized gains now, by account or instrument."""
     by = by if by in ("year", "month", "account", "instrument", "term") else "year"
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         open_rows, _, disposals, insts = gather(s, c)
         groups: dict[str, list[Decimal]] = {}
         labels: dict[str, str] = {}
@@ -365,8 +365,8 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
     premium; a short one the strike on every contract's shares, cash for a put and the shares
     for a call."""
     out: list[OptionTradeRow] = []
-    with server(request).db.read() as s:
-        for a, _ in access.visible_accounts(s, c.id):
+    with server(request).db.read(user=c.id) as s:
+        for a, _ in access.accounts(s, c.id):
             if not atypes.investing(a.type):
                 continue
             led = repo.load(s, a)
@@ -418,7 +418,7 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
         from ..options import strategies as strat
 
         at_open: dict[tuple[str, str], Decimal] = {}
-        for a, _ in access.visible_accounts(s, c.id):
+        for a, _ in access.accounts(s, c.id):
             mine = strat.of_account(s, a.id) if atypes.investing(a.type) else []
             if not mine:
                 continue

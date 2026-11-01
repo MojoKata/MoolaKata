@@ -60,7 +60,7 @@ def test_the_phrase_unlocks_once_and_wrong_ones_are_counted(locked, master_key):
     assert c.get("/ui/api/session").status_code == 401  # open, and nobody signed in yet
     r = c.post("/ui/api/unlock", json={"phrase": words}, headers=headers)
     assert r.status_code == 409
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         kinds = [a.kind for a in s.query(Activity)]
     assert "key.verified" in kinds
 
@@ -92,7 +92,7 @@ def test_break_glass_and_backups_go_over_the_host_socket_only(locked, master_key
     assert srv.break_glass.use(r.json()["code"])
     r = host.post("/host/backup")
     assert r.status_code == 200 and (srv.config.backup_dir / r.json()["name"]).is_dir()
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         kinds = [a.kind for a in s.query(Activity)]
     assert "keys.break-glass" in kinds and "db.backup" in kinds
     # The listener has none of it: not from loopback, not with a forged forwarding header.
@@ -177,7 +177,7 @@ def test_a_scheduled_reencryption_runs_at_the_unlock_before_the_server_serves(lo
     assert seen[-1][0] is False and c.get("/healthz").status_code == 200
     assert reencrypt.journal(srv.config) is None and reencrypt.report(srv.config)["backup"]
     assert srv.config.keyring_path.read_text() != before
-    with srv.db.read() as s:
+    with srv.db.read(unscoped="test") as s:
         assert "keys.reencrypted" in [a.kind for a in s.query(Activity)]
 
 
@@ -232,7 +232,7 @@ def test_rotate_in_settings_with_the_phrase_or_a_break_glass_code(server, admin_
         "/ui/api/settings/keys/rotate", json={**body, "words": {"1": "zzzz"}, "phrase": wrong}
     )
     assert r.status_code == 422 and r.json()["code"] == "words-wrong"
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert [a.kind for a in s.query(Activity)].count("signin.failed") == 2
     assert not server.restarting and not reencrypt.pending(server.config)
     code, _ = server.break_glass.issue()
@@ -246,7 +246,7 @@ def test_rotate_in_settings_with_the_phrase_or_a_break_glass_code(server, admin_
     assert [p.master_id for p in ring.previous] == [master.key_id(master_key)]
     j = reencrypt.journal(server.config)
     assert j["why"] == "rotation" and j["to"] == ring.master_id
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         rotated = s.query(Activity).filter(Activity.kind == "key.rotated").one()
     assert '"break-glass"' in rotated.detail
     # Once rotated, a second rotation waits for the restart.
@@ -275,7 +275,7 @@ def test_removing_a_copy_asks_for_the_phrase_too(server, admin_client, master_ke
     r = admin_client.request("DELETE", path, json={"phrase": words})
     assert r.status_code == 200, r.text
     assert not b.exists()
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         assert "signin.failed" in [a.kind for a in s.query(Activity)]
 
 
@@ -302,7 +302,7 @@ def test_fewer_backup_days_than_are_kept_takes_the_phrase(server, admin_client, 
     assert r.status_code == 422
     r = admin_client.post("/ui/api/settings/backups/copies", json={"copies": 4, "phrase": words})
     assert r.status_code == 200 and r.json()["copies"] == 4, r.text
-    with server.db.read() as s:
+    with server.db.read(unscoped="test") as s:
         kinds = [a.kind for a in s.query(Activity)]
     assert "signin.failed" in kinds and "settings.changed" in kinds
     # More days than there are backups for asks nothing.

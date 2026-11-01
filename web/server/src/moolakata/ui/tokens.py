@@ -10,6 +10,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, tokens
 from ..errors import FieldError, Problem, refuse
+from ..store.entities.sharing import Portfolio
 from ..store.entities.users import AccessToken, User
 from . import save
 from .conventions import ExactRoute, Model
@@ -52,8 +53,8 @@ class TokenMade(Model):
 
 
 def _names(s, user_id: str) -> dict[tuple[str, str], str]:
-    out = {("account", a.id): a.name for a, _ in access.visible_accounts(s, user_id)}
-    out |= {("portfolio", p.id): p.name for p, _ in access.visible_portfolios(s, user_id)}
+    out = {("account", a.id): a.name for a, _ in access.accounts(s, user_id)}
+    out |= {("portfolio", p.id): p.name for p, _ in access.listing(s, Portfolio, user_id)}
     return out
 
 
@@ -77,7 +78,7 @@ def _out(t: AccessToken, names: dict) -> TokenOut:
 
 @router.get("/profile/tokens", response_model=list[TokenOut])
 def list_tokens(request: Request, c: Caller = Depends(caller)):
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         names = _names(s, c.id)
         rows = s.scalars(
             select(AccessToken)
@@ -127,7 +128,7 @@ def _token_create(ctx, record_id: str, body: TokenRecord) -> None:
     srv, user_id = server(ctx.request), ctx.caller.id
 
     def tell() -> None:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="telling a user of the token they made") as s:
             tokens.tell_made(s, srv.services, s.get(User, user_id), s.get(AccessToken, record_id))
 
     ctx.after(f"token.made:{record_id}", tell)

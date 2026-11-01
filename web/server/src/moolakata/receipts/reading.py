@@ -26,6 +26,7 @@ import time
 from decimal import Decimal
 from types import SimpleNamespace
 
+import sqlalchemy as sa
 from sqlalchemy import text
 
 from .. import clock, settings
@@ -193,15 +194,17 @@ class Reader:
     def start(self) -> None:
         if self.threads:
             return
-        with self.server.db.read() as s:
+        with self.server.db.read(unscoped="receipts.reading: start") as s:
             n = self.count or settings.get(s, "receiptReadJobs")
             pending = [
                 rid
                 for (rid,) in s.execute(
-                    text(
-                        "SELECT id FROM \"Receipt\" WHERE \"readStatus\" IN ('waiting', 'reading')"
-                        ' AND NOT deleted ORDER BY "createdAt"'
+                    sa.select(Receipt.id)
+                    .where(
+                        Receipt.readStatus.in_(("waiting", "reading")),
+                        Receipt.deletedAt.is_(None),
                     )
+                    .order_by(Receipt.createdAt)
                 )
             ]
         for i in range(n):
@@ -237,10 +240,11 @@ class Reader:
                 log.exception("reading a receipt failed")
 
     def read_one(self, rid: str, worker: Worker) -> None:
+        from .. import parsing
         from . import whole
 
         srv = self.server
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="receipts.reading: read one") as s:
             r = s.get(Receipt, rid)
             if (
                 r is None
@@ -255,18 +259,24 @@ class Reader:
             r.readStatus = "reading"
             media = r.mediaType
             owner = r.ownerId
+            drawn = r.thumbnail is not None
             file = SimpleNamespace(fileId=r.fileId, sha256=r.sha256)
         srv.events.publish("receipt", {"id": rid}, users=[owner])
+        thumb = None
         try:
             data = whole(srv, file)
             outcome = worker.read(data, media)
+            if not drawn:  # one the upload couldn't draw is tried again (CR3-48)
+                thumb = parsing.thumbnail(data, media)
         except Exception as e:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")
         self.last_run = clock.now()
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="receipts.reading: read one") as s:
             r = s.get(Receipt, rid)
             if r is None:
                 return
+            if thumb is not None and r.thumbnail is None:
+                r.thumbnail = thumb
             if outcome[0] == "ok":
                 _, lines, method, engine = outcome
                 save_reading(s, r, lines, method, engine)

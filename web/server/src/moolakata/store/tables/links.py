@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 
 from ..types import Day, UtcTimestamp
-from ._base import exception, record, unique_live
+from ._base import Seen, exception, record, unique_live
 
 # A link with another server (S11.1). On the inviting side it starts as an invitation (its
 # code kept as a hash), becomes a request when the other side answers, and is active once an
@@ -77,6 +77,7 @@ Link = record(
         "state IN ('invited', 'requested', 'pending', 'active', 'paused', 'ended')", name="state"
     ),
     CheckConstraint("role IN ('inviter', 'joiner')", name="role"),
+    seen=Seen.rule(),
 )
 unique_live(Link, "peerKey")
 
@@ -95,6 +96,7 @@ LinkedItem = exception(
     Column("includeReceipts", Boolean, nullable=False, server_default=text("0")),
     Column("createdAt", UtcTimestamp, nullable=False),
     prefix="LItem",
+    seen=Seen.rule(),
 )
 Index("ux_LinkedItem_link_remote", LinkedItem.c.linkId, LinkedItem.c.remoteId, unique=True)
 
@@ -111,6 +113,7 @@ LinkSent = exception(
     Column("hash", Text, nullable=False),
     UniqueConstraint("linkId", "itemId", "path", "viewer"),
     prefix="LkSnt",
+    seen=Seen.admin(),
 )
 
 # A receipt a change named that hasn't reached the copy yet (S11.4): asked for again at each
@@ -127,6 +130,7 @@ LinkFile = exception(
     Column("error", Text),  # why the last try failed, in this server's words
     UniqueConstraint("linkId", "fileId"),
     prefix="LkFil",
+    seen=Seen.admin(),
 )
 
 # The colour each user chose for a linked household's window (S12.10.3.2), from a fixed palette.
@@ -139,5 +143,6 @@ LinkColour = record(
     CheckConstraint(
         "colour IN ('teal', 'violet', 'amber', 'rose', 'green', 'blue')", name="colour"
     ),
+    seen=Seen.per_user("userId"),
 )
 unique_live(LinkColour, "userId", "linkId")

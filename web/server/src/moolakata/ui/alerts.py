@@ -40,7 +40,7 @@ class AlertList(Model):
 def list_alerts(request: Request, c: Caller = Depends(caller)):
     """Open alerts first, newest first, then those resolved in the last 90 days; an alert
     the caller dismissed is left out."""
-    with server(request).db.read() as s:
+    with server(request).db.read(user=c.id) as s:
         rows = [
             AlertRow(
                 id=a.id,
@@ -75,7 +75,7 @@ def list_alerts(request: Request, c: Caller = Depends(caller)):
 def seen(request: Request, c: Caller = Depends(caller)):
     """Opening the screen marks the caller's alerts as seen, which clears the badge."""
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         alerts.mark_seen(s, c.id, c.admin)
     srv.events.publish("badges", {}, users=[c.id])
     return Response(status_code=204)
@@ -85,7 +85,7 @@ def seen(request: Request, c: Caller = Depends(caller)):
 def dismiss(alert_id: str, request: Request, c: Caller = Depends(caller)):
     """Dismissed for the caller alone; it stays open for anyone else it is for."""
     srv = server(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(user=c.id) as s:
         if not alerts.dismiss(s, c.id, c.admin, alert_id):
             raise Problem(404, "not-found", "That alert is not open for you.")
     srv.events.publish("badges", {}, users=[c.id])

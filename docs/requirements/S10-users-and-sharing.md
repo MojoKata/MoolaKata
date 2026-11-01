@@ -98,8 +98,15 @@
       re-share it.
    2. **write**: also change what the item holds: for an account, add and edit transactions,
       import, categorise and attach receipts; for the other kinds, edit their entries. A
-      write share cannot delete the item, change its sharing, or see or change its secrets
-      (keys and credentials), which stay the owner's.
+      write share cannot delete the item, change its sharing, change its settings or what it
+      covers (an account's name and method, a budget's or a tax book's accounts, which
+      projection is active), or see or change its secrets (keys and credentials): those stay
+      the owner's (a tax book's filers', S8.14.1).
+
+   What anyone holds of anything is decided once, for every read and every write, by each
+   table's access view ([`schema.md`](schema.md) §7): read, and the permissions to change
+   what it holds, delete it, share it, and change its settings, what it covers and its
+   secrets.
    3. **People on linked servers**: any of the eight kinds can also be shared with named users
       of a linked server (S11), always **read**. Each server sends its peers its list of active
       users (display name, username, email, sex and stable id, S11.3), so they can be chosen

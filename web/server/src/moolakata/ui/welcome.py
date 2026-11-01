@@ -105,7 +105,7 @@ async def make_key(body: Confirm, request: Request):
     log.info("the welcome made the key %s, from %s", master.fingerprint(made.key), address)
     await runtime.unlock(srv, made.key, wait=False)
     if srv.store is not None:
-        with srv.db.tx() as s:
+        with srv.db.tx(unscoped="the welcome: the key made") as s:
             activity.record(
                 s,
                 "key.made-welcome",
@@ -121,7 +121,7 @@ def first_admin(body: FirstAdmin, request: Request):
     """The welcome's last step: the first admin, signed in at once (S10.1.2)."""
     srv = server(request)
     _throttle(request)
-    with srv.db.tx() as s:
+    with srv.db.tx(unscoped="the welcome: the first admin") as s:
         user = accounts.make_first_admin(s, body.displayName, body.sex, body.email, body.password)
         token = sessions.create(s, user.id, True, False)
     set_cookie(request, token)
