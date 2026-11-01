@@ -5,9 +5,10 @@
     1. **Checks**: `.github/workflows/check.yml` runs `web/check` on every pull request and
        every push to `main`, after `web/dev.sh setup`, with uv installed from
        `install/build-requirements.txt` by its hashes. It runs `web/check`'s parts as jobs
-       side by side (the static checks with the server's and the connector's tests, the
-       browser tests, the mockups), then the coverage of the test jobs together, from their
-       measurements passed on as artifacts; the `check` job, the status the rulesets
+       side by side (the server's tests in three parts, each part every third test
+       (`MK_TEST_PART`), the first with the static checks and the last with the connector's
+       tests; the browser tests; the mockups), then the coverage of the test jobs together,
+       from their measurements passed on as artifacts; the `check` job, the status the rulesets
        require, passes when every part does. Each job fetches the commit before as well, for
        the coverage of the changed lines, and the coverage reports (S17.5.8) are kept as the
        run's artifact. A newer push to a pull request cancels its older run; on `main`,

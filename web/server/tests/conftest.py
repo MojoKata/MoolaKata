@@ -24,6 +24,21 @@ measure_the_browser_app()
 
 
 @pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """MK_TEST_PART=k/n keeps every n-th test from the k-th, once the marks have chosen the
+    tests: CI runs the server's tests in n jobs side by side (S17.10.1). Every xdist worker
+    collects the same tests, so each makes the same choice."""
+    part = os.environ.get("MK_TEST_PART")
+    if not part:
+        return
+    k, n = (int(x) for x in part.split("/"))
+    assert 1 <= k <= n, f"MK_TEST_PART={part}"
+    kept = items[k - 1 :: n]
+    config.hook.pytest_deselected(items=[i for i in items if i not in set(kept)])
+    items[:] = kept
+
+
+@pytest.hookimpl(trylast=True)
 def pytest_sessionfinish(session):
     """An xdist worker measured by coverage (S17.5.8) saves what it measured once its fixtures
     are torn down and before it reports finished: once every worker has, xdist gives each 10 s
