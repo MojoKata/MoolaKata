@@ -126,15 +126,21 @@ def settings_of(h: Household) -> dict:
     return h.c.get("/ui/api/settings").json()
 
 
+# What a section's background task records of its own runs (the mail queue, the wallets'
+# sync): it moves whenever the task runs, as the server's first run can during a test, and a
+# save neither reads nor writes it.
+RUNS = ("waiting", "setAside", "lastRun", "lastError")
+
+
 def settings_form(name: str, section: str, ready: str, also: str | None = None) -> Form:
-    """A Settings section's form, saved untouched: its keys, and what its route reads."""
-    return Form(
-        name,
-        lambda h: f"/ui/settings/{section}",
-        ready,
-        "",
-        lambda h: (settings_of(h), also and h.c.get(f"/ui/api{also}").json()),
-    )
+    """A Settings section's form, saved untouched: its keys, and what its route reads but for
+    its task's runs."""
+
+    def reads(h):
+        answer = also and h.c.get(f"/ui/api{also}").json()
+        return settings_of(h), answer and {k: v for k, v in answer.items() if k not in RUNS}
+
+    return Form(name, lambda h: f"/ui/settings/{section}", ready, "", reads)
 
 
 FORMS = [

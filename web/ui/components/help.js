@@ -59,7 +59,12 @@ function load(name) {
 
 export function HelpPane() {
   const ref = useRef(/** @type {HTMLElement | null} */ (null));
-  const [md, setMd] = useState(/** @type {string | null} */ (null));
+  // The guide drawn, with its key: `data-guide` names the guide shown, not the one asked for,
+  // so whatever reads the pane after a change waits for the new guide's text.
+  const [shown, setShown] = useState(
+    /** @type {{ key: string, md: string } | null} */ (null),
+  );
+  const md = shown?.md ?? null;
   const [terms, setTerms] = useState(/** @type {import('./markdown.js').Glossary} */ (new Map()));
   const [forms, setForms] = useState(/** @type {import('./markdown.js').Glossary} */ (new Map()));
   const key = dialogGuide.value || screenGuide.value.key;
@@ -74,8 +79,8 @@ export function HelpPane() {
   useEffect(() => {
     let live = true;
     load(key).then((text) => assemble(text, load, vars)).then(
-      (text) => live && setMd(text),
-      () => live && setMd(`# ${key}\n\nThis screen's guide is missing.`),
+      (text) => live && setShown({ key, md: text }),
+      () => live && setShown({ key, md: `# ${key}\n\nThis screen's guide is missing.` }),
     );
     return () => {
       live = false;
@@ -145,7 +150,7 @@ export function HelpPane() {
         tabindex="0" onPointerDown=${drag} onKeyDown=${keys}></div>
       <button type="button" class="icon-btn help-close" aria-label="Close help (F1)"
         onClick=${() => (helpOpen.value = false)}><${Icon} name="x" /></button>
-      <div class="guide" data-guide=${key}>${md === null ? null : render(
+      <div class="guide" data-guide=${shown?.key}>${md === null ? null : render(
         md,
         (src) => /^https?:|^\//.test(src) ? src : `${guides}/${src}`,
         terms,

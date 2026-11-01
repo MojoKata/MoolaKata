@@ -10,8 +10,11 @@
 
    **How tests are written.** The server's tests run across a worker per core
    (`pytest -n auto`, pytest-xdist), so each test makes what it needs (its database, its
-   servers, its files under its own temporary folder) and leaves nothing another can see; the
-   browser modules run in one process, sharing the household seeded once (later work, L16).
+   servers, its files under its own temporary folder) and leaves nothing another can see. The
+   browser modules run across four workers (`--dist loadgroup`), each worker starting its own
+   servers, seeding its own household and driving its own Chromium; a module whose tests share
+   one page, one after another, keeps to one worker (its `xdist_group`). A long sweep of
+   screens or dialogs is split into parts, each with a page and a session of its own.
    Code is shaped for this: what a route, a task or a call does lives in functions beneath it,
    tested without a running server or a network, and a fake stands where the network or the
    clock begins, never in place of the code above it. A test waits on an event or a
@@ -33,9 +36,9 @@
    2. **Saved unchanged changes nothing**: every form that edits through a draft is opened in
       Chromium and saved untouched, and the records read back are what they were: one
       table-driven test, a row per form (where to open it, how, and what reads its records),
-      over one household seeded once through the API (`tests/browser.py`, which also holds the
-      server, the browser and signing in). What every draft form does (the question before
-      discarding, Back, a click outside, typed text, questions, a reload after a 412) is
+      over a household each worker seeds once through the API (`tests/browser.py`, which also
+      holds the server, the browser and signing in). What every draft form does (the question
+      before discarding, Back, a click outside, typed text, questions, a reload after a 412) is
       tested once, on the shared form pieces; a form has a test of its own only for what it
       alone does.
    3. **Workflows** that carry what one use learned or saved into the next (import, correct,
@@ -95,8 +98,10 @@
    8. **Coverage**: what the tests reach, measured on every run of `web/check`, with no
       service outside the repository and its own GitHub Pages site. coverage.py measures lines and branches in every
       Python process the tests start (the server the browser tests run included; the
-      reader's worker, started with no environment, is not), and the connector. For the
-      browser app, `deno test --coverage` and the browser tests' pages (V8's precise
+      reader's worker, started with no environment, is not), and the connector. Each
+      pytest-xdist worker saves what it measured before it reports finished, since xdist kills
+      a worker that hasn't exited 10 s later. For the
+      browser app, `deno test --coverage` and every browser test worker's pages (V8's precise
       coverage through Chromium's DevTools protocol, written in Deno's form) are read
       together by `deno coverage`; a file no test loads counts as not reached.
       `python -m moolakata.dev.coverage report` then gives:
@@ -191,4 +196,6 @@
    none for 150 ms, the time for a screen to start what it fetches next), no Loading
    placeholder showing, and each chart drawn. A test then leaves each screen in the same state
    every run, and what the tests reach doesn't depend on how soon a test moves on. What still
-   varies is the order in which a screen's parallel requests answer.
+   varies is the order in which a screen's parallel requests answer. The generated mockup's crawl
+   (S12.9) waits the same way before each step, and until the page has stayed settled for
+   100 ms more, so what a screen starts once it has drawn (a fetch, a dialog's keys) has begun.

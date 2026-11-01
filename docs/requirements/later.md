@@ -127,13 +127,3 @@ where a test holds a call on purpose (S17.5.9). The threshold is set from CI's r
 enough never to flake on a slow one.
 
 **Touches:** S13.1, S17.5.
-
-## L16: The browser tests in parallel
-
-**What it is:** the browser modules' tests run across workers as the server's do (S17.5). Each
-worker then seeds a household of its own and drives a Chromium of its own, and the browser
-app's coverage (S17.5.8) is read from the pages of every worker. Before then, a test that
-counts on what an earlier one left in the shared household is found and made to set up what it
-needs.
-
-**Touches:** S17.5, S17.5.2, S17.5.8.

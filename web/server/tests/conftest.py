@@ -6,6 +6,9 @@ import pytest
 
 # The browser tests' shared fixtures (S17.5.2), defined once for every module that uses them.
 from browser import browser, household, served  # noqa: F401
+
+# And the whole app's, on a seeded dev server (test_app.py, test_app_guides.py).
+from devapp import dev_server, page  # noqa: F401
 from fastapi.testclient import TestClient
 from jscoverage import install as measure_the_browser_app
 
@@ -18,6 +21,42 @@ from moolakata.keys import master
 from moolakata.store.maintenance import open_store
 
 measure_the_browser_app()
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """MK_TEST_PART=k/n keeps every n-th test from the k-th, once the marks have chosen the
+    tests: CI runs the server's tests and the browser tests in parts side by side (S17.10.1).
+    Tests of one xdist_group, which run one after another, stay in the part of their first.
+    Every xdist worker collects the same tests, so each makes the same choice."""
+    part = os.environ.get("MK_TEST_PART")
+    if not part:
+        return
+    k, n = (int(x) for x in part.split("/"))
+    assert 1 <= k <= n, f"MK_TEST_PART={part}"
+    first: dict[str, int] = {}
+    kept, left = [], []
+    for i, item in enumerate(items):
+        group = item.get_closest_marker("xdist_group")
+        at = first.setdefault(group.args[0], i) if group else i
+        (kept if at % n == k - 1 else left).append(item)
+    config.hook.pytest_deselected(items=left)
+    items[:] = kept
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session):
+    """An xdist worker measured by coverage (S17.5.8) saves what it measured once its fixtures
+    are torn down and before it reports finished: once every worker has, xdist gives each 10 s
+    to exit and then kills it, and a worker killed while saving at exit loses its tests'
+    coverage."""
+    if not hasattr(session.config, "workerinput"):
+        return
+    import coverage
+
+    if cov := coverage.Coverage.current():
+        cov.stop()
+        cov.save()
 
 
 @pytest.fixture(autouse=True)
