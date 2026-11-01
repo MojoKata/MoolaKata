@@ -41,7 +41,8 @@ def _inputs() -> tuple[type, ...]:
         ed.Occasion,
         gv.GivingPlan,
         pj.Projection,
-        sh.Share,  # what a viewer's figures count follows what is shared with them
+        # What a viewer's figures count follows what is shared with them.
+        *sh.SHARE_ENTITIES.values(),
     )
 
 

@@ -7,11 +7,10 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids
+from .. import clock, ids, sharing
 from ..budgets import add_months, month_of
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine
-from ..store.entities.sharing import Share
 from ..store.entities.users import Group
 
 
@@ -135,12 +134,11 @@ def seed_budgets(s, people: dict) -> None:
             )
         )
     s.add(
-        Share(
-            id=ids.new_id("Share"),
-            kind="budget",
-            itemId=b.id,
-            level="write",
-            groupId=household.id,
-            createdById=alice.id,
+        sharing.new_share(
+            "budget",
+            b.id,
+            "write",
+            group_id=household.id,
+            by=alice.id,
         )
     )

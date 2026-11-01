@@ -32,7 +32,8 @@ class Seen:
     rule of its own; none for a relation, household data or the server's own."""
 
     how: str
-    share: str | None = None  # a root's share kind (Share.kind)
+    share: str | None = None  # a root's share kind, and for a share table its target's
+    share_prefix: str | None = None  # the prefix of a root's `<Table>Share` table
     key: str | None = None  # a child's parent key, a per-user table's user column
     configurable: bool = False  # a per-user table whose rows hold secrets (Connection)
     # Changing these asks `configurable`, not `writable` (§7.6): an account's settings.
@@ -41,9 +42,10 @@ class Seen:
     writes: str = "writable"
 
     @staticmethod
-    def root(share: str, settings: tuple[str, ...] = ()) -> Seen:
-        """One of the shareable kinds, by the plain rule: its owner, and its shares."""
-        return Seen("root", share=share, settings=settings)
+    def root(share: str, share_prefix: str, settings: tuple[str, ...] = ()) -> Seen:
+        """One of the shareable kinds, by the plain rule: its owner, and its shares (its
+        `<Table>Share` table, made with the prefix given)."""
+        return Seen("root", share=share, share_prefix=share_prefix, settings=settings)
 
     @staticmethod
     def child(key: str, writes: str = "writable") -> Seen:
@@ -51,9 +53,16 @@ class Seen:
         return Seen("child", key=key, writes=writes)
 
     @staticmethod
-    def rule(share: str | None = None) -> Seen:
-        """A view written by hand; `share` when it is a shareable kind with rules of its own."""
-        return Seen("rule", share=share)
+    def rule(share: str | None = None, share_prefix: str | None = None) -> Seen:
+        """A view written by hand; `share` when it is a shareable kind with rules of its own,
+        with the prefix of its `<Table>Share` table."""
+        return Seen("rule", share=share, share_prefix=share_prefix)
+
+    @staticmethod
+    def shares(kind: str) -> Seen:
+        """A `<Table>Share` table: an item of a shareable kind granted to a user or a group
+        (§7). Whoever may share the item holds its shares; a grantee reads their own."""
+        return Seen("share", share=kind, key="targetId")
 
     @staticmethod
     def per_user(key: str, configurable: bool = False) -> Seen:

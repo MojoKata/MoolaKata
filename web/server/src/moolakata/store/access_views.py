@@ -3,13 +3,16 @@
 Every table says how it is seen (`Seen`, in its `info`). A view has one row per record and user
 who reads it, and four 0/1 columns: `writable` (changes what it holds), `deletable`,
 `shareable` (changes its sharing) and `configurable` (its settings, what it covers, its
-secrets). Every permission implies `writable`. Only live records have rows: the views read the
-Effective views (§4.2). Roots, children, per-user tables and admin data have generated views;
-the rest are written here by hand, one function each, citing their requirement.
+secrets). Every permission implies `writable`. A fifth, `mine`, is no permission: it says the
+record is the user's own (its owner, a tax book's accepted filer, one's own person), worked out
+here once beside the permissions, and nothing is ever allowed by it. Only live records have
+rows: the views read the Effective views (§4.2). Roots, children, share tables, per-user tables
+and admin data have generated views; the rest are written here by hand, one function each,
+citing their requirement.
 
 A few base views hold what every rule uses once: `AccessUser` (the active, live users),
-`AccessMember` (live memberships of active groups), `AccessAdmin` (the admins) and `ShareLevel`
-(each user's share of each item, directly or through a group, at its highest).
+`AccessMember` (live memberships of active groups) and `AccessAdmin` (the admins). A share's
+permissions are its access class's (`AccessClass`), read through `_grants`.
 """
 
 import re
@@ -23,6 +26,8 @@ from .tables._base import Seen
 from .views import view_name
 
 PERMISSIONS = ("writable", "deletable", "shareable", "configurable")
+# What a view holds of each record and user: the permissions, and whether it is theirs.
+COLUMNS = (*PERMISSIONS, "mine")
 SUFFIX = "Access"
 _views = MetaData()
 
@@ -43,12 +48,12 @@ def access_table(table: Table) -> Table:
         _views,
         Column("targetId", Text, primary_key=True),
         Column("userId", Text, primary_key=True),
-        *(Column(p, Boolean) for p in PERMISSIONS),
+        *(Column(p, Boolean) for p in COLUMNS),
     )
 
 
 def has_view(table: Table) -> bool:
-    return seen(table).how in ("root", "child", "rule", "per-user", "admin")
+    return seen(table).how in ("root", "child", "rule", "share", "per-user", "admin")
 
 
 def _src(table: Table, alias: str) -> tuple[str, str]:
@@ -60,13 +65,14 @@ def _src(table: Table, alias: str) -> tuple[str, str]:
 
 
 def _cols(*values: str) -> str:
-    names = ("targetId", "userId", *PERMISSIONS)
+    names = ("targetId", "userId", *COLUMNS)
     return ", ".join(f'{v} AS "{n}"' for v, n in zip(values, names, strict=True))
 
 
 def _collapse(body: str) -> str:
-    """One row per record and user, the highest of each permission over every path."""
-    perms = ", ".join(f'max("{p}") AS "{p}"' for p in PERMISSIONS)
+    """One row per record and user, the highest of each permission (and of `mine`) over every
+    path."""
+    perms = ", ".join(f'max("{p}") AS "{p}"' for p in COLUMNS)
     return f'SELECT "targetId", "userId", {perms} FROM (\n{body}\n) GROUP BY "targetId", "userId"'
 
 
@@ -77,25 +83,44 @@ def _view(name: str, select: str) -> str:
 # ---- Generated views ----
 
 
+def share_name(table: str) -> str:
+    """A shareable kind's share table (`AccountShare`)."""
+    return f"{table}Share"
+
+
+def _grants(table: str) -> str:
+    """Each user's shares of a kind's items, directly or through an active group (S10.3,
+    S10.5), with what the share's access class allows; a linked server's user only ever reads
+    (S10.3.3)."""
+    shares = f'"{view_name(share_name(table))}"'
+    direct = ", ".join(f'c.{p} AND u.local AS "{p}"' for p in PERMISSIONS)
+    grouped = ", ".join(f"c.{p}" for p in PERMISSIONS)
+    return (
+        f'SELECT s."targetId" AS "targetId", s."userId" AS "userId", {direct}\n'
+        f'FROM {shares} AS s\nJOIN "AccessClass" AS c ON c.id = s."accessClassId"\n'
+        'JOIN "AccessUser" AS u ON u."userId" = s."userId"\nWHERE NOT s."effectiveDeleted"\n'
+        "UNION ALL\n"
+        f'SELECT s."targetId", m."userId", {grouped}\n'
+        f'FROM {shares} AS s\nJOIN "AccessClass" AS c ON c.id = s."accessClassId"\n'
+        'JOIN "AccessMember" AS m ON m."groupId" = s."groupId"\nWHERE NOT s."effectiveDeleted"'
+    )
+
+
 def _root(table: Table, share: str) -> str:
-    """S10.3: the owner holds everything; a share gives read or write, never more."""
-    src, live = _src(table, "t")
-    owner = (
-        f"SELECT {_cols('t.id', 't."ownerId"', '1', '1', '1', '1')}\nFROM {src}\n"
-        f'JOIN "AccessUser" AS u ON u."userId" = t."ownerId" AND u.local\nWHERE {live}'
-    )
-    shared = (
-        f"SELECT {_cols('t.id', 's."userId"', 's.writable', '0', '0', '0')}\nFROM {src}\n"
-        f'JOIN "ShareLevel" AS s ON s.kind = \'{share}\' AND s."itemId" = t.id\nWHERE {live}'
-    )
-    return _collapse(f"{owner}\nUNION ALL\n{shared}")
+    """S10.3: the owner holds everything; a share gives what its access class allows."""
+    return _collapse(_root_body(table.name, share))
+
+
+# What a child holds of its parent's row: its parent's `writable` for changing and deleting it,
+# its `configurable`, never `shareable`, and whether the parent is the user's own.
+_INHERITED = ("p.writable", "p.writable", "0", "p.configurable", "p.mine")
 
 
 def _child(table: Table, parent: Table, key: str) -> str:
     """Seen as its parent is; deleting it is a change of the parent (S10.3)."""
     src, live = _src(table, "c")
     return (
-        f"SELECT {_cols('c.id', 'p."userId"', 'p.writable', 'p.writable', '0', 'p.configurable')}"
+        f"SELECT {_cols('c.id', 'p."userId"', *_INHERITED)}"
         f'\nFROM {src}\nJOIN "{access_name(parent.name)}" AS p ON p."targetId" = c."{key}"'
         f"\nWHERE {live}"
     )
@@ -105,7 +130,7 @@ def _per_user(table: Table, key: str, configurable: bool) -> str:
     src, live = _src(table, "t")
     cfg = "1" if configurable else "0"
     return (
-        f"SELECT {_cols('t.id', f't."{key}"', '1', '1', '0', cfg)}\nFROM {src}\n"
+        f"SELECT {_cols('t.id', f't."{key}"', '1', '1', '0', cfg, '1')}\nFROM {src}\n"
         f'JOIN "AccessUser" AS u ON u."userId" = t."{key}" AND u.local\nWHERE {live}'
     )
 
@@ -113,7 +138,7 @@ def _per_user(table: Table, key: str, configurable: bool) -> str:
 def _admin(table: Table) -> str:
     src, live = _src(table, "t")
     return (
-        f"SELECT {_cols('t.id', 'a."userId"', '1', '1', '1', '1')}\nFROM {src}\n"
+        f"SELECT {_cols('t.id', 'a."userId"', '1', '1', '1', '1', '0')}\nFROM {src}\n"
         f'CROSS JOIN "AccessAdmin" AS a\nWHERE {live}'
     )
 
@@ -148,23 +173,6 @@ def _access_admin() -> str:
     return 'SELECT DISTINCT "userId" FROM "AccessMember" WHERE "builtIn" = \'admins\''
 
 
-def _share_level() -> str:
-    """Each user's share of each item, directly or through a group, at its highest (S10.3,
-    S10.5). A linked server's user only ever reads (S10.3.3)."""
-    return (
-        'SELECT kind, "itemId", "userId", max(writable) AS writable, '
-        'max("includeReceipts") AS "includeReceipts" FROM (\n'
-        'SELECT s.kind, s."itemId", s."userId", s.level = \'write\' AND u.local AS writable, '
-        's."includeReceipts"\nFROM "ShareEffective" AS s\n'
-        'JOIN "AccessUser" AS u ON u."userId" = s."userId"\nWHERE NOT s."effectiveDeleted"\n'
-        "UNION ALL\n"
-        'SELECT s.kind, s."itemId", m."userId", s.level = \'write\', s."includeReceipts"\n'
-        'FROM "ShareEffective" AS s\nJOIN "AccessMember" AS m ON m."groupId" = s."groupId"\n'
-        'WHERE NOT s."effectiveDeleted"\n'
-        ') GROUP BY kind, "itemId", "userId"'
-    )
-
-
 # ---- Written by hand ----
 
 
@@ -172,7 +180,7 @@ def _tax_book() -> str:
     """S8.14.1: the plain rule, and its accepted filers, who hold it as its owners."""
     body = _root_body("TaxBook", "tax-book")
     filers = (
-        f"SELECT {_cols('b.id', 'f."userId"', '1', '1', '1', '1')}\n"
+        f"SELECT {_cols('b.id', 'f."userId"', '1', '1', '1', '1', '1')}\n"
         'FROM "TaxBookEffective" AS b\n'
         'JOIN "TaxBookFilerEffective" AS f ON f."bookId" = b.id AND NOT f."effectiveDeleted" '
         'AND f."acceptedAt" IS NOT NULL\n'
@@ -183,16 +191,18 @@ def _tax_book() -> str:
 
 
 def _root_body(table: str, share: str) -> str:
+    """The plain rule (S10.3): the owner's row, all four and theirs; and each grant of it,
+    as its access class allows."""
     owner = (
-        f"SELECT {_cols('t.id', 't."ownerId"', '1', '1', '1', '1')}\n"
+        f"SELECT {_cols('t.id', 't."ownerId"', '1', '1', '1', '1', '1')}\n"
         f'FROM "{view_name(table)}" AS t\n'
         'JOIN "AccessUser" AS u ON u."userId" = t."ownerId" AND u.local\n'
         'WHERE NOT t."effectiveDeleted"'
     )
     shared = (
-        f"SELECT {_cols('t.id', 's."userId"', 's.writable', '0', '0', '0')}\n"
+        f"SELECT {_cols('t.id', 'g."userId"', *(f'g.{p}' for p in PERMISSIONS), '0')}\n"
         f'FROM "{view_name(table)}" AS t\n'
-        f'JOIN "ShareLevel" AS s ON s.kind = \'{share}\' AND s."itemId" = t.id\n'
+        f'JOIN (\n{_grants(table)}\n) AS g ON g."targetId" = t.id\n'
         'WHERE NOT t."effectiveDeleted"'
     )
     return f"{owner}\nUNION ALL\n{shared}"
@@ -202,33 +212,37 @@ def _person() -> str:
     """S10.10.2: the person's own user, admins, and whoever added them until they join (or
     for good, when they are a linked server's user) hold them; every local user reads one who
     isn't private; a share of them, or of a gift plan for them, shows them, read only."""
-    holders = (
-        f"SELECT {_cols('p.id', 'u."userId"', '1', '1', '1', '1')}\n"
-        'FROM "PersonEffective" AS p\n'
-        'JOIN "AccessUser" AS u ON u.local AND (\n'
-        '  u."personId" = p.id\n'
-        '  OR u."userId" IN (SELECT "userId" FROM "AccessAdmin")\n'
+    # Theirs: their own person, or one they added who hasn't joined (or for good, a linked
+    # server's user). An admin holds everyone without them being theirs.
+    own = (
+        'u."personId" = p.id\n'
         '  OR (u."userId" = p."ownerId" AND NOT EXISTS (\n'
         '    SELECT 1 FROM "UserEffective" AS x WHERE x."personId" = p.id\n'
-        '    AND NOT x."effectiveDeleted" AND x."linkId" IS NULL)))\n'
+        '    AND NOT x."effectiveDeleted" AND x."linkId" IS NULL))'
+    )
+    holders = (
+        f"SELECT {_cols('p.id', 'u."userId"', '1', '1', '1', '1', f'({own})')}\n"
+        'FROM "PersonEffective" AS p\n'
+        f'JOIN "AccessUser" AS u ON u.local AND (\n  {own}\n'
+        '  OR u."userId" IN (SELECT "userId" FROM "AccessAdmin"))\n'
         'WHERE NOT p."effectiveDeleted"'
     )
     public = (
-        f"SELECT {_cols('p.id', 'u."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('p.id', 'u."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "PersonEffective" AS p\nJOIN "AccessUser" AS u ON u.local\n'
         'WHERE NOT p."effectiveDeleted" AND NOT p.private'
     )
     shared = (
-        f"SELECT {_cols('p.id', 's."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('p.id', 's."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "PersonEffective" AS p\n'
-        'JOIN "ShareLevel" AS s ON s.kind = \'person\' AND s."itemId" = p.id\n'
+        f'JOIN (\n{_grants("Person")}\n) AS s ON s."targetId" = p.id\n'
         'WHERE NOT p."effectiveDeleted"'
     )
     through_plans = (
-        f"SELECT {_cols('p.id', 's."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('p.id', 's."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "PersonEffective" AS p\n'
         'JOIN "GiftPlanEffective" AS g ON g."personId" = p.id AND NOT g."effectiveDeleted"\n'
-        'JOIN "ShareLevel" AS s ON s.kind = \'gift-plan\' AND s."itemId" = g.id\n'
+        f'JOIN (\n{_grants("GiftPlan")}\n) AS s ON s."targetId" = g.id\n'
         'WHERE NOT p."effectiveDeleted"'
     )
     return _collapse("\nUNION ALL\n".join((holders, public, shared, through_plans)))
@@ -263,7 +277,7 @@ def _gift() -> str:
     people, reading when any is theirs and changing it when all are writable; the person it is
     for never sees it until it is received."""
     owner = (
-        f"SELECT {_cols('g.id', 'g."ownerId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('g.id', 'g."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "GiftEffective" AS g\n'
         'JOIN "AccessUser" AS u ON u."userId" = g."ownerId" AND u.local\n'
         f'WHERE NOT g."effectiveDeleted" AND {_for_recipient("g", "u")}'
@@ -274,7 +288,7 @@ def _gift() -> str:
         " ELSE 0 END"
     )
     others = (
-        f"SELECT {_cols('g.id', 'a."userId"', whole, whole, '0', '0')}\n"
+        f"SELECT {_cols('g.id', 'a."userId"', whole, whole, '0', '0', '0')}\n"
         'FROM "GiftEffective" AS g\n'
         'JOIN "GiftPersonsEffective" AS gp ON gp."giftId" = g.id AND NOT gp."effectiveDeleted"\n'
         'JOIN "GiftPlanEffective" AS pl ON pl."ownerId" = g."ownerId" '
@@ -290,13 +304,13 @@ def _gift() -> str:
 def _donation() -> str:
     """S7.9.1: its owner's; read by whoever reads the owner's giving plan for its year."""
     owner = (
-        f"SELECT {_cols('d.id', 'd."ownerId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('d.id', 'd."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "DonationEffective" AS d\n'
         'JOIN "AccessUser" AS u ON u."userId" = d."ownerId" AND u.local\n'
         'WHERE NOT d."effectiveDeleted"'
     )
     readers = (
-        f"SELECT DISTINCT {_cols('d.id', 'a."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT DISTINCT {_cols('d.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "DonationEffective" AS d\n'
         'JOIN "GivingPlanEffective" AS p ON p."ownerId" = d."ownerId" '
         'AND p.year = CAST(substr(d.date, 1, 4) AS INTEGER) AND NOT p."effectiveDeleted"\n'
@@ -309,13 +323,13 @@ def _donation() -> str:
 def _organisation() -> str:
     """S7.9.1: its owner's; read by whoever reads one of the owner's giving plans."""
     owner = (
-        f"SELECT {_cols('o.id', 'o."ownerId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('o.id', 'o."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "OrganisationEffective" AS o\n'
         'JOIN "AccessUser" AS u ON u."userId" = o."ownerId" AND u.local\n'
         'WHERE NOT o."effectiveDeleted"'
     )
     readers = (
-        f"SELECT DISTINCT {_cols('o.id', 'a."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT DISTINCT {_cols('o.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "OrganisationEffective" AS o\n'
         'JOIN "GivingPlanEffective" AS p ON p."ownerId" = o."ownerId" '
         'AND NOT p."effectiveDeleted"\n'
@@ -346,9 +360,9 @@ def _receipt_target() -> str:
         parts.append(
             'SELECT ln.id AS "linkId", ln."receiptId" AS "receiptId", t."userId" AS "userId", '
             "t.writable AS writable,\n"
-            f"  u.local OR EXISTS (SELECT 1 FROM \"ShareLevel\" AS s WHERE s.kind = 'account' "
-            f'AND s."itemId" = {account} AND s."userId" = t."userId" AND s."includeReceipts")'
-            " AS carried\n"
+            '  u.local OR EXISTS (SELECT 1 FROM "AccountShareEffective" AS s '
+            f'WHERE s."targetId" = {account} AND s."userId" = t."userId" AND s."includeReceipts" '
+            'AND NOT s."effectiveDeleted") AS carried\n'
             'FROM "ReceiptLinkEffective" AS ln\n'
             f"{join}"
             f'JOIN "{access_name(table)}" AS t ON t."targetId" = ln."itemId"\n'
@@ -360,8 +374,8 @@ def _receipt_target() -> str:
         '  u.local OR EXISTS (SELECT 1 FROM "GiftPersonsEffective" AS gp\n'
         '    JOIN "GiftPlanEffective" AS pl ON pl."personId" = gp."personId" '
         'AND pl."ownerId" = g."ownerId"\n'
-        '    JOIN "ShareLevel" AS s ON s.kind = \'gift-plan\' AND s."itemId" = pl.id '
-        'AND s."userId" = t."userId" AND s."includeReceipts"\n'
+        '    JOIN "GiftPlanShareEffective" AS s ON s."targetId" = pl.id '
+        'AND s."userId" = t."userId" AND s."includeReceipts" AND NOT s."effectiveDeleted"\n'
         '    WHERE gp."giftId" = g.id AND NOT gp."effectiveDeleted")\n'
         'FROM "ReceiptLinkEffective" AS ln\nJOIN "GiftEffective" AS g ON g.id = ln."itemId"\n'
         'JOIN "GiftAccess" AS t ON t."targetId" = ln."itemId"\n'
@@ -371,8 +385,8 @@ def _receipt_target() -> str:
     parts.append(
         'SELECT ln.id, ln."receiptId", t."userId", t.writable,\n'
         '  u.local OR EXISTS (SELECT 1 FROM "GivingPlanEffective" AS pl\n'
-        '    JOIN "ShareLevel" AS s ON s.kind = \'giving-plan\' AND s."itemId" = pl.id '
-        'AND s."userId" = t."userId" AND s."includeReceipts"\n'
+        '    JOIN "GivingPlanShareEffective" AS s ON s."targetId" = pl.id '
+        'AND s."userId" = t."userId" AND s."includeReceipts" AND NOT s."effectiveDeleted"\n'
         '    WHERE pl."ownerId" = d."ownerId" '
         "AND pl.year = CAST(substr(d.date, 1, 4) AS INTEGER))\n"
         'FROM "ReceiptLinkEffective" AS ln\nJOIN "DonationEffective" AS d ON d.id = ln."itemId"\n'
@@ -388,19 +402,19 @@ def _receipt() -> str:
     filled in) by whoever may change that; a tax document's file by the book's filers
     (S8.16). Only its owner deletes it."""
     owner = (
-        f"SELECT {_cols('r.id', 'r."ownerId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('r.id', 'r."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "ReceiptEffective" AS r\n'
         'JOIN "AccessUser" AS u ON u."userId" = r."ownerId" AND u.local\n'
         'WHERE NOT r."effectiveDeleted"'
     )
     kept = (
-        f"SELECT {_cols('r.id', 't."userId"', 't.writable', '0', '0', '0')}\n"
+        f"SELECT {_cols('r.id', 't."userId"', 't.writable', '0', '0', '0', '0')}\n"
         'FROM "ReceiptEffective" AS r\n'
         'JOIN "ReceiptTarget" AS t ON t."receiptId" = r.id AND t.carried\n'
         'WHERE NOT r."effectiveDeleted"'
     )
     documents = (
-        f"SELECT {_cols('r.id', 'a."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('r.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "ReceiptEffective" AS r\n'
         'JOIN "TaxDocumentEffective" AS d ON d."receiptId" = r.id AND NOT d."effectiveDeleted"\n'
         'JOIN "TaxDocumentAccess" AS a ON a."targetId" = d.id AND a.configurable\n'
@@ -413,7 +427,7 @@ def _receipt_link() -> str:
     """S9.3: a link is seen with the receipt by whoever reads what it names; whoever may
     change that detaches it."""
     return _collapse(
-        f"SELECT {_cols('t."linkId"', 't."userId"', 't.writable', 't.writable', '0', '0')}\n"
+        f"SELECT {_cols('t."linkId"', 't."userId"', 't.writable', 't.writable', '0', '0', '0')}\n"
         'FROM "ReceiptTarget" AS t\n'
         'JOIN "ReceiptAccess" AS r ON r."targetId" = t."receiptId" AND r."userId" = t."userId"'
     )
@@ -423,18 +437,19 @@ def _reimbursement() -> str:
     """S2: seen from either side's transaction; paired and unpaired by whoever may change
     both."""
     sides = (
-        'SELECT r.id AS rid, t."userId" AS "userId", t.writable AS writable\n'
+        'SELECT r.id AS rid, t."userId" AS "userId", t.writable AS writable, t.mine AS mine\n'
         'FROM "ReimbursementEffective" AS r\n'
         'JOIN "TransactionAccess" AS t ON t."targetId" = r."spendingId"\n'
         'WHERE NOT r."effectiveDeleted"\n'
         "UNION ALL\n"
-        'SELECT r.id, t."userId", t.writable\nFROM "ReimbursementEffective" AS r\n'
+        'SELECT r.id, t."userId", t.writable, t.mine\nFROM "ReimbursementEffective" AS r\n'
         'JOIN "TransactionAccess" AS t ON t."targetId" = r."paybackId"\n'
         'WHERE NOT r."effectiveDeleted"'
     )
     both = "CASE WHEN count(*) = 2 THEN min(writable) ELSE 0 END"
+    mine = "CASE WHEN count(*) = 2 THEN min(mine) ELSE 0 END"
     return (
-        f"SELECT {_cols('rid', '"userId"', both, both, '0', '0')}\nFROM (\n{sides}\n)\n"
+        f"SELECT {_cols('rid', '"userId"', both, both, '0', '0', mine)}\nFROM (\n{sides}\n)\n"
         'GROUP BY rid, "userId"'
     )
 
@@ -444,7 +459,7 @@ def _transfer_match() -> str:
     confirmed or turned down when both are theirs to change."""
     both = "o.writable AND i.writable"
     return (
-        f"SELECT {_cols('m.id', 'm."ownerId"', both, both, '0', '0')}\n"
+        f"SELECT {_cols('m.id', 'm."ownerId"', both, both, '0', '0', '1')}\n"
         'FROM "TransferMatchEffective" AS m\n'
         'JOIN "TransactionAccess" AS o ON o."targetId" = m."outId" AND o."userId" = m."ownerId"\n'
         'JOIN "TransactionAccess" AS i ON i."targetId" = m."inId" AND i."userId" = m."ownerId"\n'
@@ -459,8 +474,9 @@ def _relationship() -> str:
         'u."personId" IN (r."person1Id", r."person2Id") '
         'OR u."userId" IN (SELECT "userId" FROM "AccessAdmin")'
     )
+    own = 'u."personId" IN (r."person1Id", r."person2Id")'
     return (
-        f"SELECT {_cols('r.id', 'a."userId"', mine, mine, '0', '0')}\n"
+        f"SELECT {_cols('r.id', 'a."userId"', mine, mine, '0', '0', own)}\n"
         'FROM "RelationshipEffective" AS r\n'
         'JOIN "PersonAccess" AS a ON a."targetId" = r."person1Id"\n'
         'JOIN "PersonAccess" AS b ON b."targetId" = r."person2Id" AND b."userId" = a."userId"\n'
@@ -472,7 +488,7 @@ def _relationship() -> str:
 def _wash_sale() -> str:
     """S3.8: part of its sale's figures, seen with the sale; worked out, never changed."""
     return (
-        f"SELECT {_cols('w.id', 't."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('w.id', 't."userId"', '0', '0', '0', '0', 't.mine')}\n"
         'FROM "WashSale" AS w\nJOIN "TransactionAccess" AS t ON t."targetId" = w."saleId"'
     )
 
@@ -481,11 +497,11 @@ def _alert() -> str:
     """S12.11.2: one's own; and for an admin the admins' alerts, but those they hold as the
     owner of what failed. Read only: what a user does with one is their AlertState."""
     own = (
-        f"SELECT {_cols('a.id', 'a."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('a.id', 'a."userId"', '0', '0', '0', '0', '1')}\n"
         'FROM "Alert" AS a\nJOIN "AccessUser" AS u ON u."userId" = a."userId" AND u.local'
     )
     admins = (
-        f"SELECT {_cols('a.id', 'm."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('a.id', 'm."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "Alert" AS a\nCROSS JOIN "AccessAdmin" AS m\n'
         'WHERE a."userId" IS NULL AND NOT EXISTS (\n'
         '  SELECT 1 FROM "Alert" AS x WHERE x."userId" = m."userId"\n'
@@ -499,13 +515,13 @@ def _import_mapping() -> str:
     """S1.3.2: the owner's; read by whoever imports into one of the owner's accounts, as the
     import uses the account owner's mappings."""
     owner = (
-        f"SELECT {_cols('m.id', 'm."ownerId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('m.id', 'm."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "ImportMappingEffective" AS m\n'
         'JOIN "AccessUser" AS u ON u."userId" = m."ownerId" AND u.local\n'
         'WHERE NOT m."effectiveDeleted"'
     )
     writers = (
-        f"SELECT DISTINCT {_cols('m.id', 'a."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT DISTINCT {_cols('m.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "ImportMappingEffective" AS m\n'
         'JOIN "AccountEffective" AS t ON t."ownerId" = m."ownerId" AND NOT t."effectiveDeleted"\n'
         'JOIN "AccountAccess" AS a ON a."targetId" = t.id AND a.writable '
@@ -520,7 +536,7 @@ def _tax_book_filer() -> str:
     accept."""
     book = _child_body("TaxBookFiler", "TaxBook", "bookId")
     invited = (
-        f"SELECT {_cols('f.id', 'f."userId"', '1', '0', '0', '0')}\n"
+        f"SELECT {_cols('f.id', 'f."userId"', '1', '0', '0', '0', '1')}\n"
         'FROM "TaxBookFilerEffective" AS f\n'
         'JOIN "AccessUser" AS u ON u."userId" = f."userId" AND u.local\n'
         'WHERE NOT f."effectiveDeleted" AND f."acceptedAt" IS NULL'
@@ -530,7 +546,7 @@ def _tax_book_filer() -> str:
 
 def _child_body(table: str, parent: str, key: str) -> str:
     return (
-        f"SELECT {_cols('c.id', 'p."userId"', 'p.writable', 'p.writable', '0', 'p.configurable')}"
+        f"SELECT {_cols('c.id', 'p."userId"', *_INHERITED)}"
         f'\nFROM "{view_name(table)}" AS c\n'
         f'JOIN "{access_name(parent)}" AS p ON p."targetId" = c."{key}"\n'
         'WHERE NOT c."effectiveDeleted"'
@@ -554,9 +570,9 @@ def _activity() -> str:
     """S10.8: the changes concerning a user: those they made or own, those about what they
     read, a share of theirs removed, and for admins those about users, groups, links,
     Settings and keys. Read only."""
-    zero = ("0", "0", "0", "0")
+    zero = ("0", "0", "0", "0", "0")
     mine = (
-        f'SELECT {_cols("e.id", 'u."userId"', *zero)}\nFROM "Activity" AS e\n'
+        f'SELECT {_cols("e.id", 'u."userId"', "0", "0", "0", "0", "1")}\nFROM "Activity" AS e\n'
         'JOIN "AccessUser" AS u ON u.local AND u."userId" IN (e."actorId", e."ownerId")'
     )
     subjects = [
@@ -586,7 +602,7 @@ def _user() -> str:
     """S10.4, S11.3: every active user reads this household's active users, as a linked server
     is sent them; local users also read the linked servers' active users; admins read every
     user and change them; each user reads their own, and changes it (Profile) when local."""
-    zero = ("0", "0", "0", "0")
+    zero = ("0", "0", "0", "0", "0")
     local = (
         f"SELECT {_cols('x."userId"', 'u."userId"', *zero)}\n"
         'FROM "AccessUser" AS x\nJOIN "AccessUser" AS u ON x.local'
@@ -596,12 +612,12 @@ def _user() -> str:
         'FROM "AccessUser" AS x\nJOIN "AccessUser" AS u ON NOT x.local AND u.local'
     )
     admins = (
-        f"SELECT {_cols('x.id', 'm."userId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('x.id', 'm."userId"', '1', '1', '0', '0', '0')}\n"
         'FROM "UserEffective" AS x\nCROSS JOIN "AccessAdmin" AS m\n'
         'WHERE NOT x."effectiveDeleted"'
     )
     own = (
-        f"SELECT {_cols('u."userId"', 'u."userId"', 'u.local', '0', '0', '0')}\n"
+        f"SELECT {_cols('u."userId"', 'u."userId"', 'u.local', '0', '0', '0', '1')}\n"
         'FROM "AccessUser" AS u'
     )
     return _collapse("\nUNION ALL\n".join((local, remote, admins, own)))
@@ -610,50 +626,47 @@ def _user() -> str:
 def _group() -> str:
     """S10.4: every local user reads the active groups; admins read and change them all."""
     readers = (
-        f"SELECT {_cols('g.id', 'u."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('g.id', 'u."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "GroupEffective" AS g\nJOIN "AccessUser" AS u ON u.local\n'
         'WHERE NOT g."effectiveDeleted" AND g.active'
     )
     admins = (
-        f"SELECT {_cols('g.id', 'm."userId"', '1', '1', '0', '0')}\n"
+        f"SELECT {_cols('g.id', 'm."userId"', '1', '1', '0', '0', '0')}\n"
         'FROM "GroupEffective" AS g\nCROSS JOIN "AccessAdmin" AS m\n'
         'WHERE NOT g."effectiveDeleted"'
     )
     return _collapse(f"{readers}\nUNION ALL\n{admins}")
 
 
-def _share() -> str:
+def _share(table: Table, target: Table) -> str:
     """S10.4: whoever may share an item reads and changes its shares; a receiver reads the
     shares that reach them, directly or through a group (*via*)."""
-    holders = [
-        f"SELECT {_cols('s.id', 'a."userId"', '1', '1', '0', '0')}\n"
-        'FROM "ShareEffective" AS s\n'
-        f'JOIN "{access_name(table)}" AS a ON a."targetId" = s."itemId" AND a.shareable\n'
-        f"WHERE NOT s.\"effectiveDeleted\" AND s.kind = '{kind}'"
-        for kind, table in SUBJECTS.items()
-    ]
+    src, live = _src(table, "s")
+    holders = (
+        f"SELECT {_cols('s.id', 'a."userId"', '1', '1', '0', '0', 'a.mine')}\nFROM {src}\n"
+        f'JOIN "{access_name(target.name)}" AS a ON a."targetId" = s."targetId" AND a.shareable\n'
+        f"WHERE {live}"
+    )
     direct = (
-        f"SELECT {_cols('s.id', 'u."userId"', '0', '0', '0', '0')}\n"
-        'FROM "ShareEffective" AS s\nJOIN "AccessUser" AS u ON u."userId" = s."userId"\n'
-        'WHERE NOT s."effectiveDeleted"'
+        f"SELECT {_cols('s.id', 'u."userId"', '0', '0', '0', '0', '0')}\nFROM {src}\n"
+        f'JOIN "AccessUser" AS u ON u."userId" = s."userId"\nWHERE {live}'
     )
     grouped = (
-        f"SELECT {_cols('s.id', 'm."userId"', '0', '0', '0', '0')}\n"
-        'FROM "ShareEffective" AS s\nJOIN "AccessMember" AS m ON m."groupId" = s."groupId"\n'
-        'WHERE NOT s."effectiveDeleted"'
+        f"SELECT {_cols('s.id', 'm."userId"', '0', '0', '0', '0', '0')}\nFROM {src}\n"
+        f'JOIN "AccessMember" AS m ON m."groupId" = s."groupId"\nWHERE {live}'
     )
-    return _collapse("\nUNION ALL\n".join((*holders, direct, grouped)))
+    return _collapse("\nUNION ALL\n".join((holders, direct, grouped)))
 
 
 def _admins_and_readers(table: str) -> str:
     """Admins hold it; every local user reads it."""
     readers = (
-        f"SELECT {_cols('t.id', 'u."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('t.id', 'u."userId"', '0', '0', '0', '0', '0')}\n"
         f'FROM "{view_name(table)}" AS t\nJOIN "AccessUser" AS u ON u.local\n'
         'WHERE NOT t."effectiveDeleted"'
     )
     admins = (
-        f"SELECT {_cols('t.id', 'm."userId"', '1', '1', '1', '1')}\n"
+        f"SELECT {_cols('t.id', 'm."userId"', '1', '1', '1', '1', '0')}\n"
         f'FROM "{view_name(table)}" AS t\nCROSS JOIN "AccessAdmin" AS m\n'
         'WHERE NOT t."effectiveDeleted"'
     )
@@ -677,7 +690,7 @@ def _connection() -> str:
     the connector's page, never its credentials (sealed to the connector)."""
     owner = _per_user_body("Connection", "ownerId", True)
     admins = (
-        f"SELECT {_cols('t.id', 'm."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('t.id', 'm."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "ConnectionEffective" AS t\nCROSS JOIN "AccessAdmin" AS m\n'
         'WHERE NOT t."effectiveDeleted"'
     )
@@ -687,7 +700,7 @@ def _connection() -> str:
 def _per_user_body(table: str, key: str, configurable: bool) -> str:
     cfg = "1" if configurable else "0"
     return (
-        f"SELECT {_cols('t.id', f't."{key}"', '1', '1', '0', cfg)}\n"
+        f"SELECT {_cols('t.id', f't."{key}"', '1', '1', '0', cfg, '1')}\n"
         f'FROM "{view_name(table)}" AS t\n'
         f'JOIN "AccessUser" AS u ON u."userId" = t."{key}" AND u.local\n'
         'WHERE NOT t."effectiveDeleted"'
@@ -697,12 +710,12 @@ def _per_user_body(table: str, key: str, configurable: bool) -> str:
 def _linked_item() -> str:
     """S11.9: read by the local users the linked server names as its viewers, and admins."""
     viewers = (
-        f"SELECT {_cols('i.id', 'u."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('i.id', 'u."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "LinkedItem" AS i, json_each(i.viewers) AS v\n'
         'JOIN "AccessUser" AS u ON u."userId" = v.value AND u.local'
     )
     admins = (
-        f"SELECT {_cols('i.id', 'm."userId"', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('i.id', 'm."userId"', '0', '0', '0', '0', '0')}\n"
         'FROM "LinkedItem" AS i\nCROSS JOIN "AccessAdmin" AS m'
     )
     return _collapse(f"{viewers}\nUNION ALL\n{admins}")
@@ -712,7 +725,6 @@ BASES: dict[str, Callable[[], str]] = {
     "AccessUser": _access_user,
     "AccessMember": _access_member,
     "AccessAdmin": _access_admin,
-    "ShareLevel": _share_level,
     "ReceiptTarget": _receipt_target,
 }
 
@@ -735,7 +747,6 @@ WRITTEN: dict[str, Callable[[], str]] = {
     "Activity": _activity,
     "User": _user,
     "Group": _group,
-    "Share": _share,
     "LinkedItem": _linked_item,
     "Connector": _connector,
     "Connection": _connection,
@@ -751,6 +762,9 @@ def select_sql(table: Table) -> str:
     if how.how == "child":
         fk = next(f for f in table.foreign_keys if f.parent.name == how.key)
         return _child(table, fk.column.table, how.key)
+    if how.how == "share":
+        fk = next(f for f in table.foreign_keys if f.parent.name == how.key)
+        return _share(table, fk.column.table)
     if how.how == "per-user":
         return _per_user(table, how.key, how.configurable)
     if how.how == "admin":
@@ -769,7 +783,7 @@ def all_sql(metadata: MetaData) -> dict[str, str]:
     return out
 
 
-_NAMES = re.compile(r'"([A-Za-z]+(?:Access|Level|Target)|AccessUser|AccessMember|AccessAdmin)"')
+_NAMES = re.compile(r'"([A-Za-z]+(?:Access|Target)|AccessUser|AccessMember|AccessAdmin)"')
 
 
 def ordered(metadata: MetaData) -> list[tuple[str, str]]:

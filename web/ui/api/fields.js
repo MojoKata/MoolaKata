@@ -23,6 +23,13 @@ export const FIELDS = {
     walletKeys: {"type": "text", "nullable": true},
     gapLimit: {"type": "int"},
   },
+  AccountShareRecord: {
+    targetId: {"type": "ref", "prefix": "Acct"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
+  },
   AnchorRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
     date: {"type": "date"},
@@ -50,6 +57,13 @@ export const FIELDS = {
     reserves: {"type": "bool"},
     moves: {"type": "bool"},
     roles: {"type": "list", "items": {"type": "json", "schema": "RoleIn"}},
+  },
+  BudgetShareRecord: {
+    targetId: {"type": "ref", "prefix": "Bdgt"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
   },
   Carried: {
     agi: {"type": "money", "nullable": true},
@@ -175,6 +189,13 @@ export const FIELDS = {
     resultTransactionId: {"type": "ref", "prefix": "Txn", "nullable": true},
     carried: {"type": "json", "schema": "Carried"},
   },
+  GiftPlanShareRecord: {
+    targetId: {"type": "ref", "prefix": "GfPln"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
+  },
   GiftRecord: {
     people: {"type": "list", "items": {"type": "ref", "prefix": "Persn"}, "set": true},
     occasion: {"type": "text", "nullable": true},
@@ -198,6 +219,13 @@ export const FIELDS = {
     incomeBasis: {"type": "text"},
     income: {"type": "money", "nullable": true},
     dafCounted: {"type": "text"},
+  },
+  GivingPlanShareRecord: {
+    targetId: {"type": "ref", "prefix": "GvPln"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
   },
   GroupRecord: {
     name: {"type": "text"},
@@ -338,6 +366,13 @@ export const FIELDS = {
     private: {"type": "bool"},
     differentPerson: {"type": "bool"},
   },
+  PersonShareRecord: {
+    targetId: {"type": "ref", "prefix": "Persn"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
+  },
   PlanIn: {
     monthly: {"type": "money"},
     monthlyFrom: {"type": "date", "nullable": true},
@@ -363,12 +398,26 @@ export const FIELDS = {
     benchmark: {"type": "text"},
     notes: {"type": "text", "nullable": true},
   },
+  PortfolioShareRecord: {
+    targetId: {"type": "ref", "prefix": "Portf"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
+  },
   ProjectionRecord: {
     name: {"type": "text"},
     goal: {"type": "text"},
     builtOn: {"type": "json"},
     inputs: {"type": "json"},
     rebaseline: {"type": "bool"},
+  },
+  ProjectionShareRecord: {
+    targetId: {"type": "ref", "prefix": "Prjct"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
   },
   Recast: {
     date: {"type": "date"},
@@ -425,14 +474,6 @@ export const FIELDS = {
     key: {"type": "text"},
     value: {"type": "json"},
   },
-  ShareRecord: {
-    kind: {"type": "choice", "choices": ["account", "portfolio", "budget", "projection", "person", "gift-plan", "giving-plan", "tax-book"]},
-    itemId: {"type": "text"},
-    userId: {"type": "ref", "prefix": "User", "nullable": true},
-    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
-    level: {"type": "choice", "choices": ["read", "write"]},
-    includeReceipts: {"type": "bool"},
-  },
   SourceRecord: {
     name: {"type": "text"},
     enabled: {"type": "bool"},
@@ -457,6 +498,13 @@ export const FIELDS = {
   },
   TagRecord: {
     name: {"type": "text"},
+  },
+  TaxBookShareRecord: {
+    targetId: {"type": "ref", "prefix": "TaxBk"},
+    userId: {"type": "ref", "prefix": "User", "nullable": true},
+    groupId: {"type": "ref", "prefix": "Group", "nullable": true},
+    allow: {"type": "choice", "choices": ["read", "write"]},
+    includeReceipts: {"type": "bool"},
   },
   TokenItem: {
     kind: {"type": "text"},

@@ -17,6 +17,7 @@ from . import (  # noqa: F401 - each adds its tables
     prices,
     projections,
     receipts,
+    shares,
     sharing,
     taxes,
     users,

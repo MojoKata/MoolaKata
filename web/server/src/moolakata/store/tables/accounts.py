@@ -159,6 +159,7 @@ Account = record(
     Index("ix_Account_ownerId", "ownerId"),
     seen=Seen.root(
         "account",
+        "AcShr",
         settings=(
             "lotMethod",
             "keptBy",

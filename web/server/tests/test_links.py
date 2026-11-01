@@ -271,15 +271,15 @@ def test_an_item_is_shared_read_only_with_a_linked_servers_people(admins):
     assert r.status_code == 200, r.text
     after = alice.get(f"/ui/api/shares/account/{acct['id']}").json()["links"][0]
     assert after["includeReceipts"] is True
-    assert next(u for u in after["users"] if u["id"] == carol["id"])["level"] == "read"
+    assert next(u for u in after["users"] if u["id"] == carol["id"])["allow"] == "read"
     # Ending the link removes the share.
     ca.post(f"/ui/api/settings/links/{a_id}/end")
     v = alice.get(f"/ui/api/shares/account/{acct['id']}").json()
     assert v["links"] == []
-    from moolakata.store.entities.sharing import Share
+    from moolakata import sharing
 
     with a.db.read(unscoped="test") as s:
-        assert s.query(Share).filter(Share.deleted.is_(False)).count() == 0
+        assert list(sharing.every_share(s)) == []
 
 
 # ---------- pulls (S11.3.1, S11.4, S11.9.5)

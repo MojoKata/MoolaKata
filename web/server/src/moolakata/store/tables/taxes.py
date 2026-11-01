@@ -28,7 +28,7 @@ TaxBook = record(
     Column("fromLastYear", Boolean, nullable=False, server_default=text("0")),
     CheckConstraint("\"bitcoinFees\" IN ('sale', 'not-taxed')", name="bitcoin_fees"),
     Index("ix_TaxBook_owner", "ownerId", "year"),
-    seen=Seen.rule("tax-book"),
+    seen=Seen.rule("tax-book", "TbShr"),
 )
 
 # Its filers: one user, or two who are married; one named by someone else accepts first.

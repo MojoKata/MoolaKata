@@ -28,7 +28,7 @@ Budget = record(
     Column("startMonth", Day),
     CheckConstraint("method IN ('tracking', 'envelope')", name="method"),
     Index("ix_Budget_ownerId", "ownerId"),
-    seen=Seen.root("budget"),
+    seen=Seen.root("budget", "BdShr"),
 )
 
 BudgetAccount = record(

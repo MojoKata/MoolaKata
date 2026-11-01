@@ -25,7 +25,7 @@ GivingPlan = record(
     CheckConstraint("\"incomeBasis\" IN ('take-home', 'gross', 'agi')", name="income_basis"),
     CheckConstraint("\"dafCounted\" IN ('funded', 'granted')", name="daf_counted"),
     Index("ix_GivingPlan_owner", "ownerId", "year"),
-    seen=Seen.root("giving-plan"),
+    seen=Seen.root("giving-plan", "GvShr"),
 )
 
 # An organisation given to (S7.9.5).

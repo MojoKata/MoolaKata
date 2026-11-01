@@ -1,9 +1,16 @@
-"""Sharing an account or a portfolio with users and groups (requirements S10.3–S10.6, S5.1).
+"""Sharing an item with users and groups (requirements S10.3–S10.6, S5.1).
 
 The Share dialog lists every active user and group with None, Read or Write; nothing changes
 until Save, which replaces the item's grants as a whole. Removing a share ends the receiver's
 access on their next request and deletes their own annotations on the item (their tags).
+
+Each shareable kind keeps its shares in a table of its own (`AccountShare`, …,
+docs/schema.md §7); `SHARE_ENTITIES` names them, and what reads shares of every kind goes
+through `every_share`.
 """
+
+from collections.abc import Callable, Iterator
+from typing import Any
 
 from sqlalchemy import false, select, update
 from sqlalchemy.orm import Session
@@ -12,10 +19,61 @@ from . import access, clock
 from .errors import Problem
 from .store import scoping
 from .store.entities.accounts import Account, Tag, Transaction, TransactionTag
-from .store.entities.sharing import Portfolio, PortfolioAccount, Share
+from .store.entities.sharing import SHARE_ENTITIES, ItemShare, Portfolio, PortfolioAccount
 from .store.entities.users import User
+from .store.tables.shares import CLASS_NAMES, CLASSES, SHARES
 
-LEVELS = ("none", "read", "write")
+ALLOWS = ("none", "read", "write")
+
+
+def share_entity(kind: str) -> type[ItemShare]:
+    """The table a kind's shares are kept in."""
+    cls = SHARE_ENTITIES.get(kind)
+    if cls is None:
+        raise Problem(404, "not-found", "Not found")
+    return cls
+
+
+def allow_of(share: ItemShare) -> str:
+    """What a share allows, by its access class's name (`read`, `write`)."""
+    return CLASS_NAMES[share.accessClassId]
+
+
+def class_of(allow: str) -> str:
+    return CLASSES[allow]
+
+
+def new_share(
+    kind: str,
+    target_id: str,
+    allow: str,
+    *,
+    user_id: str | None = None,
+    group_id: str | None = None,
+    by: str | None = None,
+    include_receipts: bool = False,
+) -> ItemShare:
+    """A new grant of an item, for code that makes shares outside the save (seeds, tests)."""
+    from . import ids
+
+    return share_entity(kind)(
+        id=ids.new_id(SHARES[kind].info["prefix"]),
+        targetId=target_id,
+        accessClassId=class_of(allow),
+        userId=user_id,
+        groupId=group_id,
+        createdById=by,
+        includeReceipts=include_receipts,
+    )
+
+
+def every_share(
+    s: Session, where: Callable[[type[ItemShare]], list[Any]] = lambda e: []
+) -> Iterator[ItemShare]:
+    """The live shares of every kind matching `where` (given each kind's entity), a kind at a
+    time."""
+    for e in SHARE_ENTITIES.values():
+        yield from s.scalars(select(e).where(e.deleted == false(), *where(e)))
 
 
 def item(s: Session, kind: str, item_id: str):
@@ -52,14 +110,9 @@ def name_of(s: Session, kind: str, obj) -> str:
     return obj.name
 
 
-def grants(s: Session, kind: str, item_id: str) -> list[Share]:
-    return list(
-        s.scalars(
-            select(Share).where(
-                Share.kind == kind, Share.itemId == item_id, Share.deleted == false()
-            )
-        )
-    )
+def grants(s: Session, kind: str, item_id: str) -> list[ItemShare]:
+    e = share_entity(kind)
+    return list(s.scalars(select(e).where(e.targetId == item_id, e.deleted == false())))
 
 
 def portfolio_accounts(s: Session, portfolio_id: str) -> list[Account]:
@@ -126,7 +179,7 @@ def remove_link_shares(s: Session, link_id: str, by: str | None = None) -> int:
     if not ids_:
         return 0
     n = 0
-    for row in s.scalars(select(Share).where(Share.userId.in_(ids_), Share.deleted == false())):
+    for row in list(every_share(s, lambda e: [e.userId.in_(ids_)])):
         row.mark_deleted(by)
         n += 1
     return n

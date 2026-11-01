@@ -1049,15 +1049,15 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
-    assert {g["name"]: g["level"] for g in v["groups"]}["Household"] == "write"
-    assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "read"
+    assert {g["name"]: g["allow"] for g in v["groups"]}["Household"] == "write"
+    assert {u["displayName"]: u["allow"] for u in v["users"]}["Bob Griffin"] == "read"
     page.click('button:has-text("Share")')
     wait(page, '[aria-label="Access for Bob Griffin"]', problems)
     page.click('[aria-label="Access for Bob Griffin"] button:has-text("None")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
-    assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "none"
+    assert {u["displayName"]: u["allow"] for u in v["users"]}["Bob Griffin"] == "none"
     assert problems == []
     page.close()
 

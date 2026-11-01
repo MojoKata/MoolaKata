@@ -9,7 +9,7 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids, loans
+from .. import clock, ids, loans, sharing
 from ..store.entities.accounts import (
     Account,
     Anchor,
@@ -19,7 +19,7 @@ from ..store.entities.accounts import (
     Split,
     Transaction,
 )
-from ..store.entities.sharing import CountedAccount, Share
+from ..store.entities.sharing import CountedAccount
 
 
 def seed_loans(s, people: dict) -> None:
@@ -133,13 +133,12 @@ def seed_loans(s, people: dict) -> None:
             )
         )
     s.add(
-        Share(
-            id=ids.new_id("Share"),
-            kind="account",
-            itemId=home.id,
-            level="write",
-            userId=people["alice"].id,
-            createdById=bob.id,
+        sharing.new_share(
+            "account",
+            home.id,
+            "write",
+            user_id=people["alice"].id,
+            by=bob.id,
         )
     )
     s.add(CountedAccount(userId=people["alice"].id, accountId=home.id, createdAt=clock.now()))

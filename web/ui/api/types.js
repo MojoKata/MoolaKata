@@ -119,6 +119,19 @@
  */
 
 /**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} AccountShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
+ */
+
+/**
  * @typedef {Object} Activated
  * @property {(string | null)} replaced
  */
@@ -432,6 +445,19 @@
  * @property {Array<RoleOut>} roles
  * @property {boolean} active
  * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} BudgetShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -1228,6 +1254,19 @@
  */
 
 /**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} GiftPlanShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
+ */
+
+/**
  * A gift as a draft saves it (S7.8), with its people as a set and the receipts kept with
  * it (`receiptIds`).
  * @typedef {Object} GiftRecord
@@ -1287,6 +1326,19 @@
  */
 
 /**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} GivingPlanShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
+ */
+
+/**
  * @typedef {Object} GivingView
  * @property {number} year
  * @property {(moolakata__ui__giving__PlanOut | null)} plan
@@ -1326,7 +1378,7 @@
  * @typedef {Object} GroupGrant
  * @property {string} id
  * @property {string} name
- * @property {string} level
+ * @property {("none" | "read" | "write")} allow
  * @property {number} members
  * @property {(string | null)} [shareId]
  * @property {number} [version]
@@ -2833,6 +2885,19 @@
  */
 
 /**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} PersonShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
+ */
+
+/**
  * @typedef {Object} PersonSpend
  * @property {PersonRef} person
  * @property {import('../app/dec.js').Dec} spent
@@ -2949,6 +3014,19 @@
  * @property {import('../app/dec.js').Dec} growth
  * @property {import('../app/dec.js').Dec} start
  * @property {import('../app/dec.js').Dec} end
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} PortfolioShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -3078,6 +3156,19 @@
  * @property {boolean} shown
  * @property {number} sharedWith
  * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} ProjectionShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -3711,19 +3802,6 @@
  */
 
 /**
- * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
- * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
- * their images and text cross too (S11.5.1). It stays with its item and its grantee.
- * @typedef {Object} ShareRecord
- * @property {("account" | "portfolio" | "budget" | "projection" | "person" | "gift-plan" | "giving-plan" | "tax-book")} kind
- * @property {string} itemId
- * @property {(string | null)} [userId]
- * @property {(string | null)} [groupId]
- * @property {("read" | "write")} level
- * @property {boolean} [includeReceipts]
- */
-
-/**
  * @typedef {Object} ShareView
  * @property {string} kind
  * @property {string} itemId
@@ -4001,6 +4079,19 @@
  * A tag as a draft saves it: its name, lower case, once its owner's.
  * @typedef {Object} TagRecord
  * @property {string} name
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} TaxBookShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -4299,7 +4390,7 @@
  * @property {string} id
  * @property {string} displayName
  * @property {(string | null)} avatar
- * @property {string} level
+ * @property {("none" | "read" | "write")} allow
  * @property {Array<Via>} via
  * @property {(string | null)} [shareId]
  * @property {number} [version]
@@ -4385,7 +4476,7 @@
  * @typedef {Object} Via
  * @property {string} groupId
  * @property {string} groupName
- * @property {string} level
+ * @property {("read" | "write")} allow
  */
 
 /**

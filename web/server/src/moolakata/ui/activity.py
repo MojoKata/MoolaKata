@@ -167,8 +167,8 @@ TEXT = {
     "budget.landed": "{actor} said where money landed in the budget {subject}'s savings goes",
     "reimbursement.paired": "{actor} paired a payback with reimbursable spending in {subject}",
     "reimbursement.unpaired": "{actor} unpaired a payback in {subject}",
-    "share.given": "{actor} shared {subject} with {grantee} ({level})",
-    "share.changed": "{actor} changed {grantee}'s access to {subject} ({level})",
+    "share.given": "{actor} shared {subject} with {grantee} ({allow})",
+    "share.changed": "{actor} changed {grantee}'s access to {subject} ({allow})",
     "share.removed": "{actor} stopped sharing {subject} with {grantee}",
 }
 FIELD_NAMES = {
@@ -232,7 +232,7 @@ def render(a: Activity, names: dict[tuple[str, str], str]) -> str:
         "fields": _fields(detail),
         "count": detail.get("count", 1),
         "added": detail.get("added", 0),
-        "level": detail.get("level", ""),
+        "allow": detail.get("allow", ""),
         "count_txns": _txns(detail.get("count", 1)),
         "added_txns": _txns(detail.get("added", 0), "new "),
         "source": detail.get("source", ""),

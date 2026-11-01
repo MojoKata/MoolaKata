@@ -76,12 +76,15 @@ The prefixes of the tables that exist.
 
 | Prefix | Table            | Description                                                                                           |
 |--------|------------------|-------------------------------------------------------------------------------------------------------|
+| AcCls  | AccessClass      | What a share grants beyond reading: `read` or `write`, as the access views' four permissions.         |
+| AcShr  | AccountShare     | A grant of an account to a user or a group, at an access class.                                       |
 | Acct   | Account          | One place money is held, owned by one user, with an account type.                                     |
 | Actv   | Activity         | A change worth showing: who made it and what it is about, never an amount.                            |
 | AlSt   | AlertState       | One person's state of an alert: when they saw it, dismissed it, were emailed it.                      |
 | Alert  | Alert            | Something that needs a user's attention, one per cause, open until the cause clears.                  |
 | Anchr  | Anchor           | A balance the institution reported on a date, that the account's balance is checked against.          |
 | Asmpt  | AssumptionSet    | A user's expected returns, volatility and inflation for projections.                                  |
+| BdShr  | BudgetShare      | A grant of a budget to a user or a group, at an access class.                                         |
 | BdgAc  | BudgetAccount    | An account a budget covers, and where its money comes from: a card's payer, reserves' source.         |
 | BdgLn  | BudgetLine       | One category's planned amount in a budget, from a month on, monthly or yearly.                        |
 | BdgMv  | BudgetMove       | An amount put into a category for a month: from another, *To Budget* or landed money. |
@@ -100,8 +103,10 @@ The prefixes of the tables that exist.
 | Filng  | Filing           | One return in a tax book (federal, state or local), with its progress and result.                     |
 | GfPln  | GiftPlan         | One user's gift plan for a person: holidays, anniversaries, budget, lead time, notes.                 |
 | Gift   | Gift             | A gift to or from a person for an occasion, from idea to given.                                       |
+| GpShr  | GiftPlanShare    | A grant of a gift plan to a user or a group, at an access class.                                      |
 | Group  | Group            | A named set of users that shares are granted to.                                                      |
 | GvPln  | GivingPlan       | A user's giving target for a year: a percentage of income, or an amount.                              |
+| GvShr  | GivingPlanShare  | A grant of a giving plan to a user or a group, at an access class.                                    |
 | HdChk  | HoldingCheck     | A position a brokerage statement or file shows on a day, checked against what is held then.          |
 | Hold   | Holding          | What an account holds of one instrument at a point in time.                                           |
 | Imprt  | Import           | One file imported into an account, with the dates it covers.                                          |
@@ -123,6 +128,9 @@ The prefixes of the tables that exist.
 | OptCt  | OptionContract   | An option's contract: underlying, call or put, strike, expiry, multiplier, root and deliverable.      |
 | Orgzn  | Organisation     | An organisation given to: its EIN, whether gifts to it are deductible, causes, pledges.               |
 | Persn  | Person           | Someone in the household's life: every user, and people who never sign in.                            |
+| PfShr  | PortfolioShare   | A grant of a portfolio to a user or a group, at an access class.                                      |
+| PjShr  | ProjectionShare  | A grant of a projection to a user or a group, at an access class.                                     |
+| PnShr  | PersonShare      | A grant of a private person to a user or a group, at an access class.                                 |
 | Portf  | Portfolio        | A named set of accounts, or parts of them, charted as one.                                            |
 | Price  | Price            | One instrument's close on one market day, from a source, kept for ever.                               |
 | Prjct  | Projection       | How money will grow toward a goal; an active one is tracked against its baseline.                     |
@@ -139,7 +147,6 @@ The prefixes of the tables that exist.
 | Sessn  | Session          | A signed-in browser's session, its token kept as a hash.                                              |
 | Setng  | Setting          | One setting an admin saved, by its key; a key with none stands at its default.                        |
 | Sgnup  | SignupRequest    | A person's request for an account, from confirming the email to an admin's decision.                  |
-| Share  | Share            | A grant of an account or portfolio to a user, group or linked server.                                 |
 | Split  | Split            | A part of a transaction's amount given its own category.                                              |
 | Src    | PriceSource      | A source of daily prices: its name, whether it is on, and its order per class.                        |
 | StLeg  | StrategyLeg      | An instrument held as part of a strategy: an option leg, or shares with their quantity.               |
@@ -147,6 +154,7 @@ The prefixes of the tables that exist.
 | Tag    | Tag              | A user's own tag, by name: on their transactions, their receipts and what their rules set.            |
 | TaxBk  | TaxBook          | One user's, or a married couple's, tax records for one tax year.                                      |
 | TaxFg  | TaxFigure        | An admin's correction of a shipped tax-table figure for one year.                                     |
+| TbShr  | TaxBookShare     | A grant of a tax book to a user or a group, at an access class.                                       |
 | Token  | AccessToken      | A user's read-only token for the MCP endpoint, kept as a hash of its secret.                          |
 | TxBkA  | TaxBookAccount   | An account a tax book counts or leaves out, and who added it.                                         |
 | TxBkF  | TaxBookFiler     | A filer of a tax book, and when they accepted it.                                                     |
@@ -238,7 +246,7 @@ A test fails when:
    `<Table>Effective` view is missing or does not match its cascading foreign keys;
 5. a table doesn't say how it is seen (§7), a child's key is not a `NOT NULL` foreign key to
    a table with an access view, a table needing an access view has none or one that differs
-   from what its declaration makes now, or an access view lacks the six columns of §7.2.
+   from what its declaration makes now, or an access view lacks the seven columns of §7.2.
 
 ## 6. Ended records
 
@@ -262,7 +270,7 @@ as they change.
    | never | `Instrument`, `Price` (requirements S4.6), `TypedPrice`, `TaxFigure`, `Setting` while set; `TaxBook` and with it `Filing`, `EstimatedPayment`, `TaxDocument`, `TaxBookDependent`, `TaxBookFiler`, `TaxBookAccount`, `TaxDependentAccounts`; `User` (users are made inactive, not deleted, S10.2) |
    | its date | `Transaction`, `Anchor`, `Holding` (as of), `HoldingCheck` (as of), `Reconciliation` (the statement's), `Donation`, `QualifiedExpense`; `Receipt` (its own date, or when it was uploaded) |
    | an event | `Account`: deleted, or closed with nothing in it still open; `Lot`: the sale of its last share; `Import`: its latest transaction's end; `BudgetLine`: the month before a later line for its category starts; `Gift`, given or received: the later of its occasion and its purchase; `Occasion` with a year: its date; `GivingPlan`: the end of its year; `Item`: its sale; `AccessToken`: expiry or revoking; `SignupRequest`: decided, or expired unconfirmed; `Link`: unlinked; `Connector`: unpaired or replaced; `Connection`: removed; `Relationship`: its `to` date; `Strategy`: its last option leg closed |
-   | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, `Share`, `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
+   | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, the share tables (`AccountShare`, …), `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
    | its parent's | `BudgetMove`, `BudgetReview`, `BudgetLeaveOuts`, `Reimbursement`, `Split`, `LotPick`, `StrategyLeg`, `TransactionTags`, `RuleTags`, `ReceiptTags`, `WalletKey`, `OptionContract`, `BudgetAccount`, `PortfolioAccounts`, `CountedAccount`, `ShownProjections`, `GiftPersons`, `ReceiptLink`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColour`; a yearly `Occasion` |
    | `Activity` | when it was written |
 
@@ -288,7 +296,7 @@ as they change.
 
    | Ruling | Keys |
    |---|---|
-   | **deleted with** | `accountId` of `Transaction`, `Anchor`, `Holding`, `HoldingCheck`, `Lot`, `Import`, `Reconciliation`, `WalletKey`, `EducationPlan`, `QualifiedExpense`, `Loan`, `PayoffPlan`, `Item`, `Rule`; `Split.transactionId`; `Lot.transactionId` (also keeps ref); `LotPick.lotId`, `LotPick.saleId`; `TransactionTags`, `RuleTags`, `ReceiptTags` both keys; `Strategy.accountId`, `StrategyLeg.strategyId`; `CorporateAction.accountId`; `TransferMatch.outId`, `TransferMatch.inId`; `OptionContract.instrumentId`; `Price.instrumentId`, `TypedPrice.instrumentId`; `BudgetLine.budgetId`; `BudgetAccount.budgetId`; `BudgetMove.budgetId`, `BudgetMove.transactionId` (the landed money it gives); `BudgetReview.budgetId`; `BudgetLeaveOuts` both keys; `Reimbursement.spendingId`, `splitId` and `paybackId`; `PortfolioAccounts.portfolioId`; `CountedAccount`, `ShownProjections`, `UserGroups`, `LinkColour` both keys; `GiftPlan.personId`; `Occasion.giftPlanId`; `GiftPersons.giftId`; `ReceiptLink.receiptId`; `TaxBookFiler.bookId`, `TaxBookAccount.bookId`, `Filing.bookId`, `EstimatedPayment.filingId`, `TaxDocument.bookId`, `TaxDocument.filingId`, `TaxBookDependent.bookId`; `TaxDependentAccounts` both keys; `Contribution.transactionId`; `ItemValuation.itemId`, `Improvement.itemId`; `Share.itemId`, `Share.userId`, `Share.groupId`; `AccessToken.userId`; `User.linkId`; `Connection.ownerId` (a user's sign-ins go with them) |
+   | **deleted with** | `accountId` of `Transaction`, `Anchor`, `Holding`, `HoldingCheck`, `Lot`, `Import`, `Reconciliation`, `WalletKey`, `EducationPlan`, `QualifiedExpense`, `Loan`, `PayoffPlan`, `Item`, `Rule`; `Split.transactionId`; `Lot.transactionId` (also keeps ref); `LotPick.lotId`, `LotPick.saleId`; `TransactionTags`, `RuleTags`, `ReceiptTags` both keys; `Strategy.accountId`, `StrategyLeg.strategyId`; `CorporateAction.accountId`; `TransferMatch.outId`, `TransferMatch.inId`; `OptionContract.instrumentId`; `Price.instrumentId`, `TypedPrice.instrumentId`; `BudgetLine.budgetId`; `BudgetAccount.budgetId`; `BudgetMove.budgetId`, `BudgetMove.transactionId` (the landed money it gives); `BudgetReview.budgetId`; `BudgetLeaveOuts` both keys; `Reimbursement.spendingId`, `splitId` and `paybackId`; `PortfolioAccounts.portfolioId`; `CountedAccount`, `ShownProjections`, `UserGroups`, `LinkColour` both keys; `GiftPlan.personId`; `Occasion.giftPlanId`; `GiftPersons.giftId`; `ReceiptLink.receiptId`; `TaxBookFiler.bookId`, `TaxBookAccount.bookId`, `Filing.bookId`, `EstimatedPayment.filingId`, `TaxDocument.bookId`, `TaxDocument.filingId`, `TaxBookDependent.bookId`; `TaxDependentAccounts` both keys; `Contribution.transactionId`; `ItemValuation.itemId`, `Improvement.itemId`; each share table's `targetId`, `userId` and `groupId`; `AccessToken.userId`; `User.linkId`; `Connection.ownerId` (a user's sign-ins go with them) |
    | **keeps ref** | `Transaction.importId`, `instrumentId`, `reconciliationId`; `Transaction.transferId` and `optionTransactionId`, both ways; `Transaction.corporateActionId` (deleting the action deletes its transactions); `CorporateAction.instrumentId`; `Lot.transactionId`, `Lot.instrumentId`; `LotPick.saleId`; `Holding.instrumentId`; `HoldingCheck.importId`, `HoldingCheck.instrumentId`; `OptionContract.underlyingId`; `Strategy.underlyingId`, `StrategyLeg.instrumentId`; `Gift.transactionId`; `Donation.transactionId`, `Donation.instrumentId`; `ReceiptLink.itemId` (the receipt ends no earlier than what it is linked to); `TaxDocument.receiptId`; `QualifiedExpense.transactionId`; `Loan.securedById`; `User.personId`; `Connection.connectorId` (a Connection outlives a replaced pairing only as history) |
    | **keeps name** | `categoryId` of `Transaction`, `Split`, `BudgetLine`, `Rule`; `BudgetMove.fromCategoryId`, `toCategoryId`, `cardId`; a `Loan`'s budget categories; `BudgetAccount.movedFromId`, `paidFromId`; `BudgetLine.heldInId`, `BudgetLine.projectionId`; `BudgetAccount.accountId`, `PortfolioAccounts.accountId`; what a `Projection` is built on (it waits for its owner to choose again before recomputing); `GiftPersons.personId`; `Donation.organisationId`, `fromAccountId`, `dafAccountId`; `TaxBookAccount.accountId`, `TaxDocument.accountId`, `TaxBookDependent.personId`; `Filing.resultTransactionId`, `EstimatedPayment.transactionId`; `EducationPlan.beneficiaryId`; `Contribution.fromPersonId`; `Relationship.person1Id`, `person2Id`; every key to a user or person not listed elsewhere |
    | **nullifies** | `Anchor.importId`, `Holding.importId`; `User.activeBudgetId` (the user then follows none until they choose); an account's `connectionId` (its sync turns off, requirements S18.6.4) |
@@ -312,9 +320,10 @@ ever read for them.
 
    | Declared | Tables | Its view |
    |---|---|---|
-   | root (its share kind) | `Account`, `Portfolio`, `Budget`, `GivingPlan`, `Projection` | generated: its owner holds everything, a share (S10.3) gives read or `writable`, directly or through an active group |
+   | root (its share kind, its share table's prefix) | `Account`, `Portfolio`, `Budget`, `GivingPlan`, `Projection` | generated: its owner holds everything; a share (S10.3) gives what its access class allows, directly or through an active group |
    | child (its key) | the records of one record: `Transaction` (`accountId`), `Split` (`transactionId`), `BudgetLine` (`budgetId`), `Filing` (`bookId`), `Occasion` (`giftPlanId`), … | generated: seen as the record its `NOT NULL` key names is; `writable` and `deletable` are that record's `writable`, `configurable` its `configurable`, never `shareable` |
-   | rule (its share kind, for a root) | `TaxBook`, `Person`, `GiftPlan` (roots with rules of their own); `Receipt`, `ReceiptLink`, `Gift`, `Donation`, `Organisation`, `Reimbursement`, `TransferMatch`, `Relationship`, `WashSale`, `Alert`, `ImportMapping`, `TaxBookFiler`, `Activity`, `User`, `Group`, `Share`, `LinkedItem` | written by hand in `store/access_views.py`, one function each, citing its requirement |
+   | share (its share kind) | each shareable kind's share table, `<Table>Share` (`AccountShare`, …), made from its root's declaration | generated: whoever holds `shareable` on its item reads and changes it; its grantee reads it, directly or through a group |
+   | rule (its share kind, for a root) | `TaxBook`, `Person`, `GiftPlan` (roots with rules of their own); `Receipt`, `ReceiptLink`, `Gift`, `Donation`, `Organisation`, `Reimbursement`, `TransferMatch`, `Relationship`, `WashSale`, `Alert`, `ImportMapping`, `TaxBookFiler`, `Activity`, `User`, `Group`, `LinkedItem` | written by hand in `store/access_views.py`, one function each, citing its requirement |
    | per-user (its user column) | `AccessToken`, `AlertState`, `CountedAccount`, `LinkColour`, `TypedPrice`, `Tag`, `Rule`, `StatementLayout`, `AssumptionSet`, `Connection` | generated: its user's alone, `writable` and `deletable`; `Connection` also `configurable` (its credentials) |
    | admin | `Setting`, `PriceSource`, `Connector`, `Link`, `LinkFile`, `LinkSent`, `QueuedEmail`, `SignupRequest` | generated: every admin holds everything; no one else reads it |
    | relation | the many-to-many tables (§1.2) | none: a query asks for one side's records and joins that side's view, and the other side's when it returns both |
@@ -331,11 +340,14 @@ ever read for them.
    | `deletable` | deletes it |
    | `shareable` | changes its sharing, and sees who holds it |
    | `configurable` | changes its settings and what it covers, and sees and changes its secrets |
+   | `mine` | the record is the user's own |
 
-   The four are 0 or 1. Each implies `writable`. Several ways to a record (its owner, a share,
-   a group's share, a tax book's filers) collapse to one row with the highest of each. Being
-   the owner is not a column: whether a record is one's own is a fact of the record
-   (`ownerId`, or its parent's; a tax book's accepted filers' too).
+   All are 0 or 1. Each permission implies `writable`. Several ways to a record (its owner, a
+   share, a group's share, a tax book's filers) collapse to one row with the highest of each.
+   `mine` is no permission, and nothing is allowed by it: it is the fact that a record is one's
+   own (its `ownerId`, or its parent's; a tax book's accepted filers; one's own person, or one
+   added and not yet joined; never an admin's for being an admin), worked out in the view so
+   it is written once. A share's row is never `mine`.
 3. **Who holds anything.** Only active, live users (S10.1.7) and live memberships of active
    groups (S10.5); being an admin is a live membership of the active Admins group (S10.1.8). A
    linked server's user only ever reads, and only what is shared with them (S10.3.3).
@@ -372,3 +384,10 @@ ever read for them.
    their own checks, with their own messages; this one stops a write they missed. Activity's
    entries, alerts and emails waiting are the server's on everyone's behalf and aren't
    checked; neither is a session the server reads in.
+8. **Shares.** A share grants one item to one user or one group, at an access class
+   (`AccessClass`: `read` or `write`, fixed rows holding the four permissions). Each shareable
+   kind keeps its shares in a table of its own, made from the kind's declaration, so the item
+   is a real key: `targetId`, then `userId` or `groupId` (exactly one), `accessClassId`,
+   `includeReceipts` (a linked server's user, S11.5.1) and `createdById`, one live share per
+   item and grantee. A root's view gives each grantee the permissions of their share's class.
+   Code that reads shares of every kind goes through the registry of share tables.

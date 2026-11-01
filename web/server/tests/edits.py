@@ -107,6 +107,13 @@ def reconcile(c, account_id: str, date: str, balance: str) -> dict:
     return saved(_save(c, op, False))
 
 
+def share_prefix(kind: str) -> str:
+    """The save kind of a shareable kind's shares: its share table's prefix."""
+    from moolakata.store.tables.shares import SHARES
+
+    return SHARES[kind].info["prefix"]
+
+
 def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, too=False):
     """An item shared as its dialog's draft shares it (S10.4): for each user and group named,
     its grant made, changed or taken away (`none`); Include receipts per linked server; with
@@ -122,32 +129,30 @@ def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, to
     wanted += [(("groupId", k), x) for k, x in (groups or {}).items()]
     for (field, gid), g in have.items():
         if g.get("shareId") and linked.get(gid) in receipts and (field, gid) not in dict(wanted):
-            wanted.append(((field, gid), g["level"]))
+            wanted.append(((field, gid), g["allow"]))
+    entity = share_prefix(kind)
     ops = []
-    for (field, gid), level in wanted:
+    for (field, gid), allow in wanted:
         g = have.get((field, gid)) or {}
         rec = {
-            "kind": kind,
-            "itemId": item_id,
+            "targetId": item_id,
             field: gid,
-            "level": level,
+            "allow": allow,
             "includeReceipts": bool(receipts.get(linked.get(gid), g.get("includeReceipts"))),
         }
         if not g.get("shareId"):
-            if level != "none":
-                ops.append(
-                    {"op": "create", "entity": "Share", "id": new_id("Share"), "fields": rec}
-                )
-        elif level == "none":
+            if allow != "none":
+                ops.append({"op": "create", "entity": entity, "id": new_id(entity), "fields": rec})
+        elif allow == "none":
             ops.append(
-                {"op": "delete", "entity": "Share", "id": g["shareId"], "version": g["version"]}
+                {"op": "delete", "entity": entity, "id": g["shareId"], "version": g["version"]}
             )
         else:
-            fields = {k: rec[k] for k in ("level", "includeReceipts")}
+            fields = {k: rec[k] for k in ("allow", "includeReceipts")}
             ops.append(
                 {
                     "op": "update",
-                    "entity": "Share",
+                    "entity": entity,
                     "id": g["shareId"],
                     "version": g["version"],
                     "fields": fields,
@@ -160,9 +165,9 @@ def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, to
         ops = [
             {
                 "op": "create",
-                "entity": "Share",
-                "id": new_id("Share"),
-                "fields": {"kind": "account", "itemId": aid, "userId": uid, "level": "read"},
+                "entity": share_prefix("account"),
+                "id": new_id(share_prefix("account")),
+                "fields": {"targetId": aid, "userId": uid, "allow": "read"},
             }
             for uid, aids in v["hidden"].items()
             for aid in aids

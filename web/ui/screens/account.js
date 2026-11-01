@@ -812,18 +812,18 @@ function Sharing({ a, reload }) {
   }
   const holders = v
     ? [
-      ...v.users.filter((/** @type {any} */ u) => u.level !== 'none' || u.via.length).map((
+      ...v.users.filter((/** @type {any} */ u) => u.allow !== 'none' || u.via.length).map((
         /** @type {any} */ u,
       ) => ({
         name: u.displayName,
-        how: u.level !== 'none'
+        how: u.allow !== 'none'
           ? 'directly'
           : 'via ' + u.via.map((/** @type {any} */ x) => x.groupName).join(', '),
-        level: u.level !== 'none' ? u.level : u.via[0].level,
+        allow: u.allow !== 'none' ? u.allow : u.via[0].allow,
       })),
-      ...v.groups.filter((/** @type {any} */ g) => g.level !== 'none').map((
+      ...v.groups.filter((/** @type {any} */ g) => g.allow !== 'none').map((
         /** @type {any} */ g,
-      ) => ({ name: g.name, how: `group of ${g.members}`, level: g.level })),
+      ) => ({ name: g.name, how: `group of ${g.members}`, allow: g.allow })),
     ]
     : [];
   return html`
@@ -840,8 +840,8 @@ function Sharing({ a, reload }) {
           ? holders.map((x) =>
             html`<div class="list-item"><div class="grow">${x.name}
       <div class="small dim">${x.how}</div></div><span class="pill"><${Icon} name=${
-              x.level === 'write' ? 'pencil' : 'eye'
-            } /> ${x.level}</span></div>`
+              x.allow === 'write' ? 'pencil' : 'eye'
+            } /> ${x.allow}</span></div>`
           )
           : html`<p class="small dim">Only you. A new account is shared with no one.</p>`}</div>
   `;

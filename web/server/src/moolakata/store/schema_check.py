@@ -110,6 +110,10 @@ def _check_seen(t: Table) -> list[str]:
             return [f"{t.name}.{how.key}: a child's key is a NOT NULL foreign key"]
         if not access_views.has_view(fk[0].column.table):
             return [f"{t.name}.{how.key}: its parent has no access view"]
+    if how.how == "share":
+        fk = [f for f in t.foreign_keys if f.parent.name == how.key]
+        if not fk or t.c[how.key].nullable or not access_views.has_view(fk[0].column.table):
+            return [f"{t.name}.{how.key}: a share's item is a NOT NULL key to a shared table"]
     if how.how == "per-user" and how.key not in t.c:
         return [f"{t.name}: no column {how.key} for its user"]
     if how.how == "rule" and t.name not in access_views.WRITTEN:
@@ -146,7 +150,7 @@ def _check_soft_delete(t: Table) -> list[str]:
 
 def check_database(connection, metadata: MetaData) -> list[str]:
     """Every soft-deleting table has its Effective view, matching its cascading keys, and every
-    table with an access view has it as generated now, with its six columns (§7)."""
+    table with an access view has it as generated now, with its seven columns (§7)."""
     problems = []
     have = {
         name: sql
@@ -168,7 +172,7 @@ def check_database(connection, metadata: MetaData) -> list[str]:
             problems.append(f"view {name} is not as generated now")
         elif name.endswith(access_views.SUFFIX):
             cols = [r[1] for r in connection.exec_driver_sql(f'PRAGMA table_info("{name}")')]
-            if cols != ["targetId", "userId", *access_views.PERMISSIONS]:
+            if cols != ["targetId", "userId", *access_views.COLUMNS]:
                 problems.append(f"view {name} has columns {cols}")
     for t in metadata.sorted_tables:
         sql = connection.exec_driver_sql(

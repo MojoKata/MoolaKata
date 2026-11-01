@@ -54,8 +54,8 @@ def test_groups_via_and_the_higher_level(server, admin_client):
     )["view"]
     bob = next(x for x in view["users"] if x["id"] == u["bob"].id)
     carol = next(x for x in view["users"] if x["id"] == u["carol"].id)
-    assert bob["level"] == "write" and bob["via"][0]["groupName"] == "Household"
-    assert carol["level"] == "none" and carol["via"][0]["level"] == "read"
+    assert bob["allow"] == "write" and bob["via"][0]["groupName"] == "Household"
+    assert carol["allow"] == "none" and carol["via"][0]["allow"] == "read"
     assert c["carol"].get("/ui/api/accounts").json()["items"][0]["level"] == "read"
     assert c["bob"].get("/ui/api/accounts").json()["items"][0]["level"] == "write"
     saved(change(admin_client, "Group", g, active=False))

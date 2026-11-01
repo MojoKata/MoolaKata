@@ -36,7 +36,7 @@ Person = record(
     CheckConstraint('"birthMonth" IS NULL OR "birthMonth" BETWEEN 1 AND 12', name="birth_month"),
     CheckConstraint('"birthDay" IS NULL OR "birthDay" BETWEEN 1 AND 31', name="birth_day"),
     Index("ix_Person_name", "name"),
-    seen=Seen.rule("person"),
+    seen=Seen.rule("person", "PnShr"),
 )
 
 # A dated link between two people (S10.10.4). A child runs from the parent (person1) to the
@@ -80,7 +80,7 @@ GiftPlan = record(
     Column("notes", Text),
     CheckConstraint('"leadDays" >= 0', name="lead_days"),
     Index("ix_GiftPlan_personId", "personId"),
-    seen=Seen.rule("gift-plan"),
+    seen=Seen.rule("gift-plan", "GpShr"),
 )
 unique_live(GiftPlan, "ownerId", "personId")
 

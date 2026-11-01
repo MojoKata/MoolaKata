@@ -848,6 +848,66 @@
         "title": "AccountRow",
         "type": "object"
       },
+      "AccountShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "AccountShareRecord",
+        "type": "object",
+        "x-entity": "AcShr"
+      },
       "Activated": {
         "additionalProperties": false,
         "properties": {
@@ -2399,6 +2459,66 @@
         ],
         "title": "BudgetRow",
         "type": "object"
+      },
+      "BudgetShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "BudgetShareRecord",
+        "type": "object",
+        "x-entity": "BdShr"
       },
       "Candidate": {
         "additionalProperties": false,
@@ -7154,6 +7274,66 @@
         "title": "GiftOut",
         "type": "object"
       },
+      "GiftPlanShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^GfPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "GfPln"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "GiftPlanShareRecord",
+        "type": "object",
+        "x-entity": "GpShr"
+      },
       "GiftRecord": {
         "additionalProperties": false,
         "description": "A gift as a draft saves it (S7.8), with its people as a set and the receipts kept with\nit (`receiptIds`).",
@@ -7515,6 +7695,66 @@
         "type": "object",
         "x-entity": "GvPln"
       },
+      "GivingPlanShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "GvPln"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "GivingPlanShareRecord",
+        "type": "object",
+        "x-entity": "GvShr"
+      },
       "GivingView": {
         "additionalProperties": false,
         "properties": {
@@ -7735,12 +7975,17 @@
       "GroupGrant": {
         "additionalProperties": false,
         "properties": {
-          "id": {
-            "title": "Id",
+          "allow": {
+            "enum": [
+              "none",
+              "read",
+              "write"
+            ],
+            "title": "Allow",
             "type": "string"
           },
-          "level": {
-            "title": "Level",
+          "id": {
+            "title": "Id",
             "type": "string"
           },
           "members": {
@@ -7771,7 +8016,7 @@
         "required": [
           "id",
           "name",
-          "level",
+          "allow",
           "members"
         ],
         "title": "GroupGrant",
@@ -16285,6 +16530,66 @@
         "title": "PersonRow",
         "type": "object"
       },
+      "PersonShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Persn"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "PersonShareRecord",
+        "type": "object",
+        "x-entity": "PnShr"
+      },
       "PersonSpend": {
         "additionalProperties": false,
         "properties": {
@@ -16990,6 +17295,66 @@
         ],
         "title": "PortfolioSeries",
         "type": "object"
+      },
+      "PortfolioShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Portf_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Portf"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "PortfolioShareRecord",
+        "type": "object",
+        "x-entity": "PfShr"
       },
       "PositionIn": {
         "additionalProperties": false,
@@ -18489,6 +18854,66 @@
         ],
         "title": "ProjectionRow",
         "type": "object"
+      },
+      "ProjectionShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Prjct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Prjct"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "ProjectionShareRecord",
+        "type": "object",
+        "x-entity": "PjShr"
       },
       "Proposal": {
         "additionalProperties": false,
@@ -21781,79 +22206,6 @@
         "title": "Share",
         "type": "object"
       },
-      "ShareRecord": {
-        "additionalProperties": false,
-        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee.",
-        "properties": {
-          "groupId": {
-            "anyOf": [
-              {
-                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
-                "type": "string",
-                "x-prefix": "Group"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Groupid"
-          },
-          "includeReceipts": {
-            "default": false,
-            "title": "Includereceipts",
-            "type": "boolean"
-          },
-          "itemId": {
-            "title": "Itemid",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "account",
-              "portfolio",
-              "budget",
-              "projection",
-              "person",
-              "gift-plan",
-              "giving-plan",
-              "tax-book"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              "read",
-              "write"
-            ],
-            "title": "Level",
-            "type": "string"
-          },
-          "userId": {
-            "anyOf": [
-              {
-                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
-                "type": "string",
-                "x-prefix": "User"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Userid"
-          }
-        },
-        "required": [
-          "kind",
-          "itemId",
-          "level"
-        ],
-        "title": "ShareRecord",
-        "type": "object",
-        "x-entity": "Share"
-      },
       "ShareView": {
         "additionalProperties": false,
         "properties": {
@@ -23355,6 +23707,66 @@
         "title": "TagRecord",
         "type": "object",
         "x-entity": "Tag"
+      },
+      "TaxBookShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^TaxBk_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "TaxBk"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "TaxBookShareRecord",
+        "type": "object",
+        "x-entity": "TbShr"
       },
       "TaxRow": {
         "additionalProperties": false,
@@ -25023,6 +25435,15 @@
       "UserGrant": {
         "additionalProperties": false,
         "properties": {
+          "allow": {
+            "enum": [
+              "none",
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
           "avatar": {
             "anyOf": [
               {
@@ -25046,10 +25467,6 @@
             "default": false,
             "title": "Includereceipts",
             "type": "boolean"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "shareId": {
             "anyOf": [
@@ -25079,7 +25496,7 @@
           "id",
           "displayName",
           "avatar",
-          "level",
+          "allow",
           "via"
         ],
         "title": "UserGrant",
@@ -25520,6 +25937,14 @@
       "Via": {
         "additionalProperties": false,
         "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
           "groupId": {
             "title": "Groupid",
             "type": "string"
@@ -25527,16 +25952,12 @@
           "groupName": {
             "title": "Groupname",
             "type": "string"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           }
         },
         "required": [
           "groupId",
           "groupName",
-          "level"
+          "allow"
         ],
         "title": "Via",
         "type": "object"

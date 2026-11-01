@@ -17,8 +17,8 @@ from sqlalchemy import delete, false, select
 from .. import clock, exactjson
 from ..errors import Problem
 from ..store.entities.links import Link, LinkSent
-from ..store.entities.sharing import Share
 from ..store.entities.users import User
+from ..store.tables.shares import CLASSES
 from . import changes, keys
 
 # The eight shareable kinds (S10.3), each of which may go to named people on a linked server.
@@ -81,13 +81,11 @@ def shared_items(srv, link_id: str) -> tuple[dict[str, Item], dict[str, User]]:
         out: dict[str, Item] = {}
         if not people:
             return out, people
-        for g in s.scalars(
-            select(Share).where(
-                Share.userId.in_(list(people)), Share.deleted == false(), Share.level == "read"
-            )
+        for g in sharing.every_share(
+            s, lambda e: [e.userId.in_(list(people)), e.accessClassId == CLASSES["read"]]
         ):
             try:
-                obj = sharing.item(s, g.kind, g.itemId)
+                obj = sharing.item(s, g.kind, g.targetId)
             except Problem:
                 continue
             if getattr(obj, "deleted", False):
@@ -104,9 +102,9 @@ def shared_items(srv, link_id: str) -> tuple[dict[str, Item], dict[str, User]]:
                 name = s.get(Person, obj.personId).name
             owner = s.get(User, obj.ownerId) if obj.ownerId else None
             it = out.setdefault(
-                g.itemId,
+                g.targetId,
                 Item(
-                    g.itemId,
+                    g.targetId,
                     g.kind,
                     name,
                     owner.displayName if owner else "?",
