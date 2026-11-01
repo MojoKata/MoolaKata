@@ -1,5 +1,6 @@
 # web/check on every pull request and every push to main (requirements S17.10), on GitHub's
-# standard runners, free for a public repository. The actions are pinned by commit and listed
+# standard runners, free for a public repository: its parts as jobs side by side, and `check`,
+# the status the rulesets require, passing when every part does. The actions are pinned by commit and listed
 # in the register (docs/dependencies.md); everything else is the repository's own scripts.
 name: check
 
@@ -19,9 +20,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
+  tests:
+    name: static checks, server and connector tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,10 +38,116 @@ jobs:
           echo "$RUNNER_TEMP/uv/bin" >> "$GITHUB_PATH"
       - name: web/dev.sh setup (Python 3.14, Deno and Chromium, each pinned)
         run: web/dev.sh setup
-      - name: web/check
+      - name: web/check static server connector
         run: |
           set -o pipefail
-          web/check 2>&1 | tee "$RUNNER_TEMP/check.log"
+          web/check static server connector 2>&1 | tee "$RUNNER_TEMP/check.log"
+      # What the tests measured, for the coverage job (S17.5.8).
+      - name: the coverage data
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-tests
+          path: web/.dev/coverage/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+      - name: say what failed
+        if: failure()
+        run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
+
+  browser:
+    name: browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The commit before too: the coverage of the changed lines counts from it (a pull
+          # request's merge commit's first parent is its base).
+          fetch-depth: 2
+      - name: uv, pinned with its hashes
+        run: |
+          python3 -m venv "$RUNNER_TEMP/uv"
+          "$RUNNER_TEMP/uv/bin/pip" install --quiet --require-hashes -r web/install/build-requirements.txt
+          echo "$RUNNER_TEMP/uv/bin" >> "$GITHUB_PATH"
+      - name: web/dev.sh setup (Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: web/check browser
+        run: |
+          set -o pipefail
+          web/check browser 2>&1 | tee "$RUNNER_TEMP/check.log"
+      # What the tests measured, for the coverage job (S17.5.8).
+      - name: the coverage data
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-browser
+          path: web/.dev/coverage/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+      - name: say what failed
+        if: failure()
+        run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
+
+  mockups:
+    name: mockups
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The commit before too: the coverage of the changed lines counts from it (a pull
+          # request's merge commit's first parent is its base).
+          fetch-depth: 2
+      - name: uv, pinned with its hashes
+        run: |
+          python3 -m venv "$RUNNER_TEMP/uv"
+          "$RUNNER_TEMP/uv/bin/pip" install --quiet --require-hashes -r web/install/build-requirements.txt
+          echo "$RUNNER_TEMP/uv/bin" >> "$GITHUB_PATH"
+      - name: web/dev.sh setup (Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: web/check mockups
+        run: |
+          set -o pipefail
+          web/check mockups 2>&1 | tee "$RUNNER_TEMP/check.log"
+      - name: say what failed
+        if: failure()
+        run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
+
+  # The coverage of every test job together: totals by area, the changed lines, the floor.
+  coverage:
+    name: coverage
+    needs: [tests, browser]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The commit before too: the coverage of the changed lines counts from it (a pull
+          # request's merge commit's first parent is its base).
+          fetch-depth: 2
+      - name: uv, pinned with its hashes
+        run: |
+          python3 -m venv "$RUNNER_TEMP/uv"
+          "$RUNNER_TEMP/uv/bin/pip" install --quiet --require-hashes -r web/install/build-requirements.txt
+          echo "$RUNNER_TEMP/uv/bin" >> "$GITHUB_PATH"
+      - name: web/dev.sh setup (Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: the test jobs' coverage data
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-data-*
+          path: web/.dev/coverage/
+          merge-multiple: true
+      - name: web/check coverage
+        run: |
+          set -o pipefail
+          web/check coverage 2>&1 | tee "$RUNNER_TEMP/check.log"
       # The coverage reports as HTML (S17.5.8); web/check writes the summary and annotations.
       - name: coverage reports
         if: always()
@@ -50,7 +158,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       # On main, the coverage site (S17.5.8): this run's reports, and its totals added to the
-      # history the published site holds; the next job publishes it.
+      # history the published site holds; the coverage site job publishes it.
       - name: coverage site
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: cd web/server && uv run --frozen --quiet python -m moolakata.dev.coverage site
@@ -59,38 +167,30 @@ jobs:
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: web/.dev/coverage/site/
-      # What failed, as annotations: they show on the pull request and through the API, where
-      # a reader without access to the run's log can see them.
       - name: say what failed
         if: failure()
+        run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
+
+  # The status the rulesets require (docs/GENESIS.md): passing only when every part did.
+  check:
+    name: check
+    needs: [tests, browser, mockups, coverage]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: every part passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          python3 - "$RUNNER_TEMP/check.log" <<'EOF'
-          import sys
-
-          log = open(sys.argv[1], errors="replace").read()
-          def say(title, text):
-              text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-              print(f"::error title={title.replace(',', ';').replace(':', ' ')}::{text}")
-
-          # Each step web/check reports failed, with its own output, in parts of 60 lines
-          # (GitHub keeps 10 annotations a step: the last 7 parts of each, at most).
-          for section in log.split("\n== ")[1:]:
-              name, _, body = section.partition("\n")
-              if "\n   FAILED: " in "\n" + body:
-                  lines = body.rstrip("\n").splitlines()
-                  parts = [lines[i : i + 60] for i in range(0, len(lines), 60)][-7:]
-                  for n, part in enumerate(parts, 1):
-                      say(f"{name} ({n} of {len(parts)})", "\n".join(part))
-          for line in log.splitlines():
-              if line.startswith(("FAILED tests/", "ERROR tests/")):
-                  say("pytest", line)
-          EOF
+          echo "tests, browser, mockups, coverage: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
 
   # The coverage site to the repository's GitHub Pages, after a passing check on main. Its
   # environment, github-pages, takes deployments from main alone.
   coverage-site:
     name: coverage site
-    needs: check
+    needs: [check, coverage]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
