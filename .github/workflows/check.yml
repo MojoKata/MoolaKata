@@ -78,10 +78,17 @@ jobs:
         if: failure()
         run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
 
+  # The browser tests in two parts side by side, each on four workers.
   browser:
-    name: browser tests
+    name: browser tests ${{ matrix.part }} of 2
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2]
+    env:
+      MK_TEST_PART: ${{ matrix.part }}/2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -113,7 +120,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage-data-browser
+          name: coverage-data-browser-${{ matrix.part }}
           path: web/.dev/coverage/
           include-hidden-files: true
           if-no-files-found: ignore
