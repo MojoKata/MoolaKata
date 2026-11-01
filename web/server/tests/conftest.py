@@ -7,7 +7,7 @@ import pytest
 # The browser tests' shared fixtures (S17.5.2), defined once for every module that uses them.
 from browser import browser, household, served  # noqa: F401
 
-# And the whole app's, on a seeded dev server (test_app.py, test_guides.py).
+# And the whole app's, on a seeded dev server (test_app.py, test_app_guides.py).
 from devapp import dev_server, page  # noqa: F401
 from fastapi.testclient import TestClient
 from jscoverage import install as measure_the_browser_app

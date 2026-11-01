@@ -1,6 +1,6 @@
 """A seeded dev server and alice's pages on it, for the browser tests that drive the whole app
-(test_app.py, test_guides.py): opening a screen as a person would, and checking a screen's or a
-dialog's guide (S12.7.6)."""
+(test_app.py, test_app_guides.py): opening a screen as a person would, and checking a
+screen's or a dialog's guide (S12.7.6)."""
 
 import contextlib
 import re

@@ -1,6 +1,6 @@
 """The browser app against a seeded dev server in headless Chromium (requirements S17.5): its
 help pane, guides and terms, privacy mode, sign-in, sign-up, imports and sealed credentials,
-each through the app as a person uses it. Every screen's and dialog's guide: test_guides.py."""
+each through the app as a person uses it. Every screen's and dialog's guide: test_app_guides.py."""
 
 import re
 import time
