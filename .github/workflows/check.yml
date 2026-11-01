@@ -42,6 +42,14 @@ jobs:
         run: |
           set -o pipefail
           web/check static server connector 2>&1 | tee "$RUNNER_TEMP/check.log"
+      # A process the tests started writes its coverage as it exits: it is waited for, so
+      # what it measured is in the artifact.
+      - name: the tests' processes, finished
+        if: always()
+        run: |
+          ps -eo pid,etimes,args | grep "[w]eb/server/.venv" || true
+          for _ in $(seq 120); do pgrep -f "web/server/.venv" >/dev/null || break; sleep 1; done
+          ls -a web/.dev/coverage/server | grep -c '^\.coverage' || true
       # What the tests measured, for the coverage job (S17.5.8).
       - name: the coverage data
         if: always()
@@ -78,6 +86,14 @@ jobs:
         run: |
           set -o pipefail
           web/check browser 2>&1 | tee "$RUNNER_TEMP/check.log"
+      # A process the tests started writes its coverage as it exits: it is waited for, so
+      # what it measured is in the artifact.
+      - name: the tests' processes, finished
+        if: always()
+        run: |
+          ps -eo pid,etimes,args | grep "[w]eb/server/.venv" || true
+          for _ in $(seq 120); do pgrep -f "web/server/.venv" >/dev/null || break; sleep 1; done
+          ls -a web/.dev/coverage/server | grep -c '^\.coverage' || true
       # What the tests measured, for the coverage job (S17.5.8).
       - name: the coverage data
         if: always()
@@ -146,6 +162,7 @@ jobs:
           merge-multiple: true
       - name: web/check coverage
         run: |
+          echo "coverage data: $(ls -a web/.dev/coverage/server | grep -c '^\.coverage') server files, $(ls web/.dev/coverage/js | wc -l) browser app files"
           set -o pipefail
           web/check coverage 2>&1 | tee "$RUNNER_TEMP/check.log"
       # The coverage reports as HTML (S17.5.8); web/check writes the summary and annotations.
