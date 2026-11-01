@@ -20,6 +20,21 @@ from moolakata.store.maintenance import open_store
 measure_the_browser_app()
 
 
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session):
+    """An xdist worker measured by coverage (S17.5.8) saves what it measured once its fixtures
+    are torn down and before it reports finished: once every worker has, xdist gives each 10 s
+    to exit and then kills it, and a worker killed while saving at exit loses its tests'
+    coverage."""
+    if not hasattr(session.config, "workerinput"):
+        return
+    import coverage
+
+    if cov := coverage.Coverage.current():
+        cov.stop()
+        cov.save()
+
+
 @pytest.fixture(autouse=True)
 def file_sandbox_shown():
     """What a test sees doesn't depend on the kernel it runs on: the reader's file sandbox is

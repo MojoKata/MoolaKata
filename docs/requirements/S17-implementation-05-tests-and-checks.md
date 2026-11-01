@@ -95,7 +95,9 @@
    8. **Coverage**: what the tests reach, measured on every run of `web/check`, with no
       service outside the repository and its own GitHub Pages site. coverage.py measures lines and branches in every
       Python process the tests start (the server the browser tests run included; the
-      reader's worker, started with no environment, is not), and the connector. For the
+      reader's worker, started with no environment, is not), and the connector. Each
+      pytest-xdist worker saves what it measured before it reports finished, since xdist kills
+      a worker that hasn't exited 10 s later. For the
       browser app, `deno test --coverage` and the browser tests' pages (V8's precise
       coverage through Chromium's DevTools protocol, written in Deno's form) are read
       together by `deno coverage`; a file no test loads counts as not reached.
