@@ -162,8 +162,14 @@ GUIDE_CHECK = """(scope) => {
 
 
 def check_guide(page, scope: str, where: str) -> None:
-    page.wait_for_timeout(400)
-    r = page.evaluate(GUIDE_CHECK, scope)
+    """The guide shown has a heading for each field, in the fields' order. Asked again until
+    it does or 10 s pass, as a field drawn late (its record still loading) gets its heading
+    once it is there; the last answer is the one judged."""
+    for _ in range(200):
+        r = page.evaluate(GUIDE_CHECK, scope)
+        if "error" not in r and not r["missing"] and r["backwards"] is None:
+            break
+        page.wait_for_timeout(50)
     assert "error" not in r, f"{where}: {r}"
     assert not r["missingGuide"], f"{where}: no guide {r['key']}"
     assert r["missing"] == [], f"{where} ({r['key']}): fields without a heading: {r['missing']}"
