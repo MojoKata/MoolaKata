@@ -8,7 +8,7 @@
   },
   "browser/app": {
     "branches": 93,
-    "lines": 90
+    "lines": 91.9
   },
   "browser/charts": {
     "branches": 77,
@@ -16,19 +16,19 @@
   },
   "browser/components": {
     "branches": 82,
-    "lines": 58.2
+    "lines": 63.6
   },
   "browser/screens": {
-    "branches": 74.6,
-    "lines": 51.5
+    "branches": 75.5,
+    "lines": 56.7
   },
   "browser/store": {
     "branches": 91,
     "lines": 97
   },
   "connector": {
-    "branches": 69.2,
-    "lines": 84.1
+    "branches": 74.8,
+    "lines": 86.7
   },
   "server/assets": {
     "branches": 90,
@@ -43,16 +43,16 @@
     "lines": 89.0
   },
   "server/budgets": {
-    "branches": 85,
-    "lines": 95.2
+    "branches": 90.3,
+    "lines": 97.2
   },
   "server/connector": {
-    "branches": 82,
-    "lines": 91
+    "branches": 84.8,
+    "lines": 94.2
   },
   "server/core": {
-    "branches": 74.9,
-    "lines": 87.6
+    "branches": 76.8,
+    "lines": 88.6
   },
   "server/education": {
     "branches": 84,
@@ -72,15 +72,15 @@
   },
   "server/keys": {
     "branches": 62,
-    "lines": 80.3
+    "lines": 83.1
   },
   "server/ledger": {
-    "branches": 88,
-    "lines": 95.9
+    "branches": 89.4,
+    "lines": 96.5
   },
   "server/links": {
-    "branches": 75.7,
-    "lines": 87.3
+    "branches": 79.3,
+    "lines": 92.0
   },
   "server/loans": {
     "branches": 86,
@@ -91,8 +91,8 @@
     "lines": 91.6
   },
   "server/people": {
-    "branches": 87.5,
-    "lines": 94.5
+    "branches": 88.0,
+    "lines": 95.3
   },
   "server/prices": {
     "branches": 75,
@@ -103,19 +103,19 @@
     "lines": 92.7
   },
   "server/receipts": {
-    "branches": 69.1,
-    "lines": 74.6
+    "branches": 71.2,
+    "lines": 76.9
   },
   "server/store": {
-    "branches": 72.5,
-    "lines": 89.1
+    "branches": 76.4,
+    "lines": 90.6
   },
   "server/taxes": {
-    "branches": 84.5,
-    "lines": 93.4
+    "branches": 91.8,
+    "lines": 97.1
   },
   "server/ui": {
-    "branches": 72.7,
-    "lines": 90.2
+    "branches": 74.6,
+    "lines": 91.0
   }
 }
