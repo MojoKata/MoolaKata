@@ -45,8 +45,22 @@ def cents(x: Decimal) -> Decimal:
     return x.quantize(CENT, rounding=ROUND_HALF_EVEN)
 
 
+# A merger's new shares are of the class the old ones were (S2.4): the world being worked out
+# names them, `_merged(w)`.
+_MERGED: dict[str, str] = {}
+
+
+def _merged(w: tw.World) -> None:
+    _MERGED.clear()
+    _MERGED.update({t.new_symbol: t.symbol for t in w.trades if t.kind == "merger"})
+
+
 def class_of(symbol: str) -> str:
-    """A hand-typed symbol's class (CR3-14): five letters ending in X is a fund."""
+    """A hand-typed symbol's class (CR3-14): five letters ending in X is a fund; an option's
+    contract (SPY 18DEC26 500 C) an option; a merger's new shares the old ones' class."""
+    symbol = _MERGED.get(symbol, symbol)
+    if " " in symbol:
+        return "option"
     if len(symbol) == 5 and symbol.isalpha() and symbol.endswith("X"):
         return "mutual-fund"
     return "equity"
@@ -77,6 +91,7 @@ class Part:
     basis: Decimal
     held_from: dt.date | None
     adjustment: Decimal = Decimal(0)
+    written: bool = False  # a contract sold to open: short term however long (S3.3)
 
     @property
     def raw(self) -> Decimal:
@@ -129,6 +144,10 @@ def _washable(symbol: str, account: str) -> bool:
     return _type(account) in ("brokerage", "ira") and class_of(symbol) in ("equity", "mutual-fund")
 
 
+OPENS = ("buy-to-open", "sell-to-open")
+CLOSES = ("sell-to-close", "buy-to-close", "expire", "assign", "exercise")
+
+
 def _anniversary(d: dt.date) -> dt.date:
     if d.month == 2 and d.day == 29:
         return dt.date(d.year + 1, 2, 28)
@@ -162,6 +181,7 @@ def _replay(w: tw.World, account: str, replacements: list[Replacement]) -> list[
     done: set[Replacement] = set()
     lots: list[Lot] = []
     parts: list[Part] = []
+    premium: dict[int, Decimal] = {}  # an assignment's or exercise's premium, by the end
     for _, i, what, t in events:
         if what == 1:
             r = t
@@ -173,6 +193,12 @@ def _replay(w: tw.World, account: str, replacements: list[Replacement]) -> list[
                 x.basis += cents(r.disallowed * x.quantity / r.quantity)
             x.held_from = r.held_from
             continue
+        if t.kind in OPENS or t.kind in CLOSES:
+            _contract(t, i, account, lots, parts, premium)
+            continue
+        if t.kind == "merger":
+            _merger(t, i, account, lots, parts)
+            continue
         if t.kind == "split":
             # Each share held becomes `ratio`: quantities grow, basis stays (S2.4).
             for x in lots:
@@ -180,7 +206,9 @@ def _replay(w: tw.World, account: str, replacements: list[Replacement]) -> list[
                     x.quantity *= t.ratio
             continue
         if t.kind == "buy":
-            whole = Lot(i, t.symbol, t.date, Decimal(t.quantity), Decimal(t.cents) / 100)
+            # Shares bought by an exercised call or an assigned put take its premium (S3.4).
+            extra = premium.get(t.leg_of, Decimal(0)) if t.leg_of is not None else Decimal(0)
+            whole = Lot(i, t.symbol, t.date, Decimal(t.quantity), Decimal(t.cents) / 100 + extra)
             lots.append(whole)
             for r in [r for r in replacements if r.buy == i]:
                 take = min(r.quantity, whole.quantity)
@@ -232,6 +260,9 @@ def _replay(w: tw.World, account: str, replacements: list[Replacement]) -> list[
                 left -= take
         assert left == 0, ("sold more than held", t)
         proceeds = Decimal(t.cents) / 100
+        if t.leg_of is not None:
+            # Shares sold by an assigned call or an exercised put: the premium in the proceeds.
+            proceeds -= premium.get(t.leg_of, Decimal(0))
         given = Decimal(0)
         for k, (x, take) in enumerate(plan):
             share = proceeds - given if k == len(plan) - 1 else cents(proceeds * take / qty)
@@ -244,14 +275,103 @@ def _replay(w: tw.World, account: str, replacements: list[Replacement]) -> list[
     return parts
 
 
+def _contract(t: tw.Trade, i: int, account: str, lots: list[Lot], parts: list[Part],
+              premium: dict[int, Decimal]) -> None:  # fmt: skip
+    """An option trade (S3.2–S3.4). Long: a lot like a share's, its cost the basis. Short:
+    a lot of what was received. Closing or expiry realizes either, first in; a written one is
+    short term, its proceeds the credit and its basis the cost to close. An assignment or an
+    exercise realizes nothing itself: its premium goes into the stock trade made with it."""
+    sym = t.option
+    n = Decimal(t.quantity)
+    cash = Decimal(t.cents) / 100
+    if t.kind == "buy-to-open":
+        lots.append(Lot(i, sym, t.date, n, cash))
+        return
+    if t.kind == "sell-to-open":
+        lots.append(Lot(i, sym, t.date, -n, cash))  # a short lot: its basis the credit
+        return
+    longs = sorted(
+        (x for x in lots if x.symbol == sym and x.quantity > 0), key=lambda x: x.acquired
+    )
+    shorts = sorted((x for x in lots if x.symbol == sym and x.quantity < 0),
+                    key=lambda x: x.acquired)  # fmt: skip
+    day = t.expiry if t.kind == "expire" else t.date
+    if t.kind in ("assign", "exercise"):
+        got = Decimal(0)
+        left = n
+        for x in longs or shorts:
+            take = min(left, abs(x.quantity))
+            if take <= 0:
+                continue
+            part = x.basis if take == abs(x.quantity) else cents(x.basis * take / abs(x.quantity))
+            x.basis -= part
+            x.quantity += -take if x.quantity > 0 else take
+            left -= take
+            # A long contract's premium was paid; a short one's received.
+            got += part if longs else -part
+        premium[i] = got
+        return
+    if longs:
+        proceeds = cash if t.kind == "sell-to-close" else Decimal(0)
+        left, given = n, Decimal(0)
+        for x in longs:
+            take = min(left, x.quantity)
+            if take <= 0:
+                continue
+            left -= take
+            share = proceeds - given if left <= 0 else cents(proceeds * take / n)
+            given += share
+            basis = x.basis if take == x.quantity else cents(x.basis * take / x.quantity)
+            x.basis -= basis
+            x.quantity -= take
+            parts.append(Part(i, x.buy, account, sym, x.acquired, day, take, share, basis, None))
+        return
+    cost = cash if t.kind == "buy-to-close" else Decimal(0)
+    left, given = n, Decimal(0)
+    for x in shorts:
+        take = min(left, -x.quantity)
+        if take <= 0:
+            continue
+        left -= take
+        share = cost - given if left <= 0 else cents(cost * take / n)
+        given += share
+        credit = x.basis if take == -x.quantity else cents(x.basis * take / -x.quantity)
+        x.basis -= credit
+        x.quantity += take
+        parts.append(Part(i, x.buy, account, sym, x.acquired, day, take, credit, share, None,
+                          written=True))  # fmt: skip
+
+
+def _merger(t: tw.Trade, i: int, account: str, lots: list[Lot], parts: list[Part]) -> None:
+    """A merger for shares and cash (S2.4, IRC §356): each lot becomes `ratio` new shares a
+    share, held from the same day; its share of the cash is a gain only as far as both the cash
+    and the gain go, the rest taken off the basis."""
+    held = [x for x in lots if x.symbol == t.symbol and x.quantity > 0]
+    total = sum((x.quantity for x in held), Decimal(0))
+    cash = cents(Decimal(t.cash_cents) / 100 * total)
+    price = Decimal(t.new_price)
+    for x in held:
+        boot = cents(cash * x.quantity / total)
+        value = cents(x.quantity * t.ratio * price)
+        recognized = max(Decimal(0), min(boot, boot + value - x.basis))
+        if recognized:
+            parts.append(Part(i, x.buy, account, t.new_symbol, x.acquired, t.date, Decimal(0),
+                              recognized, Decimal(0), x.held_from))  # fmt: skip
+        x.basis = x.basis - boot + recognized
+        x.symbol = t.new_symbol
+        x.quantity *= t.ratio
+
+
 def _spouses(w: tw.World, a: str, b: str) -> bool:
     return a == b or w.married
 
 
 def household(w: tw.World) -> Household:
     """Every account's sales, with the wash sales found again until nothing changes."""
+    _merged(w)
     accounts = [a for a in tw.ACCOUNTS if _type(a) in tw.TAXABLE]
-    buys = [(i, t) for i, t in enumerate(w.trades) if t.kind == "buy"]
+    # Shares that came through an option never replace (S3.8.5.3: flagged for review).
+    buys = [(i, t) for i, t in enumerate(w.trades) if t.kind == "buy" and t.leg_of is None]
     found: list[Replacement] = []
     for _ in range(20):
         parts = [p for a in accounts for p in _replay(w, a, found)]
@@ -338,7 +458,7 @@ def income(w: tw.World, year: int, filers: tuple[str, ...]) -> IncomeTotals:
 
 
 def box(p: Part, year: int) -> str:
-    lt = long_term(p.held_from or p.acquired, p.sold)
+    lt = not p.written and long_term(p.held_from or p.acquired, p.sold)
     kind = _type(p.account)
     if kind in ("crypto-exchange", "crypto-wallet"):
         if kind == "crypto-wallet":
@@ -346,7 +466,9 @@ def box(p: Part, year: int) -> str:
         if p.acquired >= dt.date(2026, 1, 1):
             return "J" if lt else "G"
         return "K" if lt else "H"
-    reported_from = dt.date(2011, 1, 1) if class_of(p.symbol) == "equity" else dt.date(2012, 1, 1)
+    reported_from = {"equity": dt.date(2011, 1, 1), "mutual-fund": dt.date(2012, 1, 1)}.get(
+        class_of(p.symbol), dt.date(2014, 1, 1)
+    )
     if p.acquired >= reported_from:
         return "D" if lt else "A"
     return "E" if lt else "B"
@@ -358,6 +480,7 @@ def _qty(q: Decimal) -> str:
 
 def rows(h: Household, year: int, filers: tuple[str, ...]) -> list[Row]:
     """The Form 8949 rows of the book of these filers for the year."""
+    _merged(h.world)
     out = []
     for p in h.parts:
         if p.sold.year != year or p.account not in counted(h.world, year, filers):
@@ -371,7 +494,7 @@ def rows(h: Household, year: int, filers: tuple[str, ...]) -> list[Row]:
                 proceeds=cents(p.proceeds),
                 basis=cents(p.basis),
                 adjustment=cents(p.adjustment),
-                long_term=long_term(p.held_from or p.acquired, p.sold),
+                long_term=not p.written and long_term(p.held_from or p.acquired, p.sold),
                 box=box(p, year),
             )
         )

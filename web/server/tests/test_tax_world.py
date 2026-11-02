@@ -20,7 +20,7 @@ import pytest
 import tax_reference as ref
 import tax_world as tw
 from conftest import make_user, sign_in
-from edits import create, make
+from edits import create, make, option_trade
 
 from moolakata import clock
 
@@ -106,13 +106,32 @@ class Made:
 
     def _trade(self, i: int, t: tw.Trade) -> None:
         c = self.client(t.account)
-        if t.kind == "split":
+        acct = self.accounts[t.account]
+        if t.leg_of is not None:
+            return  # made by the assignment or exercise it belongs to
+        if t.kind in ("buy-to-open", "sell-to-open", "buy-to-close", "sell-to-close"):
+            r = option_trade(c, acct, t.date.isoformat(), t.kind, t.symbol, t.right, t.strike,
+                             t.expiry.isoformat(), t.quantity, t.price, t.fees)  # fmt: skip
+            assert r.status_code == 200, (i, t, r.text)
+            return
+        if t.kind in ("expire", "assign", "exercise"):
+            held = _ok(c.get(f"/ui/api/accounts/{acct}/holdings")).json()["holdings"]
+            inst = next(h["instrumentId"] for h in held if h["symbol"] == t.option)
+            how = "expired" if t.kind == "expire" else t.kind
+            day = t.expiry if t.kind == "expire" else t.date
+            body = {"how": how, "date": day.isoformat(), "contracts": str(t.quantity)}
+            r = c.post(f"/ui/api/accounts/{acct}/options/{inst}/settle", json=body)
+            assert r.status_code == 201, (i, t, r.text)
+            return
+        if t.kind in ("split", "merger"):
             # A corporate action, recorded as Positions records it (S2.4).
-            acct = self.accounts[t.account]
             held = _ok(c.get(f"/ui/api/accounts/{acct}/holdings")).json()["holdings"]
             inst = next(h["instrumentId"] for h in held if h["symbol"] == t.symbol)
-            r = create(c, "CorpA", accountId=acct, instrumentId=inst, kind="split",
-                       date=t.date.isoformat(), ratio=str(t.ratio))  # fmt: skip
+            more = {} if t.kind == "split" else {
+                "newSymbol": t.new_symbol, "cashPerShare": _dollars(t.cash_cents),
+                "newPrice": t.new_price}  # fmt: skip
+            r = create(c, "CorpA", accountId=acct, instrumentId=inst, kind=t.kind,
+                       date=t.date.isoformat(), ratio=str(t.ratio), **more)  # fmt: skip
             assert r.status_code == 200, (i, t, r.text)
             return
         fields = {"accountId": self.accounts[t.account], "date": t.date.isoformat(),
@@ -164,6 +183,10 @@ def made(request, server):
 
 
 # ---------- the checks ----------
+
+
+def _dollars(c: int) -> str:
+    return f"{c // 100}.{c % 100:02d}"
 
 
 def _d(x) -> Decimal:

@@ -206,7 +206,7 @@ tests take and on running them in parallel on GitHub.
       carryovers, last year's tax and the expected documents to the books the filers
       accepted; the share once typed; one book a year and Decline. The mockup gains
       *Taxes · filing separately after a joint return* and *named on a book: Accept or Decline*.
-5. **More of decision 3** (`COMMIT392`): the worlds gain a 2-for-1 split between a story's
+5. **More of decision 3** (`b5f6d50`): the worlds gain a 2-for-1 split between a story's
    buys and its sale (recorded as Positions records one), Second left out of Alice's 2026 book
    in half the worlds, and 16 income records a world (interest, dividends paid and reinvested
    of each type, capital-gain distributions, in each account and year), pairwise: 1,035 pairs
@@ -218,3 +218,15 @@ tests take and on running them in parallel on GitHub.
    basis with the loss added); `1dc425d`: the panels in the browser. Still to come of decision
    3: options and mergers in the worlds, bitcoin fee sales, dependents; Accept and Decline in
    the browser (the shared household's second user has no password to sign in with).
+6. **Options, mergers, fees** (`COMMITOPT`). The worlds gain 10 option stories each (long or
+   short, a call or a put, closed, expired, or assigned or exercised with its stock trade, a
+   short or a long term, each year and account): 194 pairs. A story's split becomes an
+   action, a merger for two new shares and $3.00 cash among them (IRC §356). The reference
+   model follows: a written contract short term, its proceeds the credit; expiry; the
+   premium in an assignment's or exercise's stock; a merger's cash a gain only as far as both
+   go, the new shares of the old ones' class. Every world passes. Planting wrong rules: a
+   31-day wash window fails 10 of 24 worlds, a long-term cutoff a day early 20; a share's
+   basis reported from 2012, not 2011, failed none until the old lots were drawn on each side
+   of the year reporting began (now 14). `test_bitcoin_fees.py`: a network fee's sale, every
+   case of where the coins went, how the book reads fees, and the term (8 cases); nothing had
+   covered fees before.

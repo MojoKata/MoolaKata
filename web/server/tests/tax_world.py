@@ -39,8 +39,19 @@ WHEN = ("none", "before", "after", "day-30", "day-31")
 REPLACED = ("none", "whole", "part")
 SOLD_IN = ("2025", "2026", "year-end")
 FOLLOW = ("none", "resold")
-SPLIT = ("none", "split")  # a 2-for-1 split between the buys and the sale
+# Between the buys and the sale: a 2-for-1 split, or a merger into two new shares a share and
+# $3.00 cash (S2.4, IRC §356).
+ACTION = ("none", "split", "merger")
 OVERRIDE = ("none", "left-out")  # per world: Second left out of Alice's 2026 book
+
+# Per option story (S3.2–S3.4): a contract opened long or short, ended closed, expired, or
+# assigned (short) or exercised (long), its stock traded at the strike with the premium in it.
+POSITIONS = ("long", "short")
+RIGHTS = ("call", "put")
+ENDS = ("close", "expire", "settle")
+OPT_TERMS = ("short", "long")
+OPT_UNDERLYINGS = ("SPY", "QQQ", "IWM", "DIA", "XLF", "XLE", "XLK", "GLD", "SMH", "XBI",
+                   "EEM", "TLT", "HYG", "LQD", "ARKK", "SOXX")  # fmt: skip
 
 # Per income record (S8.5): interest and dividends of each type, in each account, each year.
 INCOME_KINDS = ("interest", "dividend", "reinvest", "capital-gain")
@@ -53,7 +64,10 @@ AXES = {
     "story": {"filers": FILERS, "seller": SELLERS, "class": CLASSES, "method": METHODS,
               "picks": PICKS, "term": TERMS, "outcome": OUTCOMES, "size": SIZES,
               "where": WHERE, "when": WHEN, "replaced": REPLACED, "soldIn": SOLD_IN,
-              "follow": FOLLOW, "split": SPLIT, "override": OVERRIDE},
+              "follow": FOLLOW, "action": ACTION, "override": OVERRIDE},
+    "option": {"filers": FILERS, "override": OVERRIDE, "position": POSITIONS, "right": RIGHTS,
+               "end": ENDS, "outcome": ("gain", "loss"), "term": OPT_TERMS,
+               "year": INCOME_YEARS, "account": INCOME_ACCOUNTS},
     "income": {"filers": FILERS, "override": OVERRIDE, "kind": INCOME_KINDS,
                "type": DIV_TYPES, "account": INCOME_ACCOUNTS, "year": INCOME_YEARS},
 }  # fmt: skip
@@ -88,8 +102,25 @@ def _impossible(a: tuple[str, str], b: tuple[str, str], kind: str = "story") -> 
     if kind == "income":
         # Interest and gain distributions have no dividend type.
         return get("kind") in ("interest", "capital-gain") and get("type") not in (None, "none")
-    # A coin doesn't split.
-    if get("class") == "crypto" and get("split") == "split":
+    if kind == "option":
+        # A written contract is short term however long it was open (S3.3); expiring, a long
+        # one loses what it cost and a short one keeps its credit.
+        if get("position") == "short" and get("term") == "long":
+            return True
+        if get("end") == "expire" and "position" in k and "outcome" in k:
+            return (get("position") == "long") == (get("outcome") == "gain")
+        return False
+    # A coin neither splits nor merges.
+    if get("class") == "crypto" and get("action") in ("split", "merger"):
+        return True
+    # A merger's story sells the new shares, nothing near the sale, no lots picked.
+    if get("action") == "merger" and (
+        get("where") not in (None, "none")
+        or get("when") not in (None, "none")
+        or get("replaced") not in (None, "none")
+        or get("picks") not in (None, "account")
+        or get("follow") == "resold"
+    ):
         return True
     crypto = get("class") == "crypto"
     # Coins are Alice's, in her exchange and wallet: none in an IRA, none bought before 2011.
@@ -138,15 +169,42 @@ class Trade:
     price: str  # dollars and cents
     # A sale's specific lots: (the buy's index in the world's trades, quantity).
     picks: list[tuple[int, int]] = field(default_factory=list)
-    ratio: int = 0  # a split's new shares for each one held
+    ratio: int = 0  # a split's or a merger's new shares for each one held
+    new_symbol: str = ""  # a merger's acquirer
+    cash_cents: int = 0  # a merger's cash a share held
+    new_price: str = "0"  # a new share's price that day, for the gain the cash recognizes
+    # An option trade's contract (`symbol` the underlying, `quantity` the contracts, `price`
+    # the premium a share) and fees; a stock trade made by an assignment or exercise names it.
+    right: str = ""
+    strike: int = 0
+    expiry: dt.date | None = None
+    fees: str = "0.00"
+    leg_of: int | None = None
+
+    @property
+    def option(self) -> str:
+        """The contract's symbol, as people read it: SPY 18DEC26 500 C."""
+        assert self.expiry is not None
+        return f"{self.symbol} {self.expiry:%d%b%y}".upper() + (
+            f" {self.strike} {'C' if self.right == 'call' else 'P'}"
+        )
 
     @property
     def cents(self) -> int:
-        return self.quantity * int(self.price.replace(".", ""))
+        """The cash the trade comes to, fees taken off (an option's contract is 100 shares)."""
+        gross = self.quantity * int(self.price.replace(".", ""))
+        if self.right:
+            gross *= 100
+            fee = int(self.fees.replace(".", ""))
+            return gross + fee if self.kind in ("buy-to-open", "buy-to-close") else gross - fee
+        return gross
 
     @property
     def amount(self) -> str:
-        c = self.cents if self.kind == "sell" else -self.cents
+        if self.kind in ("expire", "assign", "exercise"):
+            return "0.00"
+        sells = ("sell", "sell-to-open", "sell-to-close")
+        c = self.cents if self.kind in sells else -self.cents
         sign = "-" if c < 0 else ""
         return f"{sign}{abs(c) // 100}.{abs(c) % 100:02d}"
 
@@ -186,6 +244,7 @@ class World:
     trades: list[Trade] = field(default_factory=list)
     stories: list[Story] = field(default_factory=list)
     incomes: list[Income] = field(default_factory=list)
+    options: list[dict] = field(default_factory=list)  # each option story's axes
     left_out: bool = False  # Second left out of Alice's 2026 book
 
     @property
@@ -203,6 +262,7 @@ class World:
         return {
             "story": [{**world, **s.axes} for s in self.stories],
             "income": [{**world, **i.axes} for i in self.incomes],
+            "option": [{**world, **o} for o in self.options],
         }
 
 
@@ -258,7 +318,84 @@ def world(seed: int) -> World:
         _story(w, story, rnd, used.setdefault(symbol, set()))
         w.stories.append(story)
     _incomes(w, rnd)
+    _options(w, rnd)
     return w
+
+
+def _options(w: World, rnd: random.Random) -> None:
+    """Ten option stories, dealt from shuffled decks, each on an underlying of its own."""
+    n = 10
+    names = [k for k in AXES["option"] if k not in ("filers", "override")]
+    decks = {}
+    for name in names:
+        values = AXES["option"][name]
+        deck = [values[k % len(values)] for k in range(n)]
+        rnd.shuffle(deck)
+        decks[name] = deck
+    unders = list(OPT_UNDERLYINGS)
+    rnd.shuffle(unders)
+    for i in range(n):
+        a = {name: decks[name][i] for name in names}
+        if a["position"] == "short":
+            a["term"] = "short"
+        if a["end"] == "expire":
+            a["outcome"] = "loss" if a["position"] == "long" else "gain"
+        w.options.append(a)
+        _option_story(w, a, unders[i], rnd)
+
+
+def _option_story(w: World, a: dict, under: str, rnd: random.Random) -> None:
+    year = int(a["year"])
+    account = a["account"]
+    n = rnd.randint(1, 3)
+    fee = f"{65 * n // 100}.{65 * n % 100:02d}"
+    long_ = a["position"] == "long"
+    if a["term"] == "long":
+        opened = dt.date(year - 1, rnd.randint(1, 3), rnd.randint(1, 28))
+        expiry = dt.date(year, rnd.randint(9, 11), rnd.randint(1, 28))
+        ends = opened + dt.timedelta(days=rnd.randint(380, 420))
+    else:
+        opened = dt.date(year, rnd.randint(1, 5), rnd.randint(1, 28))
+        expiry = opened + dt.timedelta(days=rnd.randint(60, 150))
+        ends = opened + dt.timedelta(days=rnd.randint(20, 55))
+    strike = rnd.randint(50, 400)
+    p1 = rnd.randint(100, 1500)  # the premium, cents a share
+    gain = a["outcome"] == "gain"
+    # Closing: a long contract gains sold dearer, a short one bought back cheaper.
+    p2 = max(1, p1 + (1 if gain == long_ else -1) * rnd.randint(50, 90) * (p1 // 100 + 1))
+
+    def opt(kind, day, cents=0, qty=n):
+        return Trade(account, day, kind, under, qty, _dollars(cents), right=a["right"],
+                     strike=strike, expiry=expiry, fees=fee if cents else "0.00")  # fmt: skip
+
+    sells_shares = a["end"] == "settle" and (
+        (long_ and a["right"] == "put") or (not long_ and a["right"] == "call")
+    )
+    if sells_shares:
+        # The shares delivered are held first: bought well before, at a price the outcome sets.
+        cost = strike * 100 + (-1 if gain else 1) * rnd.randint(500, 2000)
+        w.trades.append(Trade(account, opened - dt.timedelta(days=40), "buy", under, 100 * n,
+                              _dollars(cost)))  # fmt: skip
+    w.trades.append(opt("buy-to-open" if long_ else "sell-to-open", opened, p1))
+    if a["end"] == "close":
+        w.trades.append(opt("sell-to-close" if long_ else "buy-to-close", ends, p2))
+    elif a["end"] == "expire":
+        w.trades.append(opt("expire", expiry))
+    else:
+        how = "exercise" if long_ else "assign"
+        w.trades.append(opt(how, ends))
+        end = len(w.trades) - 1
+        buys = (long_ and a["right"] == "call") or (not long_ and a["right"] == "put")
+        w.trades.append(Trade(account, ends, "buy" if buys else "sell", under, 100 * n,
+                              _dollars(strike * 100), leg_of=end))  # fmt: skip
+        if buys:
+            # The shares sold again later, at a price the outcome sets about their cost.
+            per = strike * 100 + (p1 if long_ else -p1)
+            sold = max(100, per + (1 if gain else -1) * rnd.randint(300, 1500))
+            on = min(ends + dt.timedelta(days=rnd.randint(40, 90)), dt.date(year, 12, 20))
+            if on <= ends:
+                on = ends + dt.timedelta(days=1)
+            w.trades.append(Trade(account, on, "sell", under, 100 * n, _dollars(sold)))
 
 
 def _incomes(w: World, rnd: random.Random) -> None:
@@ -308,7 +445,10 @@ def _fit(axes: dict, filers: str, rnd: random.Random) -> dict:
     if a["follow"] == "resold" and a["where"] in ("none", "ira"):
         a["follow"] = "none"
     if a["class"] == "crypto":
-        a["split"] = "none"
+        a["action"] = "none"
+    if a["action"] == "merger":
+        a["where"], a["when"], a["replaced"] = "none", "none", "none"
+        a["picks"], a["follow"] = "account", "none"
     return a
 
 
@@ -388,12 +528,10 @@ def _story(w: World, story: Story, rnd: random.Random, used: set[dt.date]) -> No
         # before that (long).
         on = sale_on.replace(year=sale_on.year - 1)
         days = [on - dt.timedelta(days=1), on, on + dt.timedelta(days=60)]
-    else:  # old: before brokers reported basis (equities 2011, funds 2012)
-        first = (
-            dt.date(2010, rnd.randint(1, 12), rnd.randint(1, 28))
-            if a["class"] == "equity"
-            else dt.date(2011, rnd.randint(1, 12), rnd.randint(1, 28))
-        )
+    else:  # old: about when brokers began reporting basis (shares 2011, funds 2012)
+        # The year before it, or the first year of it, so each side of the line is reached.
+        start = 2011 if a["class"] == "equity" else 2012
+        first = dt.date(start - rnd.randint(0, 1), rnd.randint(1, 12), rnd.randint(1, 28))
         days = [first, sale_on - year * 2, sale_on - dt.timedelta(days=rnd.randint(380, 600))]
     if term == "anniversary":
         used.update(days)  # the days themselves: weekends included, a year is a year
@@ -408,13 +546,21 @@ def _story(w: World, story: Story, rnd: random.Random, used: set[dt.date]) -> No
         w.trades.append(Trade(account, d, "buy", story.symbol, 10, p))
         buys.append(len(w.trades) - 1)
     story.trades += buys
-    if a["split"] == "split":
-        # Two for one, 35 days before the sale: after every buy, before any buy near the sale.
+    sold_as = story.symbol
+    if a["action"] in ("split", "merger"):
+        # 35 days before the sale: after every buy, before any buy near the sale.
         on = sale_on - dt.timedelta(days=35)
         while on in used:
             on -= dt.timedelta(days=1)
         used.add(on)
-        w.trades.append(Trade(account, on, "split", story.symbol, 0, "0", ratio=2))
+        if a["action"] == "split":
+            w.trades.append(Trade(account, on, "split", story.symbol, 0, "0", ratio=2))
+        else:
+            sold_as = story.symbol[:4] + "Q"
+            mid = sorted(prices)[1].replace(".", "")
+            w.trades.append(Trade(account, on, "merger", story.symbol, 0, "0", ratio=2,
+                                  new_symbol=sold_as, cash_cents=300,
+                                  new_price=_dollars(int(mid) // 2)))  # fmt: skip
         story.trades.append(len(w.trades) - 1)
     qty = {"one-lot": rnd.randint(2, 9), "across": rnd.randint(12, 19),
            "most": rnd.randint(22, 28)}[a["size"]]  # fmt: skip
@@ -428,7 +574,9 @@ def _story(w: World, story: Story, rnd: random.Random, used: set[dt.date]) -> No
         sale_cents = (s[0] + s[2]) // 2 if s[0] + 1 < s[2] else s[2] + 100
         if sale_cents in cents:
             sale_cents += 1
-    sale = Trade(account, sale_on, "sell", story.symbol, qty, _dollars(sale_cents))
+    if a["action"] == "merger":
+        sale_cents //= 2  # two new shares a share
+    sale = Trade(account, sale_on, "sell", sold_as, qty, _dollars(sale_cents))
     if a["picks"] != "account":
         # Lots picked: the latest first, then the first; short of the quantity, the rest goes
         # by the account's method.
