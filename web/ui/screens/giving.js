@@ -543,7 +543,7 @@ function DonationDialog({ close, from }) {
   const kind = rec?.get('kind') || 'cash';
   const fromId = rec?.get('fromAccountId') || '';
   const all = /** @type {any[]} */ (accounts.data) || [];
-  const writable = all.filter((a) => a.active && canAdd('Txn', a));
+  const writable = all.filter((a) => !a.closedOn && canAdd('Txn', a));
   const funds = writable.filter((a) => a.type === 'daf');
   const shares = kind === 'securities' ||
     (kind === 'daf-contribution' && writable.find((a) => a.id === fromId)?.investing);

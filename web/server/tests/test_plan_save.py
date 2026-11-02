@@ -77,10 +77,15 @@ def test_a_line_changed_from_a_later_month_keeps_the_earlier_months(server, froz
     assert r.status_code == 200, r.text
     again = lines(c, b, "2026-12")[dining]
     assert again["id"] == dec["id"] and again["amount"] == "360.00"
-    # Set to nothing: out of the plan from then.
+    # Set to nothing: in the plan still, putting nothing in (S7.1.2).
     r = save(c, [update(again, amount="0.00", fromMonth="2027-01-01")])
     assert r.status_code == 200, r.text
-    assert dining not in lines(c, b, "2027-01") and dining in lines(c, b, "2026-12")
+    assert lines(c, b, "2027-01")[dining]["amount"] == "0.00"
+    # Taken out: out of the plan from then.
+    zero = lines(c, b, "2027-01")[dining]
+    r = save(c, [update(zero, out=True, fromMonth="2027-02-01")])
+    assert r.status_code == 200, r.text
+    assert dining not in lines(c, b, "2027-02") and dining in lines(c, b, "2027-01")
 
 
 def test_a_line_changed_from_a_month_planned_meanwhile_is_stale(server, frozen):
@@ -138,9 +143,9 @@ def test_a_reserve_that_stops_while_it_holds_money_is_asked_by_name(server, froz
     r = save(c, ops)
     assert r.status_code == 409 and r.json()["code"] == "confirm-needed"
     (ask,) = r.json()["asks"]
-    assert ask["code"] == "reserve-balance" and ask["id"] == line["id"]
+    assert ask["code"] == "balance-dropped" and ask["id"] == line["id"]
     assert "200.00" in ask["message"]
-    r = save(c, ops, confirm=[{"code": "reserve-balance", "id": line["id"]}])
+    r = save(c, ops, confirm=[{"code": "balance-dropped", "id": line["id"]}])
     assert r.status_code == 200, r.text
     assert row(month(c, b, "2026-12"), "Transportation › Car maintenance")["target"] is None
 

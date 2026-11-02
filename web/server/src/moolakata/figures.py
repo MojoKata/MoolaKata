@@ -48,10 +48,12 @@ def combine(
         led = repo.load(s, a)
         series = valuation.series(s, led, atypes.investing(a.type), first, last, step)
         flows = perf.flows(led.transactions)
-        gone = a.deletedAt.date() if getattr(a, "deletedAt", None) else None
+        closed = getattr(a, "closedOn", None)
+        gone = closed + dt.timedelta(days=1) if closed is not None else None
         if gone is not None:
-            # A deleted account counts up to its deletion (R3.10); its value then leaves as a
-            # withdrawal would, so the portfolio's returns don't take it as a loss.
+            # A closed account counts up to the day it closed (R3.10); its value then leaves as
+            # a withdrawal would, so the returns don't take it as a loss. A deleted one is a
+            # correction and isn't among the accounts at all.
             before = [(d, v) for d, v in series if d < gone]
             series = before + [(d, ZERO) for d, v in series if d >= gone]
             flows = {d: v for d, v in flows.items() if d < gone}

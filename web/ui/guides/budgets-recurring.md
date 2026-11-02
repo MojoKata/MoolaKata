@@ -1,7 +1,9 @@
 # Recurring
 
 Rent, subscriptions, salary: payments that come at a steady interval, found in the budget's
-accounts. Each shows how often it comes, its next expected date and its usual amount.
+accounts. Each shows how often it comes, its next expected date and its usual amount. The dates
+keep to the calendar: a bill on the 1st is next due on the 1st, one on the 15th and the last day
+on those days, whatever the month's length.
 
 **missed** means the next one is late; **higher** or **lower** means the last one moved from the
 usual amount by 5% or more. A payee needs three or more payments at a weekly, two-weekly, monthly,

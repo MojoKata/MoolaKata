@@ -1,7 +1,9 @@
 # Compare
 
 The budget shown beside another, per category: what is available, spent and left in each, for the
-month or the year to it.
+month or the year to it. Over the year, a line's available is what it carried into the year's
+first month plus what each month put in and moved, so a rolled-over remainder counts once, and
+what is left is what its last month leaves.
 
 ## Month
 

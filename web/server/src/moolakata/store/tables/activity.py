@@ -22,4 +22,5 @@ Activity = exception(
     Index("ix_Activity_subject", "subjectId", "at"),
     prefix="Actv",
     seen=Seen.rule(),
+    not_figures="a record of what was done; no figure reads it",
 )

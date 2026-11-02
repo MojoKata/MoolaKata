@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import change, edit, new_id, saved
+from edits import budget_accounts, change, edit, new_id, saved
 from test_accounts import add, new_account
 from test_budgets import month, row, setup_budget
 
@@ -84,7 +84,7 @@ def test_a_reserves_balance_is_kept_until_asked(server, frozen):
         == 200
     )
     r = put_plan(c, b, "2026-12-01", [{"categoryId": repair, "amount": "100"}])
-    assert r.status_code == 409 and r.json()["asks"][0]["code"] == "reserve-balance"
+    assert r.status_code == 409 and r.json()["asks"][0]["code"] == "balance-dropped"
     assert "200.00" in r.json()["asks"][0]["message"]
     r = put_plan(c, b, "2026-12-01", [{"categoryId": repair, "amount": "100"}], confirm=True)
     assert r.status_code == 200
@@ -95,8 +95,8 @@ def test_where_the_money_is(server, frozen):
     c, acct, cat, b = setup_budget(server)
     savings = new_account(c, name="Ally", type="savings", mask="2222")
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
-    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True,
-               accountIds=[acct["id"], savings["id"], card["id"]]))  # fmt: skip
+    saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
+    assert budget_accounts(c, b, [acct["id"], savings["id"], card["id"]]).status_code == 200
     roof, repair = cat["Housing › Maintenance"], cat["Transportation › Car maintenance"]
     lines = [
         {"categoryId": roof, "amount": "150", "target": "5000", "heldInId": savings["id"]},

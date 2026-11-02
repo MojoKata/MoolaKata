@@ -68,6 +68,12 @@ def test_to_budget_card_lines_and_owed_not_backed(server, frozen):
     assert row(v, "Entertainment")["remaining"] == "0.00" and v["toBudget"] == "2300.00"
     (line,) = v["cards"]
     assert (line["setAside"], line["owed"], line["notBacked"]) == ("350.00", "410.00", "60.00")
+    # The Spent card counts it as spent and names it (S7.3.12): every dollar of the month's
+    # spending, $100 + $150 + $260, against $700 available.
+    assert row(v, "Entertainment")["unbacked"] == "60.00"
+    assert (v["available"], v["left"], v["unbacked"]) == ("700.00", "190.00", "60.00")
+    card_ = c.get("/ui/api/dashboard").json()["budget"]
+    assert (card_["spent"], card_["left"], card_["unbacked"]) == ("510.00", "190.00", "60.00")
     # A payment to the card takes from its line, cash and line alike.
     add(c, chk["id"], "-300.00", "2026-10-10", payee="Visa payment")
     add(c, card["id"], "300.00", "2026-10-10", payee="Thank you", kind="deposit")

@@ -154,14 +154,7 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
         a = s.get(Account, link.itemId)
         if a is None:
             return dt.date.min, ctx.statements, "Statements"
-        end = r.date
-        if end is None and not a.active:
-            last = s.scalar(
-                select(Transaction.date)
-                .where(Transaction.accountId == a.id, Transaction.deleted == false())
-                .order_by(Transaction.date.desc())
-            )
-            end = last or a.updatedAt.date()
+        end = r.date if r.date is not None else a.closedOn
         return _deleted(a, end), ctx.statements, "Statements"
     row = {
         "item": Item,

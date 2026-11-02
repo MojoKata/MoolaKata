@@ -304,7 +304,7 @@ function AddContribution({ a, done }) {
   const people = useList('/persons');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
-    x.group === 'banking' && x.active && canAdd('Txn', x)
+    x.group === 'banking' && !x.closedOn && canAdd('Txn', x)
   );
   const f = useDraft((draft) => {
     draft.add(ContribRec, { accountId: a.id, date: today(), contributor: 'owner' });

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, drop, edit, loan_payment, make, saved, share, terms
+from edits import budget_accounts, change, drop, loan_payment, make, remove, saved, share, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -61,7 +61,7 @@ def save_plan(c, budget, start, lines, confirm=False):
             ops.append({"op": "create", "entity": "BdgLn", "id": new_id, "fields": fields})
     for cat, old in have.items():
         if cat not in wanted:
-            fields = {"amount": "0.00", "target": None, "heldInId": None, "fromMonth": start}
+            fields = {"out": True, "target": None, "heldInId": None, "fromMonth": start}
             ops.append({"op": "update", "entity": "BdgLn", "id": old["id"],
                         "version": old["version"], "fields": fields})  # fmt: skip
     r = c.post("/ui/api/save", json={"ops": ops})
@@ -88,9 +88,18 @@ def plan(c, budget, start, lines):
 
 
 def month(c, budget, m):
+    """A month's view, every row held to one reading (S7.3.11): remaining = carried + put in +
+    moved − spent, and available (`planned`) = carried + put in + moved."""
     r = c.get(f"/ui/api/budgets/{budget['id']}/month", params={"month": m})
     assert r.status_code == 200, r.text
-    return r.json()
+    v = r.json()
+    for x in v["rows"]:
+        carried, put, moved, spent = (
+            Decimal(x[k]) for k in ("carried", "putIn", "moved", "actual")
+        )
+        assert Decimal(x["planned"]) == carried + put + moved, x
+        assert Decimal(x["remaining"]) == carried + put + moved - spent, x
+    return v
 
 
 def row(view, label):
@@ -145,7 +154,9 @@ def test_planned_actual_and_remaining(server, frozen):
     )
     assert row(v, "Income › Salary")["actual"] == "5100.00"
     assert v["income"] == "5100.00" and v["spent"] == "630.00"
-    assert v["plannedSpending"] == "600.00" and v["expectedIncome"] == "5000.00"
+    assert v["available"] == "600.00" and v["expectedIncome"] == "5000.00"
+    # Food's 50 left, less the fuel spent outside the plan.
+    assert (v["left"], v["yearlySpent"]) == ("-30.00", "0.00")
     assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [
         ("Transportation › Fuel", "80.00")
     ]
@@ -239,8 +250,8 @@ def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client)
     assert [x["name"] for x in bob.get("/ui/api/budgets").json()["items"]] == ["Household"]
     # Write: the plan, not the accounts or the budget itself.
     plan(bob, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "400.00"}])
-    r = edit(bob, "Bdgt", f"/ui/api/budgets/{b['id']}", accountIds=[])
-    assert r.status_code == 403
+    (counted,) = c.get(f"/ui/api/budgets/{b['id']}/accounts").json()["items"]
+    assert remove(bob, "BdgAc", counted).status_code == 403
     assert drop(bob, "Bdgt", f"/ui/api/budgets/{b['id']}").status_code == 403
 
 
@@ -300,7 +311,10 @@ def test_recurring_finds_series_and_flags_missed_and_changed():
     assert not found["Power"].changed, "a bill that varies isn't flagged"
     assert found["Bluebird"].every == "twice a month"
     assert found["NETFLIX.COM"].every == "month" and not found["NETFLIX.COM"].missed
-    assert found["City"].changed and found["City"].next == d(2026, 10, 31)
+    # On the calendar (S7.5.1): the 1st stays the 1st, the 1st and 15th stay so.
+    assert found["City"].changed and found["City"].next == d(2026, 11, 1)
+    assert found["Bluebird"].next == d(2026, 11, 1)
+    assert found["NETFLIX.COM"].next == d(2026, 11, 5)
     assert found["Acme"].every == "2 weeks" and found["Acme"].usual == Decimal("4820.00")
     assert found["Spotify"].missed
 
@@ -362,7 +376,7 @@ def test_money_leaving_or_entering_the_budget(server, frozen):
     c, acct, cat, b = setup_budget(server)
     savings = new_account(c, name="Savings", type="savings", mask="2222")
     brokerage = new_account(c, name="Brokerage", type="brokerage", mask="3333")
-    saved(change(c, "Bdgt", b, accountIds=[acct["id"], savings["id"]]))
+    assert budget_accounts(c, b, [acct["id"], savings["id"]]).status_code == 200
     # Inside the budget: nothing moved in or out.
     add(c, acct["id"], "-200.00", "2026-10-02", payee="To savings")
     add(c, savings["id"], "200.00", "2026-10-02", payee="From checking", kind="deposit")

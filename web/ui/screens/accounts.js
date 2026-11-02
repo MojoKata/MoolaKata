@@ -118,9 +118,9 @@ export default function Accounts() {
                                       a.typeLabel,
                                       a.mask ? '··' + a.mask : null,
                                     ].filter(Boolean)
-                                      .join(' · ')}${a.active
-                                      ? ''
-                                      : ' · closed'}</div></div></a></td>
+                                      .join(' · ')}${a.closedOn
+                                      ? ' · closed'
+                                      : ''}</div></div></a></td>
                         <td>
                           <${ShareMarks} a=${a} />
                         </td>

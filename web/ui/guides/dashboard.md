@@ -21,6 +21,8 @@ Checking, savings, money-market and CD accounts.
 ## Budget {#budget}
 
 The budget you follow, this month: what was spent against what was planned. Open it for the rest.
+In an envelope budget, spending charged to a card beyond what its envelope held counts as spent and
+is named: *on cards, not backed*.
 Without one, the count of what needs attention shows here instead.
 
 ## Range

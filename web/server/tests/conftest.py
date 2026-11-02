@@ -16,11 +16,15 @@ from moolakata import exactjson
 from moolakata.app import Server, create_app
 from moolakata.auth import passwords
 from moolakata.auth import users as accounts
+from moolakata.budgets import cache as month_cache
 from moolakata.config import Config
 from moolakata.keys import master
 from moolakata.store.maintenance import open_store
 
 measure_the_browser_app()
+# Every kept budget month is worked out again on a hit and compared (S7.3.10): each test that
+# reads a month twice also proves the cache answers what the data says.
+month_cache.CHECK = True
 
 
 @pytest.hookimpl(trylast=True)

@@ -87,19 +87,27 @@ def create_all_sql(metadata: MetaData) -> list[str]:
 
 
 def drop_all_sql(connection) -> list[str]:
-    """Every generated view, the access views (§7) that read the Effective views first."""
+    """Every generated view, the access views (§7) that read the Effective views first; and the
+    data version's triggers (§8), so a migration runs without them."""
     from . import access_views
 
     rows = connection.exec_driver_sql(
         "SELECT name FROM sqlite_master WHERE type = 'view' AND name LIKE '%Effective'"
     ).fetchall()
-    return access_views.drop_all_sql(connection) + [f'DROP VIEW IF EXISTS "{r[0]}"' for r in rows]
+    from . import data_version
+
+    return (
+        data_version.drop_all_sql(connection)
+        + access_views.drop_all_sql(connection)
+        + [f'DROP VIEW IF EXISTS "{r[0]}"' for r in rows]
+    )
 
 
 def sync(connection, metadata: MetaData, *, access: bool = True) -> None:
     """Drop every generated view and create them again from the declarations: the Effective
-    views, then the access views built on them (schema.md §7)."""
-    from . import access_views
+    views, then the access views built on them (schema.md §7); and the data version's triggers
+    (§8)."""
+    from . import access_views, data_version
 
     for sql in drop_all_sql(connection):
         connection.exec_driver_sql(sql)
@@ -108,3 +116,5 @@ def sync(connection, metadata: MetaData, *, access: bool = True) -> None:
         made += access_views.create_all_sql(metadata)
     for sql in made:
         connection.exec_driver_sql(sql)
+    if data_version.TABLE in metadata.tables:
+        data_version.sync(connection, metadata)

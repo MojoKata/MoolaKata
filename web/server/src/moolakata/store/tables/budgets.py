@@ -41,12 +41,24 @@ BudgetAccount = record(
     # worked out when not set.
     Column("movedFromId", Text, ForeignKey("Account.id")),
     Column("paidFromId", Text, ForeignKey("Account.id")),
+    # The months it counts in (S7.1.7, R3.10): from its first, none for since the budget began,
+    # to its last, none while it still counts. Taking an account out ends its last month, so
+    # earlier months keep it; an account counted again is a row of its own. Two of one
+    # account's rows never share a month (checked when saved).
+    Column("fromMonth", Day),
+    Column("untilMonth", Day),
+    CheckConstraint(
+        "(\"fromMonth\" IS NULL OR strftime('%d', \"fromMonth\") = '01') AND "
+        "(\"untilMonth\" IS NULL OR strftime('%d', \"untilMonth\") = '01') AND "
+        '("fromMonth" IS NULL OR "untilMonth" IS NULL OR "untilMonth" >= "fromMonth")',
+        name="months",
+    ),
     seen=Seen.child("budgetId", writes="configurable"),
 )
-unique_live(BudgetAccount, "budgetId", "accountId")
 
 # One category's plan from a month on. A change to the plan starts a new line from the month
-# it is made in, so past months keep the plan they had.
+# it is made in, so past months keep the plan they had. A line `out` takes the category out of
+# the plan from its month (S7.1.2); any amount, 0 included, keeps it in.
 BudgetLine = record(
     "BudgetLine",
     "BdgLn",
@@ -54,6 +66,7 @@ BudgetLine = record(
     Column("categoryId", Text, ForeignKey("Category.id"), nullable=False),
     Column("fromMonth", Day, nullable=False),
     Column("amount", Cents, nullable=False),
+    Column("out", Boolean, nullable=False, server_default=text("0")),
     Column("cadence", Text, nullable=False, server_default=text("'month'")),
     Column("rollover", Boolean, nullable=False, server_default=text("0")),
     # In an envelope budget, what an overspent line does at the month's end (S7.13.3).

@@ -24,7 +24,17 @@ from sqlalchemy.orm import Session
 
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.budgets import Budget, BudgetLine, BudgetMove
-from . import ZERO, Tree, _actual, add_months, amounts, in_force, month_end
+from . import (
+    ZERO,
+    Members,
+    Tree,
+    _actual,
+    add_months,
+    amounts,
+    in_force,
+    month_end,
+    other_halves,
+)
 
 CARD = "credit-card"
 
@@ -49,6 +59,9 @@ class Envelope:
     assigned: Decimal  # by the plan
     moved: Decimal  # by moves, To Budget's among them
     spent: Decimal
+    # Charged to a card beyond what the envelope held: owed on the card, not backed, and never
+    # out of the envelope, which stops at nothing (S7.13.2).
+    unbacked: Decimal = ZERO
 
     @property
     def balance(self) -> Decimal:
@@ -74,16 +87,13 @@ def _cash(s: Session, accounts: list[Account], day: dt.date) -> Decimal:
 def month(
     s: Session,
     b: Budget,
-    accts: list[str],
+    mem: Members,
     tr: Tree,
     every: list[BudgetLine],
     moves: list[BudgetMove],
     target: dt.date,
 ) -> EnvelopeMonth:
-    rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
-    cards = [a for a in rows if a.type == CARD]
-    cash_accts = [a for a in rows if a.type != CARD]
-    cash_ids, card_ids = [a.id for a in cash_accts], [a.id for a in cards]
+    every_account = list(s.scalars(select(Account).where(Account.id.in_(mem.ever()))))
     first = b.startMonth or (every[0].fromMonth if every else target)
     first = min(first, target)
     bal: dict[str, Decimal] = defaultdict(lambda: ZERO)
@@ -91,6 +101,12 @@ def month(
     m = first
     out = None
     while m <= target:
+        # The accounts the budget counted that month (S7.1.7).
+        now = set(mem.at(m))
+        rows = [a for a in every_account if a.id in now]
+        cards = [a for a in rows if a.type == CARD]
+        cash_accts = [a for a in rows if a.type != CARD]
+        cash_ids, card_ids = [a.id for a in cash_accts], [a.id for a in cards]
         plan = in_force(every, m)
         cash_spend = amounts(s, cash_ids, m, month_end(m), tr=tr)
         per_card = {cid: amounts(s, [cid], m, month_end(m), tr=tr) for cid in card_ids}
@@ -120,17 +136,18 @@ def month(
             if ln.target is not None:  # a reserve assigns no more than reaches its target
                 assigned = min(assigned, max(ln.target - start, ZERO))
             assigned_total += assigned
-            available = start + assigned + mv[cat_id] - _actual(tr, cash_spend, cat_id)
-            charged = ZERO
+            available = start + assigned + mv[cat_id] - _actual(tr, cash_spend, cat_id, plan)
+            charged = unbacked = ZERO
             for cid in card_ids:
-                charge = _actual(tr, per_card[cid], cat_id)
+                charge = _actual(tr, per_card[cid], cat_id, plan)
                 covered = min(max(charge, ZERO), max(available - charged, ZERO))
                 if charge < 0:  # a refund to the card comes back to the category
                     covered = charge
                 line[cid] += covered
                 charged += covered
-            spent = _actual(tr, cash_spend, cat_id) + charged
-            env = Envelope(cat_id, start, assigned, mv[cat_id], spent)
+                unbacked += charge - covered
+            spent = _actual(tr, cash_spend, cat_id, plan) + charged
+            env = Envelope(cat_id, start, assigned, mv[cat_id], spent, unbacked)
             envs[cat_id] = env
             end = env.balance
             if end < 0 and ln.overspend == "next":
@@ -140,7 +157,7 @@ def month(
         for cat_id in list(bal):
             if cat_id not in plan:
                 bal[cat_id] = ZERO
-        payments = _payments(s, card_ids, set(accts), m)
+        payments = _payments(s, card_ids, now, m)
         card_rows = []
         for a in cards:
             line[a.id] = max(line[a.id] + to_card[a.id] - payments.get(a.id, ZERO), ZERO)
@@ -177,12 +194,7 @@ def _payments(s: Session, card_ids: list[str], inside: set[str], m: dt.date) -> 
             Transaction.date <= month_end(m),
         )
     ).all()
-    others = {
-        o.id: o.accountId
-        for o in s.scalars(
-            select(Transaction).where(Transaction.id.in_([t.transferId for t in ins]))
-        )
-    }
+    others = {k: o.accountId for k, o in other_halves(s, [t.transferId for t in ins]).items()}
     out: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for t in ins:
         if others.get(t.transferId) in inside:

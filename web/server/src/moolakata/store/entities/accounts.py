@@ -26,7 +26,7 @@ class Account(Record):
     type: str
     institution: str | None = None
     mask: str | None = None
-    active: bool = True
+    closedOn: dt.date | None = None
     notes: str | None = None
     keptBy: str = '["manual"]'
     lotMethod: str = "fifo"

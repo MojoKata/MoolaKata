@@ -52,12 +52,12 @@ export function OptionTrade({ close, accountId, start }) {
   useDialogGuide('dialog-option-trade');
   const accounts = useList('/accounts');
   const list = (/** @type {any[]} */ (accounts.data) || []).filter((a) =>
-    a.investing && a.active && canAdd('Txn', a)
+    a.investing && !a.closedOn && canAdd('Txn', a)
   );
   // The account given, or the first the list offers, until another is chosen.
   const f = useDraft(async (draft) => {
     const first = accountId || (/** @type {any[]} */ ((await api.get('/accounts')).items))
-      .find((a) => a.investing && a.active && canAdd('Txn', a))?.id;
+      .find((a) => a.investing && !a.closedOn && canAdd('Txn', a))?.id;
     draft.add(OptionTxn, {
       accountId: first || null,
       date: today(),

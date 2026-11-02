@@ -128,7 +128,9 @@ Account = record(
     Column("type", Text, nullable=False),
     Column("institution", Text),
     Column("mask", Text),
-    Column("active", Boolean, nullable=False, server_default=text("1")),
+    # The day it closed (S1.2): it counts in figures up to that day and stays for history
+    # and taxes; none while open. Deleting is a correction, not a close (R3.10).
+    Column("closedOn", Day),
     Column("notes", Text),
     Column("keptBy", Text, nullable=False, server_default=text("'[\"manual\"]'")),
     Column("lotMethod", Text, nullable=False, server_default=text("'fifo'")),
@@ -163,7 +165,7 @@ Account = record(
         settings=(
             "lotMethod",
             "keptBy",
-            "active",
+            "closedOn",
             "countInNetWorth",
             "name",
             "institution",

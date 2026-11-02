@@ -29,6 +29,7 @@ Alert = exception(
     Index("ix_Alert_userId", "userId", "openedAt"),
     prefix="Alert",
     seen=Seen.rule(),
+    not_figures="raised from figures by the alert sweeps; no figure reads it",
 )
 
 # Each person's own state of an alert: seen (for the badge), dismissed, emailed.
@@ -44,4 +45,5 @@ AlertState = exception(
     Index("ix_AlertState_userId", "userId"),
     prefix="AlSt",
     seen=Seen.per_user("userId"),
+    not_figures="a user's read and dismissed marks on alerts",
 )

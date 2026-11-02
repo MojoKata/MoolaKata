@@ -465,3 +465,29 @@ def test_an_edited_transfer_in_moves_its_holding(server):
     saved(change(c, "Txn", t, quantity="12", costBasis="2400.00"))
     h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"][0]
     assert Decimal(h["quantity"]) == 12 and h["costBasis"] == "2400.00"
+
+
+def test_an_account_closes_on_a_day_and_opens_again(server):
+    """S1.2: an account's closed date, empty while open; never a day still to come."""
+    import datetime as dt
+
+    from moolakata import clock
+
+    clock.fix(dt.datetime(2026, 10, 20, 15, 0, tzinfo=dt.UTC))
+    try:
+        make_user(server, "alice")
+        c = sign_in(server, "alice")
+        a = new_account(c)
+        path = f"/ui/api/accounts/{a['id']}"
+        r = edit(c, "Acct", path, closedOn="2026-10-21")
+        assert r.status_code == 422 and r.json()["errors"][0]["code"] == "closed-in-future"
+        assert edit(c, "Acct", path, closedOn="2026-10-15").status_code == 200
+        assert c.get(path).json()["closedOn"] == "2026-10-15"
+        kinds = [x["kind"] for x in c.get("/ui/api/activity").json()["items"]]
+        assert "account.closed" in kinds
+        assert edit(c, "Acct", path, closedOn=None).status_code == 200
+        assert c.get(path).json()["closedOn"] is None
+        kinds = [x["kind"] for x in c.get("/ui/api/activity").json()["items"]]
+        assert "account.reopened" in kinds
+    finally:
+        clock.fix(None)

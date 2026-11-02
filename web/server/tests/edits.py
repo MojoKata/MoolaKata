@@ -294,6 +294,43 @@ def _op(entity: str, fields: dict, record_id: str | None = None) -> dict:
     return {"op": "create", "entity": entity, "id": record_id or new_id(entity), "fields": fields}
 
 
+def budget_accounts(c, budget: dict, ids: list[str], month: str | None = None, roles=None):
+    """The budget's accounts set as its settings dialog sets them (S7.1.7): an account taken
+    out from `month` on ends the month before (with no month, it was never counted); one
+    added counts from `month` (none: since the budget began). `roles` maps an account to its
+    chosen `paidFromId` / `movedFromId`. The save's answer."""
+    have = c.get(f"/ui/api/budgets/{budget['id']}/accounts").json()["items"]
+    first = month + "-01" if month and len(month) == 7 else month
+    ops, counted = [], set()
+    for m in have:
+        if m["untilMonth"] is not None:
+            continue
+        if m["accountId"] in ids:
+            counted.add(m["accountId"])
+            chosen = (roles or {}).get(m["accountId"])
+            if chosen:
+                ops.append({"op": "update", "entity": "BdgAc", "id": m["id"],
+                            "version": m["version"], "fields": {**_bare(m), **chosen}})  # fmt: skip
+            continue
+        if first is None or (m["fromMonth"] or "") >= first:
+            ops.append({"op": "delete", "entity": "BdgAc", "id": m["id"], "version": m["version"]})
+        else:
+            y, mo = int(first[:4]), int(first[5:7])
+            last = f"{y if mo > 1 else y - 1}-{mo - 1 if mo > 1 else 12:02d}-01"
+            ops.append({"op": "update", "entity": "BdgAc", "id": m["id"], "version": m["version"],
+                        "fields": {**_bare(m), "untilMonth": last}})  # fmt: skip
+    for a in ids:
+        if a not in counted:
+            fields = {"budgetId": budget["id"], "accountId": a, "fromMonth": first,
+                      **((roles or {}).get(a) or {})}  # fmt: skip
+            ops.append(_op("BdgAc", fields))
+    return c.post("/ui/api/save", json={"ops": ops})
+
+
+def _bare(record: dict) -> dict:
+    return {k: v for k, v in record.items() if k not in ("id", "version")}
+
+
 def make(c, entity: str, confirm: bool = False, **fields) -> Made:
     """A record made as its form's draft makes it, with the records that come with it: a
     transaction's parts (`splits`) and tags by name (`tags`), a rule's tags by name, a filing's
@@ -306,6 +343,10 @@ def make(c, entity: str, confirm: bool = False, **fields) -> Made:
         after += [_op("Split", {"transactionId": first, **p}) for p in fields.pop("splits", [])]
     if entity == "Filng":
         after += [_op("EstPy", {"filingId": first, **p}) for p in fields.pop("payments", [])]
+    if entity == "Bdgt":
+        after += [
+            _op("BdgAc", {"budgetId": first, "accountId": a}) for a in fields.pop("accountIds", [])
+        ]
     if entity == "GfPln":
         if not fields.get("personId"):
             keys = ("name", "sex", "birthMonth", "birthDay", "birthYear", "diedOn", "private",

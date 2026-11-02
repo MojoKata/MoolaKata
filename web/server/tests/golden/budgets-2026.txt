@@ -12,7 +12,7 @@ Household 2026-10 Entertainment: planned 190.00 carried 0.00 moved 40.00 actual 
 Household 2026-10 Food: planned 500.00 carried 40.00 moved -40.00 actual 425.00 remaining 75.00 under
 Household 2026-10 Loan payments: planned 1100.00 carried 0.00 moved 0.00 actual 1000.00 remaining 100.00 near
 Household 2026-10 Savings › Investing: planned 300.00 carried 0.00 moved 0.00 actual 300.00 remaining 0.00 under
-Household 2026-10 Transportation › Car maintenance: planned 100.00 carried 100.00 moved 0.00 actual 260.00 remaining -60.00 over balance -60.00
+Household 2026-10 Transportation › Car maintenance: planned 200.00 carried 100.00 moved 0.00 actual 260.00 remaining -60.00 over balance -60.00
 Household 2026-10 held in Savings: total -60.00 moved in 200.00 to move -260.00
 Household 2026-11 spent 550.98 saved 1209.02 income 4000.00 toBudget None moved 0
 Household 2026-11 Income › Salary: planned 4000.00 carried 0.00 moved 0.00 actual 4000.00 remaining 0.00 under
@@ -20,7 +20,7 @@ Household 2026-11 Entertainment: planned 150.00 carried 0.00 moved 0.00 actual 0
 Household 2026-11 Food: planned 575.00 carried 75.00 moved 0.00 actual 460.00 remaining 115.00 under
 Household 2026-11 Loan payments: planned 1100.00 carried 0.00 moved 0.00 actual 1000.00 remaining 100.00 near
 Household 2026-11 Savings › Investing: planned 300.00 carried 0.00 moved 0.00 actual 300.00 remaining 0.00 under
-Household 2026-11 Transportation › Car maintenance: planned 100.00 carried -60.00 moved 0.00 actual 0.00 remaining 40.00 under balance 40.00
+Household 2026-11 Transportation › Car maintenance: planned 40.00 carried -60.00 moved 0.00 actual 0.00 remaining 40.00 under balance 40.00
 Household 2026-11 held in Savings: total 40.00 moved in 200.00 to move -160.00
 Household 2026-12 spent 0.00 saved 0.00 income 0.00 toBudget None moved 0
 Household 2026-12 Income › Salary: planned 4000.00 carried 0.00 moved 0.00 actual 0.00 remaining 4000.00 under
@@ -28,7 +28,7 @@ Household 2026-12 Entertainment: planned 150.00 carried 0.00 moved 0.00 actual 0
 Household 2026-12 Food: planned 615.00 carried 115.00 moved 0.00 actual 0.00 remaining 615.00 under
 Household 2026-12 Loan payments: planned 1100.00 carried 0.00 moved 0.00 actual 0.00 remaining 1100.00 under
 Household 2026-12 Savings › Investing: planned 300.00 carried 0.00 moved 0.00 actual 0.00 remaining 300.00 under
-Household 2026-12 Transportation › Car maintenance: planned 100.00 carried 40.00 moved 0.00 actual 0.00 remaining 140.00 under balance 140.00
+Household 2026-12 Transportation › Car maintenance: planned 140.00 carried 40.00 moved 0.00 actual 0.00 remaining 140.00 under balance 140.00
 Household 2026-12 held in Savings: total 140.00 moved in 200.00 to move -60.00
 Envelopes 2026-09 spent 560.00 saved 1200.00 income 4000.00 toBudget None moved 0
 Envelopes 2026-10 spent 970.50 saved 1204.50 income 4000.00 toBudget None moved 0
