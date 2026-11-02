@@ -1,0 +1,116 @@
+# Walk: filed tax years
+
+Review 3's open Med claims on filed tax years: CR3-27, CR3-33 (S2.8), CR3-34 (S8.17), walked
+on branch `cr3-tax-years` from main `5e409cf`. As asked for every walk from this one on, the
+area's test coverage (code and data shapes) and its speed are an item of their own.
+
+**Found before the walk.** All three still hold: `taxes/closed.py` and `taxes/books.py`
+`previous()` are as the claims cite them. The guard (`closed.Guard`) is made by six call
+sites (`ui/transactions.py` 555, 1257, 1272; `ui/options.py` 57, 130, 331, 398), each for the
+edited account only. Other writes that move realized gains and make none: imports
+(`store/repos/ledger.py:582`), the Connection's file posting, account deletion, *both real*,
+transfer matching, an account's lot method (`ui/accounts.py:589`), a spouse relationship
+(`ui/people.py:344`), wallets (`ui/wallets.py:252`), and every wash-sale rerun across accounts.
+
+**Coverage today** (main's Pages site, the last merge): `taxes/closed.py` 96 % lines,
+90 % branches; `washes.py` 99 / 95; `taxes/books.py` 95 / 89; `ui/taxes.py` 88 / 65;
+`taxes/dependents.py` 92 / 76. Two tests reach closed years
+(`test_taxbooks.py:370, 418`), both a hand edit in the filed account. High line coverage of the
+guard said nothing of the write paths that never call it.
+
+## Decisions
+
+1. **CR3-27, CR3-33: the filed figures recorded, one check for every write (locked Nov 2,
+   6:52 AM).**
+   1. When a federal return becomes filed or accepted (and when an amended one is filed, or
+      *No amendment needed* is chosen), the tax book records its realized gains by account,
+      short- and long-term: the filed figures.
+   2. One check in the unit of work, at commit, for every request or job that wrote a table
+      that feeds gains (the data version's input tables): for each closed book of the
+      households touched, the gains before (read from the committed database) and after. A
+      move is asked (a draft's save), refused 409 (a plain route), or recorded and alerted
+      (1.1). The six `closed.Guard` call sites go; a new write path is covered by itself.
+   3. The tax book compares its live gains with the filed figures plus the changes recorded
+      on every read, so a difference nothing asked about still lists as *Changed after
+      filing*.
+   4. (1.1) A writer no one can ask (a Connection's posted file, a background job) keeps the
+      write, records the change on the book and alerts; a statement import under review asks
+      at its review step (*Import anyway*).
+   5. (1.2) Deleting an account a closed year counts asks, naming the move (*2025's filed
+      gains change by −$500; to keep them, close it*).
+   6. (1.3) An account added to or left out of a filed book, or a sharing change that drops
+      one, is a gains move like any other: asked and listed.
+   7. Tests: generated sequences, pairwise over the write path (~12), the book's state (filed,
+      accepted, amending, amended, not-needed, none), where it lands (same account, other
+      taxable, IRA, spouse's, joint) and when (a sale in the closed year, a buy within 30 days
+      after it, a change that moves nothing); the invariant: after any write, live gains =
+      filed figures + recorded changes, or the write was refused and nothing changed. Old bugs
+      planted must fail worlds. A replay-counting test holds the check to closed books'
+      accounts on gains-moving writes.
+   8. Rejected: a household-wide guard added to each path (the next path is unguarded unless
+      remembered); listing only on the book (breaks S2.8's ask first).
+2. **CR3-34: last year's books by accepted filer (locked Nov 2, 6:59 AM).**
+   1. For each filer of a book, last year's book is the one they were an **accepted** filer
+      of: one book, or two after filing separately. One function gives the list; every reader
+      (*From last year*, the Summary's carryover, last year's total tax beside the estimated
+      payments, the copied accounts and dependents, the expected documents) reads it.
+   2. *From last year* lists each book under its filers' names. Joint after separate: the
+      Summary sums the capital-loss carryovers and last year's total tax is the sum; AGI and
+      the 8606 basis show per filer; accounts and dependents copy from both.
+   3. (2.1) One book a year per filer: being an accepted filer on two books of a year is
+      refused, at creation and at accepting, naming the other (*You're a filer on 2025's tax
+      book with Bob*); a pending invitation blocks nothing. A waiting book gets **Decline**
+      beside *Accept*: it takes the user off and tells the book's owner.
+   4. (2.2) Separate after joint: each separate book shows the joint return's figures, marked
+      *joint*; the Summary counts a carryover once the filer types their share, and an issue
+      asks for it until then (S8.18: the split is a judgement).
+   5. (2.3) Expected documents follow *Start from last year*: the choice is stored on the
+      book, and the pending copy gets its own field.
+   6. Tests: every pair of a couple's arrangements over two years (last year: none, solo,
+      separate, joint, joint with a filer pending, a pending invite while filing alone,
+      deleted; this year: solo, separate, joint; switch on and off), through the API: each
+      book read is its filers' accepted one, nothing comes from a book a filer can't open,
+      sums and copies right. The old `previous()` planted must fail cases.
+   7. Rejected: the dialog asking which book (wrong for joint after separate); accepted
+      filers but the first book (leaves separate then joint).
+3. **The area's tests: generated tax worlds, a reference model, the panels in the browser,
+   query budgets (locked Nov 2, 7:04 AM).** Measured first: `taxpanels.js` 22 % lines (139 of
+   638), `screens/taxes.js` 75 / 66, `ui/taxes.py` branches 65 %, `dependents.py` 76 %; 25
+   server tests, each a story, no axis named; a book read 13 ms / 52 queries, its panels
+   55 ms / 147 queries, the list 10 ms / 17 queries, with 200 trades over three accounts
+   (600 trades hit the API's 600-a-minute limit while seeding).
+   1. `tests/tax_world.py`: worlds pairwise over the filers (solo, joint, separate, married
+      mid-history, a spouse died in the year), account kinds (taxable, IRA/Roth/401k, HSA,
+      529, bank, crypto, custodial, joint), sale shapes (terms, covered or not, washes in the
+      account, across accounts, the spouse's, into an IRA, across a year's end; specific lot;
+      options opened, closed, expired, assigned; splits and mergers; bitcoin fee sales under
+      each setting), income kinds (interest, qualified and ordinary dividends, gain
+      distributions, foreign tax, RMDs, contributions and conversions), the book's state
+      (decision 1), counted-account overrides, dependents (ages about 13, 17, 19, 24; student)
+      and last year's arrangement (decision 2); each made through the API.
+   2. Rules on every world: Schedule D = the 8949 rows = the disposals of the counted taxable
+      accounts; each disposal in one box; wash losses disallowed = the adjustments = the basis
+      added to the replacements; the CSV and TXF reconcile with the panels; income by kind =
+      its transactions; nothing from an account a filer can't see; decisions 1 and 2's
+      invariants.
+   3. A naive reference model in the tests (lots by method, washes by brute force over every
+      pair of trades) works out the 8949 rows on its own; every world's rows equal it.
+   4. Planted: the old bugs and wrong rules (a 31-day window, a long-term cutoff a day off, a
+      wrong box) must each fail worlds.
+   5. Browser: each panel shows the API's figures for a few worlds; the tax screen's new book,
+      Accept and Decline, filing dialogs and issues.
+   6. Speed: query counts asserted at about 50 and 500 trades (seeded without the API), not
+      growing with the trades; the closed-year check's replays counted; times printed, not
+      asserted.
+   7. Floors raised on these files as they rise; each line left unreached named in this log
+      with its reason; aim ≥ 90 % branches on `ui/taxes.py`, `dependents.py`, `taxpanels.js`.
+   8. (3.1) Order: the worlds and the reference model first, run against today's code (they
+      must fail on CR3-27, 33 and 34), then decisions 1 and 2 built against them.
+   9. Rejected: invariants without a reference model (a rule wrong the same way everywhere
+      passes); the decisions' own tests plus hand tests for unreached lines (leaves the
+      crossings).
+
+**Final approval** given Nov 2, 7:06 AM, with: as the suites grow, keep an eye on how long the
+tests take and on running them in parallel on GitHub.
+
+## Applied
