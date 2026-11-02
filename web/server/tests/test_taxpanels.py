@@ -282,3 +282,31 @@ def test_average_cost_is_for_funds_a_share_goes_first_in(alice):
         trade(alice, brk["id"], "2026-03-02", "sell", "10", "250", symbol=symbol)
     rows = {r["description"]: r["basis"] for r in panels(alice, book(alice))["rows"]}
     assert rows == {"10 VTSAX": "1500.00", "10 IBM": "1000.00"}
+
+
+def test_a_replacement_bought_before_the_loss_sale_is_a_plain_lot_until_it(alice):
+    # CR3-388, S3.8.3: highest cost first picks the sale's lots by their cost on the day; the
+    # replacement bought nine days before takes the loss only once the sale has it.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="hifo")
+    trade(alice, brk["id"], "2023-08-21", "buy", "10", "366.93", symbol="HON")
+    trade(alice, brk["id"], "2024-01-18", "buy", "10", "382.36", symbol="HON")
+    trade(alice, brk["id"], "2025-02-21", "buy", "6", "312.57", symbol="HON")
+    trade(alice, brk["id"], "2025-03-04", "sell", "6", "310.09", symbol="HON")
+    me = alice.get("/ui/api/session").json()["user"]["id"]
+    r = make(alice, "TaxBk", year=2025, filers=[me])
+    (row,) = panels(alice, r.json()["id"])["rows"]
+    assert (row["acquired"], row["basis"], row["adjustment"]) == ("2024-01-18", "2294.16", "433.62")
+
+
+def test_shares_a_sale_sold_never_replace_it(alice):
+    # CR3-388, S3.8.2: last in first out sells the three bought a week before with three of
+    # the old lot; those three were sold, so they replace nothing.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="lifo")
+    trade(alice, brk["id"], "2024-01-08", "buy", "10", "200", symbol="IBM")
+    trade(alice, brk["id"], "2026-02-23", "buy", "3", "100", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "6", "90", symbol="IBM")
+    rows = panels(alice, book(alice))["rows"]
+    assert sorted((r["description"], r["adjustment"]) for r in rows) == [
+        ("3 IBM", "0.00"),
+        ("3 IBM", "0.00"),
+    ]

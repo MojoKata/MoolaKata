@@ -163,6 +163,7 @@ def replay(
     by_snapshots: bool | None = None,
     basis_added: bool = True,
     averaged: frozenset = frozenset(),
+    sale_at: dict | None = None,
 ) -> Replay:
     """Transactions, lots (acquisitions), specific-identification picks and holding
     snapshots of one account, as entities; returns the open lots, disposals and problems.
@@ -194,11 +195,21 @@ def replay(
             events.append((lot.acquiredOn, 0, lot.createdAt, lot.id, "lot", lot))
     for h in snapshots:
         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
+    # A wash sale settles on its replacement right after the loss sale (CR3-388): a replacement
+    # bought before it is a plain lot until then, so the sale never picks its own lots by the
+    # loss it is about to have disallowed. `sale_at` is each sale's day and making, from any
+    # account; a sale not in it settles at the buy.
+    for w in washes:
+        at = (sale_at or {}).get(w.saleId)
+        if at is not None:
+            events.append((at[0], 0, at[1], f"{w.saleId}~{w.id}", "settle", w))
     events.sort(key=lambda e: e[:4])
 
     replaced: dict[str, list] = {}
     for w in washes:
         replaced.setdefault(w.replacementId, []).append(w)
+    pending: dict[str, OpenLot] = {}  # a replacement's split, waiting for its sale
+    settled: set[str] = set()  # wash sales whose sale has been passed
     out = Replay()
     for t in transactions:
         end = getattr(t, "optionTransactionId", None)
@@ -221,6 +232,11 @@ def replay(
             )
         elif what == "snapshot":
             _snapshot(out, obj)
+        elif what == "settle":
+            settled.add(obj.id)
+            lot = pending.pop(obj.id, None)
+            if lot is not None:
+                _settle(lot, obj, basis_added)
         else:
             before = len(out.open)
             _transaction(
@@ -232,7 +248,12 @@ def replay(
                 averaged,
             )
             if obj.id in replaced:
-                _replacement(out, before, replaced[obj.id], basis_added)
+                rows = replaced[obj.id]
+                for row, lot in _replacement(out, before, rows):
+                    if sale_at is None or row.saleId not in sale_at or row.id in settled:
+                        _settle(lot, row, basis_added)
+                    else:
+                        pending[row.id] = lot
     _disallow(out, washes)
     out.open = [lot for lot in out.open if lot.quantity]
     return out
@@ -245,11 +266,11 @@ def adds_basis(account_type: str) -> bool:
     return account_type not in ("ira", "roth-ira")
 
 
-def _replacement(out: Replay, before: int, rows: list, basis_added: bool = True) -> None:
-    """A wash sale's replacement (S3.8): the shares bought take the disallowed loss into their
-    basis and the sold shares' holding period, split from the rest of the lot. In an IRA or a
-    Roth IRA the loss is disallowed for good, and no basis is added (S3.8.3)."""
+def _replacement(out: Replay, before: int, rows: list) -> list[tuple]:
+    """A wash sale's replacement (S3.8): the shares bought that replace, split from the rest of
+    the lot, each with the wash sale it settles; their basis and day follow on `_settle`."""
     made = out.open[before:]
+    split = []
     for row in rows:
         left = row.quantity
         for lot in made:
@@ -262,18 +283,23 @@ def _replacement(out: Replay, before: int, rows: list, basis_added: bool = True)
                 share = (lot.basis * take / lot.quantity).quantize(CENT)
                 lot.basis -= share
             lot.quantity -= take
-            out.open.append(
-                OpenLot(
-                    lot.lotId,
-                    lot.instrumentId,
-                    lot.acquiredOn,
-                    take,
-                    None if share is None else share + (row.disallowed if basis_added else 0),
-                    lot.standIn,
-                    row.heldFrom,
-                )
-            )
+            part = OpenLot(lot.lotId, lot.instrumentId, lot.acquiredOn, take, share, lot.standIn)
+            out.open.append(part)
+            split.append((row, part))
             break
+    return split
+
+
+def _settle(lot: OpenLot, row, basis_added: bool) -> None:
+    """The replacement takes the disallowed loss into its basis (for what of it is still held)
+    and the sold shares' holding period. In an IRA or a Roth IRA the loss is disallowed for
+    good, and no basis is added (S3.8.3)."""
+    if lot.basis is not None and basis_added and lot.quantity > 0:
+        share = row.disallowed
+        if lot.quantity != row.quantity:
+            share = (row.disallowed * lot.quantity / row.quantity).quantize(CENT)
+        lot.basis += share
+    lot.heldFrom = row.heldFrom
 
 
 def _disallow(out: Replay, washes) -> None:

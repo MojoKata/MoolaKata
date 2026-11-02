@@ -97,15 +97,18 @@
       account. Whether a different instrument is substantially identical is the preparer's
       call, and MoolaKata does not guess.
    2. Replacement shares are taken nearest the sale date first, each counted against one
-      sale only. The shares bought in the lot that was sold are never their own replacement.
+      sale only. The shares bought in the lot that was sold, and any shares the sale itself
+      sold, are never its replacement.
       A partial replacement disallows the loss in proportion: 4 shares bought back of 10
       sold disallow 4/10 of the loss.
    3. The disallowed loss is taken off the sale's realized loss and added to the replacement
       shares' basis, and their holding period starts that many days earlier: the sold shares'
-      days held carry over. Holdings, unrealized gain, the Closed tab (a **W** with the amount)
-      and the later sale of those shares all use the adjusted basis and date. Where only some
-      of a lot replaces, that part is split into its own lot. **A replacement in an IRA or a
-      Roth IRA** is the exception: the loss is disallowed for good, with no basis added to the
+      days held carry over. Both take effect from the sale on: shares bought before it are a
+      plain lot until then, so the sale never takes its lots by the loss it is about to have
+      disallowed. Holdings, unrealized gain, the Closed tab (a **W** with the amount) and the
+      later sale of those shares all use the adjusted basis and date. Where only some of a lot
+      replaces, that part is split into its own lot. **A replacement in an IRA or a Roth IRA**
+      is the exception: the loss is disallowed for good, with no basis added to the
       replacement (Rev. Rul. 2008-5).
    4. The household's wash sales are worked out again whenever a trade in it is added,
       changed, deleted or imported, so a later purchase that replaces an earlier loss, or a

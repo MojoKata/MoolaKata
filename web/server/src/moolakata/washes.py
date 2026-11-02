@@ -108,19 +108,25 @@ def _recompute(s: Session, user_id: str) -> int:
     # it again: the losses are found on the replay with the wash sales so far applied, again
     # and again, until nothing changes (S3.8.3, S3.8.4).
     now = clock.now()
+    # Each sale's day and making, so a replacement settles right after its sale (CR3-388).
+    sale_at = {t.id: (t.date, t.createdAt) for led in ledgers for t in led.transactions}
+    for led in ledgers:
+        led.sale_at = sale_at
     rows: list[WashSale] = []
-    for _ in range(ROUNDS):
+    # A chain of deferrals takes a round a link; a round can't add more links than there are
+    # buys, so the rounds settle within that many, and not settling is a fault, never cut
+    # short with whatever the last round found.
+    for _ in range(sum(len(b) for b in buys.values()) + 2):
         found = _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now)
         if _same(found, rows):
             break
         rows = found
+    else:
+        raise RuntimeError("the wash sales never settled")
     for w in rows:
         s.add(w)
     s.flush()
     return len(rows)
-
-
-ROUNDS = 12
 
 
 def _same(a: list[WashSale], b: list[WashSale]) -> bool:
@@ -130,10 +136,15 @@ def _same(a: list[WashSale], b: list[WashSale]) -> bool:
 
 def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[WashSale]:
     losses = []
+    # What each sale took of each buy's shares: shares a sale sold never replace it (S3.8.2).
+    sold: dict[tuple[str, str], Decimal] = {}
     for led in ledgers:
         ids_ = {t.id for t in led.transactions}
         led.washes = [w for w in rows if w.saleId in ids_ or w.replacementId in ids_]
         for d in led.replay().disposals:
+            bought = lot_txn.get(d.lotId) if d.lotId else None
+            if d.saleId and bought:
+                sold[(d.saleId, bought)] = sold.get((d.saleId, bought), Decimal(0)) + d.quantity
             raw = d.raw_gain
             if d.instrumentId in classes and raw is not None and raw < 0 and d.saleId:
                 losses.append((led.account, d))
@@ -157,7 +168,9 @@ def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[Wa
                 continue
             if own is None and b.txn.date == d.acquiredOn and b.txn.accountId == a.id:
                 continue  # the shares that were sold
-            take = min(left, remaining[id(b)])
+            take = min(left, remaining[id(b)], b.remaining - sold.get((d.saleId, b.txn.id), 0))
+            if take <= 0:
+                continue
             remaining[id(b)] -= take
             left -= take
             held_from = d.heldFrom or d.acquiredOn

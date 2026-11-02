@@ -20,10 +20,16 @@ def held_on(ledger, day: dt.date) -> dict[str, tuple[Decimal, Decimal | None]]:
         [x for x in ledger.lots if x.acquiredOn <= day],
         ledger.picks,
         [h for h in ledger.snapshots if h.asOf <= day],
-        ledger.washes,
+        # Wash sales whose loss sale is past by the day's end.
+        [
+            w
+            for w in ledger.washes
+            if w.saleId in ledger.sale_at and ledger.sale_at[w.saleId][0] <= day
+        ],
         lots.kept_by_snapshots(ledger.transactions, ledger.lots),
         lots.adds_basis(ledger.account.type),
         ledger.averaged,
+        ledger.sale_at,
     )
     out: dict[str, tuple[Decimal, Decimal | None]] = {}
     for lot in rp.open:
