@@ -257,7 +257,7 @@ tests take and on running them in parallel on GitHub.
       don't make.
    4. Validation of a dependent's person as a descendant (`dependents.py:146`): reached by the
       family-tree tests, not the tax tests.
-9. **Floors and CI time** (`2642138`). CI run 41477033655 (`999fd0f`), all green: the tax
+9. **Floors and CI time** (`bd1e600`). CI run 41477033655 (`999fd0f`), all green: the tax
    area reaches 97.4 % of lines and 92.4 % of branches (was 94.0 / 86.0); its floor is raised
    to 97.1 / 91.8, and every area that rose is raised by the same rule (`coverage.slack_floor`).
    Jobs: server parts 7.7, 4.9, 5.6, 7.6 min; browser 4.9 and 9.1; the generated mockup 6.4.
