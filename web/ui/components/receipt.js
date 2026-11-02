@@ -154,7 +154,8 @@ export function ReceiptDialog({ close, id }) {
   );
   const added = linkRecs.filter((x) => x.state === 'new').map((x) => {
     const m = r.matches.find((/** @type {any} */ m) => m.transactionId === x.get('itemId'));
-    return { ...m, rec: x, canDetach: true };
+    // Not saved yet: the draft's to take back.
+    return { ...m, rec: x };
   });
   const attach = (/** @type {string} */ tid) =>
     draft.add(ReceiptLinkRec, { receiptId: id, kind: 'transaction', itemId: tid });
@@ -299,7 +300,7 @@ export function ReceiptDialog({ close, id }) {
                   `
                   : l.label
               }</div>${
-                l.canDetach && canEdit
+                (l.rec || l.access?.deletable) && canEdit
                   ? html`<button type="button" class="btn sm" onClick=${() =>
                     detach(l)}>Detach</button>`
                   : null

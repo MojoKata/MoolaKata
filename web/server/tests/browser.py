@@ -362,7 +362,7 @@ def tax_book(h: Household) -> dict:
             carried={"agi": "98000", "capitalLossLong": "1200"},
         )
     )
-    emma = h.extra["emma"]["id"]
+    emma = h.extra["emma"]["personId"]
     made(make(h.c, "TxDep", bookId=b["id"], personId=emma, claimedAs="qualifying child", months=12))
     w2 = made(
         h.c.post(
@@ -410,7 +410,7 @@ def gift_plans(h: Household) -> dict:
             h.c,
             "Gift",
             description="Watch",
-            people=[emma["id"]],
+            people=[emma["personId"]],
             status="planned",
             occasion=f"occasion:{grad['id']}",
             occasionYear=2027,

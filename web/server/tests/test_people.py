@@ -287,9 +287,9 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     alice, bob = two
     r = make(alice, "GfPln", name="Ruth Griffin", sex="female", birthYear=1940)
     assert r.status_code == 200, r.text
-    ruth = r.json()
-    assert ruth["canMakePrivate"] and not ruth["isUser"] and not ruth["private"]
-    person = {"id": ruth["id"], "version": ruth["personVersion"]}
+    ruth = alice.get(f"/ui/api/persons/{r.json()['personId']}").json()
+    assert ruth["canMakePrivate"] and ruth["userId"] is None and not ruth["private"]
+    person = ruth
     r = change(alice, "Persn", person, diedOn="2030-01-01")
     assert r.json()["errors"][0]["code"] == "died-on-invalid"
     r = saved(change(alice, "Persn", person, diedOn="2026-03-02", private=True))
@@ -300,12 +300,13 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     assert share(alice, "person", pid, users={bob_id: "read"}).status_code == 200
     r = make(bob, "GfPln", personId=pid)
     assert r.status_code == 200, r.text
-    assert not r.json()["canMakePrivate"]
-    plan = {"id": r.json()["planId"], "version": r.json()["version"]}
+    plan = r.json()
+    hers = bob.get(f"/ui/api/persons/{pid}").json()
+    assert not hers["canMakePrivate"] and not hers["access"]["writable"]
     saved(change(bob, "GfPln", plan, notes="likes tea"))
-    r = change(bob, "Persn", r.json() | {"version": r.json()["personVersion"]}, private=False)
+    r = change(bob, "Persn", hers, private=False)
     assert r.status_code == 403, "Bob reads Ruth, so he may not change her"
-    assert bob.get(f"/ui/api/people/{pid}").json()["private"]
+    assert bob.get(f"/ui/api/persons/{pid}").json()["private"]
 
 
 def test_a_relationship_is_changed_and_removed_with_its_version(two):
@@ -331,7 +332,7 @@ def test_a_person_who_becomes_a_user_is_theirs_to_change(server, two):
     made = make(alice, "Persn", name="Dana Ortiz", sex="female")
     assert made.status_code == 200, made.text
     person = made.json()
-    assert person["canChange"]
+    assert person["access"]["writable"]
     from moolakata import settings
 
     with server.db.tx(unscoped="test") as s:  # invited under the same name, she becomes that person
@@ -342,6 +343,6 @@ def test_a_person_who_becomes_a_user_is_theirs_to_change(server, two):
         )
         assert dana.personId == person["id"]
     mine = next(p for p in alice.get("/ui/api/persons").json()["items"] if p["id"] == person["id"])
-    assert not mine["canChange"]
+    assert not mine["access"]["writable"]
     r = change(alice, "Persn", mine, birthYear=1990)
     assert r.status_code == 403

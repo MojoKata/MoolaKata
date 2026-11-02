@@ -125,12 +125,38 @@ function Upcoming() {
   `;
 }
 
+/**
+ * The gift plans the caller sees, each with its person (S7.7): two lists, joined here by the
+ * plan's `personId`, as each record comes from its own route.
+ * @param {string[]} [reloadOn]
+ */
+function usePlans(reloadOn = []) {
+  const plans = useList('/gift-plans', {}, reloadOn);
+  const persons = useList('/persons', {}, reloadOn);
+  const byId = new Map(
+    (/** @type {any[]} */ (persons.data) || []).map((x) => [x.id, x]),
+  );
+  const rows = plans.data && persons.data
+    ? /** @type {any[]} */ (plans.data)
+      .map((plan) => ({ plan, person: byId.get(plan.personId) }))
+      .filter((r) => r.person)
+    : null;
+  return {
+    rows,
+    error: plans.error || persons.error,
+    reload: () => {
+      plans.reload();
+      persons.reload();
+    },
+  };
+}
+
 function People() {
-  const res = useList('/people', {}, ['share']);
-  const rows = /** @type {any[]} */ (res.data);
+  const res = usePlans(['share']);
+  const rows = res.rows;
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} />`;
-  const open = (/** @type {any} */ p) => openDialog(PersonDialog, { p }).then(res.reload);
+  const open = (/** @type {any} */ row) => openDialog(PersonDialog, { row }).then(res.reload);
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>People<span class="spacer"></span><button class="btn sm"
@@ -149,17 +175,18 @@ function People() {
                   <th>Last gift</th>
                 </tr>
               </thead>
-              <tbody>${rows.map((p) =>
+              <tbody>${rows.map(({ plan: p, person }) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() => open(p)} onKeyDown=${(
+                  <tr class="click" tabindex="0" onClick=${() =>
+                    open({ plan: p, person })} onKeyDown=${(
                     /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open(p)}>
-                    <td style=${{ whiteSpace: 'nowrap' }}><b>${p.name}</b>${p.private
+                  ) => e.key === 'Enter' && open({ plan: p, person })}>
+                    <td style=${{ whiteSpace: 'nowrap' }}><b>${person.name}</b>${person.private
                       ? html`
                         <span class="pill">private</span>
                       `
                       : null}<div class="small dim">${[
-                      p.relation,
+                      person.relation,
                       p.access.mine ? null : `shared by ${p.ownerName}`,
                     ].filter(Boolean).join(' · ')}</div></td>
                     <td class="small">${p.next
@@ -381,8 +408,14 @@ export const asFields = (/** @type {any} */ v, /** @type {string} */ prefix) =>
     Object.entries(v).map(([k, x]) => [prefix + k[0].toUpperCase() + k.slice(1), x]),
   );
 
-/** @param {{ close: (v?: any) => void, p: any }} p */
-function PersonDialog({ close, p }) {
+/**
+ * A gift plan and its person (S7.7, S10.10), two records edited in one draft: `row` is the
+ * plan as `/gift-plans` reads it and its person as `/persons` does, or none for a new one.
+ * @param {{ close: (v?: any) => void, row: { plan: any, person: any } | null }} p
+ */
+function PersonDialog({ close, row }) {
+  const planRow = row?.plan;
+  const p = row?.person;
   useDialogGuide('dialog-person');
   const hols = useList('/holidays');
   const f = useDraft(async (draft) => {
@@ -391,24 +424,29 @@ function PersonDialog({ close, p }) {
       draft.add(PlanRec, { personId: who.id });
       return;
     }
-    const x = await api.get(`/people/${p.id}`);
+    const [x, who] = await Promise.all([
+      api.get(`/gift-plans/${planRow.id}`),
+      api.get(`/persons/${p.id}`),
+    ]);
     draft.load(PersonRec, {
-      id: x.id,
-      version: x.personVersion,
-      ...Object.fromEntries(Object.keys(PersonRec.defaults).map((k) => [k, x[k] ?? null])),
-      private: x.private,
+      id: who.id,
+      version: who.version,
+      access: who.access,
+      ...Object.fromEntries(Object.keys(PersonRec.defaults).map((k) => [k, who[k] ?? null])),
+      private: who.private,
       differentPerson: false,
     });
     draft.load(PlanRec, {
-      id: x.planId,
+      id: x.id,
       version: x.version,
-      personId: x.id,
+      access: x.access,
+      personId: x.personId,
       giftBudget: x.giftBudget,
       leadDays: x.leadDays,
       notes: x.notes,
     });
-    for (const o of x.occasions) draft.load(OccasionRec, { ...o, giftPlanId: x.planId });
-  }, [p?.id]);
+    for (const o of x.occasions) draft.load(OccasionRec, { ...o, giftPlanId: x.id });
+  }, [planRow?.id]);
   const draft = f.draft;
   const who = /** @type {PersonRec | undefined} */ (
     draft?.records.find((r) => r instanceof PersonRec)
@@ -420,8 +458,8 @@ function PersonDialog({ close, p }) {
     (draft?.records || []).filter((r) => r instanceof OccasionRec)
   );
   const dated = occasions.filter((o) => !o.removed && o.get('kind') !== 'holiday');
-  const canWrite = !p || p.access.writable;
-  const ownPerson = !p || p.canChangePerson;
+  const canWrite = !planRow || planRow.access.writable;
+  const ownPerson = !p || p.access.writable;
   // One person, once (S10.10.3): a name already here shows that person instead.
   const [clash, setClash] = useState(/** @type {any} */ (null));
   const [using, setUsing] = useState(false);
@@ -496,23 +534,23 @@ function PersonDialog({ close, p }) {
           if (out?.status !== 'asks' && out?.status !== 'saved') draft.unremove(r);
         };
         return html`${
-          p && p.access.shareable
+          planRow && planRow.access.shareable
             ? html`<button type="button" class="btn" onClick=${() =>
               openDialog(ShareDialog, {
                 kind: 'gift-plan',
-                id: p.planId,
+                id: planRow.id,
                 name: `Gift plan for ${p.name}`,
               })}><${Icon} name="share" /> Share</button>`
             : null
         }${
-          p && p.access.deletable
+          planRow && planRow.access.deletable
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
                 onClick=${() => drop('plan')}>Delete plan</button>
             `
             : null
         }${
-          p && p.canChangePerson && !p.isUser
+          p && p.access.deletable && !p.userId
             ? html`
               <button type="button" class="btn danger" disabled=${save.busy}
                 onClick=${() => drop('person')}>Delete person</button>
@@ -735,7 +773,7 @@ class GiftRec extends Rec {
 /** @param {{ close: (v?: any) => void, gift?: any, start?: any }} p */
 function GiftDialog({ close, gift, start }) {
   useDialogGuide('dialog-gift');
-  const people = useList('/people');
+  const people = usePlans();
   const buys = useList('/gifts/purchases');
   const f = useDraft((draft) => {
     if (gift) {
@@ -756,7 +794,11 @@ function GiftDialog({ close, gift, start }) {
     });
   }, [gift?.id]);
   const rec = /** @type {GiftRec | undefined} */ (f.draft?.records[0]);
-  const list = /** @type {any[]} */ (people.data) || [];
+  // Each person with a plan, with their plan's occasions.
+  const list = (people.rows || []).map(({ plan, person }) => ({
+    ...person,
+    occasions: plan.occasions,
+  }));
   const canWrite = !gift || gift.access.writable;
   const year = thisYear();
   const who = /** @type {string[]} */ (rec?.get('people') || []);

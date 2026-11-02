@@ -27,9 +27,10 @@ def alice(server, frozen):
 
 
 def plan(c, **kw):
-    emma = make(
+    made = make(
         c, "GfPln", name="Emma Griffin", sex="female", birthYear=2018, birthMonth=10, birthDay=20
     ).json()
+    emma = c.get(f"/ui/api/persons/{made['personId']}").json()
     acct = new_account(c, name="Emma's 529", type="529", institution="my529")
     r = plan529(c, acct["id"], planState="Utah", planName="my529", beneficiaryId=emma["id"],
                 openedOn=kw.get("opened", "2018-05-02"), stateDeduction="2410")  # fmt: skip
@@ -40,7 +41,7 @@ def test_gift_plans_are_their_owners_alone(server, alice):
     make(alice, "GfPln", name="Emma", sex="female", birthYear=2018)
     make_user(server, "bob")
     bob = sign_in(server, "bob")
-    assert bob.get("/ui/api/people").json()["items"] == []
+    assert bob.get("/ui/api/gift-plans").json()["items"] == []
     assert "Emma" in {p["name"] for p in bob.get("/ui/api/persons").json()["items"]}
     bad = make(alice, "GfPln", name=" ", birthMonth=13)
     assert {e["field"] for e in bad.json()["errors"]} >= {"name", "sex", "birthMonth"}
@@ -63,7 +64,7 @@ def test_the_plan_and_its_beneficiary(alice):
 
 def test_contributions_against_the_gift_exclusion(server, alice):
     acct, _, _ = plan(alice)
-    gran = make(alice, "GfPln", name="Margaret Griffin", sex="female").json()
+    gran = {"id": make(alice, "GfPln", name="Margaret Griffin", sex="female").json()["personId"]}
     bank = new_account(alice, name="Checking")
     add(alice, bank["id"], "20000.00", "2026-01-02")
     r = make(

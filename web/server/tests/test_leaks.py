@@ -26,6 +26,7 @@ PARAMS = {
     "portfolio_id": "Portfolio",
     "receipt_id": "Receipt",
     "person_id": "Person",
+    "plan_id": "GiftPlan",
     "txn_id": "Transaction",
     "transaction_id": "Transaction",
     "item_id": "Item",

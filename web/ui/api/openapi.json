@@ -7381,6 +7381,113 @@
         "title": "GiftOut",
         "type": "object"
       },
+      "GiftPlanRow": {
+        "additionalProperties": false,
+        "description": "A gift plan the caller sees (S7.7): its own fields, and figures worked out for its\nperson, whose record is `/persons`' (the browser joins them by `personId`).",
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "giftBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Giftbudget"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lastGift": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastgift"
+          },
+          "leadDays": {
+            "title": "Leaddays",
+            "type": "integer"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "occasions": {
+            "items": {
+              "$ref": "#/components/schemas/OccasionOut"
+            },
+            "title": "Occasions",
+            "type": "array"
+          },
+          "ownerName": {
+            "title": "Ownername",
+            "type": "string"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "spent": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Spent",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "giftBudget",
+          "leadDays",
+          "notes",
+          "occasions",
+          "next",
+          "spent",
+          "lastGift",
+          "access",
+          "ownerName",
+          "version"
+        ],
+        "title": "GiftPlanRow",
+        "type": "object"
+      },
       "GiftPlanShareRecord": {
         "additionalProperties": false,
         "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
@@ -14477,6 +14584,37 @@
         "title": "Page[GiftOut]",
         "type": "object"
       },
+      "Page_GiftPlanRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GiftPlanRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[GiftPlanRow]",
+        "type": "object"
+      },
       "Page_GroupRow_": {
         "properties": {
           "items": {
@@ -14847,37 +14985,6 @@
           "limit"
         ],
         "title": "Page[OrganisationOut]",
-        "type": "object"
-      },
-      "Page_PersonOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PersonOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "offset",
-          "limit"
-        ],
-        "title": "Page[PersonOut]",
         "type": "object"
       },
       "Page_PersonRow_": {
@@ -16168,254 +16275,6 @@
         "title": "PeriodRow",
         "type": "object"
       },
-      "PersonOut": {
-        "additionalProperties": false,
-        "description": "A gift plan the caller sees, with its person.",
-        "properties": {
-          "access": {
-            "$ref": "#/components/schemas/Access"
-          },
-          "birthDay": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthday"
-          },
-          "birthMonth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthmonth"
-          },
-          "birthYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthyear"
-          },
-          "canChangePerson": {
-            "title": "Canchangeperson",
-            "type": "boolean"
-          },
-          "canMakePrivate": {
-            "title": "Canmakeprivate",
-            "type": "boolean"
-          },
-          "diedOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diedon"
-          },
-          "giftBudget": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Giftbudget"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "isUser": {
-            "title": "Isuser",
-            "type": "boolean"
-          },
-          "lastGift": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lastgift"
-          },
-          "leadDays": {
-            "title": "Leaddays",
-            "type": "integer"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "next": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NextDate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "occasions": {
-            "items": {
-              "$ref": "#/components/schemas/OccasionOut"
-            },
-            "title": "Occasions",
-            "type": "array"
-          },
-          "ownerName": {
-            "title": "Ownername",
-            "type": "string"
-          },
-          "personVersion": {
-            "title": "Personversion",
-            "type": "integer"
-          },
-          "planId": {
-            "title": "Planid",
-            "type": "string"
-          },
-          "private": {
-            "title": "Private",
-            "type": "boolean"
-          },
-          "relation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relation"
-          },
-          "sameAs": {
-            "items": {
-              "$ref": "#/components/schemas/moolakata__ui__gifts__RemoteUser"
-            },
-            "title": "Sameas",
-            "type": "array"
-          },
-          "sex": {
-            "title": "Sex",
-            "type": "string"
-          },
-          "spent": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Spent",
-            "type": "number"
-          },
-          "userId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Userid"
-          },
-          "userName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "wedding": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wedding"
-          }
-        },
-        "required": [
-          "id",
-          "planId",
-          "name",
-          "sex",
-          "relation",
-          "userId",
-          "userName",
-          "birthMonth",
-          "birthDay",
-          "birthYear",
-          "diedOn",
-          "wedding",
-          "private",
-          "canChangePerson",
-          "canMakePrivate",
-          "isUser",
-          "sameAs",
-          "giftBudget",
-          "leadDays",
-          "notes",
-          "occasions",
-          "next",
-          "spent",
-          "lastGift",
-          "access",
-          "ownerName",
-          "version",
-          "personVersion"
-        ],
-        "title": "PersonOut",
-        "type": "object"
-      },
       "PersonRecord": {
         "additionalProperties": false,
         "description": "A person as a draft saves them. `differentPerson`, on a new one, says a name already\nhere is someone else, told apart by birth year (S10.10.3).",
@@ -16533,6 +16392,9 @@
       "PersonRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "birthDay": {
             "anyOf": [
               {
@@ -16566,8 +16428,8 @@
             ],
             "title": "Birthyear"
           },
-          "canChange": {
-            "title": "Canchange",
+          "canMakePrivate": {
+            "title": "Canmakeprivate",
             "type": "boolean"
           },
           "createdBy": {
@@ -16616,6 +16478,13 @@
             ],
             "title": "Relation"
           },
+          "sameAs": {
+            "items": {
+              "$ref": "#/components/schemas/moolakata__ui__gifts__RemoteUser"
+            },
+            "title": "Sameas",
+            "type": "array"
+          },
           "sex": {
             "title": "Sex",
             "type": "string"
@@ -16634,6 +16503,18 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "wedding": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wedding"
           }
         },
         "required": [
@@ -16647,7 +16528,10 @@
           "private",
           "userId",
           "relation",
-          "canChange",
+          "wedding",
+          "canMakePrivate",
+          "sameAs",
+          "access",
           "createdBy",
           "version"
         ],
@@ -20563,9 +20447,8 @@
       "RelationshipOut": {
         "additionalProperties": false,
         "properties": {
-          "canChange": {
-            "title": "Canchange",
-            "type": "boolean"
+          "access": {
+            "$ref": "#/components/schemas/Access"
           },
           "canConfirm": {
             "title": "Canconfirm",
@@ -20667,7 +20550,7 @@
           "confirmed",
           "waitingFor",
           "canConfirm",
-          "canChange",
+          "access",
           "version"
         ],
         "title": "RelationshipOut",
@@ -27831,6 +27714,16 @@
         "additionalProperties": false,
         "description": "A transaction it supports, the account it is kept on (a statement), or what else it is\nkept with: an item, a qualified expense, a gift, a donation, a tax document. `id` and\n`version` are the link's own (`ReceiptLink`); a tax document's file has none.",
         "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Access"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "accountId": {
             "anyOf": [
               {
@@ -27867,11 +27760,6 @@
               }
             ],
             "title": "Amount"
-          },
-          "canDetach": {
-            "default": false,
-            "title": "Candetach",
-            "type": "boolean"
           },
           "date": {
             "anyOf": [
@@ -30966,6 +30854,98 @@
         ]
       }
     },
+    "/ui/api/gift-plans": {
+      "get": {
+        "description": "The caller's gift plans and those shared with them, one per person.",
+        "operationId": "list_plans_ui_api_gift_plans_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_GiftPlanRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "List Plans",
+        "tags": [
+          "gifts"
+        ]
+      }
+    },
+    "/ui/api/gift-plans/{plan_id}": {
+      "get": {
+        "description": "One gift plan the caller sees: what the plan's dialog starts from.",
+        "operationId": "get_plan_ui_api_gift_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftPlanRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Get Plan",
+        "tags": [
+          "gifts"
+        ]
+      }
+    },
     "/ui/api/gifts": {
       "get": {
         "operationId": "list_gifts_ui_api_gifts_get",
@@ -32608,98 +32588,6 @@
         "summary": "Password Reset Confirm",
         "tags": [
           "session"
-        ]
-      }
-    },
-    "/ui/api/people": {
-      "get": {
-        "description": "The caller's gift plans and those shared with them, with their people.",
-        "operationId": "list_people_ui_api_people_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 500,
-              "maximum": 1000,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_PersonOut_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "List People",
-        "tags": [
-          "gifts"
-        ]
-      }
-    },
-    "/ui/api/people/{person_id}": {
-      "get": {
-        "description": "One gift plan the caller sees, with its person: what the plan's dialog starts from.",
-        "operationId": "get_plan_ui_api_people__person_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "person_id",
-            "required": true,
-            "schema": {
-              "title": "Person Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Get Plan",
-        "tags": [
-          "gifts"
         ]
       }
     },

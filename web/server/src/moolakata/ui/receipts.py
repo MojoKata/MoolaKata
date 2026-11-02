@@ -47,7 +47,9 @@ class LinkOut(Model):
     amount: Money | None
     payee: str | None
     label: str  # how it is named in the receipt's dialog
-    canDetach: bool = False
+    # The link's own, from ReceiptLinkAccess: detaching it is deleting it. None for a link
+    # not yet saved, or one named to a reader who doesn't read it.
+    access: Access | None = None
 
 
 class ReceiptRow(Model):
@@ -107,9 +109,9 @@ class ReceiptDetail(ReceiptRow):
 
 
 def _own(s, ln, user_id: str | None) -> dict:
-    """A link's id and version, and whether this user may detach it (S9.3)."""
-    can = user_id is not None and receipts.can_unlink(s, user_id, ln)
-    return {"id": ln.id, "version": ln.version, "canDetach": can}
+    """A link's id and version, and what this user may do with it (S9.3)."""
+    held = access.perms(s, ReceiptLink, ln.id, user_id) if user_id is not None else None
+    return {"id": ln.id, "version": ln.version, "access": Access.of(held) if held else None}
 
 
 def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:

@@ -176,7 +176,7 @@ def test_a_read_share_neither_attaches_nor_detaches(server, alice):
     rid = upload(alice, png()).json()["id"]
     saved(attach(alice, rid, t["id"]))
     [link] = bob.get(f"/ui/api/receipts/{rid}").json()["links"]
-    assert not link["canDetach"]
+    assert not link["access"]["deletable"]
     assert detach(bob, rid, t["id"]).status_code == 403
 
 

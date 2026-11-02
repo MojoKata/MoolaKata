@@ -37,8 +37,8 @@ def test_a_new_person_their_plan_and_its_occasions_in_one_save(alice):
          "fields": {"giftPlanId": gp, "kind": "holiday", "holiday": "christmas"}},
     ])  # fmt: skip
     assert r.status_code == 200, r.text
-    plan = alice.get(f"/ui/api/people/{p}").json()
-    assert (plan["planId"], plan["giftBudget"]) == (gp, "300.00")
+    plan = alice.get(f"/ui/api/gift-plans/{gp}").json()
+    assert (plan["personId"], plan["giftBudget"]) == (p, "300.00")
     assert [x["id"] for x in plan["occasions"]] == [o]
 
 
@@ -56,10 +56,10 @@ def test_an_occasion_changed_keeps_its_gifts(alice):
     """CR3-43: the plan's notes, or an occasion's budget, changed: the gifts planned for its
     anniversaries and other occasions keep them."""
     p = person(alice, occasions=[{"kind": "custom", "name": "Graduation", "month": 11, "day": 1}])
-    (grad,) = p["occasions"]
+    (grad,) = p["plan"]["occasions"]
     gift(alice, people=[p["id"]], occasion=f"occasion:{grad['id']}", occasionYear=2026,
          status="planned", cost="200")  # fmt: skip
-    saved(change(alice, "GfPln", {"id": p["planId"], "version": p["version"]}, notes="likes art"))
+    saved(change(alice, "GfPln", p["plan"], notes="likes art"))
     saved(change(alice, "Occsn", grad, budget="250"))
     (g,) = alice.get("/ui/api/gifts").json()["items"]
     assert g["occasion"] == f"occasion:{grad['id']}" and g["occasionLabel"] == "Graduation"
@@ -69,7 +69,7 @@ def test_an_occasion_changed_keeps_its_gifts(alice):
 
 def test_an_occasion_taken_away_with_gifts_asks_and_they_become_ideas(alice):
     p = person(alice, occasions=[{"kind": "custom", "name": "Graduation", "month": 11, "day": 1}])
-    (grad,) = p["occasions"]
+    (grad,) = p["plan"]["occasions"]
     gift(alice, people=[p["id"]], occasion=f"occasion:{grad['id']}", occasionYear=2026)
     r = remove(alice, "Occsn", grad)
     assert asked(r) == ["occasion-gifts"]
@@ -77,12 +77,12 @@ def test_an_occasion_taken_away_with_gifts_asks_and_they_become_ideas(alice):
     assert remove(alice, "Occsn", grad, confirm=True).status_code == 200
     (g,) = alice.get("/ui/api/gifts").json()["items"]
     assert g["occasion"] is None
-    assert alice.get(f"/ui/api/people/{p['id']}").json()["occasions"] == []
+    assert alice.get(f"/ui/api/gift-plans/{p['plan']['id']}").json()["occasions"] == []
 
 
 def test_a_plan_deleted_leaves_its_person(alice):
     p = person(alice)
-    r = remove(alice, "GfPln", {"id": p["planId"], "version": p["version"]})
+    r = remove(alice, "GfPln", p["plan"])
     assert r.status_code == 200, r.text
-    assert alice.get(f"/ui/api/people/{p['id']}").status_code == 404
+    assert alice.get(f"/ui/api/gift-plans/{p['plan']['id']}").status_code == 404
     assert alice.get(f"/ui/api/persons/{p['id']}").status_code == 200

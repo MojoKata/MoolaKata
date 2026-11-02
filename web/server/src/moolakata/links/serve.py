@@ -199,7 +199,7 @@ ROWS = {
     "budget": "/budgets",
     "tax-book": "/tax-books",
     "projection": "/projections",
-    "gift-plan": "/people",
+    "gift-plan": "/gift-plans",
     "person": "/persons",
 }
 
@@ -215,13 +215,12 @@ def _rows(srv, kind: str, c) -> dict[str, dict]:
         "budget": lambda: budgets.list_budgets(r, c),
         "tax-book": lambda: taxes.list_books(r, c),
         "projection": lambda: projections.list_projections(r, c),
-        "gift-plan": lambda: gifts.list_people(r, c),
+        "gift-plan": lambda: gifts.list_plans(r, c),
         "person": lambda: people_ui.list_persons(r, c),
     }.get(kind)
     if fn is None:
         return {}
-    key = "planId" if kind == "gift-plan" else "id"
-    return {row[key]: row for row in _dump(fn()) if isinstance(row, dict) and key in row}
+    return {row["id"]: row for row in _dump(fn()) if isinstance(row, dict) and "id" in row}
 
 
 def work_out(srv, link_id: str) -> tuple[dict[str, Item], dict[tuple[str, str, str], object]]:

@@ -188,7 +188,8 @@ function Relations({ p, reload }) {
       ${rows.length
         ? rows.map((/** @type {any} */ r) =>
           html`
-            <div class=${'list-item' + (r.canChange ? ' click' : '')} onClick=${r.canChange
+            <div class=${'list-item' + (r.access.writable ? ' click' : '')} onClick=${r.access
+                .writable
               ? () => open(r)
               : null}>
               <div class="grow"><b>${name(r)}</b> · ${word(r)}${relDates(r) ||

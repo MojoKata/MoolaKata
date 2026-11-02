@@ -607,14 +607,14 @@ def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins)
     a, b, ca, cb, _ = admins
     make_user(a, "alice")
     alice = sign_in(a, "alice")
-    plan = make(alice, "GfPln", name="Carol", sex="female", private=True).json()
+    plan = {"id": make(alice, "GfPln", name="Carol", sex="female", private=True).json()["personId"]}
     make_user(b, "carol")
     linked(ca, cb)
     with a.db.read(unscoped="test") as s:
         carol = s.query(User).filter(User.username == "carol", User.linkId.is_not(None)).one()
         assert carol.personId != plan["id"], "not joined by name"
         assert s.get(Person, plan["id"]).private
-    row = next(p for p in alice.get("/ui/api/people").json()["items"] if p["id"] == plan["id"])
+    row = alice.get(f"/ui/api/persons/{plan['id']}").json()
     assert [r["id"] for r in row["sameAs"]] == [carol.id]
     r = alice.post(f"/ui/api/persons/{plan['id']}/join", json={"userId": carol.id})
     assert r.status_code == 200, r.text

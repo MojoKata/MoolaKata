@@ -153,7 +153,27 @@ Where the build parted from the decisions, or filled in what they left open:
 9. **A reimbursement's `mine`** is both sides' (`min`), as its permissions are.
 10. **Activity entries** of a share keep what it allows as `allow` (was `level`).
 
-**Left for the user:** four fields outside the walk say what the reader may do in their own
-words: PersonRow `canChange`, PersonOut `canChangePerson`, RelationshipOut `canChange`,
-LinkOut `canDetach`. (PersonOut `canMakePrivate` and RelationshipOut `canConfirm` are state
-rules.) Moving them into `access` would follow decision 1.
+## After the walk: the last fields, and a gift plan apart from its person
+
+Four fields outside the walk said what the reader may do in their own words (Nov 1, 5:52 PM):
+PersonRow `canChange` (PersonAccess `writable`, through a string), PersonOut `canChangePerson`
+(the same), RelationshipOut `canChange` (`may_relate`, the rule RelationshipAccess also holds,
+written twice) and LinkOut `canDetach` (the target's `writable`, which ReceiptLinkAccess's
+`deletable` holds).
+
+PersonOut was two records made one at the API: a gift plan's row with its person's fields
+copied in, two versions and two permissions on one row. The user chose to split them
+(Nov 1, 6:01 PM): the API follows the schema's shapes, since it is regenerated with it and is
+no versioned contract, so reshaping at that boundary has negative value.
+
+1. `GET /gift-plans` and `/gift-plans/{id}` answer a plan's own fields with its `personId`,
+   its `access`, and figures worked out for it (next date, spent, last gift). `GET /people`
+   is gone. The Gifts screen joins plans and `/persons` by `personId`; the gift plan dialog
+   loads each record from its own route.
+2. PersonRow carries `access` (from PersonAccess) and the person's facts the gift row held:
+   `wedding`, `sameAs`, `canMakePrivate` (whoever added them: a state rule, not a permission).
+3. RelationshipOut carries `access` (RelationshipAccess); `canConfirm` stays (a spouse's own
+   side: a state rule).
+4. LinkOut carries `access` (ReceiptLinkAccess; detaching is `deletable`); a link the draft
+   adds and hasn't saved is the draft's to take back.
+5. *Delete person* reads the person's `deletable` (it read `writable`).

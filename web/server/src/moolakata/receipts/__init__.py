@@ -403,12 +403,6 @@ def target(s: Session, user_id: str, kind: str, item_id: str) -> access.Perms | 
     return access.perms(s, entity, item_id, user_id)
 
 
-def can_unlink(s: Session, user_id: str, ln: ReceiptLink) -> bool:
-    """Whoever can change what a receipt is kept with can detach it from that (S9.3)."""
-    p = target(s, user_id, ln.kind, ln.itemId)
-    return p is not None and p.writable
-
-
 def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):
     """A draft's link (S13.8.11): onto what the user can change, once (S9.3)."""
     ln = ReceiptLink(

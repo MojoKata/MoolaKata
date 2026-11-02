@@ -1269,6 +1269,24 @@
  */
 
 /**
+ * A gift plan the caller sees (S7.7): its own fields, and figures worked out for its
+ * person, whose record is `/persons`' (the browser joins them by `personId`).
+ * @typedef {Object} GiftPlanRow
+ * @property {string} id
+ * @property {string} personId
+ * @property {(import('../app/dec.js').Dec | null)} giftBudget
+ * @property {number} leadDays
+ * @property {(string | null)} notes
+ * @property {Array<OccasionOut>} occasions
+ * @property {(NextDate | null)} next
+ * @property {import('../app/dec.js').Dec} spent
+ * @property {(string | null)} lastGift
+ * @property {Access} access
+ * @property {string} ownerName
+ * @property {number} version
+ */
+
+/**
  * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
  * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
  * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
@@ -2424,6 +2442,14 @@
  */
 
 /**
+ * @typedef {Object} Page_GiftPlanRow_
+ * @property {Array<GiftPlanRow>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
  * @typedef {Object} Page_GroupRow_
  * @property {Array<GroupRow>} items
  * @property {number} total
@@ -2514,14 +2540,6 @@
 /**
  * @typedef {Object} Page_OrganisationOut_
  * @property {Array<OrganisationOut>} items
- * @property {number} total
- * @property {number} offset
- * @property {number} limit
- */
-
-/**
- * @typedef {Object} Page_PersonOut_
- * @property {Array<PersonOut>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -2818,39 +2836,6 @@
  */
 
 /**
- * A gift plan the caller sees, with its person.
- * @typedef {Object} PersonOut
- * @property {string} id
- * @property {string} planId
- * @property {string} name
- * @property {string} sex
- * @property {(string | null)} relation
- * @property {(string | null)} userId
- * @property {(string | null)} userName
- * @property {(number | null)} birthMonth
- * @property {(number | null)} birthDay
- * @property {(number | null)} birthYear
- * @property {(string | null)} diedOn
- * @property {(string | null)} wedding
- * @property {boolean} private
- * @property {boolean} canChangePerson
- * @property {boolean} canMakePrivate
- * @property {boolean} isUser
- * @property {Array<moolakata__ui__gifts__RemoteUser>} sameAs
- * @property {(import('../app/dec.js').Dec | null)} giftBudget
- * @property {number} leadDays
- * @property {(string | null)} notes
- * @property {Array<OccasionOut>} occasions
- * @property {(NextDate | null)} next
- * @property {import('../app/dec.js').Dec} spent
- * @property {(string | null)} lastGift
- * @property {Access} access
- * @property {string} ownerName
- * @property {number} version
- * @property {number} personVersion
- */
-
-/**
  * A person as a draft saves them. `differentPerson`, on a new one, says a name already
  * here is someone else, told apart by birth year (S10.10.3).
  * @typedef {Object} PersonRecord
@@ -2883,7 +2868,10 @@
  * @property {boolean} private
  * @property {(string | null)} userId
  * @property {(string | null)} relation
- * @property {boolean} canChange
+ * @property {(string | null)} wedding
+ * @property {boolean} canMakePrivate
+ * @property {Array<moolakata__ui__gifts__RemoteUser>} sameAs
+ * @property {Access} access
  * @property {(string | null)} createdBy
  * @property {number} version
  */
@@ -3464,7 +3452,7 @@
  * @property {(boolean | null)} confirmed
  * @property {Array<Named>} waitingFor
  * @property {boolean} canConfirm
- * @property {boolean} canChange
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -4796,7 +4784,7 @@
  * @property {(import('../app/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
  * @property {string} label
- * @property {boolean} [canDetach]
+ * @property {(Access | null)} [access]
  */
 
 /**

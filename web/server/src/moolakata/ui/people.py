@@ -15,9 +15,9 @@ from ..store import scoping
 from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
 from . import save
-from .conventions import ExactRoute, IdOf, Model
+from .conventions import Access, ExactRoute, IdOf, Model
 from .deps import Caller, caller, server
-from .gifts import check_person_fields, refuse_clash
+from .gifts import RemoteUser, _remote, check_person_fields, refuse_clash
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["people"])
 
@@ -44,7 +44,11 @@ class PersonRow(Model):
     private: bool
     userId: str | None  # when they are a user
     relation: str | None  # to the caller (S10.10.5)
-    canChange: bool
+    wedding: dt.date | None  # the start of their marriage, for its anniversary (S7.7.1)
+    canMakePrivate: bool  # whoever added them (S10.10.2)
+    # Remote users who may be this person, to join to them (S10.10.1).
+    sameAs: list[RemoteUser]
+    access: Access
     createdBy: str | None
     version: int
 
@@ -54,7 +58,7 @@ def _rows(s, c: Caller) -> list[PersonRow]:
     words = tree.relation_to(s, me.personId)
     users = people.users_by_person(s)
     out = []
-    for p, lvl in people.visible(s, c.id):
+    for p, held in access.listing(s, Person, c.id, order_by=Person.name):
         u = users.get(p.id)
         creator = s.get(User, p.ownerId) if p.ownerId else None
         rel = words.get(p.id)
@@ -70,7 +74,10 @@ def _rows(s, c: Caller) -> list[PersonRow]:
                 private=p.private,
                 userId=u.id if u else None,
                 relation=rel.word if rel else ("you" if p.id == me.personId else None),
-                canChange=lvl == "owner",
+                wedding=gifts.wedding_of(s, p.id),
+                canMakePrivate=p.ownerId == c.id,
+                sameAs=[_remote(s, r) for r in people.may_join(s, c.id, p)],
+                access=Access.of(held),
                 createdBy=creator.displayName if creator else None,
                 version=p.version,
             )
@@ -241,7 +248,7 @@ class RelationshipOut(Model):
     confirmed: bool | None
     waitingFor: list[Named]
     canConfirm: bool
-    canChange: bool
+    access: Access
     version: int
 
 
@@ -272,7 +279,7 @@ def _rel_out(s, c: Caller, r: Relationship) -> RelationshipOut:
         confirmed=people.confirmed(r) if r.relation == "spouse" else None,
         waitingFor=waiting,
         canConfirm=any(people.may_confirm(s, c.id, w.id) for w in waiting),
-        canChange=people.may_relate(s, c.id, r.person1Id, r.person2Id),
+        access=Access.of(access.perms(s, Relationship, r.id, c.id) or access.READ),
         version=r.version,
     )
 

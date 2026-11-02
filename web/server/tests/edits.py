@@ -314,10 +314,9 @@ def make(c, entity: str, confirm: bool = False, **fields) -> Made:
             fields["personId"] = new_id("Persn")
             before.append(_op("Persn", person, fields["personId"]))
         after += [_op("Occsn", {"giftPlanId": first, **o}) for o in fields.pop("occasions", [])]
-        pid = fields["personId"]
 
         def read(_record):
-            return c.get(f"/ui/api/people/{pid}").json()
+            return c.get(f"/ui/api/gift-plans/{first}").json()
 
     ops = [*before, _op(entity, fields, first), *after]
     r = c.post("/ui/api/save", json={"ops": ops})
