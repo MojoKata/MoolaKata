@@ -24,7 +24,8 @@ on their own when anything they come from changes.
 What was spent against the monthly lines and outside the plan, of what those lines had
 **available**: what each carried in, put in and was moved, a reserve's balance included, so a
 repair a reserve covers is never shown as over. Spending against a yearly line is compared with
-its year, and named beside.
+its year, and named beside. In an envelope budget, the Dashboard's card also counts what was
+charged to a card beyond an envelope's money, named *on cards, not backed*.
 
 ## To Budget {#to-budget}
 

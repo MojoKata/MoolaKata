@@ -194,6 +194,12 @@ def _rows_and_unplanned_are_the_spending(views):
         )
         unplanned = sum(Decimal(x["spent"]) for x in v["unplanned"])
         assert rows + Decimal(v["yearlySpent"]) + unplanned == Decimal(v["spent"]), m
+        # The Spent card (S7.3.12): what it shows spent, with the yearly spending named beside,
+        # is every dollar of the month's spending, an envelope's unbacked card spending included.
+        unbacked = sum(Decimal(r["unbacked"]) for r in v["rows"] if r["cadence"] == "month")
+        assert Decimal(v["unbacked"]) == unbacked, m
+        card = Decimal(v["available"]) - Decimal(v["left"])
+        assert card + Decimal(v["yearlySpent"]) == Decimal(v["spent"]), m
 
 
 def _balances_carry_on(made: Made, views):

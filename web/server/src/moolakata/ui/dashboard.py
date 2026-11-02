@@ -50,6 +50,7 @@ class BudgetCard(Model):
     spent: Money  # against the monthly lines and outside the plan (S7.3.12)
     available: Money
     left: Money
+    unbacked: Money  # an envelope budget's card spending not backed, named beside (S7.13.2)
     daysLeft: int
 
 
@@ -123,6 +124,7 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
                 spent=v.available - v.left,
                 available=v.available,
                 left=v.left,
+                unbacked=v.unbacked,
                 daysLeft=v.daysLeft,
             )
         return Dashboard(

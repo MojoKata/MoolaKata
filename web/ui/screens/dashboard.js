@@ -82,10 +82,13 @@ export default function Dashboard() {
                 ) * 100
               }%`,
             }}></i></div>
-            <div class="delta dim">${'of '}<${Amt} v=${d.budget
-              .available} cents=${false} />${` available${
-              d.budget.daysLeft ? ` · ${d.budget.daysLeft} days left` : ''
-            }`}</div>
+            <div
+              class="delta dim">${'of '}<${Amt} v=${d.budget
+                .available} cents=${false} />${` available${
+                d.budget.daysLeft ? ` · ${d.budget.daysLeft} days left` : ''
+              }`}${num(d.budget.unbacked) > 0
+                ? html`${' · '}<span class="down"><${Amt} v=${d.budget.unbacked} cents=${false} />${' on cards, not backed'}</span>`
+                : null}</div>
           </a>
         `
         : html`

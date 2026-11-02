@@ -258,5 +258,8 @@ walk on it (`0f14993`). Planting the old bugs of decisions 1, 2, 3, 6 and 7 fail
 first check for decision 1 (backed after the moves) let its bug through, so the worlds also
 check what *to move* answers for a repair and a refund paid where a reserve is held and
 elsewhere. Found: an envelope's card spending beyond what it held was in no figure of the
-month; envelope rows carry it as `unbacked`. Open for the user: whether the Spent card counts
-it (it shows the month as on plan while that spending is owed on the card).
+month; envelope rows carry it as `unbacked`. Whether the Spent card counts it (it showed the
+month as on plan while that spending was owed on the card): the user chose to count it (Nov 2,
+6:22 AM). *Left* takes it off and the Dashboard's card names it (*$310 on cards, not backed*),
+S7.3.12; the worlds check that the card's spending and the yearly spending named beside it are
+the month's whole spending, and planting a *left* that ignores it fails four worlds.

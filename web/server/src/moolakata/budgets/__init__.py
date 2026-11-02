@@ -438,14 +438,16 @@ class Month:
     spent: Decimal
     saved: Decimal
     moved: list[Moved]
-    # The Spent card's (S7.3): what the monthly spending lines had available, reserves included,
-    # and what they and the spending outside the plan leave; spending against yearly lines is
-    # compared with their year, so it is apart.
+    # The Spent card's (S7.3.12): what the monthly spending lines had available, reserves
+    # included, and what they leave less the spending outside the plan and the envelopes' card
+    # spending they didn't hold; spending against yearly lines is compared with their year, so
+    # it is apart.
     available: Decimal
     left: Decimal
     yearlySpent: Decimal
     uncategorised: int
     daysLeft: int
+    unbacked: Decimal = ZERO  # the envelopes' card spending beyond what they held (S7.13.2)
     toBudget: Decimal | None = None  # an envelope budget's (S7.13)
     assigned: Decimal | None = None  # by its plan this month
     assignedByMoves: Decimal | None = None  # from To Budget by moves
@@ -653,6 +655,7 @@ def _month_view(
         ((cid, tr.label(cid), amt) for cid, amt in unplanned.items() if amt != 0),
         key=lambda x: -x[2],
     )
+    unbacked = sum((r.unbacked for r in monthly), ZERO)
     return Month(
         month=month,
         rows=rows,
@@ -663,7 +666,10 @@ def _month_view(
         saved=saved,
         moved=sorted(moved, key=lambda x: (x.date, x.transactionId)),
         available=sum((r.planned for r in monthly), ZERO),
-        left=sum((r.remaining for r in monthly), ZERO) - sum((x[2] for x in unplanned_rows), ZERO),
+        left=sum((r.remaining for r in monthly), ZERO)
+        - sum((x[2] for x in unplanned_rows), ZERO)
+        - unbacked,
+        unbacked=unbacked,
         yearlySpent=sum(
             (
                 _actual(tr, totals, r.categoryId, lines_now)

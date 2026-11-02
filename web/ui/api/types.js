@@ -466,6 +466,7 @@
  * @property {import('../app/dec.js').Dec} spent
  * @property {import('../app/dec.js').Dec} available
  * @property {import('../app/dec.js').Dec} left
+ * @property {import('../app/dec.js').Dec} unbacked
  * @property {number} daysLeft
  */
 
@@ -2149,6 +2150,7 @@
  * @property {Array<CardLine>} cards
  * @property {import('../app/dec.js').Dec} available
  * @property {import('../app/dec.js').Dec} left
+ * @property {import('../app/dec.js').Dec} unbacked
  * @property {import('../app/dec.js').Dec} yearlySpent
  * @property {number} uncategorised
  * @property {number} daysLeft

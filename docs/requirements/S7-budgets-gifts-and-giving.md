@@ -114,9 +114,13 @@
    12. **The month's Spent card** (on the budget and the Dashboard): what was spent against
        the monthly lines and outside the plan, *of* what those lines had **available**,
        reserves included, and what is **left** (their remains less the spending outside the
-       plan), so a repair a reserve covers is never shown as over (S7.10.2). Spending against a
-       yearly line is compared with its year, and named beside (*and $1,140 against yearly
-       lines*).
+       plan and an envelope budget's **unbacked** card spending), so a repair a reserve covers
+       is never shown as over (S7.10.2). Unbacked card spending counts as spent and is named
+       beside (*$310 on cards, not backed*), so the card holds every dollar spent against those
+       lines even while a card's balance isn't backed (S7.13.2). Spending against a yearly line
+       is compared with its year, and named beside (*and $1,140 against yearly lines*). An
+       envelope budget's own month shows *To Budget* in the card's place (S7.13.1); its Spent
+       card is the Dashboard's.
 4. **Screens** (S12.2.6): the **Budgets** list, the active budget first (S7.12), then the
    scenarios, each with its method, accounts and owner. For one budget: the month's
    categories as progress bars (green, then amber at 90%, red over; a reserve as its

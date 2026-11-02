@@ -2600,6 +2600,14 @@
             "format": "money",
             "title": "Spent",
             "type": "number"
+          },
+          "unbacked": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Unbacked",
+            "type": "number"
           }
         },
         "required": [
@@ -2609,6 +2617,7 @@
           "spent",
           "available",
           "left",
+          "unbacked",
           "daysLeft"
         ],
         "title": "BudgetCard",
@@ -12992,6 +13001,14 @@
             ],
             "title": "Tobudget"
           },
+          "unbacked": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Unbacked",
+            "type": "number"
+          },
           "uncategorised": {
             "title": "Uncategorised",
             "type": "integer"
@@ -13032,6 +13049,7 @@
           "cards",
           "available",
           "left",
+          "unbacked",
           "yearlySpent",
           "uncategorised",
           "daysLeft",

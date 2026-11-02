@@ -311,10 +311,12 @@ class MonthView(Model):
     assignedByMoves: Money | None
     cards: list[CardLine]
     # The Spent card (S7.3.12): the monthly spending lines' available, reserves included; what
-    # they and the spending outside the plan leave; and the month's spending against yearly
-    # lines, compared with their year instead.
+    # they leave less the spending outside the plan and the envelopes' unbacked card spending;
+    # that unbacked spending, named beside; and the month's spending against yearly lines,
+    # compared with their year instead.
     available: Money
     left: Money
+    unbacked: Money
     yearlySpent: Money
     uncategorised: int
     daysLeft: int
@@ -597,6 +599,7 @@ def budget_month(
             ],
             available=m.available,
             left=m.left,
+            unbacked=m.unbacked,
             yearlySpent=m.yearlySpent,
             uncategorised=m.uncategorised,
             daysLeft=m.daysLeft,
