@@ -54,10 +54,6 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           },
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
           "balance": {
             "examples": [
               1234.5
@@ -100,6 +96,18 @@
               }
             ],
             "title": "Change"
+          },
+          "closedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedon"
           },
           "connectionId": {
             "anyOf": [
@@ -404,7 +412,7 @@
           "group",
           "institution",
           "mask",
-          "active",
+          "closedOn",
           "ownerId",
           "ownerName",
           "access",
@@ -469,10 +477,18 @@
         "additionalProperties": false,
         "description": "An account as a draft saves it (S12.15): its type is chosen when it is made; its\nsettings are its owner's (S10.3).",
         "properties": {
-          "active": {
-            "default": true,
-            "title": "Active",
-            "type": "boolean"
+          "closedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Closedon"
           },
           "connectionId": {
             "anyOf": [
@@ -713,10 +729,6 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           },
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
           "balance": {
             "examples": [
               1234.5
@@ -739,6 +751,18 @@
               }
             ],
             "title": "Change"
+          },
+          "closedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedon"
           },
           "countInNetWorth": {
             "title": "Countinnetworth",
@@ -854,7 +878,7 @@
           "group",
           "institution",
           "mask",
-          "active",
+          "closedOn",
           "ownerId",
           "ownerName",
           "access",
@@ -17623,6 +17647,7 @@
               "claimed-as-invalid",
               "class-invalid",
               "class-not-served",
+              "closed-in-future",
               "closed-year",
               "code-wrong",
               "colour-chosen",
@@ -18072,6 +18097,7 @@
                   "claimed-as-invalid",
                   "class-invalid",
                   "class-not-served",
+                  "closed-in-future",
                   "closed-year",
                   "code-wrong",
                   "colour-chosen",

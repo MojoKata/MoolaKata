@@ -262,6 +262,9 @@ as they change.
    anything ongoing, or none while it still is. It is worked out by the server's retention
    rules (`receipts/retention.py`) from the rules below, and only file pruning and a file's
    *Kept until* ask for it, so its cost never falls on everyday queries.
+   *Ended* covers both closing and deletion: a record no longer needed for anything ongoing,
+   either way. It serves retention only; no figure reads it (R3.10's *closed* and *deleted*
+   are told apart in the figures, §6.3).
 2. **Its own end**: declared with the table, as an expression over its own row and the
    rows it is deleted with. A deleted record's own end is the earlier of its declared end and
    its `effectiveDeletedAt`. Without a declared end, a record ends only when it is effectively
@@ -271,7 +274,7 @@ as they change.
    |---|---|
    | never | `Instrument`, `Price` (requirements S4.6), `TypedPrice`, `TaxFigure`, `Setting` while set; `TaxBook` and with it `Filing`, `EstimatedPayment`, `TaxDocument`, `TaxBookDependent`, `TaxBookFiler`, `TaxBookAccount`, `TaxDependentAccounts`; `User` (users are made inactive, not deleted, S10.2) |
    | its date | `Transaction`, `Anchor`, `Holding` (as of), `HoldingCheck` (as of), `Reconciliation` (the statement's), `Donation`, `QualifiedExpense`; `Receipt` (its own date, or when it was uploaded) |
-   | an event | `Account`: deleted, or closed with nothing in it still open; `Lot`: the sale of its last share; `Import`: its latest transaction's end; `BudgetLine`: the month before a later line for its category starts; `Gift`, given or received: the later of its occasion and its purchase; `Occasion` with a year: its date; `GivingPlan`: the end of its year; `Item`: its sale; `AccessToken`: expiry or revoking; `SignupRequest`: decided, or expired unconfirmed; `Link`: unlinked; `Connector`: unpaired or replaced; `Connection`: removed; `Relationship`: its `to` date; `Strategy`: its last option leg closed |
+   | an event | `Account`: deleted, or closed (`closedOn`) with nothing in it still open; `Lot`: the sale of its last share; `Import`: its latest transaction's end; `BudgetLine`: the month before a later line for its category starts; `Gift`, given or received: the later of its occasion and its purchase; `Occasion` with a year: its date; `GivingPlan`: the end of its year; `Item`: its sale; `AccessToken`: expiry or revoking; `SignupRequest`: decided, or expired unconfirmed; `Link`: unlinked; `Connector`: unpaired or replaced; `Connection`: removed; `Relationship`: its `to` date; `Strategy`: its last option leg closed |
    | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, the share tables (`AccountShare`, …), `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
    | its parent's | `BudgetMove`, `BudgetReview`, `BudgetLeaveOuts`, `Reimbursement`, `Split`, `LotPick`, `StrategyLeg`, `TransactionTags`, `RuleTags`, `ReceiptTags`, `WalletKey`, `OptionContract`, `BudgetAccount`, `PortfolioAccounts`, `CountedAccount`, `ShownProjections`, `GiftPersons`, `ReceiptLink`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColour`; a yearly `Occasion` |
    | `Activity` | when it was written |
@@ -290,9 +293,10 @@ as they change.
    A record's `endedAt` is the latest of its own end and the `endedAt` of every record that
    keeps a ref to it, or is deleted with it; if any of those is null, so is its own.
 
-   Whatever ends or is deleted still counts in figures before its end (requirements R3.10):
-   a budget or portfolio counts an account up to the date it closed, and shows it after as
-   *UMB Checking (closed)*.
+   Figures don't read `endedAt`. A **closed** record still counts in figures before the day it
+   closed (requirements R3.10): a budget or portfolio counts an account up to its `closedOn`,
+   and shows it after as *UMB Checking (closed)*. A **deleted** record is a correction: it,
+   and what is deleted with it, leave every figure, past included.
 4. **The rulings.** A key to a user or person that is not listed (`ownerId`, `createdById`,
    `enteredById`, `decidedById`, `updatedById`, …) keeps name.
 

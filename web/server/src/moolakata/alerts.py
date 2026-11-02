@@ -469,7 +469,9 @@ def accounts(s: Session, server) -> Iterable[Cause]:
     from .store.repos import ledger as repo
 
     today = clock.today()
-    rows = s.scalars(select(Account).where(Account.deleted == false(), Account.active)).all()
+    rows = s.scalars(
+        select(Account).where(Account.deleted == false(), Account.closedOn.is_(None))
+    ).all()
     for a in rows:
         # A loan is checked on its Overview, against its servicer's balance (S1.11, S1.9.4).
         where = f"/ui/accounts/{a.id}" + ("/reconcile" if atypes.reconcilable(a.type) else "")
@@ -523,7 +525,9 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
     from .store.repos import ledger as repo
 
     today = clock.today()
-    for a in s.scalars(select(Account).where(Account.deleted == false(), Account.active)):
+    for a in s.scalars(
+        select(Account).where(Account.deleted == false(), Account.closedOn.is_(None))
+    ):
         if not atypes.investing(a.type):
             continue
         held = repo.load(s, a).replay().positions()

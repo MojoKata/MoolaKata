@@ -14,7 +14,7 @@ export const FIELDS = {
     openingBalance: {"type": "money", "nullable": true},
     openingDate: {"type": "date", "nullable": true},
     countInNetWorth: {"type": "bool", "nullable": true},
-    active: {"type": "bool"},
+    closedOn: {"type": "date", "nullable": true},
     statementInterval: {"type": "text", "nullable": true},
     statementIntervalDismissed: {"type": "text", "nullable": true},
     withdrawalsAMonth: {"type": "int", "nullable": true},

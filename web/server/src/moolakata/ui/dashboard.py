@@ -191,7 +191,7 @@ def _attention(
                 )
             )
     for a in visible:
-        if not atypes.reconcilable(a.type) or not a.active:
+        if not atypes.reconcilable(a.type) or a.closedOn is not None:
             continue
         led = repo.load(s, a)
         checks = reconcile.checks(

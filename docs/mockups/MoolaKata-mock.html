@@ -1166,9 +1166,9 @@ function acctSettings(a) {
     ${['investing', 'retirement', 'crypto'].includes(a.group) ? field('Lot method', sel(['FIFO', 'LIFO', 'HIFO', 'Specific identification', 'Average cost'], 'FIFO'), 'How sales pick lots. The method in force at a sale is recorded with it.') : ''}
     ${['savings', 'money-market'].includes(a.type) ? field('Withdrawals allowed a month', inp(a.id === 'sav' ? '6' : '', 'no limit'), 'The bank’s limit. Budgets keep the moves back within it.') : ''}
     ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('In budgets', sel(['Split by the schedule', 'The whole payment in one category'], 'Split by the schedule'), 'Split: interest, escrow, PMI and fees, and principal as savings, under Loan payments.') : ''}
-    <div class="list-item"><span class="grow">Active<div class="small dim">A closed account stays for history and taxes.</div></span>${sw(true)}</div>
+    ${field('Closed on', inp('', 'open'), 'Empty while open. A closed account counts up to this day and stays for history and taxes; to remove one made by mistake, delete it.')}
     <div class="list-item"><span class="grow">Count in my totals</span>${sw(true)}</div>
-    <div class="toolbar mt"><span class="spacer"></span><button class="btn danger" data-act="confirm" data-v="Delete this account?|Yes, delete|Account deleted (mock)">Delete account…</button><button class="btn primary" data-act="toast" data-v="Saved">Save</button></div></div>
+    <div class="toolbar mt"><span class="spacer"></span><button class="btn danger" data-act="confirm" data-v="Delete this account?|Yes, delete|Account deleted (mock)|Its transactions leave every past figure too: budgets, returns and taxes. To keep its history, close it instead.">Delete account…</button><button class="btn primary" data-act="toast" data-v="Saved">Save</button></div></div>
     <div class="card"><h3>Keeping it current</h3>
     ${wallet ? `${field('Keys, descriptor or addresses', `<textarea class="in" data-check="seed" rows="3">zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs</textarea>`, 'An xpub, ypub or zpub, or addresses, one a line. Public data only.')}${field('Gap limit', inp('20'), 'Addresses derived past the last one used. 20 suits most wallets.')}<div class="notice">${icon('lock')}<div>Read through your own node (Settings › Bitcoin) · 61 addresses watched, 41 used · last checked 12 min ago.</div></div><div class="toolbar mt"><button class="btn sm" data-act="toast" data-v="Checked: 2 transactions recorded">${icon('refresh')} Check now</button></div>
       <details class="mt"><summary class="small">Addresses</summary><div class="table-wrap"><table class="t"><thead><tr><th>Address</th><th>Chain</th><th class="num">Transactions</th><th></th></tr></thead><tbody>${[['bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu', 'receive 0', 3, true], ['bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g', 'receive 1', 2, true], ['bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el', 'change 0', 2, true]].map((r) => `<tr><td class="small" style="font-family:var(--mono)">${r[0]}</td><td class="small dim">${r[1]}</td><td class="num">${r[2]}</td><td>${r[3] ? '<span class="pill">used</span>' : ''}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
@@ -2208,10 +2208,10 @@ function askDiscard() {
 // The question before a delete (S12.16), over the page or the dialog it comes from: No focused,
 // Enter, Escape or a click outside answer No. data-v is "title|yes|toast".
 function askConfirm(v) {
-  const [title, yes, done] = v.split('|');
+  const [title, yes, done, detail] = v.split('|');
   const p = document.createElement('div');
   p.className = 'scrim confirm';
-  p.innerHTML = `<div class="dialog prompt" role="alertdialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2></header><footer><button class="btn danger" data-act="confirmyes" data-v="${esc(done || '')}">${esc(yes || 'Yes, delete')}</button><button class="btn primary" data-act="confirmno">No</button></footer></div>`;
+  p.innerHTML = `<div class="dialog prompt" role="alertdialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2></header>${detail ? `<div class="body"><p class="small dim">${esc(detail)}</p></div>` : ''}<footer><button class="btn danger" data-act="confirmyes" data-v="${esc(done || '')}">${esc(yes || 'Yes, delete')}</button><button class="btn primary" data-act="confirmno">No</button></footer></div>`;
   document.body.append(p);
   p.addEventListener('mousedown', (e) => { if (e.target === p) p.remove(); });
   p.querySelector('[data-act=confirmno]').focus();

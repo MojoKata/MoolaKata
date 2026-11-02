@@ -276,7 +276,7 @@ def sync_all(server, ctx=None) -> str | None:
                 select(Account.id).where(
                     Account.type == "crypto-wallet",
                     Account.deleted == false(),
-                    Account.active.is_(True),
+                    Account.closedOn.is_(None),
                 )
             )
         )

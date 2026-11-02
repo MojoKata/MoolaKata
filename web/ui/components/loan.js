@@ -429,7 +429,7 @@ export function PaymentDialog({ close, a, v }) {
   useDialogGuide('dialog-loan-payment');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
-    x.group === 'banking' && x.active && canAdd('Txn', x)
+    x.group === 'banking' && !x.closedOn && canAdd('Txn', x)
   );
   const f = useDraft((draft) => {
     draft.add(PayTxn, { accountId: a.id, date: v.nextDate || today(), amount: v.total });

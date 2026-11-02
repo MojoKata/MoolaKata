@@ -56,7 +56,7 @@ class AccountRow(Model):
     group: str
     institution: str | None
     mask: str | None
-    active: bool
+    closedOn: dt.date | None  # the day it closed (S1.2); none while open
     ownerId: str
     ownerName: str
     access: Access
@@ -131,7 +131,7 @@ class AccountRecord(Model):
     openingBalance: Money | None = None
     openingDate: dt.date | None = None
     countInNetWorth: bool | None = None  # a donor-advised fund counts in no one's unless said
-    active: bool = True
+    closedOn: dt.date | None = None  # the day it closed (S1.2); none while open
     statementInterval: str | None = None  # null: the type's default (S1.11.7)
     # The interval learned from what arrives, set aside until another is learned.
     statementIntervalDismissed: str | None = None
@@ -288,6 +288,11 @@ def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[Fi
         )
     if body.keptBy is not None and (not body.keptBy or any(k not in KEPT_BY for k in body.keptBy)):
         errors.append(FieldError("keptBy", "kept-by-invalid", "Imports, manual or bitcoin."))
+    closed = getattr(body, "closedOn", None)
+    if closed is not None and closed > clock.today():
+        errors.append(
+            FieldError("closedOn", "closed-in-future", "The day it closed: today or earlier.")
+        )
     every = getattr(body, "statementInterval", None)
     if every is not None and every not in expected.INTERVALS:
         errors.append(
@@ -358,7 +363,7 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
         group=atypes.GROUPS[a.type],
         institution=a.institution,
         mask=a.mask,
-        active=a.active,
+        closedOn=a.closedOn,
         ownerId=a.ownerId,
         ownerName=owner.displayName if owner else "",
         ownerAvatar=owner.avatar if owner else None,
@@ -370,7 +375,7 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
         lastUpdated=ctx.updated.get(a.id),
         countInNetWorth=a.countInNetWorth,
         needsAnchor=atypes.reconcilable(a.type)
-        and a.active
+        and a.closedOn is None
         and reconcile.needs_anchor(a, ledger.imports, today),
         mismatch=bool(checks) and not checks[-1].ok,
         investing=investing,
@@ -484,7 +489,7 @@ ACCOUNT_FIELDS = (
     "openingBalance",
     "openingDate",
     "countInNetWorth",
-    "active",
+    "closedOn",
 )
 
 
@@ -493,7 +498,7 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
     settings_fields = {
         "lotMethod",
         "keptBy",
-        "active",
+        "closedOn",
         "countInNetWorth",
         "name",
         "institution",
@@ -568,8 +573,8 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
     if changed:
         kind = (
             "account.closed"
-            if "active" in changed and not a.active
-            else ("account.reopened" if "active" in changed else "account.updated")
+            if "closedOn" in changed and a.closedOn is not None
+            else ("account.reopened" if "closedOn" in changed else "account.updated")
         )
         activity.record(
             s,
@@ -993,7 +998,13 @@ def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
     a = _make(ctx.s, ctx.caller, body, record_id)
     later = {
         f
-        for f in ("active", "statementInterval", "withdrawalsAMonth", "connectionId", "syncAccount")
+        for f in (
+            "closedOn",
+            "statementInterval",
+            "withdrawalsAMonth",
+            "connectionId",
+            "syncAccount",
+        )
         if getattr(body, f) != AccountRecord.model_fields[f].default
     }
     if later:

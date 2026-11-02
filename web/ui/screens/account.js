@@ -90,7 +90,7 @@ export default function Account({ id, tab }) {
     <div class="toolbar"><div class="acct-row"><${Tile} group=${a.group} icon=${type?.icon} /><div>
       <div class="name" style=${{ fontSize: '16px' }}>${a.name}</div>
       <div class="sub">${[a.institution, a.typeLabel, a.mask ? '··' + a.mask : null].filter(Boolean)
-        .join(' · ')}${a.active ? '' : ' · closed'}</div>
+        .join(' · ')}${a.closedOn ? ' · closed' : ''}</div>
       </div></div><${ShareMarks} a=${a} /><span class="spacer"></span>
       <div style=${{ textAlign: 'right' }}><div style=${{
         fontSize: '22px',
@@ -918,7 +918,13 @@ function Settings({ a, reload }) {
           <button type="button" class="btn danger" disabled=${save.busy}
             onClick=${async () => {
               if (!rec || !f.draft) return;
-              if (!(await confirmAction({ title: `Delete ${a.name}?` }))) return;
+              if (
+                !(await confirmAction({
+                  title: `Delete ${a.name}?`,
+                  detail:
+                    'Its transactions leave every past figure too: budgets, returns and taxes. To keep its history, close it instead.',
+                }))
+              ) return;
               f.draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status === 'saved') {
@@ -951,8 +957,8 @@ function Settings({ a, reload }) {
                     id="opening-date" type="date" />
                 </div>
               `}
-              <${RecField} rec=${rec} name="active" label="Active"
-                hint="A closed account stays for history and taxes." />
+              <${RecField} rec=${rec} name="closedOn" label="Closed on" type="date"
+                hint="Empty while open. A closed account counts up to this day and stays for history and taxes; to remove one made by mistake, delete it." />
               <${RecField} rec=${rec} name="countInNetWorth" label="Count in net worth"
                 hint="Your totals include it." />
             </div>
