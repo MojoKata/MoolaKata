@@ -1235,3 +1235,37 @@ def test_legs_proposed_together_are_grouped_or_turned_down_as_a_strategy(browser
     assert not [p for p in v["proposals"] if p["accountId"] == acct["id"]]
     assert problems == []
     page.close()
+
+
+def test_a_sale_picks_its_lots_in_the_dialog(browser, household):
+    # CR3-389, S2.3: a sale lists the lots held on its day; the quantity typed against one is
+    # a pick, saved as a record of the sale, and the rest goes oldest first.
+    h = household
+    acct = made(make(h.c, "Acct", name="Picked", type="brokerage"))
+    for day, price in ((f"{months_back(6)}-03", "100"), (f"{months_back(4)}-03", "300")):
+        saved(create(h.c, "Txn", accountId=acct["id"], date=day, kind="buy", symbol="IBM",
+                     quantity="10", price=price, amount=f"-{int(price) * 10}.00"))  # fmt: skip
+    newer = f"{months_back(4)}-03"
+    path = f"/ui/accounts/{acct['id']}/transactions"
+    page, problems = signed_in(browser, h, path, 'main button:has-text("Add")')
+    page.click('main button:has-text("Add")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.select_option("#f-kind", "sell")
+    page.fill("#f-date", f"{months_back(1)}-03")
+    page.fill("#f-symbol", "IBM")
+    page.fill("#f-quantity", "12")
+    page.fill("#f-price", "250")
+    page.fill("#f-amount", "3000.00")
+    take = f'[aria-label="Take from the lot bought {newer}"]'
+    wait(page, take, problems)
+    page.fill(take, "8")
+    wait(page, '.dialog :text("8 of 12 picked")', problems)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    items = h.c.get("/ui/api/transactions", params={"account": acct["id"]}).json()["items"]
+    (sale,) = [x for x in items if x["kind"] == "sell"]
+    lots = h.c.get(f"/ui/api/accounts/{acct['id']}/lots", params={"date": newer}).json()["items"]
+    (lot,) = [x for x in lots if x["acquiredOn"] == newer]
+    assert [(p["lotId"], p["quantity"]) for p in sale["picks"]] == [(lot["lotId"], 8)]
+    assert problems == []
+    page.close()

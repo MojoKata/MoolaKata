@@ -1,7 +1,7 @@
 // Adding or editing a transaction (requirements S2.6): payee, category, memo, tags and splits;
 // for an investing account, trades with their instrument, quantity, price and fees; for a
 // retirement account, the contribution year and who contributed.
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { useList } from '../app/hooks.js';
 import { ACCEPT, ReceiptLinkRec, uploadAll } from '../components/receipt.js';
 import { html } from '../app/html.js';
@@ -90,6 +90,18 @@ class Part extends Record {
   static ownedBy = ['transactionId'];
 }
 
+/** How much of a lot a sale takes, picked (S2.3, specific identification): a record of the sale. */
+class Pick extends Record {
+  /** @override */
+  static prefix = 'LotPk';
+  /** @override */
+  static fields = FIELDS.LotPickRecord;
+  /** @override */
+  static defaults = { quantity: null };
+  /** @override */
+  static ownedBy = ['saleId'];
+}
+
 /**
  * `start` fills a new transaction, such as a trade a statement shows but doesn't read
  * (S1.3.3.8).
@@ -111,6 +123,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
       draft.load(Txn, { ...got, transferWithId: got.transferId });
       const t = /** @type {Txn} */ (draft.records[0]);
       for (const sp of t.get('splits') || []) draft.load(Part, { ...sp, transactionId: t.id });
+      for (const p of got.picks || []) draft.load(Pick, { ...p, saleId: t.id });
       return;
     }
     const acct = accountId || writable[0]?.id || '';
@@ -224,6 +237,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                 </div>
               `
               : null}
+            ${kind === 'sell' && type.investing && draft
+              ? html`<${LotPicks} t=${t} draft=${draft} saleId=${editing ? txn.id : null} />`
+              : null}
             <div class="row">
               <${RecField} rec=${t} name="amount" label="Amount" hint=${trade
                 ? 'The cash effect: − for a buy, + for a sale, after fees.'
@@ -323,6 +339,96 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
         `
         : null}
     </${DraftDialog}>
+  `;
+}
+
+/**
+ * A sale's lots (S2.3): the lots held on its day, each with how many the sale takes from it;
+ * typed, the sale is specific identification, and what isn't picked goes oldest first. A lot
+ * a wash sale split is listed whole. A pick is a record of the sale, made once a quantity is
+ * typed.
+ * @param {{ t: Txn, draft: any, saleId: string | null }} p
+ */
+function LotPicks({ t, draft, saleId }) {
+  const symbol = String(t.get('symbol') || '').trim().toUpperCase();
+  const date = t.get('date');
+  const accountId = t.get('accountId');
+  const res = useList(
+    symbol && date && accountId ? `/accounts/${accountId}/lots` : null,
+    saleId ? { date, saleId } : { date },
+  );
+  const lots = (/** @type {any[]} */ (res.data) || []).filter((l) => l.symbol === symbol);
+  const picks =
+    /** @type {Pick[]} */ (draft.records.filter((/** @type {any} */ r) =>
+      r instanceof Pick && r.get('saleId') === t.id
+    ));
+  // Each lot listed has its pick, made only once a quantity is typed (an optional record).
+  useEffect(() => {
+    for (const l of lots) {
+      if (!picks.some((p) => p.get('lotId') === l.lotId)) {
+        // Settled: an empty pick is no change of the person's, and isn't sent.
+        draft.add(Pick, { saleId: t.id, lotId: l.lotId }, { optional: true }).settle();
+      }
+    }
+  }, [lots.map((l) => l.lotId).join(), t.id]);
+  // A pick read with the sale and emptied is taken away; typed again, it comes back.
+  const emptied = picks.map((p) => `${p.id}:${p.get('quantity') == null}`).join();
+  useEffect(() => {
+    for (const p of picks) {
+      if (p.state !== 'read') continue;
+      const empty = p.get('quantity') == null;
+      if (empty && !p.removed) draft.remove(p);
+      else if (!empty && p.removed) draft.unremove(p);
+    }
+  }, [emptied]);
+  if (!symbol || !lots.length) return null;
+  const taken = picks.filter((p) => !p.removed && p.get('quantity') != null).reduce(
+    (x, p) => x.add(Dec.of(p.get('quantity'))),
+    Dec.parse('0'),
+  );
+  const sold = t.get('quantity') != null ? Dec.of(t.get('quantity')) : null;
+  const refused = picks.map((p) => p.error('quantity') || p.error('lotId') || p.error(null))
+    .find(Boolean);
+  const over = sold != null && taken.cmp(sold) > 0;
+  return html`
+    <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
+      <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Lots</legend>
+      <table class="t">
+        <thead>
+          <tr>
+            <th>Bought</th>
+            <th class="num">Held</th>
+            <th class="num">Cost</th>
+            <th>Term</th>
+            <th class="num">Take</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lots.map((l) => {
+            const p = picks.find((x) => x.get('lotId') === l.lotId);
+            return html`
+              <tr key=${l.lotId}>
+                <td>${l.acquiredOn}</td>
+                <td class="num">${l.quantity}</td>
+                <td class="num">${l.basis == null ? 'missing' : money(l.basis)}</td>
+                <td>${l.longTerm ? 'long' : 'short'}</td>
+                <td class="num">${p
+                  ? html`
+                    <${RecField} rec=${p} name="quantity" bare help="take"
+                      label=${`Take from the lot bought ${l.acquiredOn}`} />
+                  `
+                  : null}</td>
+              </tr>
+            `;
+          })}
+        </tbody>
+      </table>
+      ${refused ? html`<div class="err">${refused}</div>` : null}
+      <div class=${'small ' + (over ? 'err' : 'dim')}>${taken.isZero()
+        ? "None picked: the account's lot method chooses."
+        : `${taken.toString()} of ${sold != null ? sold.toString() : '?'} picked. ` +
+          (over ? 'More than the sale.' : "What isn't picked goes oldest first.")}</div>
+    </fieldset>
   `;
 }
 
