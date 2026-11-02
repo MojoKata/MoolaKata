@@ -31,9 +31,10 @@ earliest balance the institution reported.
 
 The day the opening balance applies to.
 
-## Active
+## Closed on
 
-A closed account stays, for history and taxes, but is marked closed.
+The day the account closed; empty while it is open. A closed account counts in your figures up
+to that day, budgets and returns included, and stays for history and taxes, marked closed.
 
 ## Count in net worth
 
@@ -41,7 +42,9 @@ Whether your totals include it.
 
 ## Delete account
 
-Deletes it with its transactions, only by its owner. The click asks again first.
+Deletes it with its transactions, only by its owner. Deleting is for an account made by
+mistake: its transactions leave every past figure too, budgets, returns and taxes. To keep its
+history, close it instead. The click asks again first.
 
 ## Count in my totals
 

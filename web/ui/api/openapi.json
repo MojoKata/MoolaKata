@@ -54,10 +54,6 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           },
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
           "balance": {
             "examples": [
               1234.5
@@ -100,6 +96,18 @@
               }
             ],
             "title": "Change"
+          },
+          "closedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedon"
           },
           "connectionId": {
             "anyOf": [
@@ -404,7 +412,7 @@
           "group",
           "institution",
           "mask",
-          "active",
+          "closedOn",
           "ownerId",
           "ownerName",
           "access",
@@ -469,10 +477,18 @@
         "additionalProperties": false,
         "description": "An account as a draft saves it (S12.15): its type is chosen when it is made; its\nsettings are its owner's (S10.3).",
         "properties": {
-          "active": {
-            "default": true,
-            "title": "Active",
-            "type": "boolean"
+          "closedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Closedon"
           },
           "connectionId": {
             "anyOf": [
@@ -713,10 +729,6 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           },
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
           "balance": {
             "examples": [
               1234.5
@@ -739,6 +751,18 @@
               }
             ],
             "title": "Change"
+          },
+          "closedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedon"
           },
           "countInNetWorth": {
             "title": "Countinnetworth",
@@ -854,7 +878,7 @@
           "group",
           "institution",
           "mask",
-          "active",
+          "closedOn",
           "ownerId",
           "ownerName",
           "access",
@@ -1803,6 +1827,44 @@
         "title": "BeneficiaryOut",
         "type": "object"
       },
+      "BetweenOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "fromId": {
+            "title": "Fromid",
+            "type": "string"
+          },
+          "fromName": {
+            "title": "Fromname",
+            "type": "string"
+          },
+          "toId": {
+            "title": "Toid",
+            "type": "string"
+          },
+          "toName": {
+            "title": "Toname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fromId",
+          "fromName",
+          "toId",
+          "toName",
+          "amount"
+        ],
+        "title": "BetweenOut",
+        "type": "object"
+      },
       "BitcoinTest": {
         "additionalProperties": false,
         "properties": {
@@ -2328,10 +2390,184 @@
         "title": "BrokerageIn",
         "type": "object"
       },
+      "BudgetAccountOut": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "budgetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Budgetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "fromMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frommonth"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          },
+          "untilMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Untilmonth"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "budgetId",
+          "accountId",
+          "id",
+          "version"
+        ],
+        "title": "BudgetAccountOut",
+        "type": "object"
+      },
+      "BudgetAccountRecord": {
+        "additionalProperties": false,
+        "description": "An account a budget counts, over months (S7.1.7): from `fromMonth` (none: since the\nbudget began) to `untilMonth` (none: still counted). Taking it out sets its last month, so\nearlier months keep it (R3.10); counting it again is a new record. Its roles: a card's\npaying account, or where money for reserves held in it moves from, chosen (none: as the\nhistory says, S7.1.6). Only the budget's owner chooses its accounts.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "budgetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Budgetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "fromMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Frommonth"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Movedfromid"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paidfromid"
+          },
+          "untilMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Untilmonth"
+          }
+        },
+        "required": [
+          "budgetId",
+          "accountId"
+        ],
+        "title": "BudgetAccountRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "configurable",
+          "via": "budgetId"
+        },
+        "x-entity": "BdgAc"
+      },
       "BudgetCard": {
         "additionalProperties": false,
         "description": "The active budget's month (S7.12, S12.2.1).",
         "properties": {
+          "available": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Available",
+            "type": "number"
+          },
           "daysLeft": {
             "title": "Daysleft",
             "type": "integer"
@@ -2339,6 +2575,14 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "left": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Left",
+            "type": "number"
           },
           "month": {
             "format": "date",
@@ -2348,14 +2592,6 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "plannedSpending": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Plannedspending",
-            "type": "number"
           },
           "spent": {
             "examples": [
@@ -2371,7 +2607,8 @@
           "name",
           "month",
           "spent",
-          "plannedSpending",
+          "available",
+          "left",
           "daysLeft"
         ],
         "title": "BudgetCard",
@@ -2379,18 +2616,8 @@
       },
       "BudgetRecord": {
         "additionalProperties": false,
-        "description": "A budget as a draft saves it (S7.1): its method chosen when it is made; its accounts\nits owner's choice; its roles a card's paying account or where reserves' money moves from,\nchosen (none: as the history says).",
+        "description": "A budget as a draft saves it (S7.1): its method chosen when it is made. Its accounts are\nrecords of their own (`BudgetAccountRecord`), saved with it.",
         "properties": {
-          "accountIds": {
-            "items": {
-              "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
-              "type": "string",
-              "x-prefix": "Acct"
-            },
-            "title": "Accountids",
-            "type": "array",
-            "uniqueItems": true
-          },
           "method": {
             "default": "tracking",
             "enum": [
@@ -2413,13 +2640,6 @@
             "default": false,
             "title": "Reserves",
             "type": "boolean"
-          },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/RoleIn"
-            },
-            "title": "Roles",
-            "type": "array"
           }
         },
         "required": [
@@ -8431,6 +8651,13 @@
             "title": "Balance",
             "type": "number"
           },
+          "between": {
+            "items": {
+              "$ref": "#/components/schemas/BetweenOut"
+            },
+            "title": "Between",
+            "type": "array"
+          },
           "given": {
             "examples": [
               1234.5
@@ -8491,6 +8718,14 @@
             "title": "Reserves",
             "type": "array"
           },
+          "reservesFlow": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Reservesflow",
+            "type": "number"
+          },
           "toMove": {
             "examples": [
               1234.5
@@ -8534,9 +8769,11 @@
           "reserves",
           "total",
           "movedIn",
+          "reservesFlow",
           "given",
           "balance",
           "toMove",
+          "between",
           "withdrawals",
           "limit",
           "overLimit",
@@ -11113,6 +11350,11 @@
             "default": null,
             "title": "Heldinid"
           },
+          "out": {
+            "default": false,
+            "title": "Out",
+            "type": "boolean"
+          },
           "overspend": {
             "default": "carry",
             "enum": [
@@ -12544,19 +12786,12 @@
             "title": "Projectionname"
           },
           "putIn": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
+            "examples": [
+              1234.5
             ],
-            "title": "Putin"
+            "format": "money",
+            "title": "Putin",
+            "type": "number"
           },
           "remaining": {
             "examples": [
@@ -12588,6 +12823,14 @@
               }
             ],
             "title": "Target"
+          },
+          "unbacked": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Unbacked",
+            "type": "number"
           }
         },
         "required": [
@@ -12610,7 +12853,8 @@
           "target",
           "heldInId",
           "balance",
-          "putIn"
+          "putIn",
+          "unbacked"
         ],
         "title": "MonthRow",
         "type": "object"
@@ -12648,6 +12892,14 @@
             ],
             "title": "Assignedbymoves"
           },
+          "available": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Available",
+            "type": "number"
+          },
           "cards": {
             "items": {
               "$ref": "#/components/schemas/CardLine"
@@ -12675,6 +12927,14 @@
             "title": "Income",
             "type": "number"
           },
+          "left": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Left",
+            "type": "number"
+          },
           "month": {
             "format": "date",
             "title": "Month",
@@ -12693,14 +12953,6 @@
             },
             "title": "Moves",
             "type": "array"
-          },
-          "plannedSpending": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Plannedspending",
-            "type": "number"
           },
           "rows": {
             "items": {
@@ -12754,6 +13006,14 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "yearlySpent": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Yearlyspent",
+            "type": "number"
           }
         },
         "required": [
@@ -12770,7 +13030,9 @@
           "assigned",
           "assignedByMoves",
           "cards",
-          "plannedSpending",
+          "available",
+          "left",
+          "yearlySpent",
           "uncategorised",
           "daysLeft",
           "version"
@@ -14334,6 +14596,37 @@
           "limit"
         ],
         "title": "Page[AwaitingRow]",
+        "type": "object"
+      },
+      "Page_BudgetAccountOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetAccountOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[BudgetAccountOut]",
         "type": "object"
       },
       "Page_BudgetRow_": {
@@ -17623,6 +17916,7 @@
               "claimed-as-invalid",
               "class-invalid",
               "class-not-served",
+              "closed-in-future",
               "closed-year",
               "code-wrong",
               "colour-chosen",
@@ -17754,6 +18048,8 @@
               "month-earlier",
               "month-invalid",
               "months-invalid",
+              "months-order",
+              "months-overlap",
               "move-fixed",
               "move-invalid",
               "moves-needed",
@@ -18072,6 +18368,7 @@
                   "claimed-as-invalid",
                   "class-invalid",
                   "class-not-served",
+                  "closed-in-future",
                   "closed-year",
                   "code-wrong",
                   "colour-chosen",
@@ -18203,6 +18500,8 @@
                   "month-earlier",
                   "month-invalid",
                   "months-invalid",
+                  "months-order",
+                  "months-overlap",
                   "move-fixed",
                   "move-invalid",
                   "moves-needed",
@@ -21096,44 +21395,6 @@
           "due"
         ],
         "title": "RmdOut",
-        "type": "object"
-      },
-      "RoleIn": {
-        "additionalProperties": false,
-        "properties": {
-          "accountId": {
-            "title": "Accountid",
-            "type": "string"
-          },
-          "movedFromId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Movedfromid"
-          },
-          "paidFromId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Paidfromid"
-          }
-        },
-        "required": [
-          "accountId"
-        ],
-        "title": "RoleIn",
         "type": "object"
       },
       "RoleOut": {
@@ -24151,6 +24412,17 @@
           "accountName": {
             "title": "Accountname",
             "type": "string"
+          },
+          "fromName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromname"
           },
           "toMove": {
             "examples": [
@@ -29801,6 +30073,68 @@
           }
         },
         "summary": "Get Budget",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/accounts": {
+      "get": {
+        "description": "The budget's accounts over months, each a record: those the caller can see (S7.1.1).",
+        "operationId": "budget_accounts_ui_api_budgets__budget_id__accounts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BudgetAccountOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Budget Accounts",
         "tags": [
           "budgets"
         ]

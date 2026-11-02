@@ -321,7 +321,10 @@ The rulings the rest of the requirements apply.
 9. **The contract is generated.** OpenAPI comes from the routes, the UI's JSDoc types come
    from it, and a check fails on drift (S17.5).
 10. **History reads as it was.** Past figures are left as they were, so they are recognised
-    when looked back on. A record that ends or is deleted (an account closed, a person
-    deleted) changes what comes after its end, never what came before: past budget months,
-    returns and gifts keep it, shown by its name and marked *(closed)* or *(deleted)*
-    (`schema.md` §6).
+    when looked back on. A record that is **closed** (an account closed, an item sold, a loan
+    paid off) changes what comes after the day it closed, never what came before: past budget
+    months, returns and taxes keep it, shown by its name and marked *(closed)*. **Deleting**
+    is a correction, not a close: the record, and what is deleted with it (an account's
+    transactions), leave every figure, past included, and a reviewed month or a filed year
+    they change is flagged. A record that only names a deleted one keeps it, marked
+    *(deleted)*: a gift keeps a deleted person (`schema.md` §6).

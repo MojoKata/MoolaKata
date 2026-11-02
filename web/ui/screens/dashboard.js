@@ -72,19 +72,18 @@ export default function Dashboard() {
             <div class="value">
               <${Amt} v=${d.budget.spent} cents=${false} />
             </div>
-            <div class="bar mt" style=${{ marginTop: '8px' }}><i class=${num(d.budget.spent) >
-                num(d.budget.plannedSpending)
+            <div class="bar mt" style=${{ marginTop: '8px' }}><i class=${num(d.budget.left) < 0
               ? 'over'
               : ''} style=${{
               width: `${
                 Math.min(
                   1,
-                  num(d.budget.spent) / Math.max(1, num(d.budget.plannedSpending)),
+                  num(d.budget.spent) / Math.max(1, num(d.budget.available)),
                 ) * 100
               }%`,
             }}></i></div>
             <div class="delta dim">${'of '}<${Amt} v=${d.budget
-              .plannedSpending} cents=${false} />${` planned${
+              .available} cents=${false} />${` available${
               d.budget.daysLeft ? ` · ${d.budget.daysLeft} days left` : ''
             }`}</div>
           </a>

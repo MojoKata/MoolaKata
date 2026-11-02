@@ -67,6 +67,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", 
 "src/moolakata/store/alembic/versions/*" = ["E501"]
 # The access views' SQL text is built from the table declarations, never from input.
 "src/moolakata/store/access_views.py" = ["S608"]
+# So are the data version's triggers.
+"src/moolakata/store/data_version.py" = ["S608"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

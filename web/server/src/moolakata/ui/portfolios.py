@@ -78,26 +78,6 @@ def seen_accounts(s, user_id: str, p: Portfolio | None) -> list[Account]:
     return [a for a, _ in access.accounts(s, user_id, Account.id.in_(ids))]
 
 
-def with_deleted(s, user_id: str, p: Portfolio | None, accounts: list[Account]) -> list[Account]:
-    """For a portfolio's past figures: also the viewer's own accounts in it that were deleted,
-    which count up to their deletion (R3.10)."""
-    if p is None:
-        ids = list(
-            s.scalars(
-                select(Account.id).where(Account.ownerId == user_id, Account.deletedAt.is_not(None))
-            )
-        )
-    else:
-        ids = member_ids(s, p.id)
-    have = {a.id for a in accounts}
-    gone = [
-        a
-        for a in (s.get(Account, i) for i in ids if i not in have)
-        if a is not None and a.deleted and a.ownerId == user_id
-    ]
-    return accounts + gone
-
-
 def value_of(s, accounts: list[Account], day: dt.date | None = None) -> Decimal:
     total = Decimal(0)
     for a in accounts:
@@ -359,12 +339,11 @@ def portfolio_series(
     period's time- and money-weighted returns (S5.2.1, S5.2.3)."""
     today = figures.today()
     with server(request).db.read(user=c.id) as s:
-        p, accounts, bench = _target(s, c, portfolio_id)
+        _, accounts, bench = _target(s, c, portfolio_id)
         with scoping.as_server(
-            s, "a portfolio's figures, over what its viewer reads and their own deleted accounts"
+            s, "a portfolio's figures, over the accounts its viewer reads"
         ) as srv:
             accounts = [srv.get(Account, a.id) for a in accounts]
-            accounts = with_deleted(srv, c.id, p, accounts)
             first = figures.first_day(range, today, figures.earliest(srv, accounts))
             comb = figures.combine(srv, accounts, first, today, figures.step_for(first, today))
             values = comb.values
@@ -397,15 +376,15 @@ def portfolio_returns(portfolio_id: str, request: Request, c: Caller = Depends(c
     with server(request).db.read(user=c.id) as s:
         p, accounts, _ = _target(s, c, portfolio_id)
         with scoping.as_server(
-            s, "a portfolio's returns, over what its viewer reads and their own deleted accounts"
+            s, "a portfolio's returns, over the accounts its viewer reads"
         ) as srv:
             accounts = [srv.get(Account, a.id) for a in accounts]
             first = today - dt.timedelta(days=figures.RANGE_DAYS["5Y"])
             step = 7
             rows = []
-            # The portfolio's own returns keep an account deleted since, up to its deletion, as its
-            # value series does (R3.10); the rows are the accounts it holds now.
-            total = figures.combine(srv, with_deleted(srv, c.id, p, accounts), first, today, step)
+            # A closed account counts up to the day it closed; a deleted one, a correction, not at
+            # all (R3.10).
+            total = figures.combine(srv, accounts, first, today, step)
             for a in accounts:
                 led = repo.load(srv, a)
                 series = total.byAccount[a.id]

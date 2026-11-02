@@ -19,6 +19,13 @@ Which budget, when you have more than one or others share theirs with you.
 Works the month's figures out again at once; they're kept once worked out, and worked out again
 on their own when anything they come from changes.
 
+## Spent
+
+What was spent against the monthly lines and outside the plan, of what those lines had
+**available**: what each carried in, put in and was moved, a reserve's balance included, so a
+repair a reserve covers is never shown as over. Spending against a yearly line is compared with
+its year, and named beside.
+
 ## To Budget {#to-budget}
 
 In an envelope budget, the money in its accounts not yet handed out: the cash, less what the
@@ -28,7 +35,8 @@ it. Below zero, more is assigned than there is. **Assign** moves some to an enve
 ## Categories
 
 Each planned category's spending as a bar: green, then amber at 90% of the plan, red once over. A
-parent category counts its children. A category with **rollover** carries what was left (or
+parent category counts its children that have no line of their own, so each amount counts once. A
+category with **rollover** carries what was left (or
 overspent) into the next month. A **year** category compares the year so far with its yearly plan.
 
 **Not in the plan** lists spending in categories without a plan. Transfers between the budget's

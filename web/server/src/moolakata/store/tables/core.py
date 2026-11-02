@@ -1,6 +1,6 @@
 """Settings, secrets, the background tasks' last runs, and emails waiting to go out."""
 
-from sqlalchemy import Column, ForeignKey, Index, LargeBinary, Text, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Index, Integer, LargeBinary, Text, UniqueConstraint
 
 from ..types import UtcTimestamp
 from ._base import Seen, exception, record, unique_live
@@ -30,6 +30,7 @@ Secret = exception(
     UniqueConstraint("recordType", "recordId", "field"),
     prefix="Secr",
     seen=Seen.server(),
+    not_figures="credentials; no figure reads them",
 )
 
 TaskRun = exception(
@@ -40,6 +41,19 @@ TaskRun = exception(
     Column("finishedAt", UtcTimestamp),
     Column("error", Text),
     seen=Seen.server(),
+    not_figures="the background tasks' work state",
+)
+
+# The data version (docs/schema.md §8): one row, moved on by a trigger on every write to a table
+# figures are worked out from, inside the writing transaction, so a reader's snapshot holds the
+# version of exactly the data it reads. A budget's months are kept under it (S7.3.10).
+DataVersion = exception(
+    "DataVersion",
+    "a counter: one row, never deleted (§4.4.4)",
+    Column("name", Text, primary_key=True),
+    Column("version", Integer, nullable=False),
+    seen=Seen.server(),
+    not_figures="the counter itself",
 )
 
 # An email waiting to go out through SMTP (S16.2), in the database, which is encrypted: removed
@@ -58,4 +72,5 @@ QueuedEmail = exception(
     Index("ix_QueuedEmail_queuedAt", "queuedAt"),
     prefix="Email",
     seen=Seen.admin(),
+    not_figures="emails waiting to go out",
 )

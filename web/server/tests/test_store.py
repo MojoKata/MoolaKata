@@ -600,8 +600,9 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
             'INSERT INTO "User" (id, "personId", username, "displayName", version, '
             f'"createdAt", "updatedAt", deleted, "deletedAt", "deletedById") VALUES '
             f"('{gone}', '{pb}', 'bob', 'Bob', 1, {stamp}, {stamp}, 1, {stamp}, '{uid}')",
-            'INSERT INTO "Account" (id, "ownerId", name, type, version, "createdAt", '
-            f"\"updatedAt\", deleted) VALUES ('{aid}', '{uid}', 'Checking', 'checking', 1, "
+            # Closed: 0046 takes the day of its last transaction as its closed date.
+            'INSERT INTO "Account" (id, "ownerId", name, type, active, version, "createdAt", '
+            f"\"updatedAt\", deleted) VALUES ('{aid}', '{uid}', 'Checking', 'checking', 0, 1, "
             f"{stamp}, {stamp}, 0)",
             'INSERT INTO "Import" (id, "accountId", "userId", format, "fileName", "fileHash", '
             f"version, \"createdAt\", \"updatedAt\", deleted) VALUES ('{iid}', '{aid}', '{uid}', "
@@ -639,6 +640,8 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
             'SELECT username, "effectiveDeleted" FROM "UserEffective" ORDER BY 1'
         ).all()
         assert [tuple(u) for u in users] == [("alice", 0), ("bob", 1)]
+        closed = conn.exec_driver_sql(f'SELECT "closedOn" FROM "Account" WHERE id = \'{aid}\'')
+        assert closed.scalar_one() == "2026-10-01"
         txn = conn.exec_driver_sql(f'SELECT "importId" FROM "Transaction" WHERE id = \'{tid}\'')
         assert txn.scalar_one() == iid
         tagged = conn.exec_driver_sql(

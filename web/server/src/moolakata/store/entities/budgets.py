@@ -24,6 +24,8 @@ class BudgetAccount(Record):
     accountId: str
     movedFromId: str | None = None
     paidFromId: str | None = None
+    fromMonth: dt.date | None = None
+    untilMonth: dt.date | None = None
 
 
 @dataclass(kw_only=True, eq=False)
@@ -33,6 +35,7 @@ class BudgetLine(Record):
     categoryId: str
     fromMonth: dt.date
     amount: Decimal
+    out: bool = False
     cadence: str = "month"
     rollover: bool = False
     overspend: str = "carry"

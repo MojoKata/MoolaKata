@@ -189,6 +189,7 @@ FIELD_NAMES = {
     "preference": "the order",
     "name": "the name",
     "active": "the active switch",
+    "closedOn": "the closed date",
 }
 
 

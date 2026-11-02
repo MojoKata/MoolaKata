@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import edit, giving_plan, make, saved
+from edits import budget_accounts, edit, giving_plan, make, saved
 from test_accounts import add, new_account
 from test_budgets import month, plan, row, save_plan, setup_budget
 
@@ -54,14 +54,20 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
     add(c, acct["id"], "-250.00", "2026-09-10", payee="To Ally")
     add(c, savings["id"], "250.00", "2026-09-10", payee="From checking", kind="deposit")
     ids = [acct["id"], other["id"], card["id"], savings["id"]]
-    roles = {x["accountId"]: x for x in saved(change(c, b, accountIds=ids))["roles"]}
-    assert roles[card["id"]]["paidFromId"] == other["id"] and roles[card["id"]]["paidFromLearned"]
-    assert roles[savings["id"]]["movedFromId"] == acct["id"]
-    r = change(c, b, roles=[{"accountId": savings["id"], "movedFromId": other["id"]}])
-    roles = {x["accountId"]: x for x in saved(r)["roles"]}
-    assert roles[savings["id"]]["movedFromId"] == other["id"]
-    assert not roles[savings["id"]]["movedFromProposed"]
-    bad = change(c, b, roles=[{"accountId": savings["id"], "movedFromId": "Acct_nope"}])
+    assert budget_accounts(c, b, ids).status_code == 200
+
+    def roles():
+        got = c.get(f"/ui/api/budgets/{b['id']}").json()["roles"]
+        return {x["accountId"]: x for x in got}
+
+    assert roles()[card["id"]]["paidFromId"] == other["id"]
+    assert roles()[card["id"]]["paidFromLearned"]
+    assert roles()[savings["id"]]["movedFromId"] == acct["id"]
+    r = budget_accounts(c, b, ids, roles={savings["id"]: {"movedFromId": other["id"]}})
+    assert r.status_code == 200, r.text
+    assert roles()[savings["id"]]["movedFromId"] == other["id"]
+    assert not roles()[savings["id"]]["movedFromProposed"]
+    bad = budget_accounts(c, b, ids, roles={savings["id"]: {"movedFromId": "Acct_nope"}})
     assert bad.status_code == 422
 
 

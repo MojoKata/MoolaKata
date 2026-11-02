@@ -5,7 +5,8 @@ The plan from the month shown on. Earlier months keep the plan they had.
 ## Category
 
 A category plans its children too: plan _Food_ for groceries and dining together, or each on its
-own.
+own. Plan both and _Food_ keeps what its other children spend: groceries count once, against
+their own line.
 
 ## Amount
 
@@ -46,5 +47,7 @@ whether you put away what your plan assumes.
 
 Each line shows the plan as stored, never the month's figures with what carried over and the
 month's moves, so saving without a change changes nothing. A line changed holds from this month;
-**✕** takes it out from this month. If a reserve would stop while it holds money, saving asks
-first. Closing with changes asks before discarding them.
+**✕** takes it out from this month. An amount of $0 is different: the line stays, puts nothing
+in and keeps what it holds, so it pauses a reserve, a rollover line or an envelope. If a line
+taken out (or a reserve's target taken off) would drop money it holds, saving asks first and
+names it. Closing with changes asks before discarding them.
