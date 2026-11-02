@@ -241,4 +241,8 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
    2. The Where card shows *Spent or refunded from here in their categories*, so its rows add
       up on screen.
    3. The refund double count is CR3-384.
+7. **Decision 5** (`2df6291`): as decided, with one note on the round trip. With payments
+   jittered a day early, a history can't tell which day was meant (the 19th or the 20th), so
+   the round trip asserts what the decision is for, no drift: the found schedule keeps to the
+   true one for a year ahead, date for date, within the jitter. The calendar drift is CR3-385.
 
