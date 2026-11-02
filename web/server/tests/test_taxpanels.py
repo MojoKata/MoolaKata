@@ -71,7 +71,8 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
     assert aapl["adjustment"] == "250.00", "half the 500 loss: 5 of 10 shares replaced"
     assert aapl["gain"] == "-250.00"
     w = p["washes"][0]
-    assert w["replacementAccount"] == "IRA" and w["adjustedBasis"] == "1000.00"
+    # In an IRA the loss is lost for good: the replacement keeps its cost (S3.8.3, CR3-391).
+    assert w["replacementAccount"] == "IRA" and w["adjustedBasis"] == "750.00"
     d = p["scheduleD"]
     assert d["shortTerm"] == "-250.00" and d["longTerm"] == "200.00"
     csv = alice.get(f"/ui/api/tax-books/{b}/exports/8949.csv")

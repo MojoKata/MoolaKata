@@ -190,7 +190,7 @@ tests take and on running them in parallel on GitHub.
       can works out its household's closed book twice. Left out of the matrix: *both real* and a
       matched transfer (the same check sees them; their own setups to come), a Connection's
       file (the background import's path).
-4. **Decision 2, built** (`COMMITD2`). `books.last_years` gives, for each filer, the book they
+4. **Decision 2, built** (`fb0c724`). `books.last_years` gives, for each filer, the book they
    accepted; `carried_from_last_year`, `federal_figures` (an amended return's, once filed),
    `carryover` and the expected documents read it. Details:
    1. The choice to start from last year is kept (`fromLastYear`), the copy waiting for every
