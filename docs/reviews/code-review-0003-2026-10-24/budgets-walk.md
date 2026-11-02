@@ -246,3 +246,17 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
    the round trip asserts what the decision is for, no drift: the found schedule keeps to the
    true one for a year ahead, date for date, within the jitter. The calendar drift is CR3-385.
 
+
+## After the walk: data-shape coverage
+
+Asked whether the area's data shapes were covered (Nov 1, 9:28 PM): each decision's own axes
+were, their crossings not. The user chose pairwise coverage over generated worlds (9:43 PM):
+`tests/budget_world.py` draws 24 worlds (method × viewer, then accounts over months, plan
+history, transactions, moves), a test asserts every possible pair of axis values (488) meets in
+one, and `tests/test_budget_world.py` makes each through the API and checks every rule of the
+walk on it (`0f14993`). Planting the old bugs of decisions 1, 2, 3, 6 and 7 fails worlds; a
+first check for decision 1 (backed after the moves) let its bug through, so the worlds also
+check what *to move* answers for a repair and a refund paid where a reserve is held and
+elsewhere. Found: an envelope's card spending beyond what it held was in no figure of the
+month; envelope rows carry it as `unbacked`. Open for the user: whether the Spent card counts
+it (it shows the month as on plan while that spending is owed on the card).
