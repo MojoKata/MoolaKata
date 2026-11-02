@@ -51,17 +51,6 @@ def _rank(perms: access.Perms) -> tuple[bool, bool]:
     return perms.mine, perms.writable
 
 
-def plan_for(s: Session, user_id: str, person_id: str, need: str = "read") -> Plan:
-    from ..errors import Problem
-
-    found = next((x for x in visible_plans(s, user_id) if x.person.id == person_id), None)
-    if found is None:
-        raise Problem(404, "not-found", "Not found")
-    if need != "read" and not found.perms.writable:
-        raise Problem(403, "read-only", "This gift plan is shared with you to read.")
-    return found
-
-
 def plan_by_id(s: Session, user_id: str, plan_id: str, need: str = "read") -> Plan:
     """`need`: *read*, *write*, or a permission's name (deleting it: *deletable*)."""
     from ..errors import Problem
