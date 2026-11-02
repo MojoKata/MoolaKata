@@ -233,4 +233,12 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
       `available`, `left` and `yearlySpent`.
    3. Found while building: CR3-382 (the card, 2.1 of the walk, recorded as a claim) and
       CR3-383 (a yearly line's moves).
+6. **Decision 1** (`1a57e36`): as decided, with these notes.
+   1. Every flow in a reserve's category counts in the backing of the account that paid it,
+      whichever account holds the reserve; the cross pairing (1.1) is then the part of the
+      holder's lead and the payer's shortfall that the cross payment caused, net of transfers
+      between the two since, so once made both read backed.
+   2. The Where card shows *Spent or refunded from here in their categories*, so its rows add
+      up on screen.
+   3. The refund double count is CR3-384.
 
