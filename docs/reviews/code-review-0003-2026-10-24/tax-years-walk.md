@@ -230,7 +230,7 @@ tests take and on running them in parallel on GitHub.
    of the year reporting began (now 14). `test_bitcoin_fees.py`: a network fee's sale, every
    case of where the coins went, how the book reads fees, and the term (8 cases); nothing had
    covered fees before.
-7. **Dependents** (`COMMITDEP`). `test_dependent_ages.py`: every age from 11 to 25, student
+7. **Dependents** (`7b6177d`). `test_dependent_ages.py`: every age from 11 to 25, student
    or not, a descendant or not, claimed as a child or a relative, held to the lines Pub. 501
    and 503 draw (120 cases). Found writing it, in decision 2's copy: when the filer who
    accepts last never saw the other's 2025 book, the copy read it as them and took nothing
