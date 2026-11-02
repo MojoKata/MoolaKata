@@ -15,7 +15,8 @@ The rules, each as the requirements state it:
 3. **Wash sales** (S3.8): a loss sale of a share or fund (not a coin) with the same instrument
    bought within 30 days before or after, in any account of the seller or of their spouse
    (IRAs included), but not the shares sold, nor shares of a buy the same sale sold (S3.8.2:
-   never their own replacement). Buys nearest the sale replace first; a buy
+   never their own replacement). Buys nearest the sale replace first, the sold shares they
+   replace taken in the order acquired, the earliest first (Treas. Reg. §1.1091-1(c)); a buy
    replaces as many shares as it bought, once. The loss disallowed is the sold shares' loss in
    proportion to the shares replaced; it is added to the replacement's basis (not in an IRA,
    where it is lost) and the replacement is held from the day that makes its holding period
@@ -85,6 +86,7 @@ class Part:
 @dataclass(frozen=True)
 class Replacement:
     sale: int
+    lot: int  # the sold lot's buy: its loss is the one disallowed
     buy: int
     quantity: Decimal
     disallowed: Decimal
@@ -248,7 +250,7 @@ def household(w: tw.World) -> Household:
     for _ in range(20):
         parts = [p for a in accounts for p in _replay(w, a, found)]
         losses = [p for p in parts if p.raw < 0 and _washable(p.symbol, p.account)]
-        losses.sort(key=lambda p: (p.sold, p.sale))
+        losses.sort(key=lambda p: (p.sold, p.sale, p.acquired))
         room = {i: Decimal(t.quantity) for i, t in buys}
         # What each sale took of each buy: shares sold in a sale never replace it.
         taken: dict[tuple[int, int], Decimal] = {}
@@ -270,7 +272,7 @@ def household(w: tw.World) -> Household:
                 room[i] -= take
                 left -= take
                 start = p.held_from or p.acquired
-                nxt.append(Replacement(p.sale, i, take, cents(-p.raw * take / p.quantity),
+                nxt.append(Replacement(p.sale, p.buy, i, take, cents(-p.raw * take / p.quantity),
                                        t.date - (p.sold - start)))  # fmt: skip
         if sorted(nxt, key=repr) == sorted(found, key=repr):
             break
@@ -278,19 +280,18 @@ def household(w: tw.World) -> Household:
     else:
         raise AssertionError("the wash sales never settled")
     parts = [p for a in accounts for p in _replay(w, a, found)]
-    # A sale's disallowed loss, spread over its losing parts by their losses.
-    by_sale: dict[int, Decimal] = {}
+    # Each disallowed loss on the sold lot's losing parts, spread by their losses.
+    by_lot: dict[tuple[int, int], Decimal] = {}
     for r in found:
-        by_sale[r.sale] = by_sale.get(r.sale, Decimal(0)) + r.disallowed
-    for sale, amount in by_sale.items():
-        losing = [p for p in parts if p.sale == sale and p.raw < 0]
+        by_lot[(r.sale, r.lot)] = by_lot.get((r.sale, r.lot), Decimal(0)) + r.disallowed
+    for (sale, lot), amount in by_lot.items():
+        losing = [p for p in parts if p.sale == sale and p.buy == lot and p.raw < 0]
         total = -sum((p.raw for p in losing), Decimal(0))
         given = Decimal(0)
         for k, p in enumerate(losing):
-            p.adjustment = (
-                amount - given if k == len(losing) - 1 else cents(amount * -p.raw / total)
-            )
-            given += p.adjustment
+            share = amount - given if k == len(losing) - 1 else cents(amount * -p.raw / total)
+            p.adjustment += share
+            given += share
     return Household(w, parts, found)
 
 

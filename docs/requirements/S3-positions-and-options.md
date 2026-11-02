@@ -97,8 +97,11 @@
       account. Whether a different instrument is substantially identical is the preparer's
       call, and MoolaKata does not guess.
    2. Replacement shares are taken nearest the sale date first, each counted against one
-      sale only. The shares bought in the lot that was sold, and any shares the sale itself
-      sold, are never its replacement.
+      sale only, and the sold shares they replace in the order those were acquired, the
+      earliest first (Treas. Reg. §1.1091-1(c)): the loss disallowed is that lot's, and its
+      **W** goes on that lot's row of Form 8949, so a sale of a long-term and a short-term
+      lot keeps each term's figure. The shares bought in the lot that was sold, and any
+      shares the sale itself sold, are never its replacement.
       A partial replacement disallows the loss in proportion: 4 shares bought back of 10
       sold disallow 4/10 of the loss.
    3. The disallowed loss is taken off the sale's realized loss and added to the replacement

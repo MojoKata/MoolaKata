@@ -130,7 +130,7 @@ def _recompute(s: Session, user_id: str) -> int:
 
 
 def _same(a: list[WashSale], b: list[WashSale]) -> bool:
-    key = lambda w: (w.saleId, w.replacementId, w.quantity, w.disallowed, w.heldFrom)  # noqa: E731
+    key = lambda w: (w.saleId, w.lotId or "", w.replacementId, w.quantity, w.disallowed, w.heldFrom)  # noqa: E731
     return sorted(map(key, a)) == sorted(map(key, b))
 
 
@@ -148,7 +148,10 @@ def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[Wa
             raw = d.raw_gain
             if d.instrumentId in classes and raw is not None and raw < 0 and d.saleId:
                 losses.append((led.account, d))
-    losses.sort(key=lambda x: x[1].soldOn)
+    # Sales in the order made; a sale's shares in the order they were acquired, the earliest
+    # first, so a buy of fewer shares than were sold replaces the oldest (Treas. Reg.
+    # §1.1091-1(c), S3.8.2, CR3-390).
+    losses.sort(key=lambda x: (x[1].soldOn, x[1].saleId, x[1].acquiredOn))
     remaining = {id(b): b.remaining for group in buys.values() for b in group}
     out = []
     for a, d in losses:
@@ -179,6 +182,7 @@ def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[Wa
                     id=ids.new_id("WashS"),
                     ownerId=a.ownerId,
                     saleId=d.saleId,
+                    lotId=d.lotId,
                     replacementId=b.txn.id,
                     quantity=take,
                     disallowed=(loss * take / d.quantity).quantize(CENT),

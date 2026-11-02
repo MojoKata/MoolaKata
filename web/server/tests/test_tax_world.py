@@ -92,21 +92,20 @@ class Made:
                   "amount": t.amount, "kind": t.kind, "symbol": t.symbol,
                   "quantity": str(t.quantity), "price": t.price}  # fmt: skip
         if t.picks:
-            lots = self._lots(t.account, t.symbol)
+            lots = self._lots(t.account, t.date)
             fields["picks"] = [
-                {"lotId": lots[self.w.trades[b].date], "quantity": str(n)} for b, n in t.picks
+                {"lotId": lots[(t.symbol, self.w.trades[b].date)], "quantity": str(n)}
+                for b, n in t.picks
             ]
         r = make(c, "Txn", **fields)
         assert r.status_code == 200, (i, t, r.text)
 
-    def _lots(self, account: str, symbol: str) -> dict[dt.date, str]:
-        h = _ok(self.client(account).get(f"/ui/api/accounts/{self.accounts[account]}/holdings"))
-        out = {}
-        for row in h.json()["holdings"]:
-            if row["symbol"] == symbol:
-                for lot in row["lots"]:
-                    out[dt.date.fromisoformat(lot["acquiredOn"])] = lot["lotId"]
-        return out
+    def _lots(self, account: str, day: dt.date) -> dict[tuple[str, dt.date], str]:
+        """The lots a sale that day may pick, by symbol and day bought."""
+        c = self.client(account)
+        r = _ok(c.get(f"/ui/api/accounts/{self.accounts[account]}/lots?date={day.isoformat()}"))
+        return {(x["symbol"], dt.date.fromisoformat(x["acquiredOn"])): x["lotId"]
+                for x in r.json()["items"]}  # fmt: skip
 
     def _book(self, year: int, filers: tuple[str, ...]) -> str:
         first = self.c[filers[0]]
@@ -128,25 +127,9 @@ class Made:
         return list(csv.DictReader(io.StringIO("\n".join(lines))))
 
 
-def reachable(w: tw.World) -> tw.World:
-    """The world as the API can make it. A sale's lots can't be picked yet (S2.3's *chosen per
-    sale* has no field in the save or the dialog): its picks are left out, here and in the
-    reference alike, until `test_a_sales_lots_can_be_picked` passes."""
-    for t in w.trades:
-        t.picks = []
-    return w
-
-
-def test_a_sales_lots_can_be_picked(server):
-    from moolakata.ui.transactions import TxnRecord
-
-    if "picks" not in TxnRecord.model_fields:
-        pytest.xfail("S2.3: no way to pick a sale's lots in the save")
-
-
 @pytest.fixture(params=list(tw.SEEDS), ids=lambda s: f"world{s}")
 def made(request, server):
-    w = reachable(tw.world(request.param))
+    w = tw.world(request.param)
     try:
         yield Made(server, w)
     finally:

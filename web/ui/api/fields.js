@@ -311,6 +311,11 @@ export const FIELDS = {
     budgetCategoryId: {"type": "text", "nullable": true},
     accountId: {"type": "ref", "prefix": "Acct"},
   },
+  LotPickRecord: {
+    saleId: {"type": "ref", "prefix": "Txn"},
+    lotId: {"type": "ref", "prefix": "Lot"},
+    quantity: {"type": "quantity"},
+  },
   Lump: {
     date: {"type": "date"},
     amount: {"type": "money"},
@@ -613,6 +618,7 @@ export const CREATES = {
   Item: {"via": "accountId", "needs": "writable"},
   LkCol: {"who": "own"},
   Loan: {"via": "accountId", "needs": "writable"},
+  LotPk: {"via": "lotId", "needs": "writable"},
   Occsn: {"via": "giftPlanId", "needs": "writable"},
   Orgzn: {"who": "code"},
   Persn: {"who": "code"},

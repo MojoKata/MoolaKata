@@ -303,21 +303,30 @@ def _settle(lot: OpenLot, row, basis_added: bool) -> None:
 
 
 def _disallow(out: Replay, washes) -> None:
-    """A loss sale's disallowed part, spread over its losing disposals."""
-    by_sale: dict[str, Decimal] = {}
+    """A loss sale's disallowed part, on the disposals of the sold lot whose loss it is
+    (CR3-390): spread by loss over that lot's losing parts (a lot a wash sale split may sell
+    in two), or over the sale's when the wash sale names no lot."""
+    by: dict[tuple[str, str | None], Decimal] = {}
     for w in washes:
-        by_sale[w.saleId] = by_sale.get(w.saleId, ZERO) + w.disallowed
-    for sale, amount in by_sale.items():
-        losing = [d for d in out.disposals if d.saleId == sale and (d.gain or ZERO) < 0]
-        total = -sum((d.gain for d in losing), ZERO)
+        key = (w.saleId, getattr(w, "lotId", None))
+        by[key] = by.get(key, ZERO) + w.disallowed
+    for (sale, lot_id), amount in by.items():
+        losing = [
+            d
+            for d in out.disposals
+            if d.saleId == sale
+            and (lot_id is None or d.lotId == lot_id)
+            and (d.raw_gain or ZERO) < 0
+        ]
+        total = -sum((d.raw_gain for d in losing), ZERO)
         given = ZERO
         for i, d in enumerate(losing):
             part = (
                 amount - given
                 if i == len(losing) - 1
-                else (amount * -d.gain / total).quantize(CENT)
+                else (amount * -d.raw_gain / total).quantize(CENT)
             )
-            d.adjustment = part
+            d.adjustment += part
             given += part
 
 
@@ -365,7 +374,8 @@ def _transaction(
         qty = abs(t.quantity or ZERO)
         if not qty:
             return
-        method = t.lotMethod or account_method
+        # Lots picked make the sale specific identification, whatever the method (S2.3).
+        method = "specific" if picks else (t.lotMethod or account_method)
         if method == "average" and t.instrumentId not in averaged:
             method = "fifo"  # average cost is for funds and coins; a share goes first in (S2.3)
         proceeds = (
@@ -683,13 +693,16 @@ def _consume(
     total, left = qty, qty
     plan: list[tuple[OpenLot, Decimal]] = []
     if method == "specific" and picks:
-        by_id = {lot.lotId: lot for lot in held}
+        # A picked lot is every part of it: one a wash sale split takes from its parts in turn
+        # (CR3-26), never from another lot.
         for p in picks:
-            lot = by_id.get(p.lotId)
-            take = min(p.quantity, lot.quantity, left) if lot else ZERO
-            if take > 0:
-                plan.append((lot, take))
-                left -= take
+            want = p.quantity
+            for lot in (x for x in held if x.lotId == p.lotId):
+                take = min(want, lot.quantity, left)
+                if take > 0:
+                    plan.append((lot, take))
+                    left -= take
+                    want -= take
     order = method if method in ("fifo", "lifo", "hifo") else "fifo"
     for lot in _order(order, held):
         if left <= 0:
