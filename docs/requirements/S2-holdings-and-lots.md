@@ -16,7 +16,7 @@
    lists these (S8.4).
 3. **Sales consume lots** by the account's **lot method**: FIFO (the default), LIFO, HIFO,
    specific identification (chosen per sale), or **average cost** (mutual funds, and crypto
-   where elected). The method in force at the sale is recorded on it, however the sale arrives
+   where elected: a listed share in an account set to average cost is sold first in). The method in force at the sale is recorded on it, however the sale arrives
    (typed, imported or synced); changing an account's method applies to the sales after the
    change, and the wash sales are worked out again (S3.8.4).
 4. **Corporate actions**: splits, reverse splits, symbol changes, spin-offs (manual basis

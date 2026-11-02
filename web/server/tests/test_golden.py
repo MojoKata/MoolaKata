@@ -89,12 +89,13 @@ def option(c, acct, day, action, premium, **kw):
 def review_cases(c) -> str:
     """The figures the second review found wrong (section 4), each a case whose rows are
     worked out by hand in the comments."""
-    # B1: average cost re-bases every lot at each sale: 300 paid, 300 of basis sold.
+    # B1: average cost re-bases every lot at each sale: 300 paid, 300 of basis sold. A fund:
+    # average cost is for funds and coins (S2.3).
     avg = new_account(c, name="Average", type="brokerage", mask="4004", lotMethod="average")
-    trade(c, avg["id"], "2026-01-05", "buy", "10", "10", "VXUS")
-    trade(c, avg["id"], "2026-01-06", "buy", "10", "20", "VXUS")  # the average is 15
-    trade(c, avg["id"], "2026-02-02", "sell", "5", "15", "VXUS")  # 75 against 75
-    trade(c, avg["id"], "2026-03-02", "sell", "15", "15", "VXUS")  # 225 against 225
+    trade(c, avg["id"], "2026-01-05", "buy", "10", "10", "VTIAX")
+    trade(c, avg["id"], "2026-01-06", "buy", "10", "20", "VTIAX")  # the average is 15
+    trade(c, avg["id"], "2026-02-02", "sell", "5", "15", "VTIAX")  # 75 against 75
+    trade(c, avg["id"], "2026-03-02", "sell", "15", "15", "VTIAX")  # 225 against 225
     # B2: a loss washed into a replacement that is itself sold at a loss and replaced again:
     # each loss deferred, the second including the first.
     chain = new_account(c, name="Chained", type="brokerage", mask="5005")

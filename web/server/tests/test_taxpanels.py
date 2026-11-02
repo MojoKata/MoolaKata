@@ -270,3 +270,15 @@ def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(alice):
     trade(alice, brk["id"], "2026-03-02", "sell", "10", "60", symbol="IBM")
     rows = {r["description"]: r["box"] for r in panels(alice, book(alice))["rows"]}
     assert rows == {"10 FSKAX": "E", "10 IBM": "D"}
+
+
+def test_average_cost_is_for_funds_a_share_goes_first_in(alice):
+    # CR3-387, S2.3: in an account set to average cost, a fund's sale takes the average of
+    # its shares and a listed share's the oldest lot.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="average")
+    for symbol in ("VTSAX", "IBM"):
+        trade(alice, brk["id"], "2025-01-06", "buy", "10", "100", symbol=symbol)
+        trade(alice, brk["id"], "2025-02-03", "buy", "10", "200", symbol=symbol)
+        trade(alice, brk["id"], "2026-03-02", "sell", "10", "250", symbol=symbol)
+    rows = {r["description"]: r["basis"] for r in panels(alice, book(alice))["rows"]}
+    assert rows == {"10 VTSAX": "1500.00", "10 IBM": "1000.00"}

@@ -22,6 +22,9 @@ export const LOT_METHODS = /** @type {[string, string][]} */ ([
   ['specific', 'Specific identification'],
   ['average', 'Average cost'],
 ]);
+/** The lot method's note (S2.3): average cost is for fund shares and coins. */
+export const LOT_HINT = 'How sales pick lots: average cost is for funds and coins, a share ' +
+  'going oldest first. The method in force at a sale is recorded with it.';
 // Imports are files and statements alike (S1.3): the choice sets only whether statements are
 // expected; whether positions are holdings is told by the account's trades.
 export const KEPT_BY = /** @type {[string, string][]} */ ([
@@ -129,7 +132,7 @@ function AccountForm({ type, close, back }) {
               <p class="small dim">Bitcoin. Other coins come later.</p>
               <${WalletFields} rec=${acct} />
               <${RecField} rec=${acct} name="lotMethod" label="Lot method" options=${LOT_METHODS}
-                hint="How sales pick lots. The method in force at a sale is recorded with it." />
+                hint=${LOT_HINT} />
             `
             : t.loan && loan
             ? html`<${TermsFields} rec=${loan} type=${type} />`
@@ -142,7 +145,7 @@ function AccountForm({ type, close, back }) {
                 ? html`
                   <${RecField} rec=${acct} name="lotMethod" label="Lot method"
                     options=${LOT_METHODS}
-                    hint="How sales pick lots. The method in force at a sale is recorded with it." />
+                    hint=${LOT_HINT} />
                 `
                 : null}
               <div class="row">

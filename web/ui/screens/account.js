@@ -45,7 +45,7 @@ import { RANGES, TimeChart } from '../charts/chart.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
-import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
+import { AcctRec, KEPT_BY, KeptBy, LOT_HINT, LOT_METHODS } from './new-account.js';
 import {
   DraftDialog,
   DraftForm,
@@ -947,7 +947,7 @@ function Settings({ a, reload }) {
                 ? html`
                   <${RecField} rec=${rec} name="lotMethod" label="Lot method"
                     options=${LOT_METHODS}
-                    hint="How sales pick lots. The method in force at a sale is recorded with it." />
+                    hint=${LOT_HINT} />
                 `
                 : null}
               ${loan || physical || wallet ? null : html`

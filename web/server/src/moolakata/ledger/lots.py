@@ -149,6 +149,10 @@ def kept_by_snapshots(transactions: list, lots: list) -> bool:
     )
 
 
+# What average cost applies to (S2.3): fund shares and coins.
+AVERAGED = ("mutual-fund", "money-market", "crypto")
+
+
 def replay(
     account_method: str,
     transactions: list,
@@ -158,6 +162,7 @@ def replay(
     washes: list = (),
     by_snapshots: bool | None = None,
     basis_added: bool = True,
+    averaged: frozenset = frozenset(),
 ) -> Replay:
     """Transactions, lots (acquisitions), specific-identification picks and holding
     snapshots of one account, as entities; returns the open lots, disposals and problems.
@@ -219,7 +224,12 @@ def replay(
         else:
             before = len(out.open)
             _transaction(
-                out, obj, account_method, lots_by_txn.get(obj.id, []), picks_by_sale.get(obj.id, [])
+                out,
+                obj,
+                account_method,
+                lots_by_txn.get(obj.id, []),
+                picks_by_sale.get(obj.id, []),
+                averaged,
             )
             if obj.id in replaced:
                 _replacement(out, before, replaced[obj.id], basis_added)
@@ -285,7 +295,9 @@ def _disallow(out: Replay, washes) -> None:
             given += part
 
 
-def _transaction(out: Replay, t, account_method: str, made: list, picks: list) -> None:
+def _transaction(
+    out: Replay, t, account_method: str, made: list, picks: list, averaged: frozenset = frozenset()
+) -> None:
     if not t.instrumentId:
         return
     if t.kind in OPTION_TRADES:
@@ -328,6 +340,8 @@ def _transaction(out: Replay, t, account_method: str, made: list, picks: list) -
         if not qty:
             return
         method = t.lotMethod or account_method
+        if method == "average" and t.instrumentId not in averaged:
+            method = "fifo"  # average cost is for funds and coins; a share goes first in (S2.3)
         proceeds = (
             t.amount + (getattr(t, "proceedsAdjustment", None) or ZERO)
             if t.kind == "sell"

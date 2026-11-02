@@ -111,9 +111,12 @@ def test_specific_identification_and_average_cost():
     s = sell(5, 1250, method="specific")
     r = lots.replay("fifo", [*txns, s], lots_, [Pick(s.id, lots_[1].id, D(5))], [])
     assert r.disposals[0].lotId == lots_[1].id and r.disposals[0].basis == D(1500)
-    r = lots.replay("average", [*txns, sell(15, 3750)], lots_, [], [])
+    r = lots.replay("average", [*txns, sell(15, 3750)], lots_, [], [], averaged=frozenset({"VTI"}))
     assert sum(x.basis for x in r.disposals) == D(3000)  # $200 average
     assert sum(x.basis for x in r.open) == D(3000)
+    # Average cost is for funds and coins (S2.3, CR3-387): a share goes first in.
+    r = lots.replay("average", [*txns, sell(15, 3750)], lots_, [], [])
+    assert [x.method for x in r.disposals] == ["fifo", "fifo"]
 
 
 def test_splits_return_of_capital_and_problems():

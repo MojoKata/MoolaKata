@@ -44,6 +44,9 @@ class Ledger:
     anchors: list[Anchor]
     imports: list[Import]
     washes: list = field(default_factory=list)  # wash sales touching its trades (S3.8)
+    # The instruments average cost can apply to, funds and coins (S2.3, CR3-387): a share in an
+    # account set to average cost goes first in.
+    averaged: frozenset = frozenset()
 
     def opening(self) -> balances.Opening:
         return balances.opening(self.account, self.transactions, self.anchors)
@@ -61,6 +64,7 @@ class Ledger:
             self.snapshots,
             self.washes,
             basis_added=lots.adds_basis(self.account.type),
+            averaged=self.averaged,
         )
 
 
@@ -102,6 +106,16 @@ def load(s: Session, account: Account, raw: bool = False) -> Ledger:
         if ids_ and not raw
         else []
     )
+    averaged: frozenset = frozenset()
+    if account.lotMethod == "average" or any(x.lotMethod == "average" for x in txns):
+        held = {x.instrumentId for x in txns if x.instrumentId}
+        averaged = frozenset(
+            s.scalars(
+                select(Instrument.id).where(
+                    Instrument.id.in_(held), Instrument.instrumentClass.in_(lots.AVERAGED)
+                )
+            )
+        )
     return Ledger(
         account,
         list(txns),
@@ -111,6 +125,7 @@ def load(s: Session, account: Account, raw: bool = False) -> Ledger:
         list(anchors),
         list(imports),
         list(washes),
+        averaged,
     )
 
 
