@@ -200,28 +200,55 @@ def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
 
 
 def _stored_washes(s: Session, book: TaxBook, losses: dict[str, Decimal]) -> list[Wash]:
+    """The book's wash sales, read together (one query for each kind of record, however many
+    there are: the filed tax years walk's decision 3.6)."""
     from .. import washes
 
     first, last = _span(book.year)
     who = [f.userId for f in books.filers(s, book) if f.acceptedAt is not None]
+    found = washes.for_users(s, who, first, last)
+    if not found:
+        return []
+    wanted = {w.saleId for w in found} | {w.replacementId for w in found}
+    txns = {t.id: t for t in s.scalars(select(Transaction).where(Transaction.id.in_(wanted)))}
+    lots_by = {
+        x.transactionId: x
+        for x in s.scalars(
+            select(Lot).where(Lot.transactionId.in_({w.replacementId for w in found}))
+        )
+    }
+    accts = {
+        a.id: a
+        for a in s.scalars(
+            select(Account).where(Account.id.in_({t.accountId for t in txns.values()}))
+        )
+    }
+    insts = {
+        i.id: i
+        for i in s.scalars(
+            select(Instrument).where(Instrument.id.in_({t.instrumentId for t in txns.values()}))
+        )
+    }
     out = []
-    for w in washes.for_users(s, who, first, last):
-        sale = s.get(Transaction, w.saleId)
-        repl = s.get(Transaction, w.replacementId)
-        inst = s.get(Instrument, sale.instrumentId)
-        lot = s.scalars(select(Lot).where(Lot.transactionId == repl.id)).first()
+    for w in found:
+        sale, repl = txns[w.saleId], txns[w.replacementId]
+        lot = lots_by.get(repl.id)
+        into = accts[repl.accountId]
         basis = None
         if lot is not None and lot.costBasis is not None and lot.quantity:
-            basis = (lot.costBasis * w.quantity / lot.quantity).quantize(CENT) + w.disallowed
+            basis = (lot.costBasis * w.quantity / lot.quantity).quantize(CENT)
+            # In an IRA the loss is lost for good, never added (S3.8.3).
+            if lots.adds_basis(into.type):
+                basis += w.disallowed
         out.append(
             Wash(
                 sale.date,
-                inst.symbol,
-                s.get(Account, sale.accountId).name,
+                insts[sale.instrumentId].symbol,
+                accts[sale.accountId].name,
                 losses.get(sale.id, w.disallowed),
                 w.disallowed,
                 repl.date,
-                s.get(Account, repl.accountId).name,
+                into.name,
                 w.quantity,
                 basis,
             )
