@@ -96,7 +96,7 @@ def reserve(
             m = add_months(m, 1)
             continue
         put = min(ln.amount, max(ln.target - bal, ZERO))
-        spent = _actual(tr, totals.get(m, {}), cat_id)
+        spent = _actual(tr, totals.get(m, {}), cat_id, in_force(every, m))
         mv = moved.get((m, cat_id), ZERO)
         if m == month:
             return Reserve(cat_id, ln.target, ln.heldInId, bal, put, spent, mv, began)

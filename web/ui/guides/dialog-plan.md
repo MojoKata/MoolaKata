@@ -5,7 +5,8 @@ The plan from the month shown on. Earlier months keep the plan they had.
 ## Category
 
 A category plans its children too: plan _Food_ for groceries and dining together, or each on its
-own.
+own. Plan both and _Food_ keeps what its other children spend: groceries count once, against
+their own line.
 
 ## Amount
 

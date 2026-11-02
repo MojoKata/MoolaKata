@@ -28,7 +28,8 @@ it. Below zero, more is assigned than there is. **Assign** moves some to an enve
 ## Categories
 
 Each planned category's spending as a bar: green, then amber at 90% of the plan, red once over. A
-parent category counts its children. A category with **rollover** carries what was left (or
+parent category counts its children that have no line of their own, so each amount counts once. A
+category with **rollover** carries what was left (or
 overspent) into the next month. A **year** category compares the year so far with its yearly plan.
 
 **Not in the plan** lists spending in categories without a plan. Transfers between the budget's

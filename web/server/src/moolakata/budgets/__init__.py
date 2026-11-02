@@ -438,13 +438,25 @@ class Month:
     cards: list = field(default_factory=list)  # its cards' payment lines
 
 
-def _actual(tree_: Tree, totals: dict[str, Decimal], cat_id: str) -> Decimal:
-    """What a category's plan is compared with: it and its children, spending and saving as
-    positive."""
+def line_of(tree_: Tree, planned: set[str] | dict, cat_id: str) -> str | None:
+    """The line a category's money counts against (S7.1.2): its own, else its parent's, else
+    none (not in the plan). Every transaction counts against one line at most, so no spending
+    is counted twice, in either method."""
+    if cat_id in planned:
+        return cat_id
+    c = tree_.by_id.get(cat_id)
+    if c is not None and c.parentId and c.parentId in planned:
+        return c.parentId
+    return None
+
+
+def _actual(
+    tree_: Tree, totals: dict[str, Decimal], cat_id: str, planned: set[str] | dict
+) -> Decimal:
+    """What a line is compared with: the money of the categories that count against it
+    (`line_of`), spending and saving as positive."""
     c = tree_.by_id[cat_id]
-    raw = totals.get(cat_id, ZERO) + sum(
-        (totals.get(k, ZERO) for k in tree_.children(cat_id)), ZERO
-    )
+    raw = sum((v for k, v in totals.items() if line_of(tree_, planned, k) == cat_id), ZERO)
     return -raw if c.kind in ("expense", "savings") else raw
 
 
@@ -491,6 +503,14 @@ def _month_view(
     ytd = _summed(_monthly(s, mem, year_start, month, tr))
     rows: list[Row] = []
     planned_cats = set(now)
+    # Gifts and Giving are planned by the owner's gift and giving plans, a year at a time.
+    elsewhere = {
+        k: v
+        for k, v in plan.planned_elsewhere(s, budget, tr, month.year).items()
+        if k not in now and k in tr.by_id
+    }
+    # The lines that hold this month, each category's money counted against one (S7.1.2).
+    lines_now = set(now) | set(elsewhere)
     for cat_id, ln in now.items():
         if cat_id not in tr.by_id:
             continue
@@ -551,11 +571,11 @@ def _month_view(
                 continue
         if ln.cadence == "year":
             planned, carried = ln.amount, ZERO
-            actual = _actual(tr, ytd, cat_id)
+            actual = _actual(tr, ytd, cat_id, lines_now)
         else:
             carried = _carry(s, tr, mem, every, cat_id, month, moved_by) if ln.rollover else ZERO
             planned = ln.amount + carried + mv
-            actual = _actual(tr, totals, cat_id)
+            actual = _actual(tr, totals, cat_id, lines_now)
         rows.append(
             Row(
                 categoryId=cat_id,
@@ -576,12 +596,9 @@ def _month_view(
                 else None,
             )
         )
-    # Gifts and Giving are planned by the owner's gift and giving plans, a year at a time.
-    for cat_id, amount in plan.planned_elsewhere(s, budget, tr, month.year).items():
-        if cat_id in now or cat_id not in tr.by_id:
-            continue
+    for cat_id, amount in elsewhere.items():
         planned_cats.add(cat_id)
-        actual = _actual(tr, ytd, cat_id)
+        actual = _actual(tr, ytd, cat_id, lines_now)
         rows.append(
             Row(
                 categoryId=cat_id,
@@ -598,14 +615,11 @@ def _month_view(
             )
         )
     rows.sort(key=lambda r: (r.kind != "income", r.label))
-    # Spending in a category with no plan of its own, nor under a planned parent.
-    covered = set(planned_cats)
-    for cid in planned_cats:
-        covered |= set(tr.children(cid))
+    # Spending counted against no line: no plan of its own, nor under a planned parent.
     unplanned: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for cid, amt in totals.items():
         c = tr.by_id.get(cid)
-        if c is None or c.kind != "expense" or cid in covered:
+        if c is None or c.kind != "expense" or line_of(tr, lines_now, cid) is not None:
             continue
         unplanned[cid] -= amt
     income = sum((amt for cid, amt in totals.items() if _kind(tr, cid) == "income"), ZERO)
@@ -671,7 +685,7 @@ def _carry(
                 ln.amount
                 + carry
                 + moved.get((m, cat_id), ZERO)
-                - _actual(tr, totals.get(m, {}), cat_id)
+                - _actual(tr, totals.get(m, {}), cat_id, in_force(every, m))
             )
         m = add_months(m, 1)
     return carry
@@ -749,7 +763,9 @@ def trends(
         if category:
             ln = plan.get(category)
             planned = ln.amount if ln and ln.cadence == "month" else ZERO
-            actual = _actual(tr, totals[m], category) if category in tr.by_id else ZERO
+            # The category's own money, and its children's that have no line that month.
+            mine = set(plan) | {category}
+            actual = _actual(tr, totals[m], category, mine) if category in tr.by_id else ZERO
         else:
             planned = sum(
                 (

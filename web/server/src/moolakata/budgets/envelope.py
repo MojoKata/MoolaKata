@@ -133,16 +133,16 @@ def month(
             if ln.target is not None:  # a reserve assigns no more than reaches its target
                 assigned = min(assigned, max(ln.target - start, ZERO))
             assigned_total += assigned
-            available = start + assigned + mv[cat_id] - _actual(tr, cash_spend, cat_id)
+            available = start + assigned + mv[cat_id] - _actual(tr, cash_spend, cat_id, plan)
             charged = ZERO
             for cid in card_ids:
-                charge = _actual(tr, per_card[cid], cat_id)
+                charge = _actual(tr, per_card[cid], cat_id, plan)
                 covered = min(max(charge, ZERO), max(available - charged, ZERO))
                 if charge < 0:  # a refund to the card comes back to the category
                     covered = charge
                 line[cid] += covered
                 charged += covered
-            spent = _actual(tr, cash_spend, cat_id) + charged
+            spent = _actual(tr, cash_spend, cat_id, plan) + charged
             env = Envelope(cat_id, start, assigned, mv[cat_id], spent)
             envs[cat_id] = env
             end = env.balance
