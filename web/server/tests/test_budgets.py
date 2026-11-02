@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, drop, edit, loan_payment, make, saved, share, terms
+from edits import budget_accounts, change, drop, loan_payment, make, remove, saved, share, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -239,8 +239,8 @@ def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client)
     assert [x["name"] for x in bob.get("/ui/api/budgets").json()["items"]] == ["Household"]
     # Write: the plan, not the accounts or the budget itself.
     plan(bob, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "400.00"}])
-    r = edit(bob, "Bdgt", f"/ui/api/budgets/{b['id']}", accountIds=[])
-    assert r.status_code == 403
+    (counted,) = c.get(f"/ui/api/budgets/{b['id']}/accounts").json()["items"]
+    assert remove(bob, "BdgAc", counted).status_code == 403
     assert drop(bob, "Bdgt", f"/ui/api/budgets/{b['id']}").status_code == 403
 
 
@@ -362,7 +362,7 @@ def test_money_leaving_or_entering_the_budget(server, frozen):
     c, acct, cat, b = setup_budget(server)
     savings = new_account(c, name="Savings", type="savings", mask="2222")
     brokerage = new_account(c, name="Brokerage", type="brokerage", mask="3333")
-    saved(change(c, "Bdgt", b, accountIds=[acct["id"], savings["id"]]))
+    assert budget_accounts(c, b, [acct["id"], savings["id"]]).status_code == 200
     # Inside the budget: nothing moved in or out.
     add(c, acct["id"], "-200.00", "2026-10-02", payee="To savings")
     add(c, savings["id"], "200.00", "2026-10-02", payee="From checking", kind="deposit")

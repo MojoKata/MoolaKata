@@ -2352,6 +2352,172 @@
         "title": "BrokerageIn",
         "type": "object"
       },
+      "BudgetAccountOut": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "budgetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Budgetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "fromMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frommonth"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedfromid"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidfromid"
+          },
+          "untilMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Untilmonth"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "budgetId",
+          "accountId",
+          "id",
+          "version"
+        ],
+        "title": "BudgetAccountOut",
+        "type": "object"
+      },
+      "BudgetAccountRecord": {
+        "additionalProperties": false,
+        "description": "An account a budget counts, over months (S7.1.7): from `fromMonth` (none: since the\nbudget began) to `untilMonth` (none: still counted). Taking it out sets its last month, so\nearlier months keep it (R3.10); counting it again is a new record. Its roles: a card's\npaying account, or where money for reserves held in it moves from, chosen (none: as the\nhistory says, S7.1.6). Only the budget's owner chooses its accounts.",
+        "properties": {
+          "accountId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Accountid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "budgetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Budgetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "fromMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Frommonth"
+          },
+          "movedFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Movedfromid"
+          },
+          "paidFromId": {
+            "anyOf": [
+              {
+                "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Acct"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paidfromid"
+          },
+          "untilMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Untilmonth"
+          }
+        },
+        "required": [
+          "budgetId",
+          "accountId"
+        ],
+        "title": "BudgetAccountRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "configurable",
+          "via": "budgetId"
+        },
+        "x-entity": "BdgAc"
+      },
       "BudgetCard": {
         "additionalProperties": false,
         "description": "The active budget's month (S7.12, S12.2.1).",
@@ -2403,18 +2569,8 @@
       },
       "BudgetRecord": {
         "additionalProperties": false,
-        "description": "A budget as a draft saves it (S7.1): its method chosen when it is made; its accounts\nits owner's choice; its roles a card's paying account or where reserves' money moves from,\nchosen (none: as the history says).",
+        "description": "A budget as a draft saves it (S7.1): its method chosen when it is made. Its accounts are\nrecords of their own (`BudgetAccountRecord`), saved with it.",
         "properties": {
-          "accountIds": {
-            "items": {
-              "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
-              "type": "string",
-              "x-prefix": "Acct"
-            },
-            "title": "Accountids",
-            "type": "array",
-            "uniqueItems": true
-          },
           "method": {
             "default": "tracking",
             "enum": [
@@ -2437,13 +2593,6 @@
             "default": false,
             "title": "Reserves",
             "type": "boolean"
-          },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/RoleIn"
-            },
-            "title": "Roles",
-            "type": "array"
           }
         },
         "required": [
@@ -14360,6 +14509,37 @@
         "title": "Page[AwaitingRow]",
         "type": "object"
       },
+      "Page_BudgetAccountOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetAccountOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[BudgetAccountOut]",
+        "type": "object"
+      },
       "Page_BudgetRow_": {
         "properties": {
           "items": {
@@ -17779,6 +17959,8 @@
               "month-earlier",
               "month-invalid",
               "months-invalid",
+              "months-order",
+              "months-overlap",
               "move-fixed",
               "move-invalid",
               "moves-needed",
@@ -18229,6 +18411,8 @@
                   "month-earlier",
                   "month-invalid",
                   "months-invalid",
+                  "months-order",
+                  "months-overlap",
                   "move-fixed",
                   "move-invalid",
                   "moves-needed",
@@ -21122,44 +21306,6 @@
           "due"
         ],
         "title": "RmdOut",
-        "type": "object"
-      },
-      "RoleIn": {
-        "additionalProperties": false,
-        "properties": {
-          "accountId": {
-            "title": "Accountid",
-            "type": "string"
-          },
-          "movedFromId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Movedfromid"
-          },
-          "paidFromId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Paidfromid"
-          }
-        },
-        "required": [
-          "accountId"
-        ],
-        "title": "RoleIn",
         "type": "object"
       },
       "RoleOut": {
@@ -29827,6 +29973,68 @@
           }
         },
         "summary": "Get Budget",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/ui/api/budgets/{budget_id}/accounts": {
+      "get": {
+        "description": "The budget's accounts over months, each a record: those the caller can see (S7.1.1).",
+        "operationId": "budget_accounts_ui_api_budgets__budget_id__accounts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BudgetAccountOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Budget Accounts",
         "tags": [
           "budgets"
         ]

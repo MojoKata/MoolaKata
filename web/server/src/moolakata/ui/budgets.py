@@ -8,7 +8,6 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, budgets, clock, ids
@@ -41,12 +40,6 @@ class RoleOut(Model):
     paidFromLearned: bool
     movedFromId: str | None  # where money for reserves held here moves from
     movedFromProposed: bool
-
-
-class RoleIn(Model):
-    accountId: str
-    paidFromId: str | None = None  # none: learned from the card's payments
-    movedFromId: str | None = None  # none: proposed from the transfers in
 
 
 class BudgetRow(Model):
@@ -351,7 +344,8 @@ class RecurringRow(Model):
 
 
 def _accounts_of(s, b: Budget, viewer: str | None = None) -> list[str]:
-    return budgets.account_ids(s, b, viewer)
+    """The accounts the budget counts this month."""
+    return budgets.account_ids(s, b, viewer, clock.today())
 
 
 def _names(s, viewer: str, account_ids: set[str]) -> dict[str, str]:
@@ -389,16 +383,6 @@ def _check(s, user_id: str, body) -> list[FieldError]:
     errors = []
     if body.name is not None and (not body.name.strip() or len(body.name) > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
-    if body.accountIds is not None:
-        mine = {a.id for a, _ in access.accounts(s, user_id)}
-        if any(a not in mine for a in body.accountIds):
-            errors.append(
-                FieldError(
-                    "accountIds",
-                    "account-unknown",
-                    "Choose accounts you own or that are shared with you.",
-                )
-            )
     return errors
 
 
@@ -407,43 +391,11 @@ def _raise(errors: list[FieldError]) -> None:
         raise Problem(422, errors[0].code, errors[0].message, errors)
 
 
-def _set_accounts(s, b: Budget, wanted: list[str], by: str) -> None:
-    current = {
-        m.accountId: m
-        for m in s.scalars(select(BudgetAccount).where(BudgetAccount.budgetId == b.id))
-    }
+def _add_accounts(s, b: Budget, wanted: list[str]) -> None:
+    """Accounts counted from the budget's start: a scenario's copy of another's."""
     now = clock.now()
     for aid in dict.fromkeys(wanted):
-        m = current.get(aid)
-        if m is None:
-            s.add(BudgetAccount(budgetId=b.id, accountId=aid, createdAt=now))
-        elif m.deleted:
-            m.restore()
-    for aid, m in current.items():
-        if aid not in wanted and not m.deleted:
-            m.mark_deleted(by, now)
-
-
-def _set_roles(s, b: Budget, wanted: list[RoleIn]) -> None:
-    """A card's paying account, or where reserves' money moves from, chosen; none goes back to
-    what the history says."""
-    members = {
-        m.accountId: m
-        for m in s.scalars(
-            select(BudgetAccount).where(
-                BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false()
-            )
-        )
-    }
-    for i, r in enumerate(wanted):
-        m = members.get(r.accountId)
-        for f in ("paidFromId", "movedFromId"):
-            v = getattr(r, f)
-            if m is None or (v is not None and v not in members):
-                raise refuse(
-                    f"roles.{i}.{f}", "account-unknown", "Choose one of the budget's accounts."
-                )
-        m.paidFromId, m.movedFromId = r.paidFromId, r.movedFromId
+        s.add(BudgetAccount(budgetId=b.id, accountId=aid, createdAt=now))
 
 
 def _month(value: str | None) -> dt.date:
@@ -536,7 +488,6 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
     )
     s.add(b)
     s.flush()
-    _set_accounts(s, b, body.accountIds, c.id)
     # A user's first budget is the one they follow (S7.12.1).
     if budgets.active_id(s, c.id) is None:
         s.get(User, c.id).activeBudgetId = b.id
@@ -547,18 +498,12 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
 
 
 def _change_budget(s, c: Caller, b: Budget, held: Perms, body, sent: set[str]) -> None:
-    """The fields `sent`: its name, accounts (with `configurable`), options and roles."""
+    """The fields `sent`: its name and options. Its accounts are records of their own."""
     _raise(_check(s, b.ownerId, body))
     fields = []
     if "name" in sent and body.name.strip() != b.name:
         b.name = body.name.strip()
         fields.append("name")
-    if "accountIds" in sent:
-        if not held.configurable:
-            raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
-        _set_accounts(s, b, body.accountIds, c.id)
-        b.updatedAt = clock.now()
-        fields.append("accounts")
     for option in ("reserves", "moves"):
         value = getattr(body, option)
         if option in sent and value != getattr(b, option):
@@ -566,10 +511,6 @@ def _change_budget(s, c: Caller, b: Budget, held: Perms, body, sent: set[str]) -
                 raise refuse("moves", "moves-needed", "An envelope budget always has moves.")
             setattr(b, option, value)
             fields.append(option)
-    if "roles" in sent:
-        _set_roles(s, b, body.roles)
-        b.updatedAt = clock.now()
-        fields.append("roles")
     if fields:
         activity.record(
             s,
@@ -612,7 +553,9 @@ def budget_month(
                     transactionId=x.transactionId,
                     date=x.date,
                     accountName=names.get(x.accountId, "an account not shared"),
-                    otherAccountName=names.get(x.otherAccountId, "an account not shared"),
+                    otherAccountName="a deleted account"
+                    if x.otherDeleted
+                    else names.get(x.otherAccountId, "an account not shared"),
                     amount=x.amount,
                     payee=x.payee,
                 )
@@ -672,7 +615,7 @@ def _line_errors(s, b: Budget, ln, cats: dict, elsewhere: set, at: str = "") -> 
                 "A monthly line in a budget with reserves, aiming above zero.",
             )
         )
-    if ln.heldInId and ln.heldInId not in budgets.account_ids(s, b):
+    if ln.heldInId and ln.heldInId not in budgets.account_ids(s, b, None, ln.fromMonth):
         errors.append(
             FieldError(f"{at}heldInId", "account-unknown", "One of the budget's accounts.")
         )
@@ -691,7 +634,7 @@ def _reserve_held(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
     r = reserves.reserve(
         s,
         budgets.tree(s),
-        budgets.account_ids(s, b),
+        budgets.members(s, b),
         every,
         moved,
         cat_id,
@@ -994,7 +937,7 @@ def _move(s, c: Caller, b: Budget, body: MoveIn, move_id: str) -> BudgetMove:
             b.method != "envelope"
             or card is None
             or card.type != "credit-card"
-            or card.id not in budgets.account_ids(s, b)
+            or card.id not in budgets.account_ids(s, b, None, body.month)
             or body.toCategoryId is not None
         ):
             raise refuse("cardId", "card-unknown", "One of an envelope budget's cards.")
@@ -1051,7 +994,7 @@ def in_budgets(txn_id: str, request: Request, c: Caller = Depends(caller)):
         counts_as = ", ".join(sorted(tr.label(x) for x in cats if x in tr.by_id)) or None
         out = []
         for b, perms in access.listing(s, Budget, c.id, order_by=Budget.name):
-            if t.accountId not in budgets.account_ids(s, b, c.id):
+            if t.accountId not in budgets.account_ids(s, b, c.id, t.date):
                 continue
             left = s.get(BudgetLeaveOut, (b.id, t.id))
             out.append(
@@ -1084,11 +1027,12 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         tr = budgets.tree(s, b)
-        accts = budgets.account_ids(s, b, c.id)
+        mem = budgets.members(s, b, c.id)
+        accts = mem.at(m)
         rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
         names = {a.id: a.name for a in rows}
         roles = {r.accountId: r for r in plan.roles(s, b, rows, today)}
-        held = reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+        held = reserves.held_in(s, b, mem, tr, budgets.lines(s, b), reserves.moves(s, b), m)
         out = []
         for h in held:
             frm = roles.get(h.accountId)
@@ -1179,8 +1123,12 @@ def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
     from ..budgets import reserves
 
     t = s.get(Transaction, body.transactionId)
-    accts = budgets.account_ids(s, b, c.id)
-    if t is None or t.deleted or t.accountId not in accts or t.amount <= 0:
+    if (
+        t is None
+        or t.deleted
+        or t.accountId not in budgets.account_ids(s, b, c.id, t.date)
+        or t.amount <= 0
+    ):
         raise refuse("transactionId", "not-found", "No such money landed.")
     if body.fromCategoryId is not None or body.cardId is not None:
         raise refuse("fromCategoryId", "move-invalid", "Landed money comes from where it landed.")
@@ -1188,7 +1136,9 @@ def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
     tr = budgets.tree(s, b)
     held = {
         h.accountId: h
-        for h in reserves.held_in(s, b, accts, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+        for h in reserves.held_in(
+            s, b, budgets.members(s, b, c.id), tr, budgets.lines(s, b), reserves.moves(s, b), m
+        )
     }
     h = held.get(t.accountId)
     own = body.toCategoryId is None
@@ -1243,7 +1193,7 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
         s.add(b)
         s.flush()
         mine = {a.id for a, _ in access.accounts(s, c.id)}
-        _set_accounts(s, b, [a for a in budgets.account_ids(s, src, c.id) if a in mine], c.id)
+        _add_accounts(s, b, [a for a in budgets.account_ids(s, src, c.id, month) if a in mine])
         for ln in budgets.in_force(budgets.lines(s, src), month).values():
             s.add(
                 BudgetLine(
@@ -1377,7 +1327,14 @@ def _changes(then: dict, now: dict) -> list[str]:
             out.append(f"{label}: spent {a[1]} then, {b[1]} now")
         elif a[0] != b[0]:
             out.append(f"{label}: planned {a[0]} then, {b[0]} now")
-    for k, name in (("income", "Income"), ("saved", "Saved"), ("toBudget", "To Budget")):
+    # Spending outside the plan changes the month too (S7.14).
+    totals = (
+        ("spent", "Spent"),
+        ("income", "Income"),
+        ("saved", "Saved"),
+        ("toBudget", "To Budget"),
+    )
+    for k, name in totals:
         if then.get(k) != now.get(k) and not out:
             out.append(f"{name}: {then.get(k)} then, {now.get(k)} now")
     return out
@@ -1422,10 +1379,11 @@ def review(budget_id: str, request: Request, c: Caller = Depends(caller), month:
         v = budgets.month_view(s, b, m, clock.today(), c.id)
         to_move = []
         if budgets.active_id(s, c.id) == b.id:
-            accts = budgets.account_ids(s, b, c.id)
+            mem = budgets.members(s, b, c.id)
+            accts = mem.at(m)
             names = {a.id: a.name for a in s.scalars(select(Account).where(Account.id.in_(accts)))}
             for h in reserves.held_in(
-                s, b, accts, budgets.tree(s, b), budgets.lines(s, b), reserves.moves(s, b), m
+                s, b, mem, budgets.tree(s, b), budgets.lines(s, b), reserves.moves(s, b), m
             ):
                 if h.toMove:
                     to_move.append(
@@ -1530,7 +1488,9 @@ def estimate(
                 detail=x.detail,
                 target=x.target,
             )
-            for x in plan.estimate(s, b, budgets.account_ids(s, b, c.id), tr, months, clock.today())
+            for x in plan.estimate(
+                s, b, budgets.account_ids(s, b, c.id, clock.today()), tr, months, clock.today()
+            )
         ]
 
 
@@ -1579,8 +1539,8 @@ def budget_recurring(budget_id: str, request: Request, c: Caller = Depends(calle
 
 
 def _recurring(s, c: Caller, b: Budget) -> list[RecurringRow]:
-    accts = budgets.account_ids(s, b, c.id)
     today = clock.today()
+    accts = budgets.account_ids(s, b, c.id, today)
     txns = s.scalars(
         select(Transaction).where(
             Transaction.accountId.in_(accts),
@@ -1617,18 +1577,33 @@ def _recurring(s, c: Caller, b: Budget) -> list[RecurringRow]:
 
 
 class BudgetRecord(Model):
-    """A budget as a draft saves it (S7.1): its method chosen when it is made; its accounts
-    its owner's choice; its roles a card's paying account or where reserves' money moves from,
-    chosen (none: as the history says)."""
+    """A budget as a draft saves it (S7.1): its method chosen when it is made. Its accounts are
+    records of their own (`BudgetAccountRecord`), saved with it."""
 
     name: str
     method: Literal["tracking", "envelope"] = "tracking"
-    accountIds: list[IdOf("Acct")] = Field(  # type: ignore[valid-type]
-        default_factory=list, json_schema_extra={"uniqueItems": True}
-    )
     reserves: bool = False
     moves: bool = False
-    roles: list[RoleIn] = Field(default_factory=list)
+
+
+class BudgetAccountRecord(Model):
+    """An account a budget counts, over months (S7.1.7): from `fromMonth` (none: since the
+    budget began) to `untilMonth` (none: still counted). Taking it out sets its last month, so
+    earlier months keep it (R3.10); counting it again is a new record. Its roles: a card's
+    paying account, or where money for reserves held in it moves from, chosen (none: as the
+    history says, S7.1.6). Only the budget's owner chooses its accounts."""
+
+    budgetId: IdOf("Bdgt")  # type: ignore[valid-type]
+    accountId: IdOf("Acct")  # type: ignore[valid-type]
+    fromMonth: dt.date | None = None
+    untilMonth: dt.date | None = None
+    paidFromId: IdOf("Acct") | None = None  # type: ignore[valid-type]
+    movedFromId: IdOf("Acct") | None = None  # type: ignore[valid-type]
+
+
+class BudgetAccountOut(BudgetAccountRecord):
+    id: str
+    version: int
 
 
 class MoveRecord(MoveIn):
@@ -1641,31 +1616,11 @@ class MoveRecord(MoveIn):
 
 
 def _budget_create(ctx, record_id: str, body: BudgetRecord) -> None:
-    b = _make_budget(ctx.s, ctx.caller, body, record_id)
-    if body.roles:
-        ctx.s.flush()
-        _set_roles(ctx.s, b, body.roles)
+    _make_budget(ctx.s, ctx.caller, body, record_id)
 
 
 def _budget_current(ctx, b: Budget) -> dict:
-    members = list(
-        ctx.s.scalars(
-            select(BudgetAccount).where(
-                BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false()
-            )
-        )
-    )
-    return {
-        "name": b.name,
-        "method": b.method,
-        "accountIds": [m.accountId for m in members],
-        "reserves": b.reserves,
-        "moves": b.moves,
-        "roles": [
-            {"accountId": m.accountId, "paidFromId": m.paidFromId, "movedFromId": m.movedFromId}
-            for m in members
-        ],
-    }
+    return {"name": b.name, "method": b.method, "reserves": b.reserves, "moves": b.moves}
 
 
 def _budget_update(ctx, b: Budget, body: BudgetRecord) -> None:
@@ -1673,11 +1628,6 @@ def _budget_update(ctx, b: Budget, body: BudgetRecord) -> None:
     if body.method != current["method"]:
         raise refuse("method", "method-fixed", "A budget keeps its method; copy it as a scenario.")
     sent = {f for f in ("name", "reserves", "moves") if getattr(body, f) != current[f]}
-    if set(body.accountIds) != set(current["accountIds"]):
-        sent.add("accountIds")
-    have = {r["accountId"]: r for r in current["roles"]}
-    if any(r.model_dump() != have.get(r.accountId) for r in body.roles):
-        sent.add("roles")
     _, held = access.budget(ctx.s, ctx.caller.id, b.id, "write")
     _change_budget(ctx.s, ctx.caller, b, held, body, sent)
 
@@ -1728,6 +1678,140 @@ def _move_read(ctx, record_id: str) -> MoveOut:
     mv = ctx.s.get(BudgetMove, record_id)
     b = ctx.s.get(Budget, mv.budgetId)
     return next(x for x in _moves_out(ctx.s, b, mv.month) if x.id == mv.id)
+
+
+# ---------- a budget's accounts, over months (S7.1.7) ----------
+
+
+def _ba_out(m: BudgetAccount) -> BudgetAccountOut:
+    return BudgetAccountOut(
+        id=m.id,
+        version=m.version,
+        budgetId=m.budgetId,
+        accountId=m.accountId,
+        fromMonth=m.fromMonth,
+        untilMonth=m.untilMonth,
+        paidFromId=m.paidFromId,
+        movedFromId=m.movedFromId,
+    )
+
+
+def _ba_rows(s, b: Budget) -> list[BudgetAccount]:
+    return list(
+        s.scalars(
+            select(BudgetAccount)
+            .where(BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false())
+            .order_by(BudgetAccount.fromMonth)
+        )
+    )
+
+
+@router.get("/budgets/{budget_id}/accounts", response_model=list[BudgetAccountOut])
+def budget_accounts(budget_id: str, request: Request, c: Caller = Depends(caller)):
+    """The budget's accounts over months, each a record: those the caller can see (S7.1.1)."""
+    with server(request).db.read(user=c.id) as s:
+        b, _ = access.budget(s, c.id, budget_id)
+        seen = {a.id for a, _ in access.accounts(s, c.id)}
+        return [_ba_out(m) for m in _ba_rows(s, b) if m.accountId in seen]
+
+
+def _ba_checked(ctx, body: BudgetAccountRecord, record_id: str) -> Budget:
+    """Its account is one the owner can see; its months whole months, the last not before the
+    first; never a month another of the account's records holds; its roles among the budget's
+    accounts."""
+    b, held = access.budget(ctx.s, ctx.caller.id, body.budgetId, "write")
+    if not held.configurable:
+        raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
+    seen = {a.id for a, _ in access.accounts(ctx.s, ctx.caller.id)}
+    if body.accountId not in seen:
+        raise refuse(
+            "accountId", "account-unknown", "Choose accounts you own or that are shared with you."
+        )
+    for f in ("fromMonth", "untilMonth"):
+        v = getattr(body, f)
+        if v is not None and v.day != 1:
+            raise refuse(f, "month-invalid", "A month: its first day.")
+    if body.fromMonth and body.untilMonth and body.untilMonth < body.fromMonth:
+        raise refuse("untilMonth", "months-order", "The last month comes after the first.")
+    mine = budgets.Span(body.accountId, body.fromMonth, body.untilMonth)
+    for other in _ba_rows(ctx.s, b):
+        if other.id == record_id or other.accountId != body.accountId:
+            continue
+        theirs = budgets.Span(other.accountId, other.fromMonth, other.untilMonth)
+        if _overlap(mine, theirs):
+            raise refuse(
+                "fromMonth", "months-overlap", "The budget counts this account then already."
+            )
+    counted = {m.accountId for m in _ba_rows(ctx.s, b)} | {body.accountId}
+    for f in ("paidFromId", "movedFromId"):
+        v = getattr(body, f)
+        if v is not None and v not in counted:
+            raise refuse(f, "account-unknown", "Choose one of the budget's accounts.")
+    return b
+
+
+def _overlap(a: budgets.Span, b: budgets.Span) -> bool:
+    lo = max(a.first or dt.date.min, b.first or dt.date.min)
+    hi = min(a.last or dt.date.max, b.last or dt.date.max)
+    return lo <= hi
+
+
+def _ba_changed(ctx, b: Budget) -> None:
+    b.updatedAt = clock.now()
+    activity.record(ctx.s, "budget.updated", actor=ctx.caller.id, subject_kind="budget",
+                    subject_id=b.id, owner=b.ownerId, detail={"fields": ["accounts"]})  # fmt: skip
+
+
+def _ba_create(ctx, record_id: str, body: BudgetAccountRecord) -> None:
+    b = _ba_checked(ctx, body, record_id)
+    ctx.s.add(BudgetAccount(id=record_id, createdAt=clock.now(), **body.model_dump()))
+    _ba_changed(ctx, b)
+
+
+def _ba_editable(ctx, record_id: str) -> BudgetAccount:
+    m = ctx.s.get(BudgetAccount, record_id)
+    if m is None or m.deleted:
+        raise Problem(404, "not-found", "Not found")
+    access.budget(ctx.s, ctx.caller.id, m.budgetId, "write")
+    return m
+
+
+def _ba_current(ctx, m: BudgetAccount) -> dict:
+    return _ba_out(m).model_dump(exclude={"id", "version"})
+
+
+def _ba_update(ctx, m: BudgetAccount, body: BudgetAccountRecord) -> None:
+    if body.budgetId != m.budgetId or body.accountId != m.accountId:
+        raise refuse("accountId", "account-fixed", "A budget's account keeps its account.")
+    b = _ba_checked(ctx, body, m.id)
+    for f in ("fromMonth", "untilMonth", "paidFromId", "movedFromId"):
+        setattr(m, f, getattr(body, f))
+    _ba_changed(ctx, b)
+
+
+def _ba_delete(ctx, m: BudgetAccount) -> None:
+    """A correction: the account was never counted then (R3.10). Taking it out from a month
+    on sets its last month instead."""
+    b, held = access.budget(ctx.s, ctx.caller.id, m.budgetId, "write")
+    if not held.configurable:
+        raise Problem(403, "owner-only", "Only the owner chooses the accounts.")
+    m.mark_deleted(ctx.caller.id)
+    _ba_changed(ctx, b)
+
+
+save.register(
+    save.Kind(
+        prefix="BdgAc",
+        entity=BudgetAccount,
+        fields=BudgetAccountRecord,
+        create=_ba_create,
+        editable=_ba_editable,
+        current=_ba_current,
+        update=_ba_update,
+        delete=_ba_delete,
+        read=lambda ctx, record_id: _ba_out(ctx.s.get(BudgetAccount, record_id)),
+    )
+)
 
 
 save.register(

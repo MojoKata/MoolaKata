@@ -14,7 +14,18 @@ from sqlalchemy.orm import Session
 
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.budgets import Budget, BudgetLine, BudgetMove
-from . import ZERO, Tree, _actual, _monthly, add_months, in_force, month_end, month_of
+from . import (
+    ZERO,
+    Members,
+    Tree,
+    _actual,
+    _monthly,
+    add_months,
+    in_force,
+    month_end,
+    month_of,
+    other_halves,
+)
 
 MoveKey = tuple[dt.date, str]  # (month, category id)
 
@@ -61,7 +72,7 @@ class Reserve:
 def reserve(
     s: Session,
     tr: Tree,
-    accts: list[str],
+    mem: Members,
     every: list[BudgetLine],
     moved: dict[MoveKey, Decimal],
     cat_id: str,
@@ -73,7 +84,7 @@ def reserve(
     if not mine:
         return None
     first = mine[0].fromMonth
-    totals = _monthly(s, accts, first, month, tr)
+    totals = _monthly(s, mem, first, month, tr)
     bal, began = ZERO, first
     m = first
     while m <= month:
@@ -129,7 +140,7 @@ class HeldIn:
 def held_in(
     s: Session,
     b: Budget,
-    accts: list[str],
+    mem: Members,
     tr: Tree,
     every: list[BudgetLine],
     move_rows: list[BudgetMove],
@@ -143,7 +154,7 @@ def held_in(
     for cat_id, ln in now.items():
         if ln.target is None or not ln.heldInId:
             continue
-        r = reserve(s, tr, accts, every, moved, cat_id, month)
+        r = reserve(s, tr, mem, every, moved, cat_id, month)
         if r is not None:
             by_account[ln.heldInId].append(r)
     end = month_end(month)
@@ -163,14 +174,15 @@ def held_in(
             )
         ).all()
         others = {
-            o.id: o.accountId
-            for o in s.scalars(
-                select(Transaction).where(
-                    Transaction.id.in_([t.transferId for t in txns if t.transferId])
-                )
-            )
+            k: o.accountId
+            for k, o in other_halves(s, [t.transferId for t in txns if t.transferId]).items()
         }
-        inside = set(accts) - {aid}
+
+        def from_inside(t, aid=aid, others=others) -> bool:
+            """A transfer with another of the budget's accounts, as they were that month."""
+            o = others.get(t.transferId) if t.transferId else None
+            return o is not None and o != aid and mem.counts(o, t.date)
+
         given_rows = [m for m in move_rows if m.transactionId and m.month <= month]
         # A transfer kept as the account's own (savings of its own) isn't the reserves'.
         own: dict[str, Decimal] = defaultdict(lambda: ZERO)
@@ -181,7 +193,7 @@ def held_in(
             (
                 t.amount - (own.get(t.id, ZERO) if t.amount > 0 else ZERO)
                 for t in txns
-                if t.transferId and others.get(t.transferId) in inside
+                if from_inside(t)
             ),
             ZERO,
         )
@@ -193,7 +205,7 @@ def held_in(
         )
         unassigned = []
         for t in txns:
-            landed = t.amount > 0 and not (t.transferId and others.get(t.transferId) in inside)
+            landed = t.amount > 0 and not from_inside(t)
             if not landed or month_of(t.date) != month:
                 continue
             free = t.amount - by_txn.get(t.id, ZERO)
@@ -216,10 +228,7 @@ def held_in(
                         own.get(t.id, ZERO) > 0,
                     )
                     for t in txns
-                    if t.amount > 0
-                    and t.transferId
-                    and others.get(t.transferId) in inside
-                    and month_of(t.date) == month
+                    if t.amount > 0 and from_inside(t) and month_of(t.date) == month
                 ],
             )
         )

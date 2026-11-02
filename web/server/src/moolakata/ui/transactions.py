@@ -1114,7 +1114,7 @@ def _set_left_out(s: Session, c: Caller, t: Transaction, was: list[str], now: li
         except Problem:
             errors.append(FieldError("leftOutOf", "budget-unknown", "Not a budget you can change."))
             continue
-        if t.accountId not in budgets.account_ids(s, b, c.id):
+        if t.accountId not in budgets.account_ids(s, b, c.id, t.date):
             errors.append(FieldError("leftOutOf", "not-in-budget", f"{b.name} doesn't count it."))
             continue
         row = s.get(BudgetLeaveOut, (b.id, t.id))

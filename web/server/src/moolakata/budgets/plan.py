@@ -77,9 +77,10 @@ def roles(s: Session, b: Budget, accounts: list[Account], today: dt.date) -> lis
     chosen = {
         m.accountId: m
         for m in s.scalars(
-            select(BudgetAccount).where(
-                BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false()
-            )
+            select(BudgetAccount)
+            .where(BudgetAccount.budgetId == b.id, BudgetAccount.deleted == false())
+            # An account counted more than once: its latest record holds its roles.
+            .order_by(BudgetAccount.fromMonth)
         )
     }
     fallback = main_account(s, ids, today)

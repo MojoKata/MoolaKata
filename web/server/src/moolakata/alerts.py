@@ -573,7 +573,7 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
         b = s.get(Budget, b_id) if b_id else None
         if b is None:
             continue
-        for aid in budgets.account_ids(s, b, u.id):
+        for aid in budgets.account_ids(s, b, u.id, today):
             a = s.get(Account, aid)
             if a is None or a.type != "checking":
                 continue

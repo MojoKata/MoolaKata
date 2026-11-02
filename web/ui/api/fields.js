@@ -50,13 +50,19 @@ export const FIELDS = {
     fromLastYear: {"type": "bool"},
     bitcoinFees: {"type": "choice", "choices": ["sale", "not-taxed"]},
   },
+  BudgetAccountRecord: {
+    budgetId: {"type": "ref", "prefix": "Bdgt"},
+    accountId: {"type": "ref", "prefix": "Acct"},
+    fromMonth: {"type": "date", "nullable": true},
+    untilMonth: {"type": "date", "nullable": true},
+    paidFromId: {"type": "ref", "prefix": "Acct", "nullable": true},
+    movedFromId: {"type": "ref", "prefix": "Acct", "nullable": true},
+  },
   BudgetRecord: {
     name: {"type": "text"},
     method: {"type": "choice", "choices": ["tracking", "envelope"]},
-    accountIds: {"type": "list", "items": {"type": "ref", "prefix": "Acct"}, "set": true},
     reserves: {"type": "bool"},
     moves: {"type": "bool"},
-    roles: {"type": "list", "items": {"type": "json", "schema": "RoleIn"}},
   },
   BudgetShareRecord: {
     targetId: {"type": "ref", "prefix": "Bdgt"},
@@ -454,11 +460,6 @@ export const FIELDS = {
     date: {"type": "date"},
     rate: {"type": "quantity"},
   },
-  RoleIn: {
-    accountId: {"type": "text"},
-    paidFromId: {"type": "text", "nullable": true},
-    movedFromId: {"type": "text", "nullable": true},
-  },
   RuleRecord: {
     payeeMatch: {"type": "text"},
     amountMin: {"type": "money", "nullable": true},
@@ -588,6 +589,7 @@ export const CREATES = {
   Anchr: {"via": "accountId", "needs": "writable"},
   Asmpt: {"who": "own"},
   BdShr: {"via": "targetId", "needs": "shareable"},
+  BdgAc: {"via": "budgetId", "needs": "configurable"},
   BdgLn: {"via": "budgetId", "needs": "writable"},
   BdgMv: {"via": "budgetId", "needs": "writable"},
   Bdgt: {"who": "anyone"},

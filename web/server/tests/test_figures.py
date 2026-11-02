@@ -2,7 +2,7 @@ import datetime as dt
 from decimal import Decimal as D
 
 from conftest import make_user, sign_in
-from edits import make, remove
+from edits import edit, make, remove
 from sqlalchemy import text
 from test_accounts import add, new_account
 
@@ -123,8 +123,8 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
     assert len(b["backups"]) == 1 and b["backups"][0]["masterKey"] == ks["fingerprint"]
 
 
-def test_a_portfolio_keeps_a_deleted_account_up_to_its_deletion(server):
-    # B22: the past keeps it (R3.10); from its deletion on it counts nothing, and its leaving
+def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
+    # B22: the past keeps it (R3.10); from its closing on it counts nothing, and its leaving
     # is no loss.
     make_user(server, "alice")
     c = sign_in(server, "alice")
@@ -134,20 +134,16 @@ def test_a_portfolio_keeps_a_deleted_account_up_to_its_deletion(server):
         add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
         ids.append(a)
     p = make(c, "Portf", name="Both", accountIds=[x["id"] for x in ids]).json()
-    gone = c.get(f"/ui/api/accounts/{ids[1]['id']}").json()
-    r = remove(c, "Acct", gone)
+    r = edit(c, "Acct", f"/ui/api/accounts/{ids[1]['id']}", closedOn="2026-08-15")
     assert r.status_code == 200, r.text
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     by_day = {x["date"]: x["value"] for x in s["points"]}
     assert by_day["2026-08-01"] == "2000.00"
     assert s["end"] == "1000.00" and s["growth"] == "0.00"
-    # Its returns keep it the same way, up to its deletion (R3.10).
-    rows = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"]
-    assert [r["name"] for r in rows] == ["Kept", "Both"]
 
 
-def test_a_portfolios_returns_count_a_deleted_accounts_gain(server):
-    # B22: an account's gain before its deletion stays in the portfolio's returns (R3.10).
+def test_a_portfolios_returns_count_a_closed_accounts_gain(server):
+    # B22: an account's gain before it closed stays in the portfolio's returns (R3.10).
     make_user(server, "alice")
     c = sign_in(server, "alice")
     a = new_account(c, name="Closed", mask="3333", openingBalance="0.00", openingDate="2026-06-30")
@@ -157,7 +153,22 @@ def test_a_portfolios_returns_count_a_deleted_accounts_gain(server):
     add(c, keep["id"], "1000.00", "2026-07-01", kind="deposit")
     p = make(c, "Portf", name="Both", accountIds=[a["id"], keep["id"]]).json()
     before = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
-    gone = c.get(f"/ui/api/accounts/{a['id']}").json()
-    remove(c, "Acct", gone)
+    assert edit(c, "Acct", f"/ui/api/accounts/{a['id']}", closedOn="2026-08-15").status_code == 200
     after = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     assert before["YTD"] and after["YTD"] == before["YTD"], (before, after)
+
+
+def test_a_deleted_account_leaves_a_portfolios_past(server):
+    """Deleting is a correction (R3.10): the account was never there, past included."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    ids = []
+    for name, mask in (("Kept", "1111"), ("Mistake", "2222")):
+        a = new_account(c, name=name, mask=mask, openingBalance="0.00", openingDate="2026-06-30")
+        add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
+        ids.append(a)
+    p = make(c, "Portf", name="Both", accountIds=[x["id"] for x in ids]).json()
+    assert remove(c, "Acct", c.get(f"/ui/api/accounts/{ids[1]['id']}").json()).status_code == 200
+    s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
+    by_day = {x["date"]: x["value"] for x in s["points"]}
+    assert by_day["2026-08-01"] == "1000.00"

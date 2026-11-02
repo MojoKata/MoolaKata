@@ -1445,6 +1445,7 @@ const METHODS = /** @type {[string, string][]} */ ([
 
 /**
  * A new budget: its name, method, options and accounts, and whether to plan it from history.
+ * Each account is a record of its own, counted from the budget's start (S7.1.7).
  * @param {{ close: (v?: any) => void }} p
  */
 function BudgetDialog({ close }) {
@@ -1454,6 +1455,17 @@ function BudgetDialog({ close }) {
     draft.add(BudgetRec, { name: '', method: 'tracking', reserves: true, moves: true });
   }, []);
   const rec = /** @type {BudgetRec | undefined} */ (f.draft?.records[0]);
+  const counted = /** @type {any[]} */ (f.draft?.records || []).filter((r) =>
+    r instanceof BudgetAccountRec && !r.removed
+  );
+  const setIds = (/** @type {Set<string>} */ v) => {
+    if (!f.draft || !rec) return;
+    for (const r of counted) if (!v.has(r.get('accountId'))) f.draft.remove(r);
+    const have = new Set(counted.map((r) => r.get('accountId')));
+    for (const id of v) {
+      if (!have.has(id)) f.draft.add(BudgetAccountRec, { budgetId: rec.id, accountId: id });
+    }
+  };
   return html`
     <${DraftDialog} f=${f} title="New budget" wide close=${close} what="This budget"
       label="Make it" saved=${(/** @type {any} */ o) => {
@@ -1471,9 +1483,8 @@ function BudgetDialog({ close }) {
             'envelope'} hint=${rec.get('method') === 'envelope'
             ? 'Always on in an envelope budget.'
             : 'Cover one category from another for a month.'} />
-          <${AccountsPicker} ids=${new Set(rec.get('accountIds'))} setIds=${(
-            /** @type {Set<string>} */ v,
-          ) => rec.set('accountIds', [...v])} error=${rec.error('accountIds')} />
+          <${AccountsPicker} ids=${new Set(counted.map((r) => r.get('accountId')))}
+            setIds=${setIds} error=${counted.map((r) => r.error('accountId')).find(Boolean)} />
           <${Field} label="Estimate from history"
             hint="A plan line per category from its average; you keep, change or drop each.">
             <${Select} value=${estimate} onChange=${setEstimate} options=${[
@@ -1489,8 +1500,37 @@ function BudgetDialog({ close }) {
   `;
 }
 
+/** The first day of the month `n` months from `m` (YYYY-MM-DD). @param {string} m @param {number} n */
+function addMonths(m, n) {
+  const d = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 /**
- * A budget's name, options and accounts, and where its money comes from (S7.1.6).
+ * The months a change to a budget's accounts can count from: since the budget began, or one
+ * of the last twelve months, this one first.
+ * @param {string} thisMonth
+ * @returns {[string, string][]}
+ */
+function fromChoices(thisMonth) {
+  /** @type {[string, string][]} */
+  const out = [];
+  for (let i = 0; i < 12; i++) {
+    const m = addMonths(thisMonth, -i);
+    const name = new Date(m + 'T12:00:00').toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+    out.push([m, i === 0 ? `${name} (this month)` : name]);
+  }
+  out.push(['start', 'Since the budget began']);
+  return out;
+}
+
+/**
+ * A budget's name, options and accounts, and where its money comes from (S7.1.6). Its accounts
+ * are records over months (S7.1.7): one added counts from the month chosen, one taken out ends
+ * the month before it, so earlier months keep what they counted (R3.10).
  * @param {{ close: (v?: any) => void, b: any }} p
  */
 function BudgetSettingsDialog({ close, b }) {
@@ -1498,25 +1538,60 @@ function BudgetSettingsDialog({ close, b }) {
   const accounts = useList('/accounts');
   const list = /** @type {any[]} */ (accounts.data) || [];
   const byId = Object.fromEntries(list.map((a) => [a.id, a]));
+  const thisMonth = today().slice(0, 7) + '-01';
+  const [from, setFrom] = useState(thisMonth);
+  // The accounts ticked or unticked here, applied to the records from the month chosen.
+  const [wanted, setWanted] = useState(/** @type {Set<string> | null} */ (null));
   const f = useDraft(async (draft) => {
-    const x = await api.get(`/budgets/${b.id}`);
-    // The roles as chosen: none where the history says.
-    draft.load(BudgetRec, {
-      ...x,
-      roles: x.roles.map((/** @type {any} */ r) => ({
-        accountId: r.accountId,
-        paidFromId: r.paidFromLearned ? null : r.paidFromId,
-        movedFromId: r.movedFromProposed ? null : r.movedFromId,
-      })),
-    });
+    const [x, rows] = await Promise.all([
+      api.get(`/budgets/${b.id}`),
+      api.get(`/budgets/${b.id}/accounts`),
+    ]);
+    draft.load(BudgetRec, x);
+    for (const r of rows.items) draft.load(BudgetAccountRec, r);
   }, [b.id]);
   const rec = /** @type {BudgetRec | undefined} */ (f.draft?.records[0]);
+  const rows =
+    /** @type {BudgetAccountRec[]} */ ((f.draft?.records || []).filter((r) =>
+      r instanceof BudgetAccountRec
+    ));
+  // An account's open record: the one still counting, or made here.
+  const open = (/** @type {string} */ id) =>
+    rows.find((r) => r.get('accountId') === id && !r.removed && !r.get('untilMonth')) ||
+    rows.find((r) => r.get('accountId') === id && r.state === 'new' && !r.removed) || null;
+  const counting = new Set(
+    rows.filter((r) => r.state !== 'new' && !r.get('untilMonth')).map((r) => r.get('accountId')),
+  );
+  const ids = wanted || counting;
+  /** @param {Set<string>} next @param {string} month */
+  const apply = (next, month) => {
+    const draft = f.draft;
+    if (!draft || !rec) return;
+    const first = month === 'start' ? null : month;
+    for (const r of rows) {
+      if (r.state === 'new') draft.remove(r);
+      else {
+        if (r.removed) draft.unremove(r);
+        r.revert('untilMonth');
+      }
+    }
+    for (const r of rows) {
+      const id = r.get('accountId');
+      if (r.state === 'new' || r.get('untilMonth') || next.has(id)) continue;
+      // Taken out: never counted, when it began then or later; else it ends the month before.
+      if (!first || (r.get('fromMonth') && r.get('fromMonth') >= first)) draft.remove(r);
+      else r.set('untilMonth', addMonths(first, -1));
+    }
+    for (const id of next) {
+      if (!counting.has(id)) {
+        draft.add(BudgetAccountRec, { budgetId: rec.id, accountId: id, fromMonth: first });
+      }
+    }
+  };
+  const inBudget = [...ids].map((x) => byId[x]).filter(Boolean);
   const learned = Object.fromEntries(b.roles.map((/** @type {any} */ r) => [r.accountId, r]));
   // What a budget covers is a setting (S7.1): its accounts.
   const owner = b.access.configurable;
-  const roles = /** @type {any[]} */ (rec?.get('roles') || []);
-  const role = (/** @type {string} */ id) => roles.find((r) => r.accountId === id) || {};
-  const inBudget = b.accountIds.map((/** @type {string} */ x) => byId[x]).filter(Boolean);
   const choices = (/** @type {any} */ a, /** @type {string} */ k) => {
     const r = learned[a.id];
     const auto = k === 'paidFromId' ? r?.paidFromId : r?.movedFromId;
@@ -1529,12 +1604,9 @@ function BudgetSettingsDialog({ close, b }) {
     ];
   };
   const set = (/** @type {string} */ id, /** @type {string} */ k) => (/** @type {string} */ v) =>
-    rec?.set(
-      'roles',
-      roles.some((r) => r.accountId === id)
-        ? roles.map((r) => (r.accountId === id ? { ...r, [k]: v || null } : r))
-        : [...roles, { accountId: id, paidFromId: null, movedFromId: null, [k]: v || null }],
-    );
+    open(id)?.set(k, v || null);
+  const changedAccounts = wanted !== null &&
+    (wanted.size !== counting.size || [...wanted].some((x) => !counting.has(x)));
   return html`
     <${DraftDialog} f=${f} title=${`${b.name}: settings`} wide close=${close} what="This budget"
       done="Saved" note=${`${
@@ -1550,9 +1622,26 @@ function BudgetSettingsDialog({ close, b }) {
               ? 'Always on in an envelope budget.'
               : 'Cover one category from another for a month.'} />
           ${owner
-            ? html`<${AccountsPicker} ids=${new Set(rec.get('accountIds'))} setIds=${(
-              /** @type {Set<string>} */ v,
-            ) => rec.set('accountIds', [...v])} error=${rec.error('accountIds')} />`
+            ? html`
+              <${AccountsPicker} ids=${ids} setIds=${(/** @type {Set<string>} */ v) => {
+                setWanted(v);
+                apply(v, from);
+              }} error=${rows.map((r) => r.error('fromMonth') || r.error('accountId')).find(
+                Boolean,
+              )} />
+              ${changedAccounts
+                ? html`
+                  <${Field} label="The change counts from"
+                    hint="Months before it keep the accounts they had.">
+                    <${Select} value=${from} options=${fromChoices(thisMonth)}
+                      data-help="counts-from" onChange=${(/** @type {string} */ v) => {
+                        setFrom(v);
+                        apply(ids, v);
+                      }} />
+                    </${Field}>
+                `
+                : null}
+            `
             : null}
           <fieldset class="field" style=${{ border: 0, padding: 0, margin: '0 0 14px' }}>
             <legend class="small" style=${{ color: 'var(--fg-dim)' }}>Where money comes
@@ -1563,18 +1652,26 @@ function BudgetSettingsDialog({ close, b }) {
             ].map((a) =>
               a.type === 'credit-card'
                 ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim"
-                  >paid from</div></span><${Select} value=${role(a.id).paidFromId || ''}
+                  >paid from</div></span><${Select} value=${open(a.id)?.get('paidFromId') || ''}
                   onChange=${set(a.id, 'paidFromId')} options=${choices(a, 'paidFromId')}
                   aria-label=${`${a.name}: paid from`} data-help="paid-from" /></div>`
                 : ['savings', 'money-market'].includes(a.type)
                 ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim"
                   >money for its reserves moves from</div></span><${Select}
-                  value=${role(a.id).movedFromId || ''} onChange=${set(a.id, 'movedFromId')}
-                  options=${choices(a, 'movedFromId')} aria-label=${`${a.name}: moved from`}
+                  value=${open(a.id)?.get('movedFromId') || ''} onChange=${
+                  set(
+                    a.id,
+                    'movedFromId',
+                  )
+                } options=${choices(a, 'movedFromId')} aria-label=${`${a.name}: moved from`}
                   data-help="moved-from" /></div>`
                 : null
             )}
-            ${rec.error('roles') ? html`<div class="err">${rec.error('roles')}</div>` : null}
+            ${rows.map((r) => r.error('paidFromId') || r.error('movedFromId')).find(Boolean)
+              ? html`<div class="err">${
+                rows.map((r) => r.error('paidFromId') || r.error('movedFromId')).find(Boolean)
+              }</div>`
+              : null}
           </fieldset>
         `
         : null}
@@ -1589,8 +1686,6 @@ class BudgetRec extends Record {
   /** @override */
   static fields = FIELDS.BudgetRecord;
   /** @override */
-  static defaults = { accountIds: [], roles: [] };
-  /** @override */
   static rules = {
     // An envelope budget always has moves (S7.1.4).
     moves: {
@@ -1598,6 +1693,16 @@ class BudgetRec extends Record {
       value: true,
     },
   };
+}
+
+/** An account a budget counts, over months (S7.1.7), with its roles (S7.1.6). */
+class BudgetAccountRec extends Record {
+  /** @override */
+  static prefix = 'BdgAc';
+  /** @override */
+  static fields = FIELDS.BudgetAccountRecord;
+  /** @override */
+  static ownedBy = ['budgetId'];
 }
 
 /** A move between categories for a month (S7.11): made, or deleted to undo it. */

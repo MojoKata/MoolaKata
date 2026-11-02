@@ -36,6 +36,12 @@
       often transfers into it and changeable; and, until there is history, the budget's
       account receiving the most income. A household with several checking accounts and a
       card for each spouse needs no account named as the main one.
+   7. **Its accounts over months** (R3.10): each account counts from a month (or since the
+      budget began) to a month (or still). Adding an account, or taking one out, in the
+      budget's settings counts from a month chosen, this month unless another is: months
+      before it keep the accounts they had. One taken out from the month it began counts in
+      none. A closed account counts up to the month it closed (S1.2); a deleted one, a
+      correction, in none.
 2. **Categories** form a two-level tree (*Housing › Rent*). Each is an **expense**,
    **income**, **savings** or **transfer** category. A default set ships, and each category
    may carry a **tax tag** (charitable, medical, business, childcare, education, …) that
@@ -63,6 +69,11 @@
       as *Cash* unless given another category, so cash spent counts whether or not the cash
       account is in the budget. One with no category, or a transfer category, is listed under
       **Left the budget** or **Entered the budget** to sort, and counts nowhere until it is.
+      Whether the other side is one of the budget's accounts is judged by the accounts the
+      budget counted that month (S7.1.7), whether or not the viewer can see that account: one
+      they can't is named *an account not shared*, a payment to a loan they can't see counts
+      whole in its category, and one whose account was deleted since still left the budget
+      (*a deleted account*).
       Making or editing a budget names the accounts it leaves out that often receive transfers
       from its accounts (*Cash gets transfers from UMB Checking: include it?*).
    3. **Loan payments** count at the bank account they come from, as their loan says

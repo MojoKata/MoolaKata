@@ -44,27 +44,75 @@ def month_end(month: dt.date) -> dt.date:
     return add_months(month, 1) - dt.timedelta(days=1)
 
 
-def account_ids(s: Session, budget: Budget, viewer: str | None = None) -> list[str]:
-    """The budget's accounts, less any loan: a loan's payments are counted at the bank. For a
-    receiver (`viewer`), the owner's own accounts, and one shared with the owner only if it is
-    shared with them too, so a budget never passes on an account someone else shared (S7.1.1)."""
+@dataclass(frozen=True)
+class Span:
+    """An account counted from its first month to its last, either open-ended."""
+
+    accountId: str
+    first: dt.date | None
+    last: dt.date | None
+
+    def holds(self, month: dt.date) -> bool:
+        return (self.first is None or self.first <= month) and (
+            self.last is None or month <= self.last
+        )
+
+
+@dataclass(frozen=True)
+class Members:
+    """The accounts a budget counts, month by month, for one viewer (S7.1.7, R3.10): a past
+    month keeps the accounts it had, a closed account counts up to the month it closed, and a
+    deleted one, a correction, counts in none."""
+
+    spans: tuple[Span, ...]
+
+    def at(self, month: dt.date) -> list[str]:
+        return list(dict.fromkeys(x.accountId for x in self.spans if x.holds(month)))
+
+    def ever(self) -> list[str]:
+        return list(dict.fromkeys(x.accountId for x in self.spans))
+
+    def counts(self, account_id: str, day: dt.date) -> bool:
+        m = month_of(day)
+        return any(x.accountId == account_id and x.holds(m) for x in self.spans)
+
+
+def members(s: Session, budget: Budget, viewer: str | None = None) -> Members:
+    """The budget's accounts by month, less any loan: a loan's payments are counted at the
+    bank. For a receiver (`viewer`), the owner's own accounts, and one shared with the owner
+    only if it is shared with them too, so a budget never passes on an account someone else
+    shared (S7.1.1)."""
     from .. import access
     from ..loans import TYPES
-    from ..store.entities.accounts import Account
 
-    rows = s.scalars(
-        select(Account)
-        .join(BudgetAccount, BudgetAccount.accountId == Account.id)
+    rows = s.execute(
+        select(BudgetAccount, Account)
+        .join(Account, BudgetAccount.accountId == Account.id)
         .where(
             BudgetAccount.budgetId == budget.id,
             BudgetAccount.deleted == false(),
+            Account.deleted == false(),
             Account.type.not_in(TYPES),
         )
+        .order_by(BudgetAccount.fromMonth)
     ).all()
-    if viewer is None or viewer == budget.ownerId:
-        return [a.id for a in rows]
-    theirs = {a.id for a, _ in access.accounts(s, viewer, Account.id.in_([a.id for a in rows]))}
-    return [a.id for a in rows if a.ownerId == budget.ownerId or a.id in theirs]
+    if viewer is not None and viewer != budget.ownerId:
+        ids = [a.id for _, a in rows]
+        theirs = {a.id for a, _ in access.accounts(s, viewer, Account.id.in_(ids))}
+        rows = [(m, a) for m, a in rows if a.ownerId == budget.ownerId or a.id in theirs]
+    spans = []
+    for m, a in rows:
+        last = m.untilMonth
+        if a.closedOn is not None:
+            closed = month_of(a.closedOn)
+            last = closed if last is None else min(last, closed)
+        spans.append(Span(a.id, m.fromMonth, last))
+    return Members(tuple(spans))
+
+
+def account_ids(s: Session, budget: Budget, viewer: str | None, month: dt.date) -> list[str]:
+    """The accounts the budget counts in a month, for a viewer."""
+    return members(s, budget, viewer).at(month_of(month))
 
 
 def active_id(s: Session, user_id: str) -> str | None:
@@ -140,6 +188,7 @@ class Moved:
     otherAccountId: str
     amount: Decimal  # − left the budget, + entered it
     payee: str | None
+    otherDeleted: bool = False  # the other account was deleted since
 
 
 # A loan payment's parts, by the shipped category each counts in when split (S1.9.7).
@@ -176,7 +225,7 @@ def amounts(
             Transaction.date <= end,
         )
     ).all()
-    others = _other_halves(s, [t.transferId for t in txns if t.transferId])
+    others = other_halves(s, [t.transferId for t in txns if t.transferId])
     ids = [t.id for t in txns]
     splits: dict[str, list[Split]] = defaultdict(list)
     for chunk in range(0, len(ids), 500):
@@ -195,11 +244,17 @@ def amounts(
         if t.id in tr.skip:
             continue  # left out of this budget (S7.3.5)
         other = others.get(t.transferId) if t.transferId else None
-        if t.transferId:
-            if other is None or other[1].id in inside:
-                continue  # between two of the budget's accounts: no money moved in or out
-            if other[1].type in _loan_types():
-                _count_loan_payment(s, tr, out, t, other, loans_seen)
+        if other is not None and other.accountId in inside:
+            continue  # between two of the budget's accounts: no money moved in or out
+        if other is not None and other.type in _loan_types() and not other.deleted:
+            loan_account = s.get(Account, other.accountId)
+            if loan_account is not None:
+                _count_loan_payment(s, tr, out, t, (other, loan_account), loans_seen)
+                continue
+            # A loan the viewer can't see counts whole, so its split never shows (S7.1.1).
+            cat = t.categoryId if t.categoryId and _counts(tr, t.categoryId) else tr.key("loans")
+            if cat:
+                out[cat] += t.amount
                 continue
         parts = splits.get(t.id)
         counted = False
@@ -211,12 +266,14 @@ def amounts(
         elif t.categoryId and _counts(tr, t.categoryId):
             out[t.categoryId] += _counted(t.amount, t.reimbursable) - paying.get(t.id, ZERO)
             counted = True
-        if other is not None and not counted and other[1].type == "cash" and tr.key("cash"):
+        if other is not None and not counted and other.type == "cash" and tr.key("cash"):
             # Cash taken out to a cash account the budget doesn't count is spent (S7.3.2).
             out[tr.key("cash")] += t.amount
             counted = True
         if other is not None and not counted and moved is not None:
-            moved.append(Moved(t.id, t.date, t.accountId, other[1].id, t.amount, t.payee))
+            moved.append(
+                Moved(t.id, t.date, t.accountId, other.accountId, t.amount, t.payee, other.deleted)
+            )
     return dict(out)
 
 
@@ -238,20 +295,36 @@ def _loan_types() -> tuple[str, ...]:
     return TYPES
 
 
-def _other_halves(s: Session, transfer_ids: list[str]) -> dict[str, tuple[Transaction, Account]]:
-    """Each matched transfer's other half, with its account, by its id."""
-    out: dict[str, tuple[Transaction, Account]] = {}
+@dataclass(frozen=True)
+class OtherHalf:
+    """A matched transfer's other half: which account it is in, whatever the viewer can see,
+    and whether that account was deleted since (R3.10)."""
+
+    id: str
+    accountId: str
+    type: str
+    deleted: bool
+
+
+def other_halves(s: Session, transfer_ids: list[str]) -> dict[str, OtherHalf]:
+    """Each matched transfer's other half, by its id. Read as the server, as columns only: the
+    figures need to know whether the money stayed in the budget's accounts, deleted or hidden
+    from the viewer or not, and the viewer is shown nothing of that account but this (S7.1.1).
+    A half deleted on its own is no half: the transfer is money in or out."""
+    from ..store.scoping import unscoped
+
+    out: dict[str, OtherHalf] = {}
     for chunk in range(0, len(transfer_ids), 500):
-        for o, a in s.execute(
-            select(Transaction, Account)
+        stmt = (
+            select(Transaction.id, Transaction.accountId, Account.type, Account.deletedAt)
             .join(Account, Account.id == Transaction.accountId)
             .where(
                 Transaction.id.in_(transfer_ids[chunk : chunk + 500]),
-                Transaction.deleted == false(),
-                Account.deleted == false(),
+                Transaction.deletedAt.is_(None),
             )
-        ):
-            out[o.id] = (o, a)
+        )
+        for tid, aid, kind, gone in s.execute(unscoped(stmt, "a budget's transfers")):
+            out[tid] = OtherHalf(tid, aid, kind, gone is not None)
     return out
 
 
@@ -400,7 +473,8 @@ def _month_view(
     from . import plan, reserves
 
     tr = tree(s, budget)
-    accts = account_ids(s, budget, viewer)
+    mem = members(s, budget, viewer)
+    accts = mem.at(month)
     every = lines(s, budget)
     now = in_force(every, month)
     move_rows = reserves.moves(s, budget)
@@ -410,11 +484,11 @@ def _month_view(
     if budget.method == "envelope" and month >= (budget.startMonth or month):
         from . import envelope
 
-        env = envelope.month(s, budget, accts, tr, every, move_rows, month)
+        env = envelope.month(s, budget, mem, tr, every, move_rows, month)
     moved: list[Moved] = []
     totals = amounts(s, accts, month, month_end(month), moved, tr)
     year_start = month.replace(month=1)
-    ytd = amounts(s, accts, year_start, month_end(month), tr=tr)
+    ytd = _summed(_monthly(s, mem, year_start, month, tr))
     rows: list[Row] = []
     planned_cats = set(now)
     for cat_id, ln in now.items():
@@ -453,7 +527,7 @@ def _month_view(
             )
             continue
         if ln.target is not None and ln.cadence == "month":
-            r = reserves.reserve(s, tr, accts, every, moved_by, cat_id, month)
+            r = reserves.reserve(s, tr, mem, every, moved_by, cat_id, month)
             if r is not None:
                 rows.append(
                     Row(
@@ -479,7 +553,7 @@ def _month_view(
             planned, carried = ln.amount, ZERO
             actual = _actual(tr, ytd, cat_id)
         else:
-            carried = _carry(s, tr, accts, every, cat_id, month, moved_by) if ln.rollover else ZERO
+            carried = _carry(s, tr, mem, every, cat_id, month, moved_by) if ln.rollover else ZERO
             planned = ln.amount + carried + mv
             actual = _actual(tr, totals, cat_id)
         rows.append(
@@ -570,7 +644,7 @@ def _kind(tr: Tree, cat_id: str) -> str | None:
 def _carry(
     s: Session,
     tr: Tree,
-    accts: list[str],
+    mem: Members,
     every: list[BudgetLine],
     cat_id: str,
     month: dt.date,
@@ -585,7 +659,7 @@ def _carry(
     start = mine[0].fromMonth
     if start >= month:
         return ZERO
-    totals = _monthly(s, accts, start, add_months(month, -1), tr)
+    totals = _monthly(s, mem, start, add_months(month, -1), tr)
     carry = ZERO
     m = start
     while m < month:
@@ -604,14 +678,23 @@ def _carry(
 
 
 def _monthly(
-    s: Session, accts: list[str], first: dt.date, last: dt.date, tr: Tree | None = None
+    s: Session, mem: Members, first: dt.date, last: dt.date, tr: Tree | None = None
 ) -> dict[dt.date, dict[str, Decimal]]:
+    """Each month's totals over the accounts the budget counted that month."""
     out: dict[dt.date, dict[str, Decimal]] = {}
     m = first
     while m <= last:
-        out[m] = amounts(s, accts, m, month_end(m), tr=tr)
+        out[m] = amounts(s, mem.at(m), m, month_end(m), tr=tr)
         m = add_months(m, 1)
     return out
+
+
+def _summed(by_month: dict[dt.date, dict[str, Decimal]]) -> dict[str, Decimal]:
+    out: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for totals in by_month.values():
+        for k, v in totals.items():
+            out[k] += v
+    return dict(out)
 
 
 # ---------- the other tabs (S7.4) ----------
@@ -621,7 +704,7 @@ def cash_flow(s: Session, budget: Budget, month: dt.date, viewer: str | None = N
     """Income by category into spending by top-level category, and what was left: the
     month's Sankey."""
     tr = tree(s, budget)
-    totals = amounts(s, account_ids(s, budget, viewer), month, month_end(month), tr=tr)
+    totals = amounts(s, account_ids(s, budget, viewer, month), month, month_end(month), tr=tr)
     sources: dict[str, Decimal] = defaultdict(lambda: ZERO)
     uses: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for cid, amt in totals.items():
@@ -655,11 +738,11 @@ def trends(
     """For each of the last months: planned and actual spending, for one category (with its
     children) or every expense category."""
     tr = tree(s, budget)
-    accts = account_ids(s, budget, viewer)
+    mem = members(s, budget, viewer)
     every = lines(s, budget)
     out = []
     first = add_months(last_month, -(months - 1))
-    totals = _monthly(s, accts, first, last_month, tr)
+    totals = _monthly(s, mem, first, last_month, tr)
     for i in range(months):
         m = add_months(first, i)
         plan = in_force(every, m)

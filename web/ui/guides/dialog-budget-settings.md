@@ -20,6 +20,14 @@ Cover one category from another for a month. An envelope budget always has moves
 The accounts whose transactions count. Only the budget's owner chooses them. An account left out that
 often gets transfers from these is named, so you can include it.
 
+## The change counts from {#counts-from}
+
+Shown once you add or take out an account: the month the change counts from, this month unless
+you choose another. Months before it keep the accounts they had, so a past month never changes
+because an account was taken out. An account taken out from the month it began, or *since the
+budget began*, is as if it was never counted. To end an account itself, close it in its
+Settings instead.
+
 ## Paid from {#paid-from}
 
 The account a card is paid from. Nothing to set: it's learned from the card's payments, so a card

@@ -24,6 +24,8 @@ class BudgetAccount(Record):
     accountId: str
     movedFromId: str | None = None
     paidFromId: str | None = None
+    fromMonth: dt.date | None = None
+    untilMonth: dt.date | None = None
 
 
 @dataclass(kw_only=True, eq=False)
