@@ -325,13 +325,14 @@ def kept_with(s: Session, receipt_id: str) -> int:
     return s.scalar(scoping.unscoped(q, "how many things a receipt is kept with"))
 
 
-def level_for(s: Session, user_id: str, r: Receipt) -> str | None:
-    """The user's level on a receipt as the API names it (ReceiptAccess), or None."""
-    p = access.perms(s, Receipt, r.id, user_id)
-    return None if p is None else p.level(access.RECORD_OWNER)
+def perms_for(s: Session, user_id: str, r: Receipt) -> access.Perms | None:
+    """What the user holds of a receipt (ReceiptAccess), or None when they don't read it."""
+    return access.perms(s, Receipt, r.id, user_id)
 
 
-def get(s: Session, user_id: str, receipt_id: str, need: str = "read") -> tuple[Receipt, str]:
+def get(
+    s: Session, user_id: str, receipt_id: str, need: str = "read"
+) -> tuple[Receipt, access.Perms]:
     """`need`: *read*, *write*, or a permission's name (deleting it: *deletable*)."""
     p = access.perms(s, Receipt, receipt_id, user_id)
     r = s.get(Receipt, receipt_id) if p is not None else None
@@ -340,14 +341,14 @@ def get(s: Session, user_id: str, receipt_id: str, need: str = "read") -> tuple[
     want = {"read": None, "write": "writable"}.get(need, need)
     if want is not None and not getattr(p, want):
         raise Problem(403, "owner-only", "Only the receipt's owner can do this.")
-    return r, p.level(access.RECORD_OWNER)
+    return r, p
 
 
 def to_attach(s: Session, user_id: str, receipt_id: str, field: str = "receiptId") -> Receipt:
     """A receipt this user may attach to something: its owner's, or one they write to through
     what it is attached to. A read share shows a receipt and attaches it nowhere (S9.6)."""
-    r, lvl = get(s, user_id, receipt_id)
-    if lvl not in ("owner", "write"):
+    r, p = get(s, user_id, receipt_id)
+    if not p.writable:
         raise refuse(
             field,
             "receipt-read-only",
@@ -357,13 +358,10 @@ def to_attach(s: Session, user_id: str, receipt_id: str, field: str = "receiptId
     return r
 
 
-def visible(s: Session, user_id: str) -> list[tuple[Receipt, str]]:
+def visible(s: Session, user_id: str) -> list[tuple[Receipt, access.Perms]]:
     """The receipts the user reads (ReceiptAccess): their own, and those kept with what they
     read."""
-    return [
-        (r, p.level(access.RECORD_OWNER))
-        for r, p in access.listing(s, Receipt, user_id, order_by=Receipt.createdAt)
-    ]
+    return access.listing(s, Receipt, user_id, order_by=Receipt.createdAt)
 
 
 # What a link of each kind names, by the prefix of its id (schema.md §3).
@@ -403,12 +401,6 @@ def target(s: Session, user_id: str, kind: str, item_id: str) -> access.Perms | 
         "donation": Donation,
     }[kind]
     return access.perms(s, entity, item_id, user_id)
-
-
-def can_unlink(s: Session, user_id: str, ln: ReceiptLink) -> bool:
-    """Whoever can change what a receipt is kept with can detach it from that (S9.3)."""
-    p = target(s, user_id, ln.kind, ln.itemId)
-    return p is not None and p.writable
 
 
 def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):

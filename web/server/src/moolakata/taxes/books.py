@@ -45,17 +45,12 @@ def filers(s: Session, book: TaxBook) -> list[TaxBookFiler]:
     )
 
 
-def visible(s: Session, user_id: str) -> list[tuple[TaxBook, str]]:
+def visible(s: Session, user_id: str) -> list[tuple[TaxBook, access.Perms]]:
     """The books the user holds or helps with (TaxBookAccess), newest first."""
-    return [
-        (b, p.level())
-        for b, p in access.listing(
-            s, TaxBook, user_id, order_by=(TaxBook.year.desc(), TaxBook.createdAt)
-        )
-    ]
+    return access.listing(s, TaxBook, user_id, order_by=(TaxBook.year.desc(), TaxBook.createdAt))
 
 
-def get(s: Session, user_id: str, book_id: str, need: str = "read") -> tuple[TaxBook, str]:
+def get(s: Session, user_id: str, book_id: str, need: str = "read") -> tuple[TaxBook, access.Perms]:
     """`need`: *read*, *write*, or a permission's name (what it counts: *configurable*;
     deleting it: *deletable*)."""
     from ..errors import Problem
@@ -67,7 +62,7 @@ def get(s: Session, user_id: str, book_id: str, need: str = "read") -> tuple[Tax
     want = {"read": None, "write": "writable"}.get(need, need)
     if want is not None and not getattr(p, want):
         raise Problem(403, "read-only", "This tax book is shared with you to read.")
-    return b, p.level()
+    return b, p
 
 
 def overrides(s: Session, book: TaxBook) -> dict[str, bool]:

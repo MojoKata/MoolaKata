@@ -163,7 +163,6 @@ def _outgoing(s, link: Link) -> list[Incoming]:
     it names."""
     from .. import sharing
     from ..errors import Problem
-    from ..store.entities.sharing import Share
 
     remote = {
         u.id: u
@@ -172,22 +171,22 @@ def _outgoing(s, link: Link) -> list[Incoming]:
     if not remote:
         return []
     out: dict[tuple[str, str], Incoming] = {}
-    for g in s.scalars(
-        select(Share)
-        .where(Share.userId.in_(list(remote)), Share.deleted == false())
-        .order_by(Share.createdAt)
-    ):
-        e = out.get((g.kind, g.itemId))
+    shares = sorted(
+        sharing.every_share(s, lambda e: [e.userId.in_(list(remote))]),
+        key=lambda g: (g.createdAt, g.id),
+    )
+    for g in shares:
+        e = out.get((g.kind, g.targetId))
         if e is None:
             try:
-                obj = sharing.item(s, g.kind, g.itemId)
+                obj = sharing.item(s, g.kind, g.targetId)
             except Problem:
                 continue
             if getattr(obj, "deleted", False):
                 continue
             owner_id = getattr(obj, "ownerId", None)
             owner = s.get(User, owner_id) if owner_id else None
-            e = out[(g.kind, g.itemId)] = Incoming(
+            e = out[(g.kind, g.targetId)] = Incoming(
                 kind=g.kind,
                 ownerName=owner.displayName if owner else "",
                 sharedAt=g.createdAt,

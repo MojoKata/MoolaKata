@@ -62,7 +62,7 @@ def holding(h: Household) -> tuple:
 
 def gift_plan(h: Household) -> tuple:
     """Emma's plan as read, and the gifts with their occasions (CR3-43)."""
-    plan = h.c.get(f"/ui/api/people/{h.extra['emma']['id']}").json()
+    plan = h.c.get(f"/ui/api/gift-plans/{h.extra['emma']['id']}").json()
     gifts = h.c.get("/ui/api/gifts").json()["items"]
     return plan, [(g["description"], g["occasion"], g["occasionLabel"]) for g in gifts]
 
@@ -599,9 +599,11 @@ def test_a_new_gift_plan_for_a_new_person(browser, household):
     page.click('.dialog button.chip:has-text("Christmas")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
-    leo = next(p for p in h.c.get("/ui/api/people").json()["items"] if p["name"] == "Leo Griffin")
+    leo = next(p for p in h.c.get("/ui/api/persons").json()["items"] if p["name"] == "Leo Griffin")
     assert (leo["birthYear"], leo["birthMonth"], leo["birthDay"]) == (2021, 3, 4)
-    assert [o["holiday"] for o in leo["occasions"]] == ["christmas"]
+    plans = h.c.get("/ui/api/gift-plans").json()["items"]
+    plan = next(p for p in plans if p["personId"] == leo["id"])
+    assert [o["holiday"] for o in plan["occasions"]] == ["christmas"]
     assert problems == []
     page.close()
 
@@ -1049,15 +1051,15 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
-    assert {g["name"]: g["level"] for g in v["groups"]}["Household"] == "write"
-    assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "read"
+    assert {g["name"]: g["allow"] for g in v["groups"]}["Household"] == "write"
+    assert {u["displayName"]: u["allow"] for u in v["users"]}["Bob Griffin"] == "read"
     page.click('button:has-text("Share")')
     wait(page, '[aria-label="Access for Bob Griffin"]', problems)
     page.click('[aria-label="Access for Bob Griffin"] button:has-text("None")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
-    assert {u["displayName"]: u["level"] for u in v["users"]}["Bob Griffin"] == "none"
+    assert {u["displayName"]: u["allow"] for u in v["users"]}["Bob Griffin"] == "none"
     assert problems == []
     page.close()
 

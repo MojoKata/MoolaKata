@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 
 from .. import activity, clock, ids, sharing
 from ..store.entities.accounts import Account, Import, Transaction
-from ..store.entities.sharing import CountedAccount, Portfolio, PortfolioAccount, Share
+from ..store.entities.sharing import CountedAccount, Portfolio, PortfolioAccount
 from ..store.entities.users import Group
 
 
@@ -14,16 +14,15 @@ def seed_sharing(s, people: dict) -> None:
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
     now = clock.now()
 
-    def grant(kind, item, level, user=None, group=None, by=alice):
+    def grant(kind, item, allow, user=None, group=None, by=alice):
         s.add(
-            Share(
-                id=ids.new_id("Share"),
-                kind=kind,
-                itemId=item.id,
-                level=level,
-                userId=user.id if user else None,
-                groupId=group.id if group else None,
-                createdById=by.id,
+            sharing.new_share(
+                kind,
+                item.id,
+                allow,
+                user_id=user.id if user else None,
+                group_id=group.id if group else None,
+                by=by.id,
             )
         )
 
@@ -83,18 +82,18 @@ def _history(s) -> None:
             subject_id=p.id,
             owner=p.ownerId,
         )
-    for sh in s.scalars(select(Share)):
-        owner = sharing.item(s, sh.kind, sh.itemId).ownerId
+    for sh in sorted(sharing.every_share(s), key=lambda x: x.id.split("_", 1)[1]):
+        owner = sharing.item(s, sh.kind, sh.targetId).ownerId
         activity.record(
             s,
             "share.given",
             actor=sh.createdById,
             subject_kind=sh.kind,
-            subject_id=sh.itemId,
+            subject_id=sh.targetId,
             owner=owner,
             detail={
                 "granteeKind": "user" if sh.userId else "group",
                 "granteeId": sh.userId or sh.groupId,
-                "level": sh.level,
+                "allow": sharing.allow_of(sh),
             },
         )

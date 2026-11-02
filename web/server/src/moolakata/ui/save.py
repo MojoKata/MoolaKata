@@ -19,9 +19,10 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .. import clock, exactjson, ids
+from .. import access, clock, exactjson, ids
 from ..errors import FieldError, Problem, refuse
 from ..store import scoping
+from ..store.tables._base import AllOf, ByKind, Creates, Via, creates_of
 from .conventions import ExactRoute, Gone, Model, check
 from .deps import Caller, caller, server
 
@@ -192,9 +193,60 @@ def _new_id(ctx: Ctx, kind: Kind, record_id: str) -> None:
         raise refuse("id", "id-taken", "This id is already taken.", status=409)
 
 
+def may_create(ctx: Ctx, kind: Kind, fields: dict) -> None:
+    """Whether the caller may make a record of the kind, as its table declares (docs/schema.md
+    §7.9), asked before the kind's own code runs: a parent they can't read answers 404, never
+    saying whether it exists; one they read without the permission, 403. A key not sent is left
+    to the record's own checks."""
+    from sqlalchemy import inspect
+
+    table = inspect(kind.entity).local_table
+    _may(ctx, table, creates_of(table), fields)
+
+
+def _may(ctx: Ctx, table, rule: Creates, fields: dict) -> None:
+    if isinstance(rule, AllOf):
+        for r in rule.rules:
+            _may(ctx, table, r, fields)
+        return
+    if isinstance(rule, Via | ByKind):
+        item_id = fields.get(rule.key)
+        if isinstance(rule, Via):
+            parent = next(f.column.table for f in table.foreign_keys if f.parent.name == rule.key)
+        else:
+            name = dict(rule.tables).get(fields.get(rule.kind))
+            parent = next((t for t in table.metadata.sorted_tables if t.name == name), None)
+        # A key not sent, or not an id of its table, is the record's own checks' to refuse.
+        if parent is None or not isinstance(item_id, str):
+            return
+        if not ids.is_id(item_id, parent.info.get("prefix", "")):
+            return
+        entity = access.entity_of_table(parent.name)
+        held = access.perms(ctx.s, entity, item_id, ctx.caller.id)
+        if held is None:
+            if rule.missing:
+                raise refuse(rule.key, *rule.missing, 404)
+            raise Problem(404, "not-found", "Not found")
+        if not getattr(held, rule.permission):
+            if rule.refused:
+                raise refuse(rule.key, *rule.refused, 403)
+            try:
+                access.need(
+                    ctx.s, entity, item_id, ctx.caller.id, rule.permission, parent.name.lower()
+                )
+            except Problem as e:
+                raise refuse(rule.key, e.code, e.detail, 403) from e
+        return
+    if rule == "admin" and not ctx.caller.admin:
+        raise Problem(403, "admins-only", "Only admins can do this.")
+    if rule == "never":
+        raise Problem(403, "server-only", "Only MoolaKata itself makes these.")
+
+
 def _apply(ctx: Ctx, op: Op, kind: Kind) -> None:
     if op.op == "create":
         _new_id(ctx, kind, op.id)
+        may_create(ctx, kind, op.fields)
         kind.create(ctx, op.id, _fields(kind, op.fields, op.id))
         return
     if not ids.is_id(op.id, kind.prefix):

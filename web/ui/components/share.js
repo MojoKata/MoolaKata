@@ -13,22 +13,50 @@ import { FIELDS } from '../api/fields.js';
 import { Avatar, Loading, Tile } from './bits.js';
 import { Icon } from './icon.js';
 
-const LEVELS =
+const ALLOWS =
   /** @type {[string, string][]} */ ([['none', 'None'], ['read', 'Read'], ['write', 'Write']]);
 const REMOTE = /** @type {[string, string][]} */ ([['none', 'None'], ['read', 'Read']]);
 
-/** A grant (S10.4): an item shared with a user or a group, a record of the dialog's draft. */
-class ShareRec extends Rec {
-  /** @override */
-  static prefix = 'Share';
-  /** @override */
-  static fields = FIELDS.ShareRecord;
-  /** @override */
-  static defaults = { userId: null, groupId: null, includeReceipts: false };
+/** Each shareable kind's shares: its share table's prefix and its record's fields. */
+const SHARES = /** @type {Record<string, [string, string]>} */ ({
+  account: ['AcShr', 'AccountShareRecord'],
+  portfolio: ['PfShr', 'PortfolioShareRecord'],
+  budget: ['BdShr', 'BudgetShareRecord'],
+  projection: ['PjShr', 'ProjectionShareRecord'],
+  person: ['PnShr', 'PersonShareRecord'],
+  'gift-plan': ['GpShr', 'GiftPlanShareRecord'],
+  'giving-plan': ['GvShr', 'GivingPlanShareRecord'],
+  'tax-book': ['TbShr', 'TaxBookShareRecord'],
+});
+
+/** @type {Map<string, typeof Rec>} */
+const recs = new Map();
+
+/**
+ * A grant of one kind (S10.4): an item shared with a user or a group, a record of the dialog's
+ * draft, saved as its kind's share.
+ * @param {string} kind
+ */
+function shareRec(kind) {
+  let cls = recs.get(kind);
+  if (!cls) {
+    const [prefix, fields] = SHARES[kind];
+    cls = class extends Rec {
+      /** @override */
+      static prefix = prefix;
+      /** @override */
+      static fields = FIELDS[fields];
+      /** @override */
+      static defaults = { userId: null, groupId: null, includeReceipts: false };
+    };
+    recs.set(kind, cls);
+  }
+  return cls;
 }
 
-/** @param {{ close: (v?: any) => void, kind: 'account' | 'portfolio' | 'budget', id: string, name: string }} p */
+/** @param {{ close: (v?: any) => void, kind: string, id: string, name: string }} p */
 export function ShareDialog({ close, kind, id, name }) {
+  const ShareRec = shareRec(kind);
   useDialogGuide('dialog-share');
   const [view, setView] = useState(/** @type {any} */ (null));
   // Each grant the item has is a record; giving one adds it, None removes it (S12.15).
@@ -40,10 +68,9 @@ export function ShareDialog({ close, kind, id, name }) {
         draft.load(ShareRec, {
           id: u.shareId,
           version: u.version,
-          kind,
-          itemId: id,
+          targetId: id,
           userId: u.id,
-          level: u.level,
+          allow: u.allow,
           includeReceipts: u.includeReceipts,
         });
       }
@@ -53,23 +80,22 @@ export function ShareDialog({ close, kind, id, name }) {
         draft.load(ShareRec, {
           id: g.shareId,
           version: g.version,
-          kind,
-          itemId: id,
+          targetId: id,
           groupId: g.id,
-          level: g.level,
+          allow: g.allow,
         });
       }
     }
     setView(v);
   }, [kind, id]);
   const draft = f.draft;
-  const all = /** @type {ShareRec[]} */ (draft?.records || []);
+  const all = /** @type {Rec[]} */ (draft?.records || []);
   /** The grant for a user or a group, or for an account of a portfolio's, if any. */
   const grant = (/** @type {string} */ key, /** @type {string} */ who, item = id) =>
-    all.find((r) => r.get(key) === who && r.get('itemId') === item);
-  const level = (/** @type {string} */ key, /** @type {string} */ who) => {
+    all.find((r) => r.get(key) === who && r.get('targetId') === item);
+  const allowed = (/** @type {string} */ key, /** @type {string} */ who) => {
     const r = grant(key, who);
-    return r && !r.removed ? r.get('level') : 'none';
+    return r && !r.removed ? r.get('allow') : 'none';
   };
   const linkOf = (/** @type {string} */ uid) =>
     view?.links.find((/** @type {any} */ l) =>
@@ -80,7 +106,7 @@ export function ShareDialog({ close, kind, id, name }) {
       const r = grant('userId', u.id);
       return r && !r.removed && r.get('includeReceipts');
     });
-  const setLevel = (/** @type {string} */ key, /** @type {string} */ who) =>
+  const setAllow = (/** @type {string} */ key, /** @type {string} */ who) =>
   (
     /** @type {string} */ v,
   ) => {
@@ -92,15 +118,14 @@ export function ShareDialog({ close, kind, id, name }) {
     }
     if (r) {
       if (r.removed) draft.unremove(r);
-      r.set('level', v);
+      r.set('allow', v);
       return;
     }
     const l = key === 'userId' ? linkOf(who) : null;
     draft.add(ShareRec, {
-      kind,
-      itemId: id,
+      targetId: id,
       [key]: who,
-      level: v,
+      allow: v,
       includeReceipts: !!(l && receiptsOn(l)),
     });
   };
@@ -124,24 +149,24 @@ export function ShareDialog({ close, kind, id, name }) {
   );
   const accountsToo = () => {
     for (const [uid, a] of pending) {
-      draft?.add(ShareRec, { kind: 'account', itemId: a, userId: uid, level: 'read' });
+      draft?.add(shareRec('account'), { targetId: a, userId: uid, allow: 'read' });
     }
   };
   const users = Object.fromEntries(
     [...(view?.users || []), ...(view?.links || []).flatMap((/** @type {any} */ l) => l.users)]
-      .map((/** @type {any} */ u) => [u.id, level('userId', u.id)]),
+      .map((/** @type {any} */ u) => [u.id, allowed('userId', u.id)]),
   );
   const groups = Object.fromEntries(
-    (view?.groups || []).map((/** @type {any} */ g) => [g.id, level('groupId', g.id)]),
+    (view?.groups || []).map((/** @type {any} */ g) => [g.id, allowed('groupId', g.id)]),
   );
   const receipts = Object.fromEntries(
     (view?.links || []).map((/** @type {any} */ l) => [l.linkId, receiptsOn(l)]),
   );
   const setUsers = (/** @type {Record<string, string>} */ next) => {
-    for (const [uid, v] of Object.entries(next)) if (v !== users[uid]) setLevel('userId', uid)(v);
+    for (const [uid, v] of Object.entries(next)) if (v !== users[uid]) setAllow('userId', uid)(v);
   };
   const setGroups = (/** @type {Record<string, string>} */ next) => {
-    for (const [gid, v] of Object.entries(next)) if (v !== groups[gid]) setLevel('groupId', gid)(v);
+    for (const [gid, v] of Object.entries(next)) if (v !== groups[gid]) setAllow('groupId', gid)(v);
   };
   const setReceiptsFor = (/** @type {Record<string, boolean>} */ next) => {
     for (const l of view?.links || []) {
@@ -192,13 +217,13 @@ export function ShareDialog({ close, kind, id, name }) {
                     <${Avatar} name=${u.displayName} image=${u.avatar} id=${u.id} />
                     <div class="grow">${u.displayName}${u.via.length
                       ? html`<div class="small dim">via ${
-                        u.via.map((/** @type {any} */ v) => `${v.groupName} (${v.level})`).join(
+                        u.via.map((/** @type {any} */ v) => `${v.groupName} (${v.allow})`).join(
                           ', ',
                         )
                       }</div>`
                       : null}</div>
                     <${Seg} label=${'Access for ' +
-                      u.displayName} value=${users[u.id]} options=${LEVELS}
+                      u.displayName} value=${users[u.id]} options=${ALLOWS}
                       onChange=${(/** @type {string} */ v) => setUsers({ ...users, [u.id]: v })} />
                   </div>
                 `
@@ -211,7 +236,7 @@ export function ShareDialog({ close, kind, id, name }) {
                   <${Tile} group="physical-assets" icon="users" />
                   <div class="grow">${g.name}<div class="small dim">${g
                     .members} member${g.members === 1 ? '' : 's'}</div></div>
-                  <${Seg} label=${'Access for ' + g.name} value=${groups[g.id]} options=${LEVELS}
+                  <${Seg} label=${'Access for ' + g.name} value=${groups[g.id]} options=${ALLOWS}
                     onChange=${(/** @type {string} */ v) => setGroups({ ...groups, [g.id]: v })} />
                 </div>
               `

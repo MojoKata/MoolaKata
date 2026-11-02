@@ -5,11 +5,11 @@ import json
 
 from sqlalchemy import select
 
-from .. import clock, ids, projections
+from .. import clock, ids, projections, sharing
 from .. import people as household
 from ..store.entities.accounts import Account
 from ..store.entities.projections import Projection
-from ..store.entities.sharing import Portfolio, Share
+from ..store.entities.sharing import Portfolio
 
 
 def seed_projections(s, people: dict) -> None:
@@ -73,12 +73,11 @@ def seed_projections(s, people: dict) -> None:
         )
     # Bob follows the retirement plan with Alice.
     s.add(
-        Share(
-            id=ids.new_id("Share"),
-            kind="projection",
-            itemId=ret.id,
-            level="write",
-            userId=bob.id,
-            createdById=alice.id,
+        sharing.new_share(
+            "projection",
+            ret.id,
+            "write",
+            user_id=bob.id,
+            by=alice.id,
         )
     )

@@ -13,9 +13,47 @@
       }
     },
     "schemas": {
+      "Access": {
+        "additionalProperties": false,
+        "description": "What the reader may do with a record, and whether it is theirs (docs/schema.md §7), as\nits access view says. It travels only from the server: no request body has it.",
+        "properties": {
+          "configurable": {
+            "title": "Configurable",
+            "type": "boolean"
+          },
+          "deletable": {
+            "title": "Deletable",
+            "type": "boolean"
+          },
+          "mine": {
+            "title": "Mine",
+            "type": "boolean"
+          },
+          "shareable": {
+            "title": "Shareable",
+            "type": "boolean"
+          },
+          "writable": {
+            "title": "Writable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mine",
+          "writable",
+          "deletable",
+          "shareable",
+          "configurable"
+        ],
+        "title": "Access",
+        "type": "object"
+      },
       "AccountDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -144,15 +182,6 @@
               }
             ],
             "title": "Lastupdated"
-          },
-          "level": {
-            "enum": [
-              "owner",
-              "write",
-              "read"
-            ],
-            "title": "Level",
-            "type": "string"
           },
           "lotMethod": {
             "title": "Lotmethod",
@@ -378,7 +407,7 @@
           "active",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "sharedWith",
           "ownerAvatar",
           "counted",
@@ -628,6 +657,9 @@
         ],
         "title": "AccountRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Acct"
       },
       "AccountRef": {
@@ -678,6 +710,9 @@
       "AccountRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -747,15 +782,6 @@
               }
             ],
             "title": "Lastupdated"
-          },
-          "level": {
-            "enum": [
-              "owner",
-              "write",
-              "read"
-            ],
-            "title": "Level",
-            "type": "string"
           },
           "mask": {
             "anyOf": [
@@ -831,7 +857,7 @@
           "active",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "sharedWith",
           "ownerAvatar",
           "counted",
@@ -847,6 +873,70 @@
         ],
         "title": "AccountRow",
         "type": "object"
+      },
+      "AccountShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Acct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Acct"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "AccountShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "AcShr"
       },
       "Activated": {
         "additionalProperties": false,
@@ -1285,6 +1375,10 @@
         ],
         "title": "AnchorRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Anchr"
       },
       "Applied": {
@@ -1344,6 +1438,9 @@
         ],
         "title": "AssumptionsRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Asmpt"
       },
       "AssumptionsView": {
@@ -1864,11 +1961,18 @@
         ],
         "title": "BookAccountRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "configurable",
+          "via": "bookId"
+        },
         "x-entity": "TxBkA"
       },
       "BookDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accounts": {
             "items": {
               "$ref": "#/components/schemas/AccountRef"
@@ -1886,10 +1990,6 @@
           "bitcoinFees": {
             "title": "Bitcoinfees",
             "type": "string"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "claimedElsewhere": {
             "items": {
@@ -1960,10 +2060,6 @@
             "title": "Leftout",
             "type": "array"
           },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          },
           "received": {
             "items": {
               "$ref": "#/components/schemas/DocumentOut"
@@ -1984,7 +2080,7 @@
           "id",
           "year",
           "filers",
-          "level",
+          "access",
           "label",
           "version",
           "bitcoinFees",
@@ -1998,8 +2094,7 @@
           "expected",
           "received",
           "lastYear",
-          "federalDue",
-          "canWrite"
+          "federalDue"
         ],
         "title": "BookDetail",
         "type": "object"
@@ -2042,11 +2137,17 @@
         ],
         "title": "BookRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "TaxBk"
       },
       "BookRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "filers": {
             "items": {
               "$ref": "#/components/schemas/Filer"
@@ -2062,10 +2163,6 @@
             "title": "Label",
             "type": "string"
           },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -2079,11 +2176,36 @@
           "id",
           "year",
           "filers",
-          "level",
+          "access",
           "label",
           "version"
         ],
         "title": "BookRow",
+        "type": "object"
+      },
+      "BooksView": {
+        "additionalProperties": false,
+        "properties": {
+          "books": {
+            "items": {
+              "$ref": "#/components/schemas/BookRow"
+            },
+            "title": "Books",
+            "type": "array"
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingBook"
+            },
+            "title": "Waiting",
+            "type": "array"
+          }
+        },
+        "required": [
+          "books",
+          "waiting"
+        ],
+        "title": "BooksView",
         "type": "object"
       },
       "BoxTotal": {
@@ -2305,11 +2427,17 @@
         ],
         "title": "BudgetRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Bdgt"
       },
       "BudgetRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountIds": {
             "items": {
               "type": "string"
@@ -2323,10 +2451,6 @@
           },
           "id": {
             "title": "Id",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
             "type": "string"
           },
           "method": {
@@ -2386,7 +2510,7 @@
           "name",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "accountIds",
           "sharedWith",
           "method",
@@ -2399,6 +2523,70 @@
         ],
         "title": "BudgetRow",
         "type": "object"
+      },
+      "BudgetShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Bdgt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Bdgt"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "BudgetShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "BdShr"
       },
       "Candidate": {
         "additionalProperties": false,
@@ -3059,6 +3247,9 @@
         ],
         "title": "CategoryRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Cat"
       },
       "CategorySize": {
@@ -3482,6 +3673,9 @@
         ],
         "title": "ColourRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "LkCol"
       },
       "CompareRow": {
@@ -3898,6 +4092,9 @@
         ],
         "title": "ConnectionRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Conn"
       },
       "ConnectorInfo": {
@@ -4303,15 +4500,15 @@
         ],
         "title": "ContributionRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "transactionId"
+        },
         "x-entity": "Cntrb"
       },
       "ContributionsView": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/moolakata__ui__education__ContributionOut"
@@ -4329,8 +4526,7 @@
         },
         "required": [
           "rows",
-          "years",
-          "canWrite"
+          "years"
         ],
         "title": "ContributionsView",
         "type": "object"
@@ -4589,6 +4785,10 @@
         ],
         "title": "CorporateActionRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "CorpA"
       },
       "CountedRecord": {
@@ -4612,6 +4812,9 @@
         ],
         "title": "CountedRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "CntAc"
       },
       "Credential": {
@@ -4974,6 +5177,10 @@
         ],
         "title": "DependentRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "bookId"
+        },
         "x-entity": "TxDep"
       },
       "DocumentOut": {
@@ -5175,11 +5382,18 @@
         ],
         "title": "DocumentRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "bookId"
+        },
         "x-entity": "TxDoc"
       },
       "DonationOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "acknowledged": {
             "title": "Acknowledged",
             "type": "boolean"
@@ -5206,10 +5420,6 @@
               }
             ],
             "title": "Basis"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "counted": {
             "title": "Counted",
@@ -5375,7 +5585,7 @@
           "longTerm",
           "granted",
           "notes",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "DonationOut",
@@ -5544,6 +5754,9 @@
         ],
         "title": "DonationRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Dnatn"
       },
       "DonationRow": {
@@ -5762,6 +5975,10 @@
         ],
         "title": "EducationPlanRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "EdPln"
       },
       "EmailChange": {
@@ -6103,6 +6320,10 @@
         ],
         "title": "ExpenseRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "QExpn"
       },
       "Expiring": {
@@ -6159,6 +6380,9 @@
         ],
         "title": "FigureRecord",
         "type": "object",
+        "x-creates": {
+          "who": "admin"
+        },
         "x-entity": "TaxFg"
       },
       "Filer": {
@@ -6632,6 +6856,10 @@
         ],
         "title": "FilingRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "bookId"
+        },
         "x-entity": "Filng"
       },
       "FirstAdmin": {
@@ -7005,9 +7233,8 @@
       "GiftOut": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
+          "access": {
+            "$ref": "#/components/schemas/Access"
           },
           "cash": {
             "title": "Cash",
@@ -7148,11 +7375,182 @@
           "cash",
           "thankYou",
           "documents",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "GiftOut",
         "type": "object"
+      },
+      "GiftPlanRow": {
+        "additionalProperties": false,
+        "description": "A gift plan the caller sees (S7.7): its own fields, and figures worked out for its\nperson, whose record is `/persons`' (the browser joins them by `personId`).",
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "giftBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Giftbudget"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lastGift": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastgift"
+          },
+          "leadDays": {
+            "title": "Leaddays",
+            "type": "integer"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "occasions": {
+            "items": {
+              "$ref": "#/components/schemas/OccasionOut"
+            },
+            "title": "Occasions",
+            "type": "array"
+          },
+          "ownerName": {
+            "title": "Ownername",
+            "type": "string"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "spent": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Spent",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "giftBudget",
+          "leadDays",
+          "notes",
+          "occasions",
+          "next",
+          "spent",
+          "lastGift",
+          "access",
+          "ownerName",
+          "version"
+        ],
+        "title": "GiftPlanRow",
+        "type": "object"
+      },
+      "GiftPlanShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^GfPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "GfPln"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "GiftPlanShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "GpShr"
       },
       "GiftRecord": {
         "additionalProperties": false,
@@ -7291,6 +7689,9 @@
         ],
         "title": "GiftRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Gift"
       },
       "GiftTaxOut": {
@@ -7513,7 +7914,74 @@
         ],
         "title": "GivingPlanRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "GvPln"
+      },
+      "GivingPlanShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "GvPln"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "GivingPlanShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "GvShr"
       },
       "GivingView": {
         "additionalProperties": false,
@@ -7735,12 +8203,17 @@
       "GroupGrant": {
         "additionalProperties": false,
         "properties": {
-          "id": {
-            "title": "Id",
+          "allow": {
+            "enum": [
+              "none",
+              "read",
+              "write"
+            ],
+            "title": "Allow",
             "type": "string"
           },
-          "level": {
-            "title": "Level",
+          "id": {
+            "title": "Id",
             "type": "string"
           },
           "members": {
@@ -7771,7 +8244,7 @@
         "required": [
           "id",
           "name",
-          "level",
+          "allow",
           "members"
         ],
         "title": "GroupGrant",
@@ -7842,6 +8315,9 @@
         ],
         "title": "GroupRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Group"
       },
       "GroupRow": {
@@ -8757,19 +9233,22 @@
         ],
         "title": "ImprovementRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "itemId"
+        },
         "x-entity": "Imprv"
       },
       "InBudget": {
         "additionalProperties": false,
         "description": "A budget counting a transaction, what it counts as there, and its leave-out (S7.3.5).",
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "budgetId": {
             "title": "Budgetid",
             "type": "string"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "countsAs": {
             "anyOf": [
@@ -8796,7 +9275,7 @@
           "name",
           "countsAs",
           "leftOut",
-          "canWrite"
+          "access"
         ],
         "title": "InBudget",
         "type": "object"
@@ -9098,6 +9577,9 @@
       "ItemDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountId": {
             "title": "Accountid",
             "type": "string"
@@ -9129,10 +9611,6 @@
             "format": "money",
             "title": "Basis",
             "type": "number"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "category": {
             "anyOf": [
@@ -9556,7 +10034,7 @@
           "improvements",
           "documents",
           "history",
-          "canWrite"
+          "access"
         ],
         "title": "ItemDetail",
         "type": "object"
@@ -9886,6 +10364,10 @@
         ],
         "title": "ItemRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Item"
       },
       "ItemRow": {
@@ -10080,10 +10562,6 @@
             "title": "Basis",
             "type": "number"
           },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "gain": {
             "examples": [
               1234.5
@@ -10120,8 +10598,7 @@
           "metals",
           "value",
           "basis",
-          "gain",
-          "canWrite"
+          "gain"
         ],
         "title": "ItemsView",
         "type": "object"
@@ -10689,6 +11166,10 @@
         ],
         "title": "LineIn",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "budgetId"
+        },
         "x-entity": "BdgLn"
       },
       "LineOut": {
@@ -11222,6 +11703,10 @@
         ],
         "title": "LoanRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Loan"
       },
       "LoanView": {
@@ -11234,10 +11719,6 @@
             "format": "money",
             "title": "Balance",
             "type": "number"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "equity": {
             "anyOf": [
@@ -11398,8 +11879,7 @@
           "principalThisYear",
           "overpaid",
           "rows",
-          "servicer",
-          "canWrite"
+          "servicer"
         ],
         "title": "LoanView",
         "type": "object"
@@ -12168,10 +12648,6 @@
             ],
             "title": "Assignedbymoves"
           },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "cards": {
             "items": {
               "$ref": "#/components/schemas/CardLine"
@@ -12297,7 +12773,6 @@
           "plannedSpending",
           "uncategorised",
           "daysLeft",
-          "canWrite",
           "version"
         ],
         "title": "MonthView",
@@ -12494,6 +12969,10 @@
         ],
         "title": "MoveRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "budgetId"
+        },
         "x-entity": "BdgMv"
       },
       "MovedRow": {
@@ -12867,6 +13346,10 @@
         ],
         "title": "OccasionRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "giftPlanId"
+        },
         "x-entity": "Occsn"
       },
       "Offer": {
@@ -13430,9 +13913,8 @@
       "OrganisationOut": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
+          "access": {
+            "$ref": "#/components/schemas/Access"
           },
           "causes": {
             "items": {
@@ -13519,7 +14001,7 @@
           "name",
           "id",
           "given",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "OrganisationOut",
@@ -13603,6 +14085,9 @@
         ],
         "title": "OrganisationRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Orgzn"
       },
       "OutcomeOut": {
@@ -13851,37 +14336,6 @@
         "title": "Page[AwaitingRow]",
         "type": "object"
       },
-      "Page_BookRow_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BookRow"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "offset",
-          "limit"
-        ],
-        "title": "Page[BookRow]",
-        "type": "object"
-      },
       "Page_BudgetRow_": {
         "properties": {
           "items": {
@@ -14128,6 +14582,37 @@
           "limit"
         ],
         "title": "Page[GiftOut]",
+        "type": "object"
+      },
+      "Page_GiftPlanRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GiftPlanRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[GiftPlanRow]",
         "type": "object"
       },
       "Page_GroupRow_": {
@@ -14500,37 +14985,6 @@
           "limit"
         ],
         "title": "Page[OrganisationOut]",
-        "type": "object"
-      },
-      "Page_PersonOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PersonOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "offset",
-          "limit"
-        ],
-        "title": "Page[PersonOut]",
         "type": "object"
       },
       "Page_PersonRow_": {
@@ -15307,6 +15761,18 @@
         ],
         "title": "PairIn",
         "type": "object",
+        "x-creates": {
+          "allOf": [
+            {
+              "needs": "writable",
+              "via": "spendingId"
+            },
+            {
+              "needs": "writable",
+              "via": "paybackId"
+            }
+          ]
+        },
         "x-entity": "Rmbrs"
       },
       "PairingOut": {
@@ -15608,6 +16074,10 @@
         ],
         "title": "PaymentRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "filingId"
+        },
         "x-entity": "EstPy"
       },
       "PaymentView": {
@@ -15770,6 +16240,10 @@
         ],
         "title": "PayoffRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Pyoff"
       },
       "PeriodRow": {
@@ -15799,255 +16273,6 @@
           "importIds"
         ],
         "title": "PeriodRow",
-        "type": "object"
-      },
-      "PersonOut": {
-        "additionalProperties": false,
-        "description": "A gift plan the caller sees, with its person.",
-        "properties": {
-          "birthDay": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthday"
-          },
-          "birthMonth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthmonth"
-          },
-          "birthYear": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birthyear"
-          },
-          "canChangePerson": {
-            "title": "Canchangeperson",
-            "type": "boolean"
-          },
-          "canMakePrivate": {
-            "title": "Canmakeprivate",
-            "type": "boolean"
-          },
-          "diedOn": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diedon"
-          },
-          "giftBudget": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Giftbudget"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "isUser": {
-            "title": "Isuser",
-            "type": "boolean"
-          },
-          "lastGift": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lastgift"
-          },
-          "leadDays": {
-            "title": "Leaddays",
-            "type": "integer"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "next": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NextDate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "occasions": {
-            "items": {
-              "$ref": "#/components/schemas/OccasionOut"
-            },
-            "title": "Occasions",
-            "type": "array"
-          },
-          "ownerName": {
-            "title": "Ownername",
-            "type": "string"
-          },
-          "personVersion": {
-            "title": "Personversion",
-            "type": "integer"
-          },
-          "planId": {
-            "title": "Planid",
-            "type": "string"
-          },
-          "private": {
-            "title": "Private",
-            "type": "boolean"
-          },
-          "relation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relation"
-          },
-          "sameAs": {
-            "items": {
-              "$ref": "#/components/schemas/moolakata__ui__gifts__RemoteUser"
-            },
-            "title": "Sameas",
-            "type": "array"
-          },
-          "sex": {
-            "title": "Sex",
-            "type": "string"
-          },
-          "spent": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Spent",
-            "type": "number"
-          },
-          "userId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Userid"
-          },
-          "userName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "wedding": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wedding"
-          }
-        },
-        "required": [
-          "id",
-          "planId",
-          "name",
-          "sex",
-          "relation",
-          "userId",
-          "userName",
-          "birthMonth",
-          "birthDay",
-          "birthYear",
-          "diedOn",
-          "wedding",
-          "private",
-          "canChangePerson",
-          "canMakePrivate",
-          "isUser",
-          "sameAs",
-          "giftBudget",
-          "leadDays",
-          "notes",
-          "occasions",
-          "next",
-          "spent",
-          "lastGift",
-          "level",
-          "ownerName",
-          "version",
-          "personVersion"
-        ],
-        "title": "PersonOut",
         "type": "object"
       },
       "PersonRecord": {
@@ -16135,6 +16360,9 @@
         ],
         "title": "PersonRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Persn"
       },
       "PersonRef": {
@@ -16164,6 +16392,9 @@
       "PersonRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "birthDay": {
             "anyOf": [
               {
@@ -16197,8 +16428,8 @@
             ],
             "title": "Birthyear"
           },
-          "canChange": {
-            "title": "Canchange",
+          "canMakePrivate": {
+            "title": "Canmakeprivate",
             "type": "boolean"
           },
           "createdBy": {
@@ -16247,6 +16478,13 @@
             ],
             "title": "Relation"
           },
+          "sameAs": {
+            "items": {
+              "$ref": "#/components/schemas/moolakata__ui__gifts__RemoteUser"
+            },
+            "title": "Sameas",
+            "type": "array"
+          },
           "sex": {
             "title": "Sex",
             "type": "string"
@@ -16265,6 +16503,18 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "wedding": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wedding"
           }
         },
         "required": [
@@ -16278,12 +16528,79 @@
           "private",
           "userId",
           "relation",
-          "canChange",
+          "wedding",
+          "canMakePrivate",
+          "sameAs",
+          "access",
           "createdBy",
           "version"
         ],
         "title": "PersonRow",
         "type": "object"
+      },
+      "PersonShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Persn"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "PersonShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "PnShr"
       },
       "PersonSpend": {
         "additionalProperties": false,
@@ -16597,6 +16914,9 @@
         ],
         "title": "PlanRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "GfPln"
       },
       "PlanView": {
@@ -16812,11 +17132,17 @@
         ],
         "title": "PortfolioRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Portf"
       },
       "PortfolioRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountIds": {
             "items": {
               "type": "string"
@@ -16835,10 +17161,6 @@
           "implicit": {
             "title": "Implicit",
             "type": "boolean"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -16898,7 +17220,7 @@
           "ownerId",
           "ownerName",
           "ownerAvatar",
-          "level",
+          "access",
           "benchmark",
           "accountIds",
           "value",
@@ -16990,6 +17312,70 @@
         ],
         "title": "PortfolioSeries",
         "type": "object"
+      },
+      "PortfolioShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Portf_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Portf"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "PortfolioShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "PfShr"
       },
       "PositionIn": {
         "additionalProperties": false,
@@ -17503,6 +17889,7 @@
               "secret-refused",
               "sent-invalid",
               "server-error",
+              "server-only",
               "session-expired",
               "setting-fixed",
               "setting-saved",
@@ -17951,6 +18338,7 @@
                   "secret-refused",
                   "sent-invalid",
                   "server-error",
+                  "server-only",
                   "session-expired",
                   "setting-fixed",
                   "setting-saved",
@@ -18254,6 +18642,9 @@
       "ProjectionDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -18295,10 +18686,6 @@
             "additionalProperties": true,
             "title": "Inputs",
             "type": "object"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -18354,7 +18741,7 @@
           "name",
           "goal",
           "active",
-          "level",
+          "access",
           "ownerName",
           "builtOn",
           "builtOnLabel",
@@ -18406,11 +18793,17 @@
         ],
         "title": "ProjectionRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Prjct"
       },
       "ProjectionRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -18434,10 +18827,6 @@
           },
           "id": {
             "title": "Id",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
             "type": "string"
           },
           "name": {
@@ -18477,7 +18866,7 @@
           "name",
           "goal",
           "active",
-          "level",
+          "access",
           "ownerName",
           "builtOn",
           "builtOnLabel",
@@ -18489,6 +18878,70 @@
         ],
         "title": "ProjectionRow",
         "type": "object"
+      },
+      "ProjectionShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^Prjct_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "Prjct"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "ProjectionShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "PjShr"
       },
       "Proposal": {
         "additionalProperties": false,
@@ -18881,6 +19334,9 @@
       "ReceiptDetail": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "alsoKeptWith": {
             "title": "Alsokeptwith",
             "type": "integer"
@@ -18981,10 +19437,6 @@
               }
             ],
             "title": "Keptwhy"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "links": {
             "items": {
@@ -19137,7 +19589,7 @@
           "uploadedAt",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "date",
           "amount",
           "payee",
@@ -19202,6 +19654,19 @@
         ],
         "title": "ReceiptLinkRecord",
         "type": "object",
+        "x-creates": {
+          "allOf": [
+            {
+              "needs": "writable",
+              "via": "receiptId"
+            },
+            {
+              "byKind": "kind",
+              "needs": "writable",
+              "via": "itemId"
+            }
+          ]
+        },
         "x-entity": "RcLnk"
       },
       "ReceiptRecord": {
@@ -19279,11 +19744,17 @@
         },
         "title": "ReceiptRecord",
         "type": "object",
+        "x-creates": {
+          "who": "anyone"
+        },
         "x-entity": "Rcpt"
       },
       "ReceiptRow": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "alsoKeptWith": {
             "title": "Alsokeptwith",
             "type": "integer"
@@ -19349,10 +19820,6 @@
           "keep": {
             "title": "Keep",
             "type": "boolean"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "links": {
             "items": {
@@ -19446,7 +19913,7 @@
           "uploadedAt",
           "ownerId",
           "ownerName",
-          "level",
+          "access",
           "date",
           "amount",
           "payee",
@@ -19598,6 +20065,10 @@
         ],
         "title": "ReconciliationRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Recon"
       },
       "ReconciliationRow": {
@@ -19976,9 +20447,8 @@
       "RelationshipOut": {
         "additionalProperties": false,
         "properties": {
-          "canChange": {
-            "title": "Canchange",
-            "type": "boolean"
+          "access": {
+            "$ref": "#/components/schemas/Access"
           },
           "canConfirm": {
             "title": "Canconfirm",
@@ -20080,7 +20550,7 @@
           "confirmed",
           "waitingFor",
           "canConfirm",
-          "canChange",
+          "access",
           "version"
         ],
         "title": "RelationshipOut",
@@ -20152,6 +20622,9 @@
         ],
         "title": "RelationshipRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "Rltn"
       },
       "ReserveHeld": {
@@ -21124,6 +21597,9 @@
         ],
         "title": "RuleRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Rule"
       },
       "Sale": {
@@ -21621,6 +22097,9 @@
         ],
         "title": "SettingRecord",
         "type": "object",
+        "x-creates": {
+          "who": "admin"
+        },
         "x-entity": "Setng"
       },
       "SettingRef": {
@@ -21780,79 +22259,6 @@
         ],
         "title": "Share",
         "type": "object"
-      },
-      "ShareRecord": {
-        "additionalProperties": false,
-        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee.",
-        "properties": {
-          "groupId": {
-            "anyOf": [
-              {
-                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
-                "type": "string",
-                "x-prefix": "Group"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Groupid"
-          },
-          "includeReceipts": {
-            "default": false,
-            "title": "Includereceipts",
-            "type": "boolean"
-          },
-          "itemId": {
-            "title": "Itemid",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "account",
-              "portfolio",
-              "budget",
-              "projection",
-              "person",
-              "gift-plan",
-              "giving-plan",
-              "tax-book"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              "read",
-              "write"
-            ],
-            "title": "Level",
-            "type": "string"
-          },
-          "userId": {
-            "anyOf": [
-              {
-                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
-                "type": "string",
-                "x-prefix": "User"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Userid"
-          }
-        },
-        "required": [
-          "kind",
-          "itemId",
-          "level"
-        ],
-        "title": "ShareRecord",
-        "type": "object",
-        "x-entity": "Share"
       },
       "ShareView": {
         "additionalProperties": false,
@@ -22201,6 +22607,9 @@
         ],
         "title": "SourceRecord",
         "type": "object",
+        "x-creates": {
+          "who": "admin"
+        },
         "x-entity": "Src"
       },
       "SourceRow": {
@@ -22514,6 +22923,10 @@
         ],
         "title": "SplitRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "transactionId"
+        },
         "x-entity": "Split"
       },
       "Spouse": {
@@ -22788,6 +23201,9 @@
       "StrategyOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountId": {
             "title": "Accountid",
             "type": "string"
@@ -22806,10 +23222,6 @@
             },
             "title": "Breakevens",
             "type": "array"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "capitalAtRiskAtOpen": {
             "anyOf": [
@@ -23023,7 +23435,7 @@
           "returnPct",
           "cashSecured",
           "marginRequirement",
-          "canWrite",
+          "access",
           "version"
         ],
         "title": "StrategyOut",
@@ -23090,6 +23502,10 @@
         ],
         "title": "StrategyRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Strat"
       },
       "StudentOut": {
@@ -23354,7 +23770,74 @@
         ],
         "title": "TagRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Tag"
+      },
+      "TaxBookShareRecord": {
+        "additionalProperties": false,
+        "description": "A grant as the share dialog's draft saves it (S10.4): an item shared with one user or\none group, at Read or Write; with a linked server's person, at Read, with Include receipts\ntheir images and text cross too (S11.5.1). It stays with its item and its grantee. Each\nshareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.",
+        "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "pattern": "^Group_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "Group"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groupid"
+          },
+          "includeReceipts": {
+            "default": false,
+            "title": "Includereceipts",
+            "type": "boolean"
+          },
+          "targetId": {
+            "pattern": "^TaxBk_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Targetid",
+            "type": "string",
+            "x-prefix": "TaxBk"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "pattern": "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "targetId",
+          "allow"
+        ],
+        "title": "TaxBookShareRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "shareable",
+          "via": "targetId"
+        },
+        "x-entity": "TbShr"
       },
       "TaxRow": {
         "additionalProperties": false,
@@ -23859,6 +24342,9 @@
         ],
         "title": "TokenRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "Token"
       },
       "TransferAnswer": {
@@ -24148,6 +24634,9 @@
       "TxnOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "accountId": {
             "title": "Accountid",
             "type": "string"
@@ -24298,10 +24787,6 @@
               }
             ],
             "title": "Leftoutof"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "memo": {
             "anyOf": [
@@ -24512,7 +24997,7 @@
           "tags",
           "tagIds",
           "receipts",
-          "level",
+          "access",
           "version"
         ],
         "title": "TxnOut",
@@ -24854,6 +25339,10 @@
         ],
         "title": "TxnRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "accountId"
+        },
         "x-entity": "Txn"
       },
       "TypedPriceRecord": {
@@ -24887,6 +25376,9 @@
         ],
         "title": "TypedPriceRecord",
         "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
         "x-entity": "TyPrc"
       },
       "Unlock": {
@@ -25023,6 +25515,15 @@
       "UserGrant": {
         "additionalProperties": false,
         "properties": {
+          "allow": {
+            "enum": [
+              "none",
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
           "avatar": {
             "anyOf": [
               {
@@ -25046,10 +25547,6 @@
             "default": false,
             "title": "Includereceipts",
             "type": "boolean"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           },
           "shareId": {
             "anyOf": [
@@ -25079,7 +25576,7 @@
           "id",
           "displayName",
           "avatar",
-          "level",
+          "allow",
           "via"
         ],
         "title": "UserGrant",
@@ -25235,6 +25732,9 @@
         ],
         "title": "UserRecord",
         "type": "object",
+        "x-creates": {
+          "who": "code"
+        },
         "x-entity": "User"
       },
       "UserRow": {
@@ -25448,6 +25948,10 @@
         ],
         "title": "ValuationRecord",
         "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "itemId"
+        },
         "x-entity": "Valtn"
       },
       "ValueCheckRow": {
@@ -25520,6 +26024,14 @@
       "Via": {
         "additionalProperties": false,
         "properties": {
+          "allow": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "title": "Allow",
+            "type": "string"
+          },
           "groupId": {
             "title": "Groupid",
             "type": "string"
@@ -25527,18 +26039,47 @@
           "groupName": {
             "title": "Groupname",
             "type": "string"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
           }
         },
         "required": [
           "groupId",
           "groupName",
-          "level"
+          "allow"
         ],
         "title": "Via",
+        "type": "object"
+      },
+      "WaitingBook": {
+        "additionalProperties": false,
+        "description": "A book the user is named in as a filer and hasn't accepted (S8.14.1): its year and\nfilers, to accept, and nothing more. They read no row of it, so it carries no access.",
+        "properties": {
+          "filers": {
+            "items": {
+              "$ref": "#/components/schemas/Filer"
+            },
+            "title": "Filers",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "year",
+          "filers",
+          "label"
+        ],
+        "title": "WaitingBook",
         "type": "object"
       },
       "WalletAddressOut": {
@@ -25878,10 +26419,6 @@
       "WithdrawalsView": {
         "additionalProperties": false,
         "properties": {
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
-          },
           "expenses": {
             "items": {
               "$ref": "#/components/schemas/ExpenseOut"
@@ -25917,8 +26454,7 @@
         "required": [
           "years",
           "expenses",
-          "kinds",
-          "canWrite"
+          "kinds"
         ],
         "title": "WithdrawalsView",
         "type": "object"
@@ -26186,6 +26722,9 @@
       "moolakata__ui__education__PlanOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "beneficiary": {
             "anyOf": [
               {
@@ -26206,10 +26745,6 @@
               }
             ],
             "title": "Beneficiaryid"
-          },
-          "canWrite": {
-            "title": "Canwrite",
-            "type": "boolean"
           },
           "contributedThisYear": {
             "examples": [
@@ -26296,7 +26831,7 @@
           "stateDeduction",
           "contributedThisYear",
           "rollover",
-          "canWrite"
+          "access"
         ],
         "title": "PlanOut",
         "type": "object"
@@ -26328,6 +26863,9 @@
       "moolakata__ui__giving__PlanOut": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "amount": {
             "anyOf": [
               {
@@ -26368,10 +26906,6 @@
           },
           "incomeBasis": {
             "title": "Incomebasis",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
             "type": "string"
           },
           "ownerName": {
@@ -26415,7 +26949,7 @@
           "incomeBasis",
           "income",
           "dafCounted",
-          "level",
+          "access",
           "ownerName",
           "version"
         ],
@@ -27180,6 +27714,16 @@
         "additionalProperties": false,
         "description": "A transaction it supports, the account it is kept on (a statement), or what else it is\nkept with: an item, a qualified expense, a gift, a donation, a tax document. `id` and\n`version` are the link's own (`ReceiptLink`); a tax document's file has none.",
         "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Access"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "accountId": {
             "anyOf": [
               {
@@ -27216,11 +27760,6 @@
               }
             ],
             "title": "Amount"
-          },
-          "canDetach": {
-            "default": false,
-            "title": "Candetach",
-            "type": "boolean"
           },
           "date": {
             "anyOf": [
@@ -30315,6 +30854,98 @@
         ]
       }
     },
+    "/ui/api/gift-plans": {
+      "get": {
+        "description": "The caller's gift plans and those shared with them, one per person.",
+        "operationId": "list_plans_ui_api_gift_plans_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_GiftPlanRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "List Plans",
+        "tags": [
+          "gifts"
+        ]
+      }
+    },
+    "/ui/api/gift-plans/{plan_id}": {
+      "get": {
+        "description": "One gift plan the caller sees: what the plan's dialog starts from.",
+        "operationId": "get_plan_ui_api_gift_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftPlanRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Get Plan",
+        "tags": [
+          "gifts"
+        ]
+      }
+    },
     "/ui/api/gifts": {
       "get": {
         "operationId": "list_gifts_ui_api_gifts_get",
@@ -31957,98 +32588,6 @@
         "summary": "Password Reset Confirm",
         "tags": [
           "session"
-        ]
-      }
-    },
-    "/ui/api/people": {
-      "get": {
-        "description": "The caller's gift plans and those shared with them, with their people.",
-        "operationId": "list_people_ui_api_people_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 500,
-              "maximum": 1000,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_PersonOut_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "List People",
-        "tags": [
-          "gifts"
-        ]
-      }
-    },
-    "/ui/api/people/{person_id}": {
-      "get": {
-        "description": "One gift plan the caller sees, with its person: what the plan's dialog starts from.",
-        "operationId": "get_plan_ui_api_people__person_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "person_id",
-            "required": true,
-            "schema": {
-              "title": "Person Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "summary": "Get Plan",
-        "tags": [
-          "gifts"
         ]
       }
     },
@@ -35976,44 +36515,16 @@
       "get": {
         "description": "The books the user holds or helps with, and those they are named in, to accept.",
         "operationId": "list_books_ui_api_tax_books_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 500,
-              "maximum": 1000,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_BookRow_"
+                  "$ref": "#/components/schemas/BooksView"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
           },
           "default": {
             "$ref": "#/components/responses/Problem"

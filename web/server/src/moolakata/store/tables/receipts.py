@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 
 from ..types import Cents, Day, UtcTimestamp
-from ._base import Seen, pairs, record, unique_live
+from ._base import AllOf, ByKind, Seen, Via, pairs, record, unique_live
 
 Receipt = record(
     "Receipt",
@@ -59,7 +59,7 @@ Receipt = record(
     ),
     Index("ix_Receipt_ownerId", "ownerId"),
     Index("ix_Receipt_sha256", "sha256"),
-    seen=Seen.rule(),
+    seen=Seen.rule(creates="anyone"),
 )
 
 # A receipt's tags (S9.1), each its tagger's own (Tag).
@@ -86,7 +86,34 @@ ReceiptLink = record(
         name="kind",
     ),
     Index("ix_ReceiptLink_item", "kind", "itemId"),
-    seen=Seen.rule(),
+    seen=Seen.rule(
+        creates=AllOf(
+            (
+                Via(
+                    "receiptId",
+                    refused=(
+                        "receipt-read-only",
+                        "That receipt is shared with you to read: it can't be attached to "
+                        "anything else.",
+                    ),
+                ),
+                ByKind(
+                    "kind",
+                    "itemId",
+                    (
+                        ("transaction", "Transaction"),
+                        ("account", "Account"),
+                        ("item", "Item"),
+                        ("expense", "QualifiedExpense"),
+                        ("gift", "Gift"),
+                        ("donation", "Donation"),
+                    ),
+                    refused=("read-only", "That is shared with you to read."),
+                    missing=("not-found", "That is not there."),
+                ),
+            )
+        )
+    ),
 )
 unique_live(ReceiptLink, "receiptId", "kind", "itemId")
 

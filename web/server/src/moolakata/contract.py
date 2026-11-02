@@ -55,7 +55,33 @@ def _saved(doc: dict) -> None:
         schema = kind.fields.model_json_schema(ref_template="#/components/schemas/{model}")
         for name, sub in schema.pop("$defs", {}).items():
             schemas.setdefault(name, sub)
-        schemas[kind.fields.__name__] = {**schema, "x-entity": prefix}
+        schemas[kind.fields.__name__] = {
+            **schema,
+            "x-entity": prefix,
+            "x-creates": creates_json(kind.entity),
+        }
+
+
+def creates_json(entity) -> dict:
+    """Who may make a record of a kind (docs/schema.md §7.9), as the browser asks it before
+    offering Add (`draft.canAdd`): the permission a parent's `access` must hold, or who."""
+    from sqlalchemy import inspect
+
+    from .store.mapping import map_all
+    from .store.tables._base import AllOf, ByKind, Via, creates_of
+
+    map_all()
+
+    def one(rule) -> dict:
+        if isinstance(rule, AllOf):
+            return {"allOf": [one(r) for r in rule.rules]}
+        if isinstance(rule, Via):
+            return {"via": rule.key, "needs": rule.permission}
+        if isinstance(rule, ByKind):
+            return {"via": rule.key, "byKind": rule.kind, "needs": rule.permission}
+        return {"who": rule}
+
+    return one(creates_of(inspect(entity).local_table))
 
 
 PROBLEM_CALLS = {"Problem", "refuse", "FieldError", "_send_problem", "problem_response"}
@@ -317,6 +343,19 @@ def fields_js(doc: dict | None = None) -> str:
             key = prop if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", prop) else json.dumps(prop)
             lines.append(f"    {key}: {json.dumps(spec, ensure_ascii=False)},")
         lines.append("  },")
+    lines.append("};")
+    lines += [
+        "",
+        "/**",
+        " * Who may make a record of each kind, by its prefix (docs/schema.md §7.9): the",
+        " * permission a parent's `access` must hold, or who. `draft.canAdd` asks it.",
+        " * @type {Record<string, import('../app/draft.js').CreateRule>}",
+        " */",
+        "export const CREATES = {",
+    ]
+    made = sorted((sc["x-entity"], sc["x-creates"]) for sc in schemas.values() if "x-entity" in sc)
+    for prefix, rule in made:
+        lines.append(f"  {_ident(prefix)}: {json.dumps(rule)},")
     lines.append("};")
     return "\n".join(lines) + "\n"
 

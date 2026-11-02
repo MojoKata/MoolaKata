@@ -55,7 +55,7 @@ def test_accounts_are_checked_and_their_owners_own(server):
     fields = {e["field"] for e in r.json()["errors"]}
     assert fields == {"name", "type", "mask", "openingDate"}
     a = new_account(alice, openingBalance="1000.00", openingDate="2026-08-31")
-    assert a["group"] == "banking" and a["level"] == "owner" and a["balance"] == "1000.00"
+    assert a["group"] == "banking" and a["access"]["mine"] and a["balance"] == "1000.00"
     assert a["reconcilable"] and not a["investing"]
     assert bob.get(f"/ui/api/accounts/{a['id']}").status_code == 404
     assert bob.get("/ui/api/accounts").json()["items"] == []

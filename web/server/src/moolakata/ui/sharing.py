@@ -3,14 +3,16 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import create_model
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, sharing
 from ..errors import Problem, refuse
 from ..store import scoping
-from ..store.entities.sharing import CountedAccount, Share
+from ..store.entities.sharing import SHARE_ENTITIES, CountedAccount, ItemShare
 from ..store.entities.users import Group, User, UserGroup
 from ..store.rows import by_key
+from ..store.tables.shares import SHARES
 from . import save
 from .conventions import ExactRoute, IdOf, Model
 from .deps import Caller, caller, recent_auth, server
@@ -21,17 +23,22 @@ Kind = Literal[
 ]
 
 
+Allow = Literal["read", "write"]
+# What the Share dialog shows for a user or a group: no share, or what theirs allows.
+Held = Literal["none", "read", "write"]
+
+
 class Via(Model):
     groupId: str
     groupName: str
-    level: str
+    allow: Allow
 
 
 class UserGrant(Model):
     id: str
     displayName: str
     avatar: str | None
-    level: str
+    allow: Held
     via: list[Via]
     # Its grant, a record of the save: none while it has none.
     shareId: str | None = None
@@ -42,7 +49,7 @@ class UserGrant(Model):
 class GroupGrant(Model):
     id: str
     name: str
-    level: str
+    allow: Held
     members: int
     shareId: str | None = None
     version: int = 0
@@ -76,8 +83,8 @@ class ShareView(Model):
 def view(s, owner: User, kind: str, item_id: str) -> ShareView:
     obj = sharing.item(s, kind, item_id)
     current = sharing.grants(s, kind, item_id)
-    direct = {g.userId: g.level for g in current if g.userId}
-    by_group = {g.groupId: g.level for g in current if g.groupId}
+    direct = {g.userId: sharing.allow_of(g) for g in current if g.userId}
+    by_group = {g.groupId: sharing.allow_of(g) for g in current if g.groupId}
     rows = {g.userId or g.groupId: g for g in current}
 
     def grant(key: str) -> dict:
@@ -106,7 +113,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
     out_users = []
     for u in users:
         via = [
-            Via(groupId=g.id, groupName=g.name, level=by_group[g.id])
+            Via(groupId=g.id, groupName=g.name, allow=by_group[g.id])
             for g in groups
             if g.id in by_group and u.id in members.get(g.id, [])
         ]
@@ -115,7 +122,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
                 id=u.id,
                 displayName=u.displayName,
                 avatar=u.avatar,
-                level=direct.get(u.id, "none"),
+                allow=direct.get(u.id, "none"),
                 via=via,
                 **grant(u.id),
             )
@@ -139,7 +146,7 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
             GroupGrant(
                 id=g.id,
                 name=g.name,
-                level=by_group.get(g.id, "none"),
+                allow=by_group.get(g.id, "none"),
                 members=len(members.get(g.id, [])),
                 **grant(g.id),
             )
@@ -179,7 +186,7 @@ def _linked(s, current) -> list[LinkedPeople]:
                         id=u.id,
                         displayName=u.displayName,
                         avatar=None,
-                        level=direct[u.id].level if u.id in direct else "none",
+                        allow=sharing.allow_of(direct[u.id]) if u.id in direct else "none",
                         via=[],
                         **(
                             {
@@ -211,20 +218,20 @@ def get_shares(kind: Kind, item_id: str, request: Request, c: Caller = Depends(c
         return view(s, c.user, kind, item_id)
 
 
-class ShareRecord(Model):
+class ShareFields(Model):
     """A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
     one group, at Read or Write; with a linked server's person, at Read, with Include receipts
-    their images and text cross too (S11.5.1). It stays with its item and its grantee."""
+    their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+    shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind."""
 
-    kind: Kind
-    itemId: str
+    targetId: str
     userId: IdOf("User") | None = None  # type: ignore[valid-type]
     groupId: IdOf("Group") | None = None  # type: ignore[valid-type]
-    level: Literal["read", "write"]
+    allow: Allow
     includeReceipts: bool = False
 
 
-def _grantee(s, c: Caller, body: ShareRecord):
+def _grantee(s, c: Caller, body: ShareFields):
     """The user or group the grant is for, checked as the dialog offers them."""
     if (body.userId is None) == (body.groupId is None):
         raise refuse("userId", "grantee-missing", "A user or a group.")
@@ -240,9 +247,9 @@ def _grantee(s, c: Caller, body: ShareRecord):
         ).first()
         if u is None or u.deletedAt is not None or u.id == c.id:
             raise refuse("userId", "user-unknown", "Choose a user.")
-        if u.linkId and body.level == "write":
+        if u.linkId and body.allow == "write":
             raise refuse(
-                "level",
+                "allow",
                 "read-only",
                 f"{u.displayName} is on a linked server: shares there are read only.",
             )
@@ -292,127 +299,131 @@ def _told(ctx, kind: str, item_id: str, grantee) -> None:
     ctx.after(f"share:{kind}", lambda: srv.events.publish("share", {"kind": kind}, users=users))
 
 
-def _given(ctx, row: Share, verb: str, level: str | None) -> None:
-    obj = sharing.item(ctx.s, row.kind, row.itemId)
+def _given(ctx, row: ItemShare, verb: str, allow: str | None) -> None:
+    obj = sharing.item(ctx.s, row.kind, row.targetId)
     gk, gid = ("user", row.userId) if row.userId else ("group", row.groupId)
     activity.record(
         ctx.s,
         f"share.{verb}",
         actor=ctx.caller.id,
         subject_kind=row.kind,
-        subject_id=row.itemId,
+        subject_id=row.targetId,
         owner=obj.ownerId,
-        detail={"granteeKind": gk, "granteeId": gid} | ({"level": level} if level else {}),
+        detail={"granteeKind": gk, "granteeId": gid} | ({"allow": allow} if allow else {}),
     )
 
 
-def _share_create(ctx, record_id: str, body: ShareRecord) -> None:
-    s, c = ctx.s, ctx.caller
-    _owner_only(s, c, body.kind, body.itemId)
-    grantee = _grantee(s, c, body)
-    same = [
-        g
-        for g in sharing.grants(s, body.kind, body.itemId)
-        if (g.userId or g.groupId) == (body.userId or body.groupId)
-    ]
-    if same:
-        raise refuse(
-            "userId" if body.userId else "groupId",
-            "shared",
-            "It is shared with them: change its level.",
-            409,
+def _share_kind(kind: str, entity: type[ItemShare]) -> None:
+    """The save kind of one shareable kind's shares (S13.8.11): its own record and table."""
+    target = SHARES[kind].c.targetId.foreign_keys
+    target_prefix = next(iter(target)).column.table.info["prefix"]
+    name = entity.__name__
+    fields = create_model(
+        f"{name}Record",
+        __base__=ShareFields,
+        __doc__=ShareFields.__doc__,
+        targetId=(IdOf(target_prefix), ...),
+    )
+    out = create_model(f"{name}Out", __base__=fields, id=(str, ...), version=(int, ...))
+
+    def create(ctx, record_id: str, body) -> None:
+        s, c = ctx.s, ctx.caller
+        _owner_only(s, c, kind, body.targetId)
+        grantee = _grantee(s, c, body)
+        same = [
+            g
+            for g in sharing.grants(s, kind, body.targetId)
+            if (g.userId or g.groupId) == (body.userId or body.groupId)
+        ]
+        if same:
+            raise refuse(
+                "userId" if body.userId else "groupId",
+                "shared",
+                "It is shared with them: change what it allows.",
+                409,
+            )
+        _reaches(ctx, grantee, body.includeReceipts)
+        row = entity(
+            id=record_id,
+            targetId=body.targetId,
+            accessClassId=sharing.class_of(body.allow),
+            userId=body.userId,
+            groupId=body.groupId,
+            createdById=c.id,
+            includeReceipts=body.includeReceipts and bool(body.userId),
         )
-    _reaches(ctx, grantee, body.includeReceipts)
-    row = Share(
-        id=record_id,
-        kind=body.kind,
-        itemId=body.itemId,
-        level=body.level,
-        userId=body.userId,
-        groupId=body.groupId,
-        createdById=c.id,
-        includeReceipts=body.includeReceipts and bool(body.userId),
-    )
-    s.add(row)
-    s.flush()
-    _given(ctx, row, "given", body.level)
-    _told(ctx, body.kind, body.itemId, grantee)
+        s.add(row)
+        s.flush()
+        _given(ctx, row, "given", body.allow)
+        _told(ctx, kind, body.targetId, grantee)
 
+    def editable(ctx, record_id: str) -> ItemShare:
+        row = ctx.s.get(entity, record_id)
+        if row is None or row.deleted:
+            raise Problem(404, "not-found", "Not found")
+        _owner_only(ctx.s, ctx.caller, kind, row.targetId)
+        return row
 
-def _share_editable(ctx, record_id: str) -> Share:
-    row = ctx.s.get(Share, record_id)
-    if row is None or row.deleted:
-        raise Problem(404, "not-found", "Not found")
-    _owner_only(ctx.s, ctx.caller, row.kind, row.itemId)
-    return row
+    def current(ctx, row: ItemShare) -> dict:
+        return {
+            "targetId": row.targetId,
+            "userId": row.userId,
+            "groupId": row.groupId,
+            "allow": sharing.allow_of(row),
+            "includeReceipts": row.includeReceipts,
+        }
 
+    def update(ctx, row: ItemShare, body) -> None:
+        was = current(ctx, row)
+        fixed = [f for f in ("targetId", "userId", "groupId") if getattr(body, f) != was[f]]
+        if fixed:
+            raise refuse(fixed[0], "share-fixed", "A grant stays with its item and its grantee.")
+        grantee = _grantee(ctx.s, ctx.caller, body)
+        if body.includeReceipts and not row.includeReceipts:
+            _reaches(ctx, grantee, True)
+        row.includeReceipts = body.includeReceipts and bool(body.userId)
+        if body.allow != was["allow"]:
+            row.accessClassId = sharing.class_of(body.allow)
+            _given(ctx, row, "changed", body.allow)
+        row.updatedAt = clock.now()
+        _told(ctx, kind, row.targetId, grantee)
 
-def _share_current(ctx, row: Share) -> dict:
-    return {f: getattr(row, f) for f in ShareRecord.model_fields}
+    def delete(ctx, row: ItemShare) -> None:
+        """Taken away: a receiver who no longer reaches an account loses their tags on it
+        (S10.4)."""
+        s = ctx.s
+        before = access.holders_of(s, access.entity_of(kind), row.targetId)
+        row.mark_deleted(ctx.caller.id)
+        s.flush()
+        after = access.holders_of(s, access.entity_of(kind), row.targetId)
+        if kind == "account":
+            for uid in [u for u in before if u not in after]:
+                sharing.drop_annotations(s, uid, row.targetId)
+        _given(ctx, row, "removed", None)
+        grantee = s.get(User, row.userId) if row.userId else s.get(Group, row.groupId)
+        _told(ctx, kind, row.targetId, grantee)
 
-
-def _share_update(ctx, row: Share, body: ShareRecord) -> None:
-    current = _share_current(ctx, row)
-    fixed = [f for f in ("kind", "itemId", "userId", "groupId") if getattr(body, f) != current[f]]
-    if fixed:
-        raise refuse(fixed[0], "share-fixed", "A grant stays with its item and its grantee.")
-    grantee = _grantee(ctx.s, ctx.caller, body)
-    if body.includeReceipts and not row.includeReceipts:
-        _reaches(ctx, grantee, True)
-    row.includeReceipts = body.includeReceipts and bool(body.userId)
-    if body.level != row.level:
-        row.level = body.level
-        _given(ctx, row, "changed", body.level)
-    row.updatedAt = clock.now()
-    _told(ctx, row.kind, row.itemId, grantee)
-
-
-def _share_delete(ctx, row: Share) -> None:
-    """Taken away: a receiver who no longer reaches an account loses their tags on it (S10.4)."""
-    s = ctx.s
-    before = access.holders_of(s, access.entity_of(row.kind), row.itemId)
-    row.mark_deleted(ctx.caller.id)
-    s.flush()
-    after = access.holders_of(s, access.entity_of(row.kind), row.itemId)
-    if row.kind == "account":
-        for uid in [u for u in before if u not in after]:
-            sharing.drop_annotations(s, uid, row.itemId)
-    _given(ctx, row, "removed", None)
-    grantee = s.get(User, row.userId) if row.userId else s.get(Group, row.groupId)
-    _told(ctx, row.kind, row.itemId, grantee)
-
-
-save.register(
-    save.Kind(
-        prefix="Share",
-        entity=Share,
-        fields=ShareRecord,
-        create=_share_create,
-        editable=_share_editable,
-        current=_share_current,
-        update=_share_update,
-        delete=_share_delete,
-        read=lambda ctx, record_id: ShareOut.of(ctx.s.get(Share, record_id)),
-    )
-)
-
-
-class ShareOut(ShareRecord):
-    id: str
-    version: int
-
-    @classmethod
-    def of(cls, row: Share) -> ShareOut:
-        return cls(
-            id=row.id,
-            version=row.version,
-            kind=row.kind,
-            itemId=row.itemId,
-            userId=row.userId,
-            groupId=row.groupId,
-            level=row.level,
-            includeReceipts=row.includeReceipts,
+    save.register(
+        save.Kind(
+            prefix=SHARES[kind].info["prefix"],
+            entity=entity,
+            fields=fields,
+            create=create,
+            editable=editable,
+            current=current,
+            update=update,
+            delete=delete,
+            read=lambda ctx, record_id: out(
+                id=record_id,
+                version=ctx.s.get(entity, record_id).version,
+                **current(ctx, ctx.s.get(entity, record_id)),
+            ),
         )
+    )
+
+
+for _kind, _entity in SHARE_ENTITIES.items():
+    _share_kind(_kind, _entity)
 
 
 class CountedRecord(Model):
@@ -425,8 +436,8 @@ class CountedRecord(Model):
 
 def _counted_create(ctx, record_id: str, body: CountedRecord) -> None:
     s, c = ctx.s, ctx.caller
-    a, level = access.account(s, c.id, body.accountId)
-    if level == "owner":
+    a, held = access.account(s, c.id, body.accountId)
+    if held.mine:
         raise refuse(
             None,
             "owner-counts",

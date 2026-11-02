@@ -10,6 +10,7 @@ from pydantic import Field
 from sqlalchemy import false, or_, select
 
 from .. import access, activity, assets, clock, exactjson, loans
+from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..loans import payoff
 from ..projections import assumptions
@@ -159,7 +160,6 @@ class LoanView(Model):
     servicer: ServicerCheck | None
     equity: Equity | None = None
     following: Following | None = None
-    canWrite: bool
     version: int = 0  # the loan's terms: 0 until they are set (S13.8.6)
 
 
@@ -185,11 +185,11 @@ class Candidate(Model):
     payee: str | None
 
 
-def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, str]:
-    a, lvl = access.account(s, c.id, account_id, need)
+def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account, Perms]:
+    a, held = access.account(s, c.id, account_id, need)
     if not loans.is_loan(a.type):
         raise Problem(409, "not-a-loan", "This account is not a loan.")
-    return a, lvl
+    return a, held
 
 
 def _terms_out(row: Loan) -> TermsOut:
@@ -217,7 +217,7 @@ def _terms_out(row: Loan) -> TermsOut:
     )
 
 
-def view(s, a: Account, level: str) -> LoanView:
+def view(s, a: Account) -> LoanView:
     row = loans.loan_of(s, a)
     today = clock.today()
     if row is None:
@@ -236,7 +236,6 @@ def view(s, a: Account, level: str) -> LoanView:
             overpaid=Decimal(0),
             rows=[],
             servicer=None,
-            canWrite=level in ("owner", "write"),
         )
     terms = loans.terms_of(row)
     payments, draws = loans.history(s, a)
@@ -273,7 +272,6 @@ def view(s, a: Account, level: str) -> LoanView:
         servicer=servicer,
         equity=_equity(s, row, terms, sm.balance, rows, today),
         following=_following(s, a, terms, rows, sm.payment, today),
-        canWrite=level in ("owner", "write"),
     )
 
 
@@ -340,8 +338,8 @@ def _check(body: TermsIn) -> list[FieldError]:
 @router.get("/accounts/{account_id}/loan", response_model=LoanView)
 def get_loan(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        a, lvl = _account(s, c, account_id)
-        return view(s, a, lvl)
+        a, _ = _account(s, c, account_id)
+        return view(s, a)
 
 
 def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
@@ -833,8 +831,8 @@ def _loan_delete(ctx, row: Loan) -> None:
 
 def _loan_read(ctx, record_id: str) -> LoanView:
     row = ctx.s.get(Loan, record_id)
-    a, lvl = _account(ctx.s, ctx.caller, row.accountId)
-    return view(ctx.s, a, lvl)
+    a, _ = _account(ctx.s, ctx.caller, row.accountId)
+    return view(ctx.s, a)
 
 
 class PayoffRecord(SavedPlanIn):

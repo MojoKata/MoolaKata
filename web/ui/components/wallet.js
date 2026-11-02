@@ -87,7 +87,7 @@ export function WalletFields({ rec }) {
 export function WalletCard({ a, rec }) {
   const res = useApi(`/accounts/${a.id}/wallet`);
   const v = /** @type {any} */ (res.data);
-  const owner = ['owner', 'write'].includes(a.level);
+  const owner = a.access.writable;
   const check = useSubmit(async () => {
     const r = await api.post(`/accounts/${a.id}/wallet/sync`);
     toast(

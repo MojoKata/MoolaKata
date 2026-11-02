@@ -7,9 +7,8 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids
+from .. import clock, ids, sharing
 from ..store.entities.education import Gift, GiftPerson, GiftPlan, Occasion, Person
-from ..store.entities.sharing import Share
 
 
 def seed_gifts(s, people: dict) -> None:
@@ -91,12 +90,11 @@ def seed_gifts(s, people: dict) -> None:
         store="Target",
     )
     s.add(
-        Share(
-            id=ids.new_id("Share"),
-            kind="gift-plan",
-            itemId=emma_plan.id,
-            level="write",
-            userId=bob.id,
-            createdById=alice.id,
+        sharing.new_share(
+            "gift-plan",
+            emma_plan.id,
+            "write",
+            user_id=bob.id,
+            by=alice.id,
         )
     )

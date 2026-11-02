@@ -152,7 +152,7 @@ export function Strategies() {
                       <td class="num">${money(x.capitalAtRiskAtOpen)}${x.returnPct != null
                         ? html`<div class="small">${x.returnPct}%</div>`
                         : null}</td>
-                      <td>${x.canWrite
+                      <td>${x.access.writable
                         ? html`<button type="button" class="btn sm" onClick=${() =>
                           openDialog(StrategyDialog, { x }).then((ok) =>
                             ok && res.reload()

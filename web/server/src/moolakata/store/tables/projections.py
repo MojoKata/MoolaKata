@@ -40,7 +40,7 @@ Projection = record(
     Column("baselineAt", UtcTimestamp),
     CheckConstraint("goal IN ('retirement', 'savings', 'education')", name="goal"),
     Index("ix_Projection_ownerId", "ownerId"),
-    seen=Seen.root("projection", settings=("active", "baseline", "baselineAt")),
+    seen=Seen.root("projection", "PjShr", settings=("active", "baseline", "baselineAt")),
 )
 
 # A receiver's "Show on my Dashboard" on an active projection shared with them (S6.8.3).
@@ -59,6 +59,6 @@ TaxFigure = record(
     Column("key", Text, nullable=False),
     Column("value", Text, nullable=False),
     Column("changedById", Text, ForeignKey("User.id")),
-    seen=Seen.household(),
+    seen=Seen.household(creates="admin"),
 )
 unique_live(TaxFigure, "year", "key")

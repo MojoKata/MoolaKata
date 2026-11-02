@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 
 from .. import access, activity, clock, ids
+from ..access import Perms
 from ..errors import Problem, refuse
 from ..ledger import types as atypes
 from ..options import contract_of
@@ -16,7 +17,7 @@ from ..options import strategies as strat
 from ..store.entities.accounts import Instrument, Strategy, StrategyLeg
 from ..store.repos import ledger as repo
 from . import save
-from .conventions import ExactRoute, IdOf, Model, Money, Quantity, Ratio
+from .conventions import Access, ExactRoute, IdOf, Model, Money, Quantity, Ratio
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["strategies"])
@@ -59,7 +60,7 @@ class StrategyOut(Model):
     returnPct: Ratio | None  # on capital at risk at open
     cashSecured: bool
     marginRequirement: Money | None
-    canWrite: bool
+    access: Access
     version: int
 
 
@@ -86,7 +87,8 @@ class StrategiesView(Model):
     proposals: list[ProposalOut]
 
 
-def _out(a, v: strat.View, level: str) -> StrategyOut:
+def _out(a, v: strat.View, held: Perms) -> StrategyOut:
+    """A strategy as the API answers it; `held` is the reader's on its account."""
     st = v.strategy
     return StrategyOut(
         id=st.id,
@@ -128,16 +130,16 @@ def _out(a, v: strat.View, level: str) -> StrategyOut:
         else None,
         cashSecured=st.cashSecured,
         marginRequirement=st.marginRequirement,
-        canWrite=level in ("owner", "write"),
+        access=Access.of(held.child()),
         version=st.version,
     )
 
 
-def account_view(s, a, level: str, book: strat.Book | None = None):
+def account_view(s, a, held: Perms, book: strat.Book | None = None):
     book = book or strat.Book(s, repo.load(s, a))
-    views = [_out(a, strat.view(book, st), level) for st in strat.of_account(s, a.id)]
+    views = [_out(a, strat.view(book, st), held) for st in strat.of_account(s, a.id)]
     props = []
-    if level in ("owner", "write"):
+    if held.writable:
         for p in strat.proposals(s, a, book):
             under = s.get(Instrument, p.underlyingId)
             props.append(
@@ -168,7 +170,7 @@ def list_strategies(request: Request, c: Caller = Depends(caller)):
         for a, perms in access.accounts(s, c.id):
             if not atypes.investing(a.type):
                 continue
-            v, p = account_view(s, a, perms.level())
+            v, p = account_view(s, a, perms)
             out += v
             props += p
     out.sort(key=lambda x: (x.closedOn is not None, x.underlying, x.openedOn))
@@ -226,15 +228,15 @@ def _own(s, c: Caller, strategy_id: str, dismissed: bool = False):
     st = s.get(Strategy, strategy_id)
     if st is None or st.deleted or (st.dismissed and not dismissed):
         raise Problem(404, "not-found", "Not found")
-    a, level = access.account(s, c.id, st.accountId, "write")
-    return st, a, level
+    a, held = access.account(s, c.id, st.accountId, "write")
+    return st, a, held
 
 
 @router.post("/strategies/{strategy_id}/roll", response_model=StrategyOut)
 def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(caller)):
     """A roll proposed for it taken in, or turned down so it isn't offered again (S3.5.3)."""
     with server(request).db.tx(user=c.id) as s:
-        st, a, level = _own(s, c, strategy_id)
+        st, a, held = _own(s, c, strategy_id)
         have = {r.instrumentId for r in strat.legs_of(s, st)}
         today = clock.today()
         for x in body.roll:
@@ -270,13 +272,13 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
         st.updatedAt = clock.now()
         s.flush()
         book = strat.Book(s, repo.load(s, a))
-        return _out(a, strat.view(book, st), level)
+        return _out(a, strat.view(book, st), held)
 
 
 def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
     """Legs grouped by hand or as proposed, or a proposal turned down."""
     s, c = ctx.s, ctx.caller
-    a, _ = access.account(s, c.id, body.accountId, "write")
+    a, _ = access.account(s, c.id, body.accountId)
     if not body.legs:
         raise refuse("legs", "legs-missing", "The legs it groups.")
     if len({x.instrumentId for x in body.legs}) != len(body.legs):
@@ -355,9 +357,9 @@ def _strategy_update(ctx, st: Strategy, body: StrategyRecord) -> None:
 
 
 def _strategy_read(ctx, record_id: str) -> StrategyOut:
-    st, a, level = _own(ctx.s, ctx.caller, record_id, dismissed=True)
+    st, a, held = _own(ctx.s, ctx.caller, record_id, dismissed=True)
     book = strat.Book(ctx.s, repo.load(ctx.s, a))
-    return _out(a, strat.view(book, st), level)
+    return _out(a, strat.view(book, st), held)
 
 
 save.register(

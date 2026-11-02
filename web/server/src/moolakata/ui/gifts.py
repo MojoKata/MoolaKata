@@ -14,13 +14,12 @@ from sqlalchemy import false, select
 from .. import access, activity, clock, gifts, people, receipts
 from ..errors import FieldError, Problem, refuse
 from ..gifts import holidays
-from ..people import tree
 from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.education import Gift, GiftPerson, GiftPlan, Occasion, Person
 from ..store.entities.users import User
 from . import save
-from .conventions import ExactRoute, IdOf, Model, Money
+from .conventions import Access, ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
 from .receipts import row as receipt_row
@@ -80,27 +79,12 @@ class RemoteUser(Model):
     server: str
 
 
-class PersonOut(Model):
-    """A gift plan the caller sees, with its person."""
+class GiftPlanRow(Model):
+    """A gift plan the caller sees (S7.7): its own fields, and figures worked out for its
+    person, whose record is `/persons`' (the browser joins them by `personId`)."""
 
-    id: str  # the person's
-    planId: str
-    name: str
-    sex: str
-    relation: str | None  # to the caller: daughter, mother-in-law (S10.10.5)
-    userId: str | None  # when they are a user
-    userName: str | None
-    birthMonth: int | None
-    birthDay: int | None
-    birthYear: int | None
-    diedOn: dt.date | None
-    wedding: dt.date | None  # the start of their marriage, for its anniversary (S7.7.1)
-    private: bool
-    canChangePerson: bool
-    canMakePrivate: bool  # whoever added them (S10.10.2)
-    isUser: bool
-    # Remote users who may be this person, to join to them (S10.10.1).
-    sameAs: list[RemoteUser]
+    id: str
+    personId: str
     giftBudget: Money | None
     leadDays: int
     notes: str | None
@@ -108,10 +92,9 @@ class PersonOut(Model):
     next: NextDate | None
     spent: Money  # this year
     lastGift: str | None
-    level: str
+    access: Access
     ownerName: str
-    version: int  # the plan's
-    personVersion: int
+    version: int
 
 
 class HolidayOut(Model):
@@ -172,14 +155,12 @@ def _remote(s, u: User) -> RemoteUser:
     )
 
 
-def people_view(s, c: Caller) -> list[PersonOut]:
+def plans_view(s, c: Caller) -> list[GiftPlanRow]:
     today = clock.today()
     plans = gifts.visible_plans(s, c.id)
     occs = gifts.occasions_of(s, [x.plan.id for x in plans])
     seen = gifts.readable(s, c.id)
     me = s.get(User, c.id)
-    words = tree.relation_to(s, me.personId) if me else {}
-    users = people.users_by_person(s)
     spent: dict[str, Decimal] = {}
     last: dict[str, tuple[int, str]] = {}
     for g, ps in seen:
@@ -195,28 +176,11 @@ def people_view(s, c: Caller) -> list[PersonOut]:
     for x in plans:
         p, gp = x.person, x.plan
         owner = s.get(User, gp.ownerId)
-        u = users.get(p.id)
-        rel = words.get(p.id)
         wedding = gifts.wedding_of(s, p.id)
         out.append(
-            PersonOut(
-                id=p.id,
-                planId=gp.id,
-                name=p.name,
-                sex=p.sex,
-                relation=rel.word if rel else None,
-                userId=u.id if u else None,
-                userName=u.displayName if u else None,
-                birthMonth=p.birthMonth,
-                birthDay=p.birthDay,
-                birthYear=p.birthYear,
-                diedOn=p.diedOn,
-                wedding=wedding,
-                private=p.private,
-                canChangePerson=people.changeable(s, c.id, p.id),
-                canMakePrivate=p.ownerId == c.id,
-                isUser=p.id in users,
-                sameAs=[_remote(s, r) for r in people.may_join(s, c.id, p)],
+            GiftPlanRow(
+                id=gp.id,
+                personId=p.id,
                 giftBudget=gp.giftBudget,
                 leadDays=gp.leadDays,
                 notes=gp.notes,
@@ -224,10 +188,9 @@ def people_view(s, c: Caller) -> list[PersonOut]:
                 next=_next(p, occs[gp.id], today, wedding),
                 spent=spent.get(p.id, Decimal(0)),
                 lastGift=None if me and p.id == me.personId else last.get(p.id, (0, None))[1],
-                level=x.level,
+                access=Access.of(x.perms),
                 ownerName=owner.displayName,
                 version=gp.version,
-                personVersion=p.version,
             )
         )
     return out
@@ -316,15 +279,15 @@ def _check_plan(body: PersonIn) -> dict:
     return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
 
 
-def _one(s, c: Caller, person_id: str) -> PersonOut:
-    return next(p for p in people_view(s, c) if p.id == person_id)
+def _one(s, c: Caller, plan_id: str) -> GiftPlanRow:
+    return next(p for p in plans_view(s, c) if p.id == plan_id)
 
 
-@router.get("/people", response_model=list[PersonOut])
-def list_people(request: Request, c: Caller = Depends(caller)):
-    """The caller's gift plans and those shared with them, with their people."""
+@router.get("/gift-plans", response_model=list[GiftPlanRow])
+def list_plans(request: Request, c: Caller = Depends(caller)):
+    """The caller's gift plans and those shared with them, one per person."""
     with server(request).db.read(user=c.id) as s:
-        return people_view(s, c)
+        return plans_view(s, c)
 
 
 @router.get("/holidays", response_model=list[HolidayOut])
@@ -336,12 +299,15 @@ def list_holidays(request: Request, c: Caller = Depends(caller)):
     ]
 
 
-@router.get("/people/{person_id}", response_model=PersonOut)
-def get_plan(person_id: str, request: Request, c: Caller = Depends(caller)):
-    """One gift plan the caller sees, with its person: what the plan's dialog starts from."""
+@router.get("/gift-plans/{plan_id}", response_model=GiftPlanRow)
+def get_plan(plan_id: str, request: Request, c: Caller = Depends(caller)):
+    """One gift plan the caller sees: what the plan's dialog starts from."""
     with server(request).db.read(user=c.id) as s:
-        gifts.plan_for(s, c.id, person_id)
-        return _one(s, c, person_id)
+        gifts.plan_by_id(s, c.id, plan_id)
+        found = [p for p in plans_view(s, c) if p.id == plan_id]
+        if not found:  # one of two plans for a person: the one shown is the other
+            raise Problem(404, "not-found", "Not found")
+        return found[0]
 
 
 # ---- Gifts (S7.8) ----
@@ -392,7 +358,7 @@ class GiftOut(Model):
     cash: bool
     thankYou: bool
     documents: list[ReceiptRow]
-    canWrite: bool
+    access: Access
     version: int
 
 
@@ -460,10 +426,10 @@ def _gift_out(s, c: Caller, g: Gift, ps: list[str]) -> GiftOut:
         cash=g.cash,
         thankYou=g.thankYou,
         documents=[
-            receipt_row(s, r, receipts.level_for(s, c.id, r) or "read", c.id)
+            receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, g.id, "gift")
         ],
-        canWrite=perms is not None and perms.writable,
+        access=Access.of(perms or access.READ),
         version=g.version,
     )
 
@@ -496,7 +462,7 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
         here = {
             x.plan.ownerId
             for x in gifts.visible_plans(s, c.id)
-            if x.person.id == pid and x.level == "write"
+            if x.person.id == pid and x.perms.writable and not x.perms.mine
         }
         owners = here if owners is None else owners & here
     return next(iter(sorted(owners))) if owners else c.id
@@ -605,7 +571,7 @@ def _editable(s, c: Caller, gift_id: str) -> Gift:
     found = [x for x in gifts_view(s, c) if x.id == gift_id]
     if not found:
         raise Problem(404, "not-found", "Not found")
-    if not found[0].canWrite:
+    if not found[0].access.writable:
         raise Problem(403, "read-only", "This gift is shared with you to read.")
     return g
 
@@ -842,7 +808,7 @@ def _occasion_values(body: OccasionRecord) -> dict:
 
 
 def _occasion_create(ctx, record_id: str, body: OccasionRecord) -> None:
-    gifts.plan_by_id(ctx.s, ctx.caller.id, body.giftPlanId, "write")
+    gifts.plan_by_id(ctx.s, ctx.caller.id, body.giftPlanId)
     ctx.s.add(Occasion(id=record_id, giftPlanId=body.giftPlanId, **_occasion_values(body)))
 
 
@@ -901,9 +867,7 @@ save.register(
         current=_plan_current,
         update=_plan_update,
         delete=_plan_delete,
-        read=lambda ctx, record_id: _one(
-            ctx.s, ctx.caller, ctx.s.get(GiftPlan, record_id).personId
-        ),
+        read=lambda ctx, record_id: _one(ctx.s, ctx.caller, record_id),
     )
 )
 save.register(

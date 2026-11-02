@@ -7,7 +7,7 @@ import { ACCEPT, ReceiptLinkRec, uploadAll } from '../components/receipt.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { FIELDS } from '../api/fields.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
@@ -99,8 +99,8 @@ class Part extends Record {
 export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   useDialogGuide('dialog-transaction');
   const editing = !!txn;
-  const readOnly = editing && txn.level === 'read';
-  const writable = accounts.filter((a) => a.level !== 'read');
+  const readOnly = editing && !txn.access.writable;
+  const writable = accounts.filter((a) => canAdd('Txn', a));
   const kindsOf = (/** @type {string} */ id) => {
     const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
     return (type.investing ? TRADE_KINDS : BANK_KINDS).map(([k]) => k);
@@ -354,7 +354,8 @@ function InBudgets({ txn, rec }) {
         }</div></span>
           <span class="small dim">Leave out</span>
           <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
-            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.canWrite} /></div>`;
+            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
+          .writable} /></div>`;
       })}
       <div class="hint">The category is the transaction's: changing it changes every budget that
         counts it.</div>

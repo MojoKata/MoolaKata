@@ -2,7 +2,7 @@
 // by its underlying, call or put, strike and expiry.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { api } from '../api/client.js';
@@ -52,12 +52,12 @@ export function OptionTrade({ close, accountId, start }) {
   useDialogGuide('dialog-option-trade');
   const accounts = useList('/accounts');
   const list = (/** @type {any[]} */ (accounts.data) || []).filter((a) =>
-    a.investing && a.active && ['owner', 'write'].includes(a.level)
+    a.investing && a.active && canAdd('Txn', a)
   );
   // The account given, or the first the list offers, until another is chosen.
   const f = useDraft(async (draft) => {
     const first = accountId || (/** @type {any[]} */ ((await api.get('/accounts')).items))
-      .find((a) => a.investing && a.active && ['owner', 'write'].includes(a.level))?.id;
+      .find((a) => a.investing && a.active && canAdd('Txn', a))?.id;
     draft.add(OptionTxn, {
       accountId: first || null,
       date: today(),

@@ -26,34 +26,88 @@ from ..types import UtcTimestamp
 
 
 @dataclass(frozen=True)
+class Via:
+    """Made with a permission on the record a key in its body names (docs/schema.md §7.9):
+    a transaction with `writable` on its account."""
+
+    key: str
+    permission: str = "writable"
+    # The refusal at the key's field, as (code, message): without the permission (403), and
+    # when the caller can't read it (404); by default the access check's own words.
+    refused: tuple[str, str] | None = None
+    missing: tuple[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class ByKind:
+    """Made with a permission on the record a kind column and a key name together: a receipt's
+    link, on whatever it is attached to. `tables` maps each kind to its table."""
+
+    kind: str
+    key: str
+    tables: tuple[tuple[str, str], ...]
+    permission: str = "writable"
+    refused: tuple[str, str] | None = None
+    missing: tuple[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class AllOf:
+    """Made only with every one of several: a reimbursement, with both sides writable."""
+
+    rules: tuple[Via | ByKind, ...]
+
+
+# Who may make a record of a table without a parent to ask: any signed-in user, one's own (a
+# per-user table's rows are the caller's), admins, nobody (the server's own), or the route's
+# own code, when the rule is one of a kind (a relationship between two people).
+CREATORS = ("anyone", "own", "admin", "never", "code")
+Creates = Via | ByKind | AllOf | str
+
+
+@dataclass(frozen=True)
 class Seen:
     """How a table's records are seen (docs/schema.md §7), which decides its `<Table>Access`
     view: generated for a root, a child, a per-user table or admin data; written by hand for a
     rule of its own; none for a relation, household data or the server's own."""
 
     how: str
-    share: str | None = None  # a root's share kind (Share.kind)
+    share: str | None = None  # a root's share kind, and for a share table its target's
+    share_prefix: str | None = None  # the prefix of a root's `<Table>Share` table
     key: str | None = None  # a child's parent key, a per-user table's user column
     configurable: bool = False  # a per-user table whose rows hold secrets (Connection)
     # Changing these asks `configurable`, not `writable` (§7.6): an account's settings.
     settings: tuple[str, ...] = ()
     # What any write of a row asks: `configurable` for what a record covers (its accounts).
     writes: str = "writable"
+    # Who may make one (§7.9); None takes its kind's default (`creates_of`).
+    creates: Creates | None = None
 
     @staticmethod
-    def root(share: str, settings: tuple[str, ...] = ()) -> Seen:
-        """One of the shareable kinds, by the plain rule: its owner, and its shares."""
-        return Seen("root", share=share, settings=settings)
+    def root(share: str, share_prefix: str, settings: tuple[str, ...] = ()) -> Seen:
+        """One of the shareable kinds, by the plain rule: its owner, and its shares (its
+        `<Table>Share` table, made with the prefix given). Anyone signed in makes one."""
+        return Seen("root", share=share, share_prefix=share_prefix, settings=settings)
 
     @staticmethod
-    def child(key: str, writes: str = "writable") -> Seen:
-        """Seen as the record its NOT NULL key names is."""
-        return Seen("child", key=key, writes=writes)
+    def child(key: str, writes: str = "writable", creates: Creates | None = None) -> Seen:
+        """Seen as the record its NOT NULL key names is; made, by default, with what changing
+        it asks of that record (`writes`)."""
+        return Seen("child", key=key, writes=writes, creates=creates)
 
     @staticmethod
-    def rule(share: str | None = None) -> Seen:
-        """A view written by hand; `share` when it is a shareable kind with rules of its own."""
-        return Seen("rule", share=share)
+    def rule(
+        share: str | None = None, share_prefix: str | None = None, creates: Creates = "code"
+    ) -> Seen:
+        """A view written by hand; `share` when it is a shareable kind with rules of its own,
+        with the prefix of its `<Table>Share` table."""
+        return Seen("rule", share=share, share_prefix=share_prefix, creates=creates)
+
+    @staticmethod
+    def shares(kind: str) -> Seen:
+        """A `<Table>Share` table: an item of a shareable kind granted to a user or a group
+        (§7). Whoever may share the item holds its shares; a grantee reads their own."""
+        return Seen("share", share=kind, key="targetId")
 
     @staticmethod
     def per_user(key: str, configurable: bool = False) -> Seen:
@@ -65,9 +119,9 @@ class Seen:
         return Seen("relation")
 
     @staticmethod
-    def household() -> Seen:
-        """Read by every signed-in local user; written as code allows."""
-        return Seen("household")
+    def household(creates: Creates) -> Seen:
+        """Read by every signed-in local user; made as `creates` says."""
+        return Seen("household", creates=creates)
 
     @staticmethod
     def admin() -> Seen:
@@ -172,3 +226,21 @@ def unique_live(table: Table, *columns: str, name: str | None = None) -> Index:
         unique=True,
         sqlite_where=text("NOT deleted"),
     )
+
+
+def creates_of(table) -> Creates:
+    """Who may make a record of a table (docs/schema.md §7.9): its declaration, else its kind's
+    default. A child is made with what changing it asks of its parent; a share with
+    `shareable` on its item."""
+    how: Seen = table.info["seen"]
+    if how.creates is not None:
+        return how.creates
+    return {
+        "root": "anyone",
+        "child": Via(how.key or "", how.writes),
+        "share": Via("targetId", "shareable"),
+        "per-user": "own",
+        "admin": "admin",
+        "server": "never",
+        "relation": "code",
+    }.get(how.how, "code")

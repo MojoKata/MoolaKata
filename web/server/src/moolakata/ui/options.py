@@ -123,7 +123,7 @@ def settle(
     if body.how not in ("expired", "assign", "exercise"):
         raise refuse("how", "how-invalid", "Expired, assigned or exercised.")
     with server(request).db.tx(user=c.id) as s:
-        a, level = access.account(s, c.id, account_id, "write")
+        a, held = access.account(s, c.id, account_id, "write")
         inst = s.get(Instrument, instrument_id)
         if inst is None or inst.deleted:
             raise refuse("instrumentId", "not-found", "No such option.")
@@ -139,7 +139,7 @@ def settle(
             subject_id=a.id,
             owner=a.ownerId,
         )
-        return shape(s, c.id, made, {a.id: level})
+        return shape(s, c.id, made, {a.id: held})
 
 
 # ---- Adjusted contracts (S3.10.2) ----
@@ -322,7 +322,7 @@ def _action_create(ctx, record_id: str, body: CorporateActionRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.kind not in corporate.KINDS:
         raise refuse("kind", "kind-invalid", "A split, symbol change, spin-off or merger.")
-    a, _ = access.account(s, c.id, body.accountId, "write")
+    a, _ = access.account(s, c.id, body.accountId)
     if not atypes.investing(a.type):
         raise refuse("kind", "kind-not-for-account", "These belong in an investing account.")
     inst = s.get(Instrument, body.instrumentId)
@@ -407,14 +407,14 @@ def _action_delete(ctx, action: CorporateAction) -> None:
 def _action_read(ctx, record_id: str) -> CorporateActionOut:
     s = ctx.s
     action = s.get(CorporateAction, record_id)
-    _, level = access.account(s, ctx.caller.id, action.accountId)
+    _, held = access.account(s, ctx.caller.id, action.accountId)
     inst = s.get(Instrument, action.instrumentId)
     return CorporateActionOut(
         id=action.id,
         accountId=action.accountId,
         instrumentId=action.instrumentId,
         symbol=inst.symbol,
-        transactions=shape(s, ctx.caller.id, _made_from(s, action.id), {action.accountId: level}),
+        transactions=shape(s, ctx.caller.id, _made_from(s, action.id), {action.accountId: held}),
         version=action.version,
         **{f: getattr(action, f) for f in ACTION_FIELDS},
     )

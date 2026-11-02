@@ -18,7 +18,7 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
-import { Record as Rec, TYPES } from '../app/draft.js';
+import { canAdd, Record as Rec, TYPES } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -68,8 +68,9 @@ export default function Taxes({ tab }) {
   const current = TABS.some(([k]) => k === tab) ? /** @type {string} */ (tab) : 'summary';
   useTitle('Taxes');
   useGuide('taxes-' + current);
-  const list = useList('/tax-books', {}, ['share']);
-  const rows = /** @type {any[]} */ (list.data);
+  const list = useApi('/tax-books', {}, ['share']);
+  const v = /** @type {any} */ (list.data);
+  const rows = /** @type {any[]} */ (v?.books);
   if (list.error) return html`<${Failed} error=${list.error} />`;
   if (!rows) return html`<${Loading} />`;
   const create = () =>
@@ -79,8 +80,9 @@ export default function Taxes({ tab }) {
         list.reload();
       }
     });
-  const pending = rows.filter((r) => r.level === 'pending');
-  const held = rows.filter((r) => r.level !== 'pending');
+  // Books the user is named in and hasn't accepted come apart from those they hold (S8.14.1).
+  const pending = /** @type {any[]} */ (v.waiting);
+  const held = rows;
   const chosen = held.find((r) => r.id === bookPref.value) || held[0];
   return html`
     ${pending.map((r) =>
@@ -105,7 +107,7 @@ export default function Taxes({ tab }) {
         : null}
       <span class="spacer"></span>
       <button class="btn" onClick=${create}><${Icon} name="plus" /> New tax book</button>
-      ${chosen && chosen.level === 'owner'
+      ${chosen && chosen.access.shareable
         ? html`<button class="btn" onClick=${() =>
           openDialog(ShareDialog, {
             kind: 'tax-book',
@@ -210,7 +212,7 @@ function Summary({ b, done }) {
         html`
           <div
             class="list-item"><div class="grow">${a.name}<div class="small dim">${a
-              .ownerName}</div></div>${b.canWrite
+              .ownerName}</div></div>${b.access.configurable
               ? html`<button class="btn sm" onClick=${() =>
                 count.run(a, false).catch(() => {})}>Leave out</button>`
               : null}</div>
@@ -222,7 +224,7 @@ function Summary({ b, done }) {
               /** @type {any} */ a,
             ) =>
               html`<div class="list-item"><span class="grow dim">${a.name}</span>${
-                b.canWrite
+                b.access.writable
                   ? html`<button class="btn sm" onClick=${() =>
                     count.run(a, null).catch(() => {})}>Count it</button>`
                   : null
@@ -231,7 +233,7 @@ function Summary({ b, done }) {
               class="small dim">The panels leave these out, and say so.</p>
           `
           : null}
-        ${b.canWrite && b.addable.length
+        ${canAdd('TxBkA', b) && b.addable.length
           ? html`
             <div class="row mt">
               <${Field} label="Add an account" id="add-account"
@@ -284,15 +286,15 @@ function Dependents({ b, done }) {
   return html`
     <div
       class="card mt"><h3 data-help="dependents">Dependents<span class="spacer"></span>${b
-          .canWrite
+          .access.writable
         ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add
           dependent</button>`
         : null}</h3>
       ${b.dependents.length
         ? b.dependents.map((/** @type {any} */ d) =>
           html`
-            <div class=${'list-item' + (b.canWrite ? ' click' : '')}
-              onClick=${b.canWrite ? () => open(d) : null}><div class="grow"><b>${d
+            <div class=${'list-item' + (b.access.writable ? ' click' : '')}
+              onClick=${b.access.writable ? () => open(d) : null}><div class="grow"><b>${d
                 .name}</b><div class="small dim">${[
                 d.relation && d.relation[0].toUpperCase() + d.relation.slice(1),
                 d.claimedAs,
@@ -461,7 +463,7 @@ function Filings({ b, done }) {
   const open = (/** @type {any} */ f) => openDialog(FilingDialog, { b, f }).then(done);
   return html`
     <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
-      of its own.</span><span class="spacer"></span>${b.canWrite
+      of its own.</span><span class="spacer"></span>${canAdd('Filng', b)
         ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add a
         filing</button>`
         : null}</div>
@@ -473,7 +475,7 @@ function Filings({ b, done }) {
               '')}>${PROGRESS.find(([k]) => k === f.progress)?.[1]}</span>${f.overdue
               ? html`<span class="pill warn">past its due date</span>`
               : null}<span class="spacer"></span><button class="btn sm" onClick=${() =>
-              open(f)}>${b.canWrite ? 'Edit' : 'Open'}</button></h3>
+              open(f)}>${b.access.writable ? 'Edit' : 'Open'}</button></h3>
                     <div class="grid g4">
                       <div><div class="small dim">Due</div>${f.extendedDue
                         ? html`${date(f.extendedDue)} <span class="small dim">extended</span>`
@@ -519,14 +521,14 @@ function Documents({ b, done }) {
   const add = (/** @type {any} */ start) => openDialog(DocumentDialog, { b, start }).then(done);
   // A document kept opens to change or remove it (CR3-36).
   const open = (/** @type {any} */ doc) =>
-    b.canWrite && openDialog(DocumentDialog, { b, doc }).then(done);
+    b.access.writable && openDialog(DocumentDialog, { b, doc }).then(done);
   const filed = b.filings.flatMap((/** @type {any} */ f) =>
     f.documents.map((/** @type {any} */ d) => ({ ...d, filing: f.label }))
   );
   return html`
     <div
       class="toolbar"><h3 style=${{ margin: 0 }}>Received</h3><span class="spacer"></span>${b
-          .canWrite
+          .access.writable
         ? html`<button class="btn sm" onClick=${() => add(null)}><${Icon} name="plus" /> Add a
         document</button>`
         : null}</div>
@@ -545,7 +547,7 @@ function Documents({ b, done }) {
           <tbody>
         ${b.expected.map((/** @type {any} */ e) =>
           html`
-            <tr class=${e.document && b.canWrite ? 'click' : ''} onClick=${() =>
+            <tr class=${e.document && b.access.writable ? 'click' : ''} onClick=${() =>
               e.document && open(e.document)}>
               <td>${e.form}</td>
               <td class="dim">${e.issuer || '—'}</td>
@@ -560,7 +562,7 @@ function Documents({ b, done }) {
                     `
                     : null
                 }`
-                : b.canWrite
+                : b.access.writable
                 ? html`<button class="btn sm" onClick=${(/** @type {Event} */ ev) => {
                   ev.stopPropagation();
                   add({
@@ -575,7 +577,7 @@ function Documents({ b, done }) {
         )}
         ${b.received.map((/** @type {any} */ d) =>
           html`
-            <tr class=${b.canWrite ? 'click' : ''} onClick=${() => open(d)}>
+            <tr class=${b.access.writable ? 'click' : ''} onClick=${() => open(d)}>
               <td>${d.form}</td>
               <td class="dim">${d.issuer || '—'}</td>
               <td
@@ -594,8 +596,9 @@ function Documents({ b, done }) {
       </div>
     </div>
     <div
-      class="toolbar mt"><h3 style=${{ margin: 0 }}>Filed</h3><span class="spacer"></span>${b
-          .canWrite && b.filings.length
+      class="toolbar mt"><h3 style=${{
+        margin: 0,
+      }}>Filed</h3><span class="spacer"></span>${canAdd('TxDoc', b) && b.filings.length
         ? html`<button class="btn sm" onClick=${() =>
           add({
             direction: 'filed',
@@ -607,7 +610,7 @@ function Documents({ b, done }) {
       ? html`<div class="card" style=${{ padding: '4px 8px' }}>${
         filed.map((/** @type {any} */ d) =>
           html`
-            <div class=${'list-item' + (b.canWrite ? ' click' : '')}
+            <div class=${'list-item' + (b.access.writable ? ' click' : '')}
               onClick=${() => open(d)}><div class="grow">${d.form}<div class="small dim">${d
                 .filing}${d.issuer ? ` · ${d.issuer}` : ''}${d.notes
                 ? ` · ${d.notes}`
@@ -765,7 +768,7 @@ function FilingDialog({ close, b, f: filing }) {
   const payments = /** @type {PaymentRec[]} */ (
     (draft?.records || []).filter((r) => r instanceof PaymentRec && !r.removed)
   );
-  const can = b.canWrite;
+  const can = b.access.writable;
   const statuses = /** @type {any} */ (meta.data)?.statuses || [];
   const items = /** @type {any} */ (txns.data)?.items || [];
   const where = rec?.get('jurisdiction');

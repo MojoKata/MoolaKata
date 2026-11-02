@@ -7,10 +7,9 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import assets, clock, ids
+from .. import assets, clock, ids, sharing
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation
-from ..store.entities.sharing import Share
 
 
 def seed_assets(s, people: dict) -> None:
@@ -164,12 +163,11 @@ def seed_assets(s, people: dict) -> None:
         if acct is not None:
             s.scalars(select(Loan).where(Loan.accountId == acct.id)).one().securedById = secured.id
     s.add(
-        Share(
-            id=ids.new_id("Share"),
-            kind="account",
-            itemId=home_acct.id,
-            level="read",
-            userId=alice.id,
-            createdById=bob.id,
+        sharing.new_share(
+            "account",
+            home_acct.id,
+            "read",
+            user_id=alice.id,
+            by=bob.id,
         )
     )

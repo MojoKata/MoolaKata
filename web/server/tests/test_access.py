@@ -53,6 +53,7 @@ def household(tmp_path_factory):
 def edge_cases(s) -> dict[str, str]:
     from moolakata.links.manage import apply_directory
     from moolakata.people import make as make_person
+    from moolakata.sharing import new_share
     from moolakata.store.entities.accounts import (
         Account,
         Reimbursement,
@@ -64,7 +65,7 @@ def edge_cases(s) -> dict[str, str]:
     from moolakata.store.entities.education import Gift, GiftPerson, GiftPlan
     from moolakata.store.entities.links import Link
     from moolakata.store.entities.receipts import Receipt, ReceiptLink
-    from moolakata.store.entities.sharing import Share
+    from moolakata.store.entities.sharing import SHARE_ENTITIES
     from moolakata.store.entities.taxes import TaxBook, TaxBookFiler
     from moolakata.store.entities.users import Group, User, UserGroup
 
@@ -98,19 +99,20 @@ def edge_cases(s) -> dict[str, str]:
             s.add(UserGroup(userId=m.id, groupId=g.id, createdAt=now))
         return g
 
-    def share(kind, item_id, level, user=None, grp=None, receipts=False):
+    def share(kind, item_id, allow, user=None, grp=None, receipts=False):
         s.add(
-            Share(
-                id=ids.new_id("Share"),
-                kind=kind,
-                itemId=item_id,
-                userId=user.id if user else None,
-                groupId=grp.id if grp else None,
-                level=level,
-                createdById=alice.id,
-                includeReceipts=receipts,
+            new_share(
+                kind,
+                item_id,
+                allow,
+                user_id=user.id if user else None,
+                group_id=grp.id if grp else None,
+                by=alice.id,
+                include_receipts=receipts,
             )
         )
+
+    AccountShare = SHARE_ENTITIES["account"]
 
     def alices(entity, **where):
         q = select(entity).where(entity.ownerId == alice.id, entity.deleted.is_(False))
@@ -125,7 +127,7 @@ def edge_cases(s) -> dict[str, str]:
     unshared = next(
         a
         for a in accounts
-        if not s.scalars(select(Share).where(Share.itemId == a.id)).first()
+        if not s.scalars(select(AccountShare).where(AccountShare.targetId == a.id)).first()
         and s.scalars(select(Transaction).where(Transaction.accountId == a.id)).first()
     )
 
@@ -189,9 +191,8 @@ def edge_cases(s) -> dict[str, str]:
     # The rows joining two transactions, one on each side of the share (1e).
     # A trade in an account of hers no one else reads, as a wash sale's sale and a transfer's
     # side are; and the joint account's first transaction.
-    unshared_ids = [
-        a.id for a in accounts if not s.scalars(select(Share).where(Share.itemId == a.id)).first()
-    ]
+    shared_ids = set(s.scalars(select(AccountShare.targetId)))
+    unshared_ids = [a.id for a in accounts if a.id not in shared_ids]
     mine = s.scalars(
         select(Transaction)
         .where(
@@ -263,6 +264,7 @@ def edge_cases(s) -> dict[str, str]:
 
 
 def rows(s, table: str) -> dict[tuple[str, str], tuple[int, int, int, int]]:
+    """Each row's four permissions (`mine` is checked by its own tests)."""
     return {
         (r[0], r[1]): tuple(int(x) for x in r[2:])
         for r in s.execute(
@@ -390,6 +392,170 @@ def test_who_holds_what(household):
     assert not wrong, wrong
 
 
+# (table, record, user, whether it is theirs): decision 7 of the mine walk.
+MINE = [
+    ("Account", "unshared", "alice", 1),
+    ("Account", "shared", "bob", 0),  # shared with him
+    ("TaxBook", "book", "alice", 1),
+    ("TaxBook", "book", "dave", 0),
+    ("TaxBookFiler", "erins invitation", "erin", 1),
+    ("Gift", "gift", "alice", 1),
+    ("Receipt", "receipt", "alice", 1),
+    ("Receipt", "receipt", "bob", 0),
+    ("Reimbursement", "reimbursement", "alice", 1),  # both sides hers
+    ("Reimbursement", "reimbursement", "bob", 0),
+    ("TransferMatch", "match", "alice", 1),
+    ("WashSale", "wash", "alice", 1),  # its sale's
+    ("Person", "bobs person", "bob", 1),  # his own person
+    ("Person", "bobs person", "admin", 0),  # an admin holds everyone, theirs or not
+    ("Person", "bobs person", "erin", 0),
+    ("User", "tom", "tom", 1),
+    ("User", "carol", "admin", 0),
+]
+
+
+def mine_rows(s, table: str) -> dict[tuple[str, str], int]:
+    return {
+        (r[0], r[1]): int(r[2])
+        for r in s.execute(
+            text(f'SELECT "targetId", "userId", mine FROM "{access_views.access_name(table)}"')
+        )
+    }
+
+
+def test_whose_it_is(household):
+    srv, n = household
+    with srv.db.read(unscoped="test") as s:
+        wrong = [
+            (table, record, user, want, got)
+            for table, record, user, want in MINE
+            if (got := mine_rows(s, table).get((n[record], n[user]))) != want
+        ]
+    assert not wrong, wrong
+
+
+# Tables whose `ownerId` isn't the whole of whose they are: a tax book's accepted filers, the
+# person a user is, the actor of an activity entry.
+OWNED_OTHERWISE = {"TaxBook", "Person", "Activity"}
+
+
+def test_mine_is_the_owners_row_and_a_childs_its_parents(household):
+    """`mine` is a fact of the row (decision 7): the owner's row and no other for a record
+    with an owner; for a child, its parent's; never a grantee's row of a share."""
+    srv, _ = household
+    with srv.db.read(unscoped="test") as s:
+        for t in metadata.sorted_tables:
+            how = access_views.seen(t)
+            if not access_views.has_view(t):
+                continue
+            view = access_views.access_name(t.name)
+            if "ownerId" in t.c and t.name not in OWNED_OTHERWISE:
+                off = s.execute(
+                    text(
+                        f'SELECT count(*) FROM "{view}" AS a JOIN "{t.name}" AS t '
+                        'ON t.id = a."targetId" WHERE a.mine != (a."userId" IS t."ownerId")'
+                    )
+                ).scalar()
+                assert off == 0, f"{view}: mine is not the owner's row"
+            if how.how in ("child", "share"):
+                fk = next(f for f in t.foreign_keys if f.parent.name == how.key)
+                parent = access_views.access_name(fk.column.table.name)
+                holder = "AND a.shareable" if how.how == "share" else ""
+                off = s.execute(
+                    text(
+                        f'SELECT count(*) FROM "{view}" AS c JOIN "{t.name}" AS t '
+                        f'ON t.id = c."targetId" LEFT JOIN "{parent}" AS a '
+                        f'ON a."targetId" = t."{how.key}" AND a."userId" = c."userId" {holder} '
+                        "WHERE c.mine != coalesce(a.mine, 0)"
+                    )
+                ).scalar()
+                assert off == 0, f"{view}: mine is not its parent's"
+
+
+# ---- Who may make a record (the mine walk, decision 2) ----
+
+
+def _parent_rules(table):
+    """Each rule of a kind's creation that names a parent: (key, parent table, fields that
+    pick it, permission)."""
+    from moolakata.store.tables._base import AllOf, ByKind, Via, creates_of
+
+    rule = creates_of(table)
+    for r in rule.rules if isinstance(rule, AllOf) else (rule,):
+        if isinstance(r, Via):
+            fk = next(f for f in table.foreign_keys if f.parent.name == r.key)
+            yield r.key, fk.column.table, {}, r.permission
+        elif isinstance(r, ByKind):
+            for kind, name in r.tables:
+                parent = next(t for t in metadata.sorted_tables if t.name == name)
+                yield r.key, parent, {r.kind: kind}, r.permission
+
+
+# What the household holds no record to try with: (kind's prefix, key, parent, status).
+UNTRIED = {
+    # Every budget a user reads they may change (the Household group's share is at Write).
+    ("BdgLn", "budgetId", "Budget", 403),
+    ("BdgMv", "budgetId", "Budget", 403),
+    # A gift others read, and a 529's qualified expenses: none in the household.
+    ("RcLnk", "itemId", "Gift", 403),
+    ("RcLnk", "itemId", "QualifiedExpense", 403),
+    ("RcLnk", "itemId", "QualifiedExpense", 404),
+}
+
+TRIERS = ("bob", "dave", "erin", "alice")
+
+
+def _candidate(s, n, sql: str) -> tuple[str, str] | None:
+    """The first record and user, among the household's, the query finds."""
+    for who in TRIERS:
+        row = s.execute(text(sql), {"u": n[who]}).first()
+        if row is not None:
+            return row[0], n[who]
+    return None
+
+
+def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
+    """For every kind the save takes whose rule names a parent: one the user can't read
+    answers 404, one they read without the permission 403, before the kind's own code (the
+    mine walk, decision 2.4)."""
+    from types import SimpleNamespace
+
+    from sqlalchemy import inspect
+
+    from moolakata import contract
+    from moolakata.errors import Problem
+    from moolakata.ui import save
+
+    contract.openapi_document()  # every kind registered
+    srv, n = household
+    tried, untried = 0, set()
+    for prefix, kind in sorted(save.KINDS.items()):
+        table = inspect(kind.entity).local_table
+        for key, parent, pick, permission in _parent_rules(table):
+            view = access_views.access_name(parent.name)
+            queries = {
+                404: f'SELECT t.id FROM "{parent.name}" AS t WHERE NOT EXISTS (SELECT 1 FROM '
+                f'"{view}" AS a WHERE a."targetId" = t.id AND a."userId" = :u) ORDER BY t.id',
+                403: f'SELECT "targetId" FROM "{view}" WHERE "userId" = :u AND NOT "{permission}" '
+                'ORDER BY "targetId"',
+            }
+            for status, sql in queries.items():
+                with srv.db.read(unscoped="test: a record to try") as s:
+                    found = _candidate(s, n, sql)
+                if found is None:
+                    untried.add((prefix, key, parent.name, status))
+                    continue
+                item, user = found
+                with srv.db.read(user=user) as s:
+                    ctx = SimpleNamespace(s=s, caller=SimpleNamespace(id=user, admin=False))
+                    with pytest.raises(Problem) as e:
+                        save.may_create(ctx, kind, {**pick, key: item})
+                assert e.value.status == status, (prefix, key, parent.name, status)
+                tried += 1
+    assert tried > 60
+    assert untried == UNTRIED
+
+
 # ---- Scoped sessions (decision 5) ----
 
 
@@ -435,7 +601,9 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
     with srv.db.read(user=n["bob"]) as s:
         shared = s.scalars(select(Account).where(Account.name == "Everyday checking")).one()
         got, p = access.need(s, Account, shared.id, n["bob"])
-        assert got.id == shared.id and p.level() == "read"
+        assert got.id == shared.id and p == access.READ
+        with pytest.raises(ValueError):  # nothing is allowed by `mine` (mine walk, decision 7)
+            access.need(s, Account, shared.id, n["bob"], "mine")
         with pytest.raises(Problem) as e:
             access.need(s, Account, shared.id, n["bob"], "writable", "account")
         assert e.value.status == 403
@@ -446,7 +614,7 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
         assert {a.id for a, _ in listed} == {k[0] for k in rows(s, "Account") if k[1] == n["bob"]}
     with srv.db.read(unscoped="test: holders") as s:
         held = access.holders_of(s, Account, shared.id)
-        assert held[n["alice"]].level() == "owner" and n["bob"] in held
+        assert held[n["alice"]] == access.OWNER and n["bob"] in held
 
 
 # ---- The write check at flush (decision 5.4) ----

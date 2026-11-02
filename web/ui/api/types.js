@@ -2,6 +2,17 @@
 // Do not edit: web/check fails when this file differs from what the routes give.
 
 /**
+ * What the reader may do with a record, and whether it is theirs (docs/schema.md §7), as
+ * its access view says. It travels only from the server: no request body has it.
+ * @typedef {Object} Access
+ * @property {boolean} mine
+ * @property {boolean} writable
+ * @property {boolean} deletable
+ * @property {boolean} shareable
+ * @property {boolean} configurable
+ */
+
+/**
  * @typedef {Object} AccountDetail
  * @property {string} id
  * @property {string} name
@@ -13,7 +24,7 @@
  * @property {boolean} active
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {("owner" | "write" | "read")} level
+ * @property {Access} access
  * @property {number} sharedWith
  * @property {(string | null)} ownerAvatar
  * @property {boolean} counted
@@ -103,7 +114,7 @@
  * @property {boolean} active
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {("owner" | "write" | "read")} level
+ * @property {Access} access
  * @property {number} sharedWith
  * @property {(string | null)} ownerAvatar
  * @property {boolean} counted
@@ -116,6 +127,19 @@
  * @property {boolean} investing
  * @property {boolean} reconcilable
  * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} AccountShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -334,7 +358,7 @@
  * @property {string} id
  * @property {number} year
  * @property {Array<Filer>} filers
- * @property {string} level
+ * @property {Access} access
  * @property {string} label
  * @property {number} version
  * @property {string} bitcoinFees
@@ -349,7 +373,6 @@
  * @property {Array<DocumentOut>} received
  * @property {Array<LastYear>} lastYear
  * @property {string} federalDue
- * @property {boolean} canWrite
  */
 
 /**
@@ -367,9 +390,15 @@
  * @property {string} id
  * @property {number} year
  * @property {Array<Filer>} filers
- * @property {string} level
+ * @property {Access} access
  * @property {string} label
  * @property {number} version
+ */
+
+/**
+ * @typedef {Object} BooksView
+ * @property {Array<BookRow>} books
+ * @property {Array<WaitingBook>} waiting
  */
 
 /**
@@ -422,7 +451,7 @@
  * @property {string} name
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {string} level
+ * @property {Access} access
  * @property {Array<string>} accountIds
  * @property {number} sharedWith
  * @property {string} method
@@ -432,6 +461,19 @@
  * @property {Array<RoleOut>} roles
  * @property {boolean} active
  * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} BudgetShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -752,7 +794,6 @@
  * @typedef {Object} ContributionsView
  * @property {Array<moolakata__ui__education__ContributionOut>} rows
  * @property {Array<GiftYearOut>} years
- * @property {boolean} canWrite
  */
 
 /**
@@ -929,7 +970,7 @@
  * @property {(boolean | null)} longTerm
  * @property {(boolean | null)} granted
  * @property {(string | null)} notes
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {(number | null)} version
  */
 
@@ -1223,8 +1264,39 @@
  * @property {boolean} cash
  * @property {boolean} thankYou
  * @property {Array<ReceiptRow>} documents
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {number} version
+ */
+
+/**
+ * A gift plan the caller sees (S7.7): its own fields, and figures worked out for its
+ * person, whose record is `/persons`' (the browser joins them by `personId`).
+ * @typedef {Object} GiftPlanRow
+ * @property {string} id
+ * @property {string} personId
+ * @property {(import('../app/dec.js').Dec | null)} giftBudget
+ * @property {number} leadDays
+ * @property {(string | null)} notes
+ * @property {Array<OccasionOut>} occasions
+ * @property {(NextDate | null)} next
+ * @property {import('../app/dec.js').Dec} spent
+ * @property {(string | null)} lastGift
+ * @property {Access} access
+ * @property {string} ownerName
+ * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} GiftPlanShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -1287,6 +1359,19 @@
  */
 
 /**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} GivingPlanShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
+ */
+
+/**
  * @typedef {Object} GivingView
  * @property {number} year
  * @property {(moolakata__ui__giving__PlanOut | null)} plan
@@ -1326,7 +1411,7 @@
  * @typedef {Object} GroupGrant
  * @property {string} id
  * @property {string} name
- * @property {string} level
+ * @property {("none" | "read" | "write")} allow
  * @property {number} members
  * @property {(string | null)} [shareId]
  * @property {number} [version]
@@ -1494,7 +1579,7 @@
  * @property {string} name
  * @property {(string | null)} countsAs
  * @property {boolean} leftOut
- * @property {boolean} canWrite
+ * @property {Access} access
  */
 
 /**
@@ -1607,7 +1692,7 @@
  * @property {Array<ImprovementOut>} improvements
  * @property {Array<ReceiptRow>} documents
  * @property {Array<Array<unknown>>} history
- * @property {boolean} canWrite
+ * @property {Access} access
  */
 
 /**
@@ -1677,7 +1762,6 @@
  * @property {import('../app/dec.js').Dec} value
  * @property {import('../app/dec.js').Dec} basis
  * @property {import('../app/dec.js').Dec} gain
- * @property {boolean} canWrite
  */
 
 /**
@@ -1886,7 +1970,6 @@
  * @property {(ServicerCheck | null)} servicer
  * @property {(Equity | null)} [equity]
  * @property {(Following | null)} [following]
- * @property {boolean} canWrite
  * @property {number} [version]
  */
 
@@ -2029,7 +2112,6 @@
  * @property {import('../app/dec.js').Dec} plannedSpending
  * @property {number} uncategorised
  * @property {number} daysLeft
- * @property {boolean} canWrite
  * @property {number} version
  */
 
@@ -2226,7 +2308,7 @@
  * @property {(string | null)} [notes]
  * @property {string} id
  * @property {import('../app/dec.js').Dec} given
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -2296,14 +2378,6 @@
  */
 
 /**
- * @typedef {Object} Page_BookRow_
- * @property {Array<BookRow>} items
- * @property {number} total
- * @property {number} offset
- * @property {number} limit
- */
-
-/**
  * @typedef {Object} Page_BudgetRow_
  * @property {Array<BudgetRow>} items
  * @property {number} total
@@ -2362,6 +2436,14 @@
 /**
  * @typedef {Object} Page_GiftOut_
  * @property {Array<GiftOut>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
+ * @typedef {Object} Page_GiftPlanRow_
+ * @property {Array<GiftPlanRow>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -2458,14 +2540,6 @@
 /**
  * @typedef {Object} Page_OrganisationOut_
  * @property {Array<OrganisationOut>} items
- * @property {number} total
- * @property {number} offset
- * @property {number} limit
- */
-
-/**
- * @typedef {Object} Page_PersonOut_
- * @property {Array<PersonOut>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit
@@ -2762,39 +2836,6 @@
  */
 
 /**
- * A gift plan the caller sees, with its person.
- * @typedef {Object} PersonOut
- * @property {string} id
- * @property {string} planId
- * @property {string} name
- * @property {string} sex
- * @property {(string | null)} relation
- * @property {(string | null)} userId
- * @property {(string | null)} userName
- * @property {(number | null)} birthMonth
- * @property {(number | null)} birthDay
- * @property {(number | null)} birthYear
- * @property {(string | null)} diedOn
- * @property {(string | null)} wedding
- * @property {boolean} private
- * @property {boolean} canChangePerson
- * @property {boolean} canMakePrivate
- * @property {boolean} isUser
- * @property {Array<moolakata__ui__gifts__RemoteUser>} sameAs
- * @property {(import('../app/dec.js').Dec | null)} giftBudget
- * @property {number} leadDays
- * @property {(string | null)} notes
- * @property {Array<OccasionOut>} occasions
- * @property {(NextDate | null)} next
- * @property {import('../app/dec.js').Dec} spent
- * @property {(string | null)} lastGift
- * @property {string} level
- * @property {string} ownerName
- * @property {number} version
- * @property {number} personVersion
- */
-
-/**
  * A person as a draft saves them. `differentPerson`, on a new one, says a name already
  * here is someone else, told apart by birth year (S10.10.3).
  * @typedef {Object} PersonRecord
@@ -2827,9 +2868,25 @@
  * @property {boolean} private
  * @property {(string | null)} userId
  * @property {(string | null)} relation
- * @property {boolean} canChange
+ * @property {(string | null)} wedding
+ * @property {boolean} canMakePrivate
+ * @property {Array<moolakata__ui__gifts__RemoteUser>} sameAs
+ * @property {Access} access
  * @property {(string | null)} createdBy
  * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} PersonShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -2930,7 +2987,7 @@
  * @property {string} ownerId
  * @property {string} ownerName
  * @property {(string | null)} ownerAvatar
- * @property {string} level
+ * @property {Access} access
  * @property {string} benchmark
  * @property {Array<string>} accountIds
  * @property {import('../app/dec.js').Dec} value
@@ -2949,6 +3006,19 @@
  * @property {import('../app/dec.js').Dec} growth
  * @property {import('../app/dec.js').Dec} start
  * @property {import('../app/dec.js').Dec} end
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} PortfolioShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -2991,7 +3061,7 @@
  * @property {string} title
  * @property {number} status
  * @property {string} detail
- * @property {("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-needed" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-busy" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "write-refused" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
+ * @property {("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-needed" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "server-only" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-busy" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "write-refused" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid")} code
  * @property {string} errorId
  * @property {Array<ProblemFieldError>} errors
  */
@@ -3000,7 +3070,7 @@
  * @typedef {Object} ProblemFieldError
  * @property {unknown} field
  * @property {string} [id]
- * @property {(("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-needed" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-busy" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "write-refused" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
+ * @property {(("account-disabled" | "account-fixed" | "account-in-book" | "account-missing" | "account-not-counted" | "account-unknown" | "accounts-unknown" | "action-fixed" | "admin-exists" | "admins-only" | "already-attached" | "already-joined" | "amends-itself" | "amount-invalid" | "amount-mismatch" | "amount-negative" | "ancestor-loop" | "anchor-fixed" | "anchor-imported" | "assumption-invalid" | "assumptions-exist" | "avatar-invalid" | "bad-credentials" | "basis-invalid" | "benchmark-invalid" | "beneficiary-invalid" | "birthday-incomplete" | "bitcoin-not-set" | "book-fixed" | "budget-required" | "budget-unknown" | "built-in" | "built-on-invalid" | "cadence-invalid" | "cannot-join" | "cannot-unlock" | "card-unknown" | "cash-invalid" | "cash-missing" | "category-fixed" | "category-kept" | "category-twice" | "category-unknown" | "choice-invalid" | "claimed-as-invalid" | "class-invalid" | "class-not-served" | "closed-year" | "code-wrong" | "colour-chosen" | "colour-fixed" | "colour-invalid" | "confirm-needed" | "contracts-invalid" | "contracts-missing" | "contribution-fixed" | "contributor-invalid" | "copy-locked" | "corporate-kind" | "count-mismatch" | "counted-fixed" | "counted-set" | "counting-invalid" | "daf-invalid" | "date-ahead" | "date-in-future" | "date-invalid" | "date-missing" | "date-past" | "dates-invalid" | "day-invalid" | "days-invalid" | "deliverable-invalid" | "deliverable-missing" | "dependent-filer" | "dependent-fixed" | "dependent-twice" | "description-missing" | "died-on-invalid" | "direction-invalid" | "document-fixed" | "donation-fixed" | "draw-invalid" | "driver-fixed" | "driver-invalid" | "duration-invalid" | "ein-invalid" | "email-change-by-user" | "email-domain" | "email-invalid" | "email-taken" | "entity-unknown" | "every-invalid" | "expense-fixed" | "expired" | "expiry-required" | "fees-invalid" | "figure-corrected" | "figure-fixed" | "figure-invalid" | "figure-not-of-year" | "figure-shipped" | "file-empty" | "file-pruned" | "filed-on-missing" | "filers-invalid" | "filers-only" | "filing-fixed" | "filing-missing" | "filing-unknown" | "fingerprint-invalid" | "form-missing" | "fund-missing" | "gap-invalid" | "goal-fixed" | "goal-invalid" | "grantee-missing" | "group-built-in" | "group-delete" | "group-inactive" | "group-unknown" | "holiday-invalid" | "how-invalid" | "http-error" | "id-clock" | "id-invalid" | "id-repeated" | "id-taken" | "image-too-large" | "improvement-fixed" | "income-missing" | "initialised" | "input-invalid" | "instrument-unknown" | "invalid-request" | "invalid-setting" | "item-fixed" | "items-missing" | "jurisdiction-invalid" | "kept-by-invalid" | "key-invalid" | "key-needed" | "kind-invalid" | "kind-not-for-account" | "label-invalid" | "label-taken" | "last-admin" | "lead-invalid" | "leg-grouped" | "leg-not-held" | "legs-differ" | "legs-missing" | "legs-twice" | "limit-invalid" | "line-fixed" | "link-not-active" | "link-not-valid" | "link-unchanged" | "loan-delete" | "loan-exists" | "loan-fixed" | "locked" | "locked-out" | "long-assign" | "lot-method-invalid" | "lot-unknown" | "made-by-an-assignment" | "mapping-does-not-read" | "mapping-incomplete" | "margin-invalid" | "mask-invalid" | "metal-invalid" | "method-fixed" | "method-invalid" | "method-not-allowed" | "month-earlier" | "month-invalid" | "months-invalid" | "move-fixed" | "move-invalid" | "moves-needed" | "moves-off" | "multiplier-invalid" | "name-invalid" | "name-missing" | "name-taken" | "no-beneficiary" | "no-connector" | "no-email" | "no-key" | "no-option" | "no-terms" | "no-thumbnail" | "not-a-529" | "not-a-deposit" | "not-a-fund" | "not-a-loan" | "not-a-marriage" | "not-a-transfer" | "not-a-wallet" | "not-an-option" | "not-arrived" | "not-available" | "not-balanced" | "not-creator" | "not-found" | "not-in-budget" | "not-in-it" | "not-married" | "not-physical" | "not-reimbursable" | "not-shared" | "not-signed-in" | "not-told-apart" | "not-yours-to-confirm" | "note-required" | "note-too-long" | "notes-too-long" | "nothing-held" | "nothing-open" | "nothing-to-close" | "nothing-to-prune" | "occasion-fixed" | "old-version" | "on-chain" | "one-spouse" | "opening-incomplete" | "option-kind" | "organisation-missing" | "organisation-unknown" | "origin-refused" | "overspend-invalid" | "owed-by-too-long" | "own-profile" | "owner-counts" | "owner-only" | "owner-sees-it" | "pairing-fixed" | "pairing-unconfirmed" | "parent-invalid" | "part-unknown" | "password-invalid" | "password-is-default" | "password-wrong" | "pattern-invalid" | "payee-too-long" | "payment-fixed" | "people-missing" | "percent-invalid" | "period-backwards" | "period-missing" | "person-exists" | "person-is-user" | "person-read-only" | "person-unknown" | "phrase-gone" | "phrase-invalid" | "phrase-needed" | "phrase-wrong" | "place-missing" | "plan-delete" | "plan-exists" | "plan-fixed" | "plan-line-delete" | "planned-elsewhere" | "portfolio-unknown" | "premium-invalid" | "price-fixed" | "price-missing" | "price-negative" | "price-typed" | "principal-invalid" | "progress-invalid" | "projection-unknown" | "public-url-needed" | "purity-invalid" | "quantity-invalid" | "quarter-invalid" | "range-invalid" | "rate-invalid" | "rate-limited" | "ratio-invalid" | "re-encrypting" | "read-only" | "reading-off" | "reauth-required" | "receipt-linked" | "receipt-read-only" | "receipt-type" | "receipt-unreadable" | "receipt-unshowable" | "receipt-uploaded" | "reconciled" | "reconciled-period" | "reconciliation-fixed" | "reencrypt-pending" | "reference-missing" | "reimbursable-invalid" | "relation-invalid" | "relationship-exists" | "reserve-unknown" | "result-invalid" | "right-invalid" | "root-invalid" | "row-not-cash" | "rule-sets-nothing" | "same-person" | "save-refused" | "scope-invalid" | "sealed-invalid" | "secret-refused" | "sent-invalid" | "server-error" | "server-only" | "session-expired" | "setting-fixed" | "setting-saved" | "setting-unknown" | "settings-invalid" | "settings-missing" | "setup-done" | "setup-required" | "sex-invalid" | "share-fixed" | "share-invalid" | "share-read-only" | "shared" | "short-exercise" | "signup-needs-email" | "signup-off" | "smtp-failed" | "smtp-not-set" | "sold-before-bought" | "source-added" | "source-failed" | "source-fixed" | "source-invalid" | "source-unknown" | "split-fixed" | "split-trade" | "splits-unbalanced" | "stale-version" | "statement-does-not-add-up" | "statement-interval-invalid" | "statement-kept-already" | "statements-off" | "status-invalid" | "strategy-fixed" | "strike-invalid" | "symbol-invalid" | "symbol-missing" | "sync-account-missing" | "tag-invalid" | "tag-taken" | "tag-unknown" | "tagged" | "tags-invalid" | "target-invalid" | "term-invalid" | "theme-invalid" | "token-fixed" | "token-refused" | "too-large" | "too-long" | "too-many" | "too-many-ops" | "too-many-rules" | "trade-incomplete" | "transaction-fixed" | "transaction-unknown" | "transfer-taken" | "two-step-expired" | "two-step-not-started" | "two-step-off" | "two-step-on" | "type-fixed" | "type-invalid" | "type-not-allowed" | "unit-invalid" | "unknown-setting" | "unlocked-already" | "unsupported-type" | "until-before-from" | "upload-gone" | "uploads-busy" | "uploads-in-flight" | "user-delete" | "user-inactive" | "user-unknown" | "username-fixed" | "username-invalid" | "username-taken" | "valuation-fixed" | "valuation-invalid" | "value-invalid" | "value-missing" | "version-required" | "weight-invalid" | "word-wrong" | "words-wrong" | "write-refused" | "year-invalid" | "year-missing" | "year-unknown" | "years-invalid" | "zone-invalid") | string)} code
  * @property {string} message
  */
 
@@ -3036,7 +3106,7 @@
  * @property {string} name
  * @property {string} goal
  * @property {boolean} active
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {Object<string, unknown>} builtOn
  * @property {string} builtOnLabel
@@ -3069,7 +3139,7 @@
  * @property {string} name
  * @property {string} goal
  * @property {boolean} active
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {Object<string, unknown>} builtOn
  * @property {string} builtOnLabel
@@ -3078,6 +3148,19 @@
  * @property {boolean} shown
  * @property {number} sharedWith
  * @property {number} version
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} ProjectionShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -3172,7 +3255,7 @@
  * @property {string} uploadedAt
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {string} level
+ * @property {Access} access
  * @property {(string | null)} date
  * @property {(import('../app/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
@@ -3232,7 +3315,7 @@
  * @property {string} uploadedAt
  * @property {string} ownerId
  * @property {string} ownerName
- * @property {string} level
+ * @property {Access} access
  * @property {(string | null)} date
  * @property {(import('../app/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
@@ -3369,7 +3452,7 @@
  * @property {(boolean | null)} confirmed
  * @property {Array<Named>} waitingFor
  * @property {boolean} canConfirm
- * @property {boolean} canChange
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -3711,19 +3794,6 @@
  */
 
 /**
- * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
- * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
- * their images and text cross too (S11.5.1). It stays with its item and its grantee.
- * @typedef {Object} ShareRecord
- * @property {("account" | "portfolio" | "budget" | "projection" | "person" | "gift-plan" | "giving-plan" | "tax-book")} kind
- * @property {string} itemId
- * @property {(string | null)} [userId]
- * @property {(string | null)} [groupId]
- * @property {("read" | "write")} level
- * @property {boolean} [includeReceipts]
- */
-
-/**
  * @typedef {Object} ShareView
  * @property {string} kind
  * @property {string} itemId
@@ -3926,7 +3996,7 @@
  * @property {(import('../app/dec.js').Dec | null)} returnPct
  * @property {boolean} cashSecured
  * @property {(import('../app/dec.js').Dec | null)} marginRequirement
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -4001,6 +4071,19 @@
  * A tag as a draft saves it: its name, lower case, once its owner's.
  * @typedef {Object} TagRecord
  * @property {string} name
+ */
+
+/**
+ * A grant as the share dialog's draft saves it (S10.4): an item shared with one user or
+ * one group, at Read or Write; with a linked server's person, at Read, with Include receipts
+ * their images and text cross too (S11.5.1). It stays with its item and its grantee. Each
+ * shareable kind saves its own (`AccountShareRecord`, …), its item a `targetId` of that kind.
+ * @typedef {Object} TaxBookShareRecord
+ * @property {string} targetId
+ * @property {(string | null)} [userId]
+ * @property {(string | null)} [groupId]
+ * @property {("read" | "write")} allow
+ * @property {boolean} [includeReceipts]
  */
 
 /**
@@ -4219,7 +4302,7 @@
  * @property {Array<string>} tags
  * @property {Array<string>} tagIds
  * @property {number} receipts
- * @property {string} level
+ * @property {Access} access
  * @property {number} version
  */
 
@@ -4299,7 +4382,7 @@
  * @property {string} id
  * @property {string} displayName
  * @property {(string | null)} avatar
- * @property {string} level
+ * @property {("none" | "read" | "write")} allow
  * @property {Array<Via>} via
  * @property {(string | null)} [shareId]
  * @property {number} [version]
@@ -4385,7 +4468,17 @@
  * @typedef {Object} Via
  * @property {string} groupId
  * @property {string} groupName
- * @property {string} level
+ * @property {("read" | "write")} allow
+ */
+
+/**
+ * A book the user is named in as a filer and hasn't accepted (S8.14.1): its year and
+ * filers, to accept, and nothing more. They read no row of it, so it carries no access.
+ * @typedef {Object} WaitingBook
+ * @property {string} id
+ * @property {number} year
+ * @property {Array<Filer>} filers
+ * @property {string} label
  */
 
 /**
@@ -4457,7 +4550,6 @@
  * @property {Array<WithdrawalYearOut>} years
  * @property {Array<ExpenseOut>} expenses
  * @property {Array<Array<unknown>>} kinds
- * @property {boolean} canWrite
  */
 
 /**
@@ -4532,7 +4624,7 @@
  * @property {(import('../app/dec.js').Dec | null)} stateDeduction
  * @property {import('../app/dec.js').Dec} contributedThisYear
  * @property {RolloverOut} rollover
- * @property {boolean} canWrite
+ * @property {Access} access
  * @property {(string | null)} [id]
  * @property {(string | null)} [beneficiaryId]
  * @property {number} [version]
@@ -4555,7 +4647,7 @@
  * @property {string} incomeBasis
  * @property {(import('../app/dec.js').Dec | null)} income
  * @property {string} dafCounted
- * @property {string} level
+ * @property {Access} access
  * @property {string} ownerName
  * @property {number} version
  */
@@ -4692,7 +4784,7 @@
  * @property {(import('../app/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
  * @property {string} label
- * @property {boolean} [canDetach]
+ * @property {(Access | null)} [access]
  */
 
 /**

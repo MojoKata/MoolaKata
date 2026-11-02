@@ -3,6 +3,7 @@
 // marks (S10.6). New account and Import start here.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
+import { canAdd } from '../app/draft.js';
 import { useList } from '../app/hooks.js';
 import { ago } from '../app/format.js';
 import { useTitle } from '../components/frame.js';
@@ -35,14 +36,18 @@ const ORDER = [
 
 /** The sharing marks on an account's row (S10.6). @param {{ a: any }} p */
 export function ShareMarks({ a }) {
-  if (a.level === 'owner') {
+  if (a.access.mine) {
     return a.sharedWith
       ? html`<span class="mark" data-tip="Shared by me"><${Icon} name="share" /> ${a.sharedWith}</span>`
       : null;
   }
-  return html`<span class="mark" data-tip=${`Shared with me by ${a.ownerName} (${a.level})`}>
+  return html`<span class="mark" data-tip=${`Shared with me by ${a.ownerName} (${
+    a.access.writable ? 'write' : 'read'
+  })`}>
     <${Avatar} sm name=${a.ownerName} image=${a.ownerAvatar} id=${a.ownerId} />
-    <${Icon} name=${a.level === 'write' ? 'pencil' : 'eye'} label=${a.level} /></span>`;
+    <${Icon} name=${a.access.writable ? 'pencil' : 'eye'} label=${
+    a.access.writable ? 'write' : 'read'
+  } /></span>`;
 }
 
 export default function Accounts() {
@@ -55,11 +60,11 @@ export default function Accounts() {
   if (!all) return html`<${Loading} lines=${6} />`;
   const list = all.filter((a) =>
     filter === 'mine'
-      ? a.level === 'owner'
+      ? a.access.mine
       : filter === 'with-me'
-      ? a.level !== 'owner'
+      ? !a.access.mine
       : filter === 'by-me'
-      ? a.level === 'owner' && a.sharedWith
+      ? a.access.mine && a.sharedWith
       : true
   );
   const labels = /** @type {Record<string, string>} */ (GROUP_LABELS);
@@ -74,7 +79,7 @@ export default function Accounts() {
     <div
       class="toolbar"><${Chips} label="Show" value=${filter} onChange=${setFilter} options=${FILTERS} />
       <span class="spacer"></span>
-      <button type="button" class="btn" disabled=${!all.some((a) => a.level !== 'read')}
+      <button type="button" class="btn" disabled=${!all.some((a) => canAdd('Txn', a))}
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all })}><${Icon} name="upload" /> Import</button>
       <button type="button" class="btn primary" onClick=${() => openDialog(NewAccount)}><${Icon}
@@ -133,7 +138,7 @@ export default function Accounts() {
                         <td class="num"><b><${Amt} v=${a.balance} /></b>${a.change != null
                           ? html`<div class="small"><${Amt} v=${a.change} signed /> <span class="dim">30d</span></div>`
                           : null}</td>
-                        <td class="num">${a.level === 'owner'
+                        <td class="num">${a.access.shareable
                           ? html`
                             <button type="button" class="icon-btn" aria-label=${'Share ' +
                               a.name} data-tip="Share"

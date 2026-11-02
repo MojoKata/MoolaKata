@@ -169,13 +169,13 @@ def _show(s, u: User, wanted: list[str]) -> None:
     from .. import projections
     from ..store.entities.projections import ShownProjection
 
-    mine = {p.id: lvl for p, lvl in projections.visible(s, u.id)}
+    mine = {p.id: held for p, held in projections.visible(s, u.id)}
     for pid in wanted:
         if pid not in mine:
             raise refuse(
                 "shownProjectionIds", "projection-unknown", "A projection shared with you."
             )
-        if mine[pid] == "owner":
+        if mine[pid].mine:
             raise refuse(
                 "shownProjectionIds", "owner-sees-it", "Your own active projections always show."
             )

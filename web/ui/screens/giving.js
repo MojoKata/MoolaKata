@@ -15,7 +15,7 @@ import { ShareDialog } from '../components/share.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Record as Rec } from '../app/draft.js';
+import { canAdd, Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -104,12 +104,12 @@ function Overview({ v, reload }) {
               agi: 'estimated AGI',
             }[/** @type {'take-home'|'gross'|'agi'} */ (plan.incomeBasis)]
           }`
-          : 'a fixed amount'} · ${plan.level === 'read'
+          : 'a fixed amount'} · ${!plan.access.writable
           ? html`shared by ${plan.ownerName}`
           : html`<a href="#" onClick=${(/** @type {Event} */ e) => {
             e.preventDefault();
             editPlan();
-          }}>Edit</a>`}${plan.level === 'owner'
+          }}>Edit</a>`}${plan.access.shareable
           ? html`
             · <a href="#" onClick=${(/** @type {Event} */ e) => {
               e.preventDefault();
@@ -543,7 +543,7 @@ function DonationDialog({ close, from }) {
   const kind = rec?.get('kind') || 'cash';
   const fromId = rec?.get('fromAccountId') || '';
   const all = /** @type {any[]} */ (accounts.data) || [];
-  const writable = all.filter((a) => a.active && ['owner', 'write'].includes(a.level));
+  const writable = all.filter((a) => a.active && canAdd('Txn', a));
   const funds = writable.filter((a) => a.type === 'daf');
   const shares = kind === 'securities' ||
     (kind === 'daf-contribution' && writable.find((a) => a.id === fromId)?.investing);
@@ -669,10 +669,10 @@ function DonationView({ close, d }) {
   };
   return html`
     <${DraftDialog} f=${f} title=${`${d.kindLabel} · ${d.name}`} close=${close}
-      what="This donation" hideSave=${!d.canWrite}
+      what="This donation" hideSave=${!d.access.writable}
       done=${rec?.removed ? 'Donation deleted' : 'Saved'}
       extra=${({ save }) =>
-        d.canWrite
+        d.access.writable
           ? html`
             <button type="button" class="btn danger" disabled=${save.busy}
               onClick=${async () => {
@@ -699,10 +699,10 @@ function DonationView({ close, d }) {
       <div class="list-item"><span class="grow dim">Deductible</span>${d.deductible
         ? 'yes'
         : 'no'}</div>
-      ${rec && d.kind === 'daf-grant' && d.canWrite
+      ${rec && d.kind === 'daf-grant' && d.access.writable
         ? html`<${RecField} rec=${rec} name="granted" label="Paid by the fund" />`
         : null}
-      ${rec && d.canWrite
+      ${rec && d.access.writable
         ? html`
           <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />
           <div
@@ -752,7 +752,7 @@ function OrganisationDialog({ close, o }) {
     else draft.add(OrganisationRec, { name: '' });
   }, [o?.id]);
   const rec = /** @type {OrganisationRec | undefined} */ (f.draft?.records[0]);
-  const canWrite = !o || o.canWrite;
+  const canWrite = !o || o.access.writable;
   return html`
     <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
       what="This organisation" done="Saved" hideSave=${!canWrite}>

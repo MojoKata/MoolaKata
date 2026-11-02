@@ -46,6 +46,7 @@ from .tables import (
     prices,
     projections,
     receipts,
+    shares,
     sharing,
     taxes,
     users,
@@ -141,7 +142,9 @@ def map_all() -> None:
     _versioned(pr.Price, prices.Price)
     _versioned(pr.TypedPrice, prices.TypedPrice)
     _versioned(sh.Portfolio, sharing.Portfolio)
-    _versioned(sh.Share, sharing.Share)
+    _versioned(sh.AccessClass, shares.AccessClass)
+    for kind, entity in sh.SHARE_ENTITIES.items():
+        _versioned(entity, shares.SHARES[kind])
     _map(sh.PortfolioAccount, sharing.PortfolioAccounts)
     _versioned(bd.Budget, budgets.Budget)
     _versioned(bd.BudgetLine, budgets.BudgetLine)

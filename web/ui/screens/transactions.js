@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
+import { canAdd } from '../app/draft.js';
 import { api } from '../api/client.js';
 import { useApi, useList } from '../app/hooks.js';
 import { changes } from '../app/stream.js';
@@ -87,12 +88,12 @@ export default function Transactions() {
         ${cats.list.map((c) => html`<option value=${c.id}>${c.path}</option>`)}</select>
       <span class="spacer"></span>
       <button type="button" class="btn" onClick=${() => openRules().then(fresh)}>Rules</button>
-      <button type="button" class="btn" disabled=${!all.some((a) => a.level !== 'read')}
+      <button type="button" class="btn" disabled=${!all.some((a) => canAdd('Txn', a))}
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all }).then(
             fresh,
           )}><${Icon} name="upload" /> Import</button>
-      <button type="button" class="btn primary" disabled=${!all.some((a) => a.level !== 'read')}
+      <button type="button" class="btn primary" disabled=${!all.some((a) => canAdd('Txn', a))}
         onClick=${() =>
           openDialog(TransactionDialog, { accounts: all }).then((v) =>
             v && fresh()

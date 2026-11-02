@@ -16,7 +16,7 @@ import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { Record } from '../app/draft.js';
+import { canAdd, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 
@@ -110,7 +110,7 @@ export function Items({ a }) {
       }</div>`
       : null}
     <div class=${'card' + (v.metals.length ? ' mt' : '')} style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span>${v.canWrite
+      <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span>${canAdd('Item', a)
         ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add an
           item</button>`
         : null}</h3>
@@ -187,7 +187,9 @@ export function Items({ a }) {
           </div>
         `
         : html`<${Empty}>No items yet.${
-          v.canWrite ? ' Add each with its purchase date, cost basis and how it is valued.' : ''
+          canAdd('Item', a)
+            ? ' Add each with its purchase date, cost basis and how it is valued.'
+            : ''
         }</${Empty}>`}
       ${metals
         ? html`<p class="small dim" style=${{ padding: '0 8px' }}>Gold spot from PAXG, and silver,
@@ -329,7 +331,7 @@ export function ItemDialog({ close, a, id }) {
     for (const m of x.improvements) draft.load(ImprovementRec, { ...m, itemId: x.id });
   }, [id]);
   const rec = /** @type {ItemRec | undefined} */ (f.draft?.records[0]);
-  const canWrite = it ? it.canWrite : true;
+  const canWrite = it ? it.access.writable : true;
   const t = a.type;
   const spot = rec?.get('valuation') === 'spot';
   return html`
@@ -521,7 +523,7 @@ function Valuations({ it, rec, draft }) {
             ? html`<div class="err">${v.errors.map((e) => e.message).join(' ')}</div>`
             : null
         }</div></div>${
-          it.canWrite
+          it.access.writable
             ? html`
               <button type="button" class="icon-btn" aria-label=${`Remove the ${
                 date(v.get('date'))
@@ -534,7 +536,7 @@ function Valuations({ it, rec, draft }) {
       : html`<p class="small dim">None yet: it counts at its cost basis${
         rec.get('valuation') === 'depreciation' ? ', depreciated' : ''
       }.</p>`}
-    ${it.canWrite
+    ${it.access.writable
       ? html`
         <div class="row">
           <${Field} label="Value" help="valuations" id="valuation-value">
@@ -579,7 +581,7 @@ function Improvements({ it, rec, draft }) {
         <div class="list-item" key=${m.key}><div class="grow">${m.get('description')}<div
           class="small dim">${date(m.get('date'))}${m.errors.length
             ? html`<div class="err">${m.errors.map((e) => e.message).join(' ')}</div>`
-            : null}</div></div><${Amt} v=${m.get('amount')} cents=${false} />${it.canWrite
+            : null}</div></div><${Amt} v=${m.get('amount')} cents=${false} />${it.access.writable
             ? html`
               <button type="button" class="icon-btn" aria-label=${'Remove ' + m.get('description')}
                 onClick=${() => draft.remove(m)}><${Icon} name="x" /></button>
@@ -587,7 +589,7 @@ function Improvements({ it, rec, draft }) {
             : null}</div>
       `
     )}
-    ${it.canWrite
+    ${it.access.writable
       ? html`
         <${Field} label="What was done" help="improvements" id="improvement-description">
           <${Input} value=${f.description} placeholder="Kitchen remodel"
@@ -641,7 +643,7 @@ function Documents({ it, rec }) {
         html`
           <div
             class="list-item"><span class="grow"><${Icon} name="clip" /> ${names[id] ||
-              'A file'}</span>${it.canWrite
+              'A file'}</span>${it.access.writable
               ? html`
                 <button type="button" class="icon-btn" aria-label=${'Remove ' + (names[id] || '')}
                   onClick=${() => rec.set('receiptIds', ids.filter((x) => x !== id))}><${Icon}
@@ -652,7 +654,7 @@ function Documents({ it, rec }) {
       )
       : html`<p class="small dim">The purchase receipt, an appraisal, a certificate, the title.</p>`}
     ${rec.error('receiptIds') ? html`<div class="err">${rec.error('receiptIds')}</div>` : null}
-    ${it.canWrite
+    ${it.access.writable
       ? html`
         <label class="btn sm" for="f-item-files"><${Icon} name="upload" /> ${busy
           ? 'Uploading…'
@@ -690,7 +692,7 @@ function SaleCard({ it, rec }) {
       ${!s.deductible
         ? html`<p class="small dim">A loss on property you used yourself isn't deductible.</p>`
         : null}
-      ${it.canWrite
+      ${it.access.writable
         ? html`<button type="button" class="btn sm" onClick=${() => {
           rec.set('soldOn', null);
           rec.set('proceeds', null);
@@ -699,7 +701,7 @@ function SaleCard({ it, rec }) {
         : null}
     `;
   }
-  if (!it.canWrite) return null;
+  if (!it.access.writable) return null;
   if (!sold) {
     return html`
       <div

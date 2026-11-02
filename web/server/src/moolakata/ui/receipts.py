@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
 
 from .. import access, activity, clock, exactjson, ids, parsing, receipts, settings, tags
+from ..access import Perms
 from ..errors import Problem, new_error_id, refuse
 from ..keys.files import FileError
 from ..receipts import reading, retention
@@ -23,7 +24,7 @@ from ..store.entities.education import QualifiedExpense
 from ..store.entities.receipts import Receipt, ReceiptLink
 from ..store.entities.users import User
 from . import save
-from .conventions import ExactRoute, IdOf, Model, Money
+from .conventions import Access, ExactRoute, IdOf, Model, Money
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["receipts"])
@@ -46,7 +47,9 @@ class LinkOut(Model):
     amount: Money | None
     payee: str | None
     label: str  # how it is named in the receipt's dialog
-    canDetach: bool = False
+    # The link's own, from ReceiptLinkAccess: detaching it is deleting it. None for a link
+    # not yet saved, or one named to a reader who doesn't read it.
+    access: Access | None = None
 
 
 class ReceiptRow(Model):
@@ -57,7 +60,7 @@ class ReceiptRow(Model):
     uploadedAt: dt.datetime
     ownerId: str
     ownerName: str
-    level: str
+    access: Access
     date: dt.date | None
     amount: Money | None
     payee: str | None
@@ -106,9 +109,9 @@ class ReceiptDetail(ReceiptRow):
 
 
 def _own(s, ln, user_id: str | None) -> dict:
-    """A link's id and version, and whether this user may detach it (S9.3)."""
-    can = user_id is not None and receipts.can_unlink(s, user_id, ln)
-    return {"id": ln.id, "version": ln.version, "canDetach": can}
+    """A link's id and version, and what this user may do with it (S9.3)."""
+    held = access.perms(s, ReceiptLink, ln.id, user_id) if user_id is not None else None
+    return {"id": ln.id, "version": ln.version, "access": Access.of(held) if held else None}
 
 
 def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
@@ -222,7 +225,7 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
     return out
 
 
-def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
+def row(s, r: Receipt, held: Perms, user_id: str | None = None) -> ReceiptRow:
     owner = s.get(User, r.ownerId)
     tagged = tags.of(s, "receipt", user_id, [r.id]).get(r.id, []) if user_id else []
     links = _links(s, r, user_id)
@@ -234,7 +237,7 @@ def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
         uploadedAt=r.createdAt,
         ownerId=r.ownerId,
         ownerName=owner.displayName if owner else "",
-        level=level,
+        access=Access.of(held),
         date=r.date,
         amount=r.amount,
         payee=r.payee,
@@ -255,8 +258,8 @@ def row(s, r: Receipt, level: str, user_id: str | None = None) -> ReceiptRow:
     )
 
 
-def detail(s, user_id: str, r: Receipt, level: str) -> ReceiptDetail:
-    base = row(s, r, level, user_id)
+def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
+    base = row(s, r, held, user_id)
     # The file's own date, over every link; its reason named only from a link this reader
     # reads (S9.7).
     with scoping.as_server(s, "how long a receipt's file is kept") as srv:
@@ -305,10 +308,10 @@ def list_receipts(
     """Newest first. *inbox*: the caller's receipts attached to nothing yet. The search looks
     in what was read from each receipt (S9.8.5) as well as its fields."""
     with server(request).db.read(user=c.id) as s:
-        rows = [row(s, r, lvl, c.id) for r, lvl in receipts.visible(s, c.id)]
+        rows = [row(s, r, p, c.id) for r, p in receipts.visible(s, c.id)]
         in_text = reading.search(s, q) if q else set()
     if show == "inbox":
-        rows = [r for r in rows if not r.links and not r.alsoKeptWith and r.level == "owner"]
+        rows = [r for r in rows if not r.links and not r.alsoKeptWith and r.access.mine]
     if q:
         words = q.lower().split()
         rows = [
@@ -349,7 +352,7 @@ async def upload(request: Request, file: UploadFile = File(...), c: Caller = Dep
         stored = receipts.record(s, srv, c.id, ready)
         if not stored.existing:
             activity.record(s, "receipt.uploaded", actor=c.id, owner=c.id)
-        out = row(s, stored.receipt, "owner", c.id)
+        out = row(s, stored.receipt, receipts.perms_for(s, c.id, stored.receipt), c.id)
     if out.readStatus == "waiting" and srv.reader is not None:
         srv.reader.queue(out.id)
     return JSONResponse(
@@ -362,8 +365,8 @@ async def upload(request: Request, file: UploadFile = File(...), c: Caller = Dep
 @router.get("/receipts/{receipt_id}", response_model=ReceiptDetail)
 def get_receipt(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
-        r, lvl = receipts.get(s, c.id, receipt_id)
-        return detail(s, c.id, r, lvl)
+        r, held = receipts.get(s, c.id, receipt_id)
+        return detail(s, c.id, r, held)
 
 
 @router.post("/receipts/{receipt_id}/read", response_model=ReceiptDetail)
@@ -371,12 +374,12 @@ def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     """Read it again (S9.8.6): only empty or suggested fields are replaced."""
     srv = server(request)
     with srv.db.tx(user=c.id) as s:
-        r, lvl = receipts.get(s, c.id, receipt_id, "write")
+        r, held = receipts.get(s, c.id, receipt_id, "write")
         if not settings.get(s, "readReceipts"):
             raise Problem(409, "reading-off", "Reading receipts is off in Settings › Receipts.")
         reading.read_again(s, r)
         s.flush()
-        out = detail(s, c.id, r, lvl)
+        out = detail(s, c.id, r, held)
     if srv.reader is not None:
         srv.reader.queue(receipt_id)
     return out
@@ -445,8 +448,8 @@ def _receipt_delete(ctx, r: Receipt) -> None:
 
 
 def _receipt_read(ctx, record_id: str) -> ReceiptDetail:
-    r, lvl = receipts.get(ctx.s, ctx.caller.id, record_id)
-    return detail(ctx.s, ctx.caller.id, r, lvl)
+    r, held = receipts.get(ctx.s, ctx.caller.id, record_id)
+    return detail(ctx.s, ctx.caller.id, r, held)
 
 
 save.register(
@@ -604,5 +607,5 @@ def transaction_receipts(transaction_id: str, request: Request, c: Caller = Depe
         out = []
         for rid in ids:
             r = s.get(Receipt, rid)
-            out.append(row(s, r, receipts.level_for(s, c.id, r) or "read", c.id))
+            out.append(row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id))
         return out

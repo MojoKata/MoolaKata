@@ -9,10 +9,9 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids
+from .. import clock, ids, sharing
 from ..store.entities.accounts import Account
 from ..store.entities.giving import Donation, GivingPlan, Organisation
-from ..store.entities.sharing import Share
 from ..store.entities.users import Group
 from .seed_accounts import Book
 
@@ -34,13 +33,12 @@ def seed_giving(s, people: dict) -> None:
     s.add(plan)
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
     s.add(
-        Share(
-            id=ids.new_id("Share"),
-            kind="giving-plan",
-            itemId=plan.id,
-            level="write",
-            groupId=household.id,
-            createdById=alice.id,
+        sharing.new_share(
+            "giving-plan",
+            plan.id,
+            "write",
+            group_id=household.id,
+            by=alice.id,
         )
     )
 

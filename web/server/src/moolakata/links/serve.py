@@ -17,8 +17,8 @@ from sqlalchemy import delete, false, select
 from .. import clock, exactjson
 from ..errors import Problem
 from ..store.entities.links import Link, LinkSent
-from ..store.entities.sharing import Share
 from ..store.entities.users import User
+from ..store.tables.shares import CLASSES
 from . import changes, keys
 
 # The eight shareable kinds (S10.3), each of which may go to named people on a linked server.
@@ -81,13 +81,11 @@ def shared_items(srv, link_id: str) -> tuple[dict[str, Item], dict[str, User]]:
         out: dict[str, Item] = {}
         if not people:
             return out, people
-        for g in s.scalars(
-            select(Share).where(
-                Share.userId.in_(list(people)), Share.deleted == false(), Share.level == "read"
-            )
+        for g in sharing.every_share(
+            s, lambda e: [e.userId.in_(list(people)), e.accessClassId == CLASSES["read"]]
         ):
             try:
-                obj = sharing.item(s, g.kind, g.itemId)
+                obj = sharing.item(s, g.kind, g.targetId)
             except Problem:
                 continue
             if getattr(obj, "deleted", False):
@@ -104,9 +102,9 @@ def shared_items(srv, link_id: str) -> tuple[dict[str, Item], dict[str, User]]:
                 name = s.get(Person, obj.personId).name
             owner = s.get(User, obj.ownerId) if obj.ownerId else None
             it = out.setdefault(
-                g.itemId,
+                g.targetId,
                 Item(
-                    g.itemId,
+                    g.targetId,
                     g.kind,
                     name,
                     owner.displayName if owner else "?",
@@ -201,7 +199,7 @@ ROWS = {
     "budget": "/budgets",
     "tax-book": "/tax-books",
     "projection": "/projections",
-    "gift-plan": "/people",
+    "gift-plan": "/gift-plans",
     "person": "/persons",
 }
 
@@ -217,13 +215,12 @@ def _rows(srv, kind: str, c) -> dict[str, dict]:
         "budget": lambda: budgets.list_budgets(r, c),
         "tax-book": lambda: taxes.list_books(r, c),
         "projection": lambda: projections.list_projections(r, c),
-        "gift-plan": lambda: gifts.list_people(r, c),
+        "gift-plan": lambda: gifts.list_plans(r, c),
         "person": lambda: people_ui.list_persons(r, c),
     }.get(kind)
     if fn is None:
         return {}
-    key = "planId" if kind == "gift-plan" else "id"
-    return {row[key]: row for row in _dump(fn()) if isinstance(row, dict) and key in row}
+    return {row["id"]: row for row in _dump(fn()) if isinstance(row, dict) and "id" in row}
 
 
 def work_out(srv, link_id: str) -> tuple[dict[str, Item], dict[tuple[str, str, str], object]]:
