@@ -35,6 +35,7 @@ class BudgetLine(Record):
     categoryId: str
     fromMonth: dt.date
     amount: Decimal
+    out: bool = False
     cadence: str = "month"
     rollover: bool = False
     overspend: str = "carry"

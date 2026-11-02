@@ -61,7 +61,7 @@ def save_plan(c, budget, start, lines, confirm=False):
             ops.append({"op": "create", "entity": "BdgLn", "id": new_id, "fields": fields})
     for cat, old in have.items():
         if cat not in wanted:
-            fields = {"amount": "0.00", "target": None, "heldInId": None, "fromMonth": start}
+            fields = {"out": True, "target": None, "heldInId": None, "fromMonth": start}
             ops.append({"op": "update", "entity": "BdgLn", "id": old["id"],
                         "version": old["version"], "fields": fields})  # fmt: skip
     r = c.post("/ui/api/save", json={"ops": ops})

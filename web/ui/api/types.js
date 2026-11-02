@@ -1880,6 +1880,7 @@
  * @property {string} categoryId
  * @property {string} fromMonth
  * @property {import('../app/dec.js').Dec} amount
+ * @property {boolean} [out]
  * @property {("month" | "year")} [cadence]
  * @property {boolean} [rollover]
  * @property {("carry" | "next")} [overspend]

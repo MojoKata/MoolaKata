@@ -16,6 +16,9 @@
       and **Estimate from history** show the plan as it holds that month, each line as stored,
       never the month's figures (which add what carried over and the month's moves), so saved
       unchanged they change nothing; a line is taken out by its ✕, from that month (S12.15).
+      Taking out is a state of its own, never an amount: a line of $0 stays in the plan, puts
+      nothing in, and keeps what it holds (a reserve's balance, a rollover line's remainder,
+      an envelope), so $0 pauses a line.
    3. **A method**, chosen when the budget is made: **tracking**, a plan per category
       compared with what is spent, received and saved (S7.3), or **envelope**, where the money
       in the budget's accounts is handed out to categories until none is left to hand out
@@ -219,7 +222,9 @@
        moved in.
     3. **Kept**: a reserve always rolls over. Taking its category out of the plan, or its
        target off, asks first and names the balance that stops being kept; a balance is never
-       carried into a line without a target.
+       carried into a line without a target. Set to $0 a month, it puts nothing in and keeps
+       its balance. Taking out a rollover line or an envelope that holds money asks the same
+       way.
     4. **Held in**: a reserve can name the account its money is kept in (*Ally Savings*), one
        of the budget's accounts, and different reserves can be held in different accounts (an
        emergency fund and the roof at Ally, the rest elsewhere). **Where the money is** shows,

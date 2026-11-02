@@ -1715,7 +1715,8 @@ class MoveRec extends Record {
 
 /**
  * A plan line as a dialog's draft edits it (S7.1.2, S12.15): stored as it was read, changed
- * from the month the dialog plans from, and taken out by setting it to nothing from then.
+ * from the month the dialog plans from, and taken out (`out`) from then; an amount of 0 keeps
+ * it in the plan, putting nothing in.
  */
 class PlanLine extends Record {
   /** @override */
@@ -1725,6 +1726,7 @@ class PlanLine extends Record {
   /** @override */
   static defaults = {
     amount: Dec.parse('0.00'),
+    out: false,
     cadence: 'month',
     rollover: false,
     overspend: 'carry',
@@ -1744,7 +1746,7 @@ class PlanLine extends Record {
   };
   /** @override */
   static removal = (/** @type {PlanLine} */ r) => ({
-    amount: Dec.parse('0.00'),
+    out: true,
     target: null,
     heldInId: null,
     fromMonth: r.asOf,
@@ -1941,7 +1943,7 @@ function PlanDialog({ close, b, month }) {
   return html`
     <${DraftDialog} f=${p.f} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
       before=${before} what="The plan" done="Plan saved"
-      note="Earlier months keep the plan they had.">
+      note="Earlier months keep the plan they had. $0 pauses a line and keeps what it holds; ✕ takes it out.">
       <table class="t plan">
         <thead>
           <tr>

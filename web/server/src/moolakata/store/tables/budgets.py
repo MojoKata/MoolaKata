@@ -57,7 +57,8 @@ BudgetAccount = record(
 )
 
 # One category's plan from a month on. A change to the plan starts a new line from the month
-# it is made in, so past months keep the plan they had.
+# it is made in, so past months keep the plan they had. A line `out` takes the category out of
+# the plan from its month (S7.1.2); any amount, 0 included, keeps it in.
 BudgetLine = record(
     "BudgetLine",
     "BdgLn",
@@ -65,6 +66,7 @@ BudgetLine = record(
     Column("categoryId", Text, ForeignKey("Category.id"), nullable=False),
     Column("fromMonth", Day, nullable=False),
     Column("amount", Cents, nullable=False),
+    Column("out", Boolean, nullable=False, server_default=text("0")),
     Column("cadence", Text, nullable=False, server_default=text("'month'")),
     Column("rollover", Boolean, nullable=False, server_default=text("0")),
     # In an envelope budget, what an overspent line does at the month's end (S7.13.3).

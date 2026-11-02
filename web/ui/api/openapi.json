@@ -11286,6 +11286,11 @@
             "default": null,
             "title": "Heldinid"
           },
+          "out": {
+            "default": false,
+            "title": "Out",
+            "type": "boolean"
+          },
           "overspend": {
             "default": "carry",
             "enum": [

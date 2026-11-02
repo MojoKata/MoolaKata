@@ -284,6 +284,7 @@ export const FIELDS = {
     categoryId: {"type": "ref", "prefix": "Cat"},
     fromMonth: {"type": "date"},
     amount: {"type": "money"},
+    out: {"type": "bool"},
     cadence: {"type": "choice", "choices": ["month", "year"]},
     rollover: {"type": "bool"},
     overspend: {"type": "choice", "choices": ["carry", "next"]},

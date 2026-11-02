@@ -624,23 +624,13 @@ def _line_errors(s, b: Budget, ln, cats: dict, elsewhere: set, at: str = "") -> 
     return errors
 
 
-def _reserve_held(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
-    """What a category's reserve holds at the start of a month: kept no longer once its line
-    or its target goes, so that is asked first (S7.10.3)."""
-    from ..budgets import reserves
-
-    every = budgets.lines(s, b)
-    moved = reserves.net_moves(reserves.moves(s, b))
-    r = reserves.reserve(
-        s,
-        budgets.tree(s),
-        budgets.members(s, b),
-        every,
-        moved,
-        cat_id,
-        budgets.add_months(month, -1),
-    )
-    return r.balance if r is not None else Decimal(0)
+def _balance_kept(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
+    """What a category's line carries into a month: a reserve's balance, a rollover line's
+    remainder, an envelope's balance. Kept no longer once the category is taken out of the plan
+    (or a reserve's target goes), so that is asked first (S7.10.3)."""
+    before = budgets.month_view(s, b, budgets.add_months(month, -1), clock.today())
+    row = next((r for r in before.rows if r.categoryId == cat_id), None)
+    return row.remaining if row is not None and row.rollover else Decimal(0)
 
 
 class LineOut(Model):
@@ -713,6 +703,8 @@ class LineIn(Model):
     categoryId: IdOf("Cat")  # type: ignore[valid-type]
     fromMonth: dt.date
     amount: Money
+    # Taken out of the plan from `fromMonth` (S7.1.2); any amount, 0 included, keeps it in.
+    out: bool = False
     cadence: Literal["month", "year"] = "month"
     rollover: bool = False
     overspend: Literal["carry", "next"] = "carry"
@@ -731,12 +723,22 @@ def _line_checked(ctx, body: LineIn) -> tuple[Budget, dt.date]:
     return b, month
 
 
-LINE_FIELDS = ("amount", "cadence", "rollover", "overspend", "projectionId", "target", "heldInId")
+LINE_FIELDS = (
+    "amount",
+    "out",
+    "cadence",
+    "rollover",
+    "overspend",
+    "projectionId",
+    "target",
+    "heldInId",
+)
 
 
 def _values(body: LineIn) -> dict:
     return {
         "amount": body.amount,
+        "out": body.out,
         "cadence": body.cadence,
         "rollover": body.rollover or body.target is not None,  # a reserve always rolls over
         "overspend": body.overspend,
@@ -767,7 +769,7 @@ def _planned(ctx, b: Budget) -> None:
 
 def _line_create(ctx, record_id: str, body: LineIn) -> None:
     """A category planned from a month: not one in force then, which would be planned twice.
-    A line of 0 from the same month (the category taken out then) gives way to it."""
+    A line taking it out from the same month gives way to it."""
     b, month = _line_checked(ctx, body)
     every = budgets.lines(ctx.s, b)
     if body.categoryId in budgets.in_force(every, month):
@@ -808,20 +810,21 @@ def _line_current(ctx, ln: BudgetLine) -> dict:
 def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
     """A line changed from a month on (`fromMonth`): in place when it already starts then, else
     a line of its own from then, the earlier months keeping the old one. A reserve that stops
-    being kept while it holds money is asked first (S7.10.3); a line set to 0 is taken out of
-    the plan from that month."""
+    being kept while it holds money is asked first (S7.10.3), as is a rollover line or an
+    envelope taken out of the plan with a balance; a line of 0 stays in the plan and keeps its
+    balance."""
     if body.budgetId != ln.budgetId or body.categoryId != ln.categoryId:
         raise refuse("categoryId", "line-fixed", "A line keeps its budget and category.")
     b, month = _line_checked(ctx, body)
     if month < ln.fromMonth:
         raise refuse("fromMonth", "month-earlier", "A change holds from its own month on.")
     values = _values(body)
-    stops = ln.target is not None and (values["target"] is None or values["amount"] == 0)
+    stops = (values["out"] and not ln.out) or (ln.target is not None and values["target"] is None)
     if stops:
-        held = _reserve_held(ctx.s, b, ln.categoryId, month)
+        held = _balance_kept(ctx.s, b, ln.categoryId, month)
         if held:
             label = budgets.tree(ctx.s).label(ln.categoryId)
-            ctx.ask("reserve-balance", f"{label} holds {held:,.2f}: it stops being kept.")
+            ctx.ask("balance-dropped", f"{label} holds {held:,.2f}: it stops being kept.")
     if month == ln.fromMonth:
         for f, v in values.items():
             setattr(ln, f, v)

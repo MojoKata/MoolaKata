@@ -3,7 +3,8 @@ categorised transactions in the budget's accounts, and what remains, with the un
 overspent remainder rolled over to the next period where the plan says so.
 
 A plan line holds from its month on; a change to the plan starts a new line in the month it is
-made, so past months keep the plan they had. A line of 0 takes a category out of the plan.
+made, so past months keep the plan they had. A line marked out takes a category out of the
+plan; any amount, 0 included, keeps it in.
 Monthly lines compare with the month; yearly ones with the year to date.
 
 Amounts follow the transactions' signs: spending is shown as a positive amount spent, income
@@ -388,12 +389,13 @@ def lines(s: Session, budget: Budget) -> list[BudgetLine]:
 
 
 def in_force(all_lines: list[BudgetLine], month: dt.date) -> dict[str, BudgetLine]:
-    """Per category, the line that holds in a month (a line of 0 is no plan)."""
-    out: dict[str, BudgetLine] = {}
+    """Per category, the line that holds in a month: none once a line takes it out of the plan
+    (S7.1.2). A line of 0 is in the plan and puts nothing in."""
+    found: dict[str, BudgetLine] = {}
     for ln in all_lines:
         if ln.fromMonth <= month:
-            out[ln.categoryId] = ln
-    return {k: v for k, v in out.items() if v.amount != 0}
+            found[ln.categoryId] = ln
+    return {k: v for k, v in found.items() if not v.out}
 
 
 @dataclass
