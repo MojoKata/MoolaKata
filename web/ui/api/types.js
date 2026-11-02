@@ -455,7 +455,8 @@
  * @property {string} name
  * @property {string} month
  * @property {import('../app/dec.js').Dec} spent
- * @property {import('../app/dec.js').Dec} plannedSpending
+ * @property {import('../app/dec.js').Dec} available
+ * @property {import('../app/dec.js').Dec} left
  * @property {number} daysLeft
  */
 
@@ -2116,7 +2117,7 @@
  * @property {(import('../app/dec.js').Dec | null)} target
  * @property {(string | null)} heldInId
  * @property {(import('../app/dec.js').Dec | null)} balance
- * @property {(import('../app/dec.js').Dec | null)} putIn
+ * @property {import('../app/dec.js').Dec} putIn
  */
 
 /**
@@ -2134,7 +2135,9 @@
  * @property {(import('../app/dec.js').Dec | null)} assigned
  * @property {(import('../app/dec.js').Dec | null)} assignedByMoves
  * @property {Array<CardLine>} cards
- * @property {import('../app/dec.js').Dec} plannedSpending
+ * @property {import('../app/dec.js').Dec} available
+ * @property {import('../app/dec.js').Dec} left
+ * @property {import('../app/dec.js').Dec} yearlySpent
  * @property {number} uncategorised
  * @property {number} daysLeft
  * @property {number} version

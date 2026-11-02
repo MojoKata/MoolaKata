@@ -79,7 +79,7 @@ class MonthRow(Model):
     target: Money | None  # a reserve's (S7.10)
     heldInId: str | None
     balance: Money | None  # a reserve's, at the month's end
-    putIn: Money | None
+    putIn: Money
 
 
 class ReserveHeld(Model):
@@ -296,7 +296,12 @@ class MonthView(Model):
     assigned: Money | None
     assignedByMoves: Money | None
     cards: list[CardLine]
-    plannedSpending: Money
+    # The Spent card (S7.3.12): the monthly spending lines' available, reserves included; what
+    # they and the spending outside the plan leave; and the month's spending against yearly
+    # lines, compared with their year instead.
+    available: Money
+    left: Money
+    yearlySpent: Money
     uncategorised: int
     daysLeft: int
     version: int  # the budget's: a change to the plan is made against it (S13.8.6)
@@ -576,7 +581,9 @@ def budget_month(
                 )
                 for x in m.cards
             ],
-            plannedSpending=m.plannedSpending,
+            available=m.available,
+            left=m.left,
+            yearlySpent=m.yearlySpent,
             uncategorised=m.uncategorised,
             daysLeft=m.daysLeft,
             version=b.version,
@@ -1278,10 +1285,13 @@ def compare(
                     if r.kind == "income" or (r.cadence == "year" and m != last):
                         continue
                     labels[r.categoryId] = r.label
-                    got = sums.setdefault(r.categoryId, {}).setdefault(key, [Decimal(0)] * 2)
-                    avail = r.balance + r.actual if r.target is not None else r.planned
-                    got[0] += avail if r.cadence == "month" or m == last else 0
-                    got[1] += r.actual if r.cadence == "month" or m == last else 0
+                    got = sums.setdefault(r.categoryId, {}).get(key)
+                    if got is None:
+                        # Its first month in the range brings what it carried in; each month
+                        # after adds only its own (S7.3.11): a carry is never counted again.
+                        got = sums[r.categoryId][key] = [r.carried, Decimal(0)]
+                    got[0] += r.planned - r.carried
+                    got[1] += r.actual
                 to_budget[key] = getattr(v, "toBudget", None)
                 m = budgets.add_months(m, 1)
         rows = [

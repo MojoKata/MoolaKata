@@ -19,6 +19,13 @@ Which budget, when you have more than one or others share theirs with you.
 Works the month's figures out again at once; they're kept once worked out, and worked out again
 on their own when anything they come from changes.
 
+## Spent
+
+What was spent against the monthly lines and outside the plan, of what those lines had
+**available**: what each carried in, put in and was moved, a reserve's balance included, so a
+repair a reserve covers is never shown as over. Spending against a yearly line is compared with
+its year, and named beside.
+
 ## To Budget {#to-budget}
 
 In an envelope budget, the money in its accounts not yet handed out: the cash, less what the

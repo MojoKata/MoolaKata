@@ -88,9 +88,18 @@ def plan(c, budget, start, lines):
 
 
 def month(c, budget, m):
+    """A month's view, every row held to one reading (S7.3.11): remaining = carried + put in +
+    moved − spent, and available (`planned`) = carried + put in + moved."""
     r = c.get(f"/ui/api/budgets/{budget['id']}/month", params={"month": m})
     assert r.status_code == 200, r.text
-    return r.json()
+    v = r.json()
+    for x in v["rows"]:
+        carried, put, moved, spent = (
+            Decimal(x[k]) for k in ("carried", "putIn", "moved", "actual")
+        )
+        assert Decimal(x["planned"]) == carried + put + moved, x
+        assert Decimal(x["remaining"]) == carried + put + moved - spent, x
+    return v
 
 
 def row(view, label):
@@ -145,7 +154,9 @@ def test_planned_actual_and_remaining(server, frozen):
     )
     assert row(v, "Income › Salary")["actual"] == "5100.00"
     assert v["income"] == "5100.00" and v["spent"] == "630.00"
-    assert v["plannedSpending"] == "600.00" and v["expectedIncome"] == "5000.00"
+    assert v["available"] == "600.00" and v["expectedIncome"] == "5000.00"
+    # Food's 50 left, less the fuel spent outside the plan.
+    assert (v["left"], v["yearlySpent"]) == ("-30.00", "0.00")
     assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [
         ("Transportation › Fuel", "80.00")
     ]

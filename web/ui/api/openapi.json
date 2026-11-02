@@ -2522,6 +2522,14 @@
         "additionalProperties": false,
         "description": "The active budget's month (S7.12, S12.2.1).",
         "properties": {
+          "available": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Available",
+            "type": "number"
+          },
           "daysLeft": {
             "title": "Daysleft",
             "type": "integer"
@@ -2529,6 +2537,14 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "left": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Left",
+            "type": "number"
           },
           "month": {
             "format": "date",
@@ -2538,14 +2554,6 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "plannedSpending": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Plannedspending",
-            "type": "number"
           },
           "spent": {
             "examples": [
@@ -2561,7 +2569,8 @@
           "name",
           "month",
           "spent",
-          "plannedSpending",
+          "available",
+          "left",
           "daysLeft"
         ],
         "title": "BudgetCard",
@@ -12722,19 +12731,12 @@
             "title": "Projectionname"
           },
           "putIn": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
+            "examples": [
+              1234.5
             ],
-            "title": "Putin"
+            "format": "money",
+            "title": "Putin",
+            "type": "number"
           },
           "remaining": {
             "examples": [
@@ -12826,6 +12828,14 @@
             ],
             "title": "Assignedbymoves"
           },
+          "available": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Available",
+            "type": "number"
+          },
           "cards": {
             "items": {
               "$ref": "#/components/schemas/CardLine"
@@ -12853,6 +12863,14 @@
             "title": "Income",
             "type": "number"
           },
+          "left": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Left",
+            "type": "number"
+          },
           "month": {
             "format": "date",
             "title": "Month",
@@ -12871,14 +12889,6 @@
             },
             "title": "Moves",
             "type": "array"
-          },
-          "plannedSpending": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Plannedspending",
-            "type": "number"
           },
           "rows": {
             "items": {
@@ -12932,6 +12942,14 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "yearlySpent": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Yearlyspent",
+            "type": "number"
           }
         },
         "required": [
@@ -12948,7 +12966,9 @@
           "assigned",
           "assignedByMoves",
           "cards",
-          "plannedSpending",
+          "available",
+          "left",
+          "yearlySpent",
           "uncategorised",
           "daysLeft",
           "version"

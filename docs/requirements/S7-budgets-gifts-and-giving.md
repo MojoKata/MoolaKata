@@ -104,6 +104,17 @@
    10. **Kept once worked out**: a month's figures are kept, and worked out again when
        anything they come from changes (a transaction, a plan line, a move, a leave-out, in
        that month or one before it). **Refresh** on a month works them out again at once.
+   11. **One reading of a line's month**, whatever its kind (a tracking line, a reserve, an
+       envelope): what it **carried** in, what it **put in** (its plan, what was assigned, a
+       reserve's deposit), what was **moved** in or out, what was **spent**, and what
+       **remains**, always remains = carried + put in + moved − spent; what was **available**
+       is carried + put in + moved. A yearly line's moves are the year's so far.
+   12. **The month's Spent card** (on the budget and the Dashboard): what was spent against
+       the monthly lines and outside the plan, *of* what those lines had **available**,
+       reserves included, and what is **left** (their remains less the spending outside the
+       plan), so a repair a reserve covers is never shown as over (S7.10.2). Spending against a
+       yearly line is compared with its year, and named beside (*and $1,140 against yearly
+       lines*).
 4. **Screens** (S12.2.6): the **Budgets** list, the active budget first (S7.12), then the
    scenarios, each with its method, accounts and owner. For one budget: the month's
    categories as progress bars (green, then amber at 90%, red over; a reserve as its
@@ -287,7 +298,9 @@
     3. **Compare** shows the active budget and one scenario side by side for a month or a
        range of months: per category, what is available, spent and remaining, the reserves'
        balances, and *To Budget* for an envelope budget, with the totals and where the two
-       part.
+       part. Over a range, a line's available is what it carried into its first month in the
+       range plus what each month put in and moved (S7.3.11), so a carry is counted once and
+       what remains is what its last month leaves.
     4. **Copy as scenario…** makes a budget with the same accounts and plan, in the method
        chosen (a tracking line becomes the same amount assigned each month, and an envelope
        line the same amount planned), with this month's moves when asked.

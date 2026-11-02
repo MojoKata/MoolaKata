@@ -170,7 +170,10 @@ function ThisMonth({ b, month, reloadList }) {
   );
   const income = v.rows.filter((/** @type {any} */ r) => r.kind === 'income');
   const saving = v.rows.filter((/** @type {any} */ r) => r.kind === 'savings');
-  const left = dec(v.plannedSpending).sub(dec(v.spent));
+  // The Spent card (S7.3.12): spending against the monthly lines and outside the plan, of what
+  // those lines had available; yearly lines are compared with their year, named beside.
+  const left = dec(v.left);
+  const spentInMonth = dec(v.available).sub(left);
   const sort = async (/** @type {string} */ txnId) => {
     const [txn, accounts] = await Promise.all([
       api.get(`/transactions/${txnId}`),
@@ -256,17 +259,20 @@ function ThisMonth({ b, month, reloadList }) {
           </div>
           <div class="card kpi">
             <div class="label">Spent</div>
-            <div class="value amt">${money(v.spent, {
+            <div class="value amt">${money(spentInMonth.toString(), {
               cents: false,
             })}</div>
-            <div class="delta dim">of ${money(v.plannedSpending, {
-              cents: false,
-            })} planned · ${money(
-              left.abs(),
-              { cents: false },
-            )} ${left.isNegative() ? 'over' : 'left'}${v.daysLeft
-              ? `, ${v.daysLeft} day${v.daysLeft === 1 ? '' : 's'} to go`
-              : ''}</div>
+            <div
+              class="delta dim">of ${money(v.available, {
+                cents: false,
+              })} available · ${money(
+                left.abs(),
+                { cents: false },
+              )} ${left.isNegative() ? 'over' : 'left'}${v.daysLeft
+                ? `, ${v.daysLeft} day${v.daysLeft === 1 ? '' : 's'} to go`
+                : ''}${dec(v.yearlySpent).gt(0)
+                ? ` · and ${money(v.yearlySpent, { cents: false })} against yearly lines`
+                : ''}</div>
           </div>
           <div class="card kpi">
             <div class="label">Saved</div>

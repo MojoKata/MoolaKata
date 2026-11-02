@@ -47,8 +47,9 @@ class BudgetCard(Model):
     id: str
     name: str
     month: dt.date
-    spent: Money
-    plannedSpending: Money
+    spent: Money  # against the monthly lines and outside the plan (S7.3.12)
+    available: Money
+    left: Money
     daysLeft: int
 
 
@@ -119,8 +120,9 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
                 id=b.id,
                 name=b.name,
                 month=v.month,
-                spent=v.spent,
-                plannedSpending=v.plannedSpending,
+                spent=v.available - v.left,
+                available=v.available,
+                left=v.left,
                 daysLeft=v.daysLeft,
             )
         return Dashboard(

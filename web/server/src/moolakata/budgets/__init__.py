@@ -400,13 +400,17 @@ def in_force(all_lines: list[BudgetLine], month: dt.date) -> dict[str, BudgetLin
 
 @dataclass
 class Row:
+    """A line's month, the same parts for every kind of line (S7.3.11): what it carried in, put
+    in and was moved, spent, and what remains, always remaining = carried + putIn + moved −
+    actual; `planned` is what was available, carried + putIn + moved."""
+
     categoryId: str
     label: str
     kind: str
     cadence: str
     rollover: bool
-    planned: Decimal  # this period's plan, with what rolled over into it
-    carried: Decimal  # the part of planned that rolled over
+    planned: Decimal  # available: carried + putIn + moved
+    carried: Decimal  # what came in from the month before
     actual: Decimal  # spent, or received for income
     remaining: Decimal
     state: str  # under, near (90% or more), over
@@ -418,7 +422,7 @@ class Row:
     target: Decimal | None = None  # a reserve's (S7.10)
     heldInId: str | None = None
     balance: Decimal | None = None  # a reserve's, at the month's end
-    putIn: Decimal | None = None
+    putIn: Decimal = ZERO  # this month's own: its plan, what was assigned, a reserve's deposit
 
 
 @dataclass
@@ -431,7 +435,12 @@ class Month:
     spent: Decimal
     saved: Decimal
     moved: list[Moved]
-    plannedSpending: Decimal
+    # The Spent card's (S7.3): what the monthly spending lines had available, reserves included,
+    # and what they and the spending outside the plan leave; spending against yearly lines is
+    # compared with their year, so it is apart.
+    available: Decimal
+    left: Decimal
+    yearlySpent: Decimal
     uncategorised: int
     daysLeft: int
     toBudget: Decimal | None = None  # an envelope budget's (S7.13)
@@ -540,7 +549,7 @@ def _month_view(
                     target=ln.target,
                     heldInId=ln.heldInId,
                     balance=e.balance if ln.target is not None else None,
-                    putIn=e.assigned if ln.target is not None else None,
+                    putIn=e.assigned,
                     projectionId=ln.projectionId,
                     projection=plan.monthly_contribution(s, ln.projectionId)
                     if ln.projectionId
@@ -558,7 +567,7 @@ def _month_view(
                         kind=kind,
                         cadence="month",
                         rollover=True,
-                        planned=r.putIn,
+                        planned=r.start + r.putIn + mv,
                         carried=r.start,
                         actual=r.spent,
                         remaining=r.balance,
@@ -572,7 +581,12 @@ def _month_view(
                 )
                 continue
         if ln.cadence == "year":
-            planned, carried = ln.amount, ZERO
+            # Compared with the year to date, its moves the year's so far too.
+            mv = sum(
+                (v for (m, k), v in moved_by.items() if k == cat_id and year_start <= m <= month),
+                ZERO,
+            )
+            planned, carried = ln.amount + mv, ZERO
             actual = _actual(tr, ytd, cat_id, lines_now)
         else:
             carried = _carry(s, tr, mem, every, cat_id, month, moved_by) if ln.rollover else ZERO
@@ -592,6 +606,7 @@ def _month_view(
                 state=_state(planned, actual) if kind == "expense" else "under",
                 overspend=ln.overspend,
                 moved=mv,
+                putIn=ln.amount,
                 projectionId=ln.projectionId,
                 projection=plan.monthly_contribution(s, ln.projectionId)
                 if ln.projectionId
@@ -614,6 +629,7 @@ def _month_view(
                 remaining=amount - actual,
                 state=_state(amount, actual),
                 fromPlan=tr.by_id[cat_id].builtIn,
+                putIn=amount,
             )
         )
     rows.sort(key=lambda r: (r.kind != "income", r.label))
@@ -628,20 +644,29 @@ def _month_view(
     spent = -sum((amt for cid, amt in totals.items() if _kind(tr, cid) == "expense"), ZERO)
     saved = -sum((amt for cid, amt in totals.items() if _kind(tr, cid) == "savings"), ZERO)
     end = month_end(month)
+    monthly = [r for r in rows if r.kind == "expense" and r.cadence == "month"]
+    unplanned_rows = sorted(
+        ((cid, tr.label(cid), amt) for cid, amt in unplanned.items() if amt != 0),
+        key=lambda x: -x[2],
+    )
     return Month(
         month=month,
         rows=rows,
-        unplanned=sorted(
-            ((cid, tr.label(cid), amt) for cid, amt in unplanned.items() if amt != 0),
-            key=lambda x: -x[2],
-        ),
+        unplanned=unplanned_rows,
         income=income,
         expectedIncome=sum((r.planned for r in rows if r.kind == "income"), ZERO),
         spent=spent,
         saved=saved,
         moved=sorted(moved, key=lambda x: (x.date, x.transactionId)),
-        plannedSpending=sum(
-            (r.planned for r in rows if r.kind == "expense" and r.cadence == "month"), ZERO
+        available=sum((r.planned for r in monthly), ZERO),
+        left=sum((r.remaining for r in monthly), ZERO) - sum((x[2] for x in unplanned_rows), ZERO),
+        yearlySpent=sum(
+            (
+                _actual(tr, totals, r.categoryId, lines_now)
+                for r in rows
+                if r.kind == "expense" and r.cadence == "year"
+            ),
+            ZERO,
         ),
         uncategorised=uncategorised(s, accts, month, end),
         toBudget=env.toBudget if env else None,
