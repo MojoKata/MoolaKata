@@ -114,6 +114,7 @@ LinkSent = exception(
     UniqueConstraint("linkId", "itemId", "path", "viewer"),
     prefix="LkSnt",
     seen=Seen.admin(),
+    not_figures="what was last sent a peer",
 )
 
 # A receipt a change named that hasn't reached the copy yet (S11.4): asked for again at each
@@ -131,6 +132,7 @@ LinkFile = exception(
     UniqueConstraint("linkId", "fileId"),
     prefix="LkFil",
     seen=Seen.admin(),
+    not_figures="receipts waiting to reach a copy",
 )
 
 # The colour each user chose for a linked household's window (S12.10.3.2), from a fixed palette.

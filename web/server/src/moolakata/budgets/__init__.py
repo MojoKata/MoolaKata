@@ -389,13 +389,9 @@ def month_view(
     """A month's figures, kept once worked out until what they come from changes (S7.3.10)."""
     from . import cache
 
-    cache.watch()
-    key = (budget.id, month, today, viewer)
-    hit = cache.get(key)
-    if hit is None:
-        hit = _month_view(s, budget, month, today, viewer)
-        cache.put(key, hit)
-    return hit
+    return cache.month(
+        s, (budget.id, month, today, viewer), lambda: _month_view(s, budget, month, today, viewer)
+    )
 
 
 def _month_view(

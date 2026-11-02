@@ -134,6 +134,7 @@ Session = exception(
     Index("ix_Session_userId", "userId"),
     prefix="Sessn",
     seen=Seen.server(),
+    not_figures="sign-ins, written on every request",
 )
 
 OneTimeToken = exception(
@@ -151,6 +152,7 @@ OneTimeToken = exception(
     Index("ix_OneTimeToken_userId", "userId"),
     prefix="OTTkn",
     seen=Seen.server(),
+    not_figures="one-time sign-in and invitation tokens",
 )
 
 # Ten per user, each usable once in place of a two-step code (S10.1.6).
@@ -163,6 +165,7 @@ RecoveryCode = exception(
     Index("ix_RecoveryCode_userId", "userId"),
     prefix="RCode",
     seen=Seen.server(),
+    not_figures="two-step recovery codes",
 )
 
 # A person's request for an account (S10.1.4): confirmed by an emailed link, then approved or

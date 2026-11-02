@@ -4,12 +4,10 @@ S7.3.10, S7.6.1)."""
 import datetime as dt
 
 import pytest
-from sqlalchemy import update
 from test_accounts import add
-from test_budgets import month, plan, row, setup_budget
+from test_budgets import plan, setup_budget
 
 from moolakata import alerts, clock
-from moolakata.store.entities.accounts import Transaction
 
 T0 = dt.datetime(2026, 10, 20, 15, 0, tzinfo=dt.UTC)
 
@@ -42,22 +40,6 @@ def test_a_reviewed_month_is_flagged_when_it_changes(server, frozen):
     # October's review lists September among the months before.
     oct_ = c.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-10"}).json()
     assert [(h["month"], bool(h["changes"])) for h in oct_["history"]] == [("2026-09-01", True)]
-
-
-def test_month_figures_are_kept_and_refreshed(server, frozen):
-    c, acct, cat, b = setup_budget(server)
-    plan(c, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
-    t = add(
-        c, acct["id"], "-50.00", "2026-10-03", payee="Kroger", categoryId=cat["Food › Groceries"]
-    )
-    assert row(month(c, b, "2026-10"), "Food")["actual"] == "50.00"
-    # A change the kept figures don't see (written past the session's flush): Refresh does.
-    with server.db.tx(unscoped="test") as s:
-        s.execute(update(Transaction).where(Transaction.id == t["id"]).values(amount=-80))
-    assert row(month(c, b, "2026-10"), "Food")["actual"] == "50.00"
-    r = c.post(f"/ui/api/budgets/{b['id']}/refresh", params={"month": "2026-10"})
-    assert r.status_code == 200, r.text
-    assert row(r.json(), "Food")["actual"] == "80.00"
 
 
 def test_cash_before_payday(server, frozen):

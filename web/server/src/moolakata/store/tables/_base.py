@@ -204,11 +204,21 @@ def keyed(name: str, *columns, seen: Seen, **kw) -> Table:
 
 
 def exception(
-    name: str, reason: str, *columns, seen: Seen, prefix: str | None = None, **kw
+    name: str,
+    reason: str,
+    *columns,
+    seen: Seen,
+    prefix: str | None = None,
+    not_figures: str | None = None,
+    **kw,
 ) -> Table:
-    """A table that schema.md §4.4 removes outright, or never deletes from at all."""
+    """A table that schema.md §4.4 removes outright, or never deletes from at all.
+    `not_figures` says why no figure is worked out from it, so a write to it leaves the data
+    version where it is (schema.md §8)."""
     cols = list(columns)
     info = {"softDelete": False, "exception": reason, "seen": seen}
+    if not_figures:
+        info["notFigures"] = not_figures
     if prefix:
         length = len(prefix) + 1 + 26
         cols.insert(0, Column("id", Text, primary_key=True))

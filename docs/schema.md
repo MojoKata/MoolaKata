@@ -223,7 +223,7 @@ Records are never removed from the database: they are marked deleted. The except
       receipt waiting to reach the copy once it has (`LinkFile`, S11.4);
    4. **work queues and counters**: receipt-reading jobs, emails waiting to go out (when sent
       or when their link expires), sign-in and access-key attempt counters, the background
-      tasks' last runs, and the live stream's state;
+      tasks' last runs, the data version (§8), and the live stream's state;
    5. **caches**, rebuilt from the records: thumbnails, computed series kept for speed, and
       wash sales, worked out again from the trades whenever they change, and a bitcoin
       wallet's addresses, derived again from its keys and its explorer or node, a budget's
@@ -247,6 +247,8 @@ A test fails when:
 5. a table doesn't say how it is seen (§7), a child's key is not a `NOT NULL` foreign key to
    a table with an access view, a table needing an access view has none or one that differs
    from what its declaration makes now, or an access view lacks the seven columns of §7.2.
+6. a table neither carries the data version's three triggers (§8) as its declaration makes
+   them nor declares why it is not an input, or a trigger is left that no declaration makes.
 
 ## 6. Ended records
 
@@ -328,7 +330,7 @@ ever read for them.
    | admin | `Setting`, `PriceSource`, `Connector`, `Link`, `LinkFile`, `LinkSent`, `QueuedEmail`, `SignupRequest` | generated: every admin holds everything; no one else reads it |
    | relation | the many-to-many tables (§1.2) | none: a query asks for one side's records and joins that side's view, and the other side's when it returns both |
    | household | `Category`, `Instrument`, `OptionContract`, `Price`, `TaxFigure` | none: every signed-in user reads it |
-   | server | `Secret`, `TaskRun`, `Session`, `RecoveryCode`, `OneTimeToken` | none: only the server's own code reads it |
+   | server | `Secret`, `TaskRun`, `DataVersion`, `Session`, `RecoveryCode`, `OneTimeToken` | none: only the server's own code reads it |
 
 2. **Columns.** One row per live record and user who reads it:
 
@@ -406,3 +408,25 @@ ever read for them.
    caller's to fill in. The API document carries each kind's rule (`x-creates`), so the browser
    offers Add from the parent's `access` as the save will judge it.
 
+## 8. The data version
+
+One number, in the one row of `DataVersion`, that every write to a table figures are worked
+out from moves on (`store/data_version.py`). Figures kept for speed (a budget's months,
+requirements S7.3.10) are kept under it, and a write makes them unreachable.
+
+1. **Moved by the database.** Each table has a trigger for each of insert, update and delete
+   that adds 1 to the version, inside the writing transaction. Any write moves it: through the
+   ORM or not, in a migration, from a link's pull.
+2. **Read with the data.** A reader reads the version in its own transaction, and SQLite gives
+   a transaction one snapshot, so the version is that of exactly the data it reads: a write
+   that hasn't committed has moved it for no one else. Only a read's figures are kept; a
+   write's could still be rolled back.
+3. **Every table is an input** unless it says why it isn't (`not_figures` on `exception()`:
+   sign-ins, Activity, alerts, the email queue, secrets, the background tasks' runs, what a
+   link sent or still has to send). A table added later is watched without anyone remembering
+   to; leaving one out costs only speed.
+4. **Kept current** as the views are (§7.5): the triggers are generated from the declarations,
+   dropped before a migration and made again after it and at every start; the row is made the
+   first time.
+5. **One database, one series.** Kept figures are keyed by the database they were read from as
+   well, so a copy opened in the same process never meets another's.
