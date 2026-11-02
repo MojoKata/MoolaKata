@@ -223,4 +223,14 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
 4. **Decision 7** (`0e1063e`): as decided. The question's code is `balance-dropped` (it was
    `reserve-balance`), asked for any line that carries money; the balance is read from the
    month before's row, as the month view gives it. Siblings recorded as CR3-380 and CR3-381.
+5. **Decision 2** (`6212629`): as decided, with these notes.
+   1. The identity is held on every month the budget tests read: `test_budgets.month` checks
+      every row, so every budget test checks it.
+   2. The Spent card: the month's `spent` stays the month's whole spending (Activity, the
+      review and cash flow read it); the card shows what was spent against the monthly lines
+      and outside the plan (available less left), and names spending against yearly lines
+      beside, since those compare with their year (S7.3.12). `plannedSpending` became
+      `available`, `left` and `yearlySpent`.
+   3. Found while building: CR3-382 (the card, 2.1 of the walk, recorded as a claim) and
+      CR3-383 (a yearly line's moves).
 
