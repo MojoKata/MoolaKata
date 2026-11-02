@@ -69,7 +69,7 @@ export class AcctRec extends Record {
     openingBalance: null,
     openingDate: null,
     countInNetWorth: null,
-    active: true,
+    closedOn: null,
     statementInterval: null,
     withdrawalsAMonth: null,
     connectionId: null,
