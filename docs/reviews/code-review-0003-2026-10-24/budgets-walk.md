@@ -215,4 +215,9 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
       unplanned spending unflagged).
    6. The mockup had no budget settings dialog; it has one now, on the MOCK menu, showing an
       account taken out and *The change counts from*.
+3. **Decision 3** (`418d11f`): as decided. The envelope invariant first written (To Budget plus
+   what is held equals the cash) held without the fix too, since To Budget is defined that way;
+   it became *spending from an envelope never moves To Budget, only unplanned spending comes
+   out of it*, which fails without the fix. Trends for one category count its own money and
+   its children's without a line that month.
 
