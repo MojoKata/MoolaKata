@@ -220,4 +220,7 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
    it became *spending from an envelope never moves To Budget, only unplanned spending comes
    out of it*, which fails without the fix. Trends for one category count its own money and
    its children's without a line that month.
+4. **Decision 7** (`0e1063e`): as decided. The question's code is `balance-dropped` (it was
+   `reserve-balance`), asked for any line that carries money; the balance is read from the
+   month before's row, as the month view gives it. Siblings recorded as CR3-380 and CR3-381.
 
