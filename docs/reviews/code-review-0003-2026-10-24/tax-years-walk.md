@@ -114,3 +114,28 @@ guard said nothing of the write paths that never call it.
 tests take and on running them in parallel on GitHub.
 
 ## Applied
+
+1. **Generated tax worlds and the reference model** (decision 3, part 1). `tests/tax_world.py`
+   draws 24 worlds (filers solo, joint or separate; four lot methods dealt over Alice's two
+   brokerages, her exchange and wallet, and Bob's brokerage), each with 22 sale stories over
+   13 axes (seller, class, method, picks, term, outcome, size, where and when a buy near the
+   sale falls, how much it replaces, the year sold, a later sale of the replacement); all 856
+   possible pairs of axis values meet in some world. `tests/tax_reference.py`, which imports
+   nothing of MoolaKata, works out each book's Form 8949 from the description; 
+   `tests/test_tax_world.py` makes each world through the API (about 130 trades) and holds
+   every book's rows to it, and Schedule D, the wash sales and the CSV export to the rows.
+   24 worlds in 42 s on 8 workers. Found, each a new claim, the worlds failing on it marked
+   strict xfail until fixed:
+   1. **CR3-386**: a trade typed by hand makes its instrument a share whatever its symbol, so a
+      fund bought in 2011 lands in box D, not E (CR3-14 decided the class by the symbol's
+      shape, applied to imports only).
+   2. **CR3-387**: average cost is applied to shares; S2.3 has it for funds and coins.
+   3. **CR3-388**: a replacement bought before the loss sale takes the disallowed loss into its
+      basis from the day bought, so highest-cost-first and average cost pick the sale's own
+      lots by the loss it is about to have disallowed: the wash sales flip between two answers
+      and the twelfth round's stands. And shares the sale itself sold count as its
+      replacement (S3.8.2).
+   4. **CR3-389**: specific identification (S2.3, *chosen per sale*; the guide's *you pick at
+      each sale*) has no way to pick a sale's lots, in the save or the dialog: an account set
+      to it sells first in. The worlds leave picks out (`reachable`) until it does;
+      `test_a_sales_lots_can_be_picked` is a strict xfail.
