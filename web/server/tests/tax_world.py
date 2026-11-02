@@ -39,12 +39,23 @@ WHEN = ("none", "before", "after", "day-30", "day-31")
 REPLACED = ("none", "whole", "part")
 SOLD_IN = ("2025", "2026", "year-end")
 FOLLOW = ("none", "resold")
+SPLIT = ("none", "split")  # a 2-for-1 split between the buys and the sale
+OVERRIDE = ("none", "left-out")  # per world: Second left out of Alice's 2026 book
+
+# Per income record (S8.5): interest and dividends of each type, in each account, each year.
+INCOME_KINDS = ("interest", "dividend", "reinvest", "capital-gain")
+DIV_TYPES = ("qualified", "ordinary", "none")
+INCOME_ACCOUNTS = ("Brokerage", "Second", "Bob's brokerage")
+INCOME_YEARS = ("2025", "2026")
+INCOME_SYMBOLS = ("SCHD", "VYM", "DGRO", "HDV", "NOBL", "SPYD", "DVY", "SDY")
 
 AXES = {
     "story": {"filers": FILERS, "seller": SELLERS, "class": CLASSES, "method": METHODS,
               "picks": PICKS, "term": TERMS, "outcome": OUTCOMES, "size": SIZES,
               "where": WHERE, "when": WHEN, "replaced": REPLACED, "soldIn": SOLD_IN,
-              "follow": FOLLOW},
+              "follow": FOLLOW, "split": SPLIT, "override": OVERRIDE},
+    "income": {"filers": FILERS, "override": OVERRIDE, "kind": INCOME_KINDS,
+               "type": DIV_TYPES, "account": INCOME_ACCOUNTS, "year": INCOME_YEARS},
 }  # fmt: skip
 
 SEEDS = range(24)
@@ -70,10 +81,16 @@ FUNDS = ("VTSAX", "FXAIX", "VFIAX", "SWPPX", "VTIAX", "VBTLX", "FSKAX", "VGSLX",
 COINS = ("BTC", "ETH", "SOL", "ADA", "DOGE", "LTC", "XRP", "DOT", "AVAX", "LINK")
 
 
-def _impossible(a: tuple[str, str], b: tuple[str, str]) -> bool:
-    """Pairs no story can hold."""
+def _impossible(a: tuple[str, str], b: tuple[str, str], kind: str = "story") -> bool:
+    """Pairs no record can hold."""
     k = {a[0]: a[1], b[0]: b[1]}
     get = k.get
+    if kind == "income":
+        # Interest and gain distributions have no dividend type.
+        return get("kind") in ("interest", "capital-gain") and get("type") not in (None, "none")
+    # A coin doesn't split.
+    if get("class") == "crypto" and get("split") == "split":
+        return True
     crypto = get("class") == "crypto"
     # Coins are Alice's, in her exchange and wallet: none in an IRA, none bought before 2011.
     if crypto and (get("where") in ("ira", "partner") or get("term") == "old"):
@@ -104,7 +121,7 @@ def all_pairs(kind: str = "story") -> set[frozenset]:
     for x, y in itertools.combinations(axes, 2):
         for vx in axes[x]:
             for vy in axes[y]:
-                if not _impossible((x, vx), (y, vy)):
+                if not _impossible((x, vx), (y, vy), kind):
                     out.add(frozenset({(x, vx), (y, vy)}))
     return out
 
@@ -121,6 +138,7 @@ class Trade:
     price: str  # dollars and cents
     # A sale's specific lots: (the buy's index in the world's trades, quantity).
     picks: list[tuple[int, int]] = field(default_factory=list)
+    ratio: int = 0  # a split's new shares for each one held
 
     @property
     def cents(self) -> int:
@@ -129,6 +147,25 @@ class Trade:
     @property
     def amount(self) -> str:
         c = self.cents if self.kind == "sell" else -self.cents
+        sign = "-" if c < 0 else ""
+        return f"{sign}{abs(c) // 100}.{abs(c) % 100:02d}"
+
+
+@dataclass
+class Income:
+    """Interest or a dividend, as typed (S8.5)."""
+
+    axes: dict[str, str]
+    account: str
+    date: dt.date
+    kind: str  # interest, dividend, reinvest, capital-gain
+    dividend_type: str | None
+    cents: int
+    symbol: str | None = None
+
+    @property
+    def amount(self) -> str:
+        c = -self.cents if self.kind == "reinvest" else self.cents
         sign = "-" if c < 0 else ""
         return f"{sign}{abs(c) // 100}.{abs(c) % 100:02d}"
 
@@ -148,6 +185,8 @@ class World:
     methods: dict[str, str]  # account name -> lot method
     trades: list[Trade] = field(default_factory=list)
     stories: list[Story] = field(default_factory=list)
+    incomes: list[Income] = field(default_factory=list)
+    left_out: bool = False  # Second left out of Alice's 2026 book
 
     @property
     def married(self) -> bool:
@@ -160,7 +199,11 @@ class World:
         return [(y, u) for y in YEARS for u in units]
 
     def records(self) -> dict[str, list[dict]]:
-        return {"story": [{"filers": self.filers, **s.axes} for s in self.stories]}
+        world = {"filers": self.filers, "override": "left-out" if self.left_out else "none"}
+        return {
+            "story": [{**world, **s.axes} for s in self.stories],
+            "income": [{**world, **i.axes} for i in self.incomes],
+        }
 
 
 def pairs(w: World) -> dict[str, set[frozenset]]:
@@ -186,7 +229,7 @@ def world(seed: int) -> World:
     methods = {"Brokerage": m[seed % 4], "Second": m[(seed + 1) % 4], "IRA": "fifo",
                "Exchange": m[(seed + 2) % 4], "Wallet": m[(seed + 3) % 4],
                "Bob's brokerage": m[(seed // 3) % 4]}  # fmt: skip
-    w = World(seed, filers, methods)
+    w = World(seed, filers, methods, left_out=seed % 4 in (1, 2))
     pools = {"equity": list(EQUITIES), "fund": list(FUNDS), "crypto": list(COINS)}
     for p in pools.values():
         rnd.shuffle(p)
@@ -200,7 +243,8 @@ def world(seed: int) -> World:
         rnd.shuffle(deck)
         decks[name] = deck
     for i in range(n):
-        axes = {name: decks[name][i] for name in AXES["story"] if name != "filers"}
+        axes = {name: decks[name][i] for name in AXES["story"]
+                if name not in ("filers", "override")}  # fmt: skip
         axes = _fit(axes, filers, rnd)
         cls = axes["class"]
         if not pools[cls]:
@@ -213,7 +257,30 @@ def world(seed: int) -> World:
         axes["method"] = w.methods[story.account]
         _story(w, story, rnd, used.setdefault(symbol, set()))
         w.stories.append(story)
+    _incomes(w, rnd)
     return w
+
+
+def _incomes(w: World, rnd: random.Random) -> None:
+    """Interest and dividends dealt from shuffled decks, each reinvested one in a fund of its
+    own (never traded, so it washes nothing)."""
+    n = 16
+    decks = {}
+    for name in ("kind", "type", "account", "year"):
+        values = AXES["income"][name]
+        deck = [values[k % len(values)] for k in range(n)]
+        rnd.shuffle(deck)
+        decks[name] = deck
+    symbols = list(INCOME_SYMBOLS)
+    for i in range(n):
+        a = {name: decks[name][i] for name in decks}
+        if a["kind"] in ("interest", "capital-gain"):
+            a["type"] = "none"
+        on = dt.date(int(a["year"]), rnd.randint(1, 12), rnd.randint(1, 28))
+        typed = None if a["type"] == "none" else a["type"]
+        symbol = symbols[i % len(symbols)] if a["kind"] != "interest" else None
+        w.incomes.append(Income(a, a["account"], on, a["kind"], typed, rnd.randint(500, 90000),
+                                symbol))  # fmt: skip
 
 
 def _fit(axes: dict, filers: str, rnd: random.Random) -> dict:
@@ -240,6 +307,8 @@ def _fit(axes: dict, filers: str, rnd: random.Random) -> dict:
                 a["replaced"] = rnd.choice(REPLACED[1:])
     if a["follow"] == "resold" and a["where"] in ("none", "ira"):
         a["follow"] = "none"
+    if a["class"] == "crypto":
+        a["split"] = "none"
     return a
 
 
@@ -339,6 +408,14 @@ def _story(w: World, story: Story, rnd: random.Random, used: set[dt.date]) -> No
         w.trades.append(Trade(account, d, "buy", story.symbol, 10, p))
         buys.append(len(w.trades) - 1)
     story.trades += buys
+    if a["split"] == "split":
+        # Two for one, 35 days before the sale: after every buy, before any buy near the sale.
+        on = sale_on - dt.timedelta(days=35)
+        while on in used:
+            on -= dt.timedelta(days=1)
+        used.add(on)
+        w.trades.append(Trade(account, on, "split", story.symbol, 0, "0", ratio=2))
+        story.trades.append(len(w.trades) - 1)
     qty = {"one-lot": rnd.randint(2, 9), "across": rnd.randint(12, 19),
            "most": rnd.randint(22, 28)}[a["size"]]  # fmt: skip
     cents = [int(p.replace(".", "")) for p in prices]

@@ -173,6 +173,12 @@ def _replay(w: tw.World, account: str, replacements: list[Replacement]) -> list[
                 x.basis += cents(r.disallowed * x.quantity / r.quantity)
             x.held_from = r.held_from
             continue
+        if t.kind == "split":
+            # Each share held becomes `ratio`: quantities grow, basis stays (S2.4).
+            for x in lots:
+                if x.symbol == t.symbol:
+                    x.quantity *= t.ratio
+            continue
         if t.kind == "buy":
             whole = Lot(i, t.symbol, t.date, Decimal(t.quantity), Decimal(t.cents) / 100)
             lots.append(whole)
@@ -295,6 +301,42 @@ def household(w: tw.World) -> Household:
     return Household(w, parts, found)
 
 
+def counted(w: tw.World, year: int, filers: tuple[str, ...]) -> set[str]:
+    """The accounts a book counts (S8.14.2): its filers' own, but one left out."""
+    out = {a for a, (owner, _) in tw.ACCOUNTS.items() if owner in filers}
+    if w.left_out and year == 2026 and "alice" in filers:
+        out.discard("Second")
+    return out
+
+
+@dataclass
+class IncomeTotals:
+    interest: Decimal = Decimal(0)
+    ordinary: Decimal = Decimal(0)  # qualified included (1099-DIV box 1a includes 1b)
+    qualified: Decimal = Decimal(0)
+    gain_distributions: Decimal = Decimal(0)
+
+
+def income(w: tw.World, year: int, filers: tuple[str, ...]) -> IncomeTotals:
+    """The book's income (S8.5): interest; dividends paid or reinvested, a dividend typed as
+    neither qualified nor anything else ordinary; capital-gain distributions."""
+    out = IncomeTotals()
+    accounts = counted(w, year, filers)
+    for i in w.incomes:
+        if i.date.year != year or i.account not in accounts:
+            continue
+        amount = Decimal(i.cents) / 100
+        if i.kind == "interest":
+            out.interest += amount
+        elif i.kind == "capital-gain":
+            out.gain_distributions += amount
+        else:
+            out.ordinary += amount
+            if i.dividend_type == "qualified":
+                out.qualified += amount
+    return out
+
+
 def box(p: Part, year: int) -> str:
     lt = long_term(p.held_from or p.acquired, p.sold)
     kind = _type(p.account)
@@ -318,7 +360,7 @@ def rows(h: Household, year: int, filers: tuple[str, ...]) -> list[Row]:
     """The Form 8949 rows of the book of these filers for the year."""
     out = []
     for p in h.parts:
-        if p.sold.year != year or _owner(p.account) not in filers:
+        if p.sold.year != year or p.account not in counted(h.world, year, filers):
             continue
         out.append(
             Row(

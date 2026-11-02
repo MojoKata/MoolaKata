@@ -20,7 +20,7 @@ import pytest
 import tax_reference as ref
 import tax_world as tw
 from conftest import make_user, sign_in
-from edits import make
+from edits import create, make
 
 from moolakata import clock
 
@@ -79,15 +79,42 @@ class Made:
             self.accounts[name] = _ok(r).json()["id"]
         for i, t in enumerate(w.trades):
             self._trade(i, t)
+        for inc in w.incomes:
+            self._income(inc)
         self.books = {}
         for year, filers in w.books():
             self.books[(year, filers)] = self._book(year, filers)
+        if w.left_out:
+            alice = next(f for y, f in w.books() if y == 2026 and "alice" in f)
+            _ok(create(self.c["alice"], "TxBkA", bookId=self.books[(2026, alice)],
+                       accountId=self.accounts["Second"], counted=False))  # fmt: skip
+
+    def _income(self, inc: tw.Income) -> None:
+        fields = {"accountId": self.accounts[inc.account], "date": inc.date.isoformat(),
+                  "kind": inc.kind, "amount": inc.amount}  # fmt: skip
+        if inc.symbol:
+            fields["symbol"] = inc.symbol
+        if inc.dividend_type:
+            fields["dividendType"] = inc.dividend_type
+        if inc.kind == "reinvest":
+            fields |= {"quantity": "1", "price": inc.amount.lstrip("-")}
+        r = make(self.client(inc.account), "Txn", **fields)
+        assert r.status_code == 200, (inc, r.text)
 
     def client(self, account: str):
         return self.c[tw.ACCOUNTS[account][0]]
 
     def _trade(self, i: int, t: tw.Trade) -> None:
         c = self.client(t.account)
+        if t.kind == "split":
+            # A corporate action, recorded as Positions records it (S2.4).
+            acct = self.accounts[t.account]
+            held = _ok(c.get(f"/ui/api/accounts/{acct}/holdings")).json()["holdings"]
+            inst = next(h["instrumentId"] for h in held if h["symbol"] == t.symbol)
+            r = create(c, "CorpA", accountId=acct, instrumentId=inst, kind="split",
+                       date=t.date.isoformat(), ratio=str(t.ratio))  # fmt: skip
+            assert r.status_code == 200, (i, t, r.text)
+            return
         fields = {"accountId": self.accounts[t.account], "date": t.date.isoformat(),
                   "amount": t.amount, "kind": t.kind, "symbol": t.symbol,
                   "quantity": str(t.quantity), "price": t.price}  # fmt: skip
@@ -165,10 +192,27 @@ def _diff(app: list[tuple], want: list[tuple]) -> str:
 
 
 def test_a_world(made):
-    """Each book's Form 8949 is the reference model's; its Schedule D, wash sales and CSV
-    export follow its rows."""
+    """Each book's Form 8949 and income are the reference model's; its Schedule D, wash sales
+    and CSV export follow its rows."""
     _the_rows_are_the_reference_models(made)
     _schedule_d_washes_and_the_export_follow_the_rows(made)
+    _income_is_the_reference_models(made)
+
+
+def _income_is_the_reference_models(made):
+    wrong = []
+    for year, filers in made.w.books():
+        want = ref.income(made.w, year, filers)
+        got = made.panels(year, filers)["income"]
+        pairs = {
+            "interest": (_d(got["interestTotal"]), want.interest),
+            "ordinary": (_d(got["ordinary"]), want.ordinary),
+            "qualified": (_d(got["qualified"]), want.qualified),
+            "gain distributions": (_d(got["capitalGainDistributions"]), want.gain_distributions),
+        }
+        wrong += [f"{year} {'+'.join(filers)} {k}: got {g}, want {w}"
+                  for k, (g, w) in pairs.items() if g != w]  # fmt: skip
+    assert not wrong, "\n".join(wrong)
 
 
 def _the_rows_are_the_reference_models(made):

@@ -184,7 +184,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
             rows.append(row)
     if book.bitcoinFees == "not-taxed":
         rows = [r for r in rows if not _own_transfer_fee(s, r.saleId)]
-    washes_ = _stored_washes(s, book, losses)
+    washes_ = _stored_washes(s, book, losses, {a.id for a in counted})
     washes_ += _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
     rows += _items(s, counted, first, last)
     return rows, washes_
@@ -199,9 +199,11 @@ def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
     return out is not None and out.transferId is not None
 
 
-def _stored_washes(s: Session, book: TaxBook, losses: dict[str, Decimal]) -> list[Wash]:
-    """The book's wash sales, read together (one query for each kind of record, however many
-    there are: the filed tax years walk's decision 3.6)."""
+def _stored_washes(
+    s: Session, book: TaxBook, losses: dict[str, Decimal], counted: set[str]
+) -> list[Wash]:
+    """The book's wash sales: of the sales in the accounts it counts (CR3-393), read together
+    (one query for each kind of record, however many there are: the walk's decision 3.6)."""
     from .. import washes
 
     first, last = _span(book.year)
@@ -232,6 +234,8 @@ def _stored_washes(s: Session, book: TaxBook, losses: dict[str, Decimal]) -> lis
     out = []
     for w in found:
         sale, repl = txns[w.saleId], txns[w.replacementId]
+        if sale.accountId not in counted:
+            continue
         lot = lots_by.get(repl.id)
         into = accts[repl.accountId]
         basis = None
@@ -438,7 +442,8 @@ def income(s: Session, book: TaxBook) -> Income:
             elif t.kind == "capital-gain":
                 divs["capital-gain"] += t.amount
                 by_payer[payer] += t.amount
-            elif t.kind == "dividend" or (t.kind == "reinvest" and t.dividendType):
+            elif t.kind in ("dividend", "reinvest"):
+                # A reinvested dividend is a dividend too, ordinary unless typed (CR3-392).
                 amount = t.amount if t.kind == "dividend" else -t.amount
                 divs[t.dividendType or "ordinary"] += amount
                 by_payer[payer] += amount

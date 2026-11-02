@@ -392,3 +392,29 @@ def test_fewer_shares_bought_back_replace_the_earliest_acquired(alice):
         ("2025-01-06", "200.00"),
         ("2025-02-03", "0.00"),
     ]
+
+
+def test_a_reinvested_dividend_counts_as_a_dividend(alice):
+    # CR3-392, S8.5: reinvested, a dividend is still one; ordinary unless typed qualified.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    add(alice, brk["id"], "-120.00", "2026-03-31", kind="reinvest", symbol="SCHD",
+        quantity="1", price="120")  # fmt: skip
+    add(alice, brk["id"], "-80.00", "2026-06-30", kind="reinvest", symbol="SCHD",
+        quantity="1", price="80", dividendType="qualified")  # fmt: skip
+    inc = panels(alice, book(alice))["income"]
+    assert (inc["ordinary"], inc["qualified"]) == ("200.00", "80.00")
+
+
+def test_a_book_lists_the_wash_sales_of_the_accounts_it_counts(alice):
+    # CR3-393, S8.14.2: an account left out of the book takes its wash sales with it.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "10", "80", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-16", "buy", "10", "82", symbol="IBM")
+    b = book(alice)
+    assert len(panels(alice, b)["washes"]) == 1
+    from edits import create
+
+    saved(create(alice, "TxBkA", bookId=b, accountId=brk["id"], counted=False))
+    p = panels(alice, b)
+    assert p["rows"] == [] and p["washes"] == []

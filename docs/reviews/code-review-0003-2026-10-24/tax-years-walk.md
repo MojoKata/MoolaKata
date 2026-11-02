@@ -206,3 +206,15 @@ tests take and on running them in parallel on GitHub.
       carryovers, last year's tax and the expected documents to the books the filers
       accepted; the share once typed; one book a year and Decline. The mockup gains
       *Taxes · filing separately after a joint return* and *named on a book: Accept or Decline*.
+5. **More of decision 3** (`COMMIT392`): the worlds gain a 2-for-1 split between a story's
+   buys and its sale (recorded as Positions records one), Second left out of Alice's 2026 book
+   in half the worlds, and 16 income records a world (interest, dividends paid and reinvested
+   of each type, capital-gain distributions, in each account and year), pairwise: 1,035 pairs
+   of a story's axes, 115 of an income's. The reference model splits lots, counts what a book
+   counts, and works out its income; every world holds the Income panel to it. Found:
+   **CR3-392** (an untyped reinvested dividend in no figure) and **CR3-393** (the wash-sale list
+   holding an account left out). Earlier, `d4c839f`: query budgets at 150 and 600 trades,
+   which found the wash list's query a wash sale and **CR3-391** (an IRA replacement's adjusted
+   basis with the loss added); `1dc425d`: the panels in the browser. Still to come of decision
+   3: options and mergers in the worlds, bitcoin fee sales, dependents; Accept and Decline in
+   the browser (the shared household's second user has no password to sign in with).
