@@ -265,7 +265,8 @@ def unearned(s: Session, accounts: list[Account], year: int, gains: Decimal) -> 
             )
         ):
             if t.kind == "reinvest":
-                if t.dividendType and t.dividendType != "return-of-capital":
+                # Reinvested, a dividend is income all the same, untyped ones too (CR3-392).
+                if t.dividendType != "return-of-capital":
                     total -= t.amount
             elif not (t.kind == "dividend" and t.dividendType == "return-of-capital"):
                 total += t.amount

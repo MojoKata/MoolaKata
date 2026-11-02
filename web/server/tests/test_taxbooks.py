@@ -541,3 +541,51 @@ def test_a_document_changed_removed_and_given_its_file_by_a_co_filer(couple):
     assert remove(alice, "TxDoc", doc).status_code == 200
     left = alice.get(f"/ui/api/tax-books/{b['id']}").json()["received"]
     assert [x["form"] for x in left] == ["1098"]
+
+
+def test_a_childs_reinvested_dividends_and_gains_count_toward_form_8615(server, couple):
+    # CR3-392's sibling: a child's reinvested dividend is unearned income, typed or not, and so
+    # is a gain sold in their account; a dependent's accounts change as the book's draft says.
+    alice, _, a_id, _ = couple
+    kid = person(alice, "Carol Griffin", birthYear=2012)
+    utma = new_account(alice, name="Carol's UTMA", type="brokerage")
+    other = new_account(alice, name="Carol's savings", type="savings")
+    add(alice, utma["id"], "-1500.00", day="2026-03-31", kind="reinvest", symbol="SCHD",
+        quantity="10", price="150")  # fmt: skip
+    add(alice, utma["id"], "-1000.00", day="2025-01-06", kind="buy", symbol="IBM",
+        quantity="10", price="100")  # fmt: skip
+    add(alice, utma["id"], "1400.00", day="2026-05-04", kind="sell", symbol="IBM",
+        quantity="10", price="140")  # fmt: skip
+    b = book(alice, 2026, [a_id])
+    r = dependent(alice, b["id"], kid, accountIds=[utma["id"], other["id"]])
+    assert r.status_code == 200, r.text
+    assert r.parent()["form8615"] == [], "1,500 reinvested and a 400 gain: under 2,700"
+    add(alice, utma["id"], "-900.00", day="2026-06-30", kind="reinvest", symbol="SCHD",
+        quantity="6", price="150")  # fmt: skip
+    (f,) = alice.get(f"/ui/api/tax-books/{b['id']}").json()["form8615"]
+    assert f["unearned"] == 2800 and sorted(f["accounts"]) == ["Carol's UTMA", "Carol's savings"]
+    # The savings account taken off, then given back: kept as one row.
+    d = alice.get(f"/ui/api/tax-books/{b['id']}").json()["dependents"][0]
+    rec = {"id": d["id"], "version": d["version"]}
+    d = saved(change(alice, "TxDep", rec, accountIds=[utma["id"]]))
+    d = saved(change(alice, "TxDep", d, accountIds=[utma["id"], other["id"]]))
+    got = alice.get(f"/ui/api/tax-books/{b['id']}").json()["dependents"][0]
+    assert sorted(got["accountIds"]) == sorted([utma["id"], other["id"]])
+
+
+def test_childcare_paid_in_a_split_expects_the_providers_statement(server, couple):
+    # S8.14.5.3: childcare paid for a dependent under 13 expects the provider's statement,
+    # paid as a part of a transaction too.
+    alice, _, a_id, _ = couple
+    kid = person(alice, "Carol Griffin", birthYear=2018)
+    checking = new_account(alice, name="Checking")
+    cats = {x["path"]: x["id"] for x in alice.get("/ui/api/categories").json()["items"]}
+    care = next(v for k, v in cats.items() if k.endswith("Childcare"))
+    food = cats["Food › Groceries"]
+    add(alice, checking["id"], "-300.00", day="2026-04-01", payee="Little Learners",
+        splits=[{"categoryId": care, "amount": "-200.00"},
+                {"categoryId": food, "amount": "-100.00"}])  # fmt: skip
+    b = book(alice, 2026, [a_id])
+    assert dependent(alice, b["id"], kid).status_code == 200
+    exp = alice.get(f"/ui/api/tax-books/{b['id']}").json()["expected"]
+    assert any(e["form"] == "Childcare provider statement" for e in exp), exp
