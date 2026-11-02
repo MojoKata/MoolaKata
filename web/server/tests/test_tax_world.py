@@ -145,18 +145,15 @@ def test_a_sales_lots_can_be_picked(server):
 
 
 # Worlds the app gets wrong today, by what the worlds found (the filed tax years walk's
-# Applied): CR3-386, a typed fund taken for a share (its 8949 box); CR3-387, average cost on
-# shares; CR3-388, a replacement bought before the loss sale (its loss in its basis before the
-# sale, and shares the sale sold counted as its replacement). Strict: a world that passes
-# fails here until taken off.
-KNOWN = {2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23}
+# Applied): CR3-387, average cost on shares; CR3-388, a replacement bought before the loss
+# sale (its loss in its basis before the sale, and shares the sale sold counted as its
+# replacement). Strict: a world that passes fails here until taken off.
+KNOWN = {2, 3, 4, 6, 7, 9, 10, 11, 14, 15, 18, 19, 22, 23}
 
 
 def _seeds():
     for seed in tw.SEEDS:
-        marks = (
-            [pytest.mark.xfail(strict=True, reason="CR3-386, 387, 388")] if seed in KNOWN else []
-        )
+        marks = [pytest.mark.xfail(strict=True, reason="CR3-387, 388")] if seed in KNOWN else []
         yield pytest.param(seed, marks=marks, id=f"world{seed}")
 
 

@@ -161,6 +161,14 @@ def class_by_symbol(symbol: str | None) -> str:
     return "equity" if TICKER.fullmatch(s) else "other"
 
 
+def class_named(symbol: str, account_type: str) -> str:
+    """The class of a security named by its symbol alone, typed or on a statement (S2.1,
+    CR3-386): a coin in an exchange's or a wallet's account, else by the symbol's shape."""
+    if atypes.GROUPS.get(account_type) == "crypto":
+        return "crypto"
+    return class_by_symbol(symbol)
+
+
 def instrument(
     s: Session, symbol: str | None, name: str | None, cls: str, cusip: str | None = None
 ) -> Instrument:

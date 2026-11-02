@@ -799,9 +799,11 @@ def save_brokerage(
                 raise refuse("positions", "instrument-unknown", "One of the instruments here.")
             inst_id = p.instrumentId
             if snapshot and not p.cash and inst_id is None and (p.symbol or p.label):
-                inst_id = repo.instrument(
-                    s, p.symbol, p.label, "mutual-fund" if p.symbol is None else "equity"
-                ).id
+                # Named by its label alone, a plan's fund; by a symbol, by its shape (S2.1).
+                cls = (
+                    "mutual-fund" if p.symbol is None else repo.class_named(p.symbol, account.type)
+                )
+                inst_id = repo.instrument(s, p.symbol, p.label, cls).id
             # The same statement again changes nothing; a figure corrected replaces the one kept.
             repo.keep_position(
                 s,

@@ -121,7 +121,7 @@ tests take and on running them in parallel on GitHub.
    13 axes (seller, class, method, picks, term, outcome, size, where and when a buy near the
    sale falls, how much it replaces, the year sold, a later sale of the replacement); all 856
    possible pairs of axis values meet in some world. `tests/tax_reference.py`, which imports
-   nothing of MoolaKata, works out each book's Form 8949 from the description; 
+   nothing of MoolaKata, works out each book's Form 8949 from the description;
    `tests/test_tax_world.py` makes each world through the API (about 130 trades) and holds
    every book's rows to it, and Schedule D, the wash sales and the CSV export to the rows.
    24 worlds in 42 s on 8 workers. Found, each a new claim, the worlds failing on it marked
@@ -139,3 +139,16 @@ tests take and on running them in parallel on GitHub.
       each sale*) has no way to pick a sale's lots, in the save or the dialog: an account set
       to it sells first in. The worlds leave picks out (`reachable`) until it does;
       `test_a_sales_lots_can_be_picked` is a strict xfail.
+
+   Decided (Nov 2, 7:27 AM, all as recommended):
+   1. (4.1) CR3-386: a typed symbol's class by the same rule as an import's (five letters
+      ending in X a fund).
+   2. (4.2) CR3-387: in an account set to average cost, funds and coins take it; shares go
+      first in. The account's Settings note says so.
+   3. (4.3) CR3-388: the loss joins a replacement's basis, and its holding period moves, from
+      the loss sale on; shares a sale sold never replace it (S3.8.2); the wash sales are
+      asserted to settle, never cut off at a round.
+   4. (4.4) CR3-389: built here: the sell dialog's **Choose lots…** lists the open lots
+      (acquired, quantity, basis, term); the save takes the picks and keeps them on the sale,
+      kept through an edit; the mockup and guide follow. CR3-26 with it: a pick of a lot a
+      wash sale split takes from that lot's pieces. The worlds' picks axis turns on.

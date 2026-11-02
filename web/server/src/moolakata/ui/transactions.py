@@ -540,9 +540,9 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
         symbol = body.symbol.strip().upper()
         if not symbol or len(symbol) > 32:
             raise refuse("symbol", "symbol-invalid", "Enter a symbol such as VTI.")
-        # A coin typed in a crypto account is crypto, with the 8949 boxes of its own (S8.1).
-        crypto = atypes.GROUPS.get(account.type) == "crypto"
-        return repo.instrument(s, symbol, None, "crypto" if crypto else "equity").id
+        # A coin typed in a crypto account is crypto, with the 8949 boxes of its own (S8.1); a
+        # fund is known by its symbol's shape, as in a file (S2.1).
+        return repo.instrument(s, symbol, None, repo.class_named(symbol, account.type)).id
     return None
 
 

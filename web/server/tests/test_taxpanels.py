@@ -258,3 +258,15 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(alice):
     assert w["review"] and w["disallowed"] == "0.00", w
     [loss] = [r for r in p["rows"] if r["description"] == "100 MSFT"]
     assert loss["code"] == "" and loss["gain"] == "-5000.00"
+
+
+def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(alice):
+    # CR3-386, S2.1: a fund bought in 2011 has no reported basis (funds from 2012), so its
+    # sale goes in box E; a share bought the same day, in D.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2011-06-01", "buy", "10", "50", symbol="FSKAX")
+    trade(alice, brk["id"], "2011-06-01", "buy", "10", "50", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "10", "60", symbol="FSKAX")
+    trade(alice, brk["id"], "2026-03-02", "sell", "10", "60", symbol="IBM")
+    rows = {r["description"]: r["box"] for r in panels(alice, book(alice))["rows"]}
+    assert rows == {"10 FSKAX": "E", "10 IBM": "D"}
