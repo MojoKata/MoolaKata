@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import access, clock
 from ..projections import taxtables
+from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.taxes import (
     Filing,
@@ -246,8 +247,11 @@ def expected(s: Session, book: TaxBook) -> list[Expected]:
             out.append(Expected(form, inst, a.id, f"From {a.name}: {why}"))
     # Last year's received documents are expected again, when the book starts from last year
     # (S8.14.4).
-    for prev in [ly.book for ly in last_years(s, book)] if book.fromLastYear else []:
-        for d in documents(s, prev):
+    lys = last_years(s, book) if book.fromLastYear else []
+    with scoping.as_server(s, "last year's documents, by filer", expire=False) as srv:
+        kept = [(ly.book, documents(srv, ly.book)) for ly in lys]
+    for prev, docs in kept:
+        for d in docs:
             if d.direction != "received":
                 continue
             if any(
@@ -335,6 +339,13 @@ def last_years(s: Session, book: TaxBook) -> list[LastYear]:
     every filer of this one has accepted it: nothing of a filer's year before shows till then."""
     if not accepted(s, book):
         return []
+    # Read as the server: each filer's own last year is theirs, though the reader (a spouse,
+    # a helper) may never have been shown the other's book.
+    with scoping.as_server(s, "a tax book's last year, by filer", expire=False) as srv:
+        return _last_years(srv, book)
+
+
+def _last_years(s: Session, book: TaxBook) -> list[LastYear]:
     out: dict[str, LastYear] = {}
     for f in filers(s, book):
         b = accepted_on(s, f.userId, book.year - 1)
@@ -356,11 +367,13 @@ def last_years(s: Session, book: TaxBook) -> list[LastYear]:
 def carried_from_last_year(s: Session, book: TaxBook) -> list[tuple[Filing, dict, LastYear]]:
     """Each of last year's books' carried figures, by filing."""
     out = []
-    for ly in last_years(s, book):
-        for f in filings(s, ly.book):
-            figures = json.loads(f.carried or "{}")
-            if any(figures.get(k) not in (None, "") for k in CARRIED):
-                out.append((f, figures, ly))
+    lys = last_years(s, book)
+    with scoping.as_server(s, "last year's carried figures, by filer", expire=False) as srv:
+        found = [(f, ly) for ly in lys for f in filings(srv, ly.book)]
+    for f, ly in found:
+        figures = json.loads(f.carried or "{}")
+        if any(figures.get(k) not in (None, "") for k in CARRIED):
+            out.append((f, figures, ly))
     return out
 
 
@@ -368,8 +381,11 @@ def federal_figures(s: Session, book: TaxBook) -> list[tuple[dict, LastYear]]:
     """Each of last year's books' federal figures as carried: an amended return's, once there
     is one, else the original's."""
     out = []
-    for ly in last_years(s, book):
-        federal = [f for f in filings(s, ly.book) if f.jurisdiction == "federal"]
+    lys = last_years(s, book)
+    with scoping.as_server(s, "last year's federal figures, by filer", expire=False) as srv:
+        by_book = {ly.book.id: filings(srv, ly.book) for ly in lys}
+    for ly in lys:
+        federal = [f for f in by_book[ly.book.id] if f.jurisdiction == "federal"]
         pick = [f for f in federal if f.amendsId] or federal
         for f in pick[-1:]:
             out.append((json.loads(f.carried or "{}"), ly))

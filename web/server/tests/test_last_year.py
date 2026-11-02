@@ -86,7 +86,11 @@ class Couple:
                      progress="filed", filedOn="2026-04-10", carried=figures))  # fmt: skip
             issuer = f"Issuer {k}"
             _ok(make(c, "TxDoc", bookId=b["id"], form="1099-INT", issuer=issuer))
-            b |= {"figures": figures, "issuer": issuer}
+            # A child of the book's own, copied a year older when the next book starts from it.
+            kid = _ok(make(c, "Persn", name=f"Child {k}", sex="female", birthYear=2015))
+            _ok(make(c, "TxDep", bookId=b["id"], personId=kid.json()["id"],
+                     claimedAs="qualifying child", months=12))  # fmt: skip
+            b |= {"figures": figures, "issuer": issuer, "kid": f"Child {k}"}
             if rest and rest[0] == "deleted":
                 got = c.get(f"/ui/api/tax-books/{b['id']}").json()
                 from edits import remove
@@ -142,6 +146,9 @@ def test_last_years_books_are_the_filers_accepted_ones(couple, last, this, switc
         assert _d(p["lastYearTax"]) == tax if want else p["lastYearTax"] is None
         issuers = {e["issuer"] for e in d["expected"] if e["why"].startswith("Received in")}
         assert issuers == ({x["issuer"] for x in want} if switch else set()), d["expected"]
+        # The copy is from each filer's book, whoever accepted last (S8.14.4).
+        kids = {x["name"] for x in d["dependents"]}
+        assert kids == ({x["kid"] for x in want} if switch else set()), d["dependents"]
 
 
 def test_a_joint_returns_carryover_counts_once_the_filer_types_their_share(couple):

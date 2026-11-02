@@ -218,7 +218,7 @@ tests take and on running them in parallel on GitHub.
    basis with the loss added); `1dc425d`: the panels in the browser. Still to come of decision
    3: options and mergers in the worlds, bitcoin fee sales, dependents; Accept and Decline in
    the browser (the shared household's second user has no password to sign in with).
-6. **Options, mergers, fees** (`COMMITOPT`). The worlds gain 10 option stories each (long or
+6. **Options, mergers, fees** (`dd646ee`). The worlds gain 10 option stories each (long or
    short, a call or a put, closed, expired, or assigned or exercised with its stock trade, a
    short or a long term, each year and account): 194 pairs. A story's split becomes an
    action, a merger for two new shares and $3.00 cash among them (IRC §356). The reference
@@ -230,3 +230,11 @@ tests take and on running them in parallel on GitHub.
    of the year reporting began (now 14). `test_bitcoin_fees.py`: a network fee's sale, every
    case of where the coins went, how the book reads fees, and the term (8 cases); nothing had
    covered fees before.
+7. **Dependents** (`COMMITDEP`). `test_dependent_ages.py`: every age from 11 to 25, student
+   or not, a descendant or not, claimed as a child or a relative, held to the lines Pub. 501
+   and 503 draw (120 cases). Found writing it, in decision 2's copy: when the filer who
+   accepts last never saw the other's 2025 book, the copy read it as them and took nothing
+   from it (the old `previous()` did the same); and a child both separate books claimed would
+   be copied twice. The copy, and every reader of last year's books, now reads them as the
+   server; a person is copied once. The 42 last-year cases now also hold the dependents
+   copied to each filer's book.

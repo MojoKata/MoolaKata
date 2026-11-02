@@ -215,32 +215,35 @@ def _from_last_year(s, b: TaxBook, now: dt.datetime) -> list[str]:
     """What a new book copies from last year's (S8.14.4): their accounts added or left out,
     and their dependents a year older, from each of last year's books (two after filing
     separately), once every filer has accepted the new book; until then it waits. The names of
-    the dependents it left out."""
+    the dependents it left out. The copy is the server's work: the filer who accepts last
+    may never have seen the other filer's book."""
     if not b.copyPending or not books.accepted(s, b):
         return []
-    b.copyPending = False
     left: list[str] = []
-    have = set()
-    for ly in books.last_years(s, b):
-        for o in s.scalars(
-            select(TaxBookAccount).where(
-                TaxBookAccount.bookId == ly.book.id, TaxBookAccount.deleted == false()
-            )
-        ):
-            if o.accountId in have:
-                continue
-            have.add(o.accountId)
-            s.add(
-                TaxBookAccount(
-                    bookId=b.id,
-                    accountId=o.accountId,
-                    counted=o.counted,
-                    addedById=o.addedById,
-                    createdAt=now,
+    with scoping.as_server(s, "a new tax book copies its filers' last year") as srv:
+        book = srv.get(TaxBook, b.id)
+        book.copyPending = False
+        have = set()
+        for ly in books.last_years(srv, book):
+            for o in srv.scalars(
+                select(TaxBookAccount).where(
+                    TaxBookAccount.bookId == ly.book.id, TaxBookAccount.deleted == false()
                 )
-            )
-        s.flush()
-        left += [n for n in dependents.carry_over(s, ly.book, b, now) if n not in left]
+            ):
+                if o.accountId in have:
+                    continue
+                have.add(o.accountId)
+                srv.add(
+                    TaxBookAccount(
+                        bookId=book.id,
+                        accountId=o.accountId,
+                        counted=o.counted,
+                        addedById=o.addedById,
+                        createdAt=now,
+                    )
+                )
+            srv.flush()
+            left += [n for n in dependents.carry_over(srv, ly.book, book, now) if n not in left]
     return left
 
 
