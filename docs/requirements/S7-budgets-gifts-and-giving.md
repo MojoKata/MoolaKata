@@ -129,7 +129,12 @@
    1. **A series** is three or more transactions in one account with the same payee (its
       reference numbers aside) and sign, at a weekly, two-weekly, twice-monthly, monthly,
       quarterly or yearly interval, give or take a few days, with amounts within half of
-      the usual one. They are found in the last 15 months each time the list is shown.
+      the usual one. They are found in the last 15 months each time the list is shown. A series
+      has a **schedule on the calendar**, found from its history: a weekday every one or two
+      weeks, or the days of the month it mostly falls on (*the 1st and the 15th*, *the 15th
+      and the last day*) every month, quarter or year, a day past a short month's end falling
+      on its last day. Its next expected date, and any after it, come from the schedule, so a
+      salary on the 15th is expected on the 15th.
    2. **Missed**: the next one is more than a few days late. **Changed**: the last amount
       moved 5% or more from the usual, flagged only where the amounts are otherwise fixed
       (a subscription, rent), since a utility bill varies anyway.
@@ -140,7 +145,11 @@
       next expected money in (income landing there, or a regular transfer in), would fall
       below zero, an alert names the account and the day (*Bob's Checking dips below $0 on the
       26th, before the transfer from Joint on the 1st*). It resolves when the figures no
-      longer say so.
+      longer say so. The balance is carried day by day: every payment the schedules expect
+      before the money comes in is taken off on its day (a weekly one each week), payments out
+      before money in on the same day; one due today, or a few days late but within its
+      series' tolerance, is expected today, and one later still is *missed* and not expected,
+      for payments and money in alike. With no money in expected, the next 31 days count.
    2. *(later)*: a category passing a threshold, a large transaction.
 7. **Gift plans and occasions.** People are the household's (S10.10). On the Gifts screen
    each user keeps a **gift plan** for each person they give to or receive from:

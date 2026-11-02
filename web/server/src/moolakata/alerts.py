@@ -586,29 +586,38 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
             ).all()
             # Transfers count here: a regular top-up is money in, a card payment money out.
             series = recurring.detect([_Plain(t) for t in txns], today)
-            ins = sorted(x.next for x in series if x.usual > 0 and x.next > today)
-            horizon = ins[0] if ins else today + dt.timedelta(days=31)
-            outs = sorted(
-                (x.next, -x.usual) for x in series if x.usual < 0 and today < x.next < horizon
-            )
-            if not outs:
+            found = _dips(series, ledger.load(s, a).balance(today), today)
+            if found is None:
                 continue
-            balance = ledger.load(s, a).balance(today)
-            for day, amount in outs:
-                balance -= amount
-                if balance < 0:
-                    before = f"before money comes in on {horizon:%b %-d}" if ins else "this month"
-                    yield Cause(
-                        key=f"cash:{b.id}:{a.id}",
-                        kind="cash-short",
-                        title=f"{a.name} dips below $0 on the {_ordinal(day.day)}",
-                        about=f"{before} · the recurring payments from it",
-                        user_id=u.id,
-                        link=f"/ui/budgets/{b.id}/recurring",
-                        fix="See the recurring payments",
-                        icon="bank",
-                    )
-                    break
+            dip, horizon, paid = found
+            before = f"before money comes in on {horizon:%b %-d}" if paid else "this month"
+            yield Cause(
+                key=f"cash:{b.id}:{a.id}",
+                kind="cash-short",
+                title=f"{a.name} dips below $0 on the {_ordinal(dip.day)}",
+                about=f"{before} · the recurring payments from it",
+                user_id=u.id,
+                link=f"/ui/budgets/{b.id}/recurring",
+                fix="See the recurring payments",
+                icon="bank",
+            )
+
+
+def _dips(series, balance, today: dt.date) -> tuple[dt.date, dt.date, bool] | None:
+    """Cash before payday (S7.6.1): the account's balance carried day by day from today, every
+    recurring payment out expected before the next money in taken off on its day (a weekly one
+    each week, one due today or a few days late today), payments out before money in on the
+    same day. The day it first goes below zero, the day money comes in, and whether any does;
+    none when it never dips."""
+    window = today + dt.timedelta(days=62)
+    ins = sorted(d for x in series if x.usual > 0 for d in x.due(today, window))
+    horizon = ins[0] if ins else today + dt.timedelta(days=31)
+    outs = sorted((d, x.usual) for x in series if x.usual < 0 for d in x.due(today, horizon))
+    for day, amount in outs:
+        balance += amount
+        if balance < 0:
+            return day, horizon, bool(ins)
+    return None
 
 
 class _Plain:

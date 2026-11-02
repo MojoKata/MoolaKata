@@ -311,7 +311,10 @@ def test_recurring_finds_series_and_flags_missed_and_changed():
     assert not found["Power"].changed, "a bill that varies isn't flagged"
     assert found["Bluebird"].every == "twice a month"
     assert found["NETFLIX.COM"].every == "month" and not found["NETFLIX.COM"].missed
-    assert found["City"].changed and found["City"].next == d(2026, 10, 31)
+    # On the calendar (S7.5.1): the 1st stays the 1st, the 1st and 15th stay so.
+    assert found["City"].changed and found["City"].next == d(2026, 11, 1)
+    assert found["Bluebird"].next == d(2026, 11, 1)
+    assert found["NETFLIX.COM"].next == d(2026, 11, 5)
     assert found["Acme"].every == "2 weeks" and found["Acme"].usual == Decimal("4820.00")
     assert found["Spotify"].missed
 

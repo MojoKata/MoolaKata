@@ -52,4 +52,4 @@ def test_cash_before_payday(server, frozen):
     opened = alerts.evaluate(server)
     (a,) = [x for x in opened if x.kind == "cash-short"]
     assert a.title == "Checking dips below $0 on the 25th"
-    assert "before money comes in on Oct 31" in a.about
+    assert "before money comes in on Nov 1" in a.about
