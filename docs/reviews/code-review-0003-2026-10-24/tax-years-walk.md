@@ -238,3 +238,22 @@ tests take and on running them in parallel on GitHub.
    be copied twice. The copy, and every reader of last year's books, now reads them as the
    server; a person is copied once. The 42 last-year cases now also hold the dependents
    copied to each filer's book.
+8. **Refusals, coverage, and what is left unreached** (`999fd0f`). `test_tax_refusals.py`
+   sends each field a book, a filing, an estimated payment and a dependent check, wrong,
+   through the save (a filing's jurisdiction is refused by the model before its own check,
+   which is defensive). New tests reach Form 8615 with reinvested dividends and a gain (found:
+   CR3-392's sibling there), a dependent's accounts taken off and given back, childcare paid
+   in a split. Measured with the tax tests alone (the full suite reaches more; CI's figures
+   set the floors): `closed.py` 97 %, `washes.py` 96 %, `dependents.py` 96 % (was 92 / 76),
+   `ui/taxpanels.py` 98 %, `exports.py` 95 %, `lots.py` 91 %, `books.py` 89 %, `ui/taxes.py`
+   88 % (was 88 / 65), `panels.py` 87 % (its education, gift-tax and property panels are
+   other areas' tests'). Left unreached, by reason:
+   1. Faults that can't happen while the rules hold: `washes.py:125` (the wash sales never
+      settling), `closed.py:170` (a closing book without a federal filing).
+   2. A statement's review refused for a filed year, its *Import anyway* label
+      (`closed.py:188`): the refusal is the generic route's, reached by a book accepted after
+      filing; a statement under review in a filed year is not yet a case of its own.
+   3. Lots with no lot row of their own (`washes.py:173`): from snapshots, which the worlds
+      don't make.
+   4. Validation of a dependent's person as a descendant (`dependents.py:146`): reached by the
+      family-tree tests, not the tax tests.
