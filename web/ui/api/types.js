@@ -314,6 +314,15 @@
  */
 
 /**
+ * @typedef {Object} BetweenOut
+ * @property {string} fromId
+ * @property {string} fromName
+ * @property {string} toId
+ * @property {string} toName
+ * @property {import('../app/dec.js').Dec} amount
+ */
+
+/**
  * @typedef {Object} BitcoinTest
  * @property {string} answer
  */
@@ -1486,9 +1495,11 @@
  * @property {Array<ReserveHeld>} reserves
  * @property {import('../app/dec.js').Dec} total
  * @property {import('../app/dec.js').Dec} movedIn
+ * @property {import('../app/dec.js').Dec} reservesFlow
  * @property {import('../app/dec.js').Dec} given
  * @property {import('../app/dec.js').Dec} balance
  * @property {import('../app/dec.js').Dec} toMove
+ * @property {Array<BetweenOut>} between
  * @property {number} withdrawals
  * @property {(number | null)} limit
  * @property {boolean} overLimit
@@ -4168,6 +4179,7 @@
  * @typedef {Object} ToMoveOut
  * @property {string} accountName
  * @property {import('../app/dec.js').Dec} toMove
+ * @property {(string | null)} [fromName]
  */
 
 /**

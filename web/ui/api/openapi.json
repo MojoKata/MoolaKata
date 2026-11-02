@@ -1827,6 +1827,44 @@
         "title": "BeneficiaryOut",
         "type": "object"
       },
+      "BetweenOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "fromId": {
+            "title": "Fromid",
+            "type": "string"
+          },
+          "fromName": {
+            "title": "Fromname",
+            "type": "string"
+          },
+          "toId": {
+            "title": "Toid",
+            "type": "string"
+          },
+          "toName": {
+            "title": "Toname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fromId",
+          "fromName",
+          "toId",
+          "toName",
+          "amount"
+        ],
+        "title": "BetweenOut",
+        "type": "object"
+      },
       "BitcoinTest": {
         "additionalProperties": false,
         "properties": {
@@ -8613,6 +8651,13 @@
             "title": "Balance",
             "type": "number"
           },
+          "between": {
+            "items": {
+              "$ref": "#/components/schemas/BetweenOut"
+            },
+            "title": "Between",
+            "type": "array"
+          },
           "given": {
             "examples": [
               1234.5
@@ -8673,6 +8718,14 @@
             "title": "Reserves",
             "type": "array"
           },
+          "reservesFlow": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Reservesflow",
+            "type": "number"
+          },
           "toMove": {
             "examples": [
               1234.5
@@ -8716,9 +8769,11 @@
           "reserves",
           "total",
           "movedIn",
+          "reservesFlow",
           "given",
           "balance",
           "toMove",
+          "between",
           "withdrawals",
           "limit",
           "overLimit",
@@ -24348,6 +24403,17 @@
           "accountName": {
             "title": "Accountname",
             "type": "string"
+          },
+          "fromName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromname"
           },
           "toMove": {
             "examples": [

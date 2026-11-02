@@ -558,7 +558,11 @@ function Review({ b }) {
           <div
             class="list-item"><${Icon} name="sync" /><div class="grow">${money(
               dec(x.toMove).abs(),
-            )} to move ${dec(x.toMove).gt(0) ? 'to' : 'back from'} ${x.accountName}</div><a
+            )} to move ${x.fromName
+              ? `from ${x.fromName} to`
+              : dec(x.toMove).gt(0)
+              ? 'to'
+              : 'back from'} ${x.accountName}</div><a
                     href=${`/ui/budgets/${b.id}/where`}>Where the money is</a></div>
         `
       )}
@@ -981,6 +985,10 @@ function WhereMoneyIs({ b, month }) {
           )}</b></div>
           <div class="list-item"><span class="grow dim">Moved in from the budget's accounts</span><span
             class="amt">${money(h.movedIn)}</span></div>
+          ${dec(h.reservesFlow).isZero()
+            ? null
+            : html`<div class="list-item"><span class="grow dim">Spent or refunded from here in their
+              categories</span><span class="amt">${money(h.reservesFlow)}</span></div>`}
           ${dec(h.given).gt(0)
             ? html`<div class="list-item"><span class="grow dim">Landed money given to them</span><span
               class="amt">${money(h.given)}</span></div>`
@@ -1023,9 +1031,22 @@ function WhereMoneyIs({ b, month }) {
                   .withdrawals} of ${h.limit} allowed</div>
             `
             : null}
+          ${w.sayToMove
+            ? h.between.map((/** @type {any} */ x) =>
+              html`
+                <div class="notice warn mt">
+                  <${Icon} name="alert" />
+                  <div><b>${money(x.amount)} to move from ${x.fromName} to ${x
+                    .toName}</b>: ${x.toName} paid for a reserve ${x.fromName} holds.</div>
+                </div>
+              `
+            )
+            : null}
           ${!w.sayToMove
             ? html`<p class="small dim">This scenario's own figures; only the active budget says what
               to move.</p>`
+            : dec(h.toMove).isZero() && h.between.length
+            ? null
             : dec(h.toMove).isZero()
             ? html`
               <div class="notice mt">

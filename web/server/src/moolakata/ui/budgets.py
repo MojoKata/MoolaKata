@@ -106,6 +106,14 @@ class TransferIn(Model):
     kept: bool  # kept as the account's own: not counted for the reserves
 
 
+class BetweenOut(Model):
+    fromId: str
+    fromName: str
+    toId: str
+    toName: str
+    amount: Money
+
+
 class HeldInOut(Model):
     """An account reserves are held in, and what is to move there (S7.10.4)."""
 
@@ -116,9 +124,13 @@ class HeldInOut(Model):
     reserves: list[ReserveHeld]
     total: Money
     movedIn: Money
+    reservesFlow: Money  # spending and refunds in reserves' categories paid here, signed
     given: Money
     balance: Money
     toMove: Money  # + to move here from moved from, − back to it
+    # Moves straight between two accounts reserves are held in: one paid for a reserve the
+    # other holds (S7.10.4).
+    between: list[BetweenOut]
     withdrawals: int
     limit: int | None
     overLimit: bool  # a move back now would go past the withdrawals allowed
@@ -179,6 +191,7 @@ class Overspent(Model):
 class ToMoveOut(Model):
     accountName: str
     toMove: Money  # + to move there, − back
+    fromName: str | None = None  # a move from another account reserves are held in
 
 
 class ReviewedOut(Model):
@@ -1059,9 +1072,20 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
                     ],
                     total=h.total,
                     movedIn=h.movedIn,
+                    reservesFlow=h.reservesFlow,
                     given=h.given,
                     balance=h.balance,
                     toMove=h.toMove,
+                    between=[
+                        BetweenOut(
+                            fromId=x.fromId,
+                            fromName=names.get(x.fromId, "an account not shared"),
+                            toId=x.toId,
+                            toName=names.get(x.toId, "an account not shared"),
+                            amount=x.amount,
+                        )
+                        for x in h.between
+                    ],
                     withdrawals=h.withdrawals,
                     limit=h.limit,
                     overLimit=h.toMove < 0 and h.limit is not None and h.withdrawals + 1 > h.limit,
@@ -1402,6 +1426,15 @@ def review(budget_id: str, request: Request, c: Caller = Depends(caller), month:
                     to_move.append(
                         ToMoveOut(accountName=names.get(h.accountId, ""), toMove=h.toMove)
                     )
+                for x in h.between:
+                    if x.toId == h.accountId:
+                        to_move.append(
+                            ToMoveOut(
+                                accountName=names.get(x.toId, ""),
+                                toMove=x.amount,
+                                fromName=names.get(x.fromId, ""),
+                            )
+                        )
         history = []
         for k in range(1, 7):
             earlier = budgets.add_months(m, -k)

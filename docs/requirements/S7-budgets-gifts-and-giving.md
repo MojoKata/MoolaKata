@@ -242,10 +242,16 @@
        for each account reserves are held in, each reserve held there with its balance, their
        total, the account's balance, its withdrawals this month against **Withdrawals allowed
        a month** (S1.2), and **to move**: what the reserves held there have gained since each
-       began (put in and moved in, less spent and moved out), less what was transferred into
-       the account from any of the budget's other accounts over that time, net of what was
-       transferred out, and less the landed money given to them (S7.10.5). Which checking
-       account a transfer came from doesn't matter. A transfer in that is savings of the
+       began (put in and moved in, less spent and moved out), less what the account holds for
+       them. That is worked out from the account's own transactions since its reserves began,
+       each in exactly one class: **moved** (a transfer to or from one of the budget's
+       accounts that month), the **reserves' own** (spending or a refund, either sign, in a
+       reserve's category, paid from this account), **landed** (S7.10.5) or the **account's
+       own** (a fee, other spending, a transfer out of the budget). What it holds for them is
+       what was moved in, net of what moved out, plus the reserves' own flows paid here, plus
+       the landed money given to them. Which checking account a transfer came from doesn't
+       matter. A repair paid from the account a reserve is held in is the reserve's own: the
+       account stays backed, with nothing to move. A transfer in that is savings of the
        account's own, not the reserves', is listed there too and can be **kept as the account's
        own**, after which it doesn't count as moved in. When the reserves are ahead, the
        difference is to move from the account's **moved from** account (S7.1.6; *$345 to move
@@ -253,7 +259,10 @@
        checking or a card, it goes back to it, summed into one transfer for the month (*$700
        to move from Ally Savings to UMB Checking*), with a warning when that transfer would go
        past the withdrawals allowed (*This would be the 7th withdrawal from Ally this month;
-       it allows 6*); when they agree, the account is **backed**. An account whose balance is
+       it allows 6*); when they agree, the account is **backed**. When one account reserves
+       are held in pays for a reserve held in another, the one holding it gives that much
+       straight to the one that paid (*$200 to move from Marcus Savings to Ally Savings*), net
+       of what it has given since and never more than either is out. An account whose balance is
        below its reserves' total shows the **shortfall**. A difference belongs to the account,
        never to one reserve, since one transfer covers several.
        MoolaKata moves no money: the transfer made at the bank arrives with an import and
@@ -262,8 +271,9 @@
        accounts*. Only the active budget says what to move (S7.12.2); a scenario shows its
        own figures.
     5. **Landed money**: money that arrives in an account reserves are held in other than by
-       a transfer from the budget's accounts (its interest, a paycheck split into it, a
-       transfer from an account the budget doesn't count) is listed under **Where the money
+       a transfer from the budget's accounts, and not in a reserve's category (its interest, a
+       paycheck split into it, a transfer from an account the budget doesn't count; a refund in
+       a reserve's category is the reserve's own, never landed) is listed under **Where the money
        is** as **unassigned** until the user gives it, with a line for each reserve held
        there and one for the account's own (*not set aside*): the lines start spread among
        the reserves by balance, any may change, and what no line takes stays unassigned. Each
