@@ -40,6 +40,7 @@ from ..store.entities.accounts import (
 )
 from ..store.entities.users import User
 from ..store.repos import ledger as repo
+from ..taxes import closed
 from .conventions import Deleted, ExactRoute, Gone, Loose, Model, Money, Quantity, Ratio
 from .deps import Caller, caller, server
 
@@ -185,6 +186,9 @@ def _run(
                 mapping = json.loads(saved.columns)
             parsed = parsing.read_csv(data, mapping)
         with srv.db.tx(user=user_id) as s:
+            # Read in the background: no one is there to ask, so a move of a filed year is
+            # kept and listed on its tax book (S2.8, the filed tax years walk's decision 1.1).
+            closed.unasked(s)
             account, _ = access.account(s, user_id, account_id, "write")
             if mapping is not None and save_mapping and parsed.format == "csv":
                 _save_mapping(s, account, mapping)
@@ -745,6 +749,8 @@ def save_brokerage(
         receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
         srv.db.tx(user=c.id) as s,
     ):
+        # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
+        closed.label(s, "Import anyway")
         account, _ = access.account(s, c.id, held.accountId, "write")
         # A line already in the account (its file brought it) is matched, never added again.
         present = _marked(body.rows, _present(s, account.id))
@@ -1005,6 +1011,8 @@ def save_statement(
         receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
         srv.db.tx(user=c.id) as s,
     ):
+        # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
+        closed.label(s, "Import anyway")
         account, _ = access.account(s, c.id, held.accountId, "write")
         applied = _apply(s, c, held, account, st, body, kept)
         r = _keep_file(
@@ -1056,6 +1064,8 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
         ) as ready,
         srv.db.tx(user=c.id) as s,
     ):
+        # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
+        closed.label(s, "Import anyway")
         for i, d in saved:
             account, _ = access.account(s, c.id, d.accountId, "write")
             kept = _checked(d, _marked(d.rows, _present(s, account.id)))

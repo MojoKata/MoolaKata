@@ -111,6 +111,10 @@ class World:
         p = _ok(self.a.get(f"/ui/api/tax-books/{self.book['id']}/panels")).json()
         return sum((Decimal(str(r["gain"])) for r in p["rows"]), Decimal(0))
 
+    def issues(self, kind: str) -> list[str]:
+        p = _ok(self.a.get(f"/ui/api/tax-books/{self.book['id']}/panels")).json()
+        return [i["text"] for i in p["issues"] if i["kind"] == kind]
+
     def listed(self) -> Decimal | None:
         """By how much the book says the gains moved since filing, if it says so."""
         p = _ok(self.a.get(f"/ui/api/tax-books/{self.book['id']}/panels")).json()
@@ -228,18 +232,11 @@ WAYS = {"edit": _edit, "delete": _delete, "add": _add, "ira-wash": _ira_wash,
         "delete-account": _delete_account, "leave-out": _leave_out, "import": _import}  # fmt: skip
 UNASKED = {"import"}  # written by no one who can be asked
 
-# The ways that move a closed year unasked today (CR3-27, CR3-33), each until decision 1's
-# commit-time check: strict, so one that starts passing fails here until taken off.
-OPEN_CLAIMS = {"ira-wash", "spouse-wash", "pick", "delete-account", "leave-out", "import"}
-
 
 def _cases():
     for way in WAYS:
         for state in STATES:
-            marks = []
-            if way in OPEN_CLAIMS and state in CLOSED:
-                marks = [pytest.mark.xfail(strict=True, reason="CR3-27, CR3-33: decision 1")]
-            yield pytest.param(way, state, marks=marks, id=f"{way}-{state}")
+            yield pytest.param(way, state, id=f"{way}-{state}")
 
 
 @pytest.fixture
@@ -259,6 +256,9 @@ def test_a_filed_years_gains_move_only_asked_and_recorded(world, way, state):
     if closed and way not in UNASKED:
         r = WAYS[way](w, False)
         assert _asked(r), (r.status_code, r.text)
+        said = r.json()["asks"][0]["message"] if "asks" in r.json() else r.json()["detail"]
+        assert "realized gains of 2025 by " in said, said
+        assert ("close the account instead" in said) == (way == "delete-account"), said
         assert w.gains() == before, "refused: the year as it was"
         assert w.listed() == listed_before
         r = WAYS[way](w, True)
@@ -271,3 +271,86 @@ def test_a_filed_years_gains_move_only_asked_and_recorded(world, way, state):
         assert w.listed() == after - before, "the book lists exactly the move since filing"
     else:
         assert w.listed() is None, "an open year lists nothing"
+    assert w.issues("differs-from-filed") == [], "every move is a change the book knows"
+
+
+def test_a_difference_no_write_made_is_listed(world):
+    # S8.15: the gains as filed, kept when the return closed the year; a change no write here
+    # made (a figure changed behind the server's back, as a restored backup or a corrected rule
+    # would) is listed beside the changes, never taken for one.
+    from sqlalchemy import text
+
+    w = world
+    w.state("filed")
+    assert w.issues("differs-from-filed") == []
+    with w.server.db.tx(unscoped="test: a figure changed behind the server's back") as s:
+        s.execute(
+            text('UPDATE "Transaction" SET amount = 80000 WHERE id = :id'),
+            {"id": w.sale["MSFT"]["id"]},
+        )
+    (text_,) = w.issues("differs-from-filed")
+    assert text_.startswith("Realized gains differ by +$50.00 from those when the federal")
+    assert w.listed() is None
+
+
+def test_a_route_outside_the_save_refuses_until_its_request_confirms(server):
+    # S2.8.2 for a route outside the save: Bob accepting a joint 2025 book whose return was
+    # filed brings his sales into it. Refused with 409 closed-year, naming the year, until the
+    # request says it is confirmed (the browser sends it again so once the person agrees).
+    from moolakata.store.commit_checks import HEADER
+
+    clock.fix(T0)
+    try:
+        make_user(server, "alice")
+        make_user(server, "bob")
+        a, b = sign_in(server, "alice"), sign_in(server, "bob")
+        ids_ = [c.get("/ui/api/session").json()["user"]["id"] for c in (a, b)]
+        pa, pb = (c.get("/ui/api/profile").json()["personId"] for c in (a, b))
+        r = _ok(make(a, "Rltn", person1Id=pa, person2Id=pb, relation="spouse",
+                     fromDate="2009-06-14"))  # fmt: skip
+        _ok(b.post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
+        acct = _ok(make(b, "Acct", name="Bob's brokerage", type="brokerage")).json()
+        for day, kind, amount in (("2024-01-08", "buy", "-1000.00"), ("2025-05-05", "sell",
+                                                                      "1300.00")):  # fmt: skip
+            _ok(make(b, "Txn", accountId=acct["id"], date=day, kind=kind, symbol="IBM",
+                     quantity="10", price=str(abs(float(amount)) / 10), amount=amount))  # fmt: skip
+        book = _ok(make(a, "TaxBk", year=2025, filers=ids_)).json()
+        _ok(make(a, "Filng", bookId=book["id"], jurisdiction="federal", form="1040",
+                 progress="filed", filedOn="2026-04-10"))  # fmt: skip
+        r = b.post(f"/ui/api/tax-books/{book['id']}/accept")
+        assert r.status_code == 409 and r.json()["code"] == "closed-year", r.text
+        assert r.json()["years"] == [2025] and r.json()["confirm"] == "Change it anyway"
+        r = b.post(f"/ui/api/tax-books/{book['id']}/accept", headers={HEADER: "closed-year"})
+        assert r.status_code == 200, r.text
+        p = _ok(a.get(f"/ui/api/tax-books/{book['id']}/panels")).json()
+        (listed,) = [i["text"] for i in p["issues"] if i["kind"] == "changed-after-filing"]
+        assert listed.startswith("Realized gains changed by +$300.00 after the federal return")
+    finally:
+        clock.fix(None)
+
+
+def test_the_check_works_out_only_the_closed_books_a_write_can_move(world, monkeypatch):
+    # Snappy (the walk's decision 1.7): a write that moves no gains (a memo, a bank payment)
+    # works out no book; one in a household with a closed book works out that book twice (as
+    # committed and as written), and no other.
+    from moolakata.taxes import closed
+
+    w = world
+    w.state("filed")
+    counted: list[str] = []
+    real = closed.book_gains
+
+    def counting(s, book):
+        counted.append(book.id)
+        return real(s, book)
+
+    monkeypatch.setattr(closed, "book_gains", counting)
+    sale = w.a.get(f"/ui/api/transactions/{w.sale['MSFT']['id']}").json()
+    saved(change(w.a, "Txn", sale, memo="rebalance"))
+    assert counted == [], "a memo moves no gains"
+    checking = _ok(make(w.a, "Acct", name="Checking", type="checking")).json()
+    _ok(make(w.a, "Txn", accountId=checking["id"], date="2025-05-01", amount="-40.00",
+             payee="Grocer"))  # fmt: skip
+    assert counted == [], "no gains moved: no book worked out"
+    w.trade("Brokerage", "2026-03-02", "buy", "IBM", 1, "50")
+    assert counted == [w.book["id"]] * 2, "the household's one closed book, twice"

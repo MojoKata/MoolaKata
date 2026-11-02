@@ -54,7 +54,6 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     a, _ = access.account(s, c.id, body.accountId, "write")
     if not atypes.investing(a.type):
         raise refuse("kind", "kind-not-for-account", "Options belong in an investing account.")
-    guard = closed.Guard(s, a, False, c.id, ask=ctx.ask)
     inst, contract = options.contract(
         s, underlying, body.right, body.strike, body.expiry, multiplier
     )
@@ -88,7 +87,6 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     )
     s.add(t)
     s.flush()
-    guard.check()
     activity.record(
         s,
         "option.traded",
@@ -127,10 +125,10 @@ def settle(
         inst = s.get(Instrument, instrument_id)
         if inst is None or inst.deleted:
             raise refuse("instrumentId", "not-found", "No such option.")
-        guard = closed.Guard(s, a, confirm, c.id)
+        if confirm:
+            closed.confirm(s)
         made = options.settle(s, c.id, a, inst, body.how, body.date, body.contracts)
         washes.recompute(s, a.ownerId)
-        guard.check()
         activity.record(
             s,
             "option.settled",
@@ -328,7 +326,6 @@ def _action_create(ctx, record_id: str, body: CorporateActionRecord) -> None:
     inst = s.get(Instrument, body.instrumentId)
     if inst is None or inst.deleted or inst.instrumentClass == "option":
         raise refuse("instrumentId", "instrument-unknown", "Choose a holding.")
-    guard = closed.Guard(s, a, False, c.id, ask=ctx.ask)
     action = CorporateAction(
         id=record_id,
         accountId=a.id,
@@ -346,7 +343,6 @@ def _action_create(ctx, record_id: str, body: CorporateActionRecord) -> None:
     for t in made:
         t.corporateActionId = action.id
     washes.recompute(s, a.ownerId)
-    guard.check()
     activity.record(
         s,
         "account.corporate-action",
@@ -395,13 +391,11 @@ def _action_delete(ctx, action: CorporateAction) -> None:
     from .transactions import delete_txn
 
     a, _ = access.account(ctx.s, ctx.caller.id, action.accountId, "write")
-    guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
     for t in _made_from(ctx.s, action.id):
         if not t.deleted:
             delete_txn(ctx.s, ctx.caller, t, a)
     if not action.deleted:
         action.mark_deleted(ctx.caller.id)
-    guard.check()
 
 
 def _action_read(ctx, record_id: str) -> CorporateActionOut:

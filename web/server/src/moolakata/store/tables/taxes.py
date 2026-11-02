@@ -119,6 +119,9 @@ Filing = record(
     Column("resultTransactionId", Text, ForeignKey("Transaction.id", ondelete="SET NULL")),
     # Figures next year needs, typed from the return as filed (S8.17), as JSON.
     Column("carried", Text, nullable=False, server_default=text("'{}'")),
+    # A federal return that closed its year: the book's realized gains by account then, and
+    # when, as JSON (S2.8, S8.15): what later changes are measured from.
+    Column("filedGains", Text),
     CheckConstraint("jurisdiction IN ('federal', 'state', 'local')", name="jurisdiction"),
     CheckConstraint(
         "progress IN ('not started', 'in progress', 'filed', 'accepted', 'rejected')",

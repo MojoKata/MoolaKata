@@ -128,7 +128,11 @@ produces worksheets and exports. It never files, and says so (R1.16).
     edits*). It stays until a filer or a helper with write adds an amended federal return,
     which settles every change made before it, or chooses **No amendment needed**, which
     settles them with their name and the day. A later edit made anyway, once the year is
-    closed again (S2.8.1), is listed afresh.
+    closed again (S2.8.1), is listed afresh. The tax book also keeps its realized gains by
+    account as they were when the federal return closed the year (filed or accepted, or an
+    amended one filed): a difference from them that no change recorded here explains (a rule
+    corrected since, a backup restored) is listed in the Issues on its own, with the accounts
+    it is in, so the return can be checked.
 16. **Tax documents**: each has its form, who issued it, the account it is for, notes, and
     its file, which is kept as a receipt (S9) with the same storage and protection. One kept
     opens to change any of these, its file given later among them, or to remove it; a filer

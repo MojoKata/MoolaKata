@@ -68,6 +68,7 @@ class Row:
     saleId: str | None = None
     instrumentId: str | None = None
     quantity: Decimal | None = None
+    accountId: str | None = None
 
     @property
     def gain(self) -> Decimal | None:
@@ -173,6 +174,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 longTerm=d.longTerm,
                 box=box_of(d.longTerm, inst.instrumentClass, a.type, d.acquiredOn, book.year),
                 account=a.name,
+                accountId=a.id,
                 saleId=d.saleId,
                 instrumentId=inst.id,
                 quantity=d.quantity,
@@ -335,6 +337,7 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
                 longTerm=long_term,
                 box="F" if long_term else "C",
                 account=a.name,
+                accountId=a.id,
                 collectable=collectable,
             )
         )
@@ -870,6 +873,8 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
     out = []
     if changed := changed_after_filing(s, book):
         out.append(Issue("changed-after-filing", changed))
+    if differs := differs_from_filed(s, book, rows):
+        out.append(Issue("differs-from-filed", differs))
     counted = books.counted(s, book)
     for a in counted.leftOut:
         out.append(Issue("left-out", f"{a.name} is left out of this tax book."))
@@ -974,6 +979,25 @@ def changed_after_filing(s: Session, book: TaxBook) -> str | None:
     return (
         f"Realized gains changed by {sign}${abs(total):,.2f} after the federal return was "
         f"filed: {where}"
+    )
+
+
+def differs_from_filed(s: Session, book: TaxBook, rows: list[Row]) -> str | None:
+    """A difference from the gains as filed that no change made here explains (S8.15): a rule
+    corrected since, or a backup restored, say. Listed so the return can be checked."""
+    live: dict[str, Decimal] = defaultdict(Decimal)
+    for r in rows:
+        if r.accountId:
+            live[r.accountId] += r.gain or Decimal(0)
+    off = closed.unexplained(s, book, dict(live))
+    if not off:
+        return None
+    total = sum(off.values(), Decimal(0))
+    names = ", ".join(sorted(s.get(Account, a).name for a in off))
+    sign = "-" if total < 0 else "+"
+    return (
+        f"Realized gains differ by {sign}${abs(total):,.2f} from those when the federal return "
+        f"was filed, by no change made here: {names}"
     )
 
 

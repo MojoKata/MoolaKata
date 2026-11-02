@@ -321,6 +321,7 @@ def create_app(server: Server) -> FastAPI:
     # The last added runs first: the client's address, then the log, the headers, the Origin
     # check, the body limit, and last the gate that answers for a locked server.
     # Locked: no store and not ready. A test's bare server (no store, ready) is not locked.
+    app.add_middleware(middleware.Confirmations)
     app.add_middleware(middleware.Created)
     app.add_middleware(middleware.Locked, locked=lambda: server.store is None and not server.ready)
     app.add_middleware(middleware.SessionCookie, max_age=server.session_max_age)

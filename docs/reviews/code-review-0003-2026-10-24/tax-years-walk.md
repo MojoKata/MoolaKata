@@ -152,3 +152,41 @@ tests take and on running them in parallel on GitHub.
       (acquired, quantity, basis, term); the save takes the picks and keeps them on the sale,
       kept through an edit; the mockup and guide follow. CR3-26 with it: a pick of a lot a
       wash sale split takes from that lot's pieces. The worlds' picks axis turns on.
+2. **Round 4, built** (each with focused tests that fail on the code before it): CR3-386
+   `28deaf1` (a symbol's class by its shape, typed or on a statement); CR3-387 `0ccae13`
+   (average cost for funds and coins; the lot method's note in both account screens, the
+   guide, the mockup); CR3-388 `ac53220` (a replacement settles at its loss sale; a sale's own
+   shares never replace it; the rounds settle or fail); CR3-389 `73bd340` + `90cb721` (picks as
+   `LotPk` records; `GET /accounts/{id}/lots`; the sale's dialog lists the lots with a
+   **Take** each; the mockup's *Record trade* for a sale, the guides). Found turning picks on:
+   **CR3-390** `73bd340` (the sold shares a smaller buy-back replaces are the earliest
+   acquired, Treas. Reg. §1.1091-1(c); each wash sale keeps its sold lot, `WashSale.lotId`,
+   migration 0049, so its **W** stays on that lot's rows and terms). CR3-26 fixed with
+   CR3-389. Every world passes, picks on.
+3. **Decision 1, built** (`COMMITD1`). Deviations and details:
+   1. The check is `taxes.closed.check`, registered with `store.commit_checks`, which
+      `Database.tx` runs before every commit. What a write touched is noted on its connection
+      (`before_flush`), so the server's work inside it (`as_server`) is seen too; only fields
+      gains are worked out from count (a memo, a category, a bank transaction, a new account
+      cost no check). A check that reads as the server leaves the request's records unexpired
+      (`as_server(..., expire=False)`): expiring them broke a route that read one after its
+      commit (found by the import corpus).
+   2. The save runs the check itself before its questions, so a move joins them; a route outside
+      the save answers 409 `closed-year`, and the browser's API client asks once (*Change a
+      filed year?*, the server's words, its button the server's: **Import anyway** at a
+      statement's review) and sends the request again with `X-MoolaKata-Confirm: closed-year`.
+      Writes no one answers (a server session, or a file read in the background, `unasked`)
+      record.
+   3. The filed figures are kept on the federal return that closed the year (`Filing.filedGains`,
+      migration 0050, with the changes already in them), not a table of their own; the Issues
+      list a difference no change explains as `differs-from-filed`.
+   4. (1.2) The question names each year's move (*the realized gains of 2025 by −$500.00*), and
+      for an account deleted adds *To keep them, close the account instead*.
+   5. Tests (`test_filed_years.py`): ten ways of writing against six states of the return, 60
+      cases, each asserting the refusal, the year unchanged until confirmed, the listing equal
+      to the move, nothing listed for an open year, and no unexplained difference; a figure
+      changed behind the server's back listed as one; a route refused until its request
+      confirms; a counting test that a write moving no gains works out no book, and one that
+      can works out its household's closed book twice. Left out of the matrix: *both real* and a
+      matched transfer (the same check sees them; their own setups to come), a Connection's
+      file (the background import's path).

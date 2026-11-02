@@ -77,6 +77,7 @@ class Filing(Record):
     resultAmount: Decimal | None = None
     resultTransactionId: str | None = None
     carried: str = "{}"
+    filedGains: str | None = None  # the book's gains when it closed the year, as JSON
 
 
 @dataclass(kw_only=True, eq=False)

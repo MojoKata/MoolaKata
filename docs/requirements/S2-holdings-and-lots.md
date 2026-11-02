@@ -70,20 +70,26 @@
    7. **The receipt reader** passes the merchant it read through the uploader's rules: a rule
       that renames a payee renames the merchant the same way (S9.8.2.5.3).
 8. **Editing history** is allowed. Every derived figure (balances, lots, gains, budgets,
-   charts) follows on the next request. An edit that changes a closed tax year's realized
+   charts) follows on the next request. A change that moves a closed tax year's realized
    gains asks for confirmation first.
    1. **A closed year**, for an account, is one whose tax book counts the account and has its
       federal return filed or accepted (S8.15). While an amended federal return for that tax
       book is being prepared (not started, in progress or rejected), the year is open again
-      and edits ask nothing; once the amended return is filed, the year is closed again.
-   2. **The edit is worked out first**: a transaction added, changed or deleted, an option
-      trade or its end, a corporate action. When it moves the realized gains of a closed year,
-      it is refused with the years named (*This changes the realized gains of 2025, a year
-      whose return is filed*), and the dialog offers to make it anyway, saying the return may
-      need amending. An edit that moves no closed year's gains (a memo, a category) asks
-      nothing.
-   3. **An edit made anyway** is recorded on each tax book that closed the year: the account,
-      how much the edit moved the year's realized gains, and who made it. The tax book shows
+      and changes ask nothing; once the amended return is filed, the year is closed again.
+   2. **Every write is checked**, whatever makes it: a transaction added, changed or deleted, a
+      lot picked, an option trade or its end, a corporate action, a trade in another account
+      or a spouse's that makes or ends a wash sale (S3.8), an account deleted, an account added
+      to or left out of the tax book, a marriage recorded, a statement or a file imported. Once
+      its changes are in, the closed books of the households it touched are worked out as they
+      were and as they would be. When it moves a closed year's realized gains, it is refused
+      with the years named (*This changes the realized gains of 2025, a year whose return is
+      filed*), and the dialog offers to make it anyway, saying the return may need amending (a
+      statement's review: **Import anyway**). A change that moves no closed year's gains (a
+      memo, a category) asks nothing. A write no one is there to answer (a file read in the
+      background, a Connection's file, an option expiring on its own) is kept, and recorded as
+      below.
+   3. **A change made anyway** is recorded on each tax book that closed the year: the account,
+      how much the change moved the year's realized gains, and who made it. The tax book shows
       it until an amended federal return is added or someone chooses *No amendment needed*
       (S8.15).
 9. **Reimbursable** spending: a transaction, or one split of it, can be marked as to be paid

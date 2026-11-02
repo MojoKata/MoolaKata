@@ -83,7 +83,7 @@ def criteria(statement, user_id: str) -> list:
 
 
 @contextmanager
-def as_server(s: Session, why: str) -> Iterator[Session]:
+def as_server(s: Session, why: str, expire: bool = True) -> Iterator[Session]:
     """The server's own work inside a user's request (a wash sale worked out across spouses, an
     item's figures, S7.1.1, S8.14.2): a second session on the same connection, so it is part
     of the same transaction, reading as the server, its records never mixed with the user's
@@ -100,8 +100,11 @@ def as_server(s: Session, why: str) -> Iterator[Session]:
         scope_server(server, why)
         yield server
         server.commit()
-    # What it changed is read afresh by the user's session.
-    s.expire_all()
+    # What it changed is read afresh by the user's session; work that changes nothing the
+    # user's session holds (a check before the commit, `expire=False`) leaves its records be,
+    # so what the request made is still read after its commit.
+    if expire:
+        s.expire_all()
 
 
 def unscoped(statement, why: str):

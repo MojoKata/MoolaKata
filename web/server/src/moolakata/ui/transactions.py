@@ -560,13 +560,14 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
     return None
 
 
-def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
-    """A transaction made, with its lot, picks, splits and tags; the closed-year question
-    (S2.8) refused unless confirmed, or asked through `ask` for a draft's save."""
+def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
+    """A transaction made, with its lot, splits and tags; the closed-year question (S2.8) is
+    the write's own check, before it commits (`taxes.closed`)."""
     a, held = access.account(s, c.id, body.accountId, "write")
     investing = atypes.investing(a.type)
     _raise(_check(s, body, body.kind, investing))
-    guard = closed.Guard(s, a, confirm, c.id, ask=ask) if investing else None
+    if confirm:
+        closed.confirm(s)
     inst_id = _instrument(s, body, a)
     if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out") and (
         not inst_id or not body.quantity
@@ -634,8 +635,6 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
         s.flush()
     if inst_id:
         washes.recompute(s, a.ownerId)
-    if guard is not None:
-        guard.check()
     return t, a, held
 
 
@@ -1186,7 +1185,7 @@ def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
 
         t = make_trade(ctx, record_id, body)
     else:
-        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False, ask=ctx.ask)
+        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
     ctx.notes.setdefault("transactions-made", set()).add(t.id)
     if body.leftOutOf:
         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
@@ -1262,13 +1261,11 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     if sent - {"leftOutOf", "transferWithId"}:
         a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
         _reconciled(ctx, t)
-        guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
         changed = _change(ctx.s, ctx.caller, t, a, body, sent)
         _changed(ctx.s, ctx.caller, a, changed)
         ctx.s.flush()
         if t.instrumentId:
             washes.recompute(ctx.s, a.ownerId)
-        guard.check()
     if "leftOutOf" in sent:
         _set_left_out(ctx.s, ctx.caller, t, current["leftOutOf"], body.leftOutOf)
     _parts_add_up(ctx, t)
@@ -1277,9 +1274,7 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
 def _txn_delete(ctx, t: Transaction) -> None:
     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
     _reconciled(ctx, t)
-    guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
     delete_txn(ctx.s, ctx.caller, t, a)
-    guard.check()
 
 
 def _split_txn(ctx, txn_id: str) -> tuple[Transaction, Account]:
