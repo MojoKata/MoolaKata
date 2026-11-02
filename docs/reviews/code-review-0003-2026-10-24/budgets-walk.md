@@ -189,3 +189,12 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
 
 ## Applied
 
+1. **Decision 4** (`9bb4a01`): as decided. `DataVersion` (migration 0045) and its triggers,
+   generated in `store/data_version.py` and synced with the views; `not_figures` on eleven
+   tables (sign-ins, tokens, recovery codes, Activity, alerts and their states, secrets, task
+   runs, the email queue, what a link sent or still has to send). The differential test is
+   `cache.CHECK`, on in every test: each hit is worked out again and compared, so every test
+   that reads a month twice proves the cache. A month worked out in a write is not kept. The
+   key also carries the database (a number per engine opened), for a copy opened in the same
+   process. `test_review.py`'s kept-month test asserted the blind spot (a write outside the
+   ORM unseen until Refresh); it moved to `test_data_version.py`, asserting the write is seen.
