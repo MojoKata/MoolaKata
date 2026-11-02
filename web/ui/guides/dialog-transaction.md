@@ -38,6 +38,18 @@ The cash effect on the account: − for money out (a buy), + for money in (a sal
 
 Commission and fees.
 
+## Lots
+
+A sale lists the lots held on its date: when each was bought, how many are held, their cost, and
+whether a sale that day is long or short term. Type how many to take from each to pick them
+(specific identification): the sale takes those, and what isn't picked goes oldest first. Leave
+them empty and the account's lot method chooses. A lot a wash sale split is shown whole, and a pick
+takes from both parts.
+
+## Take {#take}
+
+How many shares of that lot the sale takes; no more than the lot holds.
+
 ## Cost basis
 
 For shares transferred in: what they cost. Without it the lot is marked **basis missing**.

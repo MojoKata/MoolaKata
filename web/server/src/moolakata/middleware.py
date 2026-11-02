@@ -111,6 +111,27 @@ class ClientAddress:
         await self.app(scope, receive, send)
 
 
+class Confirmations:
+    """The questions a request confirmed by its header (`commit_checks.HEADER`), for the
+    checks its write runs before committing."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        from .store import commit_checks
+
+        raw = dict(scope.get("headers") or []).get(commit_checks.HEADER.encode(), b"")
+        codes = frozenset(c.strip() for c in raw.decode("latin-1").split(",") if c.strip())
+        token = commit_checks.confirmed.set(codes)
+        try:
+            return await self.app(scope, receive, send)
+        finally:
+            commit_checks.confirmed.reset(token)
+
+
 class SecurityHeaders:
     """The headers of S13.7.7 on every response. A route that needs another CSP (the app's
     page with its nonce, the demo, a receipt file) sets its own, which is kept."""

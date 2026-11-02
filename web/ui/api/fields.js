@@ -49,6 +49,8 @@ export const FIELDS = {
     filers: {"type": "list", "items": {"type": "ref", "prefix": "User"}, "set": true},
     fromLastYear: {"type": "bool"},
     bitcoinFees: {"type": "choice", "choices": ["sale", "not-taxed"]},
+    carryoverShareShort: {"type": "money", "nullable": true},
+    carryoverShareLong: {"type": "money", "nullable": true},
   },
   BudgetAccountRecord: {
     budgetId: {"type": "ref", "prefix": "Bdgt"},
@@ -310,6 +312,11 @@ export const FIELDS = {
     budgetCounting: {"type": "text"},
     budgetCategoryId: {"type": "text", "nullable": true},
     accountId: {"type": "ref", "prefix": "Acct"},
+  },
+  LotPickRecord: {
+    saleId: {"type": "ref", "prefix": "Txn"},
+    lotId: {"type": "ref", "prefix": "Lot"},
+    quantity: {"type": "quantity"},
   },
   Lump: {
     date: {"type": "date"},
@@ -613,6 +620,7 @@ export const CREATES = {
   Item: {"via": "accountId", "needs": "writable"},
   LkCol: {"who": "own"},
   Loan: {"via": "accountId", "needs": "writable"},
+  LotPk: {"via": "lotId", "needs": "writable"},
   Occsn: {"via": "giftPlanId", "needs": "writable"},
   Orgzn: {"who": "code"},
   Persn: {"who": "code"},

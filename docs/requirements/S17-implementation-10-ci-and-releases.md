@@ -5,7 +5,7 @@
     1. **Checks**: `.github/workflows/check.yml` runs `web/check` on every pull request and
        every push to `main`, after `web/dev.sh setup`, with uv installed from
        `install/build-requirements.txt` by its hashes. It runs `web/check`'s parts as jobs
-       side by side (the server's tests in three parts, each part every third test
+       side by side (the server's tests in four parts, each part every fourth test
        (`MK_TEST_PART`), the first with the static checks and the last with the connector's
        tests; the browser tests in two parts the same way, a module whose tests run one after
        another kept whole; the generated mockup's drift; the hand-written mockup's screens),

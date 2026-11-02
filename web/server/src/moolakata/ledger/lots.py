@@ -149,6 +149,10 @@ def kept_by_snapshots(transactions: list, lots: list) -> bool:
     )
 
 
+# What average cost applies to (S2.3): fund shares and coins.
+AVERAGED = ("mutual-fund", "money-market", "crypto")
+
+
 def replay(
     account_method: str,
     transactions: list,
@@ -158,6 +162,8 @@ def replay(
     washes: list = (),
     by_snapshots: bool | None = None,
     basis_added: bool = True,
+    averaged: frozenset = frozenset(),
+    sale_at: dict | None = None,
 ) -> Replay:
     """Transactions, lots (acquisitions), specific-identification picks and holding
     snapshots of one account, as entities; returns the open lots, disposals and problems.
@@ -189,11 +195,21 @@ def replay(
             events.append((lot.acquiredOn, 0, lot.createdAt, lot.id, "lot", lot))
     for h in snapshots:
         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
+    # A wash sale settles on its replacement right after the loss sale (CR3-388): a replacement
+    # bought before it is a plain lot until then, so the sale never picks its own lots by the
+    # loss it is about to have disallowed. `sale_at` is each sale's day and making, from any
+    # account; a sale not in it settles at the buy.
+    for w in washes:
+        at = (sale_at or {}).get(w.saleId)
+        if at is not None:
+            events.append((at[0], 0, at[1], f"{w.saleId}~{w.id}", "settle", w))
     events.sort(key=lambda e: e[:4])
 
     replaced: dict[str, list] = {}
     for w in washes:
         replaced.setdefault(w.replacementId, []).append(w)
+    pending: dict[str, OpenLot] = {}  # a replacement's split, waiting for its sale
+    settled: set[str] = set()  # wash sales whose sale has been passed
     out = Replay()
     for t in transactions:
         end = getattr(t, "optionTransactionId", None)
@@ -216,13 +232,28 @@ def replay(
             )
         elif what == "snapshot":
             _snapshot(out, obj)
+        elif what == "settle":
+            settled.add(obj.id)
+            lot = pending.pop(obj.id, None)
+            if lot is not None:
+                _settle(lot, obj, basis_added)
         else:
             before = len(out.open)
             _transaction(
-                out, obj, account_method, lots_by_txn.get(obj.id, []), picks_by_sale.get(obj.id, [])
+                out,
+                obj,
+                account_method,
+                lots_by_txn.get(obj.id, []),
+                picks_by_sale.get(obj.id, []),
+                averaged,
             )
             if obj.id in replaced:
-                _replacement(out, before, replaced[obj.id], basis_added)
+                rows = replaced[obj.id]
+                for row, lot in _replacement(out, before, rows):
+                    if sale_at is None or row.saleId not in sale_at or row.id in settled:
+                        _settle(lot, row, basis_added)
+                    else:
+                        pending[row.id] = lot
     _disallow(out, washes)
     out.open = [lot for lot in out.open if lot.quantity]
     return out
@@ -235,11 +266,11 @@ def adds_basis(account_type: str) -> bool:
     return account_type not in ("ira", "roth-ira")
 
 
-def _replacement(out: Replay, before: int, rows: list, basis_added: bool = True) -> None:
-    """A wash sale's replacement (S3.8): the shares bought take the disallowed loss into their
-    basis and the sold shares' holding period, split from the rest of the lot. In an IRA or a
-    Roth IRA the loss is disallowed for good, and no basis is added (S3.8.3)."""
+def _replacement(out: Replay, before: int, rows: list) -> list[tuple]:
+    """A wash sale's replacement (S3.8): the shares bought that replace, split from the rest of
+    the lot, each with the wash sale it settles; their basis and day follow on `_settle`."""
     made = out.open[before:]
+    split = []
     for row in rows:
         left = row.quantity
         for lot in made:
@@ -252,40 +283,56 @@ def _replacement(out: Replay, before: int, rows: list, basis_added: bool = True)
                 share = (lot.basis * take / lot.quantity).quantize(CENT)
                 lot.basis -= share
             lot.quantity -= take
-            out.open.append(
-                OpenLot(
-                    lot.lotId,
-                    lot.instrumentId,
-                    lot.acquiredOn,
-                    take,
-                    None if share is None else share + (row.disallowed if basis_added else 0),
-                    lot.standIn,
-                    row.heldFrom,
-                )
-            )
+            part = OpenLot(lot.lotId, lot.instrumentId, lot.acquiredOn, take, share, lot.standIn)
+            out.open.append(part)
+            split.append((row, part))
             break
+    return split
+
+
+def _settle(lot: OpenLot, row, basis_added: bool) -> None:
+    """The replacement takes the disallowed loss into its basis (for what of it is still held)
+    and the sold shares' holding period. In an IRA or a Roth IRA the loss is disallowed for
+    good, and no basis is added (S3.8.3)."""
+    if lot.basis is not None and basis_added and lot.quantity > 0:
+        share = row.disallowed
+        if lot.quantity != row.quantity:
+            share = (row.disallowed * lot.quantity / row.quantity).quantize(CENT)
+        lot.basis += share
+    lot.heldFrom = row.heldFrom
 
 
 def _disallow(out: Replay, washes) -> None:
-    """A loss sale's disallowed part, spread over its losing disposals."""
-    by_sale: dict[str, Decimal] = {}
+    """A loss sale's disallowed part, on the disposals of the sold lot whose loss it is
+    (CR3-390): spread by loss over that lot's losing parts (a lot a wash sale split may sell
+    in two), or over the sale's when the wash sale names no lot."""
+    by: dict[tuple[str, str | None], Decimal] = {}
     for w in washes:
-        by_sale[w.saleId] = by_sale.get(w.saleId, ZERO) + w.disallowed
-    for sale, amount in by_sale.items():
-        losing = [d for d in out.disposals if d.saleId == sale and (d.gain or ZERO) < 0]
-        total = -sum((d.gain for d in losing), ZERO)
+        key = (w.saleId, getattr(w, "lotId", None))
+        by[key] = by.get(key, ZERO) + w.disallowed
+    for (sale, lot_id), amount in by.items():
+        losing = [
+            d
+            for d in out.disposals
+            if d.saleId == sale
+            and (lot_id is None or d.lotId == lot_id)
+            and (d.raw_gain or ZERO) < 0
+        ]
+        total = -sum((d.raw_gain for d in losing), ZERO)
         given = ZERO
         for i, d in enumerate(losing):
             part = (
                 amount - given
                 if i == len(losing) - 1
-                else (amount * -d.gain / total).quantize(CENT)
+                else (amount * -d.raw_gain / total).quantize(CENT)
             )
-            d.adjustment = part
+            d.adjustment += part
             given += part
 
 
-def _transaction(out: Replay, t, account_method: str, made: list, picks: list) -> None:
+def _transaction(
+    out: Replay, t, account_method: str, made: list, picks: list, averaged: frozenset = frozenset()
+) -> None:
     if not t.instrumentId:
         return
     if t.kind in OPTION_TRADES:
@@ -327,7 +374,10 @@ def _transaction(out: Replay, t, account_method: str, made: list, picks: list) -
         qty = abs(t.quantity or ZERO)
         if not qty:
             return
-        method = t.lotMethod or account_method
+        # Lots picked make the sale specific identification, whatever the method (S2.3).
+        method = "specific" if picks else (t.lotMethod or account_method)
+        if method == "average" and t.instrumentId not in averaged:
+            method = "fifo"  # average cost is for funds and coins; a share goes first in (S2.3)
         proceeds = (
             t.amount + (getattr(t, "proceedsAdjustment", None) or ZERO)
             if t.kind == "sell"
@@ -643,13 +693,16 @@ def _consume(
     total, left = qty, qty
     plan: list[tuple[OpenLot, Decimal]] = []
     if method == "specific" and picks:
-        by_id = {lot.lotId: lot for lot in held}
+        # A picked lot is every part of it: one a wash sale split takes from its parts in turn
+        # (CR3-26), never from another lot.
         for p in picks:
-            lot = by_id.get(p.lotId)
-            take = min(p.quantity, lot.quantity, left) if lot else ZERO
-            if take > 0:
-                plan.append((lot, take))
-                left -= take
+            want = p.quantity
+            for lot in (x for x in held if x.lotId == p.lotId):
+                take = min(want, lot.quantity, left)
+                if take > 0:
+                    plan.append((lot, take))
+                    left -= take
+                    want -= take
     order = method if method in ("fifo", "lifo", "hifo") else "fifo"
     for lot in _order(order, held):
         if left <= 0:

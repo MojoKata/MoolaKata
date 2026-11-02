@@ -20,7 +20,14 @@ import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
 import { canAdd, Record as Rec, TYPES } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { DraftDialog, RecField, saveNow, saveOne, useDraft } from '../components/draft-form.js';
+import {
+  DraftDialog,
+  DraftForm,
+  RecField,
+  saveNow,
+  saveOne,
+  useDraft,
+} from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
 
 export const TABS = /** @type {[string, string][]} */ ([
@@ -93,7 +100,19 @@ export default function Taxes({ tab }) {
           toast('Accepted');
           bookPref.value = r.id;
           list.reload();
-        })}>Accept</button></div>`
+        }).catch((/** @type {any} */ e) => toast(e.message || 'Not accepted'))}>Accept</button>
+        <button class="btn sm" onClick=${async () => {
+        const sure = await confirmAction({
+          title: `Decline the ${r.label} tax book?`,
+          detail: 'You are taken off it; its owner is told. Your own book for the year is ' +
+            'yours to make.',
+          yes: 'Decline',
+        });
+        if (!sure) return;
+        await api.post(`/tax-books/${r.id}/decline`);
+        toast('Declined');
+        list.reload();
+      }}>Decline</button></div>`
     )}
     <div class="toolbar">
       ${held.length
@@ -254,16 +273,22 @@ function Summary({ b, done }) {
           `
           : null}
       </div>
-      <div class="card"><h3 data-help="from-last-year">From last year</h3>${b.lastYear.length
-        ? b.lastYear.map((/** @type {any} */ l) =>
-          html`<h4 style=${{ margin: '8px 0 4px' }}>${l.filing}</h4>${
+      <div
+        class="card"><h3 data-help="from-last-year">From last year</h3>${b.lastYear.map((
+          /** @type {any} */ l,
+        ) =>
+          html`<h4 style=${{ margin: '8px 0 4px' }}>${l.filing}<span class="small dim"
+            style=${{ fontWeight: 400 }}> · ${l.filers}${l.joint ? ', joint' : ''}</span></h4>${
             CARRIED.filter(([k]) => l.figures[k] != null).map(([k, label]) =>
               html`<div class="list-item"><span class="grow dim">${label}</span><${Amt}
               v=${l.figures[k]} /></div>`
             )
           }`
-        )
-        : html`<p class="small dim">Nothing carried forward: last year's filings, once typed in,
+        )}${b.lastYear.some((/** @type {any} */ l) => l.joint)
+          ? html`<${CarryoverShare} b=${b} done=${done} />`
+          : null}${b.lastYear.length
+          ? null
+          : html`<p class="small dim">Nothing carried forward: last year's filings, once typed in,
           show here what this year needs (AGI to sign the e-filed return, carryovers, the 8606
           basis).</p>`}</div>
     </div>
@@ -623,6 +648,49 @@ function Documents({ b, done }) {
       }</div>`
       : html`<p class="small dim">The return as filed, the e-file acknowledgement, and what the
         tax authority sends. Next year's preparation often needs them.</p>`}
+  `;
+}
+
+/**
+ * A filer's share of last year's joint return's capital-loss carryover, filing separately now
+ * (S8.17, S8.18): theirs to split; the Summary counts it once typed.
+ * @param {{ b: any, done: () => void }} p
+ */
+function CarryoverShare({ b, done }) {
+  const f = useDraft((draft) => {
+    draft.load(BookRec, {
+      id: b.id,
+      version: b.version,
+      year: b.year,
+      filers: b.filers.map((/** @type {any} */ x) => x.id),
+      fromLastYear: b.fromLastYear,
+      bitcoinFees: b.bitcoinFees,
+      carryoverShareShort: b.carryoverShareShort,
+      carryoverShareLong: b.carryoverShareLong,
+    });
+    return Promise.resolve();
+  }, [b.id, b.version]);
+  const rec = /** @type {BookRec | undefined} */ (f.draft?.records[0]);
+  return html`
+    <h4 style=${{ margin: '12px 0 4px' }} data-help="carryover-share">Your share of the joint
+      carryover</h4>
+    <p class="small dim" style=${{ marginTop: 0 }}>Splitting a joint return's carryover between
+      its filers is yours to decide. None counts in the Summary until it is typed.</p>
+    <${DraftForm} f=${f} what="Your share" saved=${() => {
+      toast('Saved');
+      done();
+    }}>
+      ${rec
+        ? html`
+          <div class="row">
+            <${RecField} rec=${rec} name="carryoverShareShort" label="Short-term share"
+              id="share-short" />
+            <${RecField} rec=${rec} name="carryoverShareLong" label="Long-term share"
+              id="share-long" />
+          </div>
+        `
+        : null}
+    </${DraftForm}>
   `;
 }
 

@@ -10,6 +10,7 @@ refusal, stale version and question before it rolls back."""
 import datetime as dt
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
@@ -324,6 +325,21 @@ def apply(s: Session, c: Caller, request: Request, body: SaveIn) -> tuple[list[S
         for record_id, fn in list(ctx._verify.values()):
             ctx.record_id = record_id
             out.attempt(s, record_id, "", fn)
+    # A filed year's gains moved by the save: asked as the save's question (S2.8, the filed
+    # tax years walk's decision 1), here rather than at the commit, so it joins the others.
+    if not (out.stale or out.errors) and body.ops:
+        from ..taxes import closed
+
+        if any(code == closed.CODE for code, _ in ctx.confirmed):
+            closed.confirm(s)
+        try:
+            closed.check(s)
+        except Problem as p:
+            if p.code != closed.CODE:
+                raise
+            moves = {int(y): Decimal(v) for y, v in p.extra["moves"].items()}
+            ask = closed.question(moves, p.extra["accountDeleted"])
+            out.asks.append({"code": closed.CODE, "id": body.ops[0].id, "message": ask})
     errors, statuses, stale, asks = out.errors, out.statuses, out.stale, out.asks
     if stale:
         raise Problem(

@@ -2053,6 +2053,36 @@
             "title": "Bitcoinfees",
             "type": "string"
           },
+          "carryoverShareLong": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carryoversharelong"
+          },
+          "carryoverShareShort": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carryovershareshort"
+          },
           "claimedElsewhere": {
             "items": {
               "type": "string"
@@ -2100,6 +2130,10 @@
             "title": "Form8615",
             "type": "array"
           },
+          "fromLastYear": {
+            "title": "Fromlastyear",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -2146,6 +2180,9 @@
           "label",
           "version",
           "bitcoinFees",
+          "fromLastYear",
+          "carryoverShareShort",
+          "carryoverShareLong",
           "dependents",
           "form8615",
           "claimedElsewhere",
@@ -2173,6 +2210,38 @@
             ],
             "title": "Bitcoinfees",
             "type": "string"
+          },
+          "carryoverShareLong": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Carryoversharelong"
+          },
+          "carryoverShareShort": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Carryovershareshort"
           },
           "filers": {
             "items": {
@@ -11119,14 +11188,24 @@
           "figures": {
             "$ref": "#/components/schemas/CarriedView"
           },
+          "filers": {
+            "title": "Filers",
+            "type": "string"
+          },
           "filing": {
             "title": "Filing",
             "type": "string"
+          },
+          "joint": {
+            "title": "Joint",
+            "type": "boolean"
           }
         },
         "required": [
           "filing",
-          "figures"
+          "figures",
+          "filers",
+          "joint"
         ],
         "title": "LastYear",
         "type": "object"
@@ -12211,6 +12290,67 @@
         "title": "Login",
         "type": "object"
       },
+      "LotChoice": {
+        "additionalProperties": false,
+        "description": "An open lot a sale may pick from, as held on the sale's day (S2.3).",
+        "properties": {
+          "acquiredOn": {
+            "format": "date",
+            "title": "Acquiredon",
+            "type": "string"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "longTerm": {
+            "title": "Longterm",
+            "type": "boolean"
+          },
+          "lotId": {
+            "title": "Lotid",
+            "type": "string"
+          },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lotId",
+          "instrumentId",
+          "symbol",
+          "acquiredOn",
+          "quantity",
+          "basis",
+          "longTerm"
+        ],
+        "title": "LotChoice",
+        "type": "object"
+      },
       "LotOut": {
         "additionalProperties": false,
         "properties": {
@@ -12273,6 +12413,44 @@
         ],
         "title": "LotOut",
         "type": "object"
+      },
+      "LotPickRecord": {
+        "additionalProperties": false,
+        "description": "How much of a lot a sale takes, picked (S2.3, specific identification), as a draft\nsaves it: a record of its own, kept with the sale.",
+        "properties": {
+          "lotId": {
+            "pattern": "^Lot_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Lotid",
+            "type": "string",
+            "x-prefix": "Lot"
+          },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          },
+          "saleId": {
+            "pattern": "^Txn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Saleid",
+            "type": "string",
+            "x-prefix": "Txn"
+          }
+        },
+        "required": [
+          "saleId",
+          "lotId",
+          "quantity"
+        ],
+        "title": "LotPickRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "lotId"
+        },
+        "x-entity": "LotPk"
       },
       "LotRow": {
         "additionalProperties": false,
@@ -15236,6 +15414,37 @@
         "title": "Page[LinkedRow]",
         "type": "object"
       },
+      "Page_LotChoice_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LotChoice"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[LotChoice]",
+        "type": "object"
+      },
       "Page_OptionTradeRow_": {
         "properties": {
           "items": {
@@ -16979,6 +17188,40 @@
         "title": "PhraseIn",
         "type": "object"
       },
+      "PickOut": {
+        "additionalProperties": false,
+        "description": "How much of a lot a sale takes, picked (S2.3).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lotId": {
+            "title": "Lotid",
+            "type": "string"
+          },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "lotId",
+          "quantity",
+          "version"
+        ],
+        "title": "PickOut",
+        "type": "object"
+      },
       "Plan": {
         "additionalProperties": false,
         "properties": {
@@ -17993,6 +18236,7 @@
               "file-empty",
               "file-pruned",
               "filed-on-missing",
+              "filer-has-a-book",
               "filers-invalid",
               "filers-only",
               "filing-fixed",
@@ -18149,6 +18393,10 @@
               "phrase-invalid",
               "phrase-needed",
               "phrase-wrong",
+              "pick-fixed",
+              "pick-not-a-sale",
+              "pick-over",
+              "picks-over",
               "place-missing",
               "plan-delete",
               "plan-exists",
@@ -18445,6 +18693,7 @@
                   "file-empty",
                   "file-pruned",
                   "filed-on-missing",
+                  "filer-has-a-book",
                   "filers-invalid",
                   "filers-only",
                   "filing-fixed",
@@ -18601,6 +18850,10 @@
                   "phrase-invalid",
                   "phrase-needed",
                   "phrase-wrong",
+                  "pick-fixed",
+                  "pick-not-a-sale",
+                  "pick-over",
+                  "picks-over",
                   "place-missing",
                   "plan-delete",
                   "plan-exists",
@@ -25142,6 +25395,13 @@
             ],
             "title": "Payeeraw"
           },
+          "picks": {
+            "items": {
+              "$ref": "#/components/schemas/PickOut"
+            },
+            "title": "Picks",
+            "type": "array"
+          },
           "price": {
             "anyOf": [
               {
@@ -29293,6 +29553,94 @@
         "summary": "Suggest Split",
         "tags": [
           "loans"
+        ]
+      }
+    },
+    "/ui/api/accounts/{account_id}/lots": {
+      "get": {
+        "description": "The lots a sale on `date` may pick from (S2.3): `saleId` leaves an edited sale out.",
+        "operationId": "get_lots_ui_api_accounts__account_id__lots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "saleId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Saleid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LotChoice_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Get Lots",
+        "tags": [
+          "transactions"
         ]
       }
     },
@@ -36960,6 +37308,38 @@
           }
         },
         "summary": "Accept",
+        "tags": [
+          "taxes"
+        ]
+      }
+    },
+    "/ui/api/tax-books/{book_id}/decline": {
+      "post": {
+        "description": "A filer named by someone else declines (S8.14.1): they are taken off the book, which\nstays its owner's, and its owner is told in Activity.",
+        "operationId": "decline_ui_api_tax_books__book_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Decline",
         "tags": [
           "taxes"
         ]

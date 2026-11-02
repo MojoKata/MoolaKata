@@ -265,7 +265,8 @@ def unearned(s: Session, accounts: list[Account], year: int, gains: Decimal) -> 
             )
         ):
             if t.kind == "reinvest":
-                if t.dividendType and t.dividendType != "return-of-capital":
+                # Reinvested, a dividend is income all the same, untyped ones too (CR3-392).
+                if t.dividendType != "return-of-capital":
                     total -= t.amount
             elif not (t.kind == "dividend" and t.dividendType == "return-of-capital"):
                 total += t.amount
@@ -342,10 +343,16 @@ def carry_over(s: Session, prev: TaxBook, book: TaxBook, now: dt.datetime) -> li
     """Last year's dependents, a year older, with their accounts in their name: anyone past a
     qualifying child's age who isn't claimed as a relative is left out, and named."""
     left = []
+    # From each of last year's books in turn (two after filing separately): a person both
+    # claimed is copied once (S8.14.4).
+    have = {d.personId for d in of_book(s, book)}
     for d in of_book(s, prev):
         p = s.get(Person, d.personId)
         if p is None or p.deleted or (p.diedOn is not None and p.diedOn.year < book.year):
             continue
+        if d.personId in have:
+            continue
+        have.add(d.personId)
         if d.claimedAs == "qualifying child" and past_child_age(
             age_on_dec_31(p, book.year), d.student
         ):

@@ -19,8 +19,9 @@ The last four digits of the account number, to tell accounts apart.
 ## Lot method
 
 Which lots a sale takes: **FIFO** the oldest first (the default), **LIFO** the newest, **HIFO** the
-most expensive, **specific identification** the ones you pick, or **average cost**. The method in
-force at a sale is recorded with it.
+most expensive, **specific identification** the ones you pick, or **average cost** (for funds
+and coins; a share in the account is sold oldest first). The method in force at a sale is
+recorded with it.
 
 ## Opening balance
 

@@ -71,7 +71,8 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
     assert aapl["adjustment"] == "250.00", "half the 500 loss: 5 of 10 shares replaced"
     assert aapl["gain"] == "-250.00"
     w = p["washes"][0]
-    assert w["replacementAccount"] == "IRA" and w["adjustedBasis"] == "1000.00"
+    # In an IRA the loss is lost for good: the replacement keeps its cost (S3.8.3, CR3-391).
+    assert w["replacementAccount"] == "IRA" and w["adjustedBasis"] == "750.00"
     d = p["scheduleD"]
     assert d["shortTerm"] == "-250.00" and d["longTerm"] == "200.00"
     csv = alice.get(f"/ui/api/tax-books/{b}/exports/8949.csv")
@@ -258,3 +259,162 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(alice):
     assert w["review"] and w["disallowed"] == "0.00", w
     [loss] = [r for r in p["rows"] if r["description"] == "100 MSFT"]
     assert loss["code"] == "" and loss["gain"] == "-5000.00"
+
+
+def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(alice):
+    # CR3-386, S2.1: a fund bought in 2011 has no reported basis (funds from 2012), so its
+    # sale goes in box E; a share bought the same day, in D.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2011-06-01", "buy", "10", "50", symbol="FSKAX")
+    trade(alice, brk["id"], "2011-06-01", "buy", "10", "50", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "10", "60", symbol="FSKAX")
+    trade(alice, brk["id"], "2026-03-02", "sell", "10", "60", symbol="IBM")
+    rows = {r["description"]: r["box"] for r in panels(alice, book(alice))["rows"]}
+    assert rows == {"10 FSKAX": "E", "10 IBM": "D"}
+
+
+def test_average_cost_is_for_funds_a_share_goes_first_in(alice):
+    # CR3-387, S2.3: in an account set to average cost, a fund's sale takes the average of
+    # its shares and a listed share's the oldest lot.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="average")
+    for symbol in ("VTSAX", "IBM"):
+        trade(alice, brk["id"], "2025-01-06", "buy", "10", "100", symbol=symbol)
+        trade(alice, brk["id"], "2025-02-03", "buy", "10", "200", symbol=symbol)
+        trade(alice, brk["id"], "2026-03-02", "sell", "10", "250", symbol=symbol)
+    rows = {r["description"]: r["basis"] for r in panels(alice, book(alice))["rows"]}
+    assert rows == {"10 VTSAX": "1500.00", "10 IBM": "1000.00"}
+
+
+def test_a_replacement_bought_before_the_loss_sale_is_a_plain_lot_until_it(alice):
+    # CR3-388, S3.8.3: highest cost first picks the sale's lots by their cost on the day; the
+    # replacement bought nine days before takes the loss only once the sale has it.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="hifo")
+    trade(alice, brk["id"], "2023-08-21", "buy", "10", "366.93", symbol="HON")
+    trade(alice, brk["id"], "2024-01-18", "buy", "10", "382.36", symbol="HON")
+    trade(alice, brk["id"], "2025-02-21", "buy", "6", "312.57", symbol="HON")
+    trade(alice, brk["id"], "2025-03-04", "sell", "6", "310.09", symbol="HON")
+    me = alice.get("/ui/api/session").json()["user"]["id"]
+    r = make(alice, "TaxBk", year=2025, filers=[me])
+    (row,) = panels(alice, r.json()["id"])["rows"]
+    assert (row["acquired"], row["basis"], row["adjustment"]) == ("2024-01-18", "2294.16", "433.62")
+
+
+def test_shares_a_sale_sold_never_replace_it(alice):
+    # CR3-388, S3.8.2: last in first out sells the three bought a week before with three of
+    # the old lot; those three were sold, so they replace nothing.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="lifo")
+    trade(alice, brk["id"], "2024-01-08", "buy", "10", "200", symbol="IBM")
+    trade(alice, brk["id"], "2026-02-23", "buy", "3", "100", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "6", "90", symbol="IBM")
+    rows = panels(alice, book(alice))["rows"]
+    assert sorted((r["description"], r["adjustment"]) for r in rows) == [
+        ("3 IBM", "0.00"),
+        ("3 IBM", "0.00"),
+    ]
+
+
+def lots_on(c, account_id, day, sale_id=None):
+    q = f"?date={day}" + (f"&saleId={sale_id}" if sale_id else "")
+    r = c.get(f"/ui/api/accounts/{account_id}/lots{q}")
+    assert r.status_code == 200, r.text
+    return {(x["symbol"], x["acquiredOn"]): x for x in r.json()["items"]}
+
+
+def test_a_sale_takes_the_lots_picked_and_keeps_them_through_an_edit(alice):
+    # CR3-389, S2.3: specific identification is chosen per sale: the lots picked, the rest
+    # first in; the picks are records of the sale, kept when it changes.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2024-01-08", "buy", "10", "100", symbol="IBM")
+    trade(alice, brk["id"], "2025-06-02", "buy", "10", "300", symbol="IBM")
+    held = lots_on(alice, brk["id"], "2026-03-02")
+    newer = held[("IBM", "2025-06-02")]
+    assert (newer["quantity"], newer["basis"], newer["longTerm"]) == ("10.0", "3000.00", False)
+    r = make(alice, "Txn", accountId=brk["id"], date="2026-03-02", kind="sell", symbol="IBM",
+             quantity="12", price="250", amount="3000.00",
+             picks=[{"lotId": newer["lotId"], "quantity": "8"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    sale = alice.get(f"/ui/api/transactions/{r.json()['id']}").json()
+    assert [(p["lotId"], p["quantity"]) for p in sale["picks"]] == [(newer["lotId"], "8.0")]
+
+    def rows():
+        return sorted((x["acquired"], x["description"], x["basis"])
+                      for x in panels(alice, book(alice))["rows"])  # fmt: skip
+
+    assert rows() == [("2024-01-08", "4 IBM", "400.00"), ("2025-06-02", "8 IBM", "2400.00")]
+    from edits import change
+
+    sale = saved(change(alice, "Txn", sale, memo="rebalance"))
+    assert [
+        p["quantity"] for p in alice.get(f"/ui/api/transactions/{sale['id']}").json()["picks"]
+    ] == ["8.0"]
+    # More than the sale, or than the lot held, is refused.
+    pick = alice.get(f"/ui/api/transactions/{sale['id']}").json()["picks"][0]
+    r = change(alice, "LotPk", {**pick, "saleId": sale["id"]}, quantity="11")
+    assert r.status_code == 422 and "more than" in r.text.lower(), r.text
+
+
+def test_a_pick_of_a_lot_a_wash_sale_split_takes_from_its_parts(alice):
+    # CR3-26: L is bought 10 at $160, 4 of which replace an earlier loss sale; picking L for 10
+    # takes all of L, never 6 of K.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2025-01-02", "buy", "10", "100", symbol="AAPL")  # K
+    trade(alice, brk["id"], "2026-03-02", "buy", "4", "200", symbol="AAPL")  # M
+    lot_m = lots_on(alice, brk["id"], "2026-03-20")[("AAPL", "2026-03-02")]
+    sold = make(alice, "Txn", accountId=brk["id"], date="2026-03-20", kind="sell",
+                symbol="AAPL", quantity="4", price="150", amount="600.00",
+                picks=[{"lotId": lot_m["lotId"], "quantity": "4"}])  # fmt: skip
+    assert sold.status_code == 200, sold.text
+    trade(alice, brk["id"], "2026-04-01", "buy", "10", "160", symbol="AAPL")  # L
+    held = lots_on(alice, brk["id"], "2026-05-01")
+    lot_l = held[("AAPL", "2026-04-01")]
+    assert (lot_l["quantity"], lot_l["basis"]) == ("10.0", "1800.00")  # 1600 + the 200 washed
+    r = make(alice, "Txn", accountId=brk["id"], date="2026-05-01", kind="sell", symbol="AAPL",
+             quantity="10", price="170", amount="1700.00",
+             picks=[{"lotId": lot_l["lotId"], "quantity": "10"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    may = [x for x in panels(alice, book(alice))["rows"] if x["sold"] == "2026-05-01"]
+    assert sorted((x["acquired"], x["description"]) for x in may) == [
+        ("2026-04-01", "4 AAPL"),
+        ("2026-04-01", "6 AAPL"),
+    ]
+
+
+def test_fewer_shares_bought_back_replace_the_earliest_acquired(alice):
+    # CR3-390, S3.8.2, Treas. Reg. §1.1091-1(c): highest cost first sells the $120 lot then
+    # the $100 one, both at a loss; the ten bought back replace the earliest acquired.
+    brk = new_account(alice, name="Brokerage", type="brokerage", lotMethod="hifo")
+    trade(alice, brk["id"], "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(alice, brk["id"], "2025-02-03", "buy", "10", "120", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "20", "80", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-16", "buy", "10", "82", symbol="IBM")
+    rows = panels(alice, book(alice))["rows"]
+    assert sorted((r["acquired"], r["adjustment"]) for r in rows) == [
+        ("2025-01-06", "200.00"),
+        ("2025-02-03", "0.00"),
+    ]
+
+
+def test_a_reinvested_dividend_counts_as_a_dividend(alice):
+    # CR3-392, S8.5: reinvested, a dividend is still one; ordinary unless typed qualified.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    add(alice, brk["id"], "-120.00", "2026-03-31", kind="reinvest", symbol="SCHD",
+        quantity="1", price="120")  # fmt: skip
+    add(alice, brk["id"], "-80.00", "2026-06-30", kind="reinvest", symbol="SCHD",
+        quantity="1", price="80", dividendType="qualified")  # fmt: skip
+    inc = panels(alice, book(alice))["income"]
+    assert (inc["ordinary"], inc["qualified"]) == ("200.00", "80.00")
+
+
+def test_a_book_lists_the_wash_sales_of_the_accounts_it_counts(alice):
+    # CR3-393, S8.14.2: an account left out of the book takes its wash sales with it.
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-02", "sell", "10", "80", symbol="IBM")
+    trade(alice, brk["id"], "2026-03-16", "buy", "10", "82", symbol="IBM")
+    b = book(alice)
+    assert len(panels(alice, b)["washes"]) == 1
+    from edits import create
+
+    saved(create(alice, "TxBkA", bookId=b, accountId=brk["id"], counted=False))
+    p = panels(alice, b)
+    assert p["rows"] == [] and p["washes"] == []

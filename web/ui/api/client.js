@@ -51,10 +51,23 @@ export function whenSignedOut(fn) {
 }
 
 /**
+ * Asked when a request would move a filed year's realized gains (S2.8, a 409 `closed-year`
+ * from a route outside the save): true makes it anyway, the request sent again saying so.
+ * @type {(problem: any) => Promise<boolean>}
+ */
+let onClosedYear = (/** @type {any} */ _problem) => Promise.resolve(false);
+/** @param {(problem: any) => Promise<boolean>} fn */
+export function whenClosedYear(fn) {
+  onClosedYear = fn;
+}
+/** The header a request confirms a question by (`commit_checks.HEADER` on the server). */
+export const CONFIRM_HEADER = 'X-MoolaKata-Confirm';
+
+/**
  * @param {string} method
  * @param {string} path
  * @param {{ body?: any, version?: number, params?: Record<string, any>, idempotent?: boolean | string,
- *   form?: FormData }} [opts]
+ *   form?: FormData, confirmed?: boolean }} [opts]
  */
 async function call(method, path, opts = {}) {
   // A placeholder base: only the path and query are sent, so this works without an origin.
@@ -77,6 +90,7 @@ async function call(method, path, opts = {}) {
     url.search = '?' + new URLSearchParams({ path: inner });
   }
   if (opts.version !== undefined) headers['If-Match'] = `"${opts.version}"`;
+  if (opts.confirmed) headers[CONFIRM_HEADER] = 'closed-year';
   if (opts.idempotent) {
     // A key of the caller's (a draft's retry keeps its own, S13.8.8), or a new one.
     headers['Idempotency-Key'] = typeof opts.idempotent === 'string'
@@ -97,6 +111,10 @@ async function call(method, path, opts = {}) {
   if (!r.ok) {
     const err = new ApiError(r.status, data);
     if (r.status === 401 && !path.startsWith('/session')) onSignedOut(err.code);
+    // A filed year moved: asked once, and sent again confirmed if the person says so.
+    if (r.status === 409 && err.code === 'closed-year' && !opts.confirmed) {
+      if (await onClosedYear(data)) return call(method, path, { ...opts, confirmed: true });
+    }
     throw err;
   }
   return data;

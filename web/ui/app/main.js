@@ -5,13 +5,13 @@ import { useEffect } from 'preact/hooks';
 import { lazy, LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { html } from './html.js';
 import { Dec } from './dec.js';
-import { api, readLinked, whenSignedOut } from '../api/client.js';
+import { api, readLinked, whenClosedYear, whenSignedOut } from '../api/client.js';
 import { applyTheme, helpOpen, theme } from '../store/prefs.js';
 import { ended, loadSession, lostChanges, session } from '../store/session.js';
 import { connect, disconnect } from './stream.js';
 import { PUBLIC_PATHS, PublicScreens, Screens, SetupScreen } from './router.js';
 import { Frame } from '../components/frame.js';
-import { ConfirmHost } from '../components/confirm.js';
+import { confirmAction, ConfirmHost } from '../components/confirm.js';
 import { dialogHasChanges, DialogHost } from '../components/dialog.js';
 import { MenuHost } from '../components/menu.js';
 import { Toasts } from '../components/toast.js';
@@ -114,6 +114,14 @@ installTooltips();
 // Before the router, so a screen's form hears Back first (S12.15.6).
 installGuard();
 whenSignedOut((code) => signOutLocally(code === 'account-disabled' ? 'disabled' : 'expired'));
+// A route that would move a filed year's gains asks first (S2.8.2), as the save does.
+whenClosedYear((problem) =>
+  confirmAction({
+    title: 'Change a filed year?',
+    detail: problem?.detail || '',
+    yes: problem?.confirm || 'Change it anyway',
+  })
+);
 
 const root = document.getElementById('app');
 loadSession().then((info) => {

@@ -1,8 +1,8 @@
 "# Form 8949 for 2026, from MoolaKata. Every sale and closed option in the tax book's taxable accounts and each physical asset sold, with wash sales found across the filers' accounts and a spouse's. Not covered: anything in accounts left out of the book. The TXF file has no field for a digital asset's box (G to L) or for the C and L codes, so it leaves those rows out: enter them from the CSV. Bitcoin network fees are sales of their sats, the common reading (S8.19)."
 Box,Term,Description,Date acquired,Date sold,Proceeds,Cost basis,Adjustment code,Adjustment,Gain or loss,Account
-A,short,5 VXUS,2026-01-05,2026-02-02,75.00,75.00,,,0.00,Average
+A,short,5 VTIAX,2026-01-05,2026-02-02,75.00,75.00,,,0.00,Average
 A,short,10 NVDA,2026-01-05,2026-02-02,800.00,1000.00,W,200.00,0.00,Chained
-A,short,5 VXUS,2026-01-05,2026-03-02,75.00,75.00,,,0.00,Average
-A,short,10 VXUS,2026-01-06,2026-03-02,150.00,150.00,,,0.00,Average
+A,short,5 VTIAX,2026-01-05,2026-03-02,75.00,75.00,,,0.00,Average
+A,short,10 VTIAX,2026-01-06,2026-03-02,150.00,150.00,,,0.00,Average
 A,short,10 NVDA,2026-02-10,2026-03-02,700.00,1050.00,W,350.00,0.00,Chained
 A,short,1 MSFT 15JAN27 500 C,2025-01-10,2026-03-10,1999.35,1200.65,,,798.70,Written

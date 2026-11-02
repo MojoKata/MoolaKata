@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import access, clock
 from ..projections import taxtables
+from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.taxes import (
     Filing,
@@ -244,10 +245,13 @@ def expected(s: Session, book: TaxBook) -> list[Expected]:
             forms.append(("1099-DA", "a crypto exchange"))
         for form, why in forms:
             out.append(Expected(form, inst, a.id, f"From {a.name}: {why}"))
-    # Last year's received documents are expected again (S8.14.4).
-    prev = previous(s, book)
-    if prev is not None:
-        for d in documents(s, prev):
+    # Last year's received documents are expected again, when the book starts from last year
+    # (S8.14.4).
+    lys = last_years(s, book) if book.fromLastYear else []
+    with scoping.as_server(s, "last year's documents, by filer", expire=False) as srv:
+        kept = [(ly.book, documents(srv, ly.book)) for ly in lys]
+    for prev, docs in kept:
+        for d in docs:
             if d.direction != "received":
                 continue
             if any(
@@ -301,32 +305,112 @@ def accepted(s: Session, book: TaxBook) -> bool:
     return all(f.acceptedAt is not None for f in filers(s, book))
 
 
-def previous(s: Session, book: TaxBook) -> TaxBook | None:
-    """Last year's book of the same filers (or one of them), once every filer of this one has
-    accepted it: nothing of a filer's year before shows until they have (S8.14.1)."""
-    if not accepted(s, book):
-        return None
-    mine = {f.userId for f in filers(s, book)}
+def accepted_on(s: Session, user_id: str, year: int, but: str | None = None) -> TaxBook | None:
+    """The year's book the user is an accepted filer of, `but` one aside: a filer has one book
+    a year (S8.14.1)."""
     for b in s.scalars(
         select(TaxBook)
-        .where(TaxBook.year == book.year - 1, TaxBook.deleted == false())
-        .order_by(TaxBook.createdAt)
+        .join(TaxBookFiler, TaxBookFiler.bookId == TaxBook.id)
+        .where(
+            TaxBook.year == year,
+            TaxBook.deleted == false(),
+            TaxBookFiler.userId == user_id,
+            TaxBookFiler.deleted == false(),
+            TaxBookFiler.acceptedAt.is_not(None),
+        )
     ):
-        if mine & {f.userId for f in filers(s, b)}:
+        if b.id != but:
             return b
     return None
 
 
-def carried_from_last_year(s: Session, book: TaxBook) -> list[tuple[Filing, dict]]:
-    prev = previous(s, book)
-    if prev is None:
+@dataclass
+class LastYear:
+    """One of last year's books, and which of this book's filers it was theirs (S8.17)."""
+
+    book: TaxBook
+    filers: list[str]  # user ids
+    joint: bool  # filed by more filers than this book's who were on it: theirs to split
+
+
+def last_years(s: Session, book: TaxBook) -> list[LastYear]:
+    """Last year's books: for each filer of this one, the book they were an accepted filer of
+    (one book a year each, S8.14.1); one book, or two after filing separately. Nothing until
+    every filer of this one has accepted it: nothing of a filer's year before shows till then."""
+    if not accepted(s, book):
         return []
+    # Read as the server: each filer's own last year is theirs, though the reader (a spouse,
+    # a helper) may never have been shown the other's book.
+    with scoping.as_server(s, "a tax book's last year, by filer", expire=False) as srv:
+        return _last_years(srv, book)
+
+
+def _last_years(s: Session, book: TaxBook) -> list[LastYear]:
+    out: dict[str, LastYear] = {}
+    for f in filers(s, book):
+        b = accepted_on(s, f.userId, book.year - 1)
+        if b is None:
+            continue
+        if b.id not in out:
+            on = [x.userId for x in filers(s, b) if x.acceptedAt is not None]
+            out[b.id] = LastYear(b, [], joint=False)
+            out[b.id].joint = len(on) > 1
+        out[b.id].filers.append(f.userId)
+    for ly in out.values():
+        # Joint last year, but not all its filers on this book: a joint carryover to split.
+        ly.joint = ly.joint and len(ly.filers) < len(
+            [x for x in filers(s, ly.book) if x.acceptedAt is not None]
+        )
+    return sorted(out.values(), key=lambda ly: ly.book.createdAt)
+
+
+def carried_from_last_year(s: Session, book: TaxBook) -> list[tuple[Filing, dict, LastYear]]:
+    """Each of last year's books' carried figures, by filing."""
     out = []
-    for f in filings(s, prev):
+    lys = last_years(s, book)
+    with scoping.as_server(s, "last year's carried figures, by filer", expire=False) as srv:
+        found = [(f, ly) for ly in lys for f in filings(srv, ly.book)]
+    for f, ly in found:
         figures = json.loads(f.carried or "{}")
         if any(figures.get(k) not in (None, "") for k in CARRIED):
-            out.append((f, figures))
+            out.append((f, figures, ly))
     return out
+
+
+def federal_figures(s: Session, book: TaxBook) -> list[tuple[dict, LastYear]]:
+    """Each of last year's books' federal figures as carried: an amended return's, once there
+    is one, else the original's."""
+    out = []
+    lys = last_years(s, book)
+    with scoping.as_server(s, "last year's federal figures, by filer", expire=False) as srv:
+        by_book = {ly.book.id: filings(srv, ly.book) for ly in lys}
+    for ly in lys:
+        federal = [f for f in by_book[ly.book.id] if f.jurisdiction == "federal"]
+        pick = [f for f in federal if f.amendsId] or federal
+        for f in pick[-1:]:
+            out.append((json.loads(f.carried or "{}"), ly))
+    return out
+
+
+def carryover(s: Session, book: TaxBook) -> tuple[Decimal, Decimal, bool]:
+    """The capital-loss carryover into the book (S8.17), short and long: last year's federal
+    returns' summed (joint after separate). A joint return's, filing separately after it, is
+    the filer's to split (S8.18): their share once typed, none until then, and whether it is
+    still to type."""
+    short = long_ = Decimal(0)
+    to_type = False
+    for figures, ly in federal_figures(s, book):
+        if ly.joint:
+            if book.carryoverShareShort is None and book.carryoverShareLong is None:
+                to_type = to_type or bool(
+                    figures.get("capitalLossShort") or figures.get("capitalLossLong")
+                )
+            short += book.carryoverShareShort or Decimal(0)
+            long_ += book.carryoverShareLong or Decimal(0)
+            continue
+        short += Decimal(str(figures.get("capitalLossShort") or 0))
+        long_ += Decimal(str(figures.get("capitalLossLong") or 0))
+    return short, long_, to_type
 
 
 def names(s: Session, ids: list[str]) -> dict[str, str]:

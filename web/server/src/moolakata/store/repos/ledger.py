@@ -44,6 +44,12 @@ class Ledger:
     anchors: list[Anchor]
     imports: list[Import]
     washes: list = field(default_factory=list)  # wash sales touching its trades (S3.8)
+    # The instruments average cost can apply to, funds and coins (S2.3, CR3-387): a share in an
+    # account set to average cost goes first in.
+    averaged: frozenset = frozenset()
+    # Each wash sale's loss sale, by id: its day and making, so its replacement settles right
+    # after it (CR3-388).
+    sale_at: dict = field(default_factory=dict)
 
     def opening(self) -> balances.Opening:
         return balances.opening(self.account, self.transactions, self.anchors)
@@ -61,6 +67,8 @@ class Ledger:
             self.snapshots,
             self.washes,
             basis_added=lots.adds_basis(self.account.type),
+            averaged=self.averaged,
+            sale_at=self.sale_at,
         )
 
 
@@ -102,6 +110,27 @@ def load(s: Session, account: Account, raw: bool = False) -> Ledger:
         if ids_ and not raw
         else []
     )
+    sale_at: dict = {}
+    if washes:
+        wanted = list({w.saleId for w in washes})
+        sale_at = {
+            i: (d, c)
+            for i, d, c in s.execute(
+                select(Transaction.id, Transaction.date, Transaction.createdAt).where(
+                    Transaction.id.in_(wanted)
+                )
+            )
+        }
+    averaged: frozenset = frozenset()
+    if account.lotMethod == "average" or any(x.lotMethod == "average" for x in txns):
+        held = {x.instrumentId for x in txns if x.instrumentId}
+        averaged = frozenset(
+            s.scalars(
+                select(Instrument.id).where(
+                    Instrument.id.in_(held), Instrument.instrumentClass.in_(lots.AVERAGED)
+                )
+            )
+        )
     return Ledger(
         account,
         list(txns),
@@ -111,6 +140,8 @@ def load(s: Session, account: Account, raw: bool = False) -> Ledger:
         list(anchors),
         list(imports),
         list(washes),
+        averaged,
+        sale_at,
     )
 
 
@@ -159,6 +190,14 @@ def class_by_symbol(symbol: str | None) -> str:
     if FUND_SYMBOL.fullmatch(s):
         return "mutual-fund"
     return "equity" if TICKER.fullmatch(s) else "other"
+
+
+def class_named(symbol: str, account_type: str) -> str:
+    """The class of a security named by its symbol alone, typed or on a statement (S2.1,
+    CR3-386): a coin in an exchange's or a wallet's account, else by the symbol's shape."""
+    if atypes.GROUPS.get(account_type) == "crypto":
+        return "crypto"
+    return class_by_symbol(symbol)
 
 
 def instrument(

@@ -31,7 +31,23 @@ child's name.
 ## From last year
 
 What last year's filings carried forward: the AGI needed to sign this year's e-filed return,
-capital-loss and charitable carryovers, and the Form 8606 basis.
+capital-loss and charitable carryovers, and the Form 8606 basis. Each is from the book its filer
+accepted last year, named with whose it was: after filing separately, a joint book shows both,
+and the Summary adds their carryovers and last year's total tax.
+
+## Your share of the joint carryover {#carryover-share}
+
+Filing separately after a joint return: splitting its capital-loss carryover between you is yours
+to decide, as your preparer reads it. None counts in the Summary until your share is typed, and an
+issue asks for it.
+
+## Short-term share {#share-short}
+
+Your part of the joint return's short-term capital-loss carryover.
+
+## Long-term share {#share-long}
+
+Your part of the joint return's long-term capital-loss carryover.
 
 ## Dependents
 

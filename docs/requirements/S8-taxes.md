@@ -69,7 +69,11 @@ produces worksheets and exports. It never files, and says so (R1.16).
     1. **Filers**: one user, or two who are spouses (S10.10.4) on the last day of the year, or
        of whom one died during it. Creating a tax book names the year and the filers. A user
        named as a filer by someone else accepts before the tax book counts their accounts or
-       shows anything from their year before.
+       shows anything from their year before, or **declines**, which takes them off it and
+       tells its owner in Activity. A filer is on one tax book a year: naming one already a
+       filer on a book of the year, or accepting a second, is refused, naming the other
+       (*You're a filer on 2025's tax book with Bob*); an invitation not yet accepted blocks
+       nothing.
     2. **Accounts counted**: the filers' own accounts, each counted once even when the filers
        share it with each other. A filer can add an account they can see (a custodial account
        in a child's name) or leave one out, and the panels say what was left out. An added
@@ -80,9 +84,12 @@ produces worksheets and exports. It never files, and says so (R1.16).
        (S10.3.3). A user who helps prepare the return, such as a grown child or a preparer with
        an account here, gets **write**: they can edit filings, attach documents and resolve
        issues, but not add accounts, delete the tax book or change its sharing.
-    4. **New tax book** copies the filers, accounts and dependents from the year before, and
-       turns last year's received documents into this year's expected ones (S8.16), once every
-       filer of the new book has accepted it.
+    4. **New tax book**, started from last year (a choice it keeps), copies the accounts and
+       dependents from the year before, and turns last year's received documents into this
+       year's expected ones (S8.16), once every filer of the new book has accepted it. Last
+       year's book is, for each filer, the one they were an accepted filer of: one book, or two
+       after filing separately, each copied from. Not started from last year, nothing is
+       copied or expected.
     5. **Dependents**: the people the filers claim for the year, chosen from the household's
        people (S10.10). MoolaKata doesn't decide who qualifies (S8.18); dependents feed the
        panels, the checklist and a few flags.
@@ -128,7 +135,11 @@ produces worksheets and exports. It never files, and says so (R1.16).
     edits*). It stays until a filer or a helper with write adds an amended federal return,
     which settles every change made before it, or chooses **No amendment needed**, which
     settles them with their name and the day. A later edit made anyway, once the year is
-    closed again (S2.8.1), is listed afresh.
+    closed again (S2.8.1), is listed afresh. The tax book also keeps its realized gains by
+    account as they were when the federal return closed the year (filed or accepted, or an
+    amended one filed): a difference from them that no change recorded here explains (a rule
+    corrected since, a backup restored) is listed in the Issues on its own, with the accounts
+    it is in, so the return can be checked.
 16. **Tax documents**: each has its form, who issued it, the account it is for, notes, and
     its file, which is kept as a receipt (S9) with the same storage and protection. One kept
     opens to change any of these, its file given later among them, or to remove it; a filer
@@ -145,9 +156,13 @@ produces worksheets and exports. It never files, and says so (R1.16).
     return: adjusted gross income (needed to sign next year's e-filed return), total tax, the
     refund or amount owed, the overpayment applied, capital-loss carryovers (short and long
     term), the Form 8606 basis, and charitable-contribution carryovers. The next tax book
-    shows them under **From last year**. It also puts the capital-loss carryover in its
-    Summary and the 8606 basis in the backdoor-Roth figures (S8.6), and shows last year's
-    total tax beside the estimated payments.
+    shows them under **From last year**, from each of last year's books (S8.14.4) with whose it
+    was. It also puts the capital-loss carryover in its Summary and the 8606 basis in the
+    backdoor-Roth figures (S8.6), and shows last year's total tax beside the estimated
+    payments: joint after separate, the two returns' carryovers and total tax are added, and
+    each filer's 8606 basis stays their own. Separate after joint, the joint return's figures
+    show marked *joint*; splitting its carryover is the filers' to decide (S8.18), so each book
+    counts the share its filer types, none until then, and its Issues ask for it.
 18. **What MoolaKata does not do**: compute the tax owed, choose a filing status, apply state
     rules, or decide questions of judgement (substantially identical, cost-basis elections).
     It shows the numbers and their sources.

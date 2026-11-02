@@ -85,9 +85,13 @@ class SplitOut(SplitIn):
     version: int
 
 
-class PickIn(Model):
+class PickOut(Model):
+    """How much of a lot a sale takes, picked (S2.3)."""
+
+    id: str
     lotId: str
     quantity: Quantity
+    version: int
 
 
 class TxnOut(Model):
@@ -122,6 +126,7 @@ class TxnOut(Model):
     costBasis: Money | None = None  # a transfer-in's, as typed with it (S2.6)
     leftOutOf: list[str] | None = None  # the budgets it is left out of: on one read alone
     splits: list[SplitOut]
+    picks: list[PickOut] = Field(default_factory=list)  # a sale's lots, picked (S2.3)
     tags: list[str]  # the reader's own, by name
     tagIds: list[str]
     receipts: int
@@ -151,7 +156,6 @@ class TxnIn(Model):
     owedBy: str | None = None
     splits: list[SplitIn] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
-    picks: list[PickIn] = Field(default_factory=list)
 
 
 class Categorise(Model):
@@ -244,6 +248,15 @@ def shape(
             .order_by(Split.id)
         ):
             splits.setdefault(sp.transactionId, []).append(sp)
+    picked: dict[str, list[LotPick]] = {}
+    sales = [t.id for t in rows if t.kind == "sell"]
+    if sales:
+        for p in s.scalars(
+            select(LotPick)
+            .where(LotPick.saleId.in_(sales), LotPick.deleted == false())
+            .order_by(LotPick.id)
+        ):
+            picked.setdefault(p.saleId, []).append(p)
     tagged = _tags(s, user_id, ids_)
     paid = reimbursements.paid_back(s, ids_)
     moved_in = [t.id for t in rows if t.kind == "transfer-in"]
@@ -297,6 +310,7 @@ def shape(
                 paidBack=paid.get(t.id, Decimal(0)),
                 costBasis=bases.get(t.id),
                 splits=[_split_read(x) for x in splits.get(t.id, [])],
+                picks=[_pick_read(x) for x in picked.get(t.id, [])],
                 tags=[x.name for x in tagged.get(t.id, [])],
                 tagIds=[x.id for x in tagged.get(t.id, [])],
                 receipts=len(attached.get(t.id, [])),
@@ -540,19 +554,20 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
         symbol = body.symbol.strip().upper()
         if not symbol or len(symbol) > 32:
             raise refuse("symbol", "symbol-invalid", "Enter a symbol such as VTI.")
-        # A coin typed in a crypto account is crypto, with the 8949 boxes of its own (S8.1).
-        crypto = atypes.GROUPS.get(account.type) == "crypto"
-        return repo.instrument(s, symbol, None, "crypto" if crypto else "equity").id
+        # A coin typed in a crypto account is crypto, with the 8949 boxes of its own (S8.1); a
+        # fund is known by its symbol's shape, as in a file (S2.1).
+        return repo.instrument(s, symbol, None, repo.class_named(symbol, account.type)).id
     return None
 
 
-def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
-    """A transaction made, with its lot, picks, splits and tags; the closed-year question
-    (S2.8) refused unless confirmed, or asked through `ask` for a draft's save."""
+def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
+    """A transaction made, with its lot, splits and tags; the closed-year question (S2.8) is
+    the write's own check, before it commits (`taxes.closed`)."""
     a, held = access.account(s, c.id, body.accountId, "write")
     investing = atypes.investing(a.type)
     _raise(_check(s, body, body.kind, investing))
-    guard = closed.Guard(s, a, confirm, c.id, ask=ask) if investing else None
+    if confirm:
+        closed.confirm(s)
     inst_id = _instrument(s, body, a)
     if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out") and (
         not inst_id or not body.quantity
@@ -604,21 +619,6 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
                 basisMissing=basis is None,
             )
         )
-    picks = getattr(body, "picks", None) or []
-    if body.kind == "sell" and picks:
-        t.lotMethod = "specific"
-        for p in picks:
-            lot = s.get(Lot, p.lotId)
-            if lot is None or lot.accountId != a.id or lot.instrumentId != inst_id:
-                raise refuse("picks", "lot-unknown", "Choose lots of this holding.")
-            s.add(
-                LotPick(
-                    saleId=t.id,
-                    lotId=lot.id,
-                    quantity=p.quantity,
-                    createdAt=clock.now(),
-                )
-            )
     _set_splits(s, t, getattr(body, "splits", None) or [], c.id)
     if getattr(body, "tagIds", None):
         tags.owned(s, c.id, body.tagIds)
@@ -635,8 +635,6 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool, ask=None):
         s.flush()
     if inst_id:
         washes.recompute(s, a.ownerId)
-    if guard is not None:
-        guard.check()
     return t, a, held
 
 
@@ -1084,6 +1082,15 @@ class SplitRecord(Model):
     owedBy: str | None = None
 
 
+class LotPickRecord(Model):
+    """How much of a lot a sale takes, picked (S2.3, specific identification), as a draft
+    saves it: a record of its own, kept with the sale."""
+
+    saleId: IdOf("Txn")  # type: ignore[valid-type]
+    lotId: IdOf("Lot")  # type: ignore[valid-type]
+    quantity: Quantity
+
+
 def _left_out_of(s: Session, c: Caller, t: Transaction) -> list[str]:
     """The budgets the caller sees that leave the transaction out."""
     from ..store.entities.budgets import Budget, BudgetLeaveOut
@@ -1178,7 +1185,7 @@ def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
 
         t = make_trade(ctx, record_id, body)
     else:
-        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False, ask=ctx.ask)
+        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
     ctx.notes.setdefault("transactions-made", set()).add(t.id)
     if body.leftOutOf:
         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
@@ -1254,13 +1261,11 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     if sent - {"leftOutOf", "transferWithId"}:
         a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
         _reconciled(ctx, t)
-        guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
         changed = _change(ctx.s, ctx.caller, t, a, body, sent)
         _changed(ctx.s, ctx.caller, a, changed)
         ctx.s.flush()
         if t.instrumentId:
             washes.recompute(ctx.s, a.ownerId)
-        guard.check()
     if "leftOutOf" in sent:
         _set_left_out(ctx.s, ctx.caller, t, current["leftOutOf"], body.leftOutOf)
     _parts_add_up(ctx, t)
@@ -1269,9 +1274,7 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
 def _txn_delete(ctx, t: Transaction) -> None:
     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
     _reconciled(ctx, t)
-    guard = closed.Guard(ctx.s, a, False, ctx.caller.id, ask=ctx.ask)
     delete_txn(ctx.s, ctx.caller, t, a)
-    guard.check()
 
 
 def _split_txn(ctx, txn_id: str) -> tuple[Transaction, Account]:
@@ -1350,6 +1353,171 @@ def _split_delete(ctx, sp: Split) -> None:
     _parts_add_up(ctx, t)
 
 
+# ---- a sale's lots, picked (S2.3) ----
+
+
+def _pick_sale(ctx, sale_id: str) -> tuple[Transaction, Account]:
+    """The pick's sale, written by the caller."""
+    t = ctx.s.get(Transaction, sale_id)
+    if t is None or t.deleted:
+        raise refuse("saleId", "transaction-unknown", "No such transaction.")
+    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+    if t.kind != "sell" or not t.instrumentId:
+        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+    return t, a
+
+
+def _pick_checked(ctx, body: LotPickRecord) -> tuple[Transaction, Account]:
+    t, a = _pick_sale(ctx, body.saleId)
+    lot = ctx.s.get(Lot, body.lotId)
+    if (
+        lot is None
+        or lot.deleted
+        or lot.accountId != t.accountId
+        or lot.instrumentId != t.instrumentId
+    ):
+        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+    if body.quantity <= 0:
+        raise refuse("quantity", "quantity-invalid", "More than none.")
+    _picks_fit(ctx, t, a)
+    return t, a
+
+
+def _picks_fit(ctx, t: Transaction, a: Account) -> None:
+    """Once every op is in: the lots picked come to no more than the sale, each to no more
+    than the lot held that day; then the household's wash sales are worked out again."""
+
+    def check() -> None:
+        if t.deleted:
+            return
+        picks = list(
+            ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+        )
+        if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+        held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+        for p in picks:
+            if p.quantity > held.get(p.lotId, Decimal(0)):
+                raise refuse("quantity", "pick-over", "More than the lot held that day.")
+        washes.recompute(ctx.s, a.ownerId)
+
+    ctx.verify(f"picks:{t.id}", check)
+
+
+def _pick_create(ctx, record_id: str, body: LotPickRecord) -> None:
+    _pick_checked(ctx, body)
+    ctx.s.add(
+        LotPick(
+            id=record_id,
+            saleId=body.saleId,
+            lotId=body.lotId,
+            quantity=body.quantity,
+            createdAt=clock.now(),
+        )
+    )
+
+
+def _pick_editable(ctx, record_id: str) -> LotPick:
+    p = ctx.s.get(LotPick, record_id)
+    if p is None or p.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _pick_sale(ctx, p.saleId)
+    return p
+
+
+def _pick_current(ctx, p: LotPick) -> dict:
+    return {"saleId": p.saleId, "lotId": p.lotId, "quantity": p.quantity}
+
+
+def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+    if body.saleId != p.saleId or body.lotId != p.lotId:
+        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
+    _pick_checked(ctx, body)
+    p.quantity = body.quantity
+
+
+def _pick_read(p: LotPick) -> PickOut:
+    return PickOut(id=p.id, lotId=p.lotId, quantity=p.quantity, version=p.version)
+
+
+def _pick_delete(ctx, p: LotPick) -> None:
+    t, a = _pick_sale(ctx, p.saleId)
+    p.mark_deleted(ctx.caller.id)
+    _picks_fit(ctx, t, a)
+
+
+class LotChoice(Model):
+    """An open lot a sale may pick from, as held on the sale's day (S2.3)."""
+
+    lotId: str
+    instrumentId: str
+    symbol: str
+    acquiredOn: dt.date
+    quantity: Quantity
+    basis: Money | None
+    longTerm: bool  # if sold that day
+
+
+def lot_choices(
+    s: Session, a: Account, day: dt.date, sale_id: str | None = None
+) -> list[LotChoice]:
+    """The account's open lots at a sale on `day`, before it: what it held from trades up to
+    the day, the sale itself left out; a lot a wash sale split shown whole, as a pick takes
+    every part of it."""
+    led = repo.load(s, a)
+    led.transactions = [t for t in led.transactions if t.date <= day and t.id != sale_id]
+    kept = {t.id for t in led.transactions}
+    led.lots = [x for x in led.lots if x.transactionId is None or x.transactionId in kept]
+    led.picks = [p for p in led.picks if p.saleId in kept]
+    # Wash sales whose loss sale is past by then, this sale's own left out.
+    led.washes = [
+        w
+        for w in led.washes
+        if w.saleId != sale_id
+        and (w.saleId in kept or (w.saleId in led.sale_at and led.sale_at[w.saleId][0] <= day))
+    ]
+    whole: dict[str, list] = {}
+    for lot in led.replay().open:
+        if lot.lotId and lot.quantity > 0:
+            whole.setdefault(lot.lotId, []).append(lot)
+    symbols = {
+        i.id: i.symbol
+        for i in s.scalars(
+            select(Instrument).where(Instrument.id.in_({p[0].instrumentId for p in whole.values()}))
+        )
+    }
+    out = []
+    for lot_id, parts in whole.items():
+        first = parts[0]
+        basis = None if any(p.basis is None for p in parts) else sum(p.basis for p in parts)
+        out.append(
+            LotChoice(
+                lotId=lot_id,
+                instrumentId=first.instrumentId,
+                symbol=symbols.get(first.instrumentId, "?"),
+                acquiredOn=first.acquiredOn,
+                quantity=sum(p.quantity for p in parts),
+                basis=basis,
+                longTerm=all(lots.long_term(p.heldFrom or p.acquiredOn, day) for p in parts),
+            )
+        )
+    return sorted(out, key=lambda c: (c.symbol, c.acquiredOn, c.lotId))
+
+
+@router.get("/accounts/{account_id}/lots", response_model=list[LotChoice])
+def get_lots(
+    account_id: str,
+    request: Request,
+    date: dt.date,
+    saleId: str | None = None,
+    c: Caller = Depends(caller),
+):
+    """The lots a sale on `date` may pick from (S2.3): `saleId` leaves an edited sale out."""
+    with server(request).db.read(user=c.id) as s:
+        a, _ = access.account(s, c.id, account_id)
+        return lot_choices(s, a, date, saleId)
+
+
 save.register(
     save.Kind(
         prefix="Txn",
@@ -1374,5 +1542,18 @@ save.register(
         update=_split_update,
         delete=_split_delete,
         read=lambda ctx, record_id: _split_read(ctx.s.get(Split, record_id)),
+    )
+)
+save.register(
+    save.Kind(
+        prefix="LotPk",
+        entity=LotPick,
+        fields=LotPickRecord,
+        create=_pick_create,
+        editable=_pick_editable,
+        current=_pick_current,
+        update=_pick_update,
+        delete=_pick_delete,
+        read=lambda ctx, record_id: _pick_read(ctx.s.get(LotPick, record_id)),
     )
 )

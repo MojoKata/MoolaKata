@@ -11,7 +11,7 @@ from sqlalchemy import Engine, and_, create_engine, event, false, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import QueuePool
 
-from . import scoping, views
+from . import commit_checks, scoping, views
 
 BUSY_MS = 10_000
 
@@ -116,8 +116,10 @@ class Database:
         with Session(self.engine, expire_on_commit=False, autoflush=True) as s:
             self._scope(s, user, unscoped)
             s.connection(execution_options={"mk_mode": "write"})
+            commit_checks.reset(s)
             try:
                 yield s
+                commit_checks.run(s)
                 s.commit()
             except BaseException:
                 s.rollback()

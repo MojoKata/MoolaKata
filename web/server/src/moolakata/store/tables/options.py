@@ -76,6 +76,8 @@ WashSale = exception(
     "cache: worked out again from the transactions whenever they change (§4.4.5)",
     Column("ownerId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
     Column("saleId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    # The sold lot whose loss it disallows (CR3-390); none on rows worked out before it was kept.
+    Column("lotId", Text, ForeignKey("Lot.id", ondelete="CASCADE")),
     Column("replacementId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("quantity", Dec, nullable=False),  # replacement shares used
     Column("disallowed", Cents, nullable=False),

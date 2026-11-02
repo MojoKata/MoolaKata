@@ -24,8 +24,14 @@ TaxBook = record(
     # Bitcoin network fees on transfers between the owner's own accounts (S8.19): a sale, the
     # default, or not taxed, as a preparer may read them.
     Column("bitcoinFees", Text, nullable=False, server_default=text("'sale'")),
-    # Made from last year's book: what it copies waits until every filer has accepted (S8.14.4).
+    # Made from last year's book (S8.14.4): the choice, kept; and the copy, which waits until
+    # every filer has accepted.
     Column("fromLastYear", Boolean, nullable=False, server_default=text("0")),
+    Column("copyPending", Boolean, nullable=False, server_default=text("0")),
+    # A filer's share of a joint return's capital-loss carryover, filing separately after it
+    # (S8.17, S8.18): theirs to split, counted once typed.
+    Column("carryoverShareShort", Cents),
+    Column("carryoverShareLong", Cents),
     CheckConstraint("\"bitcoinFees\" IN ('sale', 'not-taxed')", name="bitcoin_fees"),
     Index("ix_TaxBook_owner", "ownerId", "year"),
     seen=Seen.rule("tax-book", "TbShr", creates="anyone"),
@@ -119,6 +125,9 @@ Filing = record(
     Column("resultTransactionId", Text, ForeignKey("Transaction.id", ondelete="SET NULL")),
     # Figures next year needs, typed from the return as filed (S8.17), as JSON.
     Column("carried", Text, nullable=False, server_default=text("'{}'")),
+    # A federal return that closed its year: the book's realized gains by account then, and
+    # when, as JSON (S2.8, S8.15): what later changes are measured from.
+    Column("filedGains", Text),
     CheckConstraint("jurisdiction IN ('federal', 'state', 'local')", name="jurisdiction"),
     CheckConstraint(
         "progress IN ('not started', 'in progress', 'filed', 'accepted', 'rejected')",

@@ -333,14 +333,16 @@ def _bare(record: dict) -> dict:
 
 def make(c, entity: str, confirm: bool = False, **fields) -> Made:
     """A record made as its form's draft makes it, with the records that come with it: a
-    transaction's parts (`splits`) and tags by name (`tags`), a rule's tags by name, a filing's
-    estimated payments (`payments`), a gift plan's new person and occasions."""
+    transaction's parts (`splits`), a sale's lots picked (`picks`, each a lotId and quantity)
+    and tags by name (`tags`), a rule's tags by name, a filing's estimated payments
+    (`payments`), a gift plan's new person and occasions."""
     first = new_id(entity)
     before, after, read = [], [], None
     if entity in ("Txn", "Rule") and "tags" in fields:
         fields["tagIds"] = [tag(c, name) for name in fields.pop("tags") or []]
     if entity == "Txn":
         after += [_op("Split", {"transactionId": first, **p}) for p in fields.pop("splits", [])]
+        after += [_op("LotPk", {"saleId": first, **p}) for p in fields.pop("picks", [])]
     if entity == "Filng":
         after += [_op("EstPy", {"filingId": first, **p}) for p in fields.pop("payments", [])]
     if entity == "Bdgt":

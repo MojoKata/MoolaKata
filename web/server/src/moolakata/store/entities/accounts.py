@@ -349,6 +349,7 @@ class WashSale:
     disallowed: Decimal
     heldFrom: dt.date
     createdAt: dt.datetime
+    lotId: str | None = None  # the sold lot whose loss it disallows (CR3-390)
 
 
 @dataclass(kw_only=True, eq=False)

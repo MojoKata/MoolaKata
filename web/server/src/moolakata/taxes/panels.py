@@ -68,6 +68,7 @@ class Row:
     saleId: str | None = None
     instrumentId: str | None = None
     quantity: Decimal | None = None
+    accountId: str | None = None
 
     @property
     def gain(self) -> Decimal | None:
@@ -173,6 +174,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 longTerm=d.longTerm,
                 box=box_of(d.longTerm, inst.instrumentClass, a.type, d.acquiredOn, book.year),
                 account=a.name,
+                accountId=a.id,
                 saleId=d.saleId,
                 instrumentId=inst.id,
                 quantity=d.quantity,
@@ -182,7 +184,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
             rows.append(row)
     if book.bitcoinFees == "not-taxed":
         rows = [r for r in rows if not _own_transfer_fee(s, r.saleId)]
-    washes_ = _stored_washes(s, book, losses)
+    washes_ = _stored_washes(s, book, losses, {a.id for a in counted})
     washes_ += _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
     rows += _items(s, counted, first, last)
     return rows, washes_
@@ -197,29 +199,60 @@ def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
     return out is not None and out.transferId is not None
 
 
-def _stored_washes(s: Session, book: TaxBook, losses: dict[str, Decimal]) -> list[Wash]:
+def _stored_washes(
+    s: Session, book: TaxBook, losses: dict[str, Decimal], counted: set[str]
+) -> list[Wash]:
+    """The book's wash sales: of the sales in the accounts it counts (CR3-393), read together
+    (one query for each kind of record, however many there are: the walk's decision 3.6)."""
     from .. import washes
 
     first, last = _span(book.year)
     who = [f.userId for f in books.filers(s, book) if f.acceptedAt is not None]
+    found = washes.for_users(s, who, first, last)
+    if not found:
+        return []
+    wanted = {w.saleId for w in found} | {w.replacementId for w in found}
+    txns = {t.id: t for t in s.scalars(select(Transaction).where(Transaction.id.in_(wanted)))}
+    lots_by = {
+        x.transactionId: x
+        for x in s.scalars(
+            select(Lot).where(Lot.transactionId.in_({w.replacementId for w in found}))
+        )
+    }
+    accts = {
+        a.id: a
+        for a in s.scalars(
+            select(Account).where(Account.id.in_({t.accountId for t in txns.values()}))
+        )
+    }
+    insts = {
+        i.id: i
+        for i in s.scalars(
+            select(Instrument).where(Instrument.id.in_({t.instrumentId for t in txns.values()}))
+        )
+    }
     out = []
-    for w in washes.for_users(s, who, first, last):
-        sale = s.get(Transaction, w.saleId)
-        repl = s.get(Transaction, w.replacementId)
-        inst = s.get(Instrument, sale.instrumentId)
-        lot = s.scalars(select(Lot).where(Lot.transactionId == repl.id)).first()
+    for w in found:
+        sale, repl = txns[w.saleId], txns[w.replacementId]
+        if sale.accountId not in counted:
+            continue
+        lot = lots_by.get(repl.id)
+        into = accts[repl.accountId]
         basis = None
         if lot is not None and lot.costBasis is not None and lot.quantity:
-            basis = (lot.costBasis * w.quantity / lot.quantity).quantize(CENT) + w.disallowed
+            basis = (lot.costBasis * w.quantity / lot.quantity).quantize(CENT)
+            # In an IRA the loss is lost for good, never added (S3.8.3).
+            if lots.adds_basis(into.type):
+                basis += w.disallowed
         out.append(
             Wash(
                 sale.date,
-                inst.symbol,
-                s.get(Account, sale.accountId).name,
+                insts[sale.instrumentId].symbol,
+                accts[sale.accountId].name,
                 losses.get(sale.id, w.disallowed),
                 w.disallowed,
                 repl.date,
-                s.get(Account, repl.accountId).name,
+                into.name,
                 w.quantity,
                 basis,
             )
@@ -335,6 +368,7 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
                 longTerm=long_term,
                 box="F" if long_term else "C",
                 account=a.name,
+                accountId=a.id,
                 collectable=collectable,
             )
         )
@@ -363,12 +397,7 @@ def schedule_d(s: Session, book: TaxBook, rows: list[Row]) -> ScheduleD:
         t[1] += r.basis or ZERO
         t[2] += r.adjustment
         t[3] += r.gain or ZERO
-    carried = books.carried_from_last_year(s, book)
-    short = long_ = ZERO
-    for f, figures in carried:
-        if f.jurisdiction == "federal":
-            short = Decimal(str(figures.get("capitalLossShort") or 0))
-            long_ = Decimal(str(figures.get("capitalLossLong") or 0))
+    short, long_, _ = books.carryover(s, book)
     return ScheduleD(
         byBox={k: tuple(v) for k, v in sorted(by.items())},
         shortTerm=sum((r.gain or ZERO for r in rows if not r.longTerm), ZERO),
@@ -413,7 +442,8 @@ def income(s: Session, book: TaxBook) -> Income:
             elif t.kind == "capital-gain":
                 divs["capital-gain"] += t.amount
                 by_payer[payer] += t.amount
-            elif t.kind == "dividend" or (t.kind == "reinvest" and t.dividendType):
+            elif t.kind in ("dividend", "reinvest"):
+                # A reinvested dividend is a dividend too, ordinary unless typed (CR3-392).
                 amount = t.amount if t.kind == "dividend" else -t.amount
                 divs[t.dividendType or "ordinary"] += amount
                 by_payer[payer] += amount
@@ -578,10 +608,14 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         totals[(c.ownerId, c.group)] += c.contributed
     for c in contributions:
         c.personTotal = totals[(c.ownerId, c.group)]
-    basis = None
-    for f, figs in books.carried_from_last_year(s, book):
-        if f.jurisdiction == "federal" and figs.get("basis8606"):
-            basis = Decimal(str(figs["basis8606"]))
+    # The 8606 basis is a person's own (S8.6): one book's, or none summed across two filers'
+    # books; *From last year* shows each.
+    bases = [
+        Decimal(str(figs["basis8606"]))
+        for figs, _ in books.federal_figures(s, book)
+        if figs.get("basis8606")
+    ]
+    basis = bases[0] if len(bases) == 1 else None
     return Retirement(contributions, distributions, rmds, basis)
 
 
@@ -870,6 +904,16 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
     out = []
     if changed := changed_after_filing(s, book):
         out.append(Issue("changed-after-filing", changed))
+    if differs := differs_from_filed(s, book, rows):
+        out.append(Issue("differs-from-filed", differs))
+    if books.carryover(s, book)[2]:
+        out.append(
+            Issue(
+                "carryover-share",
+                f"Type your share of {book.year - 1}'s joint return's capital-loss carryover: "
+                "splitting it is yours to decide, and none counts until it is typed.",
+            )
+        )
     counted = books.counted(s, book)
     for a in counted.leftOut:
         out.append(Issue("left-out", f"{a.name} is left out of this tax book."))
@@ -974,6 +1018,25 @@ def changed_after_filing(s: Session, book: TaxBook) -> str | None:
     return (
         f"Realized gains changed by {sign}${abs(total):,.2f} after the federal return was "
         f"filed: {where}"
+    )
+
+
+def differs_from_filed(s: Session, book: TaxBook, rows: list[Row]) -> str | None:
+    """A difference from the gains as filed that no change made here explains (S8.15): a rule
+    corrected since, or a backup restored, say. Listed so the return can be checked."""
+    live: dict[str, Decimal] = defaultdict(Decimal)
+    for r in rows:
+        if r.accountId:
+            live[r.accountId] += r.gain or Decimal(0)
+    off = closed.unexplained(s, book, dict(live))
+    if not off:
+        return None
+    total = sum(off.values(), Decimal(0))
+    names = ", ".join(sorted(s.get(Account, a).name for a in off))
+    sign = "-" if total < 0 else "+"
+    return (
+        f"Realized gains differ by {sign}${abs(total):,.2f} from those when the federal return "
+        f"was filed, by no change made here: {names}"
     )
 
 
