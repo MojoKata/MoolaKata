@@ -198,3 +198,21 @@ guards the rest), then 6 (with the closed date and portfolio returns), 3, 7 and 
    key also carries the database (a number per engine opened), for a copy opened in the same
    process. `test_review.py`'s kept-month test asserted the blind spot (a write outside the
    ORM unseen until Refresh); it moved to `test_data_version.py`, asserting the write is seen.
+2. **Decision 6** (`cab058c`, `2eb25a1`): as decided and revised, with these notes.
+   1. The closed date replaces `active` (migration 0046: an account already closed takes the
+      day of its last transaction). Statement retention reads the closed date itself.
+   2. `Members` gives the accounts a budget counts in each month, for a viewer; every budget
+      figure asks it per month. A closed account counts up to the month it closed.
+   3. A budget's accounts became records of their own (`BdgAc`, migration 0047), saved on
+      their own and read from `/budgets/{id}/accounts`; the budget record lost `accountIds`
+      and `roles`, following the user's rule that the API follows the schema. The settings
+      dialog adds or ends records from a month chosen. A new item, S7.1.7, says it.
+   4. The other half's account type is read as a column too: cash taken out to a cash account
+      the viewer can't see still counts as *Cash* for them, as for the owner (the type shows
+      no balance); a loan they can't see counts whole.
+   5. Found while building: CR3-377 (an account taken out erased past months), CR3-378 (a
+      receiver dropped transfers to accounts they can't see), CR3-379 (a reviewed month's
+      unplanned spending unflagged).
+   6. The mockup had no budget settings dialog; it has one now, on the MOCK menu, showing an
+      account taken out and *The change counts from*.
+
