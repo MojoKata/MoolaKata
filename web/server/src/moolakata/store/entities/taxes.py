@@ -12,7 +12,10 @@ class TaxBook(Record):
     ownerId: str
     year: int
     bitcoinFees: str = "sale"
-    fromLastYear: bool = False
+    fromLastYear: bool = False  # the choice made (S8.14.4)
+    copyPending: bool = False  # the copy from last year, waiting for every filer
+    carryoverShareShort: Decimal | None = None  # a joint carryover's share, typed (S8.18)
+    carryoverShareLong: Decimal | None = None
 
     @property
     def name(self) -> str:

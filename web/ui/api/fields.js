@@ -49,6 +49,8 @@ export const FIELDS = {
     filers: {"type": "list", "items": {"type": "ref", "prefix": "User"}, "set": true},
     fromLastYear: {"type": "bool"},
     bitcoinFees: {"type": "choice", "choices": ["sale", "not-taxed"]},
+    carryoverShareShort: {"type": "money", "nullable": true},
+    carryoverShareLong: {"type": "money", "nullable": true},
   },
   BudgetAccountRecord: {
     budgetId: {"type": "ref", "prefix": "Bdgt"},

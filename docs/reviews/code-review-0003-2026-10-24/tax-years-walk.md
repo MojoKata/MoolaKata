@@ -163,7 +163,7 @@ tests take and on running them in parallel on GitHub.
    acquired, Treas. Reg. §1.1091-1(c); each wash sale keeps its sold lot, `WashSale.lotId`,
    migration 0049, so its **W** stays on that lot's rows and terms). CR3-26 fixed with
    CR3-389. Every world passes, picks on.
-3. **Decision 1, built** (`COMMITD1`). Deviations and details:
+3. **Decision 1, built** (`c9f1771`). Deviations and details:
    1. The check is `taxes.closed.check`, registered with `store.commit_checks`, which
       `Database.tx` runs before every commit. What a write touched is noted on its connection
       (`before_flush`), so the server's work inside it (`as_server`) is seen too; only fields
@@ -190,3 +190,19 @@ tests take and on running them in parallel on GitHub.
       can works out its household's closed book twice. Left out of the matrix: *both real* and a
       matched transfer (the same check sees them; their own setups to come), a Connection's
       file (the background import's path).
+4. **Decision 2, built** (`COMMITD2`). `books.last_years` gives, for each filer, the book they
+   accepted; `carried_from_last_year`, `federal_figures` (an amended return's, once filed),
+   `carryover` and the expected documents read it. Details:
+   1. The choice to start from last year is kept (`fromLastYear`), the copy waiting for every
+      filer apart (`copyPending`); the share of a joint carryover is the book's
+      (`carryoverShareShort`/`Long`), all in migration 0051, saved through the book's record.
+   2. Decline (`POST /tax-books/{id}/decline`) takes the filer off and records
+      `tax-book.declined` in the owner's Activity (*tells its owner*), not an alert.
+   3. With two of last year's books, the retirement panel's single 8606 basis is none: each
+      filer's shows under *From last year*.
+   4. Tests (`test_last_year.py`): every 2025 arrangement (none, alone, separate, joint, joint
+      with a filer pending, filing alone while invited, deleted) against every 2026 one (alone,
+      separate, joint), the switch on and off: 42 cases, each holding *From last year*, the
+      carryovers, last year's tax and the expected documents to the books the filers
+      accepted; the share once typed; one book a year and Decline. The mockup gains
+      *Taxes · filing separately after a joint return* and *named on a book: Accept or Decline*.

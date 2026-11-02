@@ -5,7 +5,7 @@ carry forward, and tax documents received and filed, against the documents expec
 import datetime as dt
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import Field
 from sqlalchemy import false, select
 
@@ -173,12 +173,14 @@ def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
         )
     if body.bitcoinFees not in ("sale", "not-taxed"):
         raise refuse("bitcoinFees", "choice-invalid", "A sale, or not taxed.")
+    _one_a_year(s, c.id, body.year, "filers")
     b = TaxBook(
         id=book_id,
         ownerId=c.id,
         year=body.year,
         bitcoinFees=body.bitcoinFees,
         fromLastYear=body.fromLastYear,
+        copyPending=body.fromLastYear,
     )
     s.add(b)
     s.flush()
@@ -198,32 +200,48 @@ def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
     return b, left
 
 
+def _one_a_year(s, user_id: str, year: int, field: str, but: str | None = None) -> None:
+    """A filer is on one book a year (S8.14.1): a named invitation not yet accepted blocks
+    nothing."""
+    other = books.accepted_on(s, user_id, year, but)
+    if other is not None:
+        fs = _filers(s, other)
+        with_ = [f.name.split(" ")[0] for f in fs if f.id != user_id]
+        whose = f" with {' and '.join(with_)}" if with_ else ""
+        raise refuse(field, "filer-has-a-book", f"You're a filer on {year}'s tax book{whose}.")
+
+
 def _from_last_year(s, b: TaxBook, now: dt.datetime) -> list[str]:
-    """What a new book copies from last year's (S8.14.4): its accounts added or left out, and
-    its dependents a year older, once every filer has accepted the new book; until then it
-    waits. The names of the dependents it left out."""
-    if not b.fromLastYear or not books.accepted(s, b):
+    """What a new book copies from last year's (S8.14.4): their accounts added or left out,
+    and their dependents a year older, from each of last year's books (two after filing
+    separately), once every filer has accepted the new book; until then it waits. The names of
+    the dependents it left out."""
+    if not b.copyPending or not books.accepted(s, b):
         return []
-    b.fromLastYear = False
-    prev = books.previous(s, b)
-    if prev is None:
-        return []
-    for o in s.scalars(
-        select(TaxBookAccount).where(
-            TaxBookAccount.bookId == prev.id, TaxBookAccount.deleted == false()
-        )
-    ):
-        s.add(
-            TaxBookAccount(
-                bookId=b.id,
-                accountId=o.accountId,
-                counted=o.counted,
-                addedById=o.addedById,
-                createdAt=now,
+    b.copyPending = False
+    left: list[str] = []
+    have = set()
+    for ly in books.last_years(s, b):
+        for o in s.scalars(
+            select(TaxBookAccount).where(
+                TaxBookAccount.bookId == ly.book.id, TaxBookAccount.deleted == false()
             )
-        )
-    s.flush()
-    return dependents.carry_over(s, prev, b, now)
+        ):
+            if o.accountId in have:
+                continue
+            have.add(o.accountId)
+            s.add(
+                TaxBookAccount(
+                    bookId=b.id,
+                    accountId=o.accountId,
+                    counted=o.counted,
+                    addedById=o.addedById,
+                    createdAt=now,
+                )
+            )
+        s.flush()
+        left += [n for n in dependents.carry_over(s, ly.book, b, now) if n not in left]
+    return left
 
 
 @router.post("/tax-books/{book_id}/accept", response_model=BookRow)
@@ -240,6 +258,11 @@ def accept(book_id: str, request: Request, c: Caller = Depends(caller)):
         ).first()
         if f is None:
             raise Problem(404, "not-found", "Not found")
+        book = s.scalars(
+            scoping.unscoped(select(TaxBook.year).where(TaxBook.id == book_id), "its year")
+        ).first()
+        if book is not None and f.acceptedAt is None:
+            _one_a_year(s, c.id, book, "bookId", but=book_id)
         f.acceptedAt = f.acceptedAt or clock.now()
         s.flush()
         b = s.get(TaxBook, book_id)  # theirs now, as a filer's
@@ -248,6 +271,37 @@ def accept(book_id: str, request: Request, c: Caller = Depends(caller)):
         _from_last_year(s, b, clock.now())
         s.flush()
         return _row(s, b, access.perms(s, TaxBook, b.id, c.id) or access.OWNER)
+
+
+@router.post("/tax-books/{book_id}/decline", status_code=204)
+def decline(book_id: str, request: Request, c: Caller = Depends(caller)):
+    """A filer named by someone else declines (S8.14.1): they are taken off the book, which
+    stays its owner's, and its owner is told in Activity."""
+    with server(request).db.tx(user=c.id) as s:
+        f = s.scalars(
+            select(TaxBookFiler).where(
+                TaxBookFiler.bookId == book_id,
+                TaxBookFiler.userId == c.id,
+                TaxBookFiler.deleted == false(),
+                TaxBookFiler.acceptedAt.is_(None),
+            )
+        ).first()
+        if f is None:
+            raise Problem(404, "not-found", "Not found")
+        with scoping.as_server(s, "a filer declines a tax book") as srv:
+            row = srv.get(TaxBookFiler, f.id)
+            book = srv.get(TaxBook, book_id)
+            row.mark_deleted(c.id)
+            activity.record(
+                srv,
+                "tax-book.declined",
+                actor=c.id,
+                subject_kind="tax-book",
+                subject_id=book_id,
+                owner=book.ownerId,
+                detail={"year": book.year},
+            )
+    return Response(status_code=204)
 
 
 # ---- A book in full ----
@@ -356,6 +410,8 @@ class ExpectedOut(Model):
 class LastYear(Model):
     filing: str
     figures: CarriedView
+    filers: str  # whose book it was, of this book's filers (S8.17)
+    joint: bool  # a joint return's, split between its filers (S8.18)
 
 
 class DependentOut(Model):
@@ -384,6 +440,10 @@ class Form8615Out(Model):
 
 class BookDetail(BookRow):
     bitcoinFees: str  # network fees on own transfers: sale or not-taxed (S8.19)
+    fromLastYear: bool  # started from last year: its documents are expected again (S8.14.4)
+    # A filer's share of last year's joint return's capital-loss carryover (S8.18), typed.
+    carryoverShareShort: Money | None
+    carryoverShareLong: Money | None
     dependents: list[DependentOut]
     form8615: list[Form8615Out]  # dependent children past the year's threshold
     claimedElsewhere: list[str]  # the book's filers claimed on another book of the year
@@ -538,6 +598,9 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
     return BookDetail(
         **base.model_dump(),
         bitcoinFees=b.bitcoinFees,
+        fromLastYear=b.fromLastYear,
+        carryoverShareShort=b.carryoverShareShort,
+        carryoverShareLong=b.carryoverShareLong,
         dependents=[_dependent(d) for d in deps],
         form8615=[
             Form8615Out(**f.__dict__) for f in dependents.form_8615(s, b, deps, cnt.accounts)
@@ -564,8 +627,10 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
                 figures=CarriedView(
                     **{k: v for k, v in figures.items() if k in Carried.model_fields}
                 ),
+                filers=" and ".join(books.names(s, ly.filers)[u] for u in ly.filers),
+                joint=ly.joint,
             )
-            for f, figures in books.carried_from_last_year(s, b)
+            for f, figures, ly in books.carried_from_last_year(s, b)
         ],
         federalDue=books.federal_due(s, b.year),
     )
@@ -1078,6 +1143,10 @@ class BookRecord(Model):
     )
     fromLastYear: bool = True
     bitcoinFees: Literal["sale", "not-taxed"] = "sale"
+    # A filer's share of last year's joint return's capital-loss carryover, filing separately
+    # (S8.17, S8.18): typed, the Summary counts it.
+    carryoverShareShort: Money | None = None
+    carryoverShareLong: Money | None = None
 
 
 class DependentRecord(DependentIn):
@@ -1107,7 +1176,8 @@ def _book_current(ctx, b: TaxBook) -> dict:
         f.userId for f in ctx.s.scalars(select(TaxBookFiler).where(TaxBookFiler.bookId == b.id))
     ]
     return {"year": b.year, "filers": filers, "fromLastYear": b.fromLastYear,
-            "bitcoinFees": b.bitcoinFees}  # fmt: skip
+            "bitcoinFees": b.bitcoinFees, "carryoverShareShort": b.carryoverShareShort,
+            "carryoverShareLong": b.carryoverShareLong}  # fmt: skip
 
 
 def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
@@ -1118,6 +1188,11 @@ def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
         if getattr(body, fixed) != current[fixed]:
             raise refuse(fixed, "book-fixed", "A book keeps its year and filers.")
     b.bitcoinFees = body.bitcoinFees
+    for share in ("carryoverShareShort", "carryoverShareLong"):
+        v = getattr(body, share)
+        if v is not None and v < 0:
+            raise refuse(share, "amount-invalid", "A loss carried over, as a positive amount.")
+        setattr(b, share, v)
     b.updatedAt = clock.now()
 
 

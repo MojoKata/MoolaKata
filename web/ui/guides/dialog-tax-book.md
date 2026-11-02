@@ -9,12 +9,14 @@ The tax year.
 ## Filing jointly
 
 With your spouse (from your relationships in Profile), married on the last day of the year. They're
-asked to accept before the book counts their accounts.
+asked to accept before the book counts their accounts, or may decline. Each filer is on one book a
+year: one already a filer on a book of the year can't be named on another, nor accept one.
 
 ## Start from last year
 
 Copies last year's accounts left out or added and its dependents, a year older, and makes its
-received documents this year's expected ones. A dependent now past a qualifying child's age, and not
+received documents this year's expected ones: from each filer's own book, both after filing
+separately. Off, none of it is copied or expected. A dependent now past a qualifying child's age, and not
 claimed as a relative, is left out and named.
 
 ## Bitcoin network fees {#bitcoin-fees}

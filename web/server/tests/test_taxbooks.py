@@ -320,12 +320,12 @@ def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adde
 
     with server.db.read(unscoped="test") as s:
         assert s.query(TaxBookAccount).filter_by(bookId=joint["id"]).count() == 0
-        assert s.get(TaxBook, joint["id"]).fromLastYear
+        assert s.get(TaxBook, joint["id"]).copyPending
     assert bob.post(f"/ui/api/tax-books/{joint['id']}/accept").status_code == 200
     with server.db.read(unscoped="test") as s:
         copied = s.query(TaxBookAccount).filter_by(bookId=joint["id"]).one()
         assert copied.accountId == kid["id"] and copied.addedById == b_id
-        assert not s.get(TaxBook, joint["id"]).fromLastYear
+        assert not s.get(TaxBook, joint["id"]).copyPending
     # Bob's added account counts in his own 2025 book only while he can see it.
     share(alice, "account", kid["id"], users={b_id: "none"})
     d = bob.get(f"/ui/api/tax-books/{last['id']}").json()

@@ -248,10 +248,12 @@ def _build(s, b) -> Panels:
     tags, quarters = panels.deductions(s, b)
     gifts_ = panels.giving_panel(s, b)
     flagged, elections = panels.gifts_panel(s, b)
+    # Last year's total tax beside the estimated payments (S8.17): two returns' summed, joint
+    # after separate.
     last_tax = None
-    for f, figures in books.carried_from_last_year(s, b):
-        if f.jurisdiction == "federal" and figures.get("totalTax"):
-            last_tax = Decimal(str(figures["totalTax"]))
+    for figures, _ in books.federal_figures(s, b):
+        if figures.get("totalTax"):
+            last_tax = (last_tax or Decimal(0)) + Decimal(str(figures["totalTax"]))
 
     def donation(g) -> DonationRow:
         return DonationRow(

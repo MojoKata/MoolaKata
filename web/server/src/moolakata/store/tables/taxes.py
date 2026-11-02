@@ -24,8 +24,14 @@ TaxBook = record(
     # Bitcoin network fees on transfers between the owner's own accounts (S8.19): a sale, the
     # default, or not taxed, as a preparer may read them.
     Column("bitcoinFees", Text, nullable=False, server_default=text("'sale'")),
-    # Made from last year's book: what it copies waits until every filer has accepted (S8.14.4).
+    # Made from last year's book (S8.14.4): the choice, kept; and the copy, which waits until
+    # every filer has accepted.
     Column("fromLastYear", Boolean, nullable=False, server_default=text("0")),
+    Column("copyPending", Boolean, nullable=False, server_default=text("0")),
+    # A filer's share of a joint return's capital-loss carryover, filing separately after it
+    # (S8.17, S8.18): theirs to split, counted once typed.
+    Column("carryoverShareShort", Cents),
+    Column("carryoverShareLong", Cents),
     CheckConstraint("\"bitcoinFees\" IN ('sale', 'not-taxed')", name="bitcoin_fees"),
     Index("ix_TaxBook_owner", "ownerId", "year"),
     seen=Seen.rule("tax-book", "TbShr", creates="anyone"),

@@ -366,12 +366,7 @@ def schedule_d(s: Session, book: TaxBook, rows: list[Row]) -> ScheduleD:
         t[1] += r.basis or ZERO
         t[2] += r.adjustment
         t[3] += r.gain or ZERO
-    carried = books.carried_from_last_year(s, book)
-    short = long_ = ZERO
-    for f, figures in carried:
-        if f.jurisdiction == "federal":
-            short = Decimal(str(figures.get("capitalLossShort") or 0))
-            long_ = Decimal(str(figures.get("capitalLossLong") or 0))
+    short, long_, _ = books.carryover(s, book)
     return ScheduleD(
         byBox={k: tuple(v) for k, v in sorted(by.items())},
         shortTerm=sum((r.gain or ZERO for r in rows if not r.longTerm), ZERO),
@@ -581,10 +576,14 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         totals[(c.ownerId, c.group)] += c.contributed
     for c in contributions:
         c.personTotal = totals[(c.ownerId, c.group)]
-    basis = None
-    for f, figs in books.carried_from_last_year(s, book):
-        if f.jurisdiction == "federal" and figs.get("basis8606"):
-            basis = Decimal(str(figs["basis8606"]))
+    # The 8606 basis is a person's own (S8.6): one book's, or none summed across two filers'
+    # books; *From last year* shows each.
+    bases = [
+        Decimal(str(figs["basis8606"]))
+        for figs, _ in books.federal_figures(s, book)
+        if figs.get("basis8606")
+    ]
+    basis = bases[0] if len(bases) == 1 else None
     return Retirement(contributions, distributions, rmds, basis)
 
 
@@ -875,6 +874,14 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
         out.append(Issue("changed-after-filing", changed))
     if differs := differs_from_filed(s, book, rows):
         out.append(Issue("differs-from-filed", differs))
+    if books.carryover(s, book)[2]:
+        out.append(
+            Issue(
+                "carryover-share",
+                f"Type your share of {book.year - 1}'s joint return's capital-loss carryover: "
+                "splitting it is yours to decide, and none counts until it is typed.",
+            )
+        )
     counted = books.counted(s, book)
     for a in counted.leftOut:
         out.append(Issue("left-out", f"{a.name} is left out of this tax book."))

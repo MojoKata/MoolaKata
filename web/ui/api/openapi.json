@@ -2053,6 +2053,36 @@
             "title": "Bitcoinfees",
             "type": "string"
           },
+          "carryoverShareLong": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carryoversharelong"
+          },
+          "carryoverShareShort": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carryovershareshort"
+          },
           "claimedElsewhere": {
             "items": {
               "type": "string"
@@ -2100,6 +2130,10 @@
             "title": "Form8615",
             "type": "array"
           },
+          "fromLastYear": {
+            "title": "Fromlastyear",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -2146,6 +2180,9 @@
           "label",
           "version",
           "bitcoinFees",
+          "fromLastYear",
+          "carryoverShareShort",
+          "carryoverShareLong",
           "dependents",
           "form8615",
           "claimedElsewhere",
@@ -2173,6 +2210,38 @@
             ],
             "title": "Bitcoinfees",
             "type": "string"
+          },
+          "carryoverShareLong": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Carryoversharelong"
+          },
+          "carryoverShareShort": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Carryovershareshort"
           },
           "filers": {
             "items": {
@@ -11119,14 +11188,24 @@
           "figures": {
             "$ref": "#/components/schemas/CarriedView"
           },
+          "filers": {
+            "title": "Filers",
+            "type": "string"
+          },
           "filing": {
             "title": "Filing",
             "type": "string"
+          },
+          "joint": {
+            "title": "Joint",
+            "type": "boolean"
           }
         },
         "required": [
           "filing",
-          "figures"
+          "figures",
+          "filers",
+          "joint"
         ],
         "title": "LastYear",
         "type": "object"
@@ -18157,6 +18236,7 @@
               "file-empty",
               "file-pruned",
               "filed-on-missing",
+              "filer-has-a-book",
               "filers-invalid",
               "filers-only",
               "filing-fixed",
@@ -18613,6 +18693,7 @@
                   "file-empty",
                   "file-pruned",
                   "filed-on-missing",
+                  "filer-has-a-book",
                   "filers-invalid",
                   "filers-only",
                   "filing-fixed",
@@ -37227,6 +37308,38 @@
           }
         },
         "summary": "Accept",
+        "tags": [
+          "taxes"
+        ]
+      }
+    },
+    "/ui/api/tax-books/{book_id}/decline": {
+      "post": {
+        "description": "A filer named by someone else declines (S8.14.1): they are taken off the book, which\nstays its owner's, and its owner is told in Activity.",
+        "operationId": "decline_ui_api_tax_books__book_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Decline",
         "tags": [
           "taxes"
         ]
