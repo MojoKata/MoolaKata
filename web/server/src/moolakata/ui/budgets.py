@@ -80,6 +80,7 @@ class MonthRow(Model):
     heldInId: str | None
     balance: Money | None  # a reserve's, at the month's end
     putIn: Money
+    unbacked: Money  # an envelope's card spending beyond what it held (S7.13.2)
 
 
 class ReserveHeld(Model):

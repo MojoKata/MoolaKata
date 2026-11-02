@@ -423,6 +423,9 @@ class Row:
     heldInId: str | None = None
     balance: Decimal | None = None  # a reserve's, at the month's end
     putIn: Decimal = ZERO  # this month's own: its plan, what was assigned, a reserve's deposit
+    # An envelope's spending on a card beyond what it held: owed on the card, not backed, and
+    # never out of the envelope (S7.13.2); its row's spending and this are the category's.
+    unbacked: Decimal = ZERO
 
 
 @dataclass
@@ -550,6 +553,7 @@ def _month_view(
                     heldInId=ln.heldInId,
                     balance=e.balance if ln.target is not None else None,
                     putIn=e.assigned,
+                    unbacked=e.unbacked,
                     projectionId=ln.projectionId,
                     projection=plan.monthly_contribution(s, ln.projectionId)
                     if ln.projectionId

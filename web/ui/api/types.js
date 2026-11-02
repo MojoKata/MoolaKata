@@ -2129,6 +2129,7 @@
  * @property {(string | null)} heldInId
  * @property {(import('../app/dec.js').Dec | null)} balance
  * @property {import('../app/dec.js').Dec} putIn
+ * @property {import('../app/dec.js').Dec} unbacked
  */
 
 /**

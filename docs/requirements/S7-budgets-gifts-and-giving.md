@@ -108,7 +108,9 @@
        envelope): what it **carried** in, what it **put in** (its plan, what was assigned, a
        reserve's deposit), what was **moved** in or out, what was **spent**, and what
        **remains**, always remains = carried + put in + moved − spent; what was **available**
-       is carried + put in + moved. A yearly line's moves are the year's so far.
+       is carried + put in + moved. A yearly line's moves are the year's so far. An envelope's
+       row also says what was charged to a card beyond what it held (**unbacked**, owed on
+       the card, S7.13.2), so its spending and that are the category's spending.
    12. **The month's Spent card** (on the budget and the Dashboard): what was spent against
        the monthly lines and outside the plan, *of* what those lines had **available**,
        reserves included, and what is **left** (their remains less the spending outside the

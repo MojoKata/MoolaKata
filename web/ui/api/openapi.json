@@ -12823,6 +12823,14 @@
               }
             ],
             "title": "Target"
+          },
+          "unbacked": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Unbacked",
+            "type": "number"
           }
         },
         "required": [
@@ -12845,7 +12853,8 @@
           "target",
           "heldInId",
           "balance",
-          "putIn"
+          "putIn",
+          "unbacked"
         ],
         "title": "MonthRow",
         "type": "object"

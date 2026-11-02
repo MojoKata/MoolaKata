@@ -59,6 +59,9 @@ class Envelope:
     assigned: Decimal  # by the plan
     moved: Decimal  # by moves, To Budget's among them
     spent: Decimal
+    # Charged to a card beyond what the envelope held: owed on the card, not backed, and never
+    # out of the envelope, which stops at nothing (S7.13.2).
+    unbacked: Decimal = ZERO
 
     @property
     def balance(self) -> Decimal:
@@ -134,7 +137,7 @@ def month(
                 assigned = min(assigned, max(ln.target - start, ZERO))
             assigned_total += assigned
             available = start + assigned + mv[cat_id] - _actual(tr, cash_spend, cat_id, plan)
-            charged = ZERO
+            charged = unbacked = ZERO
             for cid in card_ids:
                 charge = _actual(tr, per_card[cid], cat_id, plan)
                 covered = min(max(charge, ZERO), max(available - charged, ZERO))
@@ -142,8 +145,9 @@ def month(
                     covered = charge
                 line[cid] += covered
                 charged += covered
+                unbacked += charge - covered
             spent = _actual(tr, cash_spend, cat_id, plan) + charged
-            env = Envelope(cat_id, start, assigned, mv[cat_id], spent)
+            env = Envelope(cat_id, start, assigned, mv[cat_id], spent, unbacked)
             envs[cat_id] = env
             end = env.balance
             if end < 0 and ln.overspend == "next":
