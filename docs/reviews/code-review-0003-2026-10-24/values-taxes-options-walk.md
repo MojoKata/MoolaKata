@@ -279,4 +279,6 @@ All on one branch, `cr3-values-taxes-options` (PR #32), in the approved order.
    `01c9c05`), with plants for CR3-37 and CR3-73.
 10. **Found by CI**: **CR3-396** (`1f51622`): the release smoke run (failing on main since
     PR #27) posted the welcome from curl without a body or a length and got 401.
-11. **Mutation run** (16.6): not run yet; asked before it runs.
+11. **Found by CI, again**: Positions refused a lot whose term is unknown (CR3-73's own
+    change, `213c097`), and the Users screen stuck on its skeleton: **CR3-397** (`00220e3`).
+12. **Mutation run** (16.6): not run yet; asked before it runs.
