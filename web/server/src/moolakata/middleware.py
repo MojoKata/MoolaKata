@@ -308,8 +308,13 @@ class BodyLimit:
             await too_large(send)
             return
         upload = limit != JSON_LIMIT and limit != LINK_LIMIT
+        # A request with neither a length nor a chunked body has none (RFC 9112 §6.3), as a
+        # bodiless POST from curl is (CR3-396): only a body of unknown or large size is an
+        # upload's, its session checked first.
+        chunked = "chunked" in headers.get(b"transfer-encoding", "").lower()
         big = scope["path"].startswith("/ui/api/") and (
-            not length or not length.isdigit() or int(length) > SIGNED_IN_PAST
+            (not length and chunked)
+            or (length and (not length.isdigit() or int(length) > SIGNED_IN_PAST))
         )
         who = self._caller(scope, headers) if upload or big else ""
         if who is None:

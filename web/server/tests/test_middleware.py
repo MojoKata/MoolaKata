@@ -228,3 +228,36 @@ def test_an_upload_without_a_live_session_is_refused_before_its_body_is_read(ser
     asyncio.run(app(scope, receive, send))
     assert statuses == [401]
     assert taken <= chunk, "the body was not read"
+
+
+def test_a_bodiless_post_without_a_length_needs_no_session():
+    """CR3-396: a POST with neither a length nor a chunked body has no body (RFC 9112 §6.3),
+    as curl sends the welcome's first step; a chunked one to /ui/api still needs a session."""
+    import asyncio
+
+    from moolakata import middleware
+
+    answered = []
+
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    mw = middleware.BodyLimit(app, upload_limit=lambda: 10_000, session_user=lambda t: None)
+
+    async def sent(message):
+        if message["type"] == "http.response.start":
+            answered.append(message["status"])
+
+    async def nothing():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    def call(headers):
+        scope = {"type": "http", "method": "POST", "path": "/ui/api/welcome/phrase",
+                 "client": ("127.0.0.1", 1), "headers": headers}  # fmt: skip
+        asyncio.run(mw(scope, nothing, sent))
+        return answered[-1]
+
+    assert call([]) == 200
+    assert call([(b"content-length", b"0")]) == 200
+    assert call([(b"transfer-encoding", b"chunked")]) == 401
