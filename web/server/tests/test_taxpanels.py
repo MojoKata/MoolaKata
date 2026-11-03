@@ -568,3 +568,25 @@ def test_a_sale_of_shares_moved_in_without_their_day_bought_says_so(alice):
         "for its term"
     )
     assert issue["link"] == f"/ui/accounts/{brk['id']}/holdings"
+
+
+def test_a_funds_distributions_and_return_of_capital_reach_the_return(alice):
+    """S2.4, S8.3: a capital-gain distribution is income on its own line; a return of capital
+    comes off the basis, and what passes the basis is a gain on Form 8949, its term the lot's;
+    Positions holds the lot at what is left of its basis."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2026-01-05", "buy", "10", "100")
+    add(alice, brk["id"], "50.00", "2026-06-01", kind="capital-gain", symbol="VTI")
+    add(alice, brk["id"], "1200.00", "2026-07-01", kind="return-of-capital", symbol="VTI")
+    p = panels(alice, book(alice))
+    inc = p["income"]
+    assert inc["capitalGainDistributions"] == "50.00" and inc["returnOfCapital"] == "1200.00"
+    (row,) = [r for r in p["rows"] if r["description"] == "VTI return of capital over basis"]
+    assert (row["acquired"], row["sold"], row["gain"], row["longTerm"]) == (
+        "2026-01-05",
+        "2026-07-01",
+        "200.00",
+        False,
+    )
+    [vti] = [x for x in alice.get("/ui/api/positions").json()["open"] if x["symbol"] == "VTI"]
+    assert (vti["quantity"], vti["cost"]) == (10, 0)

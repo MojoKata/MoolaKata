@@ -447,7 +447,15 @@ def income(s: Session, book: TaxBook) -> Income:
                 Transaction.accountId == a.id,
                 Transaction.deleted == false(),
                 Transaction.kind.in_(
-                    ("interest", "dividend", "reinvest", "capital-gain", "foreign-tax", "reward")
+                    (
+                        "interest",
+                        "dividend",
+                        "reinvest",
+                        "capital-gain",
+                        "return-of-capital",
+                        "foreign-tax",
+                        "reward",
+                    )
                 ),
                 Transaction.date >= first,
                 Transaction.date <= last,
@@ -463,6 +471,9 @@ def income(s: Session, book: TaxBook) -> Income:
             elif t.kind == "capital-gain":
                 divs["capital-gain"] += t.amount
                 by_payer[payer] += t.amount
+            elif t.kind == "return-of-capital":
+                # 1099-DIV box 3: off the basis, not a dividend on Schedule B (CR3-402).
+                divs["return-of-capital"] += abs(t.amount)
             elif t.kind in ("dividend", "reinvest"):
                 # A reinvested dividend is a dividend too, ordinary unless typed (CR3-392).
                 amount = t.amount if t.kind == "dividend" else -t.amount

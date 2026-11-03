@@ -435,11 +435,13 @@ class IncomeTotals:
     ordinary: Decimal = Decimal(0)  # qualified included (1099-DIV box 1a includes 1b)
     qualified: Decimal = Decimal(0)
     gain_distributions: Decimal = Decimal(0)
+    return_of_capital: Decimal = Decimal(0)  # 1099-DIV box 3
 
 
 def income(w: tw.World, year: int, filers: tuple[str, ...]) -> IncomeTotals:
     """The book's income (S8.5): interest; dividends paid or reinvested, a dividend typed as
-    neither qualified nor anything else ordinary; capital-gain distributions."""
+    neither qualified nor anything else ordinary; capital-gain distributions; returns of
+    capital (on symbols never traded, so no lot's basis changes)."""
     out = IncomeTotals()
     accounts = counted(w, year, filers)
     for i in w.incomes:
@@ -450,6 +452,8 @@ def income(w: tw.World, year: int, filers: tuple[str, ...]) -> IncomeTotals:
             out.interest += amount
         elif i.kind == "capital-gain":
             out.gain_distributions += amount
+        elif i.kind == "return-of-capital":
+            out.return_of_capital += amount
         else:
             out.ordinary += amount
             if i.dividend_type == "qualified":

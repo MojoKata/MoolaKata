@@ -55,7 +55,7 @@ OPT_UNDERLYINGS = ("SPY", "QQQ", "IWM", "DIA", "XLF", "XLE", "XLK", "GLD", "SMH"
                    "EEM", "TLT", "HYG", "LQD", "ARKK", "SOXX")  # fmt: skip
 
 # Per income record (S8.5): interest and dividends of each type, in each account, each year.
-INCOME_KINDS = ("interest", "dividend", "reinvest", "capital-gain")
+INCOME_KINDS = ("interest", "dividend", "reinvest", "capital-gain", "return-of-capital")
 DIV_TYPES = ("qualified", "ordinary", "none")
 INCOME_ACCOUNTS = ("Brokerage", "Second", "Bob's brokerage")
 INCOME_YEARS = ("2025", "2026")
@@ -101,8 +101,10 @@ def _impossible(kind: str, a: tuple[str, str], b: tuple[str, str]) -> bool:
     k = {a[0]: a[1], b[0]: b[1]}
     get = k.get
     if kind == "income":
-        # Interest and gain distributions have no dividend type.
-        return get("kind") in ("interest", "capital-gain") and get("type") not in (None, "none")
+        # Interest, gain distributions and returns of capital have no dividend type.
+        return get("kind") in ("interest", "capital-gain", "return-of-capital") and get(
+            "type"
+        ) not in (None, "none")
     if kind == "option":
         # A written contract is short term however long it was open (S3.3); expiring, a long
         # one loses what it cost and a short one keeps its credit.
@@ -209,7 +211,7 @@ class Income:
     axes: dict[str, str]
     account: str
     date: dt.date
-    kind: str  # interest, dividend, reinvest, capital-gain
+    kind: str  # interest, dividend, reinvest, capital-gain, return-of-capital
     dividend_type: str | None
     cents: int
     symbol: str | None = None
@@ -393,7 +395,7 @@ def _incomes(w: World, rnd: random.Random) -> None:
     symbols = list(INCOME_SYMBOLS)
     for i in range(n):
         a = {name: decks[name][i] for name in decks}
-        if a["kind"] in ("interest", "capital-gain"):
+        if a["kind"] in ("interest", "capital-gain", "return-of-capital"):
             a["type"] = "none"
         on = dt.date(int(a["year"]), rnd.randint(1, 12), rnd.randint(1, 28))
         typed = None if a["type"] == "none" else a["type"]

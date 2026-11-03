@@ -243,6 +243,7 @@ def _income_is_the_reference_models(made):
             "ordinary": (_d(got["ordinary"]), want.ordinary),
             "qualified": (_d(got["qualified"]), want.qualified),
             "gain distributions": (_d(got["capitalGainDistributions"]), want.gain_distributions),
+            "return of capital": (_d(got["returnOfCapital"]), want.return_of_capital),
         }
         wrong += [f"{year} {'+'.join(filers)} {k}: got {g}, want {w}"
                   for k, (g, w) in pairs.items() if g != w]  # fmt: skip
