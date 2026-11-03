@@ -206,7 +206,7 @@ def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(alice):
     assert r.status_code == 200, r.text
     r = alice.post(
         f"/ui/api/accounts/{a}/options/{put['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-10-12"},
+        json={"how": "assign", "date": "2026-10-12", "contracts": "1"},
     )
     assert r.status_code == 201, r.text
     [st] = alice.get("/ui/api/positions/strategies").json()["strategies"]

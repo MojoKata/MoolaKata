@@ -251,7 +251,7 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(alice):
     held = alice.get("/ui/api/positions", params={"kind": "options"}).json()["open"][0]
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-09-18"},
+        json={"how": "assign", "date": "2026-09-18", "contracts": "1"},
     )
     assert r.status_code == 201, r.text
     p = panels(alice, book(alice))
