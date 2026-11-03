@@ -108,3 +108,28 @@ def test_a_loans_screen_pairs_and_its_dialog_finds_the_bank_half(browser, househ
     finally:
         _drop(h.c, "Acct", f"/accounts/{loan['id']}")
         _drop(h.c, "Acct", f"/accounts/{bank['id']}")
+
+
+def test_an_uncovered_call_on_its_own_risks_without_limit(browser, household):
+    """CR3-6: an option outside a strategy counts as its shape: an uncovered short call makes
+    the account's capital at risk unlimited; the trade's return is on its capital required."""
+    from edits import option_trade
+
+    h = household
+    a = made(make(h.c, "Acct", name="Calls only", type="brokerage", mask="7301"))
+    today = dt.date.today()
+    opened = (today - dt.timedelta(days=5)).isoformat()
+    expiry = (today + dt.timedelta(days=40)).isoformat()
+    r = option_trade(h.c, a["id"], opened, "sell-to-open", "CRMX", "call", "120", expiry, 1, "2.10")
+    assert r.status_code == 200, r.text
+    try:
+        page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", "main .card")
+        wait(page, '[data-help="capital-at-risk"]', problems)
+        line = page.locator('.list-item:has([data-help="capital-at-risk"])').inner_text()
+        assert "unlimited" in line
+        page.goto(h.base + "/ui/positions/trades")
+        wait(page, 'th:text("Capital required")', problems)
+        assert problems == []
+        page.close()
+    finally:
+        _drop(h.c, "Acct", f"/accounts/{a['id']}")
