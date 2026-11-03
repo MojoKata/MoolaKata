@@ -170,3 +170,10 @@ def test_the_site_is_the_repositorys_own_pages(monkeypatch):
     assert cs.site_url() == "https://someone.github.io/MoolaKata/"
     monkeypatch.setenv("MK_COVERAGE_SITE", "http://localhost:8000")
     assert cs.site_url() == "http://localhost:8000/"
+
+
+def test_a_bar_takes_its_band_s_colour_and_stripes_below_its_floor():
+    """S17.5.8: how well a figure is tested is its colour; below its area's floor, striped."""
+    assert "class='meter lines good'" in cs.meter("lines", 92.0, 90.0)
+    assert "class='meter branches fair below'" in cs.meter("branches", 70.0, 71.0)
+    assert "class='meter lines low'" in cs.meter("lines", 57.2)

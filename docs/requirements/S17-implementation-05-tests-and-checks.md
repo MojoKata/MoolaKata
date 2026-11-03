@@ -107,7 +107,10 @@
       `python -m moolakata.dev.coverage report` then gives:
       1. **By area**: line and branch coverage of each server package (its top-level modules
          as one), each directory of the browser app, and the connector. A browser file's
-         branches count only where its code ran.
+         branches count only where its code ran. Each figure falls in a band of how well it
+         is tested, whatever its floor: **good** from 80%, **fair** from 60%, **low** under
+         60%, shown as 🟢, 🟡 and 🔴 where only text is shown, and as green, amber and red
+         on the site.
       2. **The changed lines**: how many of the lines added or changed since the base (the
          merge base with `main`; in CI, the commit before) the tests reach, and each stretch
          they don't.
@@ -116,8 +119,8 @@
          largest unreached stretches of changed lines (shown on those lines in a pull
          request), and the HTML as the run's `coverage` artifact, kept 30 days; after each
          merge to `main`, the coverage site. The terminal's and the job summary's table gives
-         each area's files, its lines and branches as a bar of ten characters (each a tenth)
-         with the percentage, the counts reached, and its floor, marking an area below its
+         each area's files, its lines and branches as its band's dot, a bar of ten characters
+         (each a tenth) and the percentage, the counts reached, and its floor, marking an area below its
          floor; its last rows are the server's areas together, the browser's, and every area
          as one (the connector's too), each summed from their counts. `files.json` keeps each
          file's counts, and where its line-by-line report is.
@@ -134,8 +137,8 @@
          to `main` and the history of every merge since the site began. Its page shows:
          1. **The headline**: line and branch coverage of every area as one, with the counts
             behind them, each side's line coverage, and the number of files.
-         2. **By area**: each area's lines and branches as a bar with a tick at its floor (red
-            below it), the percentage, the change since the merge before and the counts
+         2. **By area**: each area's lines and branches as a bar in its band's colour with a
+            tick at its floor (striped below it), with a key to both, the percentage, the change since the merge before and the counts
             reached; its files and floor; and, last, the rows that sum the areas as the
             job summary does. Clicking an area opens its files, each with the same bars and
             counts and a link to its line-by-line report. Clicking a heading sorts the areas

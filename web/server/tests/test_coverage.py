@@ -60,14 +60,22 @@ def test_the_summary_shows_bars_counts_and_the_sums_last():
     text = coverage.summary(areas, floors, None, None, ["server/keys"])
     rows = [r for r in text.splitlines() if r.startswith("| ")]
     assert rows[1] == (
-        "| browser/app | 1 | `█████████░` 91.0% | 1,793 of 1,970 | `█████████░` 94.0% | "
+        "| browser/app | 1 | 🟢 `█████████░` 91.0% | 1,793 of 1,970 | 🟢 `█████████░` 94.0% | "
         "483 of 514 | — |"
     )
-    assert rows[4].startswith("| server/keys ⚠ | 1 | `████████░░` 80.8% | 464 of 574 |")
+    assert rows[4].startswith(
+        "| server/keys ⚠ | 1 | 🟢 `████████░░` 80.8% | 464 of 574 | 🟡 `██████░░░░` 62.8% |"
+    )
     assert [r.split(" | ")[0] for r in rows[-3:]] == [
         "| **Server**",
         "| **Browser**",
         "| **Overall**",
     ]
-    assert rows[-1].startswith("| **Overall** | 4 | `█████████░` 87.4% | 7,607 of 8,708 |")
-    assert coverage.bar(None) == "—" and coverage.bar(4.9) == "`░░░░░░░░░░` 4.9%"
+    assert rows[-1].startswith("| **Overall** | 4 | 🟢 `█████████░` 87.4% | 7,607 of 8,708 |")
+    assert coverage.bar(None) == "—" and coverage.bar(4.9) == "🔴 `░░░░░░░░░░` 4.9%"
+
+
+def test_a_figure_s_band_is_green_from_80_and_red_under_60():
+    """S17.5.8: the bands, at their edges."""
+    got = [coverage.band(v)[0] for v in (0.0, 59.9, 60.0, 79.9, 80.0, 100.0)]
+    assert got == ["low", "low", "fair", "fair", "good", "good"]
