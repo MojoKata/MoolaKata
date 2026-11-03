@@ -105,3 +105,82 @@ def test_transfer_matching_is_symmetric_and_never_takes_a_paired_row(rows):
             gaps = sorted(abs((o.date - t.date).days) for o in found)
             assert abs((best.date - t.date).days) == gaps[0]
             assert len(gaps) == 1 or gaps[0] != gaps[1]
+
+
+@st.composite
+def histories(draw):
+    """Buys of one share over the years, some sold, then shares moved out to another account."""
+    from test_ledger import Lot, Txn
+
+    txns, made = [], []
+    day = dt.date(2018, 1, 2)
+    held = D(0)
+    for _ in range(draw(st.integers(min_value=1, max_value=6))):
+        day += dt.timedelta(days=draw(st.integers(min_value=1, max_value=400)))
+        qty = D(draw(st.integers(min_value=1, max_value=50)))
+        cost = D(draw(st.integers(min_value=100, max_value=90_000))) / 100
+        t = Txn(day, "buy", -cost, "VTI", qty)
+        txns.append(t)
+        made.append(Lot(f"L{t.id}", "VTI", day, qty, cost, t.id))
+        held += qty
+        if draw(st.booleans()) and held > 1:
+            day += dt.timedelta(days=draw(st.integers(min_value=1, max_value=200)))
+            sold = D(draw(st.integers(min_value=1, max_value=int(held) - 1)))
+            txns.append(Txn(day, "sell", sold * 10, "VTI", -sold))
+            held -= sold
+    moved = D(draw(st.integers(min_value=1, max_value=int(held))))
+    day += dt.timedelta(days=draw(st.integers(min_value=1, max_value=30)))
+    out = Txn(day, "transfer-out", D(0), "VTI", -moved)
+    txns.append(out)
+    return txns, made, out, moved
+
+
+@PROPERTIES
+@given(histories())
+def test_shares_moved_out_carry_their_lots_whole(case):
+    """CR3-73: what a transfer out takes, its pair opens: the same shares, the same basis, on
+    the days they were bought; nothing is lost or made between the two accounts."""
+    from test_ledger import Txn
+
+    from moolakata.ledger import lots
+
+    txns, made, out, moved = case
+    src = lots.replay("fifo", txns, made, [], [])
+    taken = src.moved[out.id]
+    assert sum((x.quantity for x in taken), D(0)) == moved
+    into = Txn(out.date, "transfer-in", D(0), "VTI", moved, accountId="B", transferId=out.id)
+    dst = lots.replay("fifo", [into], [], [], [], carried_in={into.id: taken})
+    assert sorted((x.acquiredOn, x.quantity, x.basis) for x in dst.open) == sorted(
+        (x.acquiredOn, x.quantity, x.basis) for x in taken
+    )
+    bought = {lot.acquiredOn for lot in made}
+    assert all(x.acquiredOn in bought for x in dst.open)
+    cost = sum((lot.costBasis for lot in made), D(0))
+    kept = sum((x.basis for x in src.open), D(0))
+    sold = sum((x.basis for x in src.disposals), D(0))
+    assert kept + sold + sum((x.basis for x in taken), D(0)) == cost
+
+
+@PROPERTIES
+@given(
+    st.lists(st.integers(min_value=-5_000_00, max_value=5_000_00), min_size=1, max_size=20),
+    st.integers(min_value=1_000_00, max_value=100_000_00),
+)
+def test_money_moved_alone_is_no_return(moves, start):
+    """CR3-28: a value that changes only by money moved in or out has a time-weighted return
+    of nothing, however the moves fall."""
+    from moolakata.ledger import performance as perf
+
+    day = dt.date(2026, 1, 1)
+    value = D(start) / 100
+    values, flow = [(day, value)], {}
+    for m in moves:
+        day += dt.timedelta(days=7)
+        amount = D(m) / 100
+        if value + amount <= 0:
+            continue
+        value += amount
+        flow[day] = amount
+        values.append((day, value))
+    twr = perf.twr(values, flow)
+    assert twr is None or abs(twr) < D("0.000001")
