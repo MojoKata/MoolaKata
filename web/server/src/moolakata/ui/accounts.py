@@ -623,7 +623,10 @@ def account_holdings(account_id: str, request: Request, c: Caller = Depends(call
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         replay = ledger.replay()
-        positions = valuation.positions(s, ledger)
+        # The account's parts (S5.2.3): a loan's or an item account's total is what it owes or
+        # its items are worth, never its ledger's balance.
+        parts = valuation.parts(s, ledger, atypes.investing(a.type))
+        positions = [x.position for x in parts if x.position is not None]
         insts = {
             i.id: i
             for i in s.scalars(
@@ -661,8 +664,8 @@ def account_holdings(account_id: str, request: Request, c: Caller = Depends(call
                     ],
                 )
             )
-        cash = ledger.balance()
-        total = cash + sum((r.value or Decimal(0) for r in rows), Decimal(0))
+        cash = sum((x.value for x in parts if x.kind == "cash"), Decimal(0))
+        total = sum((x.value or Decimal(0) for x in parts), Decimal(0))
         problems = [
             {
                 "kind": p.kind,

@@ -174,7 +174,9 @@ function Holdings({ p }) {
   const h = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!h) return html`<${Loading} />`;
-  if (!h.holdings.length) return html`<${Empty}>Nothing held in these accounts yet.</${Empty}>`;
+  if (!h.holdings.length && !h.others.length) {
+    return html`<${Empty}>Nothing held in these accounts yet.</${Empty}>`;
+  }
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
@@ -217,6 +219,22 @@ function Holdings({ p }) {
                   ? html`<${Amt} v=${x.costBasis} />`
                   : html`<span class="pill warn">missing</span>`}</td>
                 <td class="num">${x.gain != null ? html`<${Amt} v=${x.gain} signed />` : '—'}</td>
+                <td class="num">${x.weight != null ? `${x.weight}%` : '—'}</td>
+              </tr>
+            `
+          )}${h.others.map((/** @type {any} */ x) =>
+            html`
+              <tr>
+                <td><b>${x.name}</b>
+                  <div class="small dim">${x.account}</div></td>
+                <td class="dim">${x.kind === 'loan' ? 'Owed on the loan' : 'Item'}</td>
+                <td class="num"></td>
+                <td class="num"></td>
+                <td class="num">
+                  <${Amt} v=${x.value} />
+                </td>
+                <td class="num"></td>
+                <td class="num"></td>
                 <td class="num">${x.weight != null ? `${x.weight}%` : '—'}</td>
               </tr>
             `

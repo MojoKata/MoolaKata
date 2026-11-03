@@ -14548,6 +14548,66 @@
         },
         "x-entity": "Orgzn"
       },
+      "OtherHolding": {
+        "additionalProperties": false,
+        "description": "A part that isn't a security (S5.2.3): what a loan owes (negative) or an item.",
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountType": {
+            "title": "Accounttype",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "account",
+          "accountId",
+          "accountType",
+          "value",
+          "weight"
+        ],
+        "title": "OtherHolding",
+        "type": "object"
+      },
       "OutcomeOut": {
         "additionalProperties": false,
         "properties": {
@@ -17626,6 +17686,13 @@
             ],
             "title": "Optionsvalue"
           },
+          "others": {
+            "items": {
+              "$ref": "#/components/schemas/OtherHolding"
+            },
+            "title": "Others",
+            "type": "array"
+          },
           "total": {
             "examples": [
               1234.5
@@ -17637,6 +17704,7 @@
         },
         "required": [
           "holdings",
+          "others",
           "cash",
           "total",
           "optionsValue",

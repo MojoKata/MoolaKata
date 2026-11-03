@@ -195,6 +195,14 @@ function Detail({ id, reloadList }) {
             0.1}% a year.${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
             ? ` Bitcoin follows the ${r.bitcoinModel} model, a model others publish; other coins keep the crypto assumption.`
             : ''} Seeded (${r.seed}), so the same inputs give the same figures.</p>
+        ${r.leftOut?.length
+          ? html`<p class="small dim" data-help="left-out">Left out: ${
+            r.leftOut.map((
+              /** @type {any} */ o,
+            ) => `${o.name} ${dollars(o.value)}`).join('; ')
+          }. A projection grows cash, securities
+            and metals; a loan, a home, a car and options aren't drawn on.</p>`
+          : null}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         ${a.kind === 'retirement'

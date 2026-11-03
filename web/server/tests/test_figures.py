@@ -172,3 +172,73 @@ def test_a_deleted_account_leaves_a_portfolios_past(server):
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     by_day = {x["date"]: x["value"] for x in s["points"]}
     assert by_day["2026-08-01"] == "1000.00"
+
+
+# ---------- one breakdown of an account (CR3-30, CR3-32, CR3-394) ----------
+
+
+def _checking_and_mortgage(server):
+    from edits import saved, terms
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    bank = new_account(c, name="Checking", openingBalance="0.00", openingDate="2026-06-30")
+    add(c, bank["id"], "5000.00", "2026-07-01", kind="deposit")
+    loan = new_account(c, name="Mortgage", type="mortgage")
+    saved(
+        terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
+    )
+    add(c, loan["id"], "2000.00", "2026-07-01", kind="deposit")
+    p = make(c, "Portf", name="Both", accountIds=[bank["id"], loan["id"]]).json()
+    return c, p, loan
+
+
+def test_holdings_count_a_loan_at_what_is_owed(server):
+    """CR3-30: a loan's payments aren't cash; it counts minus what is owed, on a row of its
+    own, and the Holdings total is the portfolio's value."""
+    c, p, loan = _checking_and_mortgage(server)
+    owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
+    value = c.get(f"/ui/api/portfolios/{p['id']}").json()["value"]
+    h = c.get(f"/ui/api/portfolios/{p['id']}/holdings").json()
+    assert h["cash"] == "5000.00"
+    assert [(o["kind"], o["name"], o["value"], o["weight"]) for o in h["others"]] == [
+        ("loan", "Mortgage", f"-{owed}", None)
+    ]
+    assert h["total"] == value == f"{D('5000') - D(owed):.2f}"
+    assert c.get(f"/ui/api/accounts/{loan['id']}/holdings").json()["total"] == f"-{owed}"
+
+
+def test_a_projection_leaves_a_loan_out_and_names_it(server):
+    """CR3-32: a projection on checking and a mortgage starts from the cash, all of it cash,
+    and names the mortgage it leaves out; start + left out = the portfolio's value."""
+    c, p, loan = _checking_and_mortgage(server)
+    owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
+    r = make(c, "Prjct", name="Save", goal="savings", builtOn={"kind": "portfolio", "id": p["id"]},
+             inputs={"target": 20000, "targetDate": "2030-01-01"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    res = c.get(f"/ui/api/projections/{r.json()['id']}").json()["result"]
+    assert res["start"] == "5000.00" and res["weights"] == {"cash": 1.0}
+    assert res["leftOut"] == [{"name": "Mortgage", "value": f"-{owed}"}]
+    value = D(c.get(f"/ui/api/portfolios/{p['id']}").json()["value"])
+    assert D(res["start"]) + sum(D(x["value"]) for x in res["leftOut"]) == value
+
+
+def test_an_accounts_value_on_a_past_day_holds_what_it_held_then(server):
+    """CR3-394: a past day's value counts the shares held that day, not today's."""
+    from moolakata import valuation
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.repos import ledger as repo
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Brokerage", type="brokerage", openingBalance="0.00",
+                    openingDate="2026-01-01")  # fmt: skip
+    add(c, a["id"], "3000.00", "2026-01-02", kind="deposit")
+    add(c, a["id"], "-1000.00", "2026-01-02", kind="buy", symbol="VTI", quantity="10", price="100")
+    add(c, a["id"], "-1100.00", "2026-06-01", kind="buy", symbol="VTI", quantity="10", price="110")
+    with server.db.read(unscoped="test") as s:
+        led = repo.load(s, s.get(Account, a["id"]))
+        march = valuation.account_value(s, led, True, dt.date(2026, 3, 1))
+        june = valuation.account_value(s, led, True, dt.date(2026, 6, 2))
+    # March: $2,000 cash and 10 shares at the last trade's $100; June: $900 and 20 at $110.
+    assert (march, june) == (D("3000.00"), D("3100.00"))

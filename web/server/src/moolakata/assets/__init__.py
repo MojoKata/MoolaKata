@@ -4,6 +4,7 @@ items in total, over time."""
 
 import datetime as dt
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
@@ -186,24 +187,34 @@ def spots(s: Session, items: list[Item], day: dt.date) -> dict[str, valuation.Pr
     return {m: got[iid] for m, iid in ids.items() if iid in got}
 
 
-def value(s: Session, account: Account, day: dt.date | None = None) -> Decimal:
+def worth(s: Session, account: Account, day: dt.date | None = None) -> list[tuple[Item, Decimal]]:
+    """Each of the account's items with what it is worth on the day."""
     from .. import clock
 
     day = day or clock.today()
     items = items_of(s, account)
     ds = details(s, items)
     sp = spots(s, items, day)
-    return sum(
-        (value_on(i, ds[i.id], day, sp[i.metal].price if i.metal in sp else None) for i in items),
-        ZERO,
-    )
+    return [
+        (i, value_on(i, ds[i.id], day, sp[i.metal].price if i.metal in sp else None)) for i in items
+    ]
+
+
+def value(s: Session, account: Account, day: dt.date | None = None) -> Decimal:
+    return sum((v for _, v in worth(s, account, day)), ZERO)
 
 
 def series(
-    s: Session, account: Account, first: dt.date, last: dt.date, step_days: int = 1
+    s: Session,
+    account: Account,
+    first: dt.date,
+    last: dt.date,
+    step_days: int = 1,
+    only: Callable[[Item], bool] | None = None,
 ) -> list[tuple[dt.date, Decimal]]:
-    """The items' total value each day (or every step_days), spot carried forward."""
-    items = items_of(s, account)
+    """The items' total value each day (or every step_days), spot carried forward; with
+    `only`, of the items it keeps."""
+    items = [i for i in items_of(s, account) if only is None or only(i)]
     ds = details(s, items)
     ids = _spot_ids(s, items)
     points = valuation.price_points(s, list(ids.values()), first, last)

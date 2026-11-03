@@ -311,10 +311,23 @@ class HoldingTotal(Model):
     accounts: list[str]
 
 
+class OtherHolding(Model):
+    """A part that isn't a security (S5.2.3): what a loan owes (negative) or an item."""
+
+    kind: str  # "loan" or "item"
+    name: str
+    account: str
+    accountId: str
+    accountType: str
+    value: Money
+    weight: Ratio | None
+
+
 class PortfolioHoldings(Model):
     holdings: list[HoldingTotal]
+    others: list[OtherHolding]  # loans and items, each its own row
     cash: Money
-    total: Money
+    total: Money  # the portfolio's value: cash, holdings, items, less what loans owe
     optionsValue: Money | None  # its options' market value
     capitalAtRisk: Money | None  # beside it (S3.5.6)
     capitalAtRiskUnlimited: bool = False  # an open strategy's risk is unlimited
@@ -421,19 +434,26 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
     with server(request).db.read(user=c.id) as s:
         _, accounts, _ = _target(s, c, portfolio_id)
         by: dict[str, dict] = {}
+        others: list[tuple[valuation.Part, Account]] = []
         cash = Decimal(0)
         opts = Decimal(0)
         risk: Decimal | None = Decimal(0)
         any_open = False
         for a in accounts:
             led = repo.load(s, a)
-            cash += led.balance()
-            if not atypes.investing(a.type):
-                continue
-            v, r, held = strat.risk_of_account(s, led)
-            opts, any_open = opts + v, any_open or held
-            risk = None if risk is None or r is None else risk + r
-            for pos in valuation.positions(s, led):
+            investing = atypes.investing(a.type)
+            if investing:
+                v, r, held = strat.risk_of_account(s, led)
+                opts, any_open = opts + v, any_open or held
+                risk = None if risk is None or r is None else risk + r
+            for part in valuation.parts(s, led, investing):
+                if part.kind == "cash":
+                    cash += part.value
+                    continue
+                if part.kind in ("loan", "item"):
+                    others.append((part, a))
+                    continue
+                pos = part.position
                 h = by.setdefault(
                     pos.instrumentId,
                     {
@@ -457,7 +477,16 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
                     h["basis"] += pos.costBasis
                 h["accounts"].append(a.name)
         insts = {i.id: i for i in s.scalars(select(Instrument).where(Instrument.id.in_(by)))}
-        total = cash + sum((h["value"] for h in by.values()), Decimal(0))
+        held = sum((h["value"] for h in by.values()), Decimal(0))
+        owed = sum((p.value for p, _ in others if p.kind == "loan"), Decimal(0))
+        items = sum((p.value for p, _ in others if p.kind == "item"), Decimal(0))
+        total = cash + held + items + owed
+        # A weight is a share of what is held, so what a loan owes takes none and moves none.
+        gross = cash + held + items
+
+        def weight(v: Decimal | None) -> Decimal | None:
+            return (v / gross * 100).quantize(Decimal("0.1")) if v is not None and gross else None
+
         out = []
         for iid, h in sorted(by.items(), key=lambda kv: -kv[1]["value"]):
             inst = insts[iid]
@@ -478,14 +507,24 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
                     value=value,
                     costBasis=basis,
                     gain=value - basis if value is not None and basis is not None else None,
-                    weight=(value / total * 100).quantize(Decimal("0.1"))
-                    if value is not None and total
-                    else None,
+                    weight=weight(value),
                     accounts=sorted(set(h["accounts"])),
                 )
             )
         return PortfolioHoldings(
             holdings=out,
+            others=[
+                OtherHolding(
+                    kind=p.kind,
+                    name=p.name,
+                    account=a.name,
+                    accountId=a.id,
+                    accountType=a.type,
+                    value=p.value,
+                    weight=None if p.kind == "loan" else weight(p.value),
+                )
+                for p, a in sorted(others, key=lambda pa: (pa[0].kind, -pa[0].value))
+            ],
             cash=cash,
             total=total,
             optionsValue=opts if any_open else None,

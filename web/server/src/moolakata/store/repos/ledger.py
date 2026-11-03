@@ -58,14 +58,36 @@ class Ledger:
         day = day or dt.date.max
         return balances.balance_on(day, self.opening(), self.transactions)
 
-    def replay(self) -> lots.Replay:
+    def replay(self, day: dt.date | None = None) -> lots.Replay:
+        """The account's lots replayed; with a day, as they stood at its end (CR3-394): the
+        trades, lots and snapshots up to it, the wash sales whose loss sale had happened."""
+        if day is None:
+            return lots.replay(
+                self.account.lotMethod,
+                self.transactions,
+                self.lots,
+                self.picks,
+                self.snapshots,
+                self.washes,
+                basis_added=lots.adds_basis(self.account.type),
+                averaged=self.averaged,
+                sale_at=self.sale_at,
+            )
+        txns = [t for t in self.transactions if t.date <= day]
+        used = {t.id for t in txns}
         return lots.replay(
             self.account.lotMethod,
-            self.transactions,
-            self.lots,
-            self.picks,
-            self.snapshots,
-            self.washes,
+            txns,
+            [
+                x
+                for x in self.lots
+                if x.transactionId in used or (x.transactionId is None and x.acquiredOn <= day)
+            ],
+            [p for p in self.picks if p.saleId in used],
+            [h for h in self.snapshots if h.asOf <= day],
+            [w for w in self.washes if self.sale_at.get(w.saleId, (dt.date.max,))[0] <= day],
+            # Kept by snapshots or not, as the whole account is.
+            by_snapshots=lots.kept_by_snapshots(self.transactions, self.lots),
             basis_added=lots.adds_basis(self.account.type),
             averaged=self.averaged,
             sale_at=self.sale_at,

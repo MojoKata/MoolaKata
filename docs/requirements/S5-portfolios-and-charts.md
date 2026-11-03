@@ -16,7 +16,10 @@
       contributions shown apart from growth, against a **benchmark** (SPY, VT, a 60/40 mix);
    2. **Performance**: time-weighted and money-weighted (IRR) returns per period, per account
       and per portfolio;
-   3. **Holdings**: what the portfolio holds, by account and by instrument.
+   3. **Holdings**: what the portfolio holds, by account and by instrument, with each loan
+      (what is still owed) and each item (what it is worth, S1.10) on a row of its own; its
+      total is the portfolio's value. A weight is a share of what is held, cash and items
+      included; a loan takes none.
 
    A portfolio of chosen holdings, allocation against a target with its drift and rebalancing,
    income by month, and a holding's price chart with its trades come later ([later

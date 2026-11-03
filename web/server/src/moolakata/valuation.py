@@ -146,8 +146,9 @@ class Position:
 
 
 def positions(s: Session, ledger, day: dt.date | None = None) -> list[Position]:
-    """An investing account's holdings from its replayed lots, valued."""
-    replay = ledger.replay()
+    """An investing account's holdings on a day (today when none), from its lots replayed to
+    that day, valued at that day's prices."""
+    replay = ledger.replay(day)
     by: dict[str, list] = {}
     for lot in replay.open:
         by.setdefault(lot.instrumentId, []).append(lot)
@@ -204,20 +205,48 @@ def multipliers(s: Session, instrument_ids: list[str]) -> dict[str, int]:
     }
 
 
-def account_value(s: Session, ledger, investing: bool, day: dt.date | None = None) -> Decimal:
-    """Cash plus what the holdings are worth (a holding with no price counts nothing). A
-    loan counts what is owed on it, from its terms and payments (S1.9); a physical-asset
-    account, what its items are worth (S1.10)."""
+@dataclass
+class Part:
+    """One part of what an account holds (S5.2.3): its cash, a security, an option, what a
+    loan owes (negative), or an item. `value` is None for a holding with no price, which counts
+    nothing."""
+
+    kind: str  # "cash", "security", "option", "loan", "item"
+    name: str
+    value: Decimal | None
+    position: Position | None = None
+    item: object | None = None  # the Item, for an item
+    accountType: str = ""
+
+
+def parts(s: Session, ledger, investing: bool, day: dt.date | None = None) -> list[Part]:
+    """What an account holds on a day, part by part: the one breakdown every figure built on
+    accounts adds up (its value, a portfolio's Holdings, a projection's start). A loan is minus
+    what is owed, from its terms and payments (S1.9); a physical-asset account, each of its
+    items at what it is worth (S1.10); any other account, its cash and, when it invests, each
+    holding at its price."""
     from . import assets, loans
 
-    if loans.is_loan(ledger.account.type):
-        return loans.value(s, ledger.account, day)
-    if assets.is_physical(ledger.account.type):
-        return assets.value(s, ledger.account, day)
-    cash = ledger.balance(day)
-    if not investing:
-        return cash
-    return cash + sum((p.value or ZERO for p in positions(s, ledger, day)), ZERO)
+    a = ledger.account
+    if loans.is_loan(a.type):
+        return [Part("loan", a.name, loans.value(s, a, day), accountType=a.type)]
+    if assets.is_physical(a.type):
+        return [
+            Part("item", it.name, worth, item=it, accountType=a.type)
+            for it, worth in assets.worth(s, a, day)
+        ]
+    out = [Part("cash", a.name, ledger.balance(day), accountType=a.type)]
+    if investing:
+        for p in positions(s, ledger, day):
+            kind = "option" if p.multiplier != 1 else "security"
+            out.append(Part(kind, p.instrumentId, p.value, position=p, accountType=a.type))
+    return out
+
+
+def account_value(s: Session, ledger, investing: bool, day: dt.date | None = None) -> Decimal:
+    """What an account is worth on a day: the sum of its parts (a holding with no price counts
+    nothing)."""
+    return sum((p.value or ZERO for p in parts(s, ledger, investing, day)), ZERO)
 
 
 def price_points(
@@ -282,11 +311,18 @@ def price_points(
 
 
 def series(
-    s: Session, ledger, investing: bool, first: dt.date, last: dt.date, step_days: int = 1
+    s: Session,
+    ledger,
+    investing: bool,
+    first: dt.date,
+    last: dt.date,
+    step_days: int = 1,
+    options: bool = True,
 ) -> list[tuple[dt.date, Decimal]]:
-    """The account's value at the end of each day (or every step_days), for its chart.
-    Positions change only on the days of trades and snapshots, so the ledger is replayed on
-    those days alone; prices are carried forward from the last known one."""
+    """The account's value at the end of each day (or every step_days), for its chart; without
+    `options`, leaving its options out, as a projection does. Positions change only on the days
+    of trades and snapshots, so the ledger is replayed on those days alone; prices are carried
+    forward from the last known one."""
     from . import assets, loans
 
     if assets.is_physical(ledger.account.type):
@@ -334,6 +370,8 @@ def series(
                 cursor[iid] += 1
         value = cash[day]
         for iid, qty in held[h_i][1].items():
+            if not options and iid in mult:
+                continue
             if current.get(iid) is not None:
                 value += (qty * current[iid] * mult.get(iid, 1)).quantize(CENT)
         out.append((day, value))
@@ -341,19 +379,4 @@ def series(
 
 
 def _positions_on(ledger, day: dt.date) -> dict[str, Decimal]:
-    from .ledger import lots as lot_replay
-
-    txns = [t for t in ledger.transactions if t.date <= day]
-    used = {t.id for t in txns}
-    return lot_replay.replay(
-        ledger.account.lotMethod,
-        txns,
-        [
-            x
-            for x in ledger.lots
-            if x.transactionId in used or (x.transactionId is None and x.acquiredOn <= day)
-        ],
-        ledger.picks,
-        [h for h in ledger.snapshots if h.asOf <= day],
-        by_snapshots=lot_replay.kept_by_snapshots(ledger.transactions, ledger.lots),
-    ).positions()
+    return ledger.replay(day).positions()

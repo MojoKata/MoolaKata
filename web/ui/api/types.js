@@ -2395,6 +2395,18 @@
  */
 
 /**
+ * A part that isn't a security (S5.2.3): what a loan owes (negative) or an item.
+ * @typedef {Object} OtherHolding
+ * @property {string} kind
+ * @property {string} name
+ * @property {string} account
+ * @property {string} accountId
+ * @property {string} accountType
+ * @property {import('../app/dec.js').Dec} value
+ * @property {(import('../app/dec.js').Dec | null)} weight
+ */
+
+/**
  * @typedef {Object} OutcomeOut
  * @property {(string | null)} payoffDate
  * @property {number} months
@@ -3058,6 +3070,7 @@
 /**
  * @typedef {Object} PortfolioHoldings
  * @property {Array<HoldingTotal>} holdings
+ * @property {Array<OtherHolding>} others
  * @property {import('../app/dec.js').Dec} cash
  * @property {import('../app/dec.js').Dec} total
  * @property {(import('../app/dec.js').Dec | null)} optionsValue
