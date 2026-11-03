@@ -9640,11 +9640,25 @@
             "title": "Capitalgaindistributions",
             "type": "number"
           },
+          "cryptoIncome": {
+            "items": {
+              "$ref": "#/components/schemas/Amount"
+            },
+            "title": "Cryptoincome",
+            "type": "array"
+          },
           "dividendsByPayer": {
             "items": {
               "$ref": "#/components/schemas/Amount"
             },
             "title": "Dividendsbypayer",
+            "type": "array"
+          },
+          "foreignTax": {
+            "items": {
+              "$ref": "#/components/schemas/Amount"
+            },
+            "title": "Foreigntax",
             "type": "array"
           },
           "interest": {
@@ -9694,7 +9708,9 @@
           "qualified",
           "capitalGainDistributions",
           "returnOfCapital",
-          "dividendsByPayer"
+          "dividendsByPayer",
+          "foreignTax",
+          "cryptoIncome"
         ],
         "title": "IncomeOut",
         "type": "object"
@@ -18337,6 +18353,7 @@
               "amount-invalid",
               "amount-mismatch",
               "amount-negative",
+              "amount-sign",
               "ancestor-loop",
               "anchor-fixed",
               "anchor-imported",
@@ -18795,6 +18812,7 @@
                   "amount-invalid",
                   "amount-mismatch",
                   "amount-negative",
+                  "amount-sign",
                   "ancestor-loop",
                   "anchor-fixed",
                   "anchor-imported",

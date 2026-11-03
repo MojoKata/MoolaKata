@@ -32,7 +32,12 @@ produces worksheets and exports. It never files, and says so (R1.16).
    preparer (S3.8.5), and edits made since the federal return was filed (S8.15).
 5. **Income**: interest (1099-INT), dividends ordinary, qualified and capital-gain
    distributions (1099-DIV), foreign tax paid, and crypto income (staking, rewards) at fair
-   value when received.
+   value when received. Foreign tax is a transaction of its own kind (`foreign-tax`, money
+   out, of the fund that paid it), shown by payer as box 7; a broker's file brings it on its
+   own line (Fidelity's *Foreign Tax Paid*), and it can be typed. Coins received as income are
+   a `reward`: a quantity at the day's price (typed, else the owner's price that day), no
+   cash; that value is the ordinary income, by account, and the basis of the lot it makes. An
+   exchange's file brings them as its *Staking Income* and *Rewards Income* lines.
 6. **Retirement**: contributions per account against the year's limits (with catch-up by
    age), Roth eligibility by MAGI as the user enters it, backdoor-Roth steps (non-deductible
    contribution, conversion, Form 8606 figures), distributions, and RMDs due. Each movement of

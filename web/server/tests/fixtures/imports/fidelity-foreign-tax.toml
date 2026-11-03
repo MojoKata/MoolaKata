@@ -1,0 +1,18 @@
+about = """A broker's history with a dividend from an international fund and the foreign tax it paid,
+on its own line beside it (1099-DIV box 7): read as a foreign-tax line of the fund, money out,
+not a fee or a withdrawal (S8.5, CR3-38)."""
+account = { type = "brokerage", institution = "Fidelity" }
+mapping = { amount = "Amount ($)" }
+
+[result]
+added = 3
+
+[expect]
+covered = ["2026-12-01", "2026-12-27"]
+transactions = [
+    "2026-12-01 transfer 1000.00 | No Description",
+    "2026-12-27 dividend 182.40 VXUS",
+    "2026-12-27 foreign-tax -14.22 VXUS",
+]
+cash = "1168.18"
+instruments = { VXUS = "equity" }

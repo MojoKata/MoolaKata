@@ -40,6 +40,9 @@ corpus as another entry with the same kind of `.toml`, its expected results writ
 it, never from what MoolaKata makes of it. Before it is committed, account numbers, names,
 addresses and card digits are replaced, and amounts are kept so the file still adds up. A file
 not yet cleaned can be kept in a git-ignored folder the same tests read when it is there.
+The income kinds of S8.5 are read from the labels as written for the average cases: a broker's
+*Foreign Tax Paid* line, an exchange's *Staking Income* and *Rewards Income*; a real file shows
+whether others write them otherwise, and whether a broker's OFX names foreign tax at all.
 **Waits on:** the household's exports.
 
 ## G26: Seeing and recovering what was deleted — Low

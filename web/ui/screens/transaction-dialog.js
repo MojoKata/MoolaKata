@@ -36,11 +36,13 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
   ['capital-gain', 'Capital-gain distribution'],
   ['transfer-in', 'Shares transferred in'],
   ['transfer-out', 'Shares transferred out'],
+  ['reward', 'Coins received as income'],
+  ['foreign-tax', 'Foreign tax paid'],
   ['deposit', 'Cash in'],
   ['withdrawal', 'Cash out'],
   ['fee', 'Fee'],
 ]);
-const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out'];
+const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out', 'reward'];
 
 /**
  * A transaction as its dialog's draft edits it (S2.6, S12.15). Its parts are records of their
@@ -241,7 +243,11 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               ? html`<${LotPicks} t=${t} draft=${draft} saleId=${editing ? txn.id : null} />`
               : null}
             <div class="row">
-              <${RecField} rec=${t} name="amount" label="Amount" hint=${trade
+              <${RecField} rec=${t} name="amount" label="Amount" hint=${kind === 'reward'
+                ? 'No cash moves: 0. The coins are income at the price, their basis that value.'
+                : kind === 'foreign-tax'
+                ? 'What the fund paid abroad, as money out (1099-DIV box 7).'
+                : trade
                 ? 'The cash effect: − for a buy, + for a sale, after fees.'
                 : '− for money out, + for money in.'} />
               ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}

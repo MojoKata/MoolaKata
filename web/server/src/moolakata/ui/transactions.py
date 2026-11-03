@@ -55,6 +55,7 @@ INSTRUMENT_KINDS = (
     "transfer-out",
     "split",
     "return-of-capital",
+    "reward",  # coins received as income, at the day's price (S8.5)
 )
 # Made only with what they need: an option trade with its contract (S3.2, a create that names
 # it), an option's end by settling it, and a corporate action's pairs from the action (S2.4).
@@ -455,9 +456,13 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
         errors.append(
             FieldError("kind", "option-kind", "Record an option trade from the account's Holdings.")
         )
-    if kind in INSTRUMENT_KINDS and not investing:
+    if (kind in INSTRUMENT_KINDS or kind == "foreign-tax") and not investing:
         errors.append(
             FieldError("kind", "kind-not-for-account", "Trades belong in an investing account.")
+        )
+    if kind == "foreign-tax" and getattr(body, "amount", None) is not None and body.amount > 0:
+        errors.append(
+            FieldError("amount", "amount-sign", "Foreign tax paid is money out: a negative amount.")
         )
     if getattr(body, "categoryId", None):
         cat = s.get(Category, body.categoryId)
@@ -564,6 +569,18 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
     return None
 
 
+def _reward_basis(s: Session, body, inst_id: str, owner: str) -> Decimal | None:
+    """Coins received as income: their value that day is their basis and the income (S8.5),
+    at the price typed with them, else the owner's price for the day; none known, missing."""
+    from .. import valuation
+
+    price = body.price
+    if price is None:
+        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+        price = found.price if found is not None else None
+    return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+
+
 def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
     """A transaction made, with its lot, splits and tags; the closed-year question (S2.8) is
     the write's own check, before it commits (`taxes.closed`)."""
@@ -573,7 +590,7 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
     if confirm:
         closed.confirm(s)
     inst_id = _instrument(s, body, a)
-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out") and (
+    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
         not inst_id or not body.quantity
     ):
         raise refuse(
@@ -609,8 +626,10 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
     )
     s.add(t)
     s.flush()
-    if inst_id and body.kind in ("buy", "reinvest", "transfer-in"):
+    if inst_id and body.kind in ("buy", "reinvest", "transfer-in", "reward"):
         basis = body.costBasis if body.kind == "transfer-in" else -body.amount
+        if body.kind == "reward":
+            basis = _reward_basis(s, body, inst_id, a.ownerId)
         s.add(
             Lot(
                 id=ids.new_id("Lot"),

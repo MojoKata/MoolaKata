@@ -14,6 +14,7 @@ from ...importers.parsed import ParsedFile
 from ...ledger import balances, lots, transfers
 from ...ledger import types as atypes
 from ...ledger.categories import DEFAULTS
+from ...money import CENT
 from .. import scoping
 from ..db import live
 from ..entities.accounts import (
@@ -680,7 +681,12 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
     )
     s.add(txn)
     s.flush()
-    if inst and row.kind in ("buy", "reinvest", "transfer-in") and row.quantity:
+    if inst and row.kind in ("buy", "reinvest", "transfer-in", "reward") and row.quantity:
+        if row.kind == "reward":
+            # Income received in coins: their basis is their value that day (S8.5).
+            basis = (abs(row.quantity) * row.price).quantize(CENT) if row.price else None
+        else:
+            basis = -row.amount if row.kind != "transfer-in" else None
         s.add(
             Lot(
                 id=ids.new_id("Lot"),
@@ -689,8 +695,8 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
                 transactionId=txn.id,
                 acquiredOn=row.date,
                 quantity=row.quantity,
-                costBasis=-row.amount if row.kind != "transfer-in" else None,
-                basisMissing=row.kind == "transfer-in",
+                costBasis=basis,
+                basisMissing=basis is None,
             )
         )
     return txn

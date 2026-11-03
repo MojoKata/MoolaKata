@@ -419,6 +419,10 @@ class Income:
     capitalGainDistributions: Decimal
     returnOfCapital: Decimal
     byPayer: list[tuple[str, Decimal]]  # dividends by payer
+    # Foreign tax paid by payer (1099-DIV box 7), and crypto received as income, at its value
+    # when received, by account (S8.5, CR3-38).
+    foreignTax: list[tuple[str, Decimal]]
+    crypto: list[tuple[str, Decimal]]
 
 
 def income(s: Session, book: TaxBook) -> Income:
@@ -426,18 +430,32 @@ def income(s: Session, book: TaxBook) -> Income:
     interest: dict[str, Decimal] = defaultdict(lambda: ZERO)
     divs: dict[str, Decimal] = defaultdict(lambda: ZERO)
     by_payer: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    foreign: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    crypto: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for a in _taxable(books.counted(s, book).accounts):
         payer = a.institution or a.name
+        rewards = {
+            lot.transactionId: lot.costBasis
+            for lot in repo.load(s, a).lots
+            if lot.costBasis is not None
+        }
         for t in s.scalars(
             select(Transaction).where(
                 Transaction.accountId == a.id,
                 Transaction.deleted == false(),
-                Transaction.kind.in_(("interest", "dividend", "reinvest", "capital-gain")),
+                Transaction.kind.in_(
+                    ("interest", "dividend", "reinvest", "capital-gain", "foreign-tax", "reward")
+                ),
                 Transaction.date >= first,
                 Transaction.date <= last,
             )
         ):
-            if t.kind == "interest":
+            if t.kind == "foreign-tax":
+                foreign[payer] -= t.amount
+            elif t.kind == "reward":
+                # Ordinary income at its value when received, the basis of its lot (S8.5).
+                crypto[a.name] += rewards.get(t.id, ZERO)
+            elif t.kind == "interest":
                 interest[payer] += t.amount
             elif t.kind == "capital-gain":
                 divs["capital-gain"] += t.amount
@@ -455,6 +473,8 @@ def income(s: Session, book: TaxBook) -> Income:
         capitalGainDistributions=divs["capital-gain"],
         returnOfCapital=divs["return-of-capital"],
         byPayer=sorted(((k, v) for k, v in by_payer.items() if v), key=lambda x: -x[1]),
+        foreignTax=sorted(((k, v) for k, v in foreign.items() if v), key=lambda x: -x[1]),
+        crypto=sorted(((k, v) for k, v in crypto.items() if v), key=lambda x: -x[1]),
     )
 
 

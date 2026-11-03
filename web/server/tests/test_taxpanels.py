@@ -464,3 +464,25 @@ def test_an_hsa_counts_its_employers_money_against_its_coverages_limit(server, f
     assert r.status_code == 200, r.text
     [x] = panels(c, b)["retirement"]["contributions"]
     assert x["limit"] == "5400.00" and x["over"], "self-only 4,400 + 1,000, and 5,500 is over"
+
+
+def test_foreign_tax_and_crypto_income_on_the_income_panel(alice):
+    """CR3-38: foreign tax a fund paid shows by payer; coins received as income count at
+    their value when received, which is the basis of the lot they make."""
+    brk = new_account(alice, name="Brokerage", type="brokerage", institution="Fidelity")
+    add(alice, brk["id"], "180.00", "2026-06-30", kind="dividend", symbol="VXUS")
+    add(alice, brk["id"], "-14.22", "2026-06-30", kind="foreign-tax", symbol="VXUS")
+    ex = new_account(alice, name="Exchange", type="crypto-exchange", institution="Coinbase")
+    add(alice, ex["id"], "0.00", "2026-04-01", kind="reward", symbol="ETH", quantity="0.01",
+        price="2500")  # fmt: skip
+    b = book(alice)
+    inc = panels(alice, b)["income"]
+    assert [(x["label"], x["amount"]) for x in inc["foreignTax"]] == [("Fidelity", "14.22")]
+    assert [(x["label"], x["amount"]) for x in inc["cryptoIncome"]] == [("Exchange", "25.00")]
+    lots = alice.get(f"/ui/api/accounts/{ex['id']}/holdings").json()["holdings"]
+    assert [(h["symbol"], h["costBasis"]) for h in lots] == [("ETH", "25.00")]
+    r = add(alice, ex["id"], "-5.00", "2026-04-02", kind="foreign-tax")
+    assert r  # money out is the only sign it takes; a deposit's sign is refused below
+    bad = make(alice, "Txn", accountId=brk["id"], date="2026-07-01", amount="5.00",
+               kind="foreign-tax", symbol="VXUS")  # fmt: skip
+    assert bad.status_code == 422 and bad.json()["errors"][0]["code"] == "amount-sign"

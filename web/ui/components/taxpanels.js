@@ -280,6 +280,16 @@ function Income({ p }) {
             v=${x.amount} /></div>`
         )}
       </div>
+      <div class="card"><h3 data-help="foreign-tax">Foreign tax paid (7)</h3>${i.foreignTax.length
+        ? i.foreignTax.map((/** @type {any} */ x) =>
+          html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
+        )
+        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+      <div class="card"><h3 data-help="crypto-income">Crypto income</h3>${i.cryptoIncome.length
+        ? i.cryptoIncome.map((/** @type {any} */ x) =>
+          html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
+        )
+        : html`<p class="small dim">No staking or rewards in ${p.year}.</p>`}</div>
     </div>
   `;
 }

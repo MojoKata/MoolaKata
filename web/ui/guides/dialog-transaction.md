@@ -16,7 +16,8 @@ As the institution wrote it.
 ## Kind
 
 What it is: money in or out, a transfer, interest, a fee; or for an investing account a buy, a sale,
-a dividend, shares moved in or out.
+a dividend, shares moved in or out, coins received as income (staking, rewards: their quantity and
+the day's price, no cash), or foreign tax a fund paid.
 
 ## Symbol
 

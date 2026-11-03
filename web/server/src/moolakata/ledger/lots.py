@@ -344,7 +344,7 @@ def _transaction(
     if t.kind in CORPORATE:
         _corporate(out, t)
         return
-    if t.kind in ("buy", "reinvest", "transfer-in"):
+    if t.kind in ("buy", "reinvest", "transfer-in", "reward"):
         if made:
             for lot in made:
                 out.open.append(
@@ -367,6 +367,8 @@ def _transaction(
                     lot.basis = None if share is None or lot.basis is None else lot.basis + share
         elif t.quantity:
             basis = -t.amount if t.kind != "transfer-in" and t.amount else None
+            if t.kind == "reward":
+                basis = (t.quantity * t.price).quantize(CENT) if t.price else None
             out.open.append(OpenLot(None, t.instrumentId, t.date, t.quantity, basis))
         if t.kind == "buy":
             _cover_short_stock(out, t, len(made) if made else 1)
@@ -554,7 +556,7 @@ OPTION_TRADES = (
 # lot typed on its own, is kept by snapshots (R3.2). Income and fees on an instrument (a cash
 # dividend, interest, a distribution) and what only changes the lots there are (a split, a
 # corporate action) aren't.
-TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", *OPTION_TRADES)
+TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward", *OPTION_TRADES)
 
 
 def _option(out: Replay, t, picks: list) -> None:

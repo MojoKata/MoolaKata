@@ -73,6 +73,8 @@ class IncomeOut(Model):
     capitalGainDistributions: Money
     returnOfCapital: Money
     dividendsByPayer: list[Amount]
+    foreignTax: list[Amount]  # by payer (1099-DIV box 7)
+    cryptoIncome: list[Amount]  # coins received as income, by account (S8.5)
 
 
 class ContributionOut(Model):
@@ -302,6 +304,8 @@ def _build(s, b) -> Panels:
             capitalGainDistributions=inc.capitalGainDistributions,
             returnOfCapital=inc.returnOfCapital,
             dividendsByPayer=[Amount(label=k, amount=v) for k, v in inc.byPayer],
+            foreignTax=[Amount(label=k, amount=v) for k, v in inc.foreignTax],
+            cryptoIncome=[Amount(label=k, amount=v) for k, v in inc.crypto],
         ),
         retirement=RetirementOut(
             contributions=[
