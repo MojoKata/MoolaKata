@@ -239,3 +239,68 @@ def test_an_option_on_its_own_risks_what_its_shape_does(alice):
     assert r.status_code == 200, r.text
     # Covered: the shares' value (their last trade, $500) less the call's premium.
     assert _risk(alice, b) == 50000 - 300
+
+
+def _leg(kind, qty, strike=None, expiry=dt.date(2026, 12, 18), cost=0):
+    if kind == "stock":
+        return Leg("S", "S", "stock", D(qty), D(cost), None)
+    return Leg(f"{kind}{strike}{expiry}", "O", kind, D(qty), D(cost), None,
+               D(strike), expiry, 100)  # fmt: skip
+
+
+JAN, FEB = dt.date(2027, 1, 15), dt.date(2027, 2, 19)
+
+
+@pytest.mark.parametrize(
+    ("legs", "name"),
+    [
+        ([], "Closed"),
+        ([("stock", 100)], "Shares"),
+        ([("stock", 100), ("call", -1, 110)], "Covered call"),
+        ([("stock", 100), ("put", 1, 90)], "Protective put"),
+        ([("stock", 100), ("call", -1, 110), ("put", 1, 90)], "Collar"),
+        ([("stock", -100), ("call", -1, 110)], "Custom"),  # short shares
+        ([("stock", 100), ("call", -1, 110), ("put", 2, 90)], "Custom"),  # sizes differ
+        ([("stock", 100), ("call", 1, 110)], "Custom"),  # a long call on shares
+        ([("put", 1, 90)], "Long put"),
+        ([("put", -1, 90)], "Short put"),
+        ([("call", -1, 110)], "Short call"),
+        ([("call", 1, 100, JAN), ("call", -1, 100)], "Calendar"),
+        ([("call", 1, 105, JAN), ("call", -1, 100)], "Diagonal"),
+        ([("call", 1, 100, JAN), ("put", -1, 100)], "Custom"),  # two expiries, two kinds
+        ([("call", 1, 100), ("call", -2, 110)], "Custom"),  # sizes differ
+        ([("call", 1, 100), ("call", -1, 110)], "Bull call spread"),
+        ([("call", -1, 100), ("call", 1, 110)], "Bear call spread"),
+        ([("put", 1, 100), ("put", -1, 110)], "Bull put spread"),
+        ([("put", -1, 100), ("put", 1, 110)], "Bear put spread"),
+        ([("call", 1, 100), ("put", 1, 100)], "Long straddle"),
+        ([("call", -1, 110), ("put", -1, 90)], "Short strangle"),
+        ([("call", 1, 100), ("put", -1, 100)], "Custom"),  # a synthetic: not named
+        ([("call", 1, 90), ("call", -2, 100), ("call", 1, 110)], "Butterfly"),
+        ([("call", 1, 90), ("call", -2, 100), ("call", 1, 120)], "Custom"),  # wings uneven
+        ([("call", 1, 90), ("call", -1, 100), ("call", 1, 110, JAN)], "Custom"),  # expiries
+        ([("put", 1, 80), ("put", -1, 90), ("call", -1, 110), ("call", 1, 120)], "Iron condor"),
+        ([("put", 1, 80), ("put", -1, 100), ("call", -1, 100), ("call", 1, 120)],
+         "Iron butterfly"),
+        ([("put", 1, 80), ("put", -1, 110), ("call", -1, 100), ("call", 1, 120)], "Custom"),
+        ([("put", 1, 80), ("put", 1, 90), ("call", -1, 110), ("call", 1, 120)], "Custom"),
+        ([("put", 1, 80), ("call", 1, 90), ("call", 1, 110), ("call", 1, 120)], "Custom"),
+    ],
+)  # fmt: skip
+def test_every_shape_has_its_name(legs, name):
+    """S3.5.4: each shape a strategy's legs make is named, and anything else is Custom."""
+    assert shape([_leg(*x) for x in legs]) == name
+
+
+def test_a_calendars_risk_is_its_debit_or_the_margin_typed():
+    """S3.5.5: legs that expire apart have no one payoff; a calendar risks its net debit, and
+    a credit one the margin typed, or nothing known (unlimited)."""
+    debit = [_leg("call", 1, 100, JAN, cost=500), _leg("call", -1, 100, cost=-200)]
+    assert figures(debit).expiryKnown is False
+    assert capital_at_risk(debit, None) == D("300.00")
+    credit = [_leg("call", 1, 100, JAN, cost=200), _leg("call", -1, 100, cost=-500)]
+    assert capital_at_risk(credit, D(2500)) == 2500
+    assert capital_at_risk(credit, None) is None
+    # One expiry: the payoff's worst, whatever the margin.
+    spread = [_leg("call", 1, 100, cost=500), _leg("call", -1, 110, cost=-200)]
+    assert capital_at_risk(spread, D(9999)) == D("300.00")
