@@ -168,7 +168,8 @@ class LotRow(Model):
     basis: Money | None
     basisMissing: bool
     standIn: bool
-    longTerm: bool
+    longTerm: bool | None  # None: the day bought is missing, the term unknown (CR3-73)
+    acquiredMissing: bool = False
 
 
 class HoldingRow(Model):
@@ -671,7 +672,10 @@ def account_holdings(account_id: str, request: Request, c: Caller = Depends(call
                             basis=x.basis,
                             basisMissing=x.basisMissing,
                             standIn=x.standIn,
-                            longTerm=long_term(x.heldFrom or x.acquiredOn, clock.today()),
+                            longTerm=None
+                            if x.acquiredMissing
+                            else long_term(x.heldFrom or x.acquiredOn, clock.today()),
+                            acquiredMissing=x.acquiredMissing,
                         )
                         for x in sorted(lots, key=lambda x: x.acquiredOn)
                     ],

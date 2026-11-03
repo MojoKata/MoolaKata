@@ -486,3 +486,64 @@ def test_foreign_tax_and_crypto_income_on_the_income_panel(alice):
     bad = make(alice, "Txn", accountId=brk["id"], date="2026-07-01", amount="5.00",
                kind="foreign-tax", symbol="VXUS")  # fmt: skip
     assert bad.status_code == 422 and bad.json()["errors"][0]["code"] == "amount-sign"
+
+
+def _rows_8949(c, b):
+    return [(r["description"], r["acquired"], r["basis"], r["longTerm"]) for r in
+            panels(c, b)["rows"]]  # fmt: skip
+
+
+def test_shares_moved_in_keep_the_days_they_were_bought(alice):
+    """CR3-73: a transfer-in typed lot by lot keeps each lot's day bought and basis, so a
+    sale soon after is long term for the old lot; one typed without lots has its day bought
+    missing, its term unknown and the book says so."""
+    fid = new_account(alice, name="Fidelity", type="brokerage")
+    r = make(alice, "Txn", accountId=fid["id"], date="2026-01-10", kind="transfer-in",
+             symbol="VTI", quantity="100", amount="0.00",
+             transferLots=[{"acquiredOn": "2019-03-04", "quantity": "60", "costBasis": "9000"},
+                           {"acquiredOn": "2025-11-20", "quantity": "40",
+                            "costBasis": "11000"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    trade(alice, fid["id"], "2026-03-02", "sell", "100", "300")
+    b = book(alice)
+    rows = sorted(_rows_8949(alice, b), key=lambda x: x[1])
+    assert [(x[1], x[2], x[3]) for x in rows] == [
+        ("2019-03-04", "9000.00", True),
+        ("2025-11-20", "11000.00", False),
+    ]
+    bad = make(alice, "Txn", accountId=fid["id"], date="2026-01-12", kind="transfer-in",
+               symbol="KO", quantity="10", amount="0.00",
+               transferLots=[{"acquiredOn": "2020-01-02", "quantity": "9"}])  # fmt: skip
+    assert bad.status_code == 422 and bad.json()["errors"][0]["code"] == "lots-unbalanced"
+    r = make(alice, "Txn", accountId=fid["id"], date="2026-02-01", kind="transfer-in",
+             symbol="KO", quantity="10", amount="0.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    [ko] = [h for h in alice.get(f"/ui/api/accounts/{fid['id']}/holdings").json()["holdings"]
+            if h["symbol"] == "KO"]  # fmt: skip
+    assert ko["lots"][0]["acquiredMissing"] and ko["lots"][0]["longTerm"] is None
+    kinds = [i["kind"] for i in panels(alice, b)["issues"]]
+    assert "acquired-missing" in kinds
+
+
+def test_shares_moved_between_two_accounts_carry_their_lots(alice):
+    """CR3-73: a transfer out and in of the same shares between two of the owner's accounts
+    is offered as a pair; matched, the shares arrive with the lots they left with."""
+    schwab = new_account(alice, name="Schwab", type="brokerage")
+    fid = new_account(alice, name="Fidelity", type="brokerage")
+    add(alice, schwab["id"], "15000.00", "2019-01-02", kind="deposit")
+    trade(alice, schwab["id"], "2019-03-04", "buy", "100", "150")
+    add(alice, schwab["id"], "0.00", "2026-01-09", kind="transfer-out", symbol="VTI",
+        quantity="100")  # fmt: skip
+    add(alice, fid["id"], "0.00", "2026-01-10", kind="transfer-in", symbol="VTI",
+        quantity="100")  # fmt: skip
+    pairs = alice.get("/ui/api/transfers/bitcoin").json()["items"]
+    assert [(p["symbol"], p["fromAccount"], p["toAccount"]) for p in pairs] == [
+        ("VTI", "Schwab", "Fidelity")
+    ]
+    r = alice.post(f"/ui/api/transfers/bitcoin/{pairs[0]['id']}", json={"confirm": True},
+                   headers={"If-Match": f'"{pairs[0]["version"]}"'})  # fmt: skip
+    assert r.status_code == 200, r.text
+    [vti] = alice.get(f"/ui/api/accounts/{fid['id']}/holdings").json()["holdings"]
+    assert [(x["acquiredOn"], x["basis"], x["longTerm"]) for x in vti["lots"]] == [
+        ("2019-03-04", "15000.00", True)
+    ]

@@ -51,6 +51,9 @@ class Ledger:
     # Each wash sale's loss sale, by id: its day and making, so its replacement settles right
     # after it (CR3-388).
     sale_at: dict = field(default_factory=dict)
+    # A transfer in paired with a transfer out of another account: the lots that one took, by
+    # the transfer in's id, carried whole (CR3-73).
+    carried_in: dict = field(default_factory=dict)
 
     def opening(self) -> balances.Opening:
         return balances.opening(self.account, self.transactions, self.anchors)
@@ -73,6 +76,7 @@ class Ledger:
                 basis_added=lots.adds_basis(self.account.type),
                 averaged=self.averaged,
                 sale_at=self.sale_at,
+                carried_in=self.carried_in,
             )
         txns = [t for t in self.transactions if t.date <= day]
         used = {t.id for t in txns}
@@ -92,10 +96,11 @@ class Ledger:
             basis_added=lots.adds_basis(self.account.type),
             averaged=self.averaged,
             sale_at=self.sale_at,
+            carried_in=self.carried_in,
         )
 
 
-def load(s: Session, account: Account, raw: bool = False) -> Ledger:
+def load(s: Session, account: Account, raw: bool = False, _depth: int = 0) -> Ledger:
     """The account's ledger; raw leaves out the wash sales, for working them out."""
     aid = account.id
     txns = s.scalars(
@@ -165,7 +170,39 @@ def load(s: Session, account: Account, raw: bool = False) -> Ledger:
         list(washes),
         averaged,
         sale_at,
+        _carried_in(s, txns, raw, _depth),
     )
+
+
+def _carried_in(s: Session, txns, raw: bool, depth: int) -> dict:
+    """For each transfer in paired with a transfer out of the same instrument in another
+    account, the lots that one took, worked out by replaying its account (CR3-73): days held,
+    basis and wash-sale adjustments go with the shares, as bitcoin's pairs and corporate
+    actions carry them. Chains of pairs are followed a few accounts deep."""
+    ins = {t.transferId: t for t in txns if t.kind == "transfer-in" and t.transferId}
+    if not ins or depth > 4:
+        return {}
+    outs = s.scalars(
+        select(Transaction).where(
+            Transaction.id.in_(list(ins)),
+            Transaction.deleted == false(),
+            Transaction.kind == "transfer-out",
+        )
+    ).all()
+    out: dict = {}
+    by_account: dict[str, list] = {}
+    for o in outs:
+        if o.instrumentId == ins[o.id].instrumentId and o.accountId != ins[o.id].accountId:
+            by_account.setdefault(o.accountId, []).append(o)
+    for account_id, pairs in by_account.items():
+        src = s.get(Account, account_id)
+        if src is None or src.deleted:
+            continue
+        moved = load(s, src, raw, depth + 1).replay().moved
+        for o in pairs:
+            if o.id in moved:
+                out[ins[o.id].id] = moved[o.id]
+    return out
 
 
 # ---------- categories ----------
@@ -650,6 +687,10 @@ def _apply_import(
 
         s.flush()
         washes.recompute(s, account.ownerId)
+    # Shares or coins it moved between the owner's accounts, offered as pairs (CR3-73).
+    from ...bitcoin import transfers as pairs
+
+    pairs.propose(s, account.ownerId)
     return result
 
 
@@ -697,6 +738,8 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
                 quantity=row.quantity,
                 costBasis=basis,
                 basisMissing=basis is None,
+                # A file's shares moved in say nothing of when they were bought (CR3-73).
+                acquiredMissing=row.kind == "transfer-in",
             )
         )
     return txn

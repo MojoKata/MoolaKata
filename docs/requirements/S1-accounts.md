@@ -288,13 +288,16 @@
    are linked as a transfer, the closest in date; when two are equally close, neither is,
    and the owner links one by hand. Cash taken out of a bank account pairs this way with
    its deposit in a `cash` account, and money sent to a payment app with its arrival there.
-   1. **Bitcoin moved between the owner's accounts** (a wallet and an exchange, or two
-      wallets): a transfer out and a transfer in of the same amount less the network fee,
-      within 3 days, are **proposed** as a pair, on each account's Overview, and the owner
-      confirms or rejects it; a rejected pair isn't proposed again. Once
-      confirmed, the coins arrive with the **lots they left with**: their basis and the day
-      each was acquired carry over, the fee aside (S8.19), so nothing is missing a basis and
-      nothing is taxed. A transfer in left unmatched stays missing its basis (S8.4).
+   1. **Shares, funds or bitcoin moved between the owner's accounts** (two brokerages, a
+      wallet and an exchange, two wallets): a transfer out and a transfer in of the same
+      instrument and quantity (bitcoin's less the network fee), within days, are
+      **proposed** as a pair, on each account's Overview, and the owner confirms or rejects
+      it; a rejected pair isn't proposed again. Once confirmed, they arrive with the **lots
+      they left with**, worked out from the account they left whenever its lots change:
+      their basis, the day each was acquired, a wash sale's holding period, the fee aside
+      (S8.19), so nothing is missing a basis and nothing is taxed. A transfer in left
+      unmatched takes the lots typed with it (S2.2), else stays missing its basis and its
+      day bought (S8.4).
    2. **In a budget**, a transfer between one of its accounts and one it doesn't count is
       money leaving or entering it, and counts by its category (S7.3.2).
 8. **529 plans.** A `529` account holds funds and cash like a brokerage account, plus:

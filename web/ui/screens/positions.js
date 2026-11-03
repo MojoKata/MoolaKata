@@ -38,6 +38,7 @@ const TERM = /** @type {Record<string, string>} */ ({
   short: 'Short term',
   long: 'Long term',
   mixed: 'Mixed',
+  unknown: 'Unknown: when bought is missing',
 });
 
 /** @param {{ tab?: string }} p */

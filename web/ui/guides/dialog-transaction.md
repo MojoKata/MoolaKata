@@ -55,6 +55,14 @@ How many shares of that lot the sale takes; no more than the lot holds.
 
 For shares transferred in: what they cost. Without it the lot is marked **basis missing**.
 
+
+## Lots, as bought {#transfer-lots}
+
+For shares moved in from another broker: each lot as it was bought, its day, how many and what it
+cost, adding up to the shares moved in, so a sale's term and gain are counted from the day bought.
+None typed, they arrive as one lot whose day bought is missing: its term shows as unknown, and the
+tax book lists it until you add it. Shares moved between two of your own accounts are offered as a
+pair instead, and carry their lots with them.
 ## Payee
 
 Who was paid, or who paid you.

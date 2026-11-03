@@ -22,6 +22,9 @@ class OpenLot:
     # A wash sale's replacement (S3.8.4): held from the sold shares' purchase, for the term
     # only; the lot is still acquired, and taken in order, by the day it was bought.
     heldFrom: dt.date | None = None
+    # Shares moved in whose day bought isn't known: `acquiredOn` is the day they arrived, the
+    # term unknown until the day is typed (S2.2, CR3-73).
+    acquiredMissing: bool = False
 
     @property
     def basisMissing(self) -> bool:
@@ -164,6 +167,7 @@ def replay(
     basis_added: bool = True,
     averaged: frozenset = frozenset(),
     sale_at: dict | None = None,
+    carried_in: dict | None = None,
 ) -> Replay:
     """Transactions, lots (acquisitions), specific-identification picks and holding
     snapshots of one account, as entities; returns the open lots, disposals and problems.
@@ -237,6 +241,13 @@ def replay(
             lot = pending.pop(obj.id, None)
             if lot is not None:
                 _settle(lot, obj, basis_added)
+        elif carried_in and obj.kind == "transfer-in" and obj.id in carried_in:
+            # A pair from another account: the lots its transfer out took, whole (CR3-73).
+            for lot in carried_in[obj.id]:
+                out.open.append(
+                    OpenLot(None, obj.instrumentId, lot.acquiredOn, lot.quantity, lot.basis,
+                            lot.standIn, lot.heldFrom, lot.acquiredMissing)
+                )  # fmt: skip
         else:
             before = len(out.open)
             _transaction(
@@ -354,6 +365,7 @@ def _transaction(
                         lot.acquiredOn,
                         lot.quantity,
                         None if lot.basisMissing else lot.costBasis,
+                        acquiredMissing=bool(getattr(lot, "acquiredMissing", False)),
                     )
                 )
             if t.id in out.premium:
@@ -738,7 +750,12 @@ def _consume(
         allotted += share
         basis = _take(lot, take)
         if not realize:
-            out.moved.setdefault(t.id, []).append((lot.acquiredOn, take, basis))
+            # What a transfer out takes, whole: its day, basis, holding period and whether it
+            # stood in for a snapshot, so its pair carries them (CR3-73).
+            out.moved.setdefault(t.id, []).append(
+                OpenLot(None, lot.instrumentId, lot.acquiredOn, take, basis, lot.standIn,
+                        lot.heldFrom, lot.acquiredMissing)
+            )  # fmt: skip
         if realize:
             out.disposals.append(
                 Disposal(

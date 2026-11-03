@@ -1011,7 +1011,17 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
                     )
                 )
         for lot in rp.open:
-            if lot.basis is None:
+            if lot.acquiredMissing:
+                inst = s.get(Instrument, lot.instrumentId)
+                out.append(
+                    Issue(
+                        "acquired-missing",
+                        f"{a.name}: {inst.symbol} moved in on {lot.acquiredOn:%b %-d, %Y}: when "
+                        "it was bought, and its basis, for its term and gain",
+                        f"/ui/accounts/{a.id}/holdings",
+                    )
+                )
+            elif lot.basis is None:
                 inst = s.get(Instrument, lot.instrumentId)
                 out.append(
                     Issue(

@@ -526,6 +526,11 @@ export const FIELDS = {
     items: {"type": "list", "items": {"type": "json", "schema": "TokenItem"}},
     days: {"type": "int"},
   },
+  TransferLot: {
+    acquiredOn: {"type": "date"},
+    quantity: {"type": "quantity"},
+    costBasis: {"type": "money", "nullable": true},
+  },
   TxnRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
     date: {"type": "date"},
@@ -543,6 +548,7 @@ export const FIELDS = {
     contributionYear: {"type": "int", "nullable": true},
     contributionSource: {"type": "text", "nullable": true},
     costBasis: {"type": "money", "nullable": true},
+    transferLots: {"type": "list", "items": {"type": "json", "schema": "TransferLot"}, "nullable": true},
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
     cleared: {"type": "bool"},

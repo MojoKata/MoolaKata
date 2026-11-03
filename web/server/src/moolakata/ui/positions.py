@@ -104,7 +104,9 @@ def _long_term(acquired: dt.date, day: dt.date) -> bool:
     return long_term(acquired, day)
 
 
-def _term(flags: list[bool]) -> str:
+def _term(flags: list[bool | None]) -> str:
+    if any(f is None for f in flags):
+        return "unknown"  # shares moved in whose day bought is missing (CR3-73)
     if all(flags):
         return "long"
     if not any(flags):
@@ -164,7 +166,10 @@ def gather(s, c: Caller, kind: str = "all"):
             p = positions.get(iid)
             value = p.value if p is not None else None
             gain = value - cost if value is not None and cost is not None else None
-            flags = [_long_term(lot.heldFrom or lot.acquiredOn, today) for lot in lots]
+            flags = [
+                None if lot.acquiredMissing else _long_term(lot.heldFrom or lot.acquiredOn, today)
+                for lot in lots
+            ]
             extra = {}
             oc = options.contract_of(s, iid) if inst.instrumentClass == "option" else None
             if oc is not None:

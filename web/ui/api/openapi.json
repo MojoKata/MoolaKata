@@ -12517,6 +12517,11 @@
       "LotRow": {
         "additionalProperties": false,
         "properties": {
+          "acquiredMissing": {
+            "default": false,
+            "title": "Acquiredmissing",
+            "type": "boolean"
+          },
           "acquiredOn": {
             "format": "date",
             "title": "Acquiredon",
@@ -12542,8 +12547,15 @@
             "type": "boolean"
           },
           "longTerm": {
-            "title": "Longterm",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longterm"
           },
           "lotId": {
             "anyOf": [
@@ -18505,8 +18517,10 @@
               "locked",
               "locked-out",
               "long-assign",
+              "lot-invalid",
               "lot-method-invalid",
               "lot-unknown",
+              "lots-unbalanced",
               "made-by-an-assignment",
               "mapping-does-not-read",
               "mapping-incomplete",
@@ -18964,8 +18978,10 @@
                   "locked",
                   "locked-out",
                   "long-assign",
+                  "lot-invalid",
                   "lot-method-invalid",
                   "lot-unknown",
+                  "lots-unbalanced",
                   "made-by-an-assignment",
                   "mapping-does-not-read",
                   "mapping-incomplete",
@@ -25178,6 +25194,46 @@
         "title": "TransferIn",
         "type": "object"
       },
+      "TransferLot": {
+        "additionalProperties": false,
+        "description": "One lot shares moved in arrive as (S2.2, CR3-73): when it was bought, and its basis.",
+        "properties": {
+          "acquiredOn": {
+            "format": "date",
+            "title": "Acquiredon",
+            "type": "string"
+          },
+          "costBasis": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Costbasis"
+          },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "acquiredOn",
+          "quantity"
+        ],
+        "title": "TransferLot",
+        "type": "object"
+      },
       "TransferPair": {
         "additionalProperties": false,
         "properties": {
@@ -25194,9 +25250,21 @@
             "title": "Id",
             "type": "string"
           },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          },
           "sats": {
             "title": "Sats",
             "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
           },
           "toAccount": {
             "title": "Toaccount",
@@ -25219,6 +25287,8 @@
           "fromDate",
           "toDate",
           "sats",
+          "symbol",
+          "quantity",
           "version"
         ],
         "title": "TransferPair",
@@ -25736,6 +25806,20 @@
             ],
             "title": "Transferid"
           },
+          "transferLots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TransferLot"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transferlots"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -26093,6 +26177,21 @@
             "title": "Tagids",
             "type": "array",
             "uniqueItems": true
+          },
+          "transferLots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TransferLot"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transferlots"
           },
           "transferWithId": {
             "anyOf": [
