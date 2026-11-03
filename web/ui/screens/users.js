@@ -27,7 +27,9 @@ export default function Users() {
   const [busy, setBusy] = useState('');
   const u = /** @type {any[]} */ (users.data);
   const g = /** @type {any[]} */ (groups.data);
-  if (users.error) return html`<${Failed} error=${users.error} />`;
+  if (users.error || groups.error) {
+    return html`<${Failed} error=${users.error || groups.error} />`;
+  }
   if (!u || !g) return html`<${Loading} lines=${8} />`;
   const name = (/** @type {string} */ id) => g.find((x) => x.id === id)?.name;
   const reload = () => {

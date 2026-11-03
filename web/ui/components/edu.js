@@ -178,7 +178,7 @@ export function Contributions({ a }) {
   const plan = useApi(`/accounts/${a.id}/plan529`, {}, ['import']);
   const v = /** @type {any} */ (res.data);
   const pl = /** @type {any} */ (plan.data);
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || plan.error) return html`<${Failed} error=${res.error || plan.error} />`;
   if (!v || !pl) return html`<${Loading} />`;
   const again = () => {
     res.reload();

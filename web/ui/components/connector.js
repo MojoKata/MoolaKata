@@ -54,7 +54,7 @@ export function ConnectorSection() {
     toast('Unpaired: every Connection stopped and every sync is off');
     res.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !values || !rec) return html`<${Loading} />`;
   const paired = v.state === 'paired';
   const tone = !paired ? '' : v.silentForSeconds ? 'bad' : v.locked ? 'warn' : 'ok';

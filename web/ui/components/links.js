@@ -75,7 +75,7 @@ export function LinksSection() {
     toast('Saved');
     s.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !values || !rec) return html`<${Loading} />`;
   const live = v.links.filter((/** @type {any} */ l) => l.state !== 'ended');
   const ended = v.links.filter((/** @type {any} */ l) => l.state === 'ended');

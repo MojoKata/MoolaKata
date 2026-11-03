@@ -107,7 +107,7 @@ export function StorageSection() {
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(s.data, ['keepStatementsYears']);
   const rec = fd.rec;
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const years = rec.get('keepStatementsYears');
   const prune = () => openDialog(PruneDialog, { v }).then((x) => x && res.reload());

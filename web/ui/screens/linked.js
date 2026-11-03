@@ -884,7 +884,9 @@ function TaxDocuments({ id, bid }) {
   const book = useApi(`/tax-books/${bid}`);
   const files = useList(`/linked/${id}/files`);
   const b = /** @type {any} */ (book.data);
-  if (book.error) return html`<${Failed} error=${book.error} />`;
+  if (book.error || files.error) {
+    return html`<${Failed} error=${book.error || files.error} />`;
+  }
   if (!b || !files.data) return html`<${Loading} lines=${3} />`;
   const sent = new Map((/** @type {any[]} */ (files.data)).map((f) => [f.id, f]));
   if (!b.documents.length) return html`<${Empty}>No documents in this book.</${Empty}>`;

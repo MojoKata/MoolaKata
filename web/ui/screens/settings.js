@@ -389,7 +389,7 @@ function Prices() {
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(all.data, ['priceRefreshTime']);
   const time = fd.rec;
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || all.error) return html`<${Failed} error=${res.error || all.error} />`;
   if (!v || !time) return html`<${Loading} />`;
   // A switch or a Remove saves at once, as a draft of one change (S12.15).
   const change = async (/** @type {any} */ src, /** @type {any} */ body) => {
@@ -826,7 +826,7 @@ function EmailSection() {
     const r = await api.post('/settings/email/test');
     toast(`Test email sent to ${r.to}`);
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const f = Object.fromEntries(EMAIL_KEYS.map((k) => [k, rec.get(k) ?? '']));
   // An empty box is no value, as the key was read.
@@ -945,7 +945,7 @@ function BitcoinSection() {
     toast('Certificate trusted');
     res.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   // The form's choices, read from the keys and put back into them.
   const url = rec.get('bitcoinEsploraUrl') || MEMPOOL;
@@ -1151,7 +1151,7 @@ function Backups() {
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(s.data, ['backupTime']);
   const rec = fd.rec;
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const mb = (/** @type {number} */ n) => (n / 1048576).toFixed(n < 1048576 * 10 ? 1 : 0) + ' MB';
   return html`
