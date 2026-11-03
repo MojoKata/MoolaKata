@@ -19,7 +19,7 @@
     "lines": 64.7
   },
   "browser/screens": {
-    "branches": 75.9,
+    "branches": 76.0,
     "lines": 57.2
   },
   "browser/store": {
@@ -107,8 +107,8 @@
     "lines": 76.9
   },
   "server/store": {
-    "branches": 76.8,
-    "lines": 90.7
+    "branches": 76.9,
+    "lines": 90.8
   },
   "server/taxes": {
     "branches": 91.8,
