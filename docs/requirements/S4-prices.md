@@ -72,5 +72,6 @@
 9. **Linked servers never call price sources for each other.** A peer's shared data carries its
    own values and their `as_of` (S11.5).
 10. **A typed price** is its typer's: it values their own accounts, and another user's only
-    when they type one too. Where an instrument has no stored close, a holding is valued from
+    when they type one too. It is for an instrument held or watched (S4.4) in an account the
+    typer can change: a holding, or the underlying of an option traded there. Where an instrument has no stored close, a holding is valued from
     the viewer's own trades in it, never from another user's.

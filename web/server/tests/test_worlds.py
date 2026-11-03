@@ -5,11 +5,13 @@ with a bug planted has stopped reaching the data shape that shows it."""
 import pytest
 import test_account_world
 import test_budget_world
+import test_option_world
 import test_tax_world
-from worlds import accounts, budget, catches, tax
+from worlds import accounts, budget, catches, options, tax
 
 WORLDS = {
     "account": (accounts.PLANTS, test_account_world.check_world),
+    "option": (options.PLANTS, test_option_world.check_world),
     "budget": (budget.PLANTS, test_budget_world.check_world),
     "tax": (tax.PLANTS, test_tax_world.check_world),
 }

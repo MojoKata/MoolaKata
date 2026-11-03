@@ -307,11 +307,21 @@ save.register(
 
 
 def _held_writable(s, user_id: str, instrument_id: str) -> bool:
-    """A typed price is for an instrument the user holds in an account they can change."""
+    """A typed price is for an instrument the user holds in an account they can change, or
+    watches there: the underlying of an option traded in it (S4.4), which its value and its
+    expiry rest on."""
+    from ..store.entities.accounts import OptionContract
+
+    options = s.scalars(
+        select(OptionContract.instrumentId).where(
+            OptionContract.underlyingId == instrument_id, OptionContract.deleted == false()
+        )
+    )
+    traded = [instrument_id, *options]
     account_ids = set(
         s.scalars(
             select(Transaction.accountId).where(
-                Transaction.instrumentId == instrument_id, Transaction.deleted == false()
+                Transaction.instrumentId.in_(traded), Transaction.deleted == false()
             )
         )
     )
