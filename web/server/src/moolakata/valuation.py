@@ -445,13 +445,10 @@ def flows(
     if assets.is_physical(a.type):
         for it, _ in assets.worth(s, a, last):
             add(it.acquiredOn, assets.worth_on(s, it, it.acquiredOn))
-            if it.soldOn is not None:
-                # Its sale takes out what it brought, so a gain on it is growth; without its
-                # proceeds, what it was worth the day before.
-                took = it.proceeds - (it.saleFees or ZERO) if it.proceeds is not None else None
-                if took is None:
-                    took = assets.worth_on(s, it, it.soldOn - dt.timedelta(days=1))
-                add(it.soldOn, -took)
+            # Its sale takes out what it brought, so a gain on it is growth. A sold item always
+            # has its proceeds (the table's check `sale`); the test is for the type checker.
+            if it.soldOn is not None and it.proceeds is not None:
+                add(it.soldOn, (it.saleFees or ZERO) - it.proceeds)
         return out
     for day, amount in perf.flows(ledger.transactions).items():
         add(day, amount)
