@@ -334,6 +334,8 @@ The rulings the rest of the requirements apply.
     end, **×** clears it (shown while it holds something) and **↺** puts back its default
     (shown while it differs, named: *Use the default: 30 days*); outside it, a little apart,
     **All** (a count) or **Max** (an amount) fills in the most and **Min** the least, named
-    with the value (*All: 2 contracts*). Each is a button reached by keyboard; while the field
-    already holds its value, one inside is hidden and one outside greyed out. Bounds are words, not icons: an arrow to a line reads
-    as upload or download.
+    with the value (*All: 2 contracts*), which is its tooltip. Each is a button reached by
+    keyboard; while the field already holds its value, one inside is hidden and one outside
+    greyed out. A value past the field's bounds (or not whole, for a count) is marked as it is
+    typed, and refused when saved. Bounds are words, not icons: an arrow to a line reads as
+    upload or download.

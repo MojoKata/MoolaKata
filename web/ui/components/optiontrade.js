@@ -119,7 +119,7 @@ export function OptionTrade({ close, accountId, start }) {
 export function Settle({ close, row }) {
   useDialogGuide('dialog-option-settle');
   const short = row.side === 'short';
-  const held = String(dec(row.quantity).abs()).replace(/\.0+$/, '');
+  const held = dec(row.quantity).abs().toNumber(); // contracts: a whole number
   const [f, setF] = useState({
     how: row.inTheMoney === false ? 'expired' : short ? 'assign' : 'exercise',
     date: row.expiry || today(),
