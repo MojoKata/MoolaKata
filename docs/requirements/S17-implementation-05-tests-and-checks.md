@@ -117,7 +117,9 @@
       3. **Where it is shown**: the terminal; HTML reports in `web/.dev/coverage/html/`; in
          CI, the job's summary, a notice with the headline and one on each of the nine
          largest unreached stretches of changed lines (shown on those lines in a pull
-         request), and the HTML as the run's `coverage` artifact, kept 30 days; after each
+         request), and the run's `coverage` artifact, kept 30 days: the HTML, and the data to
+         query (`server.json`, coverage.py's JSON, and `browser.lcov`: each file's lines and
+         branches missed); after each
          merge to `main`, the coverage site. The terminal's and the job summary's table gives
          each area's files, its lines and branches as its band's dot, a bar of ten characters
          (each a tenth) and the percentage, the counts reached, and its floor, marking an area below its
