@@ -61,6 +61,19 @@ def test_open_and_closed_with_their_lots(alice):
     assert alice.get("/ui/api/positions", params={"kind": "options"}).json()["open"] == []
 
 
+def test_shares_moved_in_without_their_lots_list_with_their_term_unknown(alice):
+    """S2.2, CR3-73: shares moved in with no lots typed are one lot whose day bought is
+    missing: Positions lists it with its term unknown, beside a lot bought, and doesn't fail."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2024-01-05", "buy", "10", "100")
+    add(alice, brk["id"], "0.00", "2026-09-12", kind="transfer-in", symbol="VTI", quantity="5")
+    r = alice.get("/ui/api/positions")
+    assert r.status_code == 200, r.text
+    vti = next(x for x in r.json()["open"] if x["symbol"] == "VTI")
+    assert [x["longTerm"] for x in vti["lots"]] == [True, None]
+    assert vti["term"] == "unknown"
+
+
 def test_gains_by_month_account_and_term(alice):
     brk = new_account(alice, name="Brokerage", type="brokerage")
     trade(alice, brk["id"], "2026-01-05", "buy", "10", "100")

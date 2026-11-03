@@ -12453,8 +12453,15 @@
             "title": "Heldfrom"
           },
           "longTerm": {
-            "title": "Longterm",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longterm"
           },
           "quantity": {
             "examples": [

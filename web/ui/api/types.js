@@ -2059,7 +2059,7 @@
  * @property {import('../app/dec.js').Dec} quantity
  * @property {(import('../app/dec.js').Dec | null)} basis
  * @property {number} days
- * @property {boolean} longTerm
+ * @property {(boolean | null)} longTerm
  */
 
 /**

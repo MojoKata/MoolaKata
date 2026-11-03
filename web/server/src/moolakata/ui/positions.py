@@ -32,7 +32,7 @@ class LotOut(Model):
     quantity: Quantity
     basis: Money | None
     days: int
-    longTerm: bool
+    longTerm: bool | None  # None: shares moved in, the day bought missing (S2.2)
 
 
 class OpenRow(Model):

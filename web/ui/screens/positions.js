@@ -211,13 +211,15 @@ function Open({ rows, reload }) {
                                     <div
                                       class="list-item"><span class="grow">${quantity(
                                         l.quantity,
-                                      )} bought ${date(
+                                      )} ${l.longTerm == null ? 'moved in' : 'bought'} ${date(
                                         l.acquiredOn,
                                       )}${l.heldFrom
                                         ? ` · held from ${date(l.heldFrom)} (a wash sale)`
-                                        : ''} · ${l.days} days · ${l.longTerm
-                                        ? 'long term'
-                                        : 'short term'}</span>${l.basis
+                                        : ''} · ${l.longTerm == null
+                                        ? 'when bought is missing, term unknown'
+                                        : `${l.days} days · ${
+                                          l.longTerm ? 'long term' : 'short term'
+                                        }`}</span>${l.basis
                                         ? html`<${Amt} v=${l.basis} />`
                                         : html`<span class="pill warn">no basis</span>`}</div>
                                   `
