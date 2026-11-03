@@ -536,8 +536,8 @@ def risk_of_account(
     s: Session, ledger, book: Book | None = None
 ) -> tuple[Decimal, Decimal | None, bool]:
     """An investing account's options' market value, and their capital at risk now: each
-    strategy's, and each option outside one as a single leg (S3.9.2); then whether anything
-    is open at all. The risk is None, *unlimited*, when an open strategy's is."""
+    strategy's, and each option outside one as a strategy of its own shape (S3.5.6); then
+    whether anything is open at all. The risk is None, *unlimited*, when any is."""
     book = book or Book(s, ledger)
     value = ZERO
     risk: Decimal | None = ZERO
@@ -549,7 +549,16 @@ def risk_of_account(
         if v.closedOn is None and any(x.open and x.option for x in v.legs):
             any_open = True
             risk = None if risk is None or v.riskNow is None else risk + v.riskNow
-    for iid, (qty, basis) in book.open.items():
+    # An option outside a strategy counts as a strategy of its own shape, through the same
+    # payoff (S3.5.6, CR3-6): a long one risks its premium, a short put its strike less its
+    # premium, a short call the account's shares cover is a covered call, an uncovered one has
+    # no limit. Shares go to the calls in turn, and only shares no strategy holds.
+    today = clock.today()
+    spare: dict[str, Decimal] = {}
+    for iid, (qty, _) in book.open.items():
+        if qty > 0 and iid not in in_strategies and contract_of(s, iid) is None:
+            spare[iid] = qty
+    for iid, (qty, basis) in sorted(book.open.items()):
         oc = contract_of(s, iid)
         if oc is None or not qty:
             continue
@@ -559,5 +568,19 @@ def risk_of_account(
             value += mark.value
         if iid in in_strategies or risk is None:
             continue
-        risk += basis if qty > 0 else (oc.strike * oc.multiplier * -qty).quantize(CENT)
+        inst = s.get(Instrument, iid)
+        legs = [
+            Leg(iid, inst.symbol if inst else "", oc.right, qty, basis,
+                mark.value if mark is not None else None, oc.strike, oc.expiry, oc.multiplier)
+        ]  # fmt: skip
+        if oc.right == "call" and qty < 0 and spare.get(oc.underlyingId):
+            covered = min(spare[oc.underlyingId], -qty * oc.multiplier)
+            spare[oc.underlyingId] -= covered
+            under = s.get(Instrument, oc.underlyingId)
+            price = book.price(oc.underlyingId, today)
+            cost = (price * covered).quantize(CENT) if price is not None else ZERO
+            legs.append(Leg(oc.underlyingId, under.symbol if under else "", "stock", covered,
+                            cost, cost))  # fmt: skip
+        one = capital_at_risk(legs, None)
+        risk = None if one is None else risk + one
     return value, risk, any_open

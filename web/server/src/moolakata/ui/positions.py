@@ -349,7 +349,10 @@ class OptionTradeRow(Model):
     premiumOut: Money  # debits paid, with fees
     value: Money | None  # what is still open is worth now
     pl: Money | None  # in less out, plus what is open
-    capitalAtRisk: Money
+    # The per-trade return's base (S3.9.2): a long option's premium, a short one's strike on
+    # every share its contracts cover; a leg of a strategy, its strategy's capital at risk at
+    # open, where that is finite.
+    capitalRequired: Money
     returnPct: Ratio | None
 
 
@@ -361,9 +364,9 @@ ENDS = ("expire", "assign", "exercise", "option-adjust")
 @router.get("/positions/option-trades", response_model=list[OptionTradeRow])
 def option_trades(request: Request, c: Caller = Depends(caller)):
     """Each option trade (S3.9): from the first contract opened to the last one closed, with the
-    premium in and out, its P/L and its return on the capital at risk. A long option risks its
-    premium; a short one the strike on every contract's shares, cash for a put and the shares
-    for a call."""
+    premium in and out, its P/L and its return on the capital it required. A long option
+    requires its premium; a short one the strike on every contract's shares, cash for a put and
+    the shares for a call."""
     out: list[OptionTradeRow] = []
     with server(request).db.read(user=c.id) as s:
         for a, _ in access.accounts(s, c.id):
@@ -414,7 +417,8 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
                 if trade is not None:
                     p = positions.get(iid)
                     out.append(_trade_row(a, inst, oc, trade, None, p.value if p else None))
-        # A leg in a strategy takes its strategy's capital at risk at open (S3.9.2).
+        # A leg in a strategy takes its strategy's capital at risk at open, where that is
+        # finite (S3.9.2): an unlimited one leaves the trade's own capital required.
         from ..options import strategies as strat
 
         at_open: dict[tuple[str, str], Decimal] = {}
@@ -431,7 +435,7 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
         for r in out:
             risk = at_open.get((r.accountId, r.instrumentId))
             if risk is not None:
-                r.capitalAtRisk = risk
+                r.capitalRequired = risk
                 r.returnPct = (r.pl / risk * 100).quantize(PCT) if r.pl is not None else None
     open_rows = [r for r in out if r.closed is None]
     done = sorted((r for r in out if r.closed is not None), key=lambda r: r.closed, reverse=True)
@@ -474,6 +478,6 @@ def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTra
         premiumOut=trade["out"],
         value=value if last is None else None,
         pl=pl,
-        capitalAtRisk=risk,
+        capitalRequired=risk,
         returnPct=(pl / risk * 100).quantize(PCT) if pl is not None and risk else None,
     )

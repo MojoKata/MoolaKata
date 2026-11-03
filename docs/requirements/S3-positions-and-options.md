@@ -80,7 +80,10 @@
    6. **Where it shows**: Positions has a **Strategies** tab listing each strategy with its
       legs and these figures, and the proposals; an investing account and a portfolio show
       **Capital at risk** beside their options' market value, counting each option outside a
-      strategy as a single leg (S3.9.2). Allocation charts keep market value.
+      strategy as a strategy of its own shape by the table above: a long option its premium, a
+      short put its strike less its premium, a short call the account's shares cover as a
+      covered call (shares no strategy holds, given to the calls in turn), an uncovered one
+      *unlimited*. Allocation charts keep market value.
 6. **Expiry** is applied automatically the day after an option expires out of the money by the
    underlying's closing price. An in-the-money expiry asks the user what happened. The close
    used is the expiry day's, a price source's stored close: no one's typed price, statement
@@ -131,14 +134,15 @@
       The issue names the rule it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;
    unrealized now; and **per trade** for options (open date, close date, premium in and out,
-   P/L, return on capital at risk).
+   P/L, return on capital required).
    1. An option trade runs from the first contract opened in an account to the moment none
       is open. Premium in and out are the cash received and paid, fees included; a trade
       still open adds what it is worth at its current mark, as *if closed now*.
-   2. **Capital at risk**: for a long option, the premium paid; for a short one, the strike
+   2. **Capital required**: for a long option, the premium paid; for a short one, the strike
       on every share the most contracts open at once cover (the cash to buy them for a put,
       the shares to deliver for a call). The return is the P/L over it. A leg in a strategy
-      takes its strategy's capital at risk at open instead (S3.5.5).
+      takes its strategy's capital at risk at open instead (S3.5.5), where that is finite.
+      Capital at risk (S3.5.5) is what a position can lose; this is what a trade tied up.
 10. **Adjusted contracts**: when the underlying splits, merges, spins off a company or pays a
     large special dividend, the OCC adjusts its open options. The lot carries over to the
     adjusted contract: no sale, and no wash sale.

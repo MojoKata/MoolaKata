@@ -276,7 +276,7 @@ def test_each_option_trade_has_its_premium_pl_and_return(alice):
     assert (put["opened"], put["closed"], put["how"]) == ("2026-09-01", "2026-10-01", "expired")
     assert put["premiumIn"] == "999.35" and put["premiumOut"] == "200.65"
     assert put["pl"] == "798.70"
-    assert put["capitalAtRisk"] == "96000.00", "480 a share on 200 shares, cash secured"
+    assert put["capitalRequired"] == "96000.00", "480 a share on 200 shares, cash secured"
     assert put["returnPct"] == 0.83
     call = next(x for x in rows if x["symbol"].endswith("480 C"))
     assert call["closed"] is None and rows[0] is call, "open trades first"

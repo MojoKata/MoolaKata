@@ -14252,12 +14252,12 @@
             "title": "Accountname",
             "type": "string"
           },
-          "capitalAtRisk": {
+          "capitalRequired": {
             "examples": [
               1234.5
             ],
             "format": "money",
-            "title": "Capitalatrisk",
+            "title": "Capitalrequired",
             "type": "number"
           },
           "closed": {
@@ -14384,7 +14384,7 @@
           "premiumOut",
           "value",
           "pl",
-          "capitalAtRisk",
+          "capitalRequired",
           "returnPct"
         ],
         "title": "OptionTradeRow",
@@ -34172,7 +34172,7 @@
     },
     "/ui/api/positions/option-trades": {
       "get": {
-        "description": "Each option trade (S3.9): from the first contract opened to the last one closed, with the\npremium in and out, its P/L and its return on the capital at risk. A long option risks its\npremium; a short one the strike on every contract's shares, cash for a put and the shares\nfor a call.",
+        "description": "Each option trade (S3.9): from the first contract opened to the last one closed, with the\npremium in and out, its P/L and its return on the capital it required. A long option\nrequires its premium; a short one the strike on every contract's shares, cash for a put and\nthe shares for a call.",
         "operationId": "option_trades_ui_api_positions_option_trades_get",
         "parameters": [
           {

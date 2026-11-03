@@ -25,5 +25,7 @@ A price older than it should be: two trading days for a stock, or 90 days for a 
 
 ## Options · capital at risk {#capital-at-risk}
 
-The options' market value in these accounts, and what they put at risk: each strategy's, and each
-option on its own as a single leg.
+The options' market value in these accounts, and what they put at risk: the most each strategy can lose at expiry, and
+each option on its own counted the same way, as a strategy of its shape: a long option its premium,
+a short put its strike less its premium, a short call the account's shares cover as a covered
+call, and an uncovered one *unlimited*.

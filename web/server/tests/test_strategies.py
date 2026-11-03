@@ -147,7 +147,7 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
     r = alice.get("/ui/api/positions/option-trades")
     assert r.status_code == 200, r.text
     [closed] = [x for x in r.json()["items"] if x["closed"]]
-    assert (closed["capitalAtRisk"], closed["returnPct"]) == (920, 10.87)
+    assert (closed["capitalRequired"], closed["returnPct"]) == (920, 10.87)
     assert alice.get("/ui/api/positions/strategies").json()["proposals"] == []
     # Undone: the legs stand alone again.
     r = change(alice, "Strat", st, marginRequirement="1000.00", name="Rolled spread")
@@ -212,3 +212,30 @@ def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(alice):
     [st] = alice.get("/ui/api/positions/strategies").json()["strategies"]
     assert st["closedOn"] == "2026-10-12"
     assert alice.get(f"/ui/api/accounts/{a}").json()["capitalAtRiskUnlimited"] is False
+
+
+def _risk(alice, a):
+    acct = alice.get(f"/ui/api/accounts/{a}").json()
+    return None if acct["capitalAtRiskUnlimited"] else acct["capitalAtRisk"]
+
+
+def test_an_option_on_its_own_risks_what_its_shape_does(alice):
+    """CR3-6: grouped or not, one leg counts the same capital at risk: a short put its strike
+    less its premium, an uncovered short call no limit, one the account's shares cover a
+    covered call's."""
+    a = new_account(alice, type="brokerage")["id"]
+    assert option(alice, a, "sell-to-open", "2026-10-02", "2.00", fees="0").status_code == 200
+    alone = _risk(alice, a)
+    assert alone == 48000 - 200
+    [put] = [x for x in alice.get("/ui/api/positions").json()["open"] if x["accountId"] == a]
+    st = saved(create(alice, "Strat", accountId=a, legs=[{"instrumentId": put["instrumentId"]}]))
+    assert st["capitalAtRiskNow"] == alone, "grouped, the same leg risks the same"
+    b = new_account(alice, type="brokerage", name="Calls", mask="5150")["id"]
+    assert option(alice, b, "sell-to-open", "2026-10-02", "3.00", right="call", strike="520",
+                  fees="0").status_code == 200  # fmt: skip
+    assert _risk(alice, b) is None, "an uncovered call has no limit"
+    r = create(alice, "Txn", accountId=b, date="2026-10-01", kind="buy", symbol="MSFT",
+               quantity="100", price="500", amount="-50000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    # Covered: the shares' value (their last trade, $500) less the call's premium.
+    assert _risk(alice, b) == 50000 - 300

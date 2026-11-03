@@ -340,8 +340,8 @@ function Trades() {
               <th class="num">Premium in</th>
               <th class="num">Premium out</th>
               <th class="num">P/L</th>
-              <th class="num" data-help="capital-at-risk">Capital at risk</th>
-              <th class="num">Return</th>
+              <th class="num" data-help="capital-required">Capital required</th>
+              <th class="num" data-help="capital-required">Return on it</th>
             </tr>
           </thead>
           <tbody>${rows.map((r) =>
@@ -367,7 +367,7 @@ function Trades() {
                   ? null
                   : html`<div class="small dim">if closed now</div>`}</td>
                 <td class="num">
-                  <${Amt} v=${r.capitalAtRisk} cents=${false} />
+                  <${Amt} v=${r.capitalRequired} cents=${false} />
                 </td>
                 <td class="num">${r.returnPct != null ? `${r.returnPct}%` : '—'}</td>
               </tr>

@@ -2365,7 +2365,7 @@
  * @property {import('../app/dec.js').Dec} premiumOut
  * @property {(import('../app/dec.js').Dec | null)} value
  * @property {(import('../app/dec.js').Dec | null)} pl
- * @property {import('../app/dec.js').Dec} capitalAtRisk
+ * @property {import('../app/dec.js').Dec} capitalRequired
  * @property {(import('../app/dec.js').Dec | null)} returnPct
  */
 
