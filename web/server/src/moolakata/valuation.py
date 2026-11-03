@@ -414,5 +414,70 @@ def series(
     return out
 
 
+def flows(
+    s: Session, ledger, investing: bool, first: dt.date, last: dt.date
+) -> dict[dt.date, Decimal]:
+    """The money that came into the account from outside (+) or left it (−), per day from
+    `first` (after it) to `last`, valued as `series` values the account (CR3-28): cash in and
+    out; shares moved in or out at the price the series takes for them that day; an item
+    added at its worth then, one sold at what its sale brought; a loan's opening
+    balance owed and its draws as money out, its payments as money in. So a day with only a
+    move has no growth, and the returns, contributions and benchmark read the same money."""
+    from . import assets, loans
+    from .ledger import performance as perf
+
+    a = ledger.account
+    out: dict[dt.date, Decimal] = {}
+
+    def add(day: dt.date, amount: Decimal) -> None:
+        if first < day <= last and amount:
+            out[day] = out.get(day, ZERO) + amount
+
+    if loans.is_loan(a.type):
+        row = loans.loan_of(s, a)
+        if row is None:
+            return out
+        terms = loans.terms_of(row)
+        add(terms.start, -terms.principal)
+        for t in ledger.transactions:
+            add(t.date, t.amount)  # a payment in, a draw out
+        return out
+    if assets.is_physical(a.type):
+        for it, _ in assets.worth(s, a, last):
+            add(it.acquiredOn, assets.worth_on(s, it, it.acquiredOn))
+            if it.soldOn is not None:
+                # Its sale takes out what it brought, so a gain on it is growth; without its
+                # proceeds, what it was worth the day before.
+                took = it.proceeds - (it.saleFees or ZERO) if it.proceeds is not None else None
+                if took is None:
+                    took = assets.worth_on(s, it, it.soldOn - dt.timedelta(days=1))
+                add(it.soldOn, -took)
+        return out
+    for day, amount in perf.flows(ledger.transactions).items():
+        add(day, amount)
+    if not investing:
+        return out
+    moved = [
+        t
+        for t in ledger.transactions
+        if t.kind in ("transfer-in", "transfer-out")
+        and t.instrumentId
+        and t.quantity
+        and first < t.date <= last
+    ]
+    if not moved:
+        return out
+    ids_ = sorted({t.instrumentId for t in moved})
+    points = price_points(s, ids_, first, last, owner=a.ownerId)
+    mult = multipliers(s, ids_)
+    for t in moved:
+        pts = [p for d, p in points[t.instrumentId] if d <= t.date]
+        if not pts:
+            continue  # no price yet: the series counts it nothing, and so does its flow
+        qty = abs(t.quantity) * (1 if t.kind == "transfer-in" else -1)
+        add(t.date, (qty * pts[-1] * mult.get(t.instrumentId, 1)).quantize(CENT))
+    return out
+
+
 def _positions_on(ledger, day: dt.date) -> dict[str, Decimal]:
     return ledger.replay(day).positions()

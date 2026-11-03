@@ -47,7 +47,7 @@ def combine(
     for a in accounts:
         led = repo.load(s, a)
         series = valuation.series(s, led, atypes.investing(a.type), first, last, step)
-        flows = perf.flows(led.transactions)
+        flows = valuation.flows(s, led, atypes.investing(a.type), first, last)
         closed = getattr(a, "closedOn", None)
         gone = closed + dt.timedelta(days=1) if closed is not None else None
         if gone is not None:

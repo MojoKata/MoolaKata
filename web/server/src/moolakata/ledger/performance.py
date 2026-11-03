@@ -14,24 +14,14 @@ ONE = Decimal(1)
 EXTERNAL = ("deposit", "withdrawal", "transfer", "adjustment")
 
 
-def flows(
-    transactions: list, prices: dict[str, dict[dt.date, Decimal]] | None = None
-) -> dict[dt.date, Decimal]:
-    """Money that came into the account (+) or left it (−) from outside, per day. Dividends,
-    interest and fees are growth, not flows; securities moved in or out count at their price
-    that day when it is known."""
+def flows(transactions: list) -> dict[dt.date, Decimal]:
+    """Cash that came into the account (+) or left it (−) from outside, per day. Dividends,
+    interest and fees are growth, not flows. Shares, items and loans that move value in or out
+    are `valuation.flows`', valued as the series values them."""
     out: dict[dt.date, Decimal] = {}
     for t in transactions:
-        amount = None
-        if t.kind in EXTERNAL and not t.instrumentId:
-            amount = t.amount
-        elif t.kind in ("transfer-in", "transfer-out") and t.instrumentId and t.quantity:
-            price = (prices or {}).get(t.instrumentId, {}).get(t.date)
-            if price is not None:
-                sign = ONE if t.kind == "transfer-in" else -ONE
-                amount = sign * t.quantity * price
-        if amount:
-            out[t.date] = out.get(t.date, ZERO) + amount
+        if t.kind in EXTERNAL and not t.instrumentId and t.amount:
+            out[t.date] = out.get(t.date, ZERO) + t.amount
     return out
 
 

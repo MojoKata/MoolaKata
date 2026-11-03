@@ -6,6 +6,7 @@ from edits import edit, make, remove
 from sqlalchemy import text
 from test_accounts import add, new_account
 
+from moolakata import clock
 from moolakata.ledger import performance as perf
 
 d = dt.date
@@ -242,3 +243,26 @@ def test_an_accounts_value_on_a_past_day_holds_what_it_held_then(server):
         june = valuation.account_value(s, led, True, dt.date(2026, 6, 2))
     # March: $2,000 cash and 10 shares at the last trade's $100; June: $900 and 20 at $110.
     assert (march, june) == (D("3000.00"), D("3100.00"))
+
+
+def test_shares_moved_in_are_money_in_not_growth(server):
+    """CR3-28: shares transferred in from another broker count as contributed, at the price the
+    series values them; the time-weighted return takes none of them as performance."""
+    clock.fix(dt.datetime(2026, 10, 13, 15, 0, tzinfo=dt.UTC))
+    try:
+        make_user(server, "alice")
+        c = sign_in(server, "alice")
+        a = new_account(c, name="Brokerage", type="brokerage", openingBalance="0.00",
+                        openingDate="2026-01-01")  # fmt: skip
+        add(c, a["id"], "10000.00", "2026-01-02", kind="deposit")
+        add(c, a["id"], "-10000.00", "2026-01-02", kind="buy", symbol="VTI", quantity="100",
+            price="100")  # fmt: skip
+        add(c, a["id"], "0.00", "2026-06-01", kind="transfer-in", symbol="VTI", quantity="50",
+            costBasis="4000")  # fmt: skip
+        p = make(c, "Portf", name="Mine", accountIds=[a["id"]]).json()
+        s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "YTD"}).json()
+        assert s["end"] == "15000.00"
+        assert s["contributed"] == "15000.00" and s["growth"] == "0.00"
+        assert D(s["twr"] or "0") == 0
+    finally:
+        clock.fix(None)

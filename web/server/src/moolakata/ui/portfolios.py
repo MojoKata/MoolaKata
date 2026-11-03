@@ -408,7 +408,9 @@ def portfolio_returns(portfolio_id: str, request: Request, c: Caller = Depends(c
                         periods={
                             k: figures.fmt_rate(v)
                             for k, v in figures.period_returns(
-                                series, perf.flows(led.transactions), today
+                                series,
+                                valuation.flows(srv, led, atypes.investing(a.type), first, today),
+                                today,
                             ).items()
                         },
                     )

@@ -203,6 +203,15 @@ def worth(s: Session, account: Account, day: dt.date | None = None) -> list[tupl
     ]
 
 
+def worth_on(s: Session, item: Item, day: dt.date) -> Decimal:
+    """One item's worth on a day, as the account's value counts it."""
+    d = details(s, [item])[item.id]
+    sp = spots(s, [item], day)
+    return value_on(
+        item, d, max(day, item.acquiredOn), sp[item.metal].price if item.metal in sp else None
+    )
+
+
 def value(s: Session, account: Account, day: dt.date | None = None) -> Decimal:
     return sum((v for _, v in worth(s, account, day)), ZERO)
 
