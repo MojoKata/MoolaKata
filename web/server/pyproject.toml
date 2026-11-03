@@ -36,6 +36,7 @@ dev = [
     "sigstore>=4.5",
     "coverage",
     "pytest-xdist>=3.8.0",
+    "hypothesis>=6.170.14",
 ]
 
 [build-system]

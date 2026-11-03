@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-10-31",
+  "auditedAt": "2026-11-03",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -143,6 +143,37 @@
       "words": [
         "run.py",
         "utils.py"
+      ]
+    },
+    "hypothesis": {
+      "hosts": [
+        "adamj.eu",
+        "antithesis.com",
+        "blog.ganssle.io",
+        "blog.nelhage.com",
+        "blog.regehr.org",
+        "code.djangoproject.com",
+        "docs.djangoproject.com",
+        "docs.pytest.org",
+        "faultlore.com",
+        "hillelwayne.com",
+        "hpiers.obspm.fr",
+        "hypofuzz.com",
+        "hypothesis.works",
+        "moyix.blogspot.com",
+        "nearley.js.org",
+        "no-color.org",
+        "numpy.org",
+        "pyo3.rs",
+        "qntm.org",
+        "simonbyrne.github.io",
+        "unix.stackexchange.com",
+        "wcventure.github.io",
+        "www.keithschwarz.com"
+      ],
+      "inImage": false,
+      "words": [
+        "tlds-alpha-by-domain.txt"
       ]
     },
     "id": {
@@ -1135,6 +1166,6 @@
   },
   "hashes": {
     "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
-    "uv.lock": "sha256:c12c8d30bffb425582dd672c908dd0eb1daaec500cf9d30d45371d67813267da"
+    "uv.lock": "sha256:ee6b339303790c4cff83cc8bb20aa88fe6d08a064a36a2a68de4752afc30d8a8"
   }
 }
