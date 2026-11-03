@@ -229,3 +229,54 @@ All locked Nov 3, 2026, as recommended.
 (with 16.1, 16.2, 16.5), then group 3 (item 14 builds on item 1), then group 2; 16.6 last.
 
 ## Applied
+
+All on one branch, `cr3-values-taxes-options` (PR #32), in the approved order.
+
+1. **One breakdown of an account** (decisions 1, 2; CR3-30, CR3-32; `9be0407`).
+   `valuation.parts` lists an account's cash, positions, items and loan; its value is their
+   sum, and the Holdings tab, a projection's start and tracking read it. The portfolio's
+   weights are on its gross value, a loan's none. A projection names what it leaves out
+   (`BuiltOn.leftOut`). Found building it, a new claim: **CR3-394**, a past day's value
+   counted today's shares at that day's prices; the ledger now replays to a day.
+2. **A loan's payment and its other half** (decisions 3, 4; CR3-21 `cde432f`, CR3-22
+   `39e33b6`). The summary's payment is the schedule's next row; a HELOC in its draw period
+   pays its interest (`_pi_payment`'s draw branch stays: the schedule calls it). *Looks like a
+   payment* pairs with a payment already recorded (**Pair**), and the payment dialog finds
+   the account's debit before making a half.
+3. **The harness** (decision 16): the worlds' kit (`tests/worlds`, `80145d4`) with axes,
+   decks, planted bugs and per-world timing; `visit()` waits 60 s and names what it waits on
+   (`0782a8d`, the flaky guide test on main's run 41482467904).
+4. **Generated worlds and properties** (decision 16.1–16.5):
+   1. Account worlds with a reference model and a decoy household (`40bd9da`, `1bac493`).
+   2. Payment sequences (`test_halves_world`) found **CR3-395**: a statement imported after
+      a payment recorded from its account added the debit again; fixed in `97c71fd` (the
+      checkpoint's B1).
+   3. The budget worlds caught none of their plants: they had no reference for spending. Given
+      one (`89d4521`, the checkpoint's A1); their gaps list is empty.
+   4. Hypothesis properties of loan schedules, transfer matching (`f8d4b07`), carried lots
+      and money moved alone (`e4943a9`).
+   5. Query budgets for the figures built on accounts (`2903d93`): 13 to 24 queries an
+      account, as on main; Holdings takes about 1.5 s at 50 accounts. A measure, not fixed
+      here.
+5. **Prices** (decisions 5, 6, 13, 13.1; CR3-24 `41a7c63`, CR3-23 `a8725ff`). One order of
+   sources (`_tiers`, `_effective`), always an owner's; the market's closes apart
+   (`valuation.closes`), which an expiry reads. An open option's underlying is priced, held or
+   not, and a price may be typed for it; nothing in the browser offers that yet (the Prices
+   screen lists holdings).
+6. **The series' own flows** (decision 7; CR3-28 `acf9c3f`): shares, items and a loan moved
+   in or out aren't growth. S5.2.1 says what a contribution is (`4e33314`).
+7. **Capital at risk** (decision 8; CR3-6 `f3a06fe`): an option alone is a strategy of its own
+   shape; a trade's return is on its capital required. Option worlds priced through the real
+   refresh (`25112b1`); they leave adjusted contracts out (a deliverable of parts is covered
+   by `test_options`).
+8. **Tax documents' files** (decisions 9, 10; CR3-9, CR3-74 `e7daa03`; CR3-10 `cb06ef7`). The
+   linked book's Documents tab is new; the share dialog's *Include receipts* shows only for
+   kinds with files. The file matrix (`fe07ad9`) asks every kind of attachment of every kind
+   of reader. A browser test across two servers wasn't added: the link API's tests cover it.
+9. **Money moved for taxes** (decisions 11, 12; CR3-37 `b98465e`, CR3-38 `f0ec713`, CR3-73
+   `cda3f23`). Pairs of moved holdings cover any instrument, not bitcoin alone. The tax
+   worlds weren't extended: money moved has worlds of its own (`worlds/tax_moves.py`,
+   `01c9c05`), with plants for CR3-37 and CR3-73.
+10. **Found by CI**: **CR3-396** (`1f51622`): the release smoke run (failing on main since
+    PR #27) posted the welcome from curl without a body or a length and got 401.
+11. **Mutation run** (16.6): not run yet; asked before it runs.
