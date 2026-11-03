@@ -257,6 +257,9 @@ def work_out(srv, link_id: str) -> tuple[dict[str, Item], dict[tuple[str, str, s
         if it.kind == "account" and it.includeReceipts:
             for f in receipt_files(srv, it.id):
                 docs[(it.id, f"file:{f['id']}", "")] = f
+        if it.kind == "tax-book" and it.includeReceipts:
+            for f in document_files(srv, it.id):
+                docs[(it.id, f"file:{f['id']}", "")] = f
     return items, docs
 
 
@@ -323,14 +326,58 @@ def receipt_files(srv, account_id: str) -> list[dict]:
         return list(out.values())
 
 
+def document_files(srv, book_id: str) -> list[dict]:
+    """A tax book's document files as they cross with Include receipts (S11.5.1, CR3-10): each
+    named by its form and issuer, with the length and hash of the file, fetched on its own."""
+    import base64
+
+    from ..store.entities.receipts import Receipt
+    from ..store.entities.taxes import TaxDocument
+
+    with srv.db.read(unscoped="links.serve: tax document files") as s:
+        out = {}
+        for d in s.scalars(
+            select(TaxDocument).where(
+                TaxDocument.bookId == book_id,
+                TaxDocument.deleted == false(),
+                TaxDocument.receiptId.is_not(None),
+            )
+        ):
+            r = s.get(Receipt, d.receiptId)
+            if r is None or r.deleted or r.filePrunedAt is not None or r.id in out:
+                continue
+            out[r.id] = {
+                "id": r.id,
+                "itemId": book_id,
+                "contentType": r.mediaType,
+                "length": r.size,
+                "sha256": r.sha256,
+                "thumbnail": (
+                    "data:image/jpeg;base64," + base64.b64encode(r.thumbnail).decode()
+                    if r.thumbnail
+                    else None
+                ),
+                "meta": {
+                    "date": r.date.isoformat() if r.date else None,
+                    "amount": None,
+                    "payee": " · ".join(x for x in (d.form, d.issuer) if x),
+                    "text": r.text,
+                    "transactionId": None,
+                    "documentId": d.id,
+                },
+            }
+        return list(out.values())
+
+
 def allowed_file(srv, link_id: str, receipt_id: str) -> bool:
-    """Whether this link's people may have this receipt: one of an account shared with them
-    with Include receipts ticked."""
+    """Whether this link's people may have this file: a receipt of an account, or a document
+    file of a tax book, shared with them with Include receipts ticked."""
     items, _ = shared_items(srv, link_id)
+    files = {"account": receipt_files, "tax-book": document_files}
     return any(
-        it.kind == "account"
+        it.kind in files
         and it.includeReceipts
-        and any(f["id"] == receipt_id for f in receipt_files(srv, it.id))
+        and any(f["id"] == receipt_id for f in files[it.kind](srv, it.id))
         for it in items.values()
     )
 

@@ -99,8 +99,10 @@ preparer.
       per share. They then travel with their dates, amounts, payees and the text read from them
       (S9.8), so the receiving side never runs OCR on them. Without the tick, the other side
       sees only how many receipts a transaction has, and a gift's documents (their file names,
-      notes and links) stay home too. A tax book's document files come later ([later
-      work](later.md), L6).
+      notes and links) stay home too. A tax book shared with the tick sends its document files
+      the same way (a W-2, a 1099), each named by its form and issuer, opened from the linked
+      book's **Documents** tab; without it they stay home, and the tab lists the documents
+      alone.
    2. **Never**: secrets, categorisation rules, groups, gifts for a person who is a user of
       that server (S7.8.5), the accounts behind a shared item's figures unless they are
       shared too, and anything not shared with someone on that server. Of the source's
