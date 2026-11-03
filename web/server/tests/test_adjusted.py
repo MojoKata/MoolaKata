@@ -98,3 +98,44 @@ def test_occ_tickers_are_read_with_their_root():
     assert parse_occ("O:XYZ1270115C00060000") == ("XYZ1", dt.date(2027, 1, 15), "call", D("60"))
     assert parse_occ("MSFT  261120P00480000") == ("MSFT", dt.date(2026, 11, 20), "put", D("480"))
     assert parse_occ("Microsoft Corp") is None
+
+
+def _short_adjusted_call(c, held: str, deliverable: list[dict]):
+    from edits import create
+
+    a = new_account(c, type="brokerage")["id"]
+    r = create(c, "Txn", accountId=a, date="2026-08-01", kind="buy", symbol="MSFT",
+               quantity=held, price="400", amount=f"-{int(held) * 400}.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert (
+        opt(c, a, "sell-to-open", "2026-09-01", "3.00", right="call", fees="0").status_code == 200
+    )
+    [g] = c.get("/ui/api/options/adjustable").json()["items"]
+    [cn] = g["contracts"]
+    r = c.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": "480",
+         "deliverable": deliverable}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    acct = c.get(f"/ui/api/accounts/{a}").json()
+    risk = None if acct["capitalAtRiskUnlimited"] else acct["capitalAtRisk"]
+    proposals = [p["kind"] for p in c.get("/ui/api/positions/strategies").json()["proposals"]]
+    return risk, proposals
+
+
+@pytest.mark.parametrize(
+    ("held", "deliverable", "risk", "proposed"),
+    [
+        # 150 shares a contract (a 3:2 split): 100 held leave 50 uncovered.
+        ("100", [{"symbol": "MSFT", "shares": "150"}], None, []),
+        # 150 held cover it: the shares' $60,000 less the $300 credit.
+        ("150", [{"symbol": "MSFT", "shares": "150"}], "59700.00", ["covered-call"]),
+        # Another company's shares in it: no holding of the underlying alone covers it.
+        ("150", [{"symbol": "MSFT", "shares": "150"}, {"symbol": "SPUN", "shares": "20"}],
+         None, []),
+    ],
+)  # fmt: skip
+def test_an_adjusted_short_call_is_covered_by_what_it_delivers(alice, held, deliverable, risk,
+                                                               proposed):  # fmt: skip
+    """CR3-400, S3.10.2: the multiplier stays 100, so coverage counts the shares the contract
+    delivers, all of them, and only of its underlying."""
+    assert _short_adjusted_call(alice, held, deliverable) == (risk, proposed)

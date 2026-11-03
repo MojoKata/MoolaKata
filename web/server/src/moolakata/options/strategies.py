@@ -21,6 +21,7 @@ each leg keeps its own lots, gains and wash sales.
 
 import datetime as dt
 import hashlib
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -49,10 +50,27 @@ class Leg:
     realized: Decimal = ZERO  # closed since the strategy opened
     addedOn: dt.date | None = None
     closedOn: dt.date | None = None
+    # An adjusted contract's deliverable (S3.10.2): the underlying's shares and the cash a
+    # contract delivers, when not the multiplier's shares alone.
+    shares: Decimal | None = None
+    cash: Decimal = ZERO
 
     @property
     def option(self) -> bool:
         return self.kind != "stock"
+
+    @property
+    def per(self) -> Decimal:
+        """The underlying's shares one contract (or share) moves with."""
+        return Decimal(self.multiplier) if self.shares is None else self.shares
+
+    @property
+    def at(self) -> Decimal:
+        """The underlying's price at which it is at the money: the strike on the multiplier,
+        less the cash delivered, over the shares delivered."""
+        if self.shares is None:
+            return self.strike
+        return (self.strike * self.multiplier - self.cash) / self.shares
 
     @property
     def open(self) -> bool:
@@ -63,15 +81,13 @@ def _intrinsic(leg: Leg, price: Decimal) -> Decimal:
     if leg.kind == "stock":
         return price
     if leg.kind == "call":
-        return max(price - leg.strike, ZERO)
-    return max(leg.strike - price, ZERO)
+        return max(price - leg.at, ZERO)
+    return max(leg.at - price, ZERO)
 
 
 def payoff(legs: list[Leg], price: Decimal) -> Decimal:
     """The P/L at expiry if the underlying closes at this price."""
-    return sum(
-        (x.quantity * x.multiplier * _intrinsic(x, price) - x.cost for x in legs if x.open), ZERO
-    )
+    return sum((x.quantity * x.per * _intrinsic(x, price) - x.cost for x in legs if x.open), ZERO)
 
 
 def shape(legs: list[Leg], cash_secured: bool = False) -> str:
@@ -159,11 +175,11 @@ def figures(legs: list[Leg]) -> Figures:
         return Figures(ZERO, ZERO, [], True)
     if len({x.expiry for x in opts}) > 1:
         return Figures(None, None, [], False)
-    strikes = sorted({x.strike for x in opts})
+    strikes = sorted({x.at for x in opts})
     top = (strikes[-1] if strikes else ZERO) * 2 + 1
     points = [ZERO, *strikes, top]
     values = [payoff(live, p) for p in points]
-    slope = sum((x.quantity * x.multiplier for x in live if x.kind in ("call", "stock")), ZERO)
+    slope = sum((x.quantity * x.per for x in live if x.kind in ("call", "stock")), ZERO)
     max_profit = None if slope > 0 else max(values)
     max_loss = None if slope < 0 else max(ZERO, -min(values))
     evens: list[Decimal] = []
@@ -197,6 +213,19 @@ def capital_at_risk(legs: list[Leg], margin: Decimal | None) -> Decimal | None:
 
 
 # ---------- a strategy's legs, from its account's ledger ----------
+
+
+def delivers(oc: OptionContract) -> tuple[Decimal | None, Decimal, bool]:
+    """What one contract delivers of its underlying (S3.10.2): its shares (None: the
+    multiplier's, unadjusted), the cash, and whether that is all it delivers. A contract that
+    delivers another company's shares too is covered by no holding of the underlying alone."""
+    if not oc.deliverable:
+        return None, ZERO, True
+    rows = json.loads(oc.deliverable)
+    shares = sum((Decimal(str(x["shares"])) for x in rows if x["instrumentId"] == oc.underlyingId),
+                 ZERO)  # fmt: skip
+    only = all(x["instrumentId"] == oc.underlyingId for x in rows)
+    return shares, oc.deliverableCash or ZERO, only
 
 
 def legs_of(s: Session, st: Strategy) -> list[StrategyLeg]:
@@ -315,6 +344,7 @@ def leg(
         realized,
         row.addedOn,
         closed_on,
+        *delivers(oc)[:2],
     )
 
 
@@ -510,8 +540,9 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
         if iid in taken or oc.right != "call" or qty >= 0:
             continue
         shares, _ = book.open.get(oc.underlyingId, (ZERO, ZERO))
-        need = -qty * oc.multiplier
-        if oc.underlyingId in grouped or shares < need or need < 100:
+        per, _, only = delivers(oc)
+        need = -qty * (oc.multiplier if per is None else per)  # what it delivers (CR3-400)
+        if oc.underlyingId in grouped or not only or shares < need or need < 100:
             continue
         key = proposal_key(account.id, [iid, oc.underlyingId])
         if key in declined:
@@ -569,12 +600,19 @@ def risk_of_account(
         if iid in in_strategies or risk is None:
             continue
         inst = s.get(Instrument, iid)
+        per, cash, only = delivers(oc)
         legs = [
             Leg(iid, inst.symbol if inst else "", oc.right, qty, basis,
-                mark.value if mark is not None else None, oc.strike, oc.expiry, oc.multiplier)
+                mark.value if mark is not None else None, oc.strike, oc.expiry, oc.multiplier,
+                shares=per, cash=cash)
         ]  # fmt: skip
+        if oc.right == "call" and qty < 0 and not only:
+            # It delivers another company's shares too, which the underlying's don't cover.
+            risk = None
+            continue
         if oc.right == "call" and qty < 0 and spare.get(oc.underlyingId):
-            covered = min(spare[oc.underlyingId], -qty * oc.multiplier)
+            # Shares cover what the contract delivers, not its multiplier (CR3-400).
+            covered = min(spare[oc.underlyingId], -qty * legs[0].per)
             spare[oc.underlyingId] -= covered
             under = s.get(Instrument, oc.underlyingId)
             price = book.price(oc.underlyingId, today)
