@@ -850,6 +850,16 @@
     position: relative;
     display: block;
   }
+  /* A count with its All button at the end, a little apart (CountInput). */
+  .with-all {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .with-all input.in {
+    flex: 1;
+    min-width: 0;
+  }
   .pw input.in {
     padding-right: 38px;
   }

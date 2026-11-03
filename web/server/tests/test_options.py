@@ -128,7 +128,7 @@ def test_a_short_put_assigned_folds_the_credit_into_the_stock_basis(alice):
     put = _held(alice, brk["id"], "MSFT 20NOV26 480 P")
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-11-20"},
+        json={"how": "assign", "date": "2026-11-20", "contracts": "1"},
     )
     assert r.status_code == 201, r.text
     end, stock = r.json()
@@ -139,7 +139,7 @@ def test_a_short_put_assigned_folds_the_credit_into_the_stock_basis(alice):
     assert (
         alice.post(
             f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle",
-            json={"how": "assign", "date": "2026-11-20"},
+            json={"how": "assign", "date": "2026-11-20", "contracts": "1"},
         ).status_code
         == 422
     )
@@ -155,7 +155,7 @@ def test_an_assignment_follows_its_opening_trade_and_goes_with_its_stock_trade(s
     put = _held(alice, brk["id"], "MSFT 20NOV26 480 P")
     end, stock = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-11-20"},
+        json={"how": "assign", "date": "2026-11-20", "contracts": "1"},
     ).json()
     with server.db.tx(unscoped="test") as s:
         s.get(Transaction, sold["id"]).amount = D("700.00")
@@ -187,7 +187,7 @@ def test_a_short_call_assigned_adds_its_credit_to_the_proceeds(alice):
     call = _held(alice, brk["id"], "MSFT 20NOV26 450 C")
     alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{call['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-11-20"},
+        json={"how": "assign", "date": "2026-11-20", "contracts": "1"},
     )
     closed = next(
         r for r in alice.get("/ui/api/positions").json()["closed"] if r["symbol"] == "MSFT"
@@ -202,7 +202,7 @@ def test_a_long_call_exercised_adds_its_premium_to_the_basis(alice):
     call = _held(alice, brk["id"], "MSFT 20NOV26 450 C")
     alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{call['instrumentId']}/settle",
-        json={"how": "exercise", "date": "2026-11-20"},
+        json={"how": "exercise", "date": "2026-11-20", "contracts": "1"},
     )
     assert _held(alice, brk["id"], "MSFT")["cost"] == "45300.00"
 
@@ -267,7 +267,7 @@ def test_each_option_trade_has_its_premium_pl_and_return(alice):
             if p["symbol"].endswith("480 P")
         )
         + "/settle",
-        json={"how": "expired", "date": "2026-10-01"},
+        json={"how": "expired", "date": "2026-10-01", "contracts": "1"},
     )
     assert r.status_code == 201, r.text
     rows = alice.get("/ui/api/positions/option-trades").json()["items"]
@@ -290,7 +290,7 @@ def test_assigned_a_call_with_no_shares_opens_a_short_stock_lot(alice):
     call = _held(alice, brk["id"], "MSFT 20NOV26 480 C")
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{call['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-11-20"},
+        json={"how": "assign", "date": "2026-11-20", "contracts": "1"},
     )
     assert r.status_code == 201, r.text
     msft = _held(alice, brk["id"], "MSFT")

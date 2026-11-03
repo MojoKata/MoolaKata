@@ -105,7 +105,7 @@ def calls(i: dict[str, str]):
         "/ui/api/accounts/{account_id}/options/{instrument_id}/settle": (
             "alice",
             lambda made: {"account_id": brk, "instrument_id": made["option"]},
-            {"how": "expired", "date": "2026-12-18"},
+            {"how": "expired", "date": "2026-12-18", "contracts": "1"},
         ),
         "/ui/api/receipts": ("alice", None, "receipt"),
         "/ui/api/accounts/{account_id}/goal": ("alice", {"account_id": edu}, None),

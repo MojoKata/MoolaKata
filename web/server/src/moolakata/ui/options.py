@@ -101,7 +101,7 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
 class Settle(Model):
     how: str  # expired, assign, exercise
     date: dt.date
-    contracts: Quantity | None = None
+    contracts: Quantity  # 1 to those held; never blank for all (CR3-403)
 
 
 @router.post(

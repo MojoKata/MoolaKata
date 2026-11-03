@@ -86,7 +86,7 @@ def test_an_adjustment_from_the_memo_changes_root_and_deliverable(alice):
     row = next(r for r in alice.get("/ui/api/positions").json()["open"])
     r = alice.post(
         f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-11-20"},
+        json={"how": "assign", "date": "2026-11-20", "contracts": "2"},
     )
     assert r.status_code in (200, 201), r.text
     after = held(alice)
@@ -196,7 +196,7 @@ def test_a_deliverables_cash_comes_with_an_assignment(server, alice):
 
     a, r = _adjusted_put(alice, cash="50")
     assert r.status_code == 200, r.text
-    r = _settle(alice, a, "assign")
+    r = _settle(alice, a, "assign", "2")
     assert r.status_code in (200, 201), r.text
     with server.db.read(unscoped="test") as s:
         cash = [(t.kind, t.amount, t.payee) for t in s.query(Transaction).filter_by(
@@ -208,10 +208,14 @@ def test_a_deliverables_cash_comes_with_an_assignment(server, alice):
 @pytest.mark.parametrize(
     ("side", "how", "contracts", "code"),
     [
-        ("sell-to-open", "exercise", None, "short-exercise"),
-        ("buy-to-open", "assign", None, "long-assign"),
+        ("sell-to-open", "exercise", "2", "short-exercise"),
+        ("buy-to-open", "assign", "2", "long-assign"),
+        # From 1 to those held, whole: nothing else means all (CR3-403).
         ("sell-to-open", "assign", "3", "contracts-invalid"),
+        ("sell-to-open", "assign", "0", "contracts-invalid"),
         ("sell-to-open", "assign", "-1", "contracts-invalid"),
+        ("sell-to-open", "assign", "1.5", "contracts-invalid"),
+        ("sell-to-open", "assign", None, "invalid-missing"),
     ],
 )
 def test_a_settlement_that_cant_be_is_refused(alice, side, how, contracts, code):
@@ -231,7 +235,7 @@ def test_shares_are_not_an_option_to_settle(alice):
            quantity="100", price="400", amount="-40000.00")  # fmt: skip
     [row] = alice.get("/ui/api/positions").json()["open"]
     r = alice.post(f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle",
-                   json={"how": "assign", "date": "2026-11-20"})  # fmt: skip
+                   json={"how": "assign", "date": "2026-11-20", "contracts": "1"})  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-an-option", r.text
 
 

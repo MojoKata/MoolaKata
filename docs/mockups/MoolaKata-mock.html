@@ -219,6 +219,8 @@ table.t { width: 100%; border-collapse: collapse; }
 input.in, select.in, textarea.in { height: var(--control); border-radius: 8px; border: 1px solid var(--border-strong); background: var(--inset); padding: 0 10px; width: 100%; }
 textarea.in { height: auto; padding: 8px 10px; min-height: 64px; }
 .pw { position: relative; display: block; }
+.with-all { display: flex; gap: 8px; align-items: center; }
+.with-all input { flex: 1; min-width: 0; }
 .pw input.in { padding-right: 38px; }
 .pw .icon-btn { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; }
 input.in:focus, select.in:focus, textarea.in:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -2169,7 +2171,7 @@ DIALOGS.assetItem = (d) => {
 DIALOGS.optionMark = () => ({ title: 'Mark MSFT 16 Oct 26 480 P', body: `<div class="row">${field('Marked on', inp('2026-10-10', '', 'date'))}${field('Mark', inp('0.22'), 'A share, as quoted.')}</div>
   <p class="small dim">Used until the price source has a close for it. Without either, an option is marked at its intrinsic value.</p>`, ok: 'Save' });
 DIALOGS.optionSettle = () => ({ title: 'MSFT 20NOV26 480 P: what happened?', body: `<div class="field"><label>It was</label><div class="seg"><button data-act="seg">Expired worthless</button><button class="on" data-act="seg">Assigned</button></div></div>
-  <div class="row">${field('Settled on', inp('2026-11-20', '', 'date'))}${field('Contracts settled', inp('2'))}</div>
+  <div class="row">${field('Settled on', inp('2026-11-20', '', 'date'))}${field('Contracts settled', `<span class="with-all">${inp('')}<button type="button" class="btn" data-act="fill" data-v="2">All</button></span>`)}</div>
   <p class="small dim">200 MSFT bought at 480, the $1,279.35 credit taking off their basis.</p>`, ok: 'Record' });
 DIALOGS.taxBook = () => ({ title: 'New tax book', body: `<div class="row">${field('Year', sel(['2027', '2026', '2025'], '2027'))}${field('Filing together', sel(['No: one filer', 'Yes: married filing jointly'], 'Yes: married filing jointly'))}</div>
     <div class="field"><label>Filers</label>${['alice', 'bob', 'carol'].map((u) => `<label class="list-item" style="cursor:pointer"><input type="checkbox" ${u !== 'carol' ? 'checked' : ''}> <span class="avatar sm av-${u}">${USERS[u].initials}</span><span class="grow">${USERS[u].name}${u === state.user ? ' <span class="small dim">(you)</span>' : ''}</span>${u === 'bob' ? '<span class="small dim">asked to accept</span>' : ''}</label>`).join('')}<div class="hint">One user, or two who are married. A filer you name is asked to accept before their accounts count.</div></div>
@@ -2530,7 +2532,7 @@ const GUIDES = {
     <h2 id="h-account">Account</h2><p>The account the trade was made in.</p>
     <h2 id="h-expiry">Expiry</h2><p>The option’s expiration date.</p>
     <h2 id="h-right">Right</h2><p>Call or put.</p>
-    <h2 id="h-trade-date">Trade date</h2><p>The day the trade was made.</p><h2>Expiry, assignment and exercise</h2><p>An option that expires out of the money is closed the day after; one in the money asks what happened.</p><h2 ${hid('Settled on')}>Settled on</h2><p>The day it expired, or was assigned or exercised.</p><h2 ${hid('Contracts settled')}>Contracts settled</h2><p>How many of the contracts.</p>
+    <h2 id="h-trade-date">Trade date</h2><p>The day the trade was made.</p><h2>Expiry, assignment and exercise</h2><p>An option that expires out of the money is closed the day after; one in the money asks what happened.</p><h2 ${hid('Settled on')}>Settled on</h2><p>The day it expired, or was assigned or exercised.</p><h2 ${hid('Contracts settled')}>Contracts settled</h2><p>How many, from 1 to the contracts held: <b>All</b> fills in every one. A blank or 0 is refused, never taken for all.</p>
     <h2>Option marks</h2><p>An option is valued at the price source’s daily close; without one, at a mark you type (<b>Mark…</b>); without that, at its intrinsic value. The market value says which.</p><h2 ${hid('Marked on')}>Marked on</h2><p>The day the mark is for.</p><h2 ${hid('Mark')}>Mark</h2><p>A share, as quoted: 0.22 for a contract worth $22.</p>
     <h2>Option trades</h2><p>Each option trade from its first contract opened to its last closed: the premium in and out, fees included, and the P/L. One still open shows the P/L if closed now.</p><h2 ${hid('Capital required')}>Capital required</h2><p>What a trade tied up: a long option its premium; a short one the strike on every share its contracts cover. The return is the P/L over it. A leg of a strategy takes its strategy’s capital at risk at open, where that is finite. Capital at risk is what a position can lose: an option on its own counts as a strategy of its shape, an uncovered call <i>unlimited</i>.</p>
     <h2 ${hid('Name')}>Name</h2><p>A strategy’s own name; empty, its shape names it.</p>
@@ -3106,6 +3108,7 @@ document.addEventListener('click', (e) => {
     case 'scenario': state.scenario = +v; render(); break;
     case 'switch': t.classList.toggle('on'); t.setAttribute('aria-checked', t.classList.contains('on')); break;
     case 'seg': $$('button', t.parentElement).forEach((b) => b.classList.toggle('on', b === t)); break;
+    case 'fill': t.previousElementSibling.value = t.dataset.v; break; // a count's All button
     case 'dlg': e.stopPropagation(); showDialog(v, { ...t.dataset }); break;
     case 'close': leaveDialog(); break;
     case 'keep': t.closest('.scrim.prompt').remove(); break;

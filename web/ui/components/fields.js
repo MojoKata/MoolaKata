@@ -57,6 +57,19 @@ export function Input({ value, onInput, type = 'text', placeholder, bad, ...rest
 }
 
 /**
+ * A count from 1 to `max`, empty until one is typed, with an **All** button at its end that
+ * fills in `max`. A blank, 0 or anything past `max` is refused when saved, never taken to
+ * mean all.
+ * @param {{ value: string, onInput: (v: string) => void, max: number | string,
+ *   id?: string }} p
+ */
+export function CountInput({ value, onInput, max, ...rest }) {
+  return html`<span class="with-all"><${Input} value=${value} onInput=${onInput}
+    inputmode="numeric" ...${rest} /><button type="button" class="btn"
+    onClick=${() => onInput(String(max))}>All</button></span>`;
+}
+
+/**
  * @param {{ value: any, onChange: (v: string) => void, options: ([string, string] | string)[],
  *   id?: string }} p
  */

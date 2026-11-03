@@ -94,8 +94,10 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
     held = replay.quantity(inst.id)
     if not held:
         raise refuse("instrumentId", "nothing-open", "Nothing of it is open in this account.")
-    n = Decimal(contracts) if contracts else abs(held)
-    if n <= 0 or n > abs(held):
+    # All of them only when the caller says nothing (an automatic expiry); a count given is
+    # 1 to those held, a whole number, and 0 is refused, not taken for all (CR3-403).
+    n = abs(held) if contracts is None else Decimal(contracts)
+    if n <= 0 or n > abs(held) or n != n.to_integral_value():
         raise refuse("contracts", "contracts-invalid", f"Up to {abs(held)} contracts.")
     if how == "exercise" and held < 0:
         raise refuse("how", "short-exercise", "A short option is assigned, not exercised.")
