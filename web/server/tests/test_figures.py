@@ -266,3 +266,29 @@ def test_shares_moved_in_are_money_in_not_growth(server):
         assert D(s["twr"] or "0") == 0
     finally:
         clock.fix(None)
+
+
+def _npv(rate, start, cash):
+    return sum(c / (1 + rate) ** ((day - start).days / 365.25) for day, c in cash)
+
+
+def test_irr_finds_the_rate_to_a_billionth_and_says_none_when_there_is_none():
+    """The money-weighted rate (S5.4): found to within 1e-9 of the exact one, flows counted
+    only inside the period (after its first day, to its last), and None when nothing went in,
+    nothing came out, or no rate from -99% to +1000% a year fits."""
+    start, end = d(2026, 1, 1), d(2027, 1, 1)
+    years = D((end - start).days) / D("365.25")
+    exact = D("1.1") ** (1 / years) - 1
+    assert abs(perf.irr(start, D(100), {}, end, D(110)) - exact) < D("1e-8")
+    loss = perf.irr(start, D(100), {}, end, D(50))
+    assert abs(loss - (D("0.5") ** (1 / years) - 1)) < D("1e-8")
+    flow = {d(2026, 4, 1): D(50), d(2026, 9, 1): D(-30)}
+    rate = perf.irr(start, D(100), flow, end, D(140))
+    cash = [(start, -100.0), (d(2026, 4, 1), -50.0), (d(2026, 9, 1), 30.0), (end, 140.0)]
+    assert abs(_npv(float(rate), start, cash)) < 1e-6
+    # Flows on the first day or after the last aren't the period's.
+    outside = {start: D(1000), d(2027, 1, 2): D(1000), **flow}
+    assert perf.irr(start, D(100), outside, end, D(140)) == rate
+    assert perf.irr(start, D(0), {}, end, D(100)) is None  # nothing went in
+    assert perf.irr(start, D(100), {}, end, D(0)) is None  # nothing came out
+    assert perf.irr(start, D(1), {}, end, D(1000)) is None  # +99,900%: past the bracket

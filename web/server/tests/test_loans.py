@@ -414,3 +414,31 @@ def test_a_statement_after_a_payment_recorded_from_checking_adds_nothing(server,
     assert job["result"]["added"] == 0 and job["result"]["matched"] == 1
     debits = [r for r in _rows(c, bank["id"]) if D(r["amount"]) < 0]
     assert len(debits) == 1 and debits[0]["transferAccountName"] == "Home"
+
+
+def test_a_plans_extra_on_each_payment_day():
+    """S1.9.5: the monthly extra inside its from/until days (both counted), the yearly one in
+    its month, a lump sum with the first payment on or after it, and rounding up that counts
+    the escrow and PMI only while it is due (to 78% of the original value)."""
+    import datetime as dt
+    from decimal import Decimal as D
+
+    from moolakata.loans import Terms
+    from moolakata.loans.payoff import Plan, _Extras
+
+    d = dt.date
+    t = Terms(D(200000), d(2026, 1, 1), 360, D(6), escrowTax=D("150.40"),
+              escrowInsurance=D("49.60"), pmi=D(80), originalValue=D(250000))  # fmt: skip
+    plan = Plan(monthly=D(100), monthlyFrom=d(2026, 3, 1), monthlyUntil=d(2026, 5, 1),
+                yearly=D(1000), yearlyMonth=6, lumps=[(d(2026, 4, 15), D(5000))])  # fmt: skip
+    x = _Extras(plan, t)
+    got = [x(d(2026, m, 1), D(1000)) for m in range(2, 8)]
+    #        Feb  Mar  Apr  May          Jun (yearly)  Jul
+    assert got == [0, 100, 100, D(5100), D(1000), 0]
+    up = _Extras(Plan(roundTo=D(100)), t)
+    # 1,000 + 200 escrow + 80 PMI = 1,280: 20 more makes 1,300. Owing 78% of the 250,000
+    # the home was worth (195,000) or less, no PMI: 1,200 is already a multiple.
+    assert up(d(2026, 2, 1), D(1000)) == 20
+    assert up(d(2026, 2, 1), D(1000), owed=D("195000.01")) == 20
+    assert up(d(2026, 2, 1), D(1000), owed=D(195000)) == 0
+    assert _Extras(Plan(biweekly=True), t)(d(2026, 2, 1), D(1200)) == 100
