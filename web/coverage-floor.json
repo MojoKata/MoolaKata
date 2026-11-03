@@ -8,7 +8,7 @@
   },
   "browser/app": {
     "branches": 93,
-    "lines": 91.9
+    "lines": 92.0
   },
   "browser/charts": {
     "branches": 77,
@@ -16,11 +16,11 @@
   },
   "browser/components": {
     "branches": 82,
-    "lines": 63.6
+    "lines": 64.7
   },
   "browser/screens": {
-    "branches": 75.5,
-    "lines": 56.7
+    "branches": 75.9,
+    "lines": 57.2
   },
   "browser/store": {
     "branches": 91,
@@ -39,8 +39,8 @@
     "lines": 91.4
   },
   "server/bitcoin": {
-    "branches": 80,
-    "lines": 89.0
+    "branches": 80.5,
+    "lines": 89.2
   },
   "server/budgets": {
     "branches": 90.3,
@@ -51,8 +51,8 @@
     "lines": 94.2
   },
   "server/core": {
-    "branches": 76.8,
-    "lines": 88.6
+    "branches": 77.5,
+    "lines": 88.8
   },
   "server/education": {
     "branches": 84,
@@ -75,16 +75,16 @@
     "lines": 83.1
   },
   "server/ledger": {
-    "branches": 89.4,
-    "lines": 96.5
+    "branches": 89.7,
+    "lines": 96.7
   },
   "server/links": {
-    "branches": 79.3,
-    "lines": 92.0
+    "branches": 79.8,
+    "lines": 92.1
   },
   "server/loans": {
-    "branches": 86,
-    "lines": 95
+    "branches": 88.4,
+    "lines": 97.3
   },
   "server/options": {
     "branches": 81,
@@ -96,26 +96,26 @@
   },
   "server/prices": {
     "branches": 75,
-    "lines": 88.8
+    "lines": 88.9
   },
   "server/projections": {
-    "branches": 77,
-    "lines": 92.7
+    "branches": 80.1,
+    "lines": 93.5
   },
   "server/receipts": {
     "branches": 71.2,
     "lines": 76.9
   },
   "server/store": {
-    "branches": 76.4,
-    "lines": 90.6
+    "branches": 76.8,
+    "lines": 90.7
   },
   "server/taxes": {
     "branches": 91.8,
     "lines": 97.1
   },
   "server/ui": {
-    "branches": 74.6,
-    "lines": 91.0
+    "branches": 74.8,
+    "lines": 91.1
   }
 }
