@@ -1,0 +1,17 @@
+about = """A broker's OFX with shares moved in from another broker (an ACATS transfer): read as a
+transfer in of 100 shares, no cash, and a lot whose day bought the file doesn't say, marked
+missing until it is typed (S2.2, CR3-73)."""
+account = { type = "brokerage", institution = "Charles Schwab" }
+
+[result]
+added = 1
+
+[expect]
+covered = ["2026-01-01", "2026-01-31"]
+transactions = [
+    "2026-01-12 transfer-in 0.00 VTI 100",
+]
+holdings = ["VTI 100"]
+cash = "0.00"
+checks = ["2026-01-31 0.00 ok"]
+instruments = { VTI = "equity" }

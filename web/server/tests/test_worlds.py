@@ -6,14 +6,16 @@ import pytest
 import test_account_world
 import test_budget_world
 import test_option_world
+import test_tax_moves_world
 import test_tax_world
-from worlds import accounts, budget, catches, options, tax
+from worlds import accounts, budget, catches, options, tax, tax_moves
 
 WORLDS = {
     "account": (accounts.PLANTS, test_account_world.check_world),
     "option": (options.PLANTS, test_option_world.check_world),
     "budget": (budget.PLANTS, test_budget_world.check_world),
     "tax": (tax.PLANTS, test_tax_world.check_world),
+    "tax-moves": (tax_moves.PLANTS, test_tax_moves_world.check_world),
 }
 
 GAPS = {"budget": budget.GAPS}
