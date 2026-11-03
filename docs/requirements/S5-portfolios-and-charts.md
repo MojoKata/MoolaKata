@@ -13,7 +13,11 @@
       in its own window (S12.10).
 2. **Charts each portfolio has:**
    1. **Value over time** (line or area; 1M, 3M, YTD, 1Y, 5Y, All, and a range brush), with
-      contributions shown apart from growth, against a **benchmark** (SPY, VT, a 60/40 mix);
+      contributions shown apart from growth, against a **benchmark** (SPY, VT, a 60/40 mix).
+      A contribution is money that came in or left from outside, valued as the chart values
+      it that day: cash, shares moved in or out, an item added or sold (at what its sale
+      brought), a loan's opening balance and its draws; a move between two of the portfolio's
+      accounts is none;
    2. **Performance**: time-weighted and money-weighted (IRR) returns per period, per account
       and per portfolio;
    3. **Holdings**: what the portfolio holds, by account and by instrument, with each loan
