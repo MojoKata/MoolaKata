@@ -418,3 +418,49 @@ def test_a_book_lists_the_wash_sales_of_the_accounts_it_counts(alice):
     saved(create(alice, "TxBkA", bookId=b, accountId=brk["id"], counted=False))
     p = panels(alice, b)
     assert p["rows"] == [] and p["washes"] == []
+
+
+def test_a_roth_conversion_and_a_rollover_are_no_contributions(alice):
+    """CR3-37: a matched transfer from a traditional IRA to a Roth IRA is a conversion, from a
+    401(k) to an IRA a rollover; neither counts against a limit nor as a distribution."""
+    trad = new_account(alice, name="Traditional IRA", type="ira")
+    roth = new_account(alice, name="Roth IRA", type="roth-ira")
+    plan = new_account(alice, name="Old 401(k)", type="401k")
+    out = add(alice, trad["id"], "-50000.00", "2026-03-02", kind="transfer", payee="Conversion")
+    back = add(alice, roth["id"], "50000.00", "2026-03-02", kind="transfer", payee="Conversion")
+    assert back["transferId"] == out["id"], "the two halves matched"
+    out = add(alice, plan["id"], "-20000.00", "2026-05-04", kind="transfer", payee="Rollover")
+    back = add(alice, trad["id"], "20000.00", "2026-05-04", kind="transfer", payee="Rollover")
+    assert back["transferId"] == out["id"]
+    add(alice, roth["id"], "3000.00", "2026-06-01", kind="deposit")
+    r = panels(alice, book(alice))["retirement"]
+    c = {x["account"]: x for x in r["contributions"]}
+    assert c["Roth IRA"]["contributed"] == "3000.00" and not c["Roth IRA"]["over"]
+    assert c["Traditional IRA"]["contributed"] == "0.00"
+    assert [(m["fromAccount"], m["toAccount"], m["amount"]) for m in r["conversions"]] == [
+        ("Traditional IRA", "Roth IRA", "50000.00")
+    ]
+    assert [(m["fromAccount"], m["toAccount"]) for m in r["rollovers"]] == [
+        ("Old 401(k)", "Traditional IRA")
+    ]
+    assert r["distributions"] == []
+
+
+def test_an_hsa_counts_its_employers_money_against_its_coverages_limit(server, frozen):
+    """CR3-37, 7.1: an HSA's limit is its coverage's, $1,000 more at 55; the employer's money
+    counts against it beside the owner's."""
+    from edits import edit
+
+    make_user(server, "harry", born=1970)  # 56 in 2026
+    c = sign_in(server, "harry")
+    hsa = new_account(c, name="HSA", type="hsa")
+    add(c, hsa["id"], "3000.00", "2026-02-01", kind="deposit", contributionSource="employer")
+    add(c, hsa["id"], "2500.00", "2026-03-01", kind="deposit")
+    b = book(c)
+    [x] = panels(c, b)["retirement"]["contributions"]
+    assert x["contributed"] == "5500.00" and x["limit"] == "9750.00", "family 8,750 + 1,000"
+    assert "set the coverage" in x["note"]
+    r = edit(c, "Acct", f"/ui/api/accounts/{hsa['id']}", hsaCoverage="self")
+    assert r.status_code == 200, r.text
+    [x] = panels(c, b)["retirement"]["contributions"]
+    assert x["limit"] == "5400.00" and x["over"], "self-only 4,400 + 1,000, and 5,500 is over"

@@ -1008,6 +1008,13 @@ function Settings({ a, reload }) {
                         hint="The bank's limit, empty for none. Budgets sum the moves back within it." />
                     `
                     : null}
+                  ${a.type === 'hsa'
+                    ? html`
+                      <${RecField} rec=${rec} name="hsaCoverage" label="Coverage" id="hsa-coverage"
+                        hint="Self-only or family: the year's contribution limit is the one it says."
+                        options=${[['', 'Not set'], ['self', 'Self-only'], ['family', 'Family']]} />
+                    `
+                    : null}
                 </div>
               `}
           </div>

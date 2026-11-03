@@ -195,6 +195,10 @@ class Done(Model):
 # ---------- reading ----------
 
 
+# Where money into a retirement account came from (S8.6), when it isn't told by its transfer.
+SOURCES = ("employee", "employer", "rollover", "conversion")
+
+
 def _tags(s: Session, user_id: str, txn_ids: list[str]) -> dict[str, list]:
     """A user's own tags on transactions (S10.4: annotations are the user's own)."""
     return tags.of(s, "transaction", user_id, txn_ids)
@@ -481,13 +485,13 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
         errors += _check_reimbursable(sp, f"splits.{i}.", sp.amount)
     if getattr(body, "payee", None) and len(body.payee) > 200:
         errors.append(FieldError("payee", "payee-too-long", "At most 200 characters."))
-    if body.contributionSource and body.contributionSource not in (
-        "employee",
-        "employer",
-        "rollover",
-    ):
+    if body.contributionSource and body.contributionSource not in SOURCES:
         errors.append(
-            FieldError("contributionSource", "choice-invalid", "Employee, employer or rollover.")
+            FieldError(
+                "contributionSource",
+                "choice-invalid",
+                "Employee, employer, rollover or conversion.",
+            )
         )
     if body.contributionYear is not None and not 1970 <= body.contributionYear <= 2100:
         errors.append(FieldError("contributionYear", "year-invalid", "Enter a year."))

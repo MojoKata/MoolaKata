@@ -18,6 +18,7 @@ export const FIELDS = {
     statementInterval: {"type": "text", "nullable": true},
     statementIntervalDismissed: {"type": "text", "nullable": true},
     withdrawalsAMonth: {"type": "int", "nullable": true},
+    hsaCoverage: {"type": "text", "nullable": true},
     connectionId: {"type": "ref", "prefix": "Conn", "nullable": true},
     syncAccount: {"type": "text", "nullable": true},
     walletKeys: {"type": "text", "nullable": true},

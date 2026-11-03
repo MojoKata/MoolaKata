@@ -98,11 +98,23 @@ class RmdOut(Model):
     due: Money
 
 
+class MovementOut(Model):
+    """A rollover, or a conversion to Roth with its taxed part by Form 8606 (S8.6)."""
+
+    date: dt.date
+    fromAccount: str
+    toAccount: str
+    amount: Money
+    taxable: Money | None
+
+
 class RetirementOut(Model):
     contributions: list[ContributionOut]
     distributions: list[Amount]
     rmds: list[RmdOut]
     basis8606: Money | None
+    conversions: list[MovementOut]
+    rollovers: list[MovementOut]
 
 
 class TagOut(Model):
@@ -311,6 +323,8 @@ def _build(s, b) -> Panels:
             distributions=[Amount(label=k, amount=v) for k, v in ret.distributions],
             rmds=[RmdOut(**r.__dict__) for r in ret.rmds],
             basis8606=ret.basis8606,
+            conversions=[_movement(m) for m in ret.conversions],
+            rollovers=[_movement(m) for m in ret.rollovers],
         ),
         deductions=[TagOut(**t.__dict__) for t in tags],
         dependents=[
@@ -527,3 +541,8 @@ def _filers(s, b):
     from .taxes import _filers as filers_of
 
     return filers_of(s, b)
+
+
+def _movement(m) -> MovementOut:
+    return MovementOut(date=m.date, fromAccount=m.fromAccount, toAccount=m.toAccount,
+                       amount=m.amount, taxable=m.taxable)  # fmt: skip

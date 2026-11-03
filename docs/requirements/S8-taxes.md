@@ -35,7 +35,16 @@ produces worksheets and exports. It never files, and says so (R1.16).
    value when received.
 6. **Retirement**: contributions per account against the year's limits (with catch-up by
    age), Roth eligibility by MAGI as the user enters it, backdoor-Roth steps (non-deductible
-   contribution, conversion, Form 8606 figures), distributions, and RMDs due.
+   contribution, conversion, Form 8606 figures), distributions, and RMDs due. Each movement of
+   money into or out of a retirement account is one thing, told once: a **contribution** (the
+   owner's, or the employer's), a **rollover** (between accounts of the same tax treatment, a
+   trustee-to-trustee move too), a **conversion** (pre-tax to Roth) or a **distribution**. A
+   matched transfer tells it by its other half's account; a source set on the transaction
+   says it otherwise. Only contributions count against a limit; rollovers and conversions are
+   listed apart, a conversion with its part taxed by Form 8606's pro rata rule when the basis
+   is known, and neither is a distribution. An HSA's limit is its coverage's (self-only or
+   family, set on the account; unset, the family limit, and the panel asks), $1,000 more at
+   55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their
    transactions and **receipts**. Charitable gifts above the substantiation threshold show
    whether a receipt is attached. Medical, childcare, education, HSA, and estimated tax

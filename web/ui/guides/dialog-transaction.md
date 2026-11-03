@@ -74,7 +74,8 @@ may be for the year before.
 
 ## Contributed by {#contribution-source}
 
-You, your employer (a match), or a rollover.
+You, your employer (a match), a rollover, or a Roth conversion. A transfer matched from another
+retirement account says it by itself.
 
 ## Memo
 

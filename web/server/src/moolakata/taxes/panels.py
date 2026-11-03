@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import Integer, cast, false, func, select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import assets, education, gifts, giving, loans, people
@@ -487,11 +487,26 @@ class Rmd:
 
 
 @dataclass
+class Movement:
+    """Money moved between retirement accounts (S8.6): a rollover, or a conversion to Roth
+    with the part of it that is taxed by Form 8606's pro rata rule, when the basis is known."""
+
+    kind: str  # "rollover" or "conversion"
+    date: dt.date
+    fromAccount: str
+    toAccount: str
+    amount: Decimal
+    taxable: Decimal | None = None
+
+
+@dataclass
 class Retirement:
     contributions: list[Contribution]
     distributions: list[tuple[str, Decimal]]
     rmds: list[Rmd]
     basis8606: Decimal | None
+    conversions: list[Movement]
+    rollovers: list[Movement]
 
 
 # Which accounts share one limit: a person's IRAs, traditional and Roth; their 401(k) and
@@ -508,35 +523,55 @@ GROUP_LABELS = {"ira": "IRAs", "deferral": "401(k) and 403(b) deferrals", "457b"
 
 
 def retirement(s: Session, book: TaxBook) -> Retirement:
+    from . import retirement as moves
+
     y = book.year
     first, last = _span(y)
     figures = taxtables.figures(s, y)
     accounts = [a for a in books.counted(s, book).accounts if atypes.retirement(a.type)]
     contributions, distributions, rmds = [], [], []
+    moved: dict[frozenset, Movement] = {}
     ira_by_owner: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for a in accounts:
         owner = s.get(User, a.ownerId)
         born = people.birth_year(s, a.ownerId)
         age = y - born if born else None
-        put = (
-            s.scalar(
-                select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                    Transaction.accountId == a.id,
-                    Transaction.deleted == false(),
-                    Transaction.amount > 0,
-                    Transaction.instrumentId.is_(None),
-                    Transaction.kind.in_(("deposit", "transfer")),
-                    func.coalesce(
-                        Transaction.contributionYear,
-                        cast(func.strftime("%Y", Transaction.date), Integer),
-                    )
-                    == y,
-                    func.coalesce(Transaction.contributionSource, "employee") == "employee",
-                )
+        # Each movement classified once (CR3-37): what counts against a limit is a
+        # contribution, never a rollover or a conversion.
+        put = employer = taken = ZERO
+        for t in s.scalars(
+            select(Transaction).where(
+                Transaction.accountId == a.id,
+                Transaction.deleted == false(),
+                Transaction.instrumentId.is_(None),
+                Transaction.kind.in_(moves.CASH_KINDS),
             )
-            or ZERO
-        )
-        put = Decimal(str(put))
+        ):
+            what = moves.classify(s, t, a)
+            year = t.contributionYear or t.date.year
+            if what == "employee" and year == y:
+                put += t.amount
+            elif what == "employer" and year == y:
+                employer += t.amount
+            elif not first <= t.date <= last:
+                continue
+            elif what == "distribution":
+                taken -= t.amount
+            elif what in ("rollover", "conversion", "rollover-out", "conversion-out"):
+                other = moves.other_account(s, t)
+                into = t.amount > 0
+                key = frozenset({t.id, t.transferId or t.id})
+                moved.setdefault(
+                    key,
+                    Movement(
+                        what.removesuffix("-out"),
+                        t.date,
+                        (other.name if other else "another account") if into else a.name,
+                        a.name if into else (other.name if other else "another account"),
+                        abs(t.amount),
+                    ),
+                )
+        counted = put + employer if a.type == "hsa" else put
         limit, note = None, ""
         if a.type in ("ira", "roth-ira"):
             ira_by_owner[owner.id] += put
@@ -555,37 +590,33 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 limit += Decimal(str(figures["k401CatchUp"]))
                 note = "with the catch-up at 50 and over"
         elif a.type == "hsa":
-            limit = Decimal(str(figures["hsaFamily"]))
-            note = "the family limit; self-only is lower"
-        if put or limit:
+            # Employee and employer money both count against an HSA's limit, which its
+            # coverage sets, with $1,000 more at 55 (S8.6).
+            if a.hsaCoverage == "self":
+                limit, note = Decimal(str(figures["hsaSelf"])), "self-only coverage"
+            else:
+                limit = Decimal(str(figures["hsaFamily"]))
+                note = "family coverage" if a.hsaCoverage else "the family limit: set the coverage"
+            if age and age >= 55:
+                limit += Decimal(str(figures.get("hsaCatchUp", 1000)))
+                note += "; with the catch-up at 55 and over"
+            if employer:
+                note += f"; {employer:,.2f} of it from the employer"
+        if counted or limit:
             contributions.append(
                 Contribution(
                     a.name,
                     atypes.LABELS[a.type],
                     owner.displayName,
-                    put,
+                    counted,
                     limit,
                     note,
                     group=LIMIT_GROUPS.get(a.type, a.type),
                     ownerId=owner.id,
                 )
             )
-        taken = (
-            s.scalar(
-                select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                    Transaction.accountId == a.id,
-                    Transaction.deleted == false(),
-                    Transaction.amount < 0,
-                    Transaction.instrumentId.is_(None),
-                    Transaction.kind.in_(("withdrawal", "transfer")),
-                    Transaction.date >= first,
-                    Transaction.date <= last,
-                )
-            )
-            or ZERO
-        )
         if taken:
-            distributions.append((a.name, -Decimal(str(taken))))
+            distributions.append((a.name, taken))
         rmd_age = Decimal(str(figures["rmdAge"]))  # 70½ until 2019
         if age and age >= rmd_age and a.type in ("ira", "401k", "403b", "457b") and age in UNIFORM:
             from .. import valuation
@@ -616,7 +647,34 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         if figs.get("basis8606")
     ]
     basis = bases[0] if len(bases) == 1 else None
-    return Retirement(contributions, distributions, rmds, basis)
+    conversions = sorted(
+        (m for m in moved.values() if m.kind == "conversion"), key=lambda m: m.date
+    )
+    rollovers = sorted((m for m in moved.values() if m.kind == "rollover"), key=lambda m: m.date)
+    _pro_rata(s, accounts, conversions, distributions, basis, y)
+    return Retirement(contributions, distributions, rmds, basis, conversions, rollovers)
+
+
+def _pro_rata(s, accounts, conversions, distributions, basis, year) -> None:
+    """Form 8606 Part I: a conversion from a traditional IRA is taxed but for its share of
+    the basis, over the year-end value of the traditional IRAs plus what left them in the
+    year (distributions and conversions)."""
+    if basis is None or not conversions:
+        return
+    from .. import valuation
+
+    iras = [a for a in accounts if a.type == "ira"]
+    names = {a.name for a in iras}
+    year_end = sum(
+        (valuation.account_value(s, repo.load(s, a), True, dt.date(year, 12, 31)) for a in iras),
+        ZERO,
+    )
+    out = sum((m.amount for m in conversions if m.fromAccount in names), ZERO)
+    taken = sum((v for n, v in distributions if n in names), ZERO)
+    whole = year_end + out + taken
+    for m in conversions:
+        if m.fromAccount in names and whole > 0:
+            m.taxable = (m.amount - basis * m.amount / whole).quantize(CENT)
 
 
 # ---------- Deductions and credits (S8.7) ----------

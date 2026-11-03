@@ -301,6 +301,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                         ['employee', 'Me'],
                         ['employer', 'My employer'],
                         ['rollover', 'A rollover'],
+                        ['conversion', 'A Roth conversion'],
                       ]} />
                     </${Field}>
                     </div>

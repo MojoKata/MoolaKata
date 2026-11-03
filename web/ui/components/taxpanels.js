@@ -350,6 +350,26 @@ function Retirement({ p }) {
         )
         : html`<p class="small dim">None due: no owner has reached the RMD age.</p>`}</div>
     </div>
+    <div class="grid g2 mt">
+      <div class="card"><h3 data-help="conversions">Roth conversions</h3>${r.conversions.length
+        ? r.conversions.map((/** @type {any} */ m) =>
+          html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
+            class="small dim">${date(m.date)}${
+            m.taxable != null
+              ? html`
+                · taxed <${Amt} v=${m.taxable} /> by Form 8606
+              `
+              : ''
+          }</div></span><${Amt} v=${m.amount} /></div>`
+        )
+        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+      <div class="card"><h3 data-help="rollovers">Rollovers</h3>${r.rollovers.length
+        ? r.rollovers.map((/** @type {any} */ m) =>
+          html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
+            class="small dim">${date(m.date)}</div></span><${Amt} v=${m.amount} /></div>`
+        )
+        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+    </div>
   `;
 }
 

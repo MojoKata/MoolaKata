@@ -153,6 +153,17 @@
             "title": "Group",
             "type": "string"
           },
+          "hsaCoverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hsacoverage"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -441,6 +452,7 @@
           "statementIntervalProposal",
           "statementIntervalDismissed",
           "withdrawalsAMonth",
+          "hsaCoverage",
           "optionsValue",
           "capitalAtRisk",
           "connectionId",
@@ -520,6 +532,18 @@
             "default": 20,
             "title": "Gaplimit",
             "type": "integer"
+          },
+          "hsaCoverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hsacoverage"
           },
           "institution": {
             "anyOf": [
@@ -13507,6 +13531,57 @@
         "title": "MovedRow",
         "type": "object"
       },
+      "MovementOut": {
+        "additionalProperties": false,
+        "description": "A rollover, or a conversion to Roth with its taxed part by Form 8606 (S8.6).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "fromAccount": {
+            "title": "Fromaccount",
+            "type": "string"
+          },
+          "taxable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxable"
+          },
+          "toAccount": {
+            "title": "Toaccount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "fromAccount",
+          "toAccount",
+          "amount",
+          "taxable"
+        ],
+        "title": "MovementOut",
+        "type": "object"
+      },
       "Named": {
         "additionalProperties": false,
         "properties": {
@@ -18310,6 +18385,7 @@
               "counted-fixed",
               "counted-set",
               "counting-invalid",
+              "coverage-invalid",
               "daf-invalid",
               "date-ahead",
               "date-in-future",
@@ -18767,6 +18843,7 @@
                   "counted-fixed",
                   "counted-set",
                   "counting-invalid",
+                  "coverage-invalid",
                   "daf-invalid",
                   "date-ahead",
                   "date-in-future",
@@ -21542,6 +21619,13 @@
             "title": "Contributions",
             "type": "array"
           },
+          "conversions": {
+            "items": {
+              "$ref": "#/components/schemas/MovementOut"
+            },
+            "title": "Conversions",
+            "type": "array"
+          },
           "distributions": {
             "items": {
               "$ref": "#/components/schemas/Amount"
@@ -21555,13 +21639,22 @@
             },
             "title": "Rmds",
             "type": "array"
+          },
+          "rollovers": {
+            "items": {
+              "$ref": "#/components/schemas/MovementOut"
+            },
+            "title": "Rollovers",
+            "type": "array"
           }
         },
         "required": [
           "contributions",
           "distributions",
           "rmds",
-          "basis8606"
+          "basis8606",
+          "conversions",
+          "rollovers"
         ],
         "title": "RetirementOut",
         "type": "object"

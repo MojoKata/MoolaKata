@@ -75,6 +75,7 @@ export class AcctRec extends Record {
     closedOn: null,
     statementInterval: null,
     withdrawalsAMonth: null,
+    hsaCoverage: null,
     connectionId: null,
     syncAccount: null,
     walletKeys: null,
