@@ -30,6 +30,7 @@ from edits import change, drop, edit, make, new_id, saved, share
 from test_accounts import add, new_account
 from test_budgets import cats, month, save_plan
 from worlds import budget as bw
+from worlds import budget_reference as bref
 
 from moolakata import clock
 
@@ -200,6 +201,18 @@ def _rows_and_unplanned_are_the_spending(views):
         assert card + Decimal(v["yearlySpent"]) == Decimal(v["spent"]), m
 
 
+def _spending_is_the_reference_models(made: Made):
+    """The owner's month spent what the reference model, which knows nothing of the app,
+    says (S7.3.1–S7.3.5)."""
+    wrong = []
+    for m in bw.MONTHS:
+        got = Decimal(month(made.c, made.b, m)["spent"])
+        want = bref.spent(made.w, m)
+        if got != want:
+            wrong.append(f"{m}: got {got}, want {want}")
+    assert not wrong, "\n".join(wrong)
+
+
 def _balances_carry_on(made: Made, views):
     for before, after in zip(bw.MONTHS, bw.MONTHS[1:], strict=False):
         was = {r["categoryId"]: r for r in views[before]["rows"]}
@@ -322,6 +335,7 @@ def check_world(server, seed: int) -> None:
     clock.fix(T0)
     try:
         made = Made(server, bw.world(seed))
+        _spending_is_the_reference_models(made)  # first: the later checks add transactions
         views = _months(made)  # the reading of every row, every month (invariant 1)
         _rows_and_unplanned_are_the_spending(views)
         _balances_carry_on(made, views)

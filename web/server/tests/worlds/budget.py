@@ -362,6 +362,7 @@ def _reimbursable_counted(amount, reimbursable):
 
 # Each with the worlds that must fail under it. `GAPS`: plants no world catches yet, each with
 # why; `test_worlds` holds them as strict xfails, so one that starts being caught says so.
+# Caught since the reference model (`budget_reference`).
 PLANTS = [
     (
         Plant(
@@ -373,7 +374,4 @@ PLANTS = [
         (0,),
     ),
 ]
-GAPS = {
-    "reimbursable counted whole": "the budget world's rules are sums of its own figures; "
-    "with no reference model, a rule wrong everywhere passes",
-}
+GAPS: dict[str, str] = {}
