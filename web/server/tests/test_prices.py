@@ -414,3 +414,90 @@ def test_an_options_underlying_is_priced_held_or_not(server):
         got = {i.symbol: day for i, day in pricing.priced(s, benchmarks=False)}
         assert s.query(Instrument).filter_by(symbol="XYZ").one()
     assert got["XYZ"] == dt.date(2026, 9, 2) and "XYZ 20NOV26 50 P" in got
+
+
+def test_a_days_price_is_its_ranges_last_point_and_never_another_users(server):
+    """13.1, CR3-24: for every instrument and day, the day's price is the last point of the
+    range ending that day, by one order of sources; a second user's trades, statement values
+    and typed prices, on the same instruments and days, never price the first's."""
+    import inspect
+
+    from moolakata.store.entities.accounts import Holding, Instrument, Transaction
+    from moolakata.store.entities.prices import Price, TypedPrice
+
+    assert (
+        inspect.signature(valuation.prices).parameters["owner"].default is inspect.Parameter.empty
+    )
+    clock.fix(dt.datetime(2026, 10, 13, 15, tzinfo=dt.UTC))
+    try:
+        pricing.install()
+        for u in ("alice", "mallory"):
+            make_user(server, u)
+        ids_ = {}
+        with server.db.tx(unscoped="test") as s:
+            from moolakata.store.entities.users import User
+
+            users = {u: s.query(User).filter_by(username=u).one().id for u in ("alice", "mallory")}
+            accts = {}
+            for u, uid in users.items():
+                a = Account(id=ids.new_id("Acct"), ownerId=uid, name=f"{u} brokerage",
+                            type="brokerage")  # fmt: skip
+                s.add(a)
+                accts[u] = a.id
+            s.flush()
+            shapes = ("closes", "typed", "statement", "trades", "late-closes", "fund")
+            first = dt.date(2026, 6, 1)
+            for k, shape in enumerate(shapes):
+                cls = "money-market" if shape == "fund" else "equity"
+                inst = Instrument(id=ids.new_id("Instr"), symbol=f"Z{k}", instrumentClass=cls)
+                s.add(inst)
+                s.flush()
+                ids_[shape] = inst.id
+                for who, base in (("alice", 100), ("mallory", 7)):
+                    day0 = first - dt.timedelta(days=20)
+                    s.add(Transaction(id=ids.new_id("Txn"), accountId=accts[who], date=day0,
+                                      kind="buy", amount=-D(base), instrumentId=inst.id,
+                                      quantity=D(1), price=D(base)))  # fmt: skip
+                    s.flush()
+                    if shape in ("statement",) or who == "mallory":
+                        s.add(Holding(id=ids.new_id("Hold"), accountId=accts[who],
+                                      instrumentId=inst.id, asOf=first + dt.timedelta(days=10),
+                                      quantity=D(1), marketValue=D(base + 3)))  # fmt: skip
+                    if shape == "typed" or who == "mallory":
+                        s.add(TypedPrice(id=ids.new_id("TyPrc"), userId=users[who],
+                                         instrumentId=inst.id, date=first + dt.timedelta(days=30),
+                                         close=D(base + 5)))  # fmt: skip
+                if shape in ("closes", "typed"):
+                    for d in range(0, 120, 7):
+                        when = first - dt.timedelta(days=3) + dt.timedelta(days=d)
+                        s.add(Price(id=ids.new_id("Price"), instrumentId=inst.id, date=when,
+                                    close=D(200 + d), source="test",
+                                    fetchedAt=clock.now()))  # fmt: skip
+                if shape == "late-closes":
+                    s.add(Price(id=ids.new_id("Price"), instrumentId=inst.id,
+                                date=first + dt.timedelta(days=45), close=D(300), source="test",
+                                fetchedAt=clock.now()))  # fmt: skip
+        last = dt.date(2026, 10, 1)
+        mallory = {D(7), D(10), D(12)}  # her trade, statement and typed prices
+        with server.db.read(unscoped="test") as s:
+            points = valuation.price_points(s, list(ids_.values()), first, last,
+                                            owner=users["alice"])  # fmt: skip
+            day = first
+            while day <= last:
+                found = valuation.prices(s, list(ids_.values()), day, owner=users["alice"])
+                for shape, iid in ids_.items():
+                    pts = [p for d, p in points[iid] if d <= day]
+                    want = pts[-1] if pts else None
+                    got = found.get(iid)
+                    assert (got.price if got else None) == want, (shape, day, got, want)
+                    assert want not in mallory, (shape, day)
+                day += dt.timedelta(days=1)
+        # And the shapes mean what they say: alice's typed price wins on its day, her statement
+        # stands before any close, her trade where nothing else is, a close once one comes.
+        with server.db.read(unscoped="test") as s:
+            on = valuation.prices(s, list(ids_.values()), last, owner=users["alice"])
+        assert on[ids_["typed"]].source in ("close", "manual")
+        assert on[ids_["statement"]].price == D(103) and on[ids_["trades"]].price == D(100)
+        assert on[ids_["late-closes"]].price == D(300) and on[ids_["fund"]].price == D(1)
+    finally:
+        clock.fix(None)
