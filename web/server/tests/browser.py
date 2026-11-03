@@ -29,6 +29,17 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+# The log of the server last started in this process: a test that sees a 5xx shows its end,
+# so a server bug reached only in CI is diagnosed from the run that hit it (issue #34).
+SERVER_LOG: list = []
+
+
+def server_log_tail(lines: int = 80) -> str:
+    if not SERVER_LOG or not SERVER_LOG[-1].exists():
+        return "(no server log)"
+    return "\n".join(SERVER_LOG[-1].read_text(errors="replace").splitlines()[-lines:])
+
+
 def start(tmp, keyed: bool):
     """A server from this checkout, as the image runs it: with a keyring, locked; without,
     uninitialised (S15.4.4). Its base address, its process and its key (None without)."""
@@ -50,6 +61,7 @@ socket = "{tmp / "run" / "sock"}"
         key = os.urandom(16)
         master.create_keyring(load(config), key)
     log = open(tmp / "server.log", "wb")  # noqa: SIM115 - a file: an unread pipe fills up
+    SERVER_LOG.append(tmp / "server.log")
     proc = subprocess.Popen(
         [sys.executable, "-m", "moolakata.main", "--config", str(config), "serve"],
         stdout=log,
@@ -143,7 +155,10 @@ def wait(page, selector: str, problems: list, **kw) -> None:
         shot = os.environ.get("MK_FAIL_SHOT")
         if shot:
             page.screenshot(path=shot)
-        pytest.fail(f"{selector} {kw}: never; the page said {problems}")
+        said = f"{selector} {kw}: never; the page said {problems}"
+        if any(str(p)[:1] == "5" for p in problems):
+            said += f"\n--- the server's log, its end ---\n{server_log_tail()}"
+        pytest.fail(said)
 
 
 def months_back(n: int) -> str:
