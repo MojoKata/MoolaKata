@@ -50,7 +50,9 @@
       re-imported file adds only what is new, matched by the file's transaction id (an OFX
       file's `FITID`) or by date, amount and payee, amounts compared in cents as stored. A row
       whose id isn't here yet still matches, by date, amount and payee, a row that has none (one
-      typed by hand, or from a file without ids), which takes the id. Rows the owner deleted are
+      typed by hand, or from a file without ids), which takes the id; failing that, a half of a
+      transfer typed by hand (a loan payment recorded from the account, a move to savings) of
+      the same amount within S1.7's days, the closest, and none when two are as close. Rows the owner deleted are
       matched too, and stay deleted: no file, nor the connector's overlapping downloads, brings
       one back. An id a file repeats is another row, kept beside the first and flagged with it
       as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with

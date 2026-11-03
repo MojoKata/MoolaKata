@@ -518,6 +518,10 @@ def _apply_import(
     for x in reversed(existing):
         if not x.fitId:
             loose.setdefault(_loose_key(x.date, x.amount, x.payeeRaw), []).append(x)
+    # A transfer's half typed by hand (a loan payment recorded from this account, a move to
+    # savings) is the row the bank's file brings later, under the bank's payee and its own
+    # day: the same amount within S1.7's days (CR3-395).
+    typed_halves = [x for x in existing if not x.fitId and not x.deleted and x.transferId]
 
     # An option's end in the file is settled after the trades that opened it, and the stock
     # trade the broker reports with an assignment or exercise is the one settling makes.
@@ -536,6 +540,10 @@ def _apply_import(
             # A row typed by hand or brought by a file without ids is the same row.
             bucket = loose.get(_loose_key(row.date, row.amount, row.payee))
             found = bucket.pop(0) if bucket else None
+            if found is None:
+                found = _typed_half(typed_halves, row)
+            if found is not None and found in typed_halves:
+                typed_halves.remove(found)
             if found is not None and row.fitId:
                 found.fitId = row.fitId
         if found is not None and found.deleted:
@@ -779,6 +787,24 @@ def txns_made(s: Session, import_id: str) -> list[Transaction]:
             )
         )
     )
+
+
+def _typed_half(halves: list[Transaction], row) -> Transaction | None:
+    """The transfer half typed by hand that a file's row is (CR3-395): the same amount in
+    cents, within S1.7's days, the closest; none when two are as close."""
+    cents = money.to_cents(row.amount)
+    near = sorted(
+        (
+            x
+            for x in halves
+            if money.to_cents(x.amount) == cents and abs((x.date - row.date).days) <= transfers.DAYS
+        ),
+        key=lambda x: abs((x.date - row.date).days),
+    )
+    gap = [abs((x.date - row.date).days) for x in near[:2]]
+    if not near or (len(gap) > 1 and gap[0] == gap[1]):
+        return None
+    return near[0]
 
 
 def _loose_key(day: dt.date, amount: Decimal, payee: str | None) -> tuple:

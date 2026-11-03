@@ -399,3 +399,18 @@ def test_recording_from_an_account_that_holds_the_debit_finds_it(server, frozen)
     assert c.get(f"/ui/api/accounts/{loan['id']}/loan/halves",
                  params={"account": bank["id"], "date": "2026-10-02",
                          "amount": "1798.65"}).json()["items"] == []  # fmt: skip
+
+
+def test_a_statement_after_a_payment_recorded_from_checking_adds_nothing(server, frozen):
+    """CR3-395: the bank's file brings the half the payment dialog made, under its own payee
+    and a day later: matched, not added again."""
+    from test_accounts import upload
+    from worlds import halves
+
+    c, bank, loan = _a_loan_and_checking(server)
+    assert loan_payment(c, loan["id"], "2026-10-01", "1798.65",
+                        from_account=bank["id"]).status_code == 200  # fmt: skip
+    job = upload(c, bank["id"], "oct.ofx", halves.ofx(dt.date(2026, 10, 2), D("1798.65"), "p1"))
+    assert job["result"]["added"] == 0 and job["result"]["matched"] == 1
+    debits = [r for r in _rows(c, bank["id"]) if D(r["amount"]) < 0]
+    assert len(debits) == 1 and debits[0]["transferAccountName"] == "Home"
