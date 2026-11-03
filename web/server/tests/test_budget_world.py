@@ -1,4 +1,4 @@
-"""Generated budget worlds (`budget_world`), made through the API and held to every budget
+"""Generated budget worlds (`worlds.budget`), made through the API and held to every budget
 invariant (requirements S7): pairwise coverage of the data shapes, asserted, and each world's
 figures checked month by month for its viewer.
 
@@ -24,12 +24,12 @@ And throughout, every kept month is worked out again and compared (S7.3.10, `cac
 import datetime as dt
 from decimal import Decimal
 
-import budget_world as bw
 import pytest
 from conftest import make_user, sign_in
 from edits import change, drop, edit, make, new_id, saved, share
 from test_accounts import add, new_account
 from test_budgets import cats, month, save_plan
+from worlds import budget as bw
 
 from moolakata import clock
 
@@ -37,13 +37,11 @@ T0 = dt.datetime(*bw.TODAY, 15, 0, tzinfo=dt.UTC)
 
 
 def test_the_worlds_meet_every_pair_of_data_shapes():
-    """Every pair of values of two axes of one record that can exist meets in some world."""
-    for kind in bw.AXES:
-        got = set()
-        for seed in bw.SEEDS:
-            got |= bw.pairs(bw.world(seed))[kind]
-        missing = bw.all_pairs(kind) - got
-        assert not missing, (kind, sorted(sorted(p) for p in missing)[:10])
+    """Every pair of values of two axes of one record that can exist meets in some world, and
+    no world holds a pair the rules say can't."""
+    worlds = [bw.world(seed) for seed in bw.SEEDS]
+    assert not bw.AXES.missing(worlds), {k: v[:10] for k, v in bw.AXES.missing(worlds).items()}
+    assert not bw.AXES.impossible_reached(worlds)
 
 
 # ---------- making a world ----------
@@ -315,6 +313,12 @@ def _pair(made: Made, frm: str, to: str, amount: Decimal):
 
 @pytest.mark.parametrize("seed", bw.SEEDS)
 def test_a_worlds_figures_keep_every_rule(server, seed):
+    check_world(server, seed)
+
+
+def check_world(server, seed: int) -> None:
+    """Make the world of `seed` through the API and hold its figures to every rule; also run
+    under each of `PLANTS` by `test_worlds`."""
     clock.fix(T0)
     try:
         made = Made(server, bw.world(seed))

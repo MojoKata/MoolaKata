@@ -63,6 +63,22 @@ def pytest_sessionfinish(session):
         cov.save()
 
 
+def pytest_terminal_summary(terminalreporter):
+    """Each generated world's time, added up over its tests (setup, call and teardown), so a
+    world that grows shows in CI's log (S17.5.8)."""
+    by: dict[str, float] = {}
+    for reports in terminalreporter.stats.values():
+        for r in reports:
+            nodeid = getattr(r, "nodeid", "")
+            module = nodeid.split("::")[0].rsplit("/", 1)[-1]
+            if module.startswith("test_") and "world" in module:
+                by[module] = by.get(module, 0.0) + getattr(r, "duration", 0.0)
+    if by:
+        terminalreporter.write_sep("-", "generated worlds")
+        for module, secs in sorted(by.items(), key=lambda kv: -kv[1]):
+            terminalreporter.write_line(f"{secs:8.1f} s  {module}")
+
+
 @pytest.fixture(autouse=True)
 def file_sandbox_shown():
     """What a test sees doesn't depend on the kernel it runs on: the reader's file sandbox is

@@ -1,7 +1,7 @@
 """Generated budget worlds (requirements S7): a budget's method, viewer, accounts over months,
 plan history, transactions of every shape and moves, drawn from a seed. A world is a plain
 description first (`World`), so which data shapes the worlds reach is checked without a server
-(`pairs`); `test_budget_world` then makes each through the API and holds its figures to every
+(`AXES.missing`); `test_budget_world` then makes each through the API and holds its figures to every
 budget invariant.
 
 The axes and their values are `AXES`. Coverage is pairwise: across the worlds of
@@ -14,9 +14,10 @@ by gift and giving plans (test_budget_plan), and the envelope's card lines beyon
 (test_envelope).
 """
 
-import itertools
 import random
 from dataclasses import dataclass, field
+
+from worlds import Axes, Plant
 
 MONTHS = ("2026-01", "2026-02", "2026-03", "2026-04")
 TODAY = (2026, 4, 20)
@@ -39,7 +40,7 @@ STATES = ("set", "changed", "zero", "out", "replanned", "target-on", "target-off
 # Per move.
 MOVES = ("category", "to-budget", "landed-given", "landed-kept", "card")
 
-AXES = {
+_AXES = {
     "txn": {"method": METHODS, "viewer": VIEWERS, "shape": SHAPES, "other": OTHERS,
             "span": SPANS, "position": POSITIONS, "type": ACCOUNT_TYPES},
     "line": {"method": METHODS, "viewer": VIEWERS, "kind": KINDS, "state": STATES},
@@ -102,16 +103,7 @@ def _impossible(kind: str, a: tuple[str, str], b: tuple[str, str]) -> bool:
     return kind == "move" and keys.get("method") == "tracking" and keys.get("move") in envelope_only
 
 
-def all_pairs(kind: str) -> set[frozenset]:
-    """Every pair of values of two axes of one kind of record that can exist."""
-    out = set()
-    axes = AXES[kind]
-    for x, y in itertools.combinations(axes, 2):
-        for vx in axes[x]:
-            for vy in axes[y]:
-                if not _impossible(kind, (x, vx), (y, vy)):
-                    out.add(frozenset({(x, vx), (y, vy)}))
-    return out
+AXES = Axes(_AXES, _impossible)
 
 
 @dataclass
@@ -204,17 +196,6 @@ class World:
         ]
         moves = [{**base, "move": m.kind} for m in self.moves]
         return {"txn": txns, "line": lines, "move": moves}
-
-
-def pairs(world: World) -> dict[str, set[frozenset]]:
-    out: dict[str, set[frozenset]] = {}
-    for kind, records in world.records().items():
-        got = set()
-        for r in records:
-            for x, y in itertools.combinations(AXES[kind], 2):
-                got.add(frozenset({(x, r[x]), (y, r[y])}))
-        out[kind] = got
-    return out
 
 
 def world(seed: int) -> World:
@@ -369,3 +350,30 @@ def _moves(w: World, rnd: random.Random) -> None:
                 to = reserve if kind == "landed-given" else None
                 w.moves.append(Move(kind, month, None, to, _amount(rnd, 1, 9),
                                     account=plan[reserve]["heldIn"]))  # fmt: skip
+
+
+# ---------- bugs a budget world must catch (`test_worlds`) ----------
+
+
+def _reimbursable_counted(amount, reimbursable):
+    """Spending to be paid back counted whole (S7.3.4)."""
+    return amount
+
+
+# Each with the worlds that must fail under it. `GAPS`: plants no world catches yet, each with
+# why; `test_worlds` holds them as strict xfails, so one that starts being caught says so.
+PLANTS = [
+    (
+        Plant(
+            "reimbursable counted whole",
+            "moolakata.budgets:_counted",
+            _reimbursable_counted,
+            "S7.3.4",
+        ),
+        (0,),
+    ),
+]
+GAPS = {
+    "reimbursable counted whole": "the budget world's rules are sums of its own figures; "
+    "with no reference model, a rule wrong everywhere passes",
+}

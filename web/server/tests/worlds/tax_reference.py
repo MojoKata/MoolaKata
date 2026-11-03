@@ -1,5 +1,5 @@
 """A reference model of Form 8949 (requirements S2.2, S2.3, S3.1, S3.8, S8.1), written apart from
-the app and as plainly as possible: it reads a generated tax world (`tax_world`) and works out,
+the app and as plainly as possible: it reads a generated tax world (`worlds.tax`) and works out,
 for each tax book, the rows its Form 8949 must have. It imports nothing of MoolaKata, so a rule
 the app gets wrong everywhere the same way still fails against it.
 
@@ -35,7 +35,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Decimal
 
-import tax_world as tw
+from worlds import tax as tw
 
 CENT = Decimal("0.01")
 WINDOW = 30

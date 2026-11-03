@@ -1,7 +1,7 @@
 """Generated tax worlds (requirements S2.2, S2.3, S3.1, S3.8, S8.1, S8.3, S8.14): a household's
 filers, accounts with their lot methods, and sale stories of every shape, drawn from a seed. A
 world is a plain description first (`World`), so which data shapes the worlds reach is checked
-without a server (`pairs`); `tax_reference` works out what each tax book's Form 8949 must say
+without a server (`AXES.missing`); `tax_reference` works out what each tax book's Form 8949 must say
 from the description alone, and `test_tax_world` makes each world through the API and holds the
 app's figures to it.
 
@@ -16,9 +16,10 @@ pair of values of two axes of a story meets at least once, but for the pairs tha
 """
 
 import datetime as dt
-import itertools
 import random
 from dataclasses import dataclass, field
+
+from worlds import Axes, Plant
 
 TODAY = dt.date(2026, 12, 28)
 YEARS = (2025, 2026)
@@ -60,7 +61,7 @@ INCOME_ACCOUNTS = ("Brokerage", "Second", "Bob's brokerage")
 INCOME_YEARS = ("2025", "2026")
 INCOME_SYMBOLS = ("SCHD", "VYM", "DGRO", "HDV", "NOBL", "SPYD", "DVY", "SDY")
 
-AXES = {
+_AXES = {
     "story": {"filers": FILERS, "seller": SELLERS, "class": CLASSES, "method": METHODS,
               "picks": PICKS, "term": TERMS, "outcome": OUTCOMES, "size": SIZES,
               "where": WHERE, "when": WHEN, "replaced": REPLACED, "soldIn": SOLD_IN,
@@ -95,7 +96,7 @@ FUNDS = ("VTSAX", "FXAIX", "VFIAX", "SWPPX", "VTIAX", "VBTLX", "FSKAX", "VGSLX",
 COINS = ("BTC", "ETH", "SOL", "ADA", "DOGE", "LTC", "XRP", "DOT", "AVAX", "LINK")
 
 
-def _impossible(a: tuple[str, str], b: tuple[str, str], kind: str = "story") -> bool:
+def _impossible(kind: str, a: tuple[str, str], b: tuple[str, str]) -> bool:
     """Pairs no record can hold."""
     k = {a[0]: a[1], b[0]: b[1]}
     get = k.get
@@ -146,15 +147,7 @@ def _impossible(a: tuple[str, str], b: tuple[str, str], kind: str = "story") -> 
     return get("follow") == "resold" and "replaced" in k and get("replaced") == "none"
 
 
-def all_pairs(kind: str = "story") -> set[frozenset]:
-    out = set()
-    axes = AXES[kind]
-    for x, y in itertools.combinations(axes, 2):
-        for vx in axes[x]:
-            for vy in axes[y]:
-                if not _impossible((x, vx), (y, vy), kind):
-                    out.add(frozenset({(x, vx), (y, vy)}))
-    return out
+AXES = Axes(_AXES, _impossible)
 
 
 @dataclass
@@ -264,17 +257,6 @@ class World:
             "income": [{**world, **i.axes} for i in self.incomes],
             "option": [{**world, **o} for o in self.options],
         }
-
-
-def pairs(w: World) -> dict[str, set[frozenset]]:
-    out: dict[str, set[frozenset]] = {}
-    for kind, records in w.records().items():
-        got = set()
-        for r in records:
-            for x, y in itertools.combinations(AXES[kind], 2):
-                got.add(frozenset({(x, r[x]), (y, r[y])}))
-        out[kind] = got
-    return out
 
 
 # ---------- drawing a world ----------
@@ -623,3 +605,30 @@ def _story(w: World, story: Story, rnd: random.Random, used: set[dt.date]) -> No
         c = max(100, near_cents + rnd.choice((-1, 1)) * rnd.randint(200, 2000))
         w.trades.append(Trade(near.account, on, "sell", story.symbol, near.quantity, _dollars(c)))
         story.trades.append(len(w.trades) - 1)
+
+
+# ---------- bugs a tax world must catch (`test_worlds`) ----------
+
+
+def _long_term_on_the_anniversary(acquired: dt.date, sold: dt.date) -> bool:
+    """A long-term cutoff a day early: held a year to the day counts as long (S3.1 says after
+    the anniversary)."""
+    try:
+        return sold >= acquired.replace(year=acquired.year + 1)
+    except ValueError:
+        return sold >= acquired.replace(year=acquired.year + 1, day=28)
+
+
+# Each with the worlds that must fail under it.
+PLANTS = [
+    (Plant("a 31-day wash window", "moolakata.washes:DAYS", 31, "S3.8: 30 days"), (0,)),
+    (
+        Plant(
+            "long-term on the anniversary",
+            "moolakata.ledger.lots:long_term",
+            _long_term_on_the_anniversary,
+            "S3.1: after the anniversary",
+        ),
+        (0,),
+    ),
+]
