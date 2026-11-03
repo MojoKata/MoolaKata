@@ -51,7 +51,7 @@
     "lines": 94.2
   },
   "server/core": {
-    "branches": 77.5,
+    "branches": 77.6,
     "lines": 88.8
   },
   "server/education": {
@@ -75,16 +75,16 @@
     "lines": 83.1
   },
   "server/ledger": {
-    "branches": 89.7,
-    "lines": 96.7
+    "branches": 91.6,
+    "lines": 97.1
   },
   "server/links": {
     "branches": 79.8,
     "lines": 92.1
   },
   "server/loans": {
-    "branches": 88.4,
-    "lines": 97.3
+    "branches": 89.7,
+    "lines": 97.6
   },
   "server/options": {
     "branches": 81,
