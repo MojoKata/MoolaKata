@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from moolakata.dev.settled import SETTLED, TRACK_FETCHES
+from moolakata.dev.settled import SETTLED, TRACK_FETCHES, WAITING
 
 # A failed request shows in the console without its address; failed responses are checked by
 # address instead, where the session check before signing in may answer 401.
@@ -182,17 +182,17 @@ def visit(page, path: str) -> None:
     pace(page)
     page.goto(page.base + path)
     try:
-        page.wait_for_selector(".content > *", timeout=15000)
+        page.wait_for_selector(".content > *", timeout=60000)
     except Exception:
         page.screenshot(path=str(Path(__file__).parent.parent / ".pytest_cache" / "stuck.png"))
-        raise AssertionError(f"{path} drew nothing in 15 s") from None
-    for _ in range(200):
-        if not page.evaluate("document.querySelector('.content [aria-busy=\"true\"]')"):
-            break
-        page.wait_for_timeout(50)
-    # Settled, so the next screen never tears this one down half-loaded (S17.5.8).
-    page.wait_for_function(SETTLED, timeout=15000)
-    page.wait_for_timeout(300)
+        raise AssertionError(f"{path} drew nothing in 60 s") from None
+    # Settled, so the next screen never tears this one down half-loaded (S17.5.8). A generous
+    # wait on the condition, never a fixed one: a slow runner takes longer, not a wrong turn.
+    try:
+        page.wait_for_function(SETTLED, timeout=60000)
+    except Exception:
+        waiting = page.evaluate(WAITING)
+        raise AssertionError(f"{path} didn't settle in 60 s, waiting on {waiting}") from None
 
 
 def pace(page) -> None:
