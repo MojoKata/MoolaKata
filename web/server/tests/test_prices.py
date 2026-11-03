@@ -394,3 +394,23 @@ def test_cboe_prices_listed_stocks_and_waits_for_the_close():
     with pytest.raises(SourceError, match="doesn't list VFIAX"):
         Cboe(FakeClient(answer), None).history(Ref("f", "VFIAX", "etf"), start, day)
     assert "mutual-fund" not in Cboe.classes
+
+
+def test_an_options_underlying_is_priced_held_or_not(server):
+    """CR3-23: a short put on a stock the account doesn't hold has the stock priced, from the
+    option's first trade, so its expiry has a close to decide it."""
+    from edits import option_trade
+    from test_accounts import new_account
+
+    from moolakata.store.entities.accounts import Instrument
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    brk = new_account(c, name="Brokerage", type="brokerage")
+    r = option_trade(c, brk["id"], "2026-09-02", "sell-to-open", "XYZ", "put", "50",
+                     "2026-11-20", 1, "2.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    with server.db.read(unscoped="test") as s:
+        got = {i.symbol: day for i, day in pricing.priced(s, benchmarks=False)}
+        assert s.query(Instrument).filter_by(symbol="XYZ").one()
+    assert got["XYZ"] == dt.date(2026, 9, 2) and "XYZ 20NOV26 50 P" in got

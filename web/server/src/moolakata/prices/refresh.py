@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from .. import clock, ids, options, valuation
 from ..projections import taxtables
-from ..store.entities.accounts import Account, Holding, Instrument, Transaction
+from ..store.entities.accounts import Account, Holding, Instrument, OptionContract, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.prices import Price, PriceSource
 from ..store.repos import secrets as secret_repo
@@ -204,6 +204,19 @@ def priced(s: Session, benchmarks: bool = True) -> list[tuple[Instrument, dt.dat
         .group_by(Holding.instrumentId)
     ):
         if iid in holding:
+            firsts[iid] = min(day, firsts.get(iid, day))
+    # What an open option needs priced (S4.4's "watched", CR3-23): its underlying, or an
+    # adjusted contract's deliverable parts, from the option's first trade, so its expiry is
+    # decided by a close and its intrinsic value has one, held or not.
+    for c in s.scalars(
+        select(OptionContract).where(
+            OptionContract.instrumentId.in_([i for i in holding if i in firsts]),
+            OptionContract.deleted == false(),
+        )
+    ):
+        day = firsts[c.instrumentId]
+        parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
+        for iid in parts or [c.underlyingId]:
             firsts[iid] = min(day, firsts.get(iid, day))
     # Metals valued at spot (S1.10.2): their metal's spot, from the first one acquired.
     from ..assets import METAL_SYMBOLS

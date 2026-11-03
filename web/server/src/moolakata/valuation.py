@@ -173,6 +173,7 @@ def closes(s: Session, instrument_ids: list[str], day: dt.date) -> dict[str, Pri
         if p.source == "close"
     }
 
+
 @dataclass
 class Position:
     instrumentId: str
@@ -343,7 +344,6 @@ def price_points(
                 out[iid].append((d, p.price))
                 was = p.price
     return out
-
 
 
 def series(
