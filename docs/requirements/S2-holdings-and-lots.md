@@ -17,8 +17,10 @@
    arrived. One paired with a transfer out of another of the owner's accounts carries that
    one's lots instead (S1.7.1). A transfer in without its lots (a broker's file says nothing
    of them) is one lot marked *day bought missing* and *basis missing*: its term shows as
-   unknown, and Taxes lists it until both are typed (S8.4); editing the transfer's date moves
-   only a lot whose day bought is missing.
+   unknown, and Taxes lists it until both are typed (S8.4). What is known of a lot goes with it
+   wherever it goes: a sale from it has its term unknown and its Form 8949 date *VARIOUS*, and
+   Taxes lists the sale too; a symbol change, spin-off or merger carries the mark to the new
+   shares. Editing the transfer's date moves only a lot whose day bought is missing.
 3. **Sales consume lots** by the account's **lot method**: FIFO (the default), LIFO, HIFO,
    specific identification (chosen per sale), or **average cost** (mutual funds, and crypto
    where elected: a listed share in an account set to average cost is sold first in). The method in force at the sale is recorded on it, however the sale arrives

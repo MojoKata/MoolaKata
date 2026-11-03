@@ -69,6 +69,7 @@ class Row:
     instrumentId: str | None = None
     quantity: Decimal | None = None
     accountId: str | None = None
+    acquiredMissing: bool = False  # shares moved in whose day bought isn't known (S2.2)
 
     @property
     def gain(self) -> Decimal | None:
@@ -165,7 +166,8 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 description=f"{inst.symbol} return of capital over basis"
                 if d.method == "return-of-capital"
                 else f"{_qty(d.quantity)} {inst.symbol}",
-                acquired=None if d.standIn else d.acquiredOn,  # VARIOUS when unknown
+                # VARIOUS when not known: a stand-in's, or shares moved in without it (S2.2)
+                acquired=None if d.standIn or d.acquiredMissing else d.acquiredOn,
                 sold=d.soldOn,
                 proceeds=proceeds,
                 basis=basis,
@@ -178,6 +180,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 saleId=d.saleId,
                 instrumentId=inst.id,
                 quantity=d.quantity,
+                acquiredMissing=d.acquiredMissing,
             )
             if d.basis is not None and d.saleId and d.proceeds < d.basis:
                 losses[d.saleId] = losses.get(d.saleId, ZERO) + d.basis - d.proceeds
@@ -1031,6 +1034,15 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
                     )
                 )
     for r in rows:
+        if r.acquiredMissing:
+            out.append(
+                Issue(
+                    "sale-acquired-missing",
+                    f"{r.account}: the sale of {r.description} on {r.sold:%b %-d} is of shares "
+                    "moved in: when they were bought, for its term",
+                    f"/ui/accounts/{r.accountId}/holdings",
+                )
+            )
         if r.basis is None:
             out.append(
                 Issue(

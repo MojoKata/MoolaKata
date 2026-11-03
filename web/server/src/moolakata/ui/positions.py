@@ -51,7 +51,7 @@ class OpenRow(Model):
     unrealized: Money | None
     unrealizedPct: Ratio | None
     realized: Money  # all its closes so far
-    term: str  # short, long or mixed
+    term: str  # short, long, mixed, or unknown (a lot whose day bought is missing)
     days: int  # since the oldest open lot
     lots: list[LotOut]
     expiry: dt.date | None = None  # an option's
@@ -239,7 +239,7 @@ def gather(s, c: Caller, kind: str = "all"):
                     cost=cost,
                     realized=(sum((d.gain for d in ds), ZERO) if cost is not None else None),
                     washDisallowed=sum((d.adjustment for d in ds), ZERO),
-                    term=_term([d.longTerm for d in ds]),
+                    term=_term([None if d.acquiredMissing else d.longTerm for d in ds]),
                 )
             )
     open_rows.sort(key=lambda r: -(abs(r.value) if r.value is not None else ZERO))

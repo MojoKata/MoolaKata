@@ -547,3 +547,24 @@ def test_shares_moved_between_two_accounts_carry_their_lots(alice):
     assert [(x["acquiredOn"], x["basis"], x["longTerm"]) for x in vti["lots"]] == [
         ("2019-03-04", "15000.00", True)
     ]
+
+
+def test_a_sale_of_shares_moved_in_without_their_day_bought_says_so(alice):
+    """S2.2, CR3-399: shares moved in with their basis but not the day they were bought, two
+    sold: Positions shows the sale's term unknown, its Form 8949 date is VARIOUS, and Taxes
+    lists the sale until the day is typed."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    add(alice, brk["id"], "0.00", "2026-01-12", kind="transfer-in", symbol="VTI", quantity="5",
+        costBasis="400")  # fmt: skip
+    trade(alice, brk["id"], "2026-03-02", "sell", "2", "120")
+    closed = alice.get("/ui/api/positions").json()["closed"]
+    assert [(x["symbol"], x["term"]) for x in closed] == [("VTI", "unknown")]
+    p = panels(alice, book(alice))
+    (row,) = [r for r in p["rows"] if r["description"] == "2 VTI"]
+    assert row["acquired"] is None and row["basis"] == "160.00"
+    (issue,) = [i for i in p["issues"] if i["kind"] == "sale-acquired-missing"]
+    assert issue["text"] == (
+        "Brokerage: the sale of 2 VTI on Mar 2 is of shares moved in: when they were bought, "
+        "for its term"
+    )
+    assert issue["link"] == f"/ui/accounts/{brk['id']}/holdings"
