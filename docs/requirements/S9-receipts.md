@@ -38,8 +38,10 @@
    it again.
 6. **Sharing** follows what the receipt is attached to: whoever can read a transaction can see
    its receipts, a gift's through the gift plans that show the gift, a donation's by its
-   owner and those who see the giving plan it counts in, and a tax document's file by the tax
-   book's filers (S8.16). An unattached receipt is its owner's alone. Attaching a receipt needs write on
+   owner and those who see the giving plan it counts in, one kept on a physical-asset item, a
+   loan, a 529 expense or an account (a statement) by whoever can read that account, and a tax
+   document's file by whoever can read the tax book (its filers, the helpers it is shared with
+   at write, its read shares; S8.14.3, S10.3.1), changed by whoever can write it. An unattached receipt is its owner's alone. Attaching a receipt needs write on
    it: its owner, or someone with write on what it is attached to; a read share shows it and
    attaches it nowhere (S10.3.1). Receipts cross a link only when the owner ticks **Include
    receipts** on that share, and then only as encrypted files in the other side's linked copy
