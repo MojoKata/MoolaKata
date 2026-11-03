@@ -340,8 +340,11 @@
    4. **Reconciling**: the servicer's statement balance can be typed in on a date, and a
       difference from the computed balance is shown until it is explained (a fee, a missed
       payment, a wrong rate).
-   5. **The loan's screen** shows the balance, the rate, the payoff date, interest paid to
-      date and still to pay, principal paid this year, the schedule, and the **payoff
+   5. **The loan's screen** shows the balance, the rate, the payment due next (the schedule's
+      next row, which the payment dialog and the bank transactions offered read too; in a
+      HELOC's draw period its interest alone, noted *interest only until* the period's end),
+      the payoff date, interest paid to date and still to pay, principal paid this year, the
+      schedule, and the **payoff
       planner** (S6.10). A mortgage linked to a `real-estate` item shows the **equity** and the
       **loan-to-value**, and when PMI can be dropped (on request at 80% of the original
       value; automatically at 78%, when the schedule stops charging it).

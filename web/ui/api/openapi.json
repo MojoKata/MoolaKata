@@ -12078,6 +12078,18 @@
             "title": "Interestahead",
             "type": "number"
           },
+          "interestOnlyUntil": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interestonlyuntil"
+          },
           "interestPaid": {
             "examples": [
               1234.5

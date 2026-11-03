@@ -2011,6 +2011,7 @@
  * @property {import('../app/dec.js').Dec} interestAhead
  * @property {import('../app/dec.js').Dec} principalThisYear
  * @property {import('../app/dec.js').Dec} overpaid
+ * @property {(string | null)} [interestOnlyUntil]
  * @property {Array<moolakata__ui__loans__RowOut>} rows
  * @property {(ServicerCheck | null)} servicer
  * @property {(Equity | null)} [equity]

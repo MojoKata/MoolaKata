@@ -267,6 +267,11 @@ def _in_draw(t: Terms, day: dt.date) -> bool:
     return bool(t.drawMonths) and day < add_months(t.start, t.drawMonths)
 
 
+def draw_ends(t: Terms) -> dt.date | None:
+    """The day a HELOC's draw period ends and its repayment starts."""
+    return add_months(t.start, t.drawMonths) if t.drawMonths else None
+
+
 def _scheduled_principal(t: Terms, owed: Decimal, interest: Decimal, day: dt.date) -> Decimal:
     if _in_draw(t, day):
         return ZERO
@@ -394,7 +399,7 @@ def schedule(
 class Summary:
     balance: Decimal
     rate: Decimal
-    payment: Decimal  # principal and interest a month now
+    payment: Decimal  # principal and interest due next, from the schedule's next row
     total: Decimal  # with escrow and PMI
     nextDate: dt.date | None
     payoffDate: dt.date | None
@@ -403,19 +408,26 @@ class Summary:
     principalThisYear: Decimal
     overpaid: Decimal
     originalPayoff: dt.date
+    interestOnlyUntil: dt.date | None = None  # a HELOC's draw period's end, while in it
 
 
 def summary(t: Terms, payments: list[Payment], draws, today: dt.date) -> tuple[Summary, list[Row]]:
+    """The loan's figures today. What is due next is the schedule's next row, the one source
+    the screen, the payment dialog and the bank transactions offered all read (CR3-21): in a
+    HELOC's draw period its interest alone, on a daily-interest loan that month's days, and at
+    the end what rounding left."""
     rows = schedule(t, payments, draws, today)
     ahead = [r for r in rows if not r.past]
     owed = balance_on(t, payments, draws, today)
-    pi = _pi_payment(t, owed, today) if owed > 0 else ZERO
+    due = ahead[0] if ahead and owed > 0 else None
+    pi = due.principal + due.interest if due else ZERO
     return (
         Summary(
             balance=owed,
             rate=t.rate_on(today),
             payment=pi,
-            total=pi + t.escrow + t.pmi_due(owed),
+            total=due.payment if due else ZERO,
+            interestOnlyUntil=draw_ends(t) if due and _in_draw(t, due.date) else None,
             nextDate=ahead[0].date if ahead else None,
             payoffDate=(
                 ahead[-1].date if ahead else (payments[-1].date if payments and owed == 0 else None)

@@ -198,6 +198,8 @@ export function LoanSummary({ a, reload }) {
       <div class="list-item"><span class="grow dim">Payment</span><span><${Amt} v=${v
         .payment} />${dec(v.total).gt(dec(v.payment))
         ? html`<span class="small dim"> · <${Amt} v=${v.total} /> with escrow</span>`
+        : null}${v.interestOnlyUntil
+        ? html`<div class="small dim">interest only until ${date(v.interestOnlyUntil)}</div>`
         : null}</span></div>
       <div class="list-item"><span class="grow dim">Next due</span>${v.nextDate
         ? date(v.nextDate)

@@ -277,3 +277,50 @@ def test_rounding_up_counts_pmi_only_while_it_is_due():
     with_pmi = next(x for x in ahead if x.pmi)
     without = next(x for x in ahead if not x.pmi)
     assert with_pmi.payment == D(2200) and without.payment == D(2100), "PMI's 90 no longer in it"
+
+
+def test_a_helocs_payment_while_drawing_is_the_interest_due(server, frozen):
+    """CR3-21: in the draw period the payment is the schedule's next row, interest alone, so
+    the screen, the dialog and the bank transactions offered read $200, not $0."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    bank = new_account(c, name="Checking")
+    add(c, bank["id"], "10000.00", "2026-09-01")
+    line = new_account(c, name="Line", type="heloc")
+    saved(terms(c, line["id"], principal="0", startDate="2026-01-01", termMonths=240, rate="8",
+                drawMonths=120))  # fmt: skip
+    add(c, line["id"], "-30000.00", "2026-02-01", payee="Draw", kind="withdrawal")
+    v = c.get(f"/ui/api/accounts/{line['id']}/loan").json()
+    nxt = next(x for x in v["rows"] if not x["past"])
+    assert v["payment"] == v["total"] == nxt["payment"] == "200.00"
+    assert v["interestOnlyUntil"] == "2036-01-01"
+    t = add(c, bank["id"], "-200.00", "2026-10-01", payee="UMB HELOC")
+    cands = c.get(f"/ui/api/accounts/{line['id']}/loan/candidates").json()["items"]
+    assert [x["transactionId"] for x in cands] == [t["id"]]
+
+
+def test_the_payment_is_the_schedules_next_row_for_every_shape():
+    """CR3-21: whatever the terms, the summary's payment is the next row's principal and
+    interest, and its total the row's payment."""
+    today = dt.date(2026, 10, 13)
+    shapes = [
+        mortgage_terms(
+            escrowTax=D(300), escrowInsurance=D(100), pmi=D(90), originalValue=D(360000)
+        ),
+        L.Terms(
+            principal=D(20000), start=dt.date(2026, 1, 1), months=60, rate=D(5), method="daily"
+        ),
+        L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=240, rate=D(8), drawMonths=120),
+        L.Terms(
+            principal=D(50000), start=dt.date(2014, 1, 1), months=240, rate=D(8), drawMonths=120
+        ),
+        mortgage_terms(recasts=[(dt.date(2026, 3, 1), D(250))]),
+        mortgage_terms(resets=[(dt.date(2026, 1, 1), D("7.25"))]),
+        L.Terms(principal=D(1000), start=dt.date(2026, 1, 1), months=10, rate=D(6)),
+    ]
+    for t in shapes:
+        draws = [(dt.date(2026, 2, 1), D(30000))] if t.drawMonths and not t.principal else []
+        sm, rows = L.summary(t, [], draws, today)
+        nxt = next((r for r in rows if not r.past), None)
+        assert nxt is not None, t
+        assert (sm.payment, sm.total) == (nxt.principal + nxt.interest, nxt.payment), t

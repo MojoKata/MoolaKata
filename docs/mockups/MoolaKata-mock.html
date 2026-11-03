@@ -475,6 +475,7 @@ const ACCOUNTS = [
   { id: 'daf', name: 'Griffin Giving Fund', inst: 'Fidelity Charitable', type: 'daf', group: 'giving', bal: 8400.0, chg: 95.0, owner: 'alice', sync: 'Manual', last4: '' },
   { id: 'mort', name: 'Mortgage', inst: 'Rocket Mortgage', type: 'mortgage', group: 'liability', bal: -312450.0, chg: 1120.0, owner: 'alice', sync: 'Manual · split by schedule', last4: '7781' },
   { id: 'car', name: 'Car loan', inst: 'Ally Auto', type: 'auto-loan', group: 'liability', bal: -18240.5, chg: 512.3, owner: 'alice', sync: 'Manual · split by schedule', last4: '5512' },
+  { id: 'heloc', name: 'Home equity line', inst: 'UMB Bank', type: 'heloc', group: 'liability', bal: -30000.0, chg: 0, owner: 'alice', sync: 'Manual · split by schedule', last4: '0448' },
   { id: 'house', name: 'Home', inst: '1428 Elm St', type: 'real-estate', group: 'other', bal: 640000.0, chg: 0, owner: 'alice', sync: 'Valuations', last4: '' },
   { id: 'metals', name: 'Precious metals', inst: 'Home safe · bank box', type: 'precious-metals', group: 'other', bal: 54312.7, chg: 1210.0, owner: 'alice', sync: 'Spot · daily', last4: '' },
   { id: 'collect', name: 'Collectables', inst: 'Watch, coin, art', type: 'collectables', group: 'other', bal: 16900.0, chg: 0, owner: 'alice', sync: 'Valuations', last4: '' },
@@ -559,7 +560,7 @@ const BUDGETS = [
   { id: 'envelope', name: 'Household, envelope', method: 'Envelope', owner: 'Alice Griffin', share: 'only you', accts: 'the same five accounts', opts: 'reserves, moves', made: 'copied from Household on Oct 2' },
   { id: 'alice', name: 'Alice (personal)', method: 'Tracking', owner: 'Alice Griffin', share: 'only you', accts: 'Everyday Checking', opts: 'none' },
 ];
-const LOAN = { mort: { bal: 312450, rate: 5.875, n: 317, escrow: 466.2, start: [2026, 10] }, car: { bal: 18240.5, rate: 6.49, n: 41, escrow: 0, start: [2026, 10] } };
+const LOAN = { mort: { bal: 312450, rate: 5.875, n: 317, escrow: 466.2, start: [2026, 10] }, car: { bal: 18240.5, rate: 6.49, n: 41, escrow: 0, start: [2026, 10] }, heloc: { bal: 30000, rate: 8, n: 228, escrow: 0, start: [2026, 10], drawUntil: 'Jan 1, 2035' } };
 const METALS = [
   { name: 'American Gold Eagle, 1 oz', metal: 'Gold', form: 'Coin', qty: 10, wt: '1.0909 ozt', pur: '22k (.9167)', fine: 10, acq: '2023-04-18', basis: 20500 },
   { name: 'PAMP Suisse bar, 1 oz', metal: 'Gold', form: 'Bar', qty: 2, wt: '1 ozt', pur: '.9999', fine: 2, acq: '2024-02-07', basis: 4840 },
@@ -1047,7 +1048,7 @@ function monthLabel(L, i) { const d = new Date(L.start[0], L.start[1] + i, 1); r
 function loanDetails(a) {
   const L = LOAN[a.id] || LOAN.mort, base = amort(L), plan = amort(L, { extra: 300 });
   return `<div class="list-item"><span class="grow dim">Rate</span>${L.rate.toFixed(3)}% fixed</div>
-    <div class="list-item"><span class="grow dim">Payment</span>${money(base.pmt)}${L.escrow ? ` <span class="small dim">+ escrow ${money(L.escrow)}</span>` : ''}</div>
+    <div class="list-item"><span class="grow dim">Payment</span>${L.drawUntil ? `<span>${money(L.bal * L.rate / 1200)}<div class="small dim">interest only until ${L.drawUntil}</div></span>` : `${money(base.pmt)}${L.escrow ? ` <span class="small dim">+ escrow ${money(L.escrow)}</span>` : ''}`}</div>
     <div class="list-item"><span class="grow dim">Paid off</span>${monthLabel(L, plan.months - 1)} <span class="small dim">· scheduled ${monthLabel(L, base.months - 1)}</span></div>
     <div class="list-item"><span class="grow dim">Interest still to pay</span>${money(plan.interest, { cents: false })}</div>
     <div class="list-item"><span class="grow dim">Following</span>Extra $300 a month <span class="small up">· ahead by $1,240</span></div>
@@ -1198,9 +1199,15 @@ function holdingsTable(others = []) {
 // What "All my accounts" holds besides securities: its loans and items, each a row of its own.
 const PORTFOLIO_OTHERS = [
   { kind: 'item', name: '1428 Elm St', acct: 'Home', v: 640000 },
+  { kind: 'item', name: 'American Gold Eagle, 1 oz', acct: 'Precious metals', v: 40120 },
+  { kind: 'item', name: 'PAMP Suisse bar, 1 oz', acct: 'Precious metals', v: 8024 },
+  { kind: 'item', name: 'Silver Maple Leaf, 1 oz', acct: 'Precious metals', v: 4868.7 },
+  { kind: 'item', name: 'Silver bar, 10 oz', acct: 'Precious metals', v: 1300 },
   { kind: 'item', name: '2023 Subaru Outback', acct: '2023 Subaru Outback', v: 21940 },
-  { kind: 'item', name: 'American Gold Eagles (10 oz)', acct: 'Precious metals', v: 54312.7 },
-  { kind: 'loan', name: 'Mortgage', acct: 'Rocket Mortgage', v: -312450 },
+  ...COLLECT.map((x) => ({ kind: 'item', name: x.name, acct: 'Collectables', v: x.val })),
+  { kind: 'loan', name: 'Mortgage', acct: 'Mortgage', v: -312450 },
+  { kind: 'loan', name: 'Home equity line', acct: 'Home equity line', v: -30000 },
+  { kind: 'loan', name: 'Car loan', acct: 'Car loan', v: -18240.5 },
 ];
 function txTable(rows) {
   return `<div class="card" style="padding:4px 8px"><div class="table-wrap"><table class="t"><thead><tr><th><input type="checkbox" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th></th><th class="num">Amount</th></tr></thead><tbody>

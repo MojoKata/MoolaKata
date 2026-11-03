@@ -156,6 +156,7 @@ class LoanView(Model):
     interestAhead: Money
     principalThisYear: Money
     overpaid: Money
+    interestOnlyUntil: dt.date | None = None  # a HELOC in its draw period (S1.9.1)
     rows: list[RowOut]
     servicer: ServicerCheck | None
     equity: Equity | None = None
@@ -268,6 +269,7 @@ def view(s, a: Account) -> LoanView:
         interestAhead=sm.interestAhead,
         principalThisYear=sm.principalThisYear,
         overpaid=sm.overpaid,
+        interestOnlyUntil=sm.interestOnlyUntil,
         rows=[RowOut(**r.__dict__) for r in rows],
         servicer=servicer,
         equity=_equity(s, row, terms, sm.balance, rows, today),
