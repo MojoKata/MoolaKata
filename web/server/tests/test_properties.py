@@ -184,3 +184,70 @@ def test_money_moved_alone_is_no_return(moves, start):
         values.append((day, value))
     twr = perf.twr(values, flow)
     assert twr is None or abs(twr) < D("0.000001")
+
+
+_FACTS = st.sampled_from([
+    {}, {"basis": None}, {"acquiredMissing": True}, {"standIn": True},
+    {"heldFrom": dt.date(2023, 1, 1)},
+])  # fmt: skip
+
+
+@st.composite
+def lot_histories(draw):
+    """Two lots moved in, each with something known of it, then sales, moves out, splits and
+    returns of capital in any order and size (more than held included)."""
+    from test_lot_rules import T, at
+
+    from moolakata.ledger import lots
+
+    held = []
+    for i in range(2):
+        fact = {"basis": D(draw(st.integers(1, 5000))), **draw(_FACTS)}
+        qty = D(draw(st.integers(1, 20)))
+        held.append(lots.OpenLot(None, "VTI", dt.date(2024, 1, 2 + i), qty, **fact))
+    ops = []
+    for n in range(draw(st.integers(1, 6))):
+        day, made = dt.date(2025, 1, 10 + n), at(10 + n)
+        kind = draw(st.sampled_from(["sell", "transfer-out", "split", "return-of-capital"]))
+        if kind == "split":
+            ops.append(T(day, "split", D(0), "VTI", splitRatio=D(draw(st.sampled_from([2, 3]))),
+                         createdAt=made))  # fmt: skip
+        elif kind == "return-of-capital":
+            ops.append(T(day, kind, D(draw(st.integers(1, 3000))), "VTI", createdAt=made))
+        else:
+            q = D(draw(st.integers(1, 30)))
+            ops.append(
+                T(day, kind, D(10) * q if kind == "sell" else D(0), "VTI", -q, createdAt=made)
+            )
+    return held, ops
+
+
+@PROPERTIES
+@given(lot_histories())
+def test_what_is_known_of_a_lot_is_never_lost_or_made_up(case):
+    """S2.2, CR3-398/399: whatever happens to a lot, every lot and sale part that comes of it
+    carries what was known of the lot it came from, and nothing else; and the shares held are
+    what a plain count says (a split multiplies, a sale or move takes what is there)."""
+    from test_lot_rules import T, at
+
+    from moolakata.ledger import lots
+
+    held, ops = case
+    into = T(dt.date(2025, 1, 2), "transfer-in", D(0), "VTI", sum(x.quantity for x in held),
+             createdAt=at(1))  # fmt: skip
+    r = lots.replay("fifo", [into, *ops], [], [], [], by_snapshots=False,
+                    carried_in={into.id: [lots.OpenLot(**vars(x)) for x in held]})  # fmt: skip
+    known = {(x.standIn, x.heldFrom, x.acquiredMissing, x.basis is None) for x in held}
+    moved = [x for v in r.moved.values() for x in v]
+    # A sale past what is held is a part with no lot, bought the day it is sold (S8.4).
+    from_lots = [y for y in r.disposals if y.acquiredOn != y.soldOn]
+    for x in [*r.open, *moved, *from_lots]:
+        assert (x.standIn, x.heldFrom, x.acquiredMissing, x.basis is None) in known, x
+    count = sum(x.quantity for x in held)
+    for t in ops:
+        if t.kind == "split":
+            count *= t.splitRatio
+        elif t.kind in ("sell", "transfer-out"):
+            count = max(count + t.quantity, D(0))
+    assert r.quantity("VTI") == count
+    assert all(x.basis is None or x.basis >= 0 for x in r.open)

@@ -311,3 +311,90 @@ def test_an_all_cash_merger_is_a_sale():
     old = T(d(2026, 5, 1), "merger", D(1500), "OLD", D(-10))
     r = lots.replay("fifo", [old], made, [], [])
     assert sold(r) == [("A", D(10), D(1500), D(1000), "fifo")] and r.open == []
+
+
+# -- What is known of a lot goes wherever it goes (S2.2, CR3-398, CR3-399) ----------------------
+# Each fact a lot can carry, crossed with each thing that can happen to it: the lots and sale
+# parts that come of it carry the fact, and one without it gains none.
+
+FACTS = {
+    "nothing": {},
+    "basis missing": {"basis": None},
+    "day bought missing": {"acquiredMissing": True},
+    "a snapshot's stand-in": {"standIn": True},
+    "a replacement's held-from day": {"heldFrom": d(2023, 1, 1)},
+}
+
+
+def _carried(**fact):
+    return lots.OpenLot(None, "VTI", d(2024, 1, 2), D(10), fact.pop("basis", D(1000)), **fact)
+
+
+def _run(lot, *txns, by_snapshots=False):
+    into = T(d(2025, 1, 2), "transfer-in", D(0), "VTI", D(10), createdAt=at(1))
+    return lots.replay("fifo", [into, *txns], [], [], [], by_snapshots=by_snapshots,
+                       carried_in={into.id: [lot]})  # fmt: skip
+
+
+def _pair(kind, old_amount=D(0), old_qty=D(-10), **new):
+    old = T(d(2025, 5, 1), kind, old_amount, "VTI", old_qty, createdAt=at(2),
+            splitRatio=new.pop("oldRatio", None))  # fmt: skip
+    nxt = T(d(2025, 5, 1), kind, D(0), "NEW", D(10), transferId=old.id, createdAt=at(3), **new)
+    return old, nxt
+
+
+def _sell(lot):
+    r = _run(lot, T(d(2025, 3, 1), "sell", D(400), "VTI", D(-4), createdAt=at(2)))
+    return [*r.disposals, *r.open]
+
+
+def _move(lot):
+    out = T(d(2025, 3, 1), "transfer-out", D(0), "VTI", D(-4), createdAt=at(2))
+    r = _run(lot, out)
+    into = T(d(2025, 3, 1), "transfer-in", D(0), "VTI", D(4), accountId="B")
+    there = lots.replay("fifo", [into], [], [], [], carried_in={into.id: r.moved[out.id]})
+    return [*r.moved[out.id], *r.open, *there.open]
+
+
+def _split(lot):
+    return _run(lot, T(d(2025, 3, 1), "split", D(0), "VTI", splitRatio=D(2), createdAt=at(2))).open
+
+
+def _symbol_change(lot):
+    return _run(lot, *_pair("symbol-change")).open
+
+
+def _spin_off(lot):
+    return _run(lot, *_pair("spin-off", old_qty=D(0), oldRatio=D("0.2"), splitRatio=D("0.5"))).open
+
+
+def _merger(lot):
+    r = _run(lot, *_pair("merger", D(300), splitRatio=D(2), price=D(80)))
+    return [*r.open, *r.disposals]
+
+
+def _cash_merger(lot):
+    return _run(lot, T(d(2025, 5, 1), "merger", D(1500), "VTI", D(-10), createdAt=at(2))).disposals
+
+
+def _return_of_capital(lot):
+    r = _run(lot, T(d(2025, 6, 1), "return-of-capital", D(1500), "VTI", createdAt=at(2)))
+    return [*r.open, *r.disposals]
+
+
+OPERATIONS = {f.__name__.strip("_").replace("_", " "): f for f in (
+    _sell, _move, _split, _symbol_change, _spin_off, _merger, _cash_merger, _return_of_capital
+)}  # fmt: skip
+
+
+@pytest.mark.parametrize("operation", OPERATIONS)
+@pytest.mark.parametrize("fact", FACTS)
+def test_what_is_known_of_a_lot_goes_with_it(fact, operation):
+    lot = _carried(**FACTS[fact])
+    made = OPERATIONS[operation](lot)
+    assert made, "the operation makes a lot or a sale part"
+    known = (lot.standIn, lot.heldFrom, lot.acquiredMissing, lot.basis is None)
+    for x in made:
+        # A return of capital or merger cash past a lot's basis is a gain with no basis of its
+        # own (zero), which only a lot with a basis has.
+        assert (x.standIn, x.heldFrom, x.acquiredMissing, x.basis is None) == known, x
