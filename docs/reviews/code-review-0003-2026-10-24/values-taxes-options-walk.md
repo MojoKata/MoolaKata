@@ -289,3 +289,17 @@ All on one branch, `cr3-values-taxes-options` (PR #32), in the approved order.
     `lots.replay`, `consume`, `transaction`, `option`, `cover` and `corporate`: the next tests'
     targets. Survivors include equivalent mutants, so the rate is an upper bound. Peak memory
     10.9 GB. The summary is on PR #32.
+13. **The mutation run's actions, and the area's coverage looked at again** (16.6, and the
+    walk's look at code and data-shape coverage): tests for each function whose survivors
+    showed a whole behaviour unchecked (`ec8fa47`, `2126f1e`, `02e4806`, `1971153`); every
+    fact a lot carries crossed with every operation, and a property over random histories
+    (`cc2f7af`); adjusted contracts as a dimension of the option world (`58b5b56`); returns
+    of capital in the tax world (`45e81bd`); the price sources' every answer, adjusted
+    contracts' cash, refusals and undoing, and every strategy shape, from CI's coverage data
+    for the whole suite (`96d6d19`, `0d243a9`), which the coverage artifact now carries
+    (`be96bf3`). Found on the way: **CR3-398** to **CR3-403**. Rerun over the 42 functions:
+    754 survivors became 435; three whole behaviours left were tested and two lines that
+    change nothing marked; the rest waits for a run with the slow worlds selected. **R3.11**
+    (input means what it says) and **ValueInput** came of CR3-403 (`5681c11`, `809d634`);
+    issues #33 (other fields to fix to R3.11) and #34 (an intermittent 500 from `GET
+    plan529`; a browser test now shows the server's log on a 5xx, `84c55b7`).
