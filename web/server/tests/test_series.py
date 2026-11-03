@@ -67,3 +67,28 @@ def test_an_item_counts_its_worth_while_held(server, alice):
     assert got[d(2026, 2, 5)] == D(1000)
     assert got[d(2026, 2, 15)] == D(1200)
     assert got[d(2026, 2, 25)] == 0
+
+
+def test_the_markets_points_are_the_close_before_then_the_stored_history(monkeypatch):
+    """A benchmark's line (`market_points`): the last close before `first`, then each stored
+    close to `last`; no history read for a single day, nothing for no instruments."""
+    from types import SimpleNamespace
+
+    asked = []
+
+    def history(s, ids, first, last):
+        asked.append((tuple(ids), first, last))
+        return {"I1": [(d(2026, 1, 5), D(11)), (d(2026, 1, 9), D(12))], "I2": []}
+
+    monkeypatch.setattr(valuation, "closes", lambda s, ids, day: {
+        "I1": SimpleNamespace(asOf=d(2025, 12, 31), price=D(10))})  # fmt: skip
+    monkeypatch.setattr(valuation, "_history", [history])
+    got = valuation.market_points(None, ["I1", "I2"], d(2026, 1, 2), d(2026, 1, 10))
+    assert got == {"I1": [(d(2025, 12, 31), D(10)), (d(2026, 1, 5), D(11)),
+                          (d(2026, 1, 9), D(12))], "I2": []}  # fmt: skip
+    assert asked == [(("I1", "I2"), d(2026, 1, 2), d(2026, 1, 10))]
+    assert valuation.market_points(None, ["I1"], d(2026, 1, 2), d(2026, 1, 2)) == {
+        "I1": [(d(2025, 12, 31), D(10))]
+    }
+    assert len(asked) == 1
+    assert valuation.market_points(None, [], d(2026, 1, 2), d(2026, 1, 10)) == {}
