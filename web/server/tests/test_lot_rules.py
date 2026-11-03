@@ -398,3 +398,28 @@ def test_what_is_known_of_a_lot_goes_with_it(fact, operation):
         # A return of capital or merger cash past a lot's basis is a gain with no basis of its
         # own (zero), which only a lot with a basis has.
         assert (x.standIn, x.heldFrom, x.acquiredMissing, x.basis is None) == known, x
+
+
+def test_a_lot_bought_on_29_february_is_long_term_from_1_march_a_year_on():
+    """S3.1: held more than a year; a 29 February's anniversary is 28 February."""
+    assert lots.long_term(d(2024, 2, 29), d(2025, 2, 28)) is False
+    assert lots.long_term(d(2024, 2, 29), d(2025, 3, 1)) is True
+    assert lots.long_term(d(2024, 3, 1), d(2025, 3, 1)) is False
+
+
+def test_an_assignments_premium_is_spread_over_its_stock_trades_by_their_cash():
+    """S3.10.4: a put assigned whose deliverable is two stocks: the credit taken into the
+    shares' basis goes by each trade's cash, the last what rounding leaves."""
+    put = opt(d(2026, 1, 5), "sell-to-open", "300", -1, 1)
+    end = opt(d(2026, 3, 20), "assign", "0", 1, 4)
+    a = T(d(2026, 3, 20), "buy", D(-3000), "AAA", D(100), createdAt=at(2),
+          optionTransactionId=end.id)  # fmt: skip
+    b = T(d(2026, 3, 20), "buy", D(-1001), "BBB", D(50), createdAt=at(3),
+          optionTransactionId=end.id)  # fmt: skip
+    made = [Lot("A", "AAA", d(2026, 3, 20), D(100), D(3000), transactionId=a.id),
+            Lot("B", "BBB", d(2026, 3, 20), D(50), D(1001), transactionId=b.id)]  # fmt: skip
+    r = lots.replay("fifo", [put, a, b, end], made, [], [])
+    # 300 credit: 3000/4001 of it is 224.94, the rest 75.06.
+    assert [(x.instrumentId, x.basis) for x in r.open] == [
+        ("AAA", D("2775.06")), ("BBB", D("925.94"))
+    ]  # fmt: skip

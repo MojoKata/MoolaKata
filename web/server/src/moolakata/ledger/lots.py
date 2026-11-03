@@ -217,7 +217,8 @@ def replay(
         at = (sale_at or {}).get(w.saleId)
         if at is not None:
             events.append((at[0], 0, at[1], f"{w.saleId}~{w.id}", "settle", w))
-    events.sort(key=lambda e: e[:4])
+    # Ids are unique, so the first four decide: no sort key changes the order.
+    events.sort(key=lambda e: e[:4])  # pragma: no mutate
 
     replaced: dict[str, list] = {}
     for w in washes:

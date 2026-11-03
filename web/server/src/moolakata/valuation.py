@@ -247,7 +247,10 @@ def multipliers(s: Session, instrument_ids: list[str]) -> dict[str, int]:
         o.instrumentId: o.multiplier
         for o in s.scalars(
             select(OptionContract).where(
-                OptionContract.instrumentId.in_(instrument_ids), OptionContract.deleted == false()
+                # Narrows the rows fetched; the lookup is by id, so a wider fetch changes no
+                # figure.
+                OptionContract.instrumentId.in_(instrument_ids),  # pragma: no mutate
+                OptionContract.deleted == false(),
             )
         )
     }

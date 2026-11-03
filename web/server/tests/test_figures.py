@@ -292,3 +292,28 @@ def test_irr_finds_the_rate_to_a_billionth_and_says_none_when_there_is_none():
     assert perf.irr(start, D(0), {}, end, D(100)) is None  # nothing went in
     assert perf.irr(start, D(100), {}, end, D(0)) is None  # nothing came out
     assert perf.irr(start, D(1), {}, end, D(1000)) is None  # +99,900%: past the bracket
+
+
+def test_an_option_without_a_mark_is_worth_what_exercising_it_would_be(server):
+    """S3.7: with no close or typed mark, an option counts its intrinsic value at the
+    underlying's price, times its 100 shares a contract, labelled as such; one out of the
+    money counts nothing, never less."""
+    from edits import create, option_trade, saved
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Options", type="brokerage", openingBalance="0.00",
+                    openingDate="2026-01-01")  # fmt: skip
+    r = create(c, "Txn", accountId=a["id"], date="2026-09-01", kind="buy", symbol="MSFT",
+               quantity="10", price="500", amount="-5000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    for right, strike, n in (("call", "480", "2"), ("put", "520", "1"), ("call", "550", "1")):
+        saved(option_trade(c, a["id"], "2026-09-02", "buy-to-open", "MSFT", right, strike,
+                           "2026-12-18", n, "5.00"))  # fmt: skip
+    h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
+    got = {x["symbol"]: (x["price"], x["value"], x["priceSource"]) for x in h if " " in x["symbol"]}
+    assert got == {
+        "MSFT 18DEC26 480 C": (20, 4000, "intrinsic"),
+        "MSFT 18DEC26 520 P": (20, 2000, "intrinsic"),
+        "MSFT 18DEC26 550 C": (0, 0, "intrinsic"),
+    }

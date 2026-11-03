@@ -16,11 +16,11 @@
   },
   "browser/components": {
     "branches": 82,
-    "lines": 64.8
+    "lines": 65.8
   },
   "browser/screens": {
     "branches": 76.0,
-    "lines": 57.2
+    "lines": 57.5
   },
   "browser/store": {
     "branches": 91,
@@ -87,16 +87,16 @@
     "lines": 97.6
   },
   "server/options": {
-    "branches": 82.9,
-    "lines": 93.5
+    "branches": 92.5,
+    "lines": 98.1
   },
   "server/people": {
     "branches": 88.0,
     "lines": 95.3
   },
   "server/prices": {
-    "branches": 75,
-    "lines": 88.9
+    "branches": 88.0,
+    "lines": 97.2
   },
   "server/projections": {
     "branches": 80.1,
