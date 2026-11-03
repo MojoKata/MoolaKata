@@ -6443,7 +6443,7 @@ export const CREATES = {
  * @property {import('@mk/app/dec.js').Dec} quantity
  * @property {(import('@mk/app/dec.js').Dec | null)} basis
  * @property {number} days
- * @property {boolean} longTerm
+ * @property {(boolean | null)} longTerm
  */
 
 /**
@@ -12689,7 +12689,7 @@ export function ConnectorSection() {
     toast('Unpaired: every Connection stopped and every sync is off');
     res.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !values || !rec) return html`<${Loading} />`;
   const paired = v.state === 'paired';
   const tone = !paired ? '' : v.silentForSeconds ? 'bad' : v.locked ? 'warn' : 'ok';
@@ -13854,7 +13854,7 @@ export function Contributions({ a }) {
   const plan = useApi(`/accounts/${a.id}/plan529`, {}, ['import']);
   const v = /** @type {any} */ (res.data);
   const pl = /** @type {any} */ (plan.data);
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || plan.error) return html`<${Failed} error=${res.error || plan.error} />`;
   if (!v || !pl) return html`<${Loading} />`;
   const again = () => {
     res.reload();
@@ -15654,7 +15654,7 @@ export function LinksSection() {
     toast('Saved');
     s.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !values || !rec) return html`<${Loading} />`;
   const live = v.links.filter((/** @type {any} */ l) => l.state !== 'ended');
   const ended = v.links.filter((/** @type {any} */ l) => l.state === 'ended');
@@ -19034,7 +19034,7 @@ export function StorageSection() {
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(s.data, ['keepStatementsYears']);
   const rec = fd.rec;
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const years = rec.get('keepStatementsYears');
   const prune = () => openDialog(PruneDialog, { v }).then((x) => x && res.reload());
@@ -28494,7 +28494,9 @@ function TaxDocuments({ id, bid }) {
   const book = useApi(`/tax-books/${bid}`);
   const files = useList(`/linked/${id}/files`);
   const b = /** @type {any} */ (book.data);
-  if (book.error) return html`<${Failed} error=${book.error} />`;
+  if (book.error || files.error) {
+    return html`<${Failed} error=${book.error || files.error} />`;
+  }
   if (!b || !files.data) return html`<${Loading} lines=${3} />`;
   const sent = new Map((/** @type {any[]} */ (files.data)).map((f) => [f.id, f]));
   if (!b.documents.length) return html`<${Empty}>No documents in this book.</${Empty}>`;
@@ -29795,13 +29797,15 @@ function Open({ rows, reload }) {
                                     <div
                                       class="list-item"><span class="grow">${quantity(
                                         l.quantity,
-                                      )} bought ${date(
+                                      )} ${l.longTerm == null ? 'moved in' : 'bought'} ${date(
                                         l.acquiredOn,
                                       )}${l.heldFrom
                                         ? ` · held from ${date(l.heldFrom)} (a wash sale)`
-                                        : ''} · ${l.days} days · ${l.longTerm
-                                        ? 'long term'
-                                        : 'short term'}</span>${l.basis
+                                        : ''} · ${l.longTerm == null
+                                        ? 'when bought is missing, term unknown'
+                                        : `${l.days} days · ${
+                                          l.longTerm ? 'long term' : 'short term'
+                                        }`}</span>${l.basis
                                         ? html`<${Amt} v=${l.basis} />`
                                         : html`<span class="pill warn">no basis</span>`}</div>
                                   `
@@ -32109,7 +32113,7 @@ function Prices() {
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(all.data, ['priceRefreshTime']);
   const time = fd.rec;
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || all.error) return html`<${Failed} error=${res.error || all.error} />`;
   if (!v || !time) return html`<${Loading} />`;
   // A switch or a Remove saves at once, as a draft of one change (S12.15).
   const change = async (/** @type {any} */ src, /** @type {any} */ body) => {
@@ -32546,7 +32550,7 @@ function EmailSection() {
     const r = await api.post('/settings/email/test');
     toast(`Test email sent to ${r.to}`);
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const f = Object.fromEntries(EMAIL_KEYS.map((k) => [k, rec.get(k) ?? '']));
   // An empty box is no value, as the key was read.
@@ -32665,7 +32669,7 @@ function BitcoinSection() {
     toast('Certificate trusted');
     res.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   // The form's choices, read from the keys and put back into them.
   const url = rec.get('bitcoinEsploraUrl') || MEMPOOL;
@@ -32871,7 +32875,7 @@ function Backups() {
   const v = /** @type {any} */ (res.data);
   const fd = useSettingsDraft(s.data, ['backupTime']);
   const rec = fd.rec;
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !rec) return html`<${Loading} />`;
   const mb = (/** @type {number} */ n) => (n / 1048576).toFixed(n < 1048576 * 10 ? 1 : 0) + ' MB';
   return html`
@@ -35713,7 +35717,9 @@ export default function Users() {
   const [busy, setBusy] = useState('');
   const u = /** @type {any[]} */ (users.data);
   const g = /** @type {any[]} */ (groups.data);
-  if (users.error) return html`<${Failed} error=${users.error} />`;
+  if (users.error || groups.error) {
+    return html`<${Failed} error=${users.error || groups.error} />`;
+  }
   if (!u || !g) return html`<${Loading} lines=${8} />`;
   const name = (/** @type {string} */ id) => g.find((x) => x.id === id)?.name;
   const reload = () => {
