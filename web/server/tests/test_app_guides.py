@@ -10,6 +10,7 @@ import pytest
 from devapp import (
     SETTINGS_SECTIONS,
     account_ids,
+    api_items,
     as_alice,
     check_guide,
     close_dialog,
@@ -35,8 +36,7 @@ def fresh(dev_server):
 def screens(page) -> list[str]:
     """Every screen and tab, from the seed's accounts, portfolios, projections and budgets."""
     ids = account_ids(page)
-    ports = page.evaluate("""async () => (await (await fetch('/ui/api/portfolios')).json()).items
-        .map((p) => p.id)""")
+    ports = [p["id"] for p in api_items(page, "/ui/api/portfolios")]
     paths = [
         "/ui/",
         "/ui/accounts",
@@ -89,11 +89,9 @@ def screens(page) -> list[str]:
         paths.append(f"/ui/accounts/{ids['crypto-wallet']}/{tab}")
     for p in ports:
         paths += [f"/ui/portfolios/{p}/{t}" for t in ("performance", "holdings", "projections")]
-    budgets = page.evaluate("""async () => (await (await fetch('/ui/api/budgets')).json()).items
-        .map((b) => b.id)""")
-    for x in page.evaluate("""async () => (await (await fetch('/ui/api/projections')).json()).items
-        .map((p) => p.id)"""):
-        paths.append(f"/ui/projections/{x}")
+    budgets = [b["id"] for b in api_items(page, "/ui/api/budgets")]
+    for x in api_items(page, "/ui/api/projections"):
+        paths.append(f"/ui/projections/{x['id']}")
     for b in budgets:
         paths += [f"/ui/budgets/{b}/{t}" for t in ("month", "cash-flow", "trends", "recurring")]
     for s in SETTINGS_SECTIONS:

@@ -3,6 +3,7 @@
 screen's or a dialog's guide (S12.7.6)."""
 
 import contextlib
+import json
 import re
 import socket
 import subprocess
@@ -204,10 +205,27 @@ def pace(page) -> None:
         page.wait_for_timeout(1000 * (61 - (time.monotonic() - times[0])))
 
 
+def api_items(page, path: str) -> list[dict]:
+    """A list route's items, fetched in the page as the app fetches them. A 429 (the API's
+    limit per session, S13.7.5) is waited out as its Retry-After says, at most three times;
+    any other failure names its status and answer instead of reading `.items` of an error."""
+    for _ in range(4):
+        r = page.evaluate(
+            """async (p) => { const r = await fetch(p);
+                return { status: r.status, wait: r.headers.get('retry-after'),
+                         body: await r.text() }; }""",
+            path,
+        )
+        if r["status"] == 429:
+            time.sleep(min(int(r["wait"] or 1), 60))
+            continue
+        assert r["status"] == 200, f"{path}: {r['status']} {r['body'][:300]}"
+        return json.loads(r["body"])["items"]
+    raise AssertionError(f"{path}: still 429 after waiting three times")
+
+
 def account_ids(page) -> dict[str, str]:
-    return page.evaluate("""async () => Object.fromEntries(
-        (await (await fetch('/ui/api/accounts')).json()).items
-        .map((a) => [a.type, a.id]))""")
+    return {a["type"]: a["id"] for a in api_items(page, "/ui/api/accounts")}
 
 
 def wait_guide(page, key: str) -> None:
