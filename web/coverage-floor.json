@@ -16,7 +16,7 @@
   },
   "browser/components": {
     "branches": 82,
-    "lines": 64.7
+    "lines": 64.8
   },
   "browser/screens": {
     "branches": 76.0,
@@ -51,8 +51,8 @@
     "lines": 94.2
   },
   "server/core": {
-    "branches": 77.6,
-    "lines": 88.8
+    "branches": 77.7,
+    "lines": 88.9
   },
   "server/education": {
     "branches": 84,
@@ -75,7 +75,7 @@
     "lines": 83.1
   },
   "server/ledger": {
-    "branches": 91.6,
+    "branches": 91.8,
     "lines": 97.1
   },
   "server/links": {
@@ -87,8 +87,8 @@
     "lines": 97.6
   },
   "server/options": {
-    "branches": 81,
-    "lines": 91.6
+    "branches": 82.9,
+    "lines": 93.5
   },
   "server/people": {
     "branches": 88.0,
@@ -115,7 +115,7 @@
     "lines": 97.1
   },
   "server/ui": {
-    "branches": 74.8,
+    "branches": 74.9,
     "lines": 91.1
   }
 }
