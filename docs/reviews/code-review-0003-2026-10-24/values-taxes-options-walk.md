@@ -281,4 +281,11 @@ All on one branch, `cr3-values-taxes-options` (PR #32), in the approved order.
     PR #27) posted the welcome from curl without a body or a length and got 401.
 11. **Found by CI, again**: Positions refused a lot whose term is unknown (CR3-73's own
     change, `213c097`), and the Users screen stuck on its skeleton: **CR3-397** (`00220e3`).
-12. **Mutation run** (16.6): not run yet; asked before it runs.
+12. **Mutation run** (16.6): mutmut 3.8.0 on `ee70d9b`, over `valuation.py`, `loans/`,
+    `ledger/performance.py` and `ledger/lots.py`, with the 13 test files that reach them (the
+    accounts world left out). 3,583 mutants: 2,757 killed, 5 timeouts, 754 survived, 67 reached by
+    no test; 78.6% of those reached are caught. `loans/__init__.py` catches all but one; `lots.py`
+    and `valuation.py` about 70%. Survivors cluster in `valuation.flows` and `series`, and in
+    `lots.replay`, `consume`, `transaction`, `option`, `cover` and `corporate`: the next tests'
+    targets. Survivors include equivalent mutants, so the rate is an upper bound. Peak memory
+    10.9 GB. The summary is on PR #32.
