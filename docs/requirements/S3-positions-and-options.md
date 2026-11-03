@@ -145,7 +145,9 @@
       Capital at risk (S3.5.5) is what a position can lose; this is what a trade tied up.
 10. **Adjusted contracts**: when the underlying splits, merges, spins off a company or pays a
     large special dividend, the OCC adjusts its open options. The lot carries over to the
-    adjusted contract: no sale, and no wash sale.
+    adjusted contract: no sale, and no wash sale. A strategy holding the contract holds the
+    adjusted one, its contracts times the ratio, with its legs and days as they were; undoing
+    the adjustment gives the leg back its contract.
     1. **A whole-number split** (2:1, 4:1) is applied with the stock's split (S2.4), in the
        account the split is recorded or imported in: contracts × the ratio, strike ÷ the ratio
        rounded to the thousandth, as the OCC prints it, the basis spread over the new

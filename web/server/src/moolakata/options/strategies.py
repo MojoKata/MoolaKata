@@ -228,14 +228,58 @@ def delivers(oc: OptionContract) -> tuple[Decimal | None, Decimal, bool]:
     return shares, oc.deliverableCash or ZERO, only
 
 
-def legs_of(s: Session, st: Strategy) -> list[StrategyLeg]:
-    return list(
+@dataclass(frozen=True)
+class LegRow:
+    """A strategy's leg as it stands: on the contract its own was adjusted to, if it was."""
+
+    id: str
+    strategyId: str
+    instrumentId: str
+    addedOn: dt.date
+    quantity: Decimal | None
+
+
+def legs_of(s: Session, st: Strategy) -> list[LegRow]:
+    """A strategy's legs, each option on the contract it is now: one the OCC adjusted is
+    followed to its adjusted contract, the contracts times the ratio (S3.10, CR3-401). Nothing
+    stored changes, so deleting the split that adjusted it brings the leg back."""
+    rows = list(
         s.scalars(
             select(StrategyLeg).where(
                 StrategyLeg.strategyId == st.id, StrategyLeg.deleted == false()
             )
         )
     )
+    moved = _adjusted(s, st.accountId)
+    out = []
+    for r in rows:
+        iid, qty, seen = r.instrumentId, r.quantity, set()
+        while iid in moved and iid not in seen:
+            seen.add(iid)
+            iid, ratio = moved[iid]
+            qty = None if qty is None else qty * ratio
+        out.append(LegRow(r.id, r.strategyId, iid, r.addedOn, qty))
+    return out
+
+
+def _adjusted(s: Session, account_id: str) -> dict[str, tuple[str, Decimal]]:
+    """Each contract adjusted in the account: the contract it became, and the ratio."""
+    from ..store.entities.accounts import Transaction
+
+    pairs = s.scalars(
+        select(Transaction).where(
+            Transaction.accountId == account_id,
+            Transaction.kind == "option-adjust",
+            Transaction.splitRatio.is_not(None),
+            Transaction.deleted == false(),
+        )
+    )
+    out = {}
+    for into in pairs:
+        old = s.get(Transaction, into.transferId) if into.transferId else None
+        if old is not None and not old.deleted and old.instrumentId:
+            out[old.instrumentId] = (into.instrumentId, into.splitRatio)
+    return out
 
 
 def of_account(s: Session, account_id: str, dismissed: bool = False) -> list[Strategy]:
@@ -301,7 +345,7 @@ class Book:
 
 
 def leg(
-    book: Book, row: StrategyLeg, opened: dt.date, today: dt.date, held: dict | None = None
+    book: Book, row: LegRow, opened: dt.date, today: dt.date, held: dict | None = None
 ) -> Leg | None:
     """A leg now, or, given `held` (the positions at the end of a day), as it was then."""
     s = book.s

@@ -139,3 +139,30 @@ def test_an_adjusted_short_call_is_covered_by_what_it_delivers(alice, held, deli
     """CR3-400, S3.10.2: the multiplier stays 100, so coverage counts the shares the contract
     delivers, all of them, and only of its underlying."""
     assert _short_adjusted_call(alice, held, deliverable) == (risk, proposed)
+
+
+def test_a_strategys_leg_follows_its_contract_when_adjusted(alice):
+    """CR3-401, S3.10: a whole split adjusts a grouped short put; the strategy holds the new
+    contract, its contracts doubled, and deleting the split brings the leg back."""
+    from edits import create
+
+    a = new_account(alice, type="brokerage")["id"]
+    assert (
+        opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
+        == 200
+    )
+    [row] = alice.get("/ui/api/positions").json()["open"]
+    st = saved(create(alice, "Strat", accountId=a, legs=[{"instrumentId": row["instrumentId"]}]))
+
+    def legs():
+        [v] = [x for x in alice.get("/ui/api/positions/strategies").json()["strategies"]
+               if x["id"] == st["id"]]  # fmt: skip
+        return v["shape"], [(x["symbol"], x["quantity"]) for x in v["legs"]], v["capitalAtRiskNow"]
+
+    assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00")
+    r = make(alice, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
+             amount="0", splitRatio="2")  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert legs() == ("Short put", [("MSFT 20NOV26 240 P", -4)], "94720.00")
+    saved(remove(alice, "Txn", r.json()))
+    assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00")

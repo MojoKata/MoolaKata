@@ -90,6 +90,14 @@ class Made:
                                  "quantity": str(100 * o.contracts)})  # fmt: skip
                 self.strategy = saved(create(alice, "Strat", accountId=a["id"], legs=legs))
                 o.axes = {**o.axes, "strategy": self.strategy["id"]}
+            if o.adjusted != "no":
+                r = alice.post("/ui/api/options/adjust", json={
+                    "date": ow.ADJUSTED_ON.isoformat(),
+                    "contracts": [{"instrumentId": self.instruments[o.symbol]["option"],
+                                   "root": o.root, "strike": str(ow.STRIKE),
+                                   "deliverable": [{"symbol": o.symbol, "shares": o.adjusted}]}],
+                })  # fmt: skip
+                assert r.status_code == 200, r.text
             # How the expiry day's price is known.
             if o.source == "answers":
                 ANSWERS[o.symbol] = {ow.OPENED: Decimal(100)}
@@ -201,8 +209,8 @@ def _an_expiry_waits_for_a_close(made):
     alice, wrong = made.c["alice"], []
     closed = {r["symbol"]: r for r in alice.get("/ui/api/positions").json()["closed"]}
     for o in made.w.options:
-        sym = next(k for k in closed if k.startswith(o.symbol + " ")) if any(
-            k.startswith(o.symbol + " ") for k in closed) else None  # fmt: skip
+        sym = next(k for k in closed if k.startswith(o.root + " ")) if any(
+            k.startswith(o.root + " ") for k in closed) else None  # fmt: skip
         expired = sym is not None and closed[sym]["how"] == "expired"
         if expired != o.expires:
             wrong.append(f"{o.symbol} {o.axes}: expired {expired}, want {o.expires}")

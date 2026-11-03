@@ -8,7 +8,9 @@ of the money; the underlying is priced while the option is open, held or not.
 An **option** record's axes: call or put, long or short, whether the account holds the shares
 (100 a contract), grouped as a strategy or not, and the expiry case: out of the money, in it,
 at the strike, no close that day, only Alice's own typed price that day, or only another
-user's trade that day; and whether a price source answers.
+user's trade that day; whether a price source answers; and whether the contract was adjusted
+from the OCC's memo before expiry (S3.10.2: a new root, the same strike, 125 shares a
+contract, so at the money at $80).
 """
 
 from __future__ import annotations
@@ -33,9 +35,11 @@ SHARES = ("none", "held")
 GROUPED = ("alone", "grouped")
 CASES = ("otm", "itm", "at-strike", "no-close", "typed-only", "other-trade")
 SOURCES = ("answers", "none")
+ADJUSTED = ("no", "125")
+ADJUSTED_ON = dt.date(2026, 10, 1)
 
 _AXES = {"option": {"right": RIGHTS, "side": SIDES, "shares": SHARES, "grouped": GROUPED,
-                    "case": CASES, "source": SOURCES}}  # fmt: skip
+                    "case": CASES, "source": SOURCES, "adjusted": ADJUSTED}}  # fmt: skip
 SEEDS = range(6)
 
 
@@ -66,18 +70,32 @@ class Option:
             raise AttributeError(name) from None
 
     @property
+    def root(self) -> str:
+        """Its symbol's root: an adjusted contract's is letters then digits (OW0A: OWA01)."""
+        if self.adjusted == "no":
+            return self.symbol
+        return "".join(c for c in self.symbol if c.isalpha()) + "".join(
+            c for c in self.symbol if c.isdigit()) + "1"  # fmt: skip
+
+    @property
+    def at(self) -> D:
+        """The underlying's price at which it is at the money: the strike on 100 over the
+        shares it delivers."""
+        return STRIKE if self.adjusted == "no" else STRIKE * 100 / D(self.adjusted)
+
+    @property
     def expiry_close(self) -> D | None:
         """The underlying's close on the expiry day, as the source answers it."""
         if self.case not in ("otm", "itm", "at-strike"):
             return None
-        itm = {"call": STRIKE + 7, "put": STRIKE - 7}[self.right]
-        otm = {"call": STRIKE - 7, "put": STRIKE + 7}[self.right]
-        return {"otm": otm, "itm": itm, "at-strike": STRIKE}[self.case]
+        itm = {"call": self.at + 7, "put": self.at - 7}[self.right]
+        otm = {"call": self.at - 7, "put": self.at + 7}[self.right]
+        return {"otm": otm, "itm": itm, "at-strike": self.at}[self.case]
 
     @property
     def other_price(self) -> D:
         """The out-of-the-money price a typed price or another user's trade shows that day."""
-        return {"call": STRIKE - 9, "put": STRIKE + 9}[self.right]
+        return {"call": self.at - 9, "put": self.at + 9}[self.right]
 
     @property
     def expires(self) -> bool:
@@ -92,9 +110,9 @@ class Option:
             return credit
         if self.right == "put":
             return STRIKE * 100 * n - credit
-        if self.shares == "held":
+        if self.shares == "held" and self.adjusted == "no":
             return D(100) * 100 * n - credit  # the shares at their trade's $100, less it
-        return None
+        return None  # uncovered, or 100 shares held against 125 delivered (CR3-400)
 
 
 @dataclass
