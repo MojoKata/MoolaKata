@@ -266,7 +266,7 @@ class Book:
         key = (instrument_id, day)
         if key not in self._prices:
             owner = self.ledger.account.ownerId
-            p = valuation.prices(self.s, [instrument_id], day, owner).get(instrument_id)
+            p = valuation.prices(self.s, [instrument_id], day, owner=owner).get(instrument_id)
             self._prices[key] = p.price if p else None
         return self._prices[key]
 

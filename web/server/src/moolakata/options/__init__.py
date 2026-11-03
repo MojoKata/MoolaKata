@@ -121,7 +121,7 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
         return made
     paid = (c.strike * n * c.multiplier).quantize(CENT)  # the strike on every contract
     buys = (how == "exercise" and c.right == "call") or (how == "assign" and c.right == "put")
-    parts = deliverable(s, c, day)
+    parts = deliverable(s, c, day, account.ownerId)
     extra = ((c.deliverableCash or Decimal(0)) * n).quantize(CENT)
     word = "assigned" if how == "assign" else "exercised"
     given = Decimal(0)
@@ -186,7 +186,7 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
     return made
 
 
-def deliverable(s: Session, c: OptionContract, day: dt.date) -> list:
+def deliverable(s: Session, c: OptionContract, day: dt.date, owner: str) -> list:
     """What one contract delivers: (instrument, shares, its share of the value). An adjusted
     contract's parts are weighed by their value that day, or by their shares without prices."""
     import json
@@ -199,7 +199,7 @@ def deliverable(s: Session, c: OptionContract, day: dt.date) -> list:
         (s.get(Instrument, x["instrumentId"]), Decimal(str(x["shares"])))
         for x in json.loads(c.deliverable)
     ]
-    found = valuation.prices(s, [i.id for i, _ in rows], day)
+    found = valuation.prices(s, [i.id for i, _ in rows], day, owner=owner)
     if all(i.id in found for i, _ in rows):
         values = [found[i.id].price * q for i, q in rows]
     else:
@@ -224,7 +224,7 @@ def expire_due(s: Session, today: dt.date) -> int:
             c = contract_of(s, iid)
             if c is None or c.expiry >= today:
                 continue
-            close = per_share(s, c, c.expiry)
+            close = market_close(s, c, c.expiry)
             if close is None or close[1] != c.expiry:
                 continue  # only the expiry day's close decides (S3.6)
             if in_the_money(c, close[0]):
@@ -234,7 +234,28 @@ def expire_due(s: Session, today: dt.date) -> int:
     return done
 
 
-def per_share(s: Session, c: OptionContract, day: dt.date | None, owner: str | None = None):
+def market_close(s: Session, c: OptionContract, day: dt.date):
+    """What a contract delivers, per share of its multiplier, at the market's stored closes of
+    the day alone, and the oldest close used: what decides an automatic expiry (S3.6, CR3-24).
+    No one's typed price, statement or trade. None without closes."""
+    import json
+
+    from .. import valuation
+
+    if not c.deliverable:
+        p = valuation.closes(s, [c.underlyingId], day).get(c.underlyingId)
+        return (p.price, p.asOf) if p is not None else None
+    rows = json.loads(c.deliverable)
+    found = valuation.closes(s, [x["instrumentId"] for x in rows], day)
+    if any(x["instrumentId"] not in found for x in rows):
+        return None
+    worth = sum(
+        (found[x["instrumentId"]].price * Decimal(str(x["shares"])) for x in rows), Decimal(0)
+    ) + (c.deliverableCash or Decimal(0))
+    return worth / c.multiplier, min(found[x["instrumentId"]].asOf for x in rows)
+
+
+def per_share(s: Session, c: OptionContract, day: dt.date | None, owner: str):
     """What a contract delivers, per share of its multiplier, at a day's closes, and the
     oldest close used: the underlying's price, or for an adjusted contract its deliverable's
     value (its shares and cash) divided by the multiplier (S3.10.5). None without closes."""
@@ -243,10 +264,10 @@ def per_share(s: Session, c: OptionContract, day: dt.date | None, owner: str | N
     from .. import valuation
 
     if not c.deliverable:
-        p = valuation.prices(s, [c.underlyingId], day, owner).get(c.underlyingId)
+        p = valuation.prices(s, [c.underlyingId], day, owner=owner).get(c.underlyingId)
         return (p.price, p.asOf) if p is not None else None
     rows = json.loads(c.deliverable)
-    found = valuation.prices(s, [x["instrumentId"] for x in rows], day, owner)
+    found = valuation.prices(s, [x["instrumentId"] for x in rows], day, owner=owner)
     if any(x["instrumentId"] not in found for x in rows):
         return None
     worth = sum(

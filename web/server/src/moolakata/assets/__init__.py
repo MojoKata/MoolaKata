@@ -183,7 +183,10 @@ def _spot_ids(s: Session, items: list[Item]) -> dict[str, str]:
 def spots(s: Session, items: list[Item], day: dt.date) -> dict[str, valuation.Price]:
     """Each metal's spot on the day, by metal."""
     ids = _spot_ids(s, items)
-    got = valuation.prices(s, list(ids.values()), day)
+    if not ids:
+        return {}
+    owner = s.get(Account, items[0].accountId).ownerId
+    got = valuation.prices(s, list(ids.values()), day, owner=owner)
     return {m: got[iid] for m, iid in ids.items() if iid in got}
 
 
@@ -217,7 +220,7 @@ def series(
     items = [i for i in items_of(s, account) if only is None or only(i)]
     ds = details(s, items)
     ids = _spot_ids(s, items)
-    points = valuation.price_points(s, list(ids.values()), first, last)
+    points = valuation.price_points(s, list(ids.values()), first, last, owner=account.ownerId)
     by_metal = {m: points.get(iid, []) for m, iid in ids.items()}
     cursor: dict[str, int] = defaultdict(int)
     current: dict[str, Decimal | None] = {m: None for m in ids}

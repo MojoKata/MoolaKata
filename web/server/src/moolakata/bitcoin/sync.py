@@ -130,10 +130,10 @@ def sync_account(server, account_id: str) -> int:
 CONFIRMATIONS = 6  # recorded once this deep, about an hour (S1.6.2.6)
 
 
-def _price(s, btc_id: str, day: dt.date) -> Decimal | None:
+def _price(s, btc_id: str, day: dt.date, owner: str) -> Decimal | None:
     from .. import valuation
 
-    p = valuation.prices(s, [btc_id], day).get(btc_id)
+    p = valuation.prices(s, [btc_id], day, owner=owner).get(btc_id)
     return p.price if p is not None else None
 
 
@@ -142,7 +142,7 @@ def _fee(s, a, btc, out: Transaction, fee_sats: int, txid: str) -> None:
     price, taken from the lots like any sale, beside a fee of the same amount, so the cash is
     unchanged. Without a price yet, both wait at 0 for the next sync to value them."""
     qty = Decimal(fee_sats) / SAT
-    price = _price(s, btc.id, out.date)
+    price = _price(s, btc.id, out.date, a.ownerId)
     value = (qty * price).quantize(Decimal("0.01")) if price is not None else Decimal(0)
     for fit, kind, amount, payee in (
         (f"btcfee:{txid}", "sell", value, "Network fee: its sats sold"),
@@ -178,7 +178,7 @@ def revalue_fees(s, account_id: str) -> int:
         )
     ).all()
     for t in rows:
-        price = _price(s, t.instrumentId, t.date)
+        price = _price(s, t.instrumentId, t.date, s.get(Account, account_id).ownerId)
         if price is None:
             continue
         value = (t.quantity * price).quantize(Decimal("0.01"))

@@ -83,7 +83,8 @@
       strategy as a single leg (S3.9.2). Allocation charts keep market value.
 6. **Expiry** is applied automatically the day after an option expires out of the money by the
    underlying's closing price. An in-the-money expiry asks the user what happened. The close
-   used is the expiry day's; without it, the user is asked too. A close exactly at the strike
+   used is the expiry day's, a price source's stored close: no one's typed price, statement
+   value or trade decides it; without it, the user is asked too. A close exactly at the strike
    counts as out of the money.
 7. **Valuation**: an open option's mark is the price source's daily option close where there is
    one (S4.5), otherwise the user's manual mark, otherwise intrinsic value, labelled as such.

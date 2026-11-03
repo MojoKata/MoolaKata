@@ -234,7 +234,7 @@ def test_out_of_the_money_expires_the_day_after(server, alice):
                 instrumentId=msft.id,
                 date=dt.date(2026, 10, 9),
                 close=500,
-                source="manual",
+                source="test",  # a price source's close
                 fetchedAt=clock.now(),
                 updatedAt=clock.now(),
             )
@@ -329,7 +329,7 @@ def test_only_the_expiry_days_close_decides_an_expiry(server, alice):
                 instrumentId=msft.id,
                 date=dt.date(2026, 10, 8),
                 close=500,
-                source="manual",
+                source="test",  # a price source's close
                 fetchedAt=clock.now(),
                 updatedAt=clock.now(),
             )

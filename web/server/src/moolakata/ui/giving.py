@@ -430,7 +430,8 @@ def _shares_given(s, c: Caller, body: DonationIn, to: str) -> dict:
         from .. import valuation
 
         owner = s.get(Account, lot.accountId).ownerId  # their own typed prices (S4.10)
-        price = valuation.prices(s, [lot.instrumentId], body.date, owner).get(lot.instrumentId)
+        found = valuation.prices(s, [lot.instrumentId], body.date, owner=owner)
+        price = found.get(lot.instrumentId)
         if price is None:
             raise refuse("amount", "value-missing", "The shares' market value on the day.")
         value = (price.price * qty).quantize(Decimal("0.01"))

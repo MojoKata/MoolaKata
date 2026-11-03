@@ -107,7 +107,7 @@ def benchmark_index(
         ).first()
         if inst is None:
             return []
-        pts = valuation.price_points(s, [inst.id], first, last).get(inst.id, [])
+        pts = valuation.market_points(s, [inst.id], first, last).get(inst.id, [])
         return [(d, p) for d, p in pts if d >= first - dt.timedelta(days=7)]
 
     if name == "60-40":

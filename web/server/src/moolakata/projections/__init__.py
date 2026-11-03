@@ -183,7 +183,7 @@ def _btc_price(s: Session) -> float | None:
     inst = s.scalars(select(Instrument).where(Instrument.symbol.in_(("BTC", "BTC-USD")))).first()
     if inst is None:
         return None
-    found = valuation.prices(s, [inst.id]).get(inst.id)
+    found = valuation.closes(s, [inst.id], clock.today()).get(inst.id)
     return float(found.price) if found else None
 
 

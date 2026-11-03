@@ -299,7 +299,7 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     pts = []
     inst = assets.find_metal(s, it.metal) if it.valuation == "spot" and it.metal else None
     if inst is not None:
-        pts = valuation.price_points(s, [inst.id], first, today).get(inst.id, [])
+        pts = valuation.price_points(s, [inst.id], first, today, owner=a.ownerId).get(inst.id, [])
     end = it.soldOn or today
     k = 0
     current = None
