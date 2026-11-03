@@ -486,6 +486,33 @@ def left_out(w: World, accounts: list[Account]) -> list[tuple[str, D]]:
     return sorted(out)
 
 
+def flows(w: World, a: Account, first: dt.date, last: dt.date) -> D:
+    """The money that came into an account from outside after `first` up to `last` (S5.2.1,
+    CR3-28): cash in and out; for a loan, its opening balance owed and its draws out, its
+    payments in; for items, one added at its worth then and one sold at what it brought."""
+
+    def within(d: dt.date) -> bool:
+        return first < d <= last
+
+    total = D(0)
+    if a.kind in LOANS:
+        if a.loan is None:
+            return total
+        if within(a.loan.start):
+            total -= a.loan.principal
+        return total + sum((t.amount for t in a.txns if within(t.day)), D(0))
+    if a.kind in ITEMS:
+        for it in a.items:
+            if within(it.acquired):
+                total += item_value(it, w, it.acquired)
+            if it.sold and within(it.sold):
+                total -= it.cost  # what its sale brought: the world sells at cost
+        return total
+    return total + sum(
+        (t.amount for t in a.txns if within(t.day) and t.kind in ("deposit", "withdrawal")), D(0)
+    )
+
+
 # ---------- bugs an account world must catch (`test_worlds`) ----------
 
 
@@ -501,6 +528,14 @@ def _ledger_balance_parts(s, ledger, investing, day=None):
     return out
 
 
+def _cash_flows_alone(s, ledger, investing, first, last):
+    """CR3-28 put back: the ledger's cash in and out the only flows; shares, items and a
+    loan's opening moved in count as growth."""
+    from moolakata.ledger import performance as perf
+
+    return {d: v for d, v in perf.flows(ledger.transactions).items() if first < d <= last}
+
+
 PLANTS = [
     (
         Plant(
@@ -510,5 +545,14 @@ PLANTS = [
             "CR3-30, CR3-32",
         ),
         (0,),
+    ),
+    (
+        Plant(
+            "flows from the ledger's cash alone",
+            "moolakata.valuation:flows",
+            _cash_flows_alone,
+            "CR3-28",
+        ),
+        (2,),
     ),
 ]

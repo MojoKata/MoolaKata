@@ -219,6 +219,7 @@ def check_world(server, seed: int) -> None:
 def check(made) -> None:
     _each_account_is_the_references(made)
     _the_portfolio_adds_up(made)
+    _contributions_are_the_money_moved(made)
     _a_projection_leaves_out_what_it_doesnt_grow(made)
     _a_loans_payment_is_its_schedules_next_row(made)
 
@@ -253,6 +254,16 @@ def _the_portfolio_adds_up(made):
     ref = sorted((p.kind, p.name, p.value) for a in seen for p in aw.parts(w, a)
                  if p.kind in ("loan", "item"))  # fmt: skip
     assert others == ref
+
+
+def _contributions_are_the_money_moved(made):
+    """What the portfolio's chart counts contributed over its last month is the money that
+    came in or left from outside, valued as the reference values it (CR3-28)."""
+    c, w = made.viewer, made.w
+    series = c.get(f"/ui/api/portfolios/{made.portfolio}/series", params={"range": "1M"}).json()
+    first = aw.TODAY - dt.timedelta(days=31)
+    want = sum((aw.flows(w, a, first, aw.TODAY) for a in w.seen()), Decimal(0))
+    assert _d(series["contributed"]) == want, (series["contributed"], want)
 
 
 def _a_projection_leaves_out_what_it_doesnt_grow(made):
