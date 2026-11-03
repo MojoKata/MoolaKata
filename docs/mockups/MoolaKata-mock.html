@@ -1054,7 +1054,10 @@ function loanDetails(a) {
     <div class="list-item"><span class="grow dim">Following</span>Extra $300 a month <span class="small up">· ahead by $1,240</span></div>
     ${a.id === 'mort' ? `<div class="list-item"><span class="grow dim">Equity in Home</span>${money(640000 + a.bal, { cents: false })} <span class="small dim">· LTV 48.8% · no PMI</span></div>` : `<div class="list-item"><span class="grow dim">Secured by</span>2023 Subaru Outback <span class="small dim">· equity ${money(21940 + a.bal, { cents: false })}</span></div>`}
     <div class="list-item"><span class="grow dim">Statement balance</span>${money(Math.abs(a.bal))} on Oct 1 <span class="pill ok">${icon('check')} matches</span>&nbsp;<button class="btn sm" data-act="dlg" data-v="typeBalance">Type it</button></div>
-    <div class="mt"><button class="btn sm" data-act="dlg" data-v="loanPayment">${icon('plus')} Record a payment</button></div>`;
+    <div class="mt"><button class="btn sm" data-act="dlg" data-v="loanPayment">${icon('plus')} Record a payment</button></div>
+    ${a.id === 'mort' ? `<div class="card mt"><h3>Looks like a payment</h3>
+      <div class="list-item"><div class="grow">ROCKET MORTGAGE<div class="small dim">Joint Household · Nov 2 · pair with the payment of Nov 1</div></div>${money(2876.97)}<button class="btn sm" data-act="toast" data-v="Paired with the payment already recorded">Pair</button></div>
+      <p class="small dim">Linking makes it the transfer into this loan, split by the schedule; pairing joins it to a payment already recorded here.</p></div>` : ''}`;
 }
 function physDetails(a) {
   const m = { metals: 'spot × fine weight · Oct 11 close', collect: 'latest valuation of each item', house: 'valuations · last 2026-09-20', subaru: '12% a year from $33,900, until a valuation' }[a.id] || 'valuations';
@@ -1987,7 +1990,7 @@ DIALOGS.receipt = (d) => {
     <div style="flex:0 1 260px">${side}</div></div>`, ok: 'Save' };
 };
 DIALOGS.householdColour = () => ({ title: 'Colour for Margaret & Tom', body: `<p class="small dim" style="margin-top:0">Tints this household’s window for you. Other people choose their own.</p><div class="field"><label for="f-colour">Colour</label><div class="swatches">${Object.entries(PEER_HUES).map(([k, v], i) => `<button class="swatch ${state.peerHue[state.user] === k ? 'on' : ''}" ${i ? '' : 'id="f-colour"'} style="background:${v}" data-act="hue" data-v="${k}" title="${k}" aria-label="${k}"></button>`).join('')}</div></div>`, ok: null });
-DIALOGS.loanPayment = () => ({ title: 'Record a payment', body: `<div class="row">${field('Paid on', inp('2026-11-01', '', 'date'))}${field('Amount', inp('2,876.97'))}</div>${field('From account', sel(['Joint Household', 'Everyday Checking', 'None: link a bank transaction later'], 'Joint Household'), 'Its half of the transfer is recorded too.')}
+DIALOGS.loanPayment = () => ({ title: 'Record a payment', body: `<div class="row">${field('Paid on', inp('2026-11-01', '', 'date'))}${field('Amount', inp('2,876.97'))}</div>${field('From account', sel(['Joint Household', 'Everyday Checking', 'None: recorded on the loan only'], 'Joint Household'), 'Its half of the transfer is recorded too, or paired with it when that account already holds the payment.')}
   <p class="small dim">Split by the schedule. Correct a part from the servicer’s statement; the parts must add up.</p>
   <div class="row">${field('Principal', inp('1,059.52'))}${field('Interest', inp('1,351.25'))}</div><div class="row">${field('Escrow', inp('466.20'))}${field('PMI', inp('0.00'))}</div>`, ok: 'Record' });
 DIALOGS.typeBalance = () => ({ title: 'Type today’s balance', body: `<p class="small dim" style="margin-top:0">Copy the balance from Chase’s site or app. MoolaKata checks it against its own for the same day.</p><div class="row">${field('Balance', inp('', '12,480.22'))}${field('As of', inp('2026-10-12', '', 'date'))}</div>`, ok: 'Check' });
@@ -2340,7 +2343,8 @@ const GUIDES = {
     <h2 ${hid('Interest rate')}>Interest rate</h2><p>The note rate, not the APR, to three places as the note states it (6.875%). An adjustable rate’s resets, to four places, are typed when known.</p>
     <h2 ${hid('Interest method')}>Interest method</h2><p>Most mortgages amortize monthly. Most car loans charge simple interest daily, so paying early saves interest.</p>
     <h2 ${hid('Escrow per payment')}>Escrow per payment</h2><p>Property tax and insurance collected with the payment. Not principal; shown in Taxes.</p>
-    <h2>Record a payment</h2><p>A payment on the loan, split into principal, interest, escrow, PMI and fees by the schedule. Bank transactions that look like the payment are offered to link instead.</p>
+    <h2>Record a payment</h2><p>A payment on the loan, split into principal, interest, escrow, PMI and fees by the schedule. Bank transactions that look like the payment are offered to link instead. When the From account already holds the payment, it is paired with it, not recorded again.</p>
+    <h2>Looks like a payment</h2><p>Bank transactions of the last 90 days within 2% of the payment that aren’t a transfer yet. <b>Link</b> makes one the transfer into this loan; <b>Pair</b> joins one to a payment already recorded here with <i>From account: None</i>, recording nothing new. A transaction a few days from a payment of another amount isn’t offered: it is most likely that payment.</p>
     <h2 ${hid('Paid on')}>Paid on</h2><p>The day the servicer received it.</p>
     <h2 ${hid('Amount')}>Amount</h2><p>What was paid, escrow included. Anything beyond the scheduled payment goes to principal as an overpayment.</p>
     <h2 ${hid('From account')}>From account</h2><p>The bank account it came from: its half of the transfer is recorded as well.</p>

@@ -273,6 +273,18 @@ function Candidates({ a, again }) {
   const rows = /** @type {any[]} */ (res.data) || [];
   // The payment on the loan made and paired with the bank's transaction (S1.9.3).
   const link = useSubmit(async (/** @type {any} */ c) => {
+    if (c.pairWith) {
+      // The payment is on the loan already: the two become one transfer, nothing new made.
+      await saveNow((d) => {
+        const loan = d.load(PayTxn, { ...c.pairWith, accountId: a.id, transferWithId: null });
+        loan.set('kind', 'transfer');
+        loan.set('transferWithId', c.transactionId);
+      });
+      toast('Paired with the payment already recorded');
+      res.reload();
+      again();
+      return;
+    }
     const split = await splitOf(a, c.date, c.amount);
     await saveNow((d) => {
       const loan = d.add(PayTxn, { accountId: a.id, date: c.date, amount: c.amount });
@@ -287,10 +299,14 @@ function Candidates({ a, again }) {
     <div class="card"><h3>Looks like a payment</h3>
       ${rows.map((c) =>
         html`<div class="list-item"><div class="grow">${c.payee || 'Payment'}<div
-          class="small dim">${c.accountName} · ${
-          date(c.date)
+          class="small dim">${c.accountName} · ${date(c.date)}${
+          c.pairWith
+            ? html`
+              · pair with the payment of ${date(c.pairWith.date)}
+            `
+            : null
         }</div></div><${Amt} v=${c.amount} /><button class="btn sm" disabled=${link.busy} onClick=${() =>
-          link.run(c).catch(() => {})}>Link</button></div>`
+          link.run(c).catch(() => {})}>${c.pairWith ? 'Pair' : 'Link'}</button></div>`
       )}
       <p class="small dim">Linking makes it the transfer into this loan, split by the schedule.</p>
     </div>
@@ -458,10 +474,31 @@ export function PaymentDialog({ close, a, v }) {
       gone = true;
     };
   }, [day, amount]);
+  // The bank's half already there, when the payment was imported first (S1.7, CR3-22): the
+  // payment pairs with it rather than recording it again.
+  const [half, setHalf] = useState(/** @type {any} */ (null));
+  useEffect(() => {
+    setHalf(null);
+    if (!from || !day || !amount || !(Number(amount) > 0)) return;
+    let gone = false;
+    api.get(`/accounts/${a.id}/loan/halves`, { account: from, date: day, amount }).then(
+      (/** @type {any} */ r) => !gone && setHalf(r.items[0] || null),
+      () => {},
+    );
+    return () => {
+      gone = true;
+    };
+  }, [from, day, amount]);
   const before = () => {
     if (!f.draft || !loan || !split) return false;
     if (!own.current.has(f.draft)) own.current.set(f.draft, { parts: {} });
-    fillPayment(f.draft, a, loan, own.current.get(f.draft), { from, split });
+    fillPayment(
+      f.draft,
+      a,
+      loan,
+      own.current.get(f.draft),
+      half ? { pairedWith: half.transactionId, split } : { from, split },
+    );
   };
   const e = failed;
   return html`
@@ -475,11 +512,19 @@ export function PaymentDialog({ close, a, v }) {
             <${RecField} rec=${loan} name="amount" label="Amount" id="amount" />
           </div>
           <${Field} label="From account" id="from-account"
-            hint="Its half of the transfer is recorded too. None: the payment is recorded here only.">
+            hint="Its half of the transfer is recorded too, or paired with it when already there. None: recorded here only.">
             <${Select} value=${from} onChange=${setFrom} options=${[
               ['', 'None'],
               ...banks.map((b) => [b.id, b.name]),
             ]} /></${Field}>
+          ${half
+            ? html`
+              <div
+                class="notice">${half.accountName} already holds this payment (${date(
+                  half.date,
+                )}, <${Amt} v=${half.amount} />): it is paired with it, not recorded again.</div>
+            `
+            : null}
           <div class="toolbar"><span class="small dim">${shown
             ? 'Split by the schedule. Correct it from the servicer’s statement if it differs.'
             : 'The schedule splits it into principal, interest, escrow and PMI.'}</span><span

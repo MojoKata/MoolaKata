@@ -523,6 +523,7 @@
  * @property {string} date
  * @property {import('../app/dec.js').Dec} amount
  * @property {(string | null)} payee
+ * @property {(PairWith | null)} [pairWith]
  */
 
 /**
@@ -2835,6 +2836,14 @@
  * @property {(string | null)} [splitId]
  * @property {string} paybackId
  * @property {import('../app/dec.js').Dec} amount
+ */
+
+/**
+ * A payment already on the loan that a bank transaction is the other half of (S1.7).
+ * @typedef {Object} PairWith
+ * @property {string} id
+ * @property {number} version
+ * @property {string} date
  */
 
 /**

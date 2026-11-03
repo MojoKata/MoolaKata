@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, loan_payment, make, remove, saved, terms
+from edits import change, create, loan_payment, make, remove, saved, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -324,3 +324,78 @@ def test_the_payment_is_the_schedules_next_row_for_every_shape():
         nxt = next((r for r in rows if not r.past), None)
         assert nxt is not None, t
         assert (sm.payment, sm.total) == (nxt.principal + nxt.interest, nxt.payment), t
+
+
+def _a_loan_and_checking(server):
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    bank = new_account(c, name="Checking")
+    add(c, bank["id"], "10000.00", "2026-09-01")
+    loan = new_account(c, name="Home", type="mortgage")
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    return c, bank, loan
+
+
+def _unpair(server, txn_id):
+    from moolakata.store.entities.accounts import Transaction
+    from moolakata.store.repos import ledger as repo
+
+    with server.db.tx(unscoped="test") as s:
+        repo.unlink_transfer(s, s.get(Transaction, txn_id))
+
+
+def _rows(c, account_id):
+    rows = c.get("/ui/api/transactions", params={"pageSize": 1000}).json()["items"]
+    return [r for r in rows if r["accountId"] == account_id]
+
+
+def test_a_payment_recorded_on_the_loan_alone_pairs_with_its_bank_half(server, frozen):
+    """CR3-22: a payment recorded with *None*, then its bank debit: *Looks like a payment*
+    offers to pair the two, and pairing makes no second payment."""
+    c, bank, loan = _a_loan_and_checking(server)
+    r = loan_payment(c, loan["id"], "2026-10-01", "1798.65")
+    assert r.status_code == 200, r.text
+    debit = add(c, bank["id"], "-1798.65", "2026-10-02", payee="ROCKET MORTGAGE")
+    # The save pairs them itself (S1.7); a path that doesn't (an unlinked pair, a file posted
+    # in the background) leaves both halves unpaired, as here.
+    _unpair(server, debit["id"])
+    cands = c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"]
+    assert [x["transactionId"] for x in cands] == [debit["id"]]
+    pay = cands[0]["pairWith"]
+    assert pay and pay["date"] == "2026-10-01"
+    r = change(c, "Txn", pay, kind="transfer", transferWithId=debit["id"])
+    assert r.status_code == 200, r.text
+    assert c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"] == []
+    loan_rows = _rows(c, loan["id"])
+    assert len(loan_rows) == 1 and loan_rows[0]["transferAccountName"] == "Checking"
+    assert c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"] == "299701.35"
+
+
+def test_a_debit_beside_a_payment_of_another_amount_isnt_offered(server, frozen):
+    """CR3-22: a debit within days of an unpaired payment of a different amount is most likely
+    that payment; linking it would count it twice."""
+    c, bank, loan = _a_loan_and_checking(server)
+    assert loan_payment(c, loan["id"], "2026-10-01", "1798.65").status_code == 200
+    add(c, bank["id"], "-1800.00", "2026-10-03", payee="ROCKET MORTGAGE")
+    assert c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"] == []
+    late = add(c, bank["id"], "-1800.00", "2026-10-09", payee="ROCKET MORTGAGE")
+    cands = c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"]
+    assert [(x["transactionId"], x["pairWith"]) for x in cands] == [(late["id"], None)]
+
+
+def test_recording_from_an_account_that_holds_the_debit_finds_it(server, frozen):
+    """CR3-22: the dialog's *From account* when the bank's half was imported first: the
+    halves lookup finds it, and the payment pairs with it, making no second bank row."""
+    c, bank, loan = _a_loan_and_checking(server)
+    debit = add(c, bank["id"], "-1798.65", "2026-10-01", payee="ROCKET MORTGAGE")
+    found = c.get(f"/ui/api/accounts/{loan['id']}/loan/halves",
+                  params={"account": bank["id"], "date": "2026-10-02",
+                          "amount": "1798.65"}).json()["items"]  # fmt: skip
+    assert [x["transactionId"] for x in found] == [debit["id"]]
+    r = loan_payment(c, loan["id"], "2026-10-02", "1798.65", transaction=debit["id"])
+    assert r.status_code == 200, r.text
+    assert len(_rows(c, bank["id"])) == 2  # the opening deposit and the one debit
+    assert c.get(f"/ui/api/accounts/{loan['id']}/loan/halves",
+                 params={"account": bank["id"], "date": "2026-10-02",
+                         "amount": "1798.65"}).json()["items"] == []  # fmt: skip
