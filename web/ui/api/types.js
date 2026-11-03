@@ -3904,7 +3904,7 @@
  * @typedef {Object} Settle
  * @property {string} how
  * @property {string} date
- * @property {(import('../app/dec.js').Dec | null)} [contracts]
+ * @property {import('../app/dec.js').Dec} contracts
  */
 
 /**

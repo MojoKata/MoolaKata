@@ -328,3 +328,12 @@ The rulings the rest of the requirements apply.
     transactions), leave every figure, past included, and a reviewed month or a filed year
     they change is flagged. A record that only names a deleted one keeps it, marked
     *(deleted)*: a gift keeps a deleted person (`schema.md` §6).
+11. **Input means what it says.** A value that looks wrong (a blank, 0, one out of range) is
+    refused, never taken to mean all, none or the default. A field with such a value offers it
+    as a control that fills the field in, saved like anything typed: inside the field, at its
+    end, **×** clears it (shown while it holds something) and **↺** puts back its default
+    (shown while it differs, named: *Use the default: 30 days*); outside it, a little apart,
+    **All** (a count) or **Max** (an amount) fills in the most and **Min** the least, named
+    with the value (*All: 2 contracts*). Each is a button reached by keyboard; while the field
+    already holds its value, one inside is hidden and one outside greyed out. Bounds are words, not icons: an arrow to a line reads
+    as upload or download.

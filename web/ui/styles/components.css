@@ -850,15 +850,34 @@
     position: relative;
     display: block;
   }
-  /* A count with its All button at the end, a little apart (CountInput). */
-  .with-all {
+  /* A field with its special values as controls (ValueInput, R3.11): × and ↺ inside it at
+     its end, All, Max and Min outside it, a little apart. */
+  .value-input {
     display: flex;
     gap: 8px;
     align-items: center;
   }
-  .with-all input.in {
+  .value-in {
+    position: relative;
     flex: 1;
     min-width: 0;
+  }
+  .value-in.ends-1 input.in {
+    padding-right: 34px;
+  }
+  .value-in.ends-2 input.in {
+    padding-right: 62px;
+  }
+  .value-input .btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .value-ends {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
   }
   .pw input.in {
     padding-right: 38px;

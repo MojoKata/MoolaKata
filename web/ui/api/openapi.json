@@ -22947,19 +22947,12 @@
         "additionalProperties": false,
         "properties": {
           "contracts": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
+            "examples": [
+              12.5
             ],
-            "title": "Contracts"
+            "format": "decimal",
+            "title": "Contracts",
+            "type": "number"
           },
           "date": {
             "format": "date",
@@ -22973,7 +22966,8 @@
         },
         "required": [
           "how",
-          "date"
+          "date",
+          "contracts"
         ],
         "title": "Settle",
         "type": "object"

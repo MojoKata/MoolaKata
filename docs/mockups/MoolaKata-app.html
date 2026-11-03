@@ -1035,6 +1035,35 @@
     position: relative;
     display: block;
   }
+  /* A field with its special values as controls (ValueInput, R3.11): × and ↺ inside it at
+     its end, All, Max and Min outside it, a little apart. */
+  .value-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .value-in {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+  .value-in.ends-1 input.in {
+    padding-right: 34px;
+  }
+  .value-in.ends-2 input.in {
+    padding-right: 62px;
+  }
+  .value-input .btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .value-ends {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+  }
   .pw input.in {
     padding-right: 38px;
   }
@@ -2187,6 +2216,9 @@ ol.phrase li::marker {
   <symbol id="i-clip" viewBox="0 0 24 24">
     <path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" />
   </symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24">
+    <path d="M4 12a8 8 0 1 0 1.07-4M4 4v4h4" />
+  </symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24">
     <path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4" />
   </symbol>
@@ -2952,7 +2984,7 @@ ol.phrase li::marker {
 "dialog-new-user":"# New user\n\nThey get an invitation by email and choose their own password.\n\n## Name {#display-name}\n\nAs others see it.\n\n## Sex\n\nTheir person's (every user is one): it chooses the words for the family tree. Someone\nalready among the household's people under that name becomes this user.\n\n## Username\n\nWhat they sign in with: lowercase letters, digits, dots, dashes or underscores.\n\n## Email address {#email}\n\nWhere the invitation goes.\n\n## Groups\n\nTheir groups. **Admins** makes them an admin.\n",
 "dialog-option-adjust":"# Adjusted options\n\nWhen an underlying splits by a ratio that isn't a whole number, merges, spins off a company or pays\na large special dividend, the OCC adjusts its open options and says how in an information memo\n(linked here). Type each open contract's new terms from it. The lots carry over to the adjusted\ncontract, with their days held and their basis: nothing is sold, and there is no wash sale.\n\nA whole-number split (2:1, 4:1) needs none of this: recorded or imported on the stock, it takes the\naccount's open options with it, contracts times the ratio and strike divided by it.\n\n## Underlying {#adjust-underlying}\n\nThe stock whose options were adjusted.\n\n## Effective {#adjust-date}\n\nThe day the adjustment took effect.\n\n## New root {#new-root}\n\nThe adjusted contract's root, such as _XYZ1_. It is listed under it in the underlying's chain, and\nits mark comes from there.\n\n## Deliverable\n\nWhat one contract delivers when assigned or exercised: shares other than 100 (_150 XYZ_ for a 3:2\nsplit), shares of two companies (_100 XYZ + 20 ABC_), and any cash per contract. The strike and the\npremium are spread over its parts by their value on the day.\n",
 "dialog-option-mark":"# Marking an option\n\nA price for an option the price source doesn't serve, until it does. Without a typed mark or a\nclose, an option is valued at its intrinsic value: what it would be worth exercised now.\n\n## On {#mark-date}\n\nThe day the mark is for. It can't be in the future.\n\n## Mark {#mark-price}\n\nA share, as quoted: 4.20 for a contract worth 420.\n",
-"dialog-option-settle":"# What happened to the option\n\n## It was {#how}\n\n**Expired worthless**: a short option keeps its credit as a gain; a long one loses its premium. **Assigned** (a short option): the shares are bought (a put) or sold (a call) at the strike, the credit taking off the shares' basis or adding to the proceeds. **Exercised** (a long option): the shares are bought (a call) or sold (a put) at the strike, the premium adding to the basis or coming off the proceeds.\n\n## On {#settle-date}\n\nThe day it expired, or was assigned or exercised.\n\n## Contracts {#settle-contracts}\n\nHow many: all of them unless only some were.\n",
+"dialog-option-settle":"# What happened to the option\n\n## It was {#how}\n\n**Expired worthless**: a short option keeps its credit as a gain; a long one loses its premium. **Assigned** (a short option): the shares are bought (a put) or sold (a call) at the strike, the credit taking off the shares' basis or adding to the proceeds. **Exercised** (a long option): the shares are bought (a call) or sold (a put) at the strike, the premium adding to the basis or coming off the proceeds.\n\n## On {#settle-date}\n\nThe day it expired, or was assigned or exercised.\n\n## Contracts {#settle-contracts}\n\nHow many, from 1 to the contracts held: **All** fills in every one.\n",
 "dialog-option-trade":"# Record an option trade\n\n## Trade {#action}\n\n**Buy to open** a long call or put; **sell to open** writes one, a short position whose credit is\nits basis; **buy to close** and **sell to close** end them. Expiry, assignment and exercise are\nrecorded on their own.\n\n## Account\n\nThe investing account it's in.\n\n## Date\n\nThe trade date.\n\n## Underlying\n\nThe stock or fund the contract is on: MSFT.\n\n## Call or put {#right}\n\nA call is the right to buy at the strike; a put, the right to sell.\n\n## Strike\n\nThe price per share the contract is for.\n\n## Expiry\n\nThe last day it can be exercised.\n\n## Contracts\n\nHow many: each covers 100 shares.\n\n## Premium\n\nThe price per share, as quoted: a contract costs 100 times it.\n\n## Fees and commission {#fees}\n\nWhat the broker charged. They come off the cash, and so out of the gain.\n",
 "dialog-organisation":"# An organisation\n\n## Name\n\nWhat it's called.\n\n## EIN\n\nIts employer identification number, from its receipts or the IRS's list of charities. Optional.\n\n## Deductible\n\nGifts to a 501(c)(3) charity are deductible; to a political campaign, a GoFundMe or a person they\naren't.\n\n## Causes\n\nTags, separated by commas, for giving by cause: Faith, Hunger, Local.\n\n## Pledge\n\nAn amount promised, shown as expected donations until the year's end.\n\n## Every {#pledge-every}\n\nA month or a year.\n\n## Notes\n\nAnything else.\n",
 "dialog-pair":"# Pair a payback\n\nA deposit paired with spending awaiting being paid back: that much of the deposit pays it back, so\nit isn't income, and the spending stops being awaited.\n\n## Deposits that may pay it back {#deposits}\n\nMoney that came in, not a transfer, within 90 days after the spending, with some of it not yet\npairing other spending. The amount awaited comes first.\n\n## Pays back\n\nAll of the amount awaited, or part. One deposit can pay back several: an expense report paid in one\ntransfer.\n",
@@ -8288,7 +8320,7 @@ export const CREATES = {
  * @typedef {Object} Settle
  * @property {string} how
  * @property {string} date
- * @property {(import('@mk/app/dec.js').Dec | null)} [contracts]
+ * @property {import('@mk/app/dec.js').Dec} contracts
  */
 
 /**
@@ -14338,6 +14370,67 @@ export function Input({ value, onInput, type = 'text', placeholder, bad, ...rest
 }
 
 /**
+ * @typedef {{ text: string, value: string, label: string }} Fill
+ * A value a button fills in: its word (All, Max, Min), the value, and its name for a screen
+ * reader and the tooltip ("All: 2 contracts").
+ */
+
+/**
+ * A field whose special values are controls that fill it in, never meanings of a blank or a 0
+ * (R3.11): inside it, × clears it (`clear`) and ↺ puts back its default (`reset`); outside it,
+ * a little apart, a word for each value in `fill` (All, Max, Min). Each hides while the field
+ * already holds its value; what it fills in is saved like anything typed.
+ * @param {{ value: string, onInput: (v: string) => void, clear?: boolean,
+ *   reset?: { value: string, label: string }, fill?: Fill[], id?: string, inputmode?: string,
+ *   type?: string, placeholder?: string, bad?: boolean }} p
+ */
+export function ValueInput({ value, onInput, clear, reset, fill = [], ...rest }) {
+  const v = value ?? '';
+  const inside = [
+    clear && v !== ''
+      ? html`
+        <button type="button" class="icon-btn" aria-label="Clear" title="Clear"
+          onClick=${() => onInput('')}><${Icon} name="x" /></button>
+      `
+      : null,
+    reset && v !== reset.value
+      ? html`
+        <button type="button" class="icon-btn" aria-label=${`Use the default: ${reset.label}`}
+          title=${`Use the default: ${reset.label}`} onClick=${() => onInput(reset.value)}><${Icon}
+                name="reset" /></button>
+      `
+      : null,
+  ].filter(Boolean);
+  return html`<span class="value-input"><span class=${
+    'value-in' +
+    (inside.length ? ` ends-${inside.length}` : '')
+  }><${Input} value=${v} onInput=${onInput}
+    ...${rest} />${inside.length ? html`<span class="value-ends">${inside}</span>` : null}</span>${
+    fill.map((f) =>
+      html`
+        <button type="button" class="btn" aria-label=${f.label} title=${f.label}
+          disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
+      `
+    )
+  }</span>`;
+}
+
+/**
+ * A count from 1 to `max`, empty until one is typed, with **All** at its end that fills in
+ * `max` (R3.11). A blank, 0 or anything past `max` is refused when saved, never taken to mean
+ * all.
+ * @param {{ value: string, onInput: (v: string) => void, max: number | string, noun: string,
+ *   id?: string }} p
+ */
+export function CountInput({ value, onInput, max, noun, ...rest }) {
+  const all = String(max);
+  return html`
+    <${ValueInput} value=${value} onInput=${onInput} inputmode="numeric"
+      fill=${[{ text: 'All', value: all, label: `All: ${all} ${noun}` }]} ...${rest} />
+  `;
+}
+
+/**
  * @param {{ value: any, onChange: (v: string) => void, options: ([string, string] | string)[],
  *   id?: string }} p
  */
@@ -17134,7 +17227,7 @@ import { useList, useSubmit } from '@mk/app/hooks.js';
 import { money, today } from '@mk/app/format.js';
 import { Dialog } from '@mk/components/dialog.js';
 import { useDialogGuide } from '@mk/components/help.js';
-import { errAt, Field, FormError, Input, Seg } from '@mk/components/fields.js';
+import { CountInput, errAt, Field, FormError, Input, Seg } from '@mk/components/fields.js';
 import { toast } from '@mk/components/toast.js';
 import { dec } from '@mk/app/dec.js';
 
@@ -17243,10 +17336,11 @@ export function OptionTrade({ close, accountId, start }) {
 export function Settle({ close, row }) {
   useDialogGuide('dialog-option-settle');
   const short = row.side === 'short';
+  const held = String(dec(row.quantity).abs()).replace(/\.0+$/, '');
   const [f, setF] = useState({
     how: row.inTheMoney === false ? 'expired' : short ? 'assign' : 'exercise',
     date: row.expiry || today(),
-    contracts: String(dec(row.quantity).abs()).replace(/\.0+$/, ''),
+    contracts: '',
   });
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
   const save = useSubmit(async () => {
@@ -17274,8 +17368,8 @@ export function Settle({ close, row }) {
             value=${f.date} onInput=${set('date')} />
           </${Field}>
           <${Field} label="Contracts" id="settle-contracts" error=${errAt(e, 'contracts')}>
-            <${Input}
-              value=${f.contracts} onInput=${set('contracts')} inputmode="numeric" />
+            <${CountInput} value=${f.contracts} onInput=${set('contracts')} max=${held}
+              noun="contracts" />
             </${Field}>
             </div>
             <p class="small dim">${f.how === 'expired'

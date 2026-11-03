@@ -57,16 +57,64 @@ export function Input({ value, onInput, type = 'text', placeholder, bad, ...rest
 }
 
 /**
- * A count from 1 to `max`, empty until one is typed, with an **All** button at its end that
- * fills in `max`. A blank, 0 or anything past `max` is refused when saved, never taken to
- * mean all.
- * @param {{ value: string, onInput: (v: string) => void, max: number | string,
+ * @typedef {{ text: string, value: string, label: string }} Fill
+ * A value a button fills in: its word (All, Max, Min), the value, and its name for a screen
+ * reader and the tooltip ("All: 2 contracts").
+ */
+
+/**
+ * A field whose special values are controls that fill it in, never meanings of a blank or a 0
+ * (R3.11): inside it, × clears it (`clear`) and ↺ puts back its default (`reset`); outside it,
+ * a little apart, a word for each value in `fill` (All, Max, Min). Each hides while the field
+ * already holds its value; what it fills in is saved like anything typed.
+ * @param {{ value: string, onInput: (v: string) => void, clear?: boolean,
+ *   reset?: { value: string, label: string }, fill?: Fill[], id?: string, inputmode?: string,
+ *   type?: string, placeholder?: string, bad?: boolean }} p
+ */
+export function ValueInput({ value, onInput, clear, reset, fill = [], ...rest }) {
+  const v = value ?? '';
+  const inside = [
+    clear && v !== ''
+      ? html`
+        <button type="button" class="icon-btn" aria-label="Clear" title="Clear"
+          onClick=${() => onInput('')}><${Icon} name="x" /></button>
+      `
+      : null,
+    reset && v !== reset.value
+      ? html`
+        <button type="button" class="icon-btn" aria-label=${`Use the default: ${reset.label}`}
+          title=${`Use the default: ${reset.label}`} onClick=${() => onInput(reset.value)}><${Icon}
+                name="reset" /></button>
+      `
+      : null,
+  ].filter(Boolean);
+  return html`<span class="value-input"><span class=${
+    'value-in' +
+    (inside.length ? ` ends-${inside.length}` : '')
+  }><${Input} value=${v} onInput=${onInput}
+    ...${rest} />${inside.length ? html`<span class="value-ends">${inside}</span>` : null}</span>${
+    fill.map((f) =>
+      html`
+        <button type="button" class="btn" aria-label=${f.label} title=${f.label}
+          disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
+      `
+    )
+  }</span>`;
+}
+
+/**
+ * A count from 1 to `max`, empty until one is typed, with **All** at its end that fills in
+ * `max` (R3.11). A blank, 0 or anything past `max` is refused when saved, never taken to mean
+ * all.
+ * @param {{ value: string, onInput: (v: string) => void, max: number | string, noun: string,
  *   id?: string }} p
  */
-export function CountInput({ value, onInput, max, ...rest }) {
-  return html`<span class="with-all"><${Input} value=${value} onInput=${onInput}
-    inputmode="numeric" ...${rest} /><button type="button" class="btn"
-    onClick=${() => onInput(String(max))}>All</button></span>`;
+export function CountInput({ value, onInput, max, noun, ...rest }) {
+  const all = String(max);
+  return html`
+    <${ValueInput} value=${value} onInput=${onInput} inputmode="numeric"
+      fill=${[{ text: 'All', value: all, label: `All: ${all} ${noun}` }]} ...${rest} />
+  `;
 }
 
 /**

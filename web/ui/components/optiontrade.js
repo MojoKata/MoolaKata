@@ -151,7 +151,8 @@ export function Settle({ close, row }) {
             value=${f.date} onInput=${set('date')} />
           </${Field}>
           <${Field} label="Contracts" id="settle-contracts" error=${errAt(e, 'contracts')}>
-            <${CountInput} value=${f.contracts} onInput=${set('contracts')} max=${held} />
+            <${CountInput} value=${f.contracts} onInput=${set('contracts')} max=${held}
+              noun="contracts" />
             </${Field}>
             </div>
             <p class="small dim">${f.how === 'expired'
