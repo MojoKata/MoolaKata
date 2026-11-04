@@ -214,6 +214,7 @@ class TxfLeftOut(Model):
     digital: int  # in a digital asset's box, G to L
     collectable: int  # code C
     noLot: int  # sold without a lot to match: no day bought to write
+    noBasis: int  # sold from a lot without its basis: no basis to write
     personalUse: int  # code L, a loss on personal-use property
 
 

@@ -80,7 +80,13 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
     assert "D,long,4 VTI,2024-01-05,2026-02-01,600.00,400.00,,,200.00,Brokerage" in csv.text
     txf = alice.get(f"/ui/api/tax-books/{b}/exports/moolakata.txf").text
     assert txf.startswith("V042\r\n") and "N323\r\n" in txf and "N321\r\n" in txf
-    assert p["txfLeftOut"] == {"digital": 0, "collectable": 0, "personalUse": 0, "noLot": 0}
+    assert p["txfLeftOut"] == {
+        "digital": 0,
+        "collectable": 0,
+        "personalUse": 0,
+        "noLot": 0,
+        "noBasis": 0,
+    }
     pdf = alice.get(f"/ui/api/tax-books/{b}/exports/summary.pdf")
     assert pdf.content.startswith(b"%PDF-1.4") and pdf.content.rstrip().endswith(b"%%EOF")
 
@@ -110,7 +116,13 @@ def test_collectables_and_personal_use_losses(alice):
     assert {rows["Coin"]["kind"], rows["Car"]["kind"]} == {"item"}
     assert p["scheduleD"]["collectables"] == "2000.00"
     # TXF has no field for C or L (S8.2): both are left out of it and counted beside it.
-    assert p["txfLeftOut"] == {"digital": 0, "collectable": 1, "personalUse": 1, "noLot": 0}
+    assert p["txfLeftOut"] == {
+        "digital": 0,
+        "collectable": 1,
+        "personalUse": 1,
+        "noLot": 0,
+        "noBasis": 0,
+    }
     txf = alice.get(f"/ui/api/tax-books/{book_id}/exports/moolakata.txf").text
     assert "PCoin" not in txf and "PCar" not in txf
 
@@ -135,15 +147,19 @@ def test_txf_counts_what_it_leaves_out_by_why():
             "Acct",
         )
 
-    rows = [row("A"), row("D", "W"), row("I"), row("K"), row("F", "C"), row("C", "L"), row("A")]
-    rows[-1].lotMissing = True  # no day bought to write (CR3-415)
-    assert [exports.in_txf(r) for r in rows] == [True, True, False, False, False, False, False]
+    rows = [row("A"), row("D", "W"), row("I"), row("K"), row("F", "C"), row("C", "L")]
+    rows += [row("A"), row("B"), row("E", "W")]
+    rows[6].lotMissing = True  # no day bought to write (CR3-415)
+    rows[7].basis = rows[8].basis = None  # no basis to write, never a 0 (CR3-416)
+    assert [exports.in_txf(r) for r in rows] == [True, True] + [False] * 7
     assert exports.txf_left_out(rows) == {
         "digital": 2,
         "collectable": 1,
         "personalUse": 1,
         "noLot": 1,
+        "noBasis": 2,
     }
+    assert "$0.00" not in exports.txf(rows, dt.date(2027, 1, 2))
 
 
 def test_income_retirement_and_an_rmd(alice):

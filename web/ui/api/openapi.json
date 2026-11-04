@@ -25521,6 +25521,10 @@
             "title": "Digital",
             "type": "integer"
           },
+          "noBasis": {
+            "title": "Nobasis",
+            "type": "integer"
+          },
           "noLot": {
             "title": "Nolot",
             "type": "integer"
@@ -25534,6 +25538,7 @@
           "digital",
           "collectable",
           "noLot",
+          "noBasis",
           "personalUse"
         ],
         "title": "TxfLeftOut",

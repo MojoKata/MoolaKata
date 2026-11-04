@@ -78,15 +78,17 @@ def _txf_date(d: dt.date | None) -> str:
 
 
 def in_txf(r: Row) -> bool:
-    """TXF (V042) carries boxes A to F and the wash-sale adjustment, nothing else."""
-    return r.box in TXF_CODE and r.code in ("", "W") and not r.lotMissing
+    """TXF (V042) carries boxes A to F and the wash-sale adjustment, nothing else, and only a
+    row with its day bought and its basis: TXF has no way to say one is missing, and a basis
+    written as 0 would tax the whole proceeds (CR3-415, CR3-416)."""
+    return r.box in TXF_CODE and r.code in ("", "W") and not r.lotMissing and r.basis is not None
 
 
 def txf_left_out(rows: list[Row]) -> dict[str, int]:
     """The rows TXF can't carry, counted by why (S8.2): a digital asset's box (G to L), a
     collectable's code C, a personal-use loss's code L, a sale without a lot to match (no day
-    bought to write)."""
-    out = {"digital": 0, "collectable": 0, "personalUse": 0, "noLot": 0}
+    bought to write), a sale without its basis."""
+    out = {"digital": 0, "collectable": 0, "personalUse": 0, "noLot": 0, "noBasis": 0}
     for r in rows:
         if in_txf(r):
             continue
@@ -96,8 +98,10 @@ def txf_left_out(rows: list[Row]) -> dict[str, int]:
             out["digital"] += 1
         elif r.code == "C":
             out["collectable"] += 1
-        else:
+        elif r.code == "L":
             out["personalUse"] += 1
+        else:
+            out["noBasis"] += 1
     return out
 
 
@@ -112,7 +116,7 @@ def txf(rows: list[Row], today: dt.date) -> str:
             f"P{r.description}",
             f"D{_txf_date(r.acquired)}",
             f"D{_txf_date(r.sold)}",
-            f"${_money(r.basis) or '0.00'}",
+            f"${_money(r.basis)}",
             f"${_money(r.proceeds)}",
         ]
         if r.code == "W" and r.adjustment:

@@ -4409,6 +4409,7 @@
  * @property {number} digital
  * @property {number} collectable
  * @property {number} noLot
+ * @property {number} noBasis
  * @property {number} personalUse
  */
 
