@@ -411,4 +411,5 @@ through when back. Each is applied and can be undone.
     user:** a price row of source `manual` can't be made (the Manual source fetches nothing and a
     typed price is a TypedPrice), yet `stored_closes`, `last_stored`, `store` and `is_stale`
     handle one, now pinned by tests. Recommended: remove those branches (and refuse the shape),
-    as CR3-405 did for a lot without its transaction. Not applied yet.
+    as CR3-405 did for a lot without its transaction. Applied (`d75d532`): the branches are gone; no
+    constraint added, since the source names a fetching source can take aren't a fixed list.
