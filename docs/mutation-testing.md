@@ -12,41 +12,35 @@ At the end of each area's hardening (a review walk's fix cycle), over the module
 owns, once its other tests are in. Not in `web/check`: every test that reaches a function
 runs once per change to it, so a run takes minutes to hours, not seconds.
 
-## The setup
-
-mutmut changes the code it tests, so it runs on a scratch copy, never the checkout.
-
-1. **A copy**: `web/server` copied to a scratch folder (not a worktree: mutmut writes a
-   `mutants/` tree beside the code). The server reads a few files from beside itself at
-   import and in tests; link them into the copy: `VERSION` (copied), `ui`, `server` (to the
-   copy itself), `audit.json`, `coverage-floor.json`, `dev.sh`, `install`, and one level up
-   `connector`, `docs`, `.github`, `publish` and `web` (to the copy's parent).
-2. **Its own environment**: the project's locked dependencies (`uv export --frozen
-   --no-hashes --all-groups`, without the project itself, then the project installed with
-   `--no-deps`) and mutmut 3.8.0. mutmut needs libcst, whose latest builds may not have a
-   wheel for the Python in use; pin an index date that has one (`uv pip install
-   --exclude-newer <date>`).
-3. **Its configuration**, in the copy's `pyproject.toml`:
-
-   ```toml
-   [tool.mutmut]
-   source_paths = ["src"]
-   only_mutate = ["src/moolakata/valuation.py", "src/moolakata/ledger/lots.py"]  # the area's modules
-   pytest_add_cli_args_test_selection = ["tests/test_ledger.py", "tests/test_lot_rules.py"]  # its fast tests
-   pytest_add_cli_args = ["-p", "no:xdist", "-p", "no:cacheprovider"]
-   also_copy = ["tests"]
-   ```
-
-   `only_mutate` names files: without it mutmut mutates all of `src`, and one worker reached
-   9 GB. The test selection is the fast tests that reach the area; the generated worlds
-   (`test_tax_world`, `test_option_world`, `test_account_world` and the like) stay out.
-
 ## A run
 
-`mutmut run --max-children 6` from the copy. Six workers peaked at 7 to 11 GB, inside the
-project's budget of about 20 GB; watch it while it runs. mutmut renames its forked workers
-`mutmut: <mutant>`, so measure the process tree's PSS (`/proc/<pid>/smaps_rollup`), not its RSS,
-and stop the run past 15 GB.
+```sh
+web/dev.sh mutate run moolakata/valuation.py moolakata/ledger/lots.py moolakata/loans/
+```
+
+Modules are paths under `web/server/src`; a folder means every module in it. The command:
+
+1. **Copies the server** to `web/.dev/mutate` (mutmut changes the code it tests, so never the
+   checkout), with what the server reads from beside itself linked in (`ui`, `audit.json`,
+   `coverage-floor.json`, `dev.sh`, `install`; `connector`, `docs`, `.github`, `publish` a
+   level up; `VERSION` copied where the build and the code look for it).
+2. **Installs the lock's `mutation` group** in the copy (mutmut, pinned and audited like any
+   tool in `uv.lock`; `setup` never installs it).
+3. **Chooses the tests**: every fast test file that imports one of the modules, plus any named
+   with `--tests` (a test that reaches a module only through the API is named that way). The
+   generated worlds, the browser's tests and the audit's are never chosen: run once per
+   change, a world takes hours, and a rule is pinned by a fast test.
+4. **Writes mutmut's settings** in the copy and **runs it** with `--workers` (6 by default)
+   from a fresh `mutants/` folder, so the map of which tests reach which function is built
+   from the tests as they are (a rerun reusing the last map never tries tests added since).
+5. **Watches its memory** as PSS (its workers rename themselves `mutmut: <change>`, and share
+   pages) and stops the run past `--limit` (15 GB by default, inside the project's budget of
+   about 20 GB; six workers peaked at 7 to 11 GB).
+6. **Prints** the outcomes by file and the survivors by function, and writes each survivor's
+   change to `web/.dev/mutate/survivors.txt`. `web/dev.sh mutate summary` prints them again.
+
+`--only <names or globs>` reruns chosen changes
+(`moolakata.ledger.lots.x__consume__mutmut_*` for one function), still with a fresh map.
 
 Each change ends in one of these:
 
@@ -60,26 +54,18 @@ Each change ends in one of these:
 | 🔇 | skipped | mutmut was told not to run it |
 | 🧙 | caught by type check | a type checker refused the change (not used here) |
 
-`mutmut results` lists them; `mutmut show <name>` prints one change.
-
-## Reruns
-
-`mutmut run <name or glob> ...` reruns chosen changes (`moolakata.ledger.lots.x__consume__mutmut_*`
-for one function). **It chooses each change's tests from the map its last full run made**:
-tests added since are never tried ("cached results were kept" says so). After adding tests,
-delete `mutants/` before a rerun, and copy the new tests and their names into the selection.
+In the copy, `.venv/bin/mutmut show <name>` prints one change and `.venv/bin/mutmut browse`
+walks them all.
 
 ## Checking one change by hand
 
-From the copy's `mutants/` folder, with the changed code ahead of the installed one:
-
 ```sh
-PYTHONPATH=$PWD/src MUTANT_UNDER_TEST=<name> ../.venv/bin/python -m pytest tests/<file> \
-  -q -p no:randomly -p no:xdist -p no:cacheprovider
+web/dev.sh mutate check moolakata.ledger.performance.x_twr__mutmut_6 tests/test_figures.py
 ```
 
-A failing run means the tests catch it. Without `PYTHONPATH` the original code is imported and
-every change seems to survive; check the command against a change a test is known to catch.
+runs one test file against one change, with the changed code ahead of the installed one
+(without that, the original code is imported and every change seems to survive), and says
+whether it was caught. It copies the test file in first, so a test just written can be tried.
 
 ## Each survivor
 

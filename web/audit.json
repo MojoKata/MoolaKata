@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-11-03",
+  "auditedAt": "2026-11-04",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -35,6 +35,14 @@
         "www.freedesktop.org"
       ],
       "inImage": true,
+      "words": []
+    },
+    "click": {
+      "hosts": [
+        "click.palletsprojects.com",
+        "fishshell.com"
+      ],
+      "inImage": false,
       "words": []
     },
     "coverage": {
@@ -183,11 +191,43 @@
       "inImage": false,
       "words": []
     },
+    "libcst": {
+      "hosts": [
+        "docs.scipy.org",
+        "lwn.net",
+        "pyre-check.org",
+        "redbaron.pycqa.org"
+      ],
+      "inImage": false,
+      "words": []
+    },
+    "linkify-it-py": {
+      "hosts": [],
+      "inImage": false,
+      "words": [
+        "tlds.py"
+      ]
+    },
     "markdown-it-py": {
       "hosts": [
         "jgm.github.io",
         "mathiasbynens.be",
         "spec.commonmark.org"
+      ],
+      "inImage": false,
+      "words": []
+    },
+    "mdit-py-plugins": {
+      "hosts": [
+        "anorien.csc.warwick.ac.uk",
+        "ctan.org",
+        "docutils.sourceforge.io",
+        "htmlpreview.github.io",
+        "image.com",
+        "johnmacfarlane.net",
+        "pandoc.org",
+        "python-markdown.github.io",
+        "squidfunk.github.io"
       ],
       "inImage": false,
       "words": []
@@ -1130,6 +1170,24 @@
         "opentelemetry.py"
       ]
     },
+    "textual": {
+      "hosts": [
+        "docs.microsoft.com",
+        "easings.net",
+        "facelessuser.github.io",
+        "harlequin.sh",
+        "msdn.microsoft.com",
+        "posting.sh",
+        "sw.kovidgoyal.net",
+        "textual.textualize.io",
+        "www.easyrgb.com",
+        "www.ibb.net"
+      ],
+      "inImage": false,
+      "words": [
+        "_project_data.py"
+      ]
+    },
     "tqdm": {
       "hosts": [
         "api.slack.com",
@@ -1166,6 +1224,6 @@
   },
   "hashes": {
     "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
-    "uv.lock": "sha256:ee6b339303790c4cff83cc8bb20aa88fe6d08a064a36a2a68de4752afc30d8a8"
+    "uv.lock": "sha256:7fce26198aedacd651732fc2e8dec50b622fc878d031de5ad19800963e0ba1cd"
   }
 }

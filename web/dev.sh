@@ -37,6 +37,7 @@ web/dev.sh <command>
   codegen      regenerate the generated code: the OpenAPI document, the browser's
                types and its drafts' fields (web/ui/api/), from the routes
   mockup       rebuild docs/mockups/MoolaKata-app.html from the app
+  mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check)
   help-shots   rebuild the help guides' screenshots from the mockup
   deno [args]  run the pinned Deno
   vendor add NAME VERSION [--young REASON]
@@ -147,6 +148,10 @@ case "$cmd" in
     # fields, from the routes and the kinds the save takes. A few seconds; web/check fails
     # when any is out of date. The generated mockup and help shots have their own commands.
     cd "$SERVER" && exec uv run --frozen python -m moolakata.contract write
+    ;;
+  mutate)
+    # A mutation run (S17.5.12, docs/mutation-testing.md): run <modules>, summary, check.
+    cd "$SERVER" && exec uv run --frozen python -m moolakata.dev.mutate "$@"
     ;;
   mockup)
     cd "$SERVER" && exec uv run --frozen python "$WEB/ui/mockup/build.py"

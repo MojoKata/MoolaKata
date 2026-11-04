@@ -80,6 +80,7 @@ for amd64 and arm64 (S17.8.1). *Direct* means named in `pyproject.toml`.
 | pytest-xdist, execnet | from `uv.lock` | the server tests across workers, one process each (S17.5) | none; execnet starts its workers as local subprocesses, and its files name only its documentation |
 | hypothesis, sortedcontainers | from `uv.lock` | property tests of the pure parts: loan schedules, carried lots, flows, transfer matching (S17.5) | none; its files name only documentation hosts and the list of top-level domains it draws URLs from; its example database is off (`database=None`), so it writes nothing |
 | ruff | from `uv.lock` | lint and format | — |
+| mutmut, libcst, textual, click, setproctitle, linkify-it-py, mdit-py-plugins | from `uv.lock`, group `mutation` | mutation runs (`web/dev.sh mutate`, S17.5.12), installed only in the run's scratch copy, never by `setup` | none; their files name only documentation hosts (textual's include its docs' and example apps'), with no telemetry words; setproctitle renames mutmut's workers (`mutmut: <change>`), so the run measures memory by process tree |
 | coverage | from `uv.lock` | what the tests reach, in `web/check` and `web/dev.sh coverage` (S17.5.8) | none; its files name only its documentation |
 | playwright | from `uv.lock` | browser tests; downloads its Chromium (`web/pins`) | **egress** at `web/dev.sh setup` only |
 | sigstore | from `uv.lock` | verifying npm provenance in `vendor add` (S17.3.1) | **egress** at `vendor add` only |
