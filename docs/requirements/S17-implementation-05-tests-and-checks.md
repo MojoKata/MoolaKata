@@ -194,6 +194,19 @@
       (`tests/test_canaries.py`). Only the mail folder may hold one; and every file must be
       a kind known by its header (a SQLCipher database, a sealed file, a keyring, a backup's
       manifest), so a new kind of file fails before it ever holds data.
+   12. **Mutation testing**: an area's tests are measured by changing its code one small way at
+      a time (mutmut: an operator, a bound, a constant, an argument dropped, a statement
+      emptied) and running the tests that reach it; a change no test notices is a gap, whatever
+      the coverage says. It is not part of `web/check`, since every reaching test runs once per
+      change: each area's hardening runs it over the area's modules with the fast tests that
+      reach them (the generated worlds are left out: run once per change they take hours, and a
+      rule is pinned by a fast test, not by a world). The run ends with every surviving change
+      either caught by a fast test that names the rule it pins, or marked `# pragma: no
+      mutate` on its statement, with the reason no output can differ on the line above. A mark
+      silences every change on its statement, so one whose other changes tests catch stays
+      unmarked, and its equivalents are listed with the area's results. Code that only a mark
+      would keep (unreachable, never read) is removed instead. How to run it:
+      `docs/mutation-testing.md`.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before
