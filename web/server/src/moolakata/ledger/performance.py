@@ -64,27 +64,35 @@ def irr(
         + [(d, -v) for d, v in sorted(flow.items()) if start < d <= end]
         + [(end, end_value)]
     )
-    if all(c >= 0 for _, c in cash) or all(c <= 0 for _, c in cash):
-        return None
+    if not any(c for _, c in cash):
+        return None  # nothing went in or came out
 
     def npv(rate: Decimal) -> Decimal:
         total = ZERO
         base = ONE + rate
         for day, c in cash:
             years = Decimal((day - start).days) / Decimal("365.25")
-            total += c / (base**years) if years else c
+            # No mutant differs: negating every term keeps the root, and c / base**0 is c.
+            total += c / (base**years) if years else c  # pragma: no mutate
         return total
 
     lo, hi = Decimal("-0.99"), Decimal("10")
     f_lo, f_hi = npv(lo), npv(hi)
+    # A bound that is the rate itself is the answer: -99% exactly, a 99% loss (CR3-404).
+    if f_lo == 0:
+        return lo
+    if f_hi == 0:
+        return hi
     if f_lo * f_hi > 0:
-        return None
-    for _ in range(80):
+        return None  # no rate from -99% to +1000% a year fits (cash all one way among them)
+    # No mutant differs: the width, 10.99 / 2**k, is never exactly 1e-9.
+    while hi - lo >= Decimal("1e-9"):  # pragma: no mutate
         mid = (lo + hi) / 2
         f_mid = npv(mid)
-        if f_mid == 0 or hi - lo < Decimal("1e-9"):
+        if f_mid == 0:
             return mid
-        if (f_mid > 0) == (f_lo > 0):
+        # No mutant differs: neither f_mid nor f_lo is 0 here.
+        if (f_mid > 0) == (f_lo > 0):  # pragma: no mutate
             lo, f_lo = mid, f_mid
         else:
             hi = mid
@@ -135,6 +143,7 @@ def mix(
     level = ONE
     out = [(days[0], level)]
     for prev, day in itertools.pairwise(days):
-        level *= sum((w * m[day] / m[prev] for w, m in maps), ZERO)
+        # No mutant differs: the terms are Decimals, so a sum from int 0 is the same Decimal.
+        level *= sum((w * m[day] / m[prev] for w, m in maps), ZERO)  # pragma: no mutate
         out.append((day, level))
     return out

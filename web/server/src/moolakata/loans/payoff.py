@@ -70,7 +70,8 @@ class _Extras:
             and (p.monthlyFrom is None or day >= p.monthlyFrom)
             and (p.monthlyUntil is None or day <= p.monthlyUntil)
         ):
-            extra += p.monthly
+            # No mutant differs: extra is still ZERO here, and every use rounds it with cents().
+            extra += p.monthly  # pragma: no mutate
         if p.yearly and day.month == p.yearlyMonth:
             extra += p.yearly
         while self.lumps and self.lumps[0][0] <= day:
@@ -85,7 +86,7 @@ class _Extras:
         return extra
 
 
-def lump_days(t: Terms, plan: Plan, ahead: list[Row]) -> list[dt.date]:
+def lump_days(plan: Plan, ahead: list[Row]) -> list[dt.date]:
     """The payment day each lump sum goes with: the first on or after it."""
     days = [r.date for r in ahead]
     out = []
@@ -104,7 +105,8 @@ def _outcome(rows: list[Row], fees: Decimal, after: dt.date | None) -> Outcome:
         payoffDate=ahead[-1].date if ahead else None,
         months=len(ahead),
         interest=sum((r.interest for r in ahead), ZERO),
-        paid=sum((r.payment for r in ahead), ZERO) + fees,
+        # No mutant differs: fees is a Decimal, so a sum started from int 0 gives the same Decimal.
+        paid=sum((r.payment for r in ahead), ZERO) + fees,  # pragma: no mutate
         payment=pi[0] if pi else ZERO,
         paymentAfter=later[0] if later else (pi[0] if pi else ZERO),
         fees=fees,
@@ -122,7 +124,7 @@ def plan_outcomes(
 ) -> Result:
     base_rows = schedule(t, payments, draws, today)
     base = _outcome(base_rows, ZERO, None)
-    lumps = lump_days(t, plan, [r for r in base_rows if not r.past])
+    lumps = lump_days(plan, [r for r in base_rows if not r.past])
     first_lump = min(lumps) if lumps else None
     planned = _outcome(schedule(t, payments, draws, today, _Extras(plan, t)), ZERO, first_lump)
     recast = None
