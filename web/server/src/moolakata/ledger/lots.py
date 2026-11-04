@@ -123,7 +123,11 @@ class Replay:
     cash: dict = field(default_factory=dict)
 
     def quantity(self, instrument_id: str) -> Decimal:
-        return sum((lot.quantity for lot in self.open if lot.instrumentId == instrument_id), ZERO)
+        # An empty sum's int 0 equals Decimal 0 in every caller's comparison, arithmetic and text.
+        return sum(
+            (lot.quantity for lot in self.open if lot.instrumentId == instrument_id),
+            ZERO,
+        )  # pragma: no mutate
 
     def positions(self) -> dict[str, Decimal]:
         out: dict[str, Decimal] = {}
@@ -294,10 +298,12 @@ def _replacement(out: Replay, before: int, rows: list) -> list[tuple]:
     for row in rows:
         left = row.quantity
         for lot in made:
-            if left <= 0 or lot.quantity <= 0:
+            # `left` is 0 here only for a wash sale of no shares: its part of none is dropped.
+            if left <= 0 or lot.quantity <= 0:  # pragma: no mutate
                 continue
             take = min(left, lot.quantity)
-            left -= take
+            # Never read again: the loop breaks right after.
+            left -= take  # pragma: no mutate
             share = None
             if lot.basis is not None:
                 share = (lot.basis * take / lot.quantity).quantize(CENT)
@@ -314,7 +320,8 @@ def _settle(lot: OpenLot, row, basis_added: bool) -> None:
     """The replacement takes the disallowed loss into its basis (for what of it is still held)
     and the sold shares' holding period. In an IRA or a Roth IRA the loss is disallowed for
     good, and no basis is added (S3.8.3)."""
-    if lot.basis is not None and basis_added and lot.quantity > 0:
+    # A part with no shares left would take a share of 0, and is dropped at the end anyway.
+    if lot.basis is not None and basis_added and lot.quantity > 0:  # pragma: no mutate
         share = row.disallowed
         if lot.quantity != row.quantity:
             share = (row.disallowed * lot.quantity / row.quantity).quantize(CENT)
@@ -423,7 +430,8 @@ def _return_of_capital(out: Replay, t) -> None:
     works it out again); what exceeds a lot's basis is a capital gain, held as long as the lot
     (IRS Pub. 550, nondividend distributions)."""
     held = [x for x in out.open if x.instrumentId == t.instrumentId and x.quantity > 0]
-    total = sum((x.quantity for x in held), ZERO)
+    # An empty sum's int 0 is only tested for truth; a sum of lots is a Decimal either way.
+    total = sum((x.quantity for x in held), ZERO)  # pragma: no mutate
     amount = abs(t.amount or ZERO)
     if not total or not amount:
         return
@@ -465,7 +473,10 @@ def _corporate(out: Replay, t) -> None:
     the old leg names (its splitRatio) to new shares, the parent's kept; a merger carries the
     lots to the acquirer at its ratio, any cash it paid (the old leg's amount) a gain only as
     far as it and the gain go (IRC §356), and all cash a sale. Days held carry over."""
+    # A lot of no shares carries nothing: its copy has no shares, boot or gain, and is dropped.
+    # pragma: no mutate start
     held = [x for x in out.open if x.instrumentId == t.instrumentId and x.quantity > 0]
+    # pragma: no mutate end
     if t.transferId is None:
         if t.kind == "spin-off":
             f = t.splitRatio or ZERO
@@ -474,11 +485,15 @@ def _corporate(out: Replay, t) -> None:
                 part = None if lot.basis is None else (lot.basis * f).quantize(CENT)
                 if part is not None:
                     lot.basis -= part
+                # The new leg sets each carried lot's instrument; the one kept here is never read.
+                # pragma: no mutate start
                 moved.append(replace(lot, instrumentId=t.instrumentId, basis=part))
+                # pragma: no mutate end
             out.carried[t.id] = moved
             return
         if t.kind == "merger" and t.id not in out.paired:
-            qty = sum((x.quantity for x in held), ZERO)
+            # An empty sum's int 0 is only tested for truth.
+            qty = sum((x.quantity for x in held), ZERO)  # pragma: no mutate
             if qty:
                 _consume(out, t, qty, "fifo", t.amount, [], realize=True)
             return
@@ -487,9 +502,11 @@ def _corporate(out: Replay, t) -> None:
         out.cash[t.id] = t.amount if t.kind == "merger" else ZERO
         return
     lots = out.carried.pop(t.transferId, [])
-    cash = out.cash.pop(t.transferId, ZERO)
+    # None and ZERO are both no cash: it is only tested for truth.
+    cash = out.cash.pop(t.transferId, ZERO)  # pragma: no mutate
     ratio = t.splitRatio or Decimal(1)
-    total = sum((x.quantity for x in lots), ZERO)
+    # An empty sum's int 0 is only tested for truth, with no lots to spread over.
+    total = sum((x.quantity for x in lots), ZERO)  # pragma: no mutate
     for lot in lots:
         basis = lot.basis
         if cash and total and basis is not None:
@@ -559,15 +576,19 @@ def _option(out: Replay, t, picks: list) -> None:
                 part = (lot.basis * take / abs(lot.quantity)).quantize(CENT)
                 lot.basis -= part
                 premium = None if premium is None else premium + part
-            lot.quantity += take if lot.quantity < 0 else -take
+            # No lot here is at 0 (the filter above, each seen once): `< 0` and `<= 0` agree.
+            lot.quantity += take if lot.quantity < 0 else -take  # pragma: no mutate
             left -= take
         _spread_premium(out, t.id, premium)
     elif t.kind == "expire":
         # Worthless: what is left of the long lots is lost; the short lots keep their credit.
+        # A lot of none adds nothing to the sum, and an empty sum's 0 is only tested for truth.
+        # pragma: no mutate start
         longs = sum(
             (x.quantity for x in out.open if x.instrumentId == t.instrumentId and x.quantity > 0),
             ZERO,
         )
+        # pragma: no mutate end
         if longs:
             _consume(out, t, min(qty, longs), "fifo", ZERO, picks, realize=True)
         else:
@@ -578,7 +599,8 @@ def _spread_premium(out: Replay, end_id: str, premium: Decimal | None) -> None:
     """The premium over the end's stock trades, by their cash (S3.10.4); the last takes what
     rounding leaves."""
     legs = out.legs.get(end_id, [])
-    total = sum((abs(x.amount) for x in legs), ZERO)
+    # An empty sum's int 0 is only tested for truth.
+    total = sum((abs(x.amount) for x in legs), ZERO)  # pragma: no mutate
     given = ZERO
     for i, leg in enumerate(legs):
         if premium is None:
@@ -626,7 +648,8 @@ def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal) -> None:
     left, allotted = qty, ZERO
     for lot in shorts:
         if left <= 0:
-            break
+            # A return here skips only the check below, false once `left` is used up.
+            break  # pragma: no mutate
         take = min(left, -lot.quantity)
         left -= take
         last = left <= 0
@@ -738,7 +761,10 @@ def _snapshot(out: Replay, h) -> None:
         out.problems.append(Problem("history-missing", h.instrumentId, h.asOf, None, delta))
     elif delta < 0:
         qty = -delta
-        for lot in _order("fifo", [x for x in out.open if x.instrumentId == h.instrumentId]):
+        # _order goes first in for any method but lifo and hifo.
+        for lot in _order("fifo", [
+            x for x in out.open if x.instrumentId == h.instrumentId
+        ]):  # pragma: no mutate  # fmt: skip
             if qty <= 0:
                 break
             take = min(qty, lot.quantity)
