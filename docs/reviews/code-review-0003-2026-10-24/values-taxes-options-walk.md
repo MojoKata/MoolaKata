@@ -399,3 +399,11 @@ through when back. Each is applied and can be undone.
     adjustment is typed (the adjustable list asks for it).
 11. **Options' own survivors** (211 in `options/__init__.py`): settled (`a2f2d53`), with
     **CR3-427**: an adjusted contract's cash lost a cent to rounding across its parts.
+12. **Prices and assets' survivors** (543): settled with no bug found (`bd6513b`); the price
+    sources' tests answer from fake clients, never the network. Taxes' run outlasted its 4-hour
+    limit before writing survivors and runs again module by module; the routes' run follows.
+13. **Test isolation, from CI**: browser tests on the shared household left accounts behind (a
+    coin account's 1099-DA among the expected documents, a 529 in an empty tax year); each
+    test now removes the accounts it made (`7cdc9dc`, `8c3e54c`). The dev server's dashboard
+    answered 500 once more in CI (on 8c3e54c) with no traceback in its log; the report now shows
+    each log's 5xx answers and errors (`f494cc3`), for issue #34.
