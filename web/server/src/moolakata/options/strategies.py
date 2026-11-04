@@ -24,6 +24,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from decimal import Decimal
+from itertools import pairwise
 
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
@@ -65,29 +66,42 @@ class Leg:
         return Decimal(self.multiplier) if self.shares is None else self.shares
 
     @property
+    def owed(self) -> Decimal:
+        """What exercising one contract pays: the strike on the multiplier, less the cash it
+        delivers."""
+        return self.strike * self.multiplier - self.cash
+
+    @property
     def at(self) -> Decimal:
-        """The underlying's price at which it is at the money: the strike on the multiplier,
-        less the cash delivered, over the shares delivered."""
-        if self.shares is None:
-            return self.strike
-        return (self.strike * self.multiplier - self.cash) / self.shares
+        """The underlying's price at which it is at the money: what exercise pays over the
+        shares delivered. One delivering none of the underlying has none (`per` is 0)."""
+        return self.owed / self.per
 
     @property
     def open(self) -> bool:
         return self.quantity != 0
 
+    @property
+    def long(self) -> bool:
+        """Bought, as an open leg is; one sold short is below zero."""
+        return self.quantity > 0
 
-def _intrinsic(leg: Leg, price: Decimal) -> Decimal:
+
+def _worth(leg: Leg, price: Decimal) -> Decimal:
+    """One contract (or share) at expiry if the underlying closes at this price: the shares it
+    delivers at that price against what exercise pays. A contract delivering another company's
+    shares counts them at nothing (S3.10.2)."""
+    delivered = leg.per * price
     if leg.kind == "stock":
-        return price
+        return delivered
     if leg.kind == "call":
-        return max(price - leg.at, ZERO)
-    return max(leg.at - price, ZERO)
+        return max(delivered - leg.owed, ZERO)
+    return max(leg.owed - delivered, ZERO)
 
 
 def payoff(legs: list[Leg], price: Decimal) -> Decimal:
     """The P/L at expiry if the underlying closes at this price."""
-    return sum((x.quantity * x.per * _intrinsic(x, price) - x.cost for x in legs if x.open), ZERO)
+    return sum((x.quantity * _worth(x, price) - x.cost for x in legs if x.open), ZERO)
 
 
 def shape(legs: list[Leg], cash_secured: bool = False) -> str:
@@ -97,20 +111,20 @@ def shape(legs: list[Leg], cash_secured: bool = False) -> str:
         return "Shares" if stock else "Closed"
     sizes = {abs(x.quantity) for x in opts}
     if stock:
-        if any(x.quantity < 0 for x in stock) or len(sizes) != 1:
+        if any(not x.long for x in stock) or len(sizes) != 1:
             return "Custom"
         calls = [x for x in opts if x.kind == "call"]
         puts = [x for x in opts if x.kind == "put"]
-        if len(calls) == 1 and not puts and calls[0].quantity < 0:
+        if len(calls) == 1 and not puts and not calls[0].long:
             return "Covered call"
-        if len(puts) == 1 and not calls and puts[0].quantity > 0:
+        if len(puts) == 1 and not calls and puts[0].long:
             return "Protective put"
-        if len(calls) == 1 and len(puts) == 1 and calls[0].quantity < 0 and puts[0].quantity > 0:
+        if len(calls) == 1 and len(puts) == 1 and not calls[0].long and puts[0].long:
             return "Collar"
         return "Custom"
     if len(opts) == 1:
         x = opts[0]
-        if x.quantity > 0:
+        if x.long:
             return f"Long {x.kind}"
         if x.kind == "put":
             return "Cash-secured put" if cash_secured else "Short put"
@@ -119,18 +133,17 @@ def shape(legs: list[Leg], cash_secured: bool = False) -> str:
     if len(opts) == 2:
         a, b = sorted(opts, key=lambda x: (x.strike, x.kind))
         if len(expiries) == 2:
-            if a.kind == b.kind and (a.quantity > 0) != (b.quantity > 0) and len(sizes) == 1:
+            if a.kind == b.kind and a.long != b.long and len(sizes) == 1:
                 return "Calendar" if a.strike == b.strike else "Diagonal"
             return "Custom"
         if len(sizes) != 1:
             return "Custom"
-        if a.kind == b.kind and (a.quantity > 0) != (b.quantity > 0):
-            low_long = a.quantity > 0
+        if a.kind == b.kind and a.long != b.long:
             if a.kind == "call":
-                return "Bull call spread" if low_long else "Bear call spread"
-            return "Bull put spread" if low_long else "Bear put spread"
-        if a.kind != b.kind and (a.quantity > 0) == (b.quantity > 0):
-            side = "Long" if a.quantity > 0 else "Short"
+                return "Bull call spread" if a.long else "Bear call spread"
+            return "Bull put spread" if a.long else "Bear put spread"
+        if a.kind != b.kind and a.long == b.long:
+            side = "Long" if a.long else "Short"
             return f"{side} {'straddle' if a.strike == b.strike else 'strangle'}"
         return "Custom"
     if len(expiries) != 1:
@@ -138,7 +151,8 @@ def shape(legs: list[Leg], cash_secured: bool = False) -> str:
     if len(opts) == 3 and len({x.kind for x in opts}) == 1:
         lo, mid, hi = sorted(opts, key=lambda x: x.strike)
         if (
-            lo.quantity == hi.quantity > 0
+            lo.long
+            and lo.quantity == hi.quantity
             and mid.quantity == -2 * lo.quantity
             and mid.strike - lo.strike == hi.strike - mid.strike
         ):
@@ -150,8 +164,10 @@ def shape(legs: list[Leg], cash_secured: bool = False) -> str:
         if (
             len(puts) == 2
             and len(calls) == 2
-            and puts[0].quantity > 0 > puts[1].quantity
-            and calls[0].quantity < 0 < calls[1].quantity
+            and puts[0].long
+            and not puts[1].long
+            and not calls[0].long
+            and calls[1].long
         ):
             if puts[1].strike == calls[0].strike:
                 return "Iron butterfly"
@@ -175,23 +191,25 @@ def figures(legs: list[Leg]) -> Figures:
         return Figures(ZERO, ZERO, [], True)
     if len({x.expiry for x in opts}) > 1:
         return Figures(None, None, [], False)
-    strikes = sorted({x.at for x in opts})
-    top = (strikes[-1] if strikes else ZERO) * 2 + 1
-    points = [ZERO, *strikes, top]
-    values = [payoff(live, p) for p in points]
+    # The payoff at zero and at each strike; past the highest it is a line of this slope.
+    strikes = sorted({x.at for x in opts if x.per})
+    points = [(p, payoff(live, p)) for p in (ZERO, *strikes)]
+    values = [v for _, v in points]
     slope = sum((x.quantity * x.per for x in live if x.kind in ("call", "stock")), ZERO)
     max_profit = None if slope > 0 else max(values)
     max_loss = None if slope < 0 else max(ZERO, -min(values))
     evens: list[Decimal] = []
-    for (p0, v0), (p1, v1) in zip(
-        zip(points, values, strict=True), zip(points[1:], values[1:], strict=True), strict=False
-    ):
-        if v0 == 0 and p0 not in evens and p0 > 0:
+    for (p0, v0), (p1, v1) in pairwise(points):
+        if v0 == 0 and p0 > 0:
             evens.append(p0)
         elif (v0 < 0 < v1) or (v1 < 0 < v0):
             evens.append(p0 + (p1 - p0) * (-v0) / (v1 - v0))
-    if values[-1] == 0 and top not in evens:
-        evens.append(top)
+    last, at_last = points[-1]
+    if at_last == 0 and last > 0:
+        evens.append(last)
+    elif at_last * slope < 0:
+        # The line past the highest strike crosses zero, however far out.
+        evens.append(last - at_last / slope)
     return Figures(
         max_profit.quantize(CENT) if max_profit is not None else None,
         max_loss.quantize(CENT) if max_loss is not None else None,
@@ -232,8 +250,6 @@ def delivers(oc: OptionContract) -> tuple[Decimal | None, Decimal, bool]:
 class LegRow:
     """A strategy's leg as it stands: on the contract its own was adjusted to, if it was."""
 
-    id: str
-    strategyId: str
     instrumentId: str
     addedOn: dt.date
     quantity: Decimal | None
@@ -258,7 +274,7 @@ def legs_of(s: Session, st: Strategy) -> list[LegRow]:
             seen.add(iid)
             iid, ratio = moved[iid]
             qty = None if qty is None else qty * ratio
-        out.append(LegRow(r.id, r.strategyId, iid, r.addedOn, qty))
+        out.append(LegRow(iid, r.addedOn, qty))
     return out
 
 
@@ -276,8 +292,10 @@ def _adjusted(s: Session, account_id: str) -> dict[str, tuple[str, Decimal]]:
     )
     out = {}
     for into in pairs:
-        old = s.get(Transaction, into.transferId) if into.transferId else None
-        if old is not None and not old.deleted and old.instrumentId:
+        # An adjustment's halves are made and deleted together, the old contract's named by
+        # the new one's transferId; one typed by hand has no other half.
+        if into.transferId:
+            old = s.get(Transaction, into.transferId)
             out[old.instrumentId] = (into.instrumentId, into.splitRatio)
     return out
 
@@ -305,21 +323,19 @@ class Book:
         self.ledger = ledger
         rp = ledger.replay()
         self.open: dict[str, tuple[Decimal, Decimal]] = {}
+        self.first: dict[str, dt.date] = {}  # the day its earliest open lot was acquired
         for lot in rp.open:
-            q, b = self.open.get(lot.instrumentId, (ZERO, ZERO))
-            self.open[lot.instrumentId] = (q + lot.quantity, b + (lot.basis or ZERO))
-        self.first: dict[str, dt.date] = {}
-        for lot in rp.open:
-            d = self.first.get(lot.instrumentId)
-            self.first[lot.instrumentId] = min(d, lot.acquiredOn) if d else lot.acquiredOn
+            iid = lot.instrumentId
+            q, b = self.open.get(iid, (ZERO, ZERO))
+            self.open[iid] = (q + lot.quantity, b + (lot.basis or ZERO))
+            self.first[iid] = min(self.first.get(iid, lot.acquiredOn), lot.acquiredOn)
         self.disposals = rp.disposals
         # The last day anything happened to each instrument: a position at zero closed then,
-        # by a sale, an expiry, an assignment or an exercise alike (S3.5.2).
+        # by a sale, an expiry, an assignment or an exercise alike (S3.5.2). The ledger's
+        # transactions come in date order, so the last one read is the last day.
         self.last: dict[str, dt.date] = {}
         for t in ledger.transactions:
-            if t.instrumentId and (
-                t.instrumentId not in self.last or t.date > self.last[t.instrumentId]
-            ):
+            if t.instrumentId:
                 self.last[t.instrumentId] = t.date
         self.marks = {p.instrumentId: p for p in valuation.positions(s, ledger)}
         self._prices: dict[tuple[str, dt.date], Decimal | None] = {}
@@ -335,7 +351,8 @@ class Book:
             }
         return self._held[day]
 
-    def price(self, instrument_id: str, day: dt.date) -> Decimal | None:
+    def price(self, instrument_id: str, day: dt.date | None = None) -> Decimal | None:
+        """Its price on a day, or today."""
         key = (instrument_id, day)
         if key not in self._prices:
             owner = self.ledger.account.ownerId
@@ -344,26 +361,23 @@ class Book:
         return self._prices[key]
 
 
-def leg(
-    book: Book, row: LegRow, opened: dt.date, today: dt.date, held: dict | None = None
-) -> Leg | None:
-    """A leg now, or, given `held` (the positions at the end of a day), as it was then."""
+def leg(book: Book, row: LegRow, opened: dt.date, held: dict | None = None) -> Leg:
+    """A leg now, or, given `held` (the positions at the end of a day), as it was then; its
+    value is today's."""
     s = book.s
     inst = s.get(Instrument, row.instrumentId)
-    if inst is None:
-        return None
     qty, basis = (held if held is not None else book.open).get(row.instrumentId, (ZERO, ZERO))
     closes = [
         d for d in book.disposals if d.instrumentId == row.instrumentId and d.soldOn >= opened
     ]
     realized = sum((d.gain or ZERO for d in closes), ZERO)
     closed_on = max(book.last.get(row.instrumentId, opened), opened) if qty == 0 else None
-    oc = contract_of(s, row.instrumentId) if inst.instrumentClass == "option" else None
+    oc = contract_of(s, row.instrumentId)
     if oc is None:
         # Shares: the leg's part of the position, valued at the opening day's price.
         held = qty if row.quantity is None else min(qty, row.quantity)
         at_open = book.price(row.instrumentId, opened)
-        now = book.price(row.instrumentId, today)
+        now = book.price(row.instrumentId)
         per = at_open if at_open is not None else (basis / qty if qty else ZERO)
         return Leg(
             row.instrumentId,
@@ -412,8 +426,9 @@ class View:
         return None if self.unrealized is None else self.unrealized + self.realized
 
 
-def at_prices(book: Book, legs: list[Leg], day: dt.date) -> list[Leg]:
-    """The legs with their shares valued at a day's price, for capital at risk then."""
+def at_prices(book: Book, legs: list[Leg], day: dt.date | None = None) -> list[Leg]:
+    """The legs with their shares valued at a day's price, or today's, for capital at risk
+    then."""
     out = []
     for x in legs:
         if x.kind == "stock" and x.quantity:
@@ -429,53 +444,37 @@ def named(st: Strategy, kind: str) -> str:
     return st.name or kind
 
 
-def shape_of(book: Book, st: Strategy, today: dt.date | None = None) -> str:
+def shape_of(book: Book, st: Strategy) -> str:
     """A strategy's shape, from its legs now."""
-    today = today or clock.today()
-    legs = [x for x in (leg(book, r, st.openedOn, today) for r in legs_of(book.s, st)) if x]
-    return shape(legs, st.cashSecured)
+    return shape([leg(book, r, st.openedOn) for r in legs_of(book.s, st)], st.cashSecured)
 
 
-def view(book: Book, st: Strategy, today: dt.date | None = None) -> View:
+def view(book: Book, st: Strategy) -> View:
     s = book.s
-    today = today or clock.today()
-    legs = [x for x in (leg(book, r, st.openedOn, today) for r in legs_of(s, st)) if x is not None]
+    rows = legs_of(s, st)
+    legs = [leg(book, r, st.openedOn) for r in rows]
     live = [x for x in legs if x.open]
-    known = [x.value for x in live]
     unrealized = (
-        sum((v - x.cost for v, x in zip(known, live, strict=True)), ZERO)
-        if all(v is not None for v in known)
-        else None
+        None if any(x.value is None for x in live) else sum((x.value - x.cost for x in live), ZERO)
     )
     # At open: the legs it opened with, as they were at the end of that day (S3.5.5).
     held = book.held_on(st.openedOn)
-    at_open = [
-        x
-        for x in (
-            leg(book, r, st.openedOn, st.openedOn, held)
-            for r in legs_of(s, st)
-            if r.addedOn <= st.openedOn
-        )
-        if x is not None
-    ]
+    at_open = [leg(book, r, st.openedOn, held) for r in rows if r.addedOn <= st.openedOn]
     kind = shape(legs, st.cashSecured)
-    under = s.get(Instrument, st.underlyingId)
-    closed = (
-        None
-        if live and any(x.option for x in live)
-        else max((x.closedOn for x in legs if x.closedOn), default=None)
-    )
+    # Open while an option leg is; closed on the day its last leg closed, as every leg not
+    # open has (it holds an option leg, S3.5.2).
+    closed = None if any(x.option for x in live) else max(x.closedOn for x in legs if x.closedOn)
     return View(
         st,
         named(st, kind),
         kind,
-        under.symbol if under else "?",
+        s.get(Instrument, st.underlyingId).symbol,
         legs,
         -sum((x.cost for x in live if x.option), ZERO),
         unrealized,
         sum((x.realized for x in legs), ZERO),
         figures(legs),
-        None if closed else capital_at_risk(at_prices(book, legs, today), st.marginRequirement),
+        None if closed else capital_at_risk(at_prices(book, legs), st.marginRequirement),
         capital_at_risk(at_prices(book, at_open, st.openedOn), st.marginRequirement),
         closed,
     )
@@ -518,23 +517,6 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                 contracts[iid] = oc
     out: list[Proposal] = []
     today = clock.today()
-
-    def legs_for(iids, extra=None) -> list[Leg]:
-        rows = [
-            StrategyLeg(strategyId="", instrumentId=i, addedOn=today, createdAt=clock.now())
-            for i in iids
-        ]
-        if extra:
-            rows.append(
-                StrategyLeg(
-                    strategyId="",
-                    instrumentId=extra[0],
-                    quantity=extra[1],
-                    addedOn=today,
-                    createdAt=clock.now(),
-                )
-            )
-        return [x for x in (leg(book, r, today, today) for r in rows) if x is not None]
 
     # Rolls: a leg closed, and another opened on the same underlying that day.
     rolled: set[str] = set()
@@ -586,18 +568,19 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                 under,
                 day,
                 [(i, None) for i in sorted(iids)],
-                shape(legs_for(iids)),
+                shape([leg(book, LegRow(i, today, None), today) for i in iids]),
             )
         )
     # A short call against 100 or more shares held, whenever they were bought.
     taken = {i for p in out for i, _ in p.legs}
     for iid, oc in contracts.items():
-        qty, _ = book.open[iid]
-        if iid in taken or oc.right != "call" or qty >= 0:
+        if iid in taken or oc.right != "call":
             continue
+        qty, _ = book.open[iid]
         shares, _ = book.open.get(oc.underlyingId, (ZERO, ZERO))
         per, _, only = delivers(oc)
-        need = -qty * (oc.multiplier if per is None else per)  # what it delivers (CR3-400)
+        # What it delivers (CR3-400); a long call's is below zero, so never 100.
+        need = -qty * (oc.multiplier if per is None else per)
         if oc.underlyingId in grouped or not only or shares < need or need < 100:
             continue
         key = proposal_key(account.id, [iid, oc.underlyingId])
@@ -633,18 +616,14 @@ def risk_of_account(
     for st in of_account(s, ledger.account.id):
         v = view(book, st)
         in_strategies |= {x.instrumentId for x in v.legs}
-        if v.closedOn is None and any(x.open and x.option for x in v.legs):
-            any_open = True
+        if v.closedOn is None:
             risk = None if risk is None or v.riskNow is None else risk + v.riskNow
     # An option outside a strategy counts as a strategy of its own shape, through the same
     # payoff (S3.5.6, CR3-6): a long one risks its premium, a short put its strike less its
     # premium, a short call the account's shares cover is a covered call, an uncovered one has
-    # no limit. Shares go to the calls in turn, and only shares no strategy holds.
-    today = clock.today()
-    spare: dict[str, Decimal] = {}
-    for iid, (qty, _) in book.open.items():
-        if qty > 0 and iid not in in_strategies and contract_of(s, iid) is None:
-            spare[iid] = qty
+    # no limit. Shares go to the calls in turn, and only shares no strategy holds (a long
+    # option among them is never a call's underlying).
+    spare = {iid: q for iid, (q, _) in book.open.items() if q > 0 and iid not in in_strategies}
     for iid, (qty, basis) in sorted(book.open.items()):
         oc = contract_of(s, iid)
         if oc is None or not qty:
@@ -655,26 +634,22 @@ def risk_of_account(
             value += mark.value
         if iid in in_strategies or risk is None:
             continue
-        inst = s.get(Instrument, iid)
         per, cash, only = delivers(oc)
-        legs = [
-            Leg(iid, inst.symbol if inst else "", oc.right, qty, basis,
-                mark.value if mark is not None else None, oc.strike, oc.expiry, oc.multiplier,
-                shares=per, cash=cash)
-        ]  # fmt: skip
-        if oc.right == "call" and qty < 0 and not only:
-            # It delivers another company's shares too, which the underlying's don't cover.
-            risk = None
-            continue
-        if oc.right == "call" and qty < 0 and spare.get(oc.underlyingId):
-            # Shares cover what the contract delivers, not its multiplier (CR3-400).
-            covered = min(spare[oc.underlyingId], -qty * legs[0].per)
-            spare[oc.underlyingId] -= covered
-            under = s.get(Instrument, oc.underlyingId)
-            price = book.price(oc.underlyingId, today)
-            cost = (price * covered).quantize(CENT) if price is not None else ZERO
-            legs.append(Leg(oc.underlyingId, under.symbol if under else "", "stock", covered,
-                            cost, cost))  # fmt: skip
+        # What the payoff reads, and no more: one leg has one expiry, and no mark counts.
+        legs = [Leg(iid, "", oc.right, qty, basis, None, oc.strike, multiplier=oc.multiplier,
+                    shares=per, cash=cash)]  # fmt: skip
+        if oc.right == "call" and qty < 0:
+            if not only:
+                # It delivers another company's shares too, which the underlying's don't cover.
+                risk = None
+                continue
+            if spare.get(oc.underlyingId):
+                # Shares cover what the contract delivers, not its multiplier (CR3-400).
+                covered = min(spare[oc.underlyingId], -qty * legs[0].per)
+                spare[oc.underlyingId] -= covered
+                price = book.price(oc.underlyingId)
+                cost = (price * covered).quantize(CENT) if price is not None else ZERO
+                legs.append(Leg(oc.underlyingId, "", "stock", covered, cost, None))
         one = capital_at_risk(legs, None)
         risk = None if one is None else risk + one
     return value, risk, any_open
