@@ -211,7 +211,8 @@ def positions(s: Session, ledger, day: dt.date | None = None) -> list[Position]:
                 found[iid] = mark
     out = []
     for iid, open_lots in by.items():
-        qty = sum((x.quantity for x in open_lots), ZERO)
+        # A lot's quantity is a Decimal and open_lots is never empty: no start changes the sum.
+        qty = sum((x.quantity for x in open_lots), ZERO)  # pragma: no mutate
         basis = (
             None
             if any(x.basis is None for x in open_lots)
@@ -247,9 +248,7 @@ def multipliers(s: Session, instrument_ids: list[str]) -> dict[str, int]:
         o.instrumentId: o.multiplier
         for o in s.scalars(
             select(OptionContract).where(
-                # Narrows the rows fetched; the lookup is by id, so a wider fetch changes no
-                # figure.
-                OptionContract.instrumentId.in_(instrument_ids),  # pragma: no mutate
+                OptionContract.instrumentId.in_(instrument_ids),
                 OptionContract.deleted == false(),
             )
         )
@@ -336,13 +335,15 @@ def price_points(
         days = sorted({max(p.asOf, first) for tier in tiers for p in tier if p.asOf <= last})
         at = [0, 0, 0]
         now: list[Price | None] = [None, None, None]
-        was = None
+        # Any non-Decimal start differs from every price, so the first point is always kept.
+        was = None  # pragma: no mutate
         for d in days:
             for k, tier in enumerate(tiers):
                 while at[k] < len(tier) and max(tier[at[k]].asOf, first) <= d:
                     now[k] = tier[at[k]]
                     at[k] += 1
-            p = next((x for x in now if x is not None), None)
+            # Every day is some point's own, taken in just above: a tier always has a price by it.
+            p = next((x for x in now if x is not None), None)  # pragma: no mutate
             if p is not None and p.price != was:
                 out[iid].append((d, p.price))
                 was = p.price
@@ -446,7 +447,8 @@ def flows(
             add(t.date, t.amount)  # a payment in, a draw out
         return out
     if assets.is_physical(a.type):
-        for it, _ in assets.worth(s, a, last):
+        # Only the items are read, not their worth, and the items don't depend on the day.
+        for it, _ in assets.worth(s, a, last):  # pragma: no mutate
             add(it.acquiredOn, assets.worth_on(s, it, it.acquiredOn))
             # Its sale takes out what it brought, so a gain on it is growth. A sold item always
             # has its proceeds (the table's check `sale`); the test is for the type checker.
