@@ -290,16 +290,20 @@ All on one branch, `cr3-values-taxes-options` (PR #32), in the approved order.
     targets. Survivors include equivalent mutants, so the rate is an upper bound. Peak memory
     10.9 GB. The summary is on PR #32.
 13. **The mutation run's actions, and the area's coverage looked at again** (16.6, and the
-    walk's look at code and data-shape coverage): tests for each function whose survivors
-    showed a whole behaviour unchecked (`ec8fa47`, `2126f1e`, `02e4806`, `1971153`); every
-    fact a lot carries crossed with every operation, and a property over random histories
-    (`cc2f7af`); adjusted contracts as a dimension of the option world (`58b5b56`); returns
-    of capital in the tax world (`45e81bd`); the price sources' every answer, adjusted
-    contracts' cash, refusals and undoing, and every strategy shape, from CI's coverage data
-    for the whole suite (`96d6d19`, `0d243a9`), which the coverage artifact now carries
-    (`be96bf3`). Found on the way: **CR3-398** to **CR3-403**. Rerun over the 42 functions:
-    754 survivors became 435; three whole behaviours left were tested and two lines that
-    change nothing marked; the rest waits for a run with the slow worlds selected. **R3.11**
-    (input means what it says) and **ValueInput** came of CR3-403 (`5681c11`, `809d634`);
-    issues #33 (other fields to fix to R3.11) and #34 (an intermittent 500 from `GET
-    plan529`; a browser test now shows the server's log on a 5xx, `84c55b7`).
+    walk's look at code and data-shape coverage): tests for each function whose survivors showed
+    a whole behaviour unchecked (`ec8fa47`, `2126f1e`, `02e4806`, `1971153`); every fact a lot
+    carries crossed with every operation, and a property over random histories (`cc2f7af`);
+    adjusted contracts as a dimension of the option world (`58b5b56`); returns of capital in the
+    tax world (`45e81bd`); the price sources' every answer, adjusted contracts' cash, refusals
+    and undoing, and every strategy shape, from CI's coverage data for the whole suite
+    (`96d6d19`, `0d243a9`), which the coverage artifact now carries (`be96bf3`). Found on the
+    way: **CR3-398** to **CR3-405**. Every survivor was then read and settled file by file, with
+    86 more fast tests (`8e0a3a4`, `594783e`, `6083243`), code removed where only a mark would
+    keep it, and marks with their reasons; the final pass over the 35 functions that had
+    survivors caught 1,584 of 1,607 changes, and leaves 14 known equivalents unmarked (a mark
+    would also hide changes tests catch). A run is now one command, `web/dev.sh mutate`
+    (S17.5.12, `docs/mutation-testing.md`, `f1ac467`); the browser's coverage slack is 40 lines,
+    its run-to-run spread measured at 32 (`aab42cd`). **R3.11** (input means what it says) and
+    **ValueInput** came of CR3-403 (`5681c11`, `809d634`); issues #33 (other fields to fix to
+    R3.11) and #34 (an intermittent 500 from `GET plan529`; a browser test now shows the
+    server's log on a 5xx, `84c55b7`).
