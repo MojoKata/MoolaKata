@@ -31,6 +31,12 @@ const legLine = (x) => {
 const money = (v, cents = false) =>
   v == null ? html`<span class="dim">unlimited</span>` : html`<${Amt} v=${v} cents=${cents} />`;
 
+// Another company's shares a contract delivers, with no price: its figures aren't known (S3.5.4).
+const notPriced = html`<span class="dim">not priced</span>`;
+
+/** A strategy's capital at risk: none is unlimited, or not priced. @param {any} x @param {string} k */
+const atRisk = (x, k) => x[k] == null && !x.priced ? notPriced : money(x[k]);
+
 export function Strategies() {
   const res = useApi('/positions/strategies', {}, ['import', 'prices']);
   const v = /** @type {any} */ (res.data);
@@ -137,17 +143,23 @@ export function Strategies() {
                       <td class="num">${x.pl == null
                         ? '—'
                         : html`<${Amt} v=${x.pl} signed cents=${false} />`}</td>
-                      <td class="num">${x.expiryKnown
+                      <td class="num">${!x.expiryKnown
+                        ? html`<span class="dim">—</span>`
+                        : x.priced
                         ? money(x.maxProfit)
-                        : html`<span class="dim">—</span>`}</td>
-                      <td class="num">${x.expiryKnown
+                        : notPriced}</td>
+                      <td class="num">${!x.expiryKnown
+                        ? html`<span class="dim">—</span>`
+                        : x.priced
                         ? money(x.maxLoss)
-                        : html`<span class="dim">—</span>`}</td>
-                      <td class="small">${x.expiryKnown
+                        : notPriced}</td>
+                      <td class="small">${!x.expiryKnown
+                        ? 'P/L only: it rests on volatility'
+                        : x.priced
                         ? x.breakevens.map((/** @type {any} */ b) => String(b)).join(' · ') || '—'
-                        : 'P/L only: it rests on volatility'}</td>
-                      <td class="num">${x.closedOn ? '—' : money(x.capitalAtRiskNow)}</td>
-                      <td class="num">${money(x.capitalAtRiskAtOpen)}${x.returnPct != null
+                        : notPriced}</td>
+                      <td class="num">${x.closedOn ? '—' : atRisk(x, 'capitalAtRiskNow')}</td>
+                      <td class="num">${atRisk(x, 'capitalAtRiskAtOpen')}${x.returnPct != null
                         ? html`<div class="small">${x.returnPct}%</div>`
                         : null}</td>
                       <td>${x.access.writable

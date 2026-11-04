@@ -57,8 +57,11 @@
    4. **Figures**: cost or credit, mark, unrealized and realized P/L, **max profit**, **max
       loss** and **breakevens at expiry**, *unlimited* where it is, worked out from the payoff
       at each strike, at zero and beyond the highest, so a *Custom* strategy gets them too.
-      Shares count at their value on the day the strategy opened. A calendar or diagonal
-      shows its P/L only, as its outcome depends on volatility.
+      Shares count at their value on the day the strategy opened. The payoff is on the
+      underlying's price; another company's shares a contract delivers (S3.10.2) count at that
+      company's price, today's (the opening day's *at open*), and without one the figures read
+      *not priced*. A calendar or diagonal shows its P/L only, as its outcome depends on
+      volatility.
    5. **Capital at risk**, shown **now** and **at open**:
 
       | Strategy | Capital at risk |
@@ -71,12 +74,14 @@
 
       Each row is the strategy's max loss at expiry where that is finite, which is how a
       short put without the *cash-secured* tick, a long straddle or a butterfly are counted
-      too; a calendar or diagonal risks its net debit, or the margin typed.
+      too; a calendar or diagonal risks its net debit, or the margin typed; one *not priced*
+      (S3.5.4) the margin typed, or reads *not priced*.
       *Now* uses today's prices; *at open* uses the legs the strategy opened with, as they
-      were at the end of that day and at its prices, whatever is rolled or closed later, and
-      is what a strategy's **return on capital at risk** is worked on. The shares' cost basis
-      shows on their own leg. An unlimited risk counts as such: a total with one in it is
-      *unlimited*, never the sum of the rest.
+      were at the end of that day and at its prices, whatever is rolled, closed or adjusted
+      later (S3.10), and is what a strategy's **return on capital at risk** is worked on. The
+      shares' cost basis shows on their own leg. An unlimited risk counts as such: a total with
+      one in it is *unlimited*, never the sum of the rest; so is a total with one not priced,
+      as no limit to it is known.
    6. **Where it shows**: Positions has a **Strategies** tab listing each strategy with its
       legs and these figures, and the proposals; an investing account and a portfolio show
       **Capital at risk** beside their options' market value, counting each option outside a
@@ -149,7 +154,11 @@
     large special dividend, the OCC adjusts its open options. The lot carries over to the
     adjusted contract: no sale, and no wash sale. A strategy holding the contract holds the
     adjusted one, its contracts times the ratio, with its legs and days as they were; undoing
-    the adjustment gives the leg back its contract.
+    the adjustment gives the leg back its contract. Its shares leg follows its shares the same
+    way through a symbol change or a merger (S2.4): it holds the new shares, its shares times
+    the action's ratio, and they are its underlying from then on, in its payoff and in what an
+    adjusted contract delivers; deleting the action gives the leg back its shares. A spin-off
+    moves no leg: the shares are still held.
     1. **A whole-number split** (2:1, 4:1) is applied with the stock's split (S2.4), in the
        account the split is recorded or imported in: contracts × the ratio, strike ÷ the ratio
        rounded to the thousandth, as the OCC prints it, the basis spread over the new

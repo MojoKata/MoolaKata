@@ -51,11 +51,12 @@ class StrategyOut(Model):
     unrealized: Money | None
     realized: Money
     pl: Money | None
-    maxProfit: Money | None  # none: unlimited, or not known for a calendar
+    maxProfit: Money | None  # none: unlimited, or not known for a calendar or not priced
     maxLoss: Money | None
     breakevens: list[Money]
     expiryKnown: bool
-    capitalAtRiskNow: Money | None  # none: unlimited
+    priced: bool  # false: another company's shares a contract delivers have no price
+    capitalAtRiskNow: Money | None  # none: unlimited, or not priced with no margin typed
     capitalAtRiskAtOpen: Money | None
     returnPct: Ratio | None  # on capital at risk at open
     cashSecured: bool
@@ -123,6 +124,7 @@ def _out(a, v: strat.View, held: Perms) -> StrategyOut:
         maxLoss=v.figures.maxLoss,
         breakevens=v.figures.breakevens,
         expiryKnown=v.figures.expiryKnown,
+        priced=v.figures.priced,
         capitalAtRiskNow=v.riskNow,
         capitalAtRiskAtOpen=v.riskAtOpen,
         returnPct=(v.pl / v.riskAtOpen * 100).quantize(Decimal("0.01"))

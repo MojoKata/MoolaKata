@@ -167,15 +167,17 @@ def test_a_strategys_leg_follows_its_contract_when_adjusted(alice):
     def legs():
         [v] = [x for x in alice.get("/ui/api/positions/strategies").json()["strategies"]
                if x["id"] == st["id"]]  # fmt: skip
-        return v["shape"], [(x["symbol"], x["quantity"]) for x in v["legs"]], v["capitalAtRiskNow"]
+        return (v["shape"], [(x["symbol"], x["quantity"]) for x in v["legs"]],
+                v["capitalAtRiskNow"], v["capitalAtRiskAtOpen"])  # fmt: skip
 
-    assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00")
+    # At open, the leg is the contract it opened as.
+    assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00", "94720.00")
     r = make(alice, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
              amount="0", splitRatio="2")  # fmt: skip
     assert r.status_code == 200, r.text
-    assert legs() == ("Short put", [("MSFT 20NOV26 240 P", -4)], "94720.00")
+    assert legs() == ("Short put", [("MSFT 20NOV26 240 P", -4)], "94720.00", "94720.00")
     saved(remove(alice, "Txn", r.json()))
-    assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00")
+    assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00", "94720.00")
 
 
 def _adjusted_put(c, contracts="2", deliverable=None, cash="0"):

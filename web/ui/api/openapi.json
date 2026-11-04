@@ -24187,6 +24187,10 @@
             ],
             "title": "Pl"
           },
+          "priced": {
+            "title": "Priced",
+            "type": "boolean"
+          },
           "realized": {
             "examples": [
               1234.5
@@ -24256,6 +24260,7 @@
           "maxLoss",
           "breakevens",
           "expiryKnown",
+          "priced",
           "capitalAtRiskNow",
           "capitalAtRiskAtOpen",
           "returnPct",

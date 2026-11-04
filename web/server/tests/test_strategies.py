@@ -403,18 +403,19 @@ def test_a_calendar_at_no_net_cost_risks_the_margin_and_a_small_debit_itself():
 
 
 def test_a_contract_delivers_its_underlyings_shares_and_cash():
-    """S3.10.2: shares of the underlying and cash a contract delivers; another company's
-    shares in it make it deliver more than the underlying."""
+    """S3.10.2: shares of the underlying and cash a contract delivers, and each other
+    company's shares; the shares the underlying became are its own."""
     from moolakata.options.strategies import delivers
 
     plain = NS(deliverable=None, deliverableCash=None, underlyingId="U")
-    assert delivers(plain) == (None, D(0), True)
+    assert delivers(plain) == (None, D(0), ())
     rows = '[{"instrumentId": "U", "shares": 150}, {"instrumentId": "U", "shares": 5}]'
     assert delivers(NS(deliverable=rows, deliverableCash=D(50), underlyingId="U")) == (
-        D(155), D(50), True)  # fmt: skip
+        D(155), D(50), ())  # fmt: skip
     spun = '[{"instrumentId": "U", "shares": 100}, {"instrumentId": "V", "shares": 20}]'
-    assert delivers(NS(deliverable=spun, deliverableCash=None, underlyingId="U")) == (
-        D(100), D(0), False)  # fmt: skip
+    oc = NS(deliverable=spun, deliverableCash=None, underlyingId="U")
+    assert delivers(oc) == (D(100), D(0), (("V", D(20)),))
+    assert delivers(oc, {"U", "V"}) == (D(120), D(0), ()), "U merged into V"
 
 
 # ---- a strategy read from a book of positions, as plain values ----
@@ -450,11 +451,11 @@ class Session:
 
 class Book:
     """An account's positions as `strategies.Book` gives them: (quantity, basis) open, each
-    instrument's first and last days, the closes, today's marks, and prices by (instrument,
-    day), None for today."""
+    instrument's first and last days, the closes, today's marks, prices by (instrument, day),
+    None for today, and what each instrument moved to."""
 
     def __init__(self, open=None, first=None, disposals=(), last=None, marks=None, prices=None,
-                 held=None):  # fmt: skip
+                 held=None, moved=None):  # fmt: skip
         self.s = Session()
         self.open = {k: (D(q), D(b)) for k, (q, b) in (open or {}).items()}
         self.first = first or {}
@@ -463,9 +464,12 @@ class Book:
         self.marks = {k: NS(value=D(v)) for k, v in (marks or {}).items()}
         self.prices = prices or {}
         self.held = held
+        self.moved = moved or {}
 
     def price(self, iid, day=None):
         return self.prices.get((iid, day))
+
+    worth = strat.Book.worth
 
     def held_on(self, day):
         return self.open if self.held is None else self.held
@@ -679,19 +683,71 @@ def test_a_short_puts_risk_counts_the_cash_it_delivers(world):
     assert risk_of_account(book.s, LEDGER, book)[1] == D("47750.00")
 
 
-def test_a_contract_delivering_none_of_its_underlying_risks_what_exercise_pays(world):
-    """S3.10.2: the underlying taken over for another company's shares, a contract delivers
-    20 of those and $50, none of its own underlying: a short put risks the strike less the cash
-    and its premium (the other shares counted at nothing), a long call its premium. Its payoff
-    has no kink in the underlying's price, and nothing divides by its shares."""
+def _taken_over(other):
+    """A short put whose underlying was taken over: it delivers 20 shares of another company
+    and $50, none of its own underlying; `other` is what those 20 are worth."""
+    return Leg("P", "", "put", D(-1), D(-300), None, D(480), EXP, 100, shares=D(0), cash=D(50),
+               others=(("V", D(20)),), other=other)  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("other", "profit", "loss"),
+    [
+        # Worth more than exercise pays ($47,950): it expires, and keeps its premium.
+        (D(50000), D("300.00"), D("0.00")),
+        # At $30 a share they are worth $600: exercise costs $47,350 less the $300 premium.
+        (D(600), D("-47050.00"), D("47050.00")),
+    ],
+)
+def test_another_companys_shares_a_contract_delivers_count_at_their_price(other, profit, loss):
+    """S3.5.4, S3.10.2: its payoff has no kink in the underlying's price, nothing divides by
+    its shares, and the other company's shares count at their price, never at nothing: the
+    put's max profit is its premium when they cover what exercise pays."""
+    f = figures([_taken_over(other)])
+    assert (f.maxProfit, f.maxLoss, f.breakevens, f.priced) == (profit, loss, [], True)
+    assert capital_at_risk([_taken_over(other)], None) == loss
+
+
+def test_a_contract_delivering_unpriced_shares_is_not_priced():
+    """S3.5.4: without that company's price the figures and capital at risk aren't known; a
+    margin typed is the capital at risk."""
+    f = figures([_taken_over(None)])
+    assert (f.maxProfit, f.maxLoss, f.breakevens, f.expiryKnown, f.priced) == (
+        None, None, [], True, False)  # fmt: skip
+    assert capital_at_risk([_taken_over(None)], None) is None
+    assert capital_at_risk([_taken_over(None)], D(5000)) == 5000
+    closed = Leg(**{**_taken_over(None).__dict__, "quantity": D(0)})
+    assert figures([closed, opt("put", -1, 480, "-300")]).priced, "a closed leg's isn't asked"
+
+
+def test_a_strategy_prices_another_companys_shares_today_and_on_its_opening_day(world):
+    """S3.5.4, S3.5.5: the takeover's put in a strategy, V at $2,500 today and $30 the day it
+    opened: its figures and risk now at today's price, its risk at open at that day's; with no
+    price, not priced."""
     rows = '[{"instrumentId": "V", "shares": 20}]'
-    put = Leg("P", "", "put", D(-1), D(-300), None, D(480), EXP, 100, shares=D(0), cash=D(50))
-    f = figures([put])
-    assert (f.maxLoss, f.breakevens) == (D("47650.00"), [])
+    world.contracts["P"] = contract("put", 480, deliverable=rows, cash=D(50))
+    world.legs["Put"] = [LegRow("P", D1, None)]
+    book = Book(open={"P": (-1, -300)}, prices={("V", None): D(2500), ("V", D1): D(30)})
+    v = view(book, strategy("Put"))
+    assert v.legs[0].others == (("V", D(20)),) and v.legs[0].other == D(50000)
+    assert (v.figures.maxProfit, v.figures.maxLoss, v.figures.priced) == (D(300), D(0), True)
+    assert (v.riskNow, v.riskAtOpen) == (D(0), D("47050.00"))
+    v = view(Book(open={"P": (-1, -300)}), strategy("Put"))
+    assert (v.figures.priced, v.riskNow, v.riskAtOpen) == (False, None, None)
+    v = view(Book(open={"P": (-1, -300)}), strategy("Put", margin=D(9000)))
+    assert (v.riskNow, v.riskAtOpen) == (9000, 9000)
+
+
+def test_an_option_outside_a_strategy_risks_what_exercise_pays_whatever_else_it_delivers(world):
+    """S3.5.6: by the table, a short put outside a strategy risks its strike less the cash it
+    delivers and its premium, a long call its premium, whatever another company's shares in it
+    are worth."""
+    rows = '[{"instrumentId": "V", "shares": 20}]'
     world.contracts |= {"P": contract("put", 480, deliverable=rows, cash=D(50)),
                         "L": contract("call", 500, deliverable=rows)}  # fmt: skip
-    book = Book(open={"P": (-1, -300), "L": (1, 150)})
-    assert risk_of_account(book.s, LEDGER, book)[1] == D(47650 + 150)
+    for prices in ({}, {("V", None): D(2500)}):
+        book = Book(open={"P": (-1, -300), "L": (1, 150)}, prices=prices)
+        assert risk_of_account(book.s, LEDGER, book)[1] == D(47650 + 150)
 
 
 def test_legs_opened_together_are_proposed_as_one_group_each(world):
@@ -819,8 +875,8 @@ def test_a_leg_follows_its_contract_through_each_adjustment_and_back(monkeypatch
     monkeypatch.setattr(strat, "_adjusted", lambda s, aid: moved if aid == "Acct" else {})
     s = NS(scalars=lambda stmt: rows)
     assert strat.legs_of(s, NS(id="St", accountId="Acct")) == [
-        LegRow("A3", D1, D(12)), LegRow("U", D1, None), LegRow("C", D2, D(2)),
-        LegRow("E2", D2, None)]  # fmt: skip
+        LegRow("A3", D1, D(12), LegRow("A", D1, D(2))), LegRow("U", D1, None),
+        LegRow("C", D2, D(2)), LegRow("E2", D2, None, LegRow("E", D2, None))]  # fmt: skip
 
 
 def test_an_accounts_strategies_and_legs_are_its_own_and_not_deleted(server, alice):
@@ -877,9 +933,9 @@ def test_an_accounts_strategies_and_legs_are_its_own_and_not_deleted(server, ali
         assert strat.legs_of(s, s.get(Strategy, same_day[0])) == []
 
 
-def test_a_strategys_shares_stay_its_own_through_a_spin_off(alice):
-    """S2.4, S3.10: only an option's adjustment moves a leg; the shares a company spun another
-    off from are still held, and still the covered call's."""
+def _grouped_covered_call(alice):
+    """100 MSFT bought, a 500 call sold against them for $412, grouped as the covered call
+    proposed: the account, the shares' instrument, and the strategy as shown."""
     a = new_account(alice, type="brokerage")["id"]
     r = create(alice, "Txn", accountId=a, date="2026-09-01", kind="buy", symbol="MSFT",
                quantity="100", price="400", amount="-40000.00")  # fmt: skip
@@ -889,11 +945,71 @@ def test_a_strategys_shares_stay_its_own_through_a_spin_off(alice):
     [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
     legs = [{"instrumentId": x["instrumentId"], **({"quantity": x["quantity"]} if x["quantity"]
              else {})} for x in p["legs"]]  # fmt: skip
-    st = saved(create(alice, "Strat", accountId=a, legs=legs))
+    saved(create(alice, "Strat", accountId=a, legs=legs))
     shares = next(x["instrumentId"] for x in p["legs"] if x["quantity"])
+    [v] = alice.get("/ui/api/positions/strategies").json()["strategies"]
+    return a, shares, v
+
+
+def _strategy(alice):
+    [v] = alice.get("/ui/api/positions/strategies").json()["strategies"]
+    return v
+
+
+def _figures(v):
+    return {k: v[k] for k in ("shape", "maxProfit", "maxLoss", "breakevens", "capitalAtRiskNow",
+                              "capitalAtRiskAtOpen", "priced")}  # fmt: skip
+
+
+def test_a_strategys_shares_stay_its_own_through_a_spin_off(alice):
+    """S2.4, S3.10: a spin-off moves no leg; the shares a company spun another off from are
+    still held, and still the covered call's."""
+    a, shares, before = _grouped_covered_call(alice)
     r = create(alice, "CorpA", accountId=a, instrumentId=shares, kind="spin-off",
                date="2026-10-06", newSymbol="SPUN", ratio="0.5", basisShare="10")  # fmt: skip
     assert r.status_code == 200, r.text
-    [v] = alice.get("/ui/api/positions/strategies").json()["strategies"]
-    assert v["id"] == st["id"] and v["shape"] == "Covered call"
-    assert sorted(x["symbol"] for x in v["legs"]) == ["MSFT", "MSFT 20NOV26 500 C"]
+    v = _strategy(alice)
+    assert (v["id"], v["shape"], v["underlying"]) == (before["id"], "Covered call", "MSFT")
+    assert [(x["symbol"], x["quantity"]) for x in v["legs"]] == [
+        ("MSFT", 100), ("MSFT 20NOV26 500 C", -1)]  # fmt: skip
+
+
+def test_a_strategys_shares_follow_a_symbol_change_and_back(alice):
+    """S2.4, S3.10: MSFT renamed MSFX: the shares leg holds the new shares, all 100, so the
+    call is still covered and its figures are as they were; deleting the action brings the
+    leg back."""
+    a, shares, before = _grouped_covered_call(alice)
+    assert (before["shape"], before["capitalAtRiskNow"]) == ("Covered call", 39588)
+    r = create(alice, "CorpA", accountId=a, instrumentId=shares, kind="symbol-change",
+               date="2026-10-06", newSymbol="MSFX")  # fmt: skip
+    assert r.status_code == 200, r.text
+    v = _strategy(alice)
+    assert (v["id"], v["underlying"]) == (before["id"], "MSFX")
+    assert [(x["symbol"], x["quantity"]) for x in v["legs"]] == [
+        ("MSFX", 100), ("MSFT 20NOV26 500 C", -1)]  # fmt: skip
+    assert _figures(v) == _figures(before)
+    assert remove(alice, "CorpA", saved(r)).status_code == 200
+    v = _strategy(alice)
+    assert (v["underlying"], v["legs"]) == ("MSFT", before["legs"])
+
+
+def test_a_strategys_shares_follow_a_merger_at_its_ratio(alice):
+    """S2.4, S3.10: MSFT merged into ACQ, half a share each, and the call adjusted from the
+    memo to deliver 50 ACQ: the shares leg holds the 50, which cover the call, so it is still a
+    covered call, now on ACQ and at money at $1,000 a share; at open it is as it opened."""
+    a, shares, before = _grouped_covered_call(alice)
+    r = create(alice, "CorpA", accountId=a, instrumentId=shares, kind="merger",
+               date="2026-10-06", newSymbol="ACQ", ratio="0.5")  # fmt: skip
+    assert r.status_code == 200, r.text
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    [cn] = g["contracts"]
+    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-06", "contracts": [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": "500",
+         "deliverable": [{"symbol": "ACQ", "shares": "50"}]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    v = _strategy(alice)
+    assert (v["id"], v["underlying"]) == (before["id"], "ACQ")
+    assert [(x["symbol"], x["quantity"]) for x in v["legs"]] == [
+        ("ACQ", 50), ("MSFT1 20NOV26 500 C", -1)]  # fmt: skip
+    assert _figures(v) == _figures(before) | {"breakevens": [791.76]}
+    assert alice.get(f"/ui/api/accounts/{a}").json()["capitalAtRisk"] == 39588

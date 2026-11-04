@@ -10,7 +10,8 @@ each leg keeps its own lots, gains and wash sales.
 - **Figures at expiry**: worked out from the payoff at every strike, at zero and beyond the
   highest strike, so any shape gets its max profit, max loss and breakevens, *unlimited* where
   the payoff keeps rising or falling. Shares count at their value on the day the strategy
-  opened. A calendar or diagonal shows its P/L only.
+  opened. Another company's shares a contract delivers count at that company's price, or the
+  figures are *not priced*. A calendar or diagonal shows its P/L only.
 - **Capital at risk**: the max loss at expiry when it is finite, which is the net premium of
   long options and debit spreads, the widest wing less the credit of credit spreads and iron
   condors, the strike less the premium of a cash-secured put, and the shares' value less the
@@ -24,6 +25,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import cached_property
 from itertools import pairwise
 
 from sqlalchemy import false, select
@@ -55,6 +57,10 @@ class Leg:
     # contract delivers, when not the multiplier's shares alone.
     shares: Decimal | None = None
     cash: Decimal = ZERO
+    # Another company's shares it delivers, each (instrument, shares), and what they are worth
+    # at that company's price: None when one has no price.
+    others: tuple[tuple[str, Decimal], ...] = ()
+    other: Decimal | None = ZERO
 
     @property
     def option(self) -> bool:
@@ -67,9 +73,9 @@ class Leg:
 
     @property
     def owed(self) -> Decimal:
-        """What exercising one contract pays: the strike on the multiplier, less the cash it
-        delivers."""
-        return self.strike * self.multiplier - self.cash
+        """What exercising one contract pays: the strike on the multiplier, less the cash and
+        the other companies' shares it delivers, at their price."""
+        return self.strike * self.multiplier - self.cash - self.other
 
     @property
     def at(self) -> Decimal:
@@ -89,8 +95,8 @@ class Leg:
 
 def _worth(leg: Leg, price: Decimal) -> Decimal:
     """One contract (or share) at expiry if the underlying closes at this price: the shares it
-    delivers at that price against what exercise pays. A contract delivering another company's
-    shares counts them at nothing (S3.10.2)."""
+    delivers at that price against what exercise pays, another company's shares in it counted
+    at that company's price (S3.10.2)."""
     delivered = leg.per * price
     if leg.kind == "stock":
         return delivered
@@ -182,6 +188,7 @@ class Figures:
     maxLoss: Decimal | None  # None: unlimited
     breakevens: list[Decimal]
     expiryKnown: bool  # false for a calendar or diagonal
+    priced: bool = True  # false when another company's shares a contract delivers have no price
 
 
 def figures(legs: list[Leg]) -> Figures:
@@ -191,6 +198,9 @@ def figures(legs: list[Leg]) -> Figures:
         return Figures(ZERO, ZERO, [], True)
     if len({x.expiry for x in opts}) > 1:
         return Figures(None, None, [], False)
+    if any(x.other is None for x in opts):
+        # Another company's shares it delivers have no price: the payoff isn't known.
+        return Figures(None, None, [], True, False)
     # The payoff at zero and at each strike; past the highest it is a line of this slope.
     strikes = sorted({x.at for x in opts if x.per})
     points = [(p, payoff(live, p)) for p in (ZERO, *strikes)]
@@ -220,9 +230,10 @@ def figures(legs: list[Leg]) -> Figures:
 
 def capital_at_risk(legs: list[Leg], margin: Decimal | None) -> Decimal | None:
     """What the strategy can lose: its finite max loss, else the margin typed, else none
-    (*unlimited*). A calendar or diagonal risks its net debit, or the margin."""
+    (*unlimited*). A calendar or diagonal risks its net debit, or the margin; one not priced,
+    the margin."""
     f = figures(legs)
-    if f.expiryKnown and f.maxLoss is not None:
+    if f.expiryKnown and f.priced and f.maxLoss is not None:
         return f.maxLoss
     debit = sum((x.cost for x in legs if x.open), ZERO)
     if not f.expiryKnown and debit > 0:
@@ -233,32 +244,57 @@ def capital_at_risk(legs: list[Leg], margin: Decimal | None) -> Decimal | None:
 # ---------- a strategy's legs, from its account's ledger ----------
 
 
-def delivers(oc: OptionContract) -> tuple[Decimal | None, Decimal, bool]:
-    """What one contract delivers of its underlying (S3.10.2): its shares (None: the
-    multiplier's, unadjusted), the cash, and whether that is all it delivers. A contract that
-    delivers another company's shares too is covered by no holding of the underlying alone."""
+def delivers(
+    oc: OptionContract, same: set[str] | None = None
+) -> tuple[Decimal | None, Decimal, tuple[tuple[str, Decimal], ...]]:
+    """What one contract delivers (S3.10.2): its underlying's shares (None: the multiplier's,
+    unadjusted), the cash, and each other company's shares. `same` is the instruments that are
+    its underlying: itself, and the shares it became by a symbol change or a merger. A contract
+    that delivers another company's shares too is covered by no holding of the underlying
+    alone."""
     if not oc.deliverable:
-        return None, ZERO, True
+        return None, ZERO, ()
+    same = same or {oc.underlyingId}
     rows = json.loads(oc.deliverable)
-    shares = sum((Decimal(str(x["shares"])) for x in rows if x["instrumentId"] == oc.underlyingId),
-                 ZERO)  # fmt: skip
-    only = all(x["instrumentId"] == oc.underlyingId for x in rows)
-    return shares, oc.deliverableCash or ZERO, only
+    shares = sum((Decimal(str(x["shares"])) for x in rows if x["instrumentId"] in same), ZERO)
+    others = tuple(
+        (x["instrumentId"], Decimal(str(x["shares"])))
+        for x in rows
+        if x["instrumentId"] not in same
+    )
+    return shares, oc.deliverableCash or ZERO, others
 
 
 @dataclass(frozen=True)
 class LegRow:
-    """A strategy's leg as it stands: on the contract its own was adjusted to, if it was."""
+    """A strategy's leg as it stands: on the contract its own was adjusted to, or the shares
+    its own became, if they were; `stored` is then the leg as it was grouped."""
 
     instrumentId: str
     addedOn: dt.date
     quantity: Decimal | None
+    stored: LegRow | None = None
+
+
+def _follow(
+    moved: dict[str, tuple[str, Decimal]], iid: str, qty: Decimal | None = None
+) -> tuple[list[str], Decimal | None]:
+    """The instruments one became in turn, itself first, and its quantity at the last: times
+    each ratio. Moved back to one already passed, it stops there."""
+    path, seen = [iid], set()
+    while iid in moved and iid not in seen:
+        seen.add(iid)
+        iid, ratio = moved[iid]
+        path.append(iid)
+        qty = None if qty is None else qty * ratio
+    return path, qty
 
 
 def legs_of(s: Session, st: Strategy) -> list[LegRow]:
-    """A strategy's legs, each option on the contract it is now: one the OCC adjusted is
-    followed to its adjusted contract, the contracts times the ratio (S3.10, CR3-401). Nothing
-    stored changes, so deleting the split that adjusted it brings the leg back."""
+    """A strategy's legs as they are now: an option the OCC adjusted is followed to its
+    adjusted contract, the contracts times the ratio (S3.10, CR3-401), and shares through a
+    symbol change or a merger to the new shares, times its ratio. Nothing stored changes, so
+    deleting the split or the action brings the leg back."""
     rows = list(
         s.scalars(
             select(StrategyLeg).where(
@@ -269,31 +305,35 @@ def legs_of(s: Session, st: Strategy) -> list[LegRow]:
     moved = _adjusted(s, st.accountId)
     out = []
     for r in rows:
-        iid, qty, seen = r.instrumentId, r.quantity, set()
-        while iid in moved and iid not in seen:
-            seen.add(iid)
-            iid, ratio = moved[iid]
-            qty = None if qty is None else qty * ratio
-        out.append(LegRow(iid, r.addedOn, qty))
+        path, qty = _follow(moved, r.instrumentId, r.quantity)
+        stored = LegRow(r.instrumentId, r.addedOn, r.quantity)
+        out.append(LegRow(path[-1], r.addedOn, qty, None if path[-1] == r.instrumentId else stored))
     return out
 
 
+# What moves a leg to another instrument (S3.10): an option's adjustment, and a symbol change
+# or a merger of shares. A spin-off leaves the shares held, and so in the strategy.
+MOVES = ("option-adjust", "symbol-change", "merger")
+
+
 def _adjusted(s: Session, account_id: str) -> dict[str, tuple[str, Decimal]]:
-    """Each contract adjusted in the account: the contract it became, and the ratio."""
+    """Each contract adjusted in the account, and each holding whose symbol changed or that
+    merged: the instrument it became, and the ratio."""
     from ..store.entities.accounts import Transaction
 
     pairs = s.scalars(
         select(Transaction).where(
             Transaction.accountId == account_id,
-            Transaction.kind == "option-adjust",
+            Transaction.kind.in_(MOVES),
             Transaction.splitRatio.is_not(None),
             Transaction.deleted == false(),
         )
     )
     out = {}
     for into in pairs:
-        # An adjustment's halves are made and deleted together, the old contract's named by
-        # the new one's transferId; one typed by hand has no other half.
+        # A pair's halves are made and deleted together, the old instrument's named by the new
+        # one's transferId; an adjustment typed by hand, an all-cash merger and a merger's old
+        # half have no other.
         if into.transferId:
             old = s.get(Transaction, into.transferId)
             out[old.instrumentId] = (into.instrumentId, into.splitRatio)
@@ -341,6 +381,11 @@ class Book:
         self._prices: dict[tuple[str, dt.date], Decimal | None] = {}
         self._held: dict[dt.date, dict] = {}
 
+    @cached_property
+    def moved(self) -> dict[str, tuple[str, Decimal]]:
+        """What each instrument moved to in the account, and the ratio (`legs_of`)."""
+        return _adjusted(self.s, self.ledger.account.id)
+
     def held_on(self, day: dt.date) -> dict[str, tuple[Decimal, Decimal]]:
         """Each instrument's quantity and basis at the end of a day."""
         if day not in self._held:
@@ -359,6 +404,17 @@ class Book:
             p = valuation.prices(self.s, [instrument_id], day, owner=owner).get(instrument_id)
             self._prices[key] = p.price if p else None
         return self._prices[key]
+
+    def worth(self, others, day: dt.date | None = None) -> Decimal | None:
+        """Other companies' shares, each (instrument, shares), at their prices on a day, or
+        today's; None when one has none."""
+        total = ZERO
+        for iid, shares in others:
+            p = self.price(iid, day)
+            if p is None:
+                return None
+            total += p * shares
+        return total
 
 
 def leg(book: Book, row: LegRow, opened: dt.date, held: dict | None = None) -> Leg:
@@ -389,6 +445,8 @@ def leg(book: Book, row: LegRow, opened: dt.date, held: dict | None = None) -> L
             addedOn=row.addedOn,
         )
     mark = book.marks.get(row.instrumentId)
+    # What it delivers of the underlying: its shares, or those they became (S3.10).
+    per, cash, others = delivers(oc, set(_follow(book.moved, oc.underlyingId)[0]))
     return Leg(
         row.instrumentId,
         inst.symbol,
@@ -402,7 +460,10 @@ def leg(book: Book, row: LegRow, opened: dt.date, held: dict | None = None) -> L
         realized,
         row.addedOn,
         closed_on,
-        *delivers(oc)[:2],
+        per,
+        cash,
+        others,
+        book.worth(others),
     )
 
 
@@ -428,13 +489,15 @@ class View:
 
 def at_prices(book: Book, legs: list[Leg], day: dt.date | None = None) -> list[Leg]:
     """The legs with their shares valued at a day's price, or today's, for capital at risk
-    then."""
+    then, and the other companies' shares a contract delivers at theirs."""
     out = []
     for x in legs:
         if x.kind == "stock" and x.quantity:
             p = book.price(x.instrumentId, day)
             if p is not None:
                 x = Leg(**{**x.__dict__, "cost": (p * x.quantity).quantize(CENT)})
+        elif x.others:
+            x = Leg(**{**x.__dict__, "other": book.worth(x.others, day)})
         out.append(x)
     return out
 
@@ -457,9 +520,12 @@ def view(book: Book, st: Strategy) -> View:
     unrealized = (
         None if any(x.value is None for x in live) else sum((x.value - x.cost for x in live), ZERO)
     )
-    # At open: the legs it opened with, as they were at the end of that day (S3.5.5).
+    # At open: the legs it opened with, as they were at the end of that day (S3.5.5), on the
+    # instruments they were then.
     held = book.held_on(st.openedOn)
-    at_open = [leg(book, r, st.openedOn, held) for r in rows if r.addedOn <= st.openedOn]
+    at_open = [
+        leg(book, r.stored or r, st.openedOn, held) for r in rows if r.addedOn <= st.openedOn
+    ]
     kind = shape(legs, st.cashSecured)
     # Open while an option leg is; closed on the day its last leg closed, as every leg not
     # open has (it holds an option leg, S3.5.2).
@@ -468,7 +534,8 @@ def view(book: Book, st: Strategy) -> View:
         st,
         named(st, kind),
         kind,
-        s.get(Instrument, st.underlyingId).symbol,
+        # The underlying, or the shares it became (S3.10).
+        s.get(Instrument, _follow(book.moved, st.underlyingId)[0][-1]).symbol,
         legs,
         -sum((x.cost for x in live if x.option), ZERO),
         unrealized,
@@ -578,10 +645,10 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
             continue
         qty, _ = book.open[iid]
         shares, _ = book.open.get(oc.underlyingId, (ZERO, ZERO))
-        per, _, only = delivers(oc)
+        per, _, others = delivers(oc)
         # What it delivers (CR3-400); a long call's is below zero, so never 100.
         need = -qty * (oc.multiplier if per is None else per)
-        if oc.underlyingId in grouped or not only or shares < need or need < 100:
+        if oc.underlyingId in grouped or others or shares < need or need < 100:
             continue
         key = proposal_key(account.id, [iid, oc.underlyingId])
         if key in declined:
@@ -634,12 +701,14 @@ def risk_of_account(
             value += mark.value
         if iid in in_strategies or risk is None:
             continue
-        per, cash, only = delivers(oc)
-        # What the payoff reads, and no more: one leg has one expiry, and no mark counts.
+        per, cash, others = delivers(oc)
+        # What the payoff reads, and no more: one leg has one expiry, and no mark counts. By the
+        # table, another company's shares in it count at nothing: a short put risks what
+        # exercise pays, a long call its premium, a short call is unlimited below.
         legs = [Leg(iid, "", oc.right, qty, basis, None, oc.strike, multiplier=oc.multiplier,
                     shares=per, cash=cash)]  # fmt: skip
         if oc.right == "call" and qty < 0:
-            if not only:
+            if others:
                 # It delivers another company's shares too, which the underlying's don't cover.
                 risk = None
                 continue

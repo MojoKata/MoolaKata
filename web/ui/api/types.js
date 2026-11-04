@@ -4124,6 +4124,7 @@
  * @property {(import('../app/dec.js').Dec | null)} maxLoss
  * @property {Array<import('../app/dec.js').Dec>} breakevens
  * @property {boolean} expiryKnown
+ * @property {boolean} priced
  * @property {(import('../app/dec.js').Dec | null)} capitalAtRiskNow
  * @property {(import('../app/dec.js').Dec | null)} capitalAtRiskAtOpen
  * @property {(import('../app/dec.js').Dec | null)} returnPct
