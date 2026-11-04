@@ -343,3 +343,20 @@ through when back. Each is applied and can be undone.
    first recorded one. The reference now assumes them too, as S1.9.1–S1.9.3 say.
 5. **The options mutation survivors** (543 on `33aa091`: 211 in `options/__init__.py`, 277
    in `strategies.py`, 55 in `adjust.py`) settled by the rules of `docs/mutation-testing.md`.
+6. **TXF and a missing basis (CR3-416).** Found reading TXF's code for CR3-415: a sale from
+   shares moved in without their basis went into TXF with a basis of $0.00, read by tax
+   software as the whole proceeds gained. Recommended and applied (`af17181`): left out of
+   TXF and counted beside it ("1 sale without its basis"); the CSV leaves it blank. Not
+   chosen: writing the proceeds as the basis (a made-up zero gain).
+7. **Three loan findings from the account world's reference** (its agent, comparing it with
+   the app over 874 loans):
+   1. **CR3-417**, confirmed: on a monthly loan, a second payment in a month paid a month's
+      interest again ($1,000 extra on Feb 10, after Feb 1's payment, read as all interest).
+      Recommended: interest is due once per payment day; a payment pays its day's interest
+      less what was paid toward it, the rest principal; recorded here, a payment after a
+      missed day pays that day (and its interest) first.
+   2. **CR3-418**: a HELOC amortizes its repayment over one payment too few, so it's paid off
+      a month early. Recommended: count the current payment day, as resets and recasts do.
+   3. **CR3-419**: assumed and missed rows re-amortize on every day after a reset, recast or
+      draw end, while the schedule keeps the payment level between those days (S1.9.2).
+      Recommended: one helper, the level payment set at the latest change.
