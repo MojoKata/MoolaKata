@@ -258,6 +258,8 @@ input.in.bad { border-color: var(--deny); }
 .words .word b { flex: 1; padding: 6px 10px; background: var(--bg-3); border-radius: 8px; font-family: var(--mono, monospace); font-weight: 550; }
 .list-item.sub-row { padding-left: 46px; }
 .list-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.list-item.wraps { flex-wrap: wrap; }
+.list-item.wraps > .grow { flex: 1 1 14em; min-width: 14em; }
 .list-item:last-child { border-bottom: 0; }
 .list-item .grow { flex: 1; min-width: 0; }
 /* A label and its value: the label keeps its width, a long value wraps to the right. */
@@ -1098,9 +1100,9 @@ function payoffTab(a) {
       ${pfSw('Biweekly payments', 'biweekly', 'Half a payment every two weeks: one extra payment a year.')}${field('Round each payment up to', inp('', '0'), 'The next multiple of this, escrow included.')}${pfSw('Recast after the lump sum', 'recast', 'Keep the term and lower the payment, instead of paying off sooner.')}
       ${field('Invest the extra in', sel(['US stocks', 'Bonds', 'Cash'], 'US stocks'), 'For the comparison, at your expected return for it.')}</div>
       <div class="card"><h3>Saved plans</h3>
-        <div class="list-item"><div class="grow">Extra $300 a month<div class="small dim">the plan you’re following, since Mar 1, 2026 · <span class="up">ahead by $1,240</span></div></div><button class="btn sm">Show</button><button class="btn sm primary" aria-pressed="true">${icon('check')} Following</button></div>
-        <div class="list-item"><div class="grow">$300 a month + $10,000 in Jan 2027<div class="small dim">Paid off Aug 2043 · $121,400 interest saved</div></div><button class="btn sm">Show</button><button class="btn sm" data-act="toast" data-v="Following it from today">Follow</button></div>
-        <div class="list-item"><div class="grow">Biweekly<div class="small dim">Paid off Jan 2048 · $63,900 interest saved</div></div><button class="btn sm">Show</button><button class="btn sm" data-act="toast" data-v="Following it from today">Follow</button></div>
+        <div class="list-item wraps"><div class="grow">Extra $300 a month<div class="small dim">the plan you’re following, since Mar 1, 2026 · <span class="up">ahead by $1,240</span></div></div><button class="btn sm">Show</button><button class="btn sm primary" aria-pressed="true">${icon('check')} Following</button></div>
+        <div class="list-item wraps"><div class="grow">$300 a month + $10,000 in Jan 2027<div class="small dim">Paid off Aug 2043 · $121,400 interest saved</div></div><button class="btn sm">Show</button><button class="btn sm" data-act="toast" data-v="Following it from today">Follow</button></div>
+        <div class="list-item wraps"><div class="grow">Biweekly<div class="small dim">Paid off Jan 2048 · $63,900 interest saved</div></div><button class="btn sm">Show</button><button class="btn sm" data-act="toast" data-v="Following it from today">Follow</button></div>
         <div class="row mt">${field('Plan name', inp('', 'Extra $300 a month'))}<button class="btn primary" style="align-self:end" data-act="toast" data-v="Plan saved">Save plan</button></div></div></div></div>`;
 }
 function goalCalc() {
