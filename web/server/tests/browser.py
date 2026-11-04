@@ -36,6 +36,19 @@ def free_port() -> int:
 SERVER_LOG: list = []
 
 
+_RECORD = re.compile(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d+ ")
+
+
+def _rest_of_record(lines: list[str], n: int) -> list[int]:
+    """The lines after line n that belong to its log record: up to the next record's start."""
+    out = []
+    for m in range(n + 1, len(lines)):
+        if _RECORD.match(lines[m]):
+            break
+        out.append(m)
+    return out
+
+
 def server_log_tail(lines: int = 80, paths=()) -> str:
     """Each server log's tracebacks, the last few of each; each log's lines for the paths
     that failed (a request that broke before its answer started is logged with status 0);
@@ -48,6 +61,10 @@ def server_log_tail(lines: int = 80, paths=()) -> str:
         hits = [n for n, x in enumerate(text) if any(f" {q} " in x for q in paths)]
         if hits:
             shown = sorted({m for n in hits[-6:] for m in range(max(0, n - 3), n + 8)})
+            # A record shown in part (a traceback under an error) is shown whole.
+            for m in list(shown):
+                shown.extend(_rest_of_record(text, m))
+            shown = sorted(set(shown))
             out.append(
                 f"--- {log}: {', '.join(paths)} ---\n"
                 + "\n".join(text[m] for m in shown if m < len(text))
@@ -56,7 +73,12 @@ def server_log_tail(lines: int = 80, paths=()) -> str:
         if not log.exists():
             continue
         text = log.read_text(errors="replace")
-        tracebacks = ["Traceback" + t for t in text.split("Traceback")[1:]]
+        rows = text.splitlines()
+        starts = [n for n, x in enumerate(rows) if x.startswith("Traceback")]
+        # Each traceback alone, without the log's records after it.
+        tracebacks = [
+            "\n".join(rows[m] for m in [n, *_rest_of_record(rows, n)]) + "\n" for n in starts
+        ]
         if tracebacks:
             tail = "\n".join("".join(tracebacks[-3:]).splitlines()[-lines:])
             out.append(f"--- {log} ---\n{tail}")
