@@ -14,6 +14,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from browser import SERVER_LOG
 
 from moolakata.dev.settled import SETTLED, TRACK_FETCHES, WAITING
 
@@ -59,6 +60,7 @@ def dev_server(tmp_path_factory):
     data = tmp_path_factory.mktemp("dev")
     port = free_port()
     log = open(data / "server.log", "wb")  # noqa: SIM115 - closed below
+    SERVER_LOG.append(data / "server.log")
     # A file, not a pipe: a pipe nobody reads fills up and stops the server mid-request.
     proc = subprocess.Popen(
         [

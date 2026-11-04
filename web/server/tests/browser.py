@@ -29,12 +29,26 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-# The log of the server last started in this process: a test that sees a 5xx shows its end,
-# so a server bug reached only in CI is diagnosed from the run that hit it (issue #34).
+# The logs of the servers started in this process (a test's own, the shared household's, the
+# seeded dev server): a test that sees a 5xx shows them, so a server bug reached only in CI is
+# diagnosed from the run that hit it (issue #34).
 SERVER_LOG: list = []
 
 
 def server_log_tail(lines: int = 80) -> str:
+    """Each server log's tracebacks, the last few of each; without any, the end of the log of
+    the server started last."""
+    out = []
+    for log in dict.fromkeys(SERVER_LOG):  # in order, each once
+        if not log.exists():
+            continue
+        text = log.read_text(errors="replace")
+        tracebacks = ["Traceback" + t for t in text.split("Traceback")[1:]]
+        if tracebacks:
+            tail = "\n".join("".join(tracebacks[-3:]).splitlines()[-lines:])
+            out.append(f"--- {log} ---\n{tail}")
+    if out:
+        return "\n".join(out)
     if not SERVER_LOG or not SERVER_LOG[-1].exists():
         return "(no server log)"
     return "\n".join(SERVER_LOG[-1].read_text(errors="replace").splitlines()[-lines:])

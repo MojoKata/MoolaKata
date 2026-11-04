@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from decimal import Decimal
 
 import pytest
@@ -25,6 +26,18 @@ measure_the_browser_app()
 # Every kept budget month is worked out again on a hit and compared (S7.3.10): each test that
 # reads a month twice also proves the cache answers what the data says.
 month_cache.CHECK = True
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """A test failing on a server's 5xx (a page's problems, a wait) carries the servers' logs,
+    so a bug reached only in CI shows its traceback in the run that hit it (issue #34)."""
+    outcome = yield
+    rep = outcome.get_result()
+    if rep.failed and rep.when == "call" and re.search(r"\b5\d\d for ", str(rep.longrepr)):
+        from browser import server_log_tail
+
+        rep.sections.append(("the servers' logs, their tracebacks", server_log_tail()))
 
 
 @pytest.hookimpl(trylast=True)
