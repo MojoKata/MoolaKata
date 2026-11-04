@@ -238,14 +238,19 @@ export function DraftDialog(p) {
 
 /**
  * The question before a screen's form loses its changes (S12.15.6).
- * @param {{ close: (v?: any) => void, where: string }} p
+ * `answered` hears the answer as it is given, before the dialog has gone.
+ * @param {{ close: (v?: any) => void, where: string, answered?: () => void }} p
  */
-function DiscardDialog({ close, where }) {
+function DiscardDialog({ close, where, answered }) {
+  const answer = (/** @type {boolean} */ discard) => {
+    answered?.();
+    close(discard);
+  };
   return html`
-    <${Dialog} title="Discard your changes?" close=${() => close(false)} footer=${html`
-      <button type="button" class="btn danger" onClick=${() => close(true)}>Discard</button>
+    <${Dialog} title="Discard your changes?" close=${() => answer(false)} footer=${html`
+      <button type="button" class="btn danger" onClick=${() => answer(true)}>Discard</button>
       <button type="button" class="btn primary" autofocus onClick=${() =>
-        close(false)}>Keep editing</button>
+        answer(false)}>Keep editing</button>
     `}>
       <p class="small dim">What you changed in ${where} isn't saved. Keep editing to save it, or
         discard it and go on.</p>
@@ -282,7 +287,7 @@ export function DraftForm(p) {
       guardForm({
         has: () => changedRef.current(),
         where: p.where,
-        ask: (where) => openDialog(DiscardDialog, { where }),
+        ask: (where, answered) => openDialog(DiscardDialog, { where, answered }),
         route,
       }),
     [p.where],
