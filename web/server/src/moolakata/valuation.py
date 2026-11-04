@@ -50,7 +50,9 @@ def use_closes(lookup: CloseLookup, history: CloseHistory | None = None) -> None
 def _owned(stmt, entity, owner: str):
     """Only what the owner's own accounts hold: another user's files and trades never value
     theirs (S4.10)."""
-    return stmt.join(Account, Account.id == entity.accountId).where(Account.ownerId == owner)
+    # No mutant differs: SQLAlchemy finds this join from the one foreign key to Account.
+    joined = stmt.join(Account, Account.id == entity.accountId)  # pragma: no mutate
+    return joined.where(Account.ownerId == owner)
 
 
 def typed(s: Session, owner: str, instrument_ids: list[str], first: dt.date | None, last: dt.date):
@@ -213,11 +215,12 @@ def positions(s: Session, ledger, day: dt.date | None = None) -> list[Position]:
     for iid, open_lots in by.items():
         # A lot's quantity is a Decimal and open_lots is never empty: no start changes the sum.
         qty = sum((x.quantity for x in open_lots), ZERO)  # pragma: no mutate
-        basis = (
-            None
-            if any(x.basis is None for x in open_lots)
-            else sum((x.basis for x in open_lots), ZERO)
-        )
+        bases = [x.basis for x in open_lots]
+        if None in bases:  # noqa: SIM108 - apart, so the mark below covers the sum alone
+            basis = None
+        else:
+            # Lots open are never none here, and each basis a Decimal: no start changes the sum.
+            basis = sum(bases, ZERO)  # pragma: no mutate
         out.append(Position(iid, qty, basis, found.get(iid), mult.get(iid, 1)))
     return out
 
@@ -433,8 +436,11 @@ def flows(
     a = ledger.account
     out: dict[dt.date, Decimal] = {}
 
+    def inside(day: dt.date) -> bool:
+        return first < day <= last  # after the window's first day, to its last
+
     def add(day: dt.date, amount: Decimal) -> None:
-        if first < day <= last and amount:
+        if inside(day) and amount:
             out[day] = out.get(day, ZERO) + amount
 
     if loans.is_loan(a.type):
@@ -450,9 +456,9 @@ def flows(
         # Only the items are read, not their worth, and the items don't depend on the day.
         for it, _ in assets.worth(s, a, last):  # pragma: no mutate
             add(it.acquiredOn, assets.worth_on(s, it, it.acquiredOn))
-            # Its sale takes out what it brought, so a gain on it is growth. A sold item always
-            # has its proceeds (the table's check `sale`); the test is for the type checker.
-            if it.soldOn is not None and it.proceeds is not None:
+            # Its sale takes out what it brought, so a gain on it is growth. An item has its
+            # proceeds exactly when it is sold (the table's check `sale`).
+            if it.soldOn is not None:
                 add(it.soldOn, (it.saleFees or ZERO) - it.proceeds)
         return out
     for day, amount in perf.flows(ledger.transactions).items():
@@ -465,7 +471,7 @@ def flows(
         if t.kind in ("transfer-in", "transfer-out")
         and t.instrumentId
         and t.quantity
-        and first < t.date <= last
+        and inside(t.date)
     ]
     if not moved:
         return out
@@ -476,7 +482,9 @@ def flows(
         pts = [p for d, p in points[t.instrumentId] if d <= t.date]
         if not pts:
             continue  # no price yet: the series counts it nothing, and so does its flow
-        qty = abs(t.quantity) * (1 if t.kind == "transfer-in" else -1)
+        qty = abs(t.quantity)
+        if t.kind == "transfer-out":
+            qty = -qty
         add(t.date, (qty * pts[-1] * mult.get(t.instrumentId, 1)).quantize(CENT))
     return out
 
