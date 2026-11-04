@@ -67,9 +67,8 @@ FIFO = [("L1", D(2), D(60), D(20), "fifo"), ("L2", D(1), D(30), D(30), "fifo")]
         ),
         # Average cost is for funds and coins: a share goes first in.
         ("average", (), FIFO),
-        # Specific with no lots picked, or a method not known: first in, and said so.
+        # Specific with no lots picked: first in, and said so.
         ("specific", (), FIFO),
-        ("zzz", (), FIFO),
     ],
 )
 def test_a_sale_takes_its_lots_in_its_methods_order(method, averaged, want):
@@ -79,6 +78,13 @@ def test_a_sale_takes_its_lots_in_its_methods_order(method, averaged, want):
     r = replay(method, [sale], three_lots(), [], [], averaged=frozenset(averaged))
     assert sold(r) == want
     assert r.quantity("VTI") == D(3)
+
+
+def test_a_lot_method_not_known_is_refused_not_taken_for_first_in():
+    """R3.11, S2.3: the account's column allows five methods; anything else is a fault."""
+    sale = Txn(d(2025, 3, 1), "sell", D(90), "VTI", D(-3))
+    with pytest.raises(ValueError, match="lot method 'zzz'"):
+        replay("zzz", [sale], three_lots(), [], [])
 
 
 def test_picked_lots_make_a_sale_specific_whatever_the_method():

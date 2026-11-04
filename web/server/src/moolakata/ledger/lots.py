@@ -348,7 +348,7 @@ def _transaction(
     if not t.instrumentId:
         return
     if t.kind in OPTION_TRADES:
-        _option(out, t, picks)
+        _option(out, t)
         return
     if t.kind == "option-adjust":
         _adjust(out, t)
@@ -400,7 +400,7 @@ def _transaction(
         )
         # A short call's credit adds to the proceeds; a long put's premium comes off them.
         proceeds -= out.premium.pop(t.id, None) or ZERO
-        _consume(out, t, qty, method, proceeds, picks, realize=t.kind == "sell")
+        _consume(out, t, qty, method, proceeds, realize=t.kind == "sell", picks=picks)
     elif t.kind == "split" and t.splitRatio:
         for lot in out.open:
             if lot.instrumentId == t.instrumentId:
@@ -480,7 +480,7 @@ def _corporate(out: Replay, t) -> None:
             # An empty sum's int 0 is only tested for truth.
             qty = sum((x.quantity for x in held), ZERO)  # pragma: no mutate
             if qty:
-                _consume(out, t, qty, "fifo", t.amount, [], realize=True)
+                _consume(out, t, qty, "fifo", t.amount, realize=True)
             return
         out.open = [x for x in out.open if x not in held]
         out.carried[t.id] = held
@@ -509,6 +509,8 @@ def _corporate(out: Replay, t) -> None:
 # What consumes lots by a method: the method in force when it was made is recorded on it
 # (S2.3), so a later change of the account's method leaves it as it was.
 DISPOSALS = ("sell", "transfer-out")
+# The lot methods (S2.3), as the account's column allows them.
+METHODS = ("fifo", "lifo", "hifo", "specific", "average")
 
 
 # Option trades (S3.2, S3.3): a long contract is a lot like a share's; a short one is a
@@ -530,7 +532,7 @@ OPTION_TRADES = (
 TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward", *OPTION_TRADES)
 
 
-def _option(out: Replay, t, picks: list) -> None:
+def _option(out: Replay, t) -> None:
     qty = abs(t.quantity or ZERO)
     if not qty:
         return
@@ -539,7 +541,7 @@ def _option(out: Replay, t, picks: list) -> None:
     elif t.kind == "sell-to-open":
         out.open.append(OpenLot(None, t.instrumentId, t.date, -qty, -t.amount))
     elif t.kind == "sell-to-close":
-        _consume(out, t, qty, "fifo", t.amount, picks, realize=True)
+        _consume(out, t, qty, "fifo", t.amount, realize=True)
     elif t.kind == "buy-to-close":
         _cover(out, t, qty, t.amount)
     elif t.kind in ("assign", "exercise"):
@@ -575,7 +577,7 @@ def _option(out: Replay, t, picks: list) -> None:
         )
         # pragma: no mutate end
         if longs:
-            _consume(out, t, min(qty, longs), "fifo", ZERO, picks, realize=True)
+            _consume(out, t, min(qty, longs), "fifo", ZERO, realize=True)
         else:
             _cover(out, t, qty, ZERO)
 
@@ -651,10 +653,14 @@ def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal) -> None:
 
 
 def _consume(
-    out: Replay, t, qty: Decimal, method: str, proceeds: Decimal, picks: list, realize: bool
+    out: Replay, t, qty: Decimal, method: str, proceeds: Decimal, *, realize: bool, picks=()
 ) -> None:
     """Take a sale's quantity from the open lots: the picked lots for specific
-    identification, else in the method's order; average cost pools the basis (S2.3)."""
+    identification, else in the method's order; average cost pools the basis (S2.3). A
+    method not known is refused, never taken for first in (R3.11); picks count only for a
+    sale, the only trade that has them."""
+    if method not in METHODS:
+        raise ValueError(f"lot method {method!r} is none of {', '.join(METHODS)}")
     held = [lot for lot in out.open if lot.instrumentId == t.instrumentId and lot.quantity > 0]
     total, left = qty, qty
     plan: list[tuple[OpenLot, Decimal]] = []
