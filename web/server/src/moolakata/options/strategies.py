@@ -2,9 +2,11 @@
 each leg keeps its own lots, gains and wash sales.
 
 - **Proposed, never forced**: legs on one underlying opened in one account on one day, and a
-  short call against 100 or more shares held, are offered as a strategy; a proposal turned
-  down isn't offered again. A leg closed and another opened on the same underlying the same
-  day is offered to stay in its strategy (a roll).
+  short call against the shares it delivers held, are offered as a strategy; a proposal
+  turned down isn't offered again. The shares an underlying became by a symbol change or a
+  merger in the account are its own, here, in a strategy's legs and in an account's risk. A
+  leg closed and another opened on the same underlying the same day is offered to stay in its
+  strategy (a roll).
 - **Shapes**: from the open legs' rights, strikes, expiries and sides; anything else is
   *Custom*.
 - **Figures at expiry**: worked out from the payoff at every strike, at zero and beyond the
@@ -386,6 +388,20 @@ class Book:
         """What each instrument moved to in the account, and the ratio (`legs_of`)."""
         return _adjusted(self.s, self.ledger.account.id)
 
+    def became(self, underlying_id: str) -> list[str]:
+        """An underlying, then the shares it became in the account by a symbol change or a
+        merger, in turn (S3.10): all are its own, and the last are the shares that hold it."""
+        return _follow(self.moved, underlying_id)[0]
+
+    def delivers(
+        self, oc: OptionContract
+    ) -> tuple[str, Decimal | None, Decimal, tuple[tuple[str, Decimal], ...]]:
+        """The shares that cover one contract in the account, its underlying's or those they
+        became, then what it delivers (`delivers`) with those counted as its own: the one rule
+        for a strategy's legs, a covered call's proposal and an option outside a strategy."""
+        same = self.became(oc.underlyingId)
+        return (same[-1], *delivers(oc, set(same)))
+
     def held_on(self, day: dt.date) -> dict[str, tuple[Decimal, Decimal]]:
         """Each instrument's quantity and basis at the end of a day."""
         if day not in self._held:
@@ -446,7 +462,7 @@ def leg(book: Book, row: LegRow, opened: dt.date, held: dict | None = None) -> L
         )
     mark = book.marks.get(row.instrumentId)
     # What it delivers of the underlying: its shares, or those they became (S3.10).
-    per, cash, others = delivers(oc, set(_follow(book.moved, oc.underlyingId)[0]))
+    _, per, cash, others = book.delivers(oc)
     return Leg(
         row.instrumentId,
         inst.symbol,
@@ -535,7 +551,7 @@ def view(book: Book, st: Strategy) -> View:
         named(st, kind),
         kind,
         # The underlying, or the shares it became (S3.10).
-        s.get(Instrument, _follow(book.moved, st.underlyingId)[0][-1]).symbol,
+        s.get(Instrument, book.became(st.underlyingId)[-1]).symbol,
         legs,
         -sum((x.cost for x in live if x.option), ZERO),
         unrealized,
@@ -585,6 +601,10 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
     out: list[Proposal] = []
     today = clock.today()
 
+    def same(a: str, b: str) -> bool:
+        """One underlying, the shares either became counted as its own (S3.10)."""
+        return book.became(a)[-1] == book.became(b)[-1]
+
     # Rolls: a leg closed, and another opened on the same underlying that day.
     rolled: set[str] = set()
     for st in live:
@@ -598,7 +618,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                 continue
             day = max(closes)
             for iid, oc in contracts.items():
-                if oc.underlyingId == st.underlyingId and book.first.get(iid) == day:
+                if same(oc.underlyingId, st.underlyingId) and book.first.get(iid) == day:
                     key = proposal_key(account.id, [iid])
                     if key in declined or iid in rolled:
                         continue
@@ -608,7 +628,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                             key,
                             "roll",
                             account.id,
-                            st.underlyingId,
+                            book.became(st.underlyingId)[-1],
                             day,
                             [(iid, None)],
                             named(st, shape_of(book, st)),  # CR3-408
@@ -620,7 +640,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
     for iid, oc in contracts.items():
         if iid in rolled:
             continue
-        by.setdefault((oc.underlyingId, book.first[iid]), []).append(iid)
+        by.setdefault((book.became(oc.underlyingId)[-1], book.first[iid]), []).append(iid)
     for (under, day), iids in by.items():
         if len(iids) < 2:
             continue
@@ -638,19 +658,21 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                 shape([leg(book, LegRow(i, today, None), today) for i in iids]),
             )
         )
-    # A short call against 100 or more shares held, whenever they were bought.
+    # A short call against the shares it delivers held, whenever they were bought: its
+    # underlying's, or the shares it became by a symbol change or a merger (S3.10).
     taken = {i for p in out for i, _ in p.legs}
     for iid, oc in contracts.items():
         if iid in taken or oc.right != "call":
             continue
         qty, _ = book.open[iid]
-        shares, _ = book.open.get(oc.underlyingId, (ZERO, ZERO))
-        per, _, others = delivers(oc)
-        # What it delivers (CR3-400); a long call's is below zero, so never 100.
+        held, per, _, others = book.delivers(oc)
+        shares, _ = book.open.get(held, (ZERO, ZERO))
+        # What it delivers (CR3-400), 50 shares a contract after a merger at half a share; a
+        # long call's is below zero, and one delivering cash alone none.
         need = -qty * (oc.multiplier if per is None else per)
-        if oc.underlyingId in grouped or others or shares < need or need < 100:
+        if held in grouped or others or shares < need or need <= 0:
             continue
-        key = proposal_key(account.id, [iid, oc.underlyingId])
+        key = proposal_key(account.id, [iid, held])
         if key in declined:
             continue
         out.append(
@@ -658,9 +680,9 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                 key,
                 "covered-call",
                 account.id,
-                oc.underlyingId,
+                held,
                 book.first[iid],
-                [(oc.underlyingId, need), (iid, None)],
+                [(held, need), (iid, None)],
                 "Covered call",
             )
         )
@@ -701,7 +723,7 @@ def risk_of_account(
             value += mark.value
         if iid in in_strategies or risk is None:
             continue
-        per, cash, others = delivers(oc)
+        held, per, cash, others = book.delivers(oc)
         # What the payoff reads, and no more: one leg has one expiry, and no mark counts. By the
         # table, another company's shares in it count at nothing: a short put risks what
         # exercise pays, a long call its premium, a short call is unlimited below.
@@ -712,13 +734,20 @@ def risk_of_account(
                 # It delivers another company's shares too, which the underlying's don't cover.
                 risk = None
                 continue
-            if spare.get(oc.underlyingId):
-                # Shares cover what the contract delivers, not its multiplier (CR3-400).
-                covered = min(spare[oc.underlyingId], -qty * legs[0].per)
-                spare[oc.underlyingId] -= covered
-                price = book.price(oc.underlyingId)
-                cost = (price * covered).quantize(CENT) if price is not None else ZERO
-                legs.append(Leg(oc.underlyingId, "", "stock", covered, cost, None))
+            if spare.get(held):
+                # Shares cover what the contract delivers, not its multiplier (CR3-400): its
+                # underlying's, or those it became (S3.10).
+                covered = min(spare[held], -qty * legs[0].per)
+                spare[held] -= covered
+                price = book.price(held)
+                if price is not None:
+                    cost = (price * covered).quantize(CENT)
+                else:
+                    # Without a price, what the shares cost, as a strategy's shares leg reads
+                    # (CR3-429): never nothing, which would understate the risk.
+                    q, b = book.open[held]
+                    cost = (b * covered / q).quantize(CENT)
+                legs.append(Leg(held, "", "stock", covered, cost, None))
         one = capital_at_risk(legs, None)
         risk = None if one is None else risk + one
     return value, risk, any_open

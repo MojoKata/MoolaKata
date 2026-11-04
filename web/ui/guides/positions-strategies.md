@@ -8,7 +8,8 @@ Grouping is a label: each leg keeps its own lots, gains and wash sales.
 ## Proposed
 
 Legs on one underlying opened in one account on the same day are offered as a strategy, and so is a
-short call against 100 or more shares held. **Group them**, or **Not a strategy**, which isn't
+short call against the shares it delivers, held: 100 a contract, or what an adjusted contract
+delivers, the shares a merger brought included. **Group them**, or **Not a strategy**, which isn't
 asked again. A leg closed and another opened on the same underlying the same day is offered as a
 roll: kept in the strategy, it keeps its history, closed legs and their P/L included.
 

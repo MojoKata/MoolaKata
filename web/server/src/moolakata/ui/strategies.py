@@ -184,10 +184,13 @@ class LegIn(Model):
     quantity: Quantity | None = None  # shares, for a stock leg
 
 
-def _check_legs(s, account, legs: list[LegIn]) -> tuple[str, dt.date]:
-    """The legs are held in the account, all on one underlying; their underlying and the day
-    the earliest opened."""
-    book = strat.Book(s, repo.load(s, account))
+def _check_legs(
+    s, account, legs: list[LegIn], book: strat.Book | None = None
+) -> tuple[str, dt.date]:
+    """The legs are held in the account, all on one underlying (shares the underlying became by
+    a symbol change or a merger are its own, S3.10); their underlying and the day the earliest
+    opened."""
+    book = book or strat.Book(s, repo.load(s, account))
     under = None
     first = None
     for x in legs:
@@ -195,7 +198,7 @@ def _check_legs(s, account, legs: list[LegIn]) -> tuple[str, dt.date]:
         if not qty:
             raise refuse("legs", "leg-not-held", "Legs held in this account.")
         oc = contract_of(s, x.instrumentId)
-        u = oc.underlyingId if oc is not None else x.instrumentId
+        u = book.became(oc.underlyingId if oc is not None else x.instrumentId)[-1]
         if under is not None and u != under:
             raise refuse("legs", "legs-differ", "Legs on one underlying.")
         under = u
@@ -241,11 +244,12 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
         st, a, held = _own(s, c, strategy_id)
         have = {r.instrumentId for r in strat.legs_of(s, st)}
         today = clock.today()
+        book = strat.Book(s, repo.load(s, a))
         for x in body.roll:
             if x.instrumentId in have:
                 continue
-            u, opened = _check_legs(s, a, [x])
-            if u != st.underlyingId:
+            u, opened = _check_legs(s, a, [x], book)
+            if u != book.became(st.underlyingId)[-1]:
                 raise refuse("roll", "legs-differ", "A roll stays on the same underlying.")
             s.add(
                 StrategyLeg(

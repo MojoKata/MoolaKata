@@ -5,7 +5,7 @@ import datetime as dt
 from decimal import Decimal as D
 from types import SimpleNamespace as NS
 
-from edits import change, create, make, remove, saved
+from edits import change, create, make, option_trade, remove, saved
 
 from moolakata.options.strategies import Leg, capital_at_risk, figures, shape
 
@@ -470,6 +470,8 @@ class Book:
         return self.prices.get((iid, day))
 
     worth = strat.Book.worth
+    became = strat.Book.became
+    delivers = strat.Book.delivers
 
     def held_on(self, day):
         return self.open if self.held is None else self.held
@@ -652,8 +654,8 @@ def test_a_call_delivering_another_companys_shares_is_never_covered(world):
 
 
 def test_shares_cover_calls_in_turn_and_only_shares_no_strategy_holds(world):
-    """S3.5.6: 100 shares cover one short call, valued at today's price less its premium; a
-    second call is uncovered; shares a strategy holds cover none."""
+    """S3.5.6: 100 shares cover one short call, valued at today's price (without one, what they
+    cost) less its premium; a second call is uncovered; shares a strategy holds cover none."""
     world.contracts |= {"C1": contract("call", 500), "C2": contract("call", 510)}
     one = Book(open={"C1": (-1, -412), "U": (100, 40000)}, prices={("U", None): D(450)})
     assert risk_of_account(one.s, LEDGER, one)[1] == D("44588.00")
@@ -665,7 +667,10 @@ def test_shares_cover_calls_in_turn_and_only_shares_no_strategy_holds(world):
     assert risk_of_account(two.s, LEDGER, two)[1] is None, "the strategy's shares are its own"
     unpriced = Book(open={"C1": (-1, -412), "U": (100, 40000)})
     world.strategies = []
-    assert risk_of_account(unpriced.s, LEDGER, unpriced)[1] == 0, "unpriced shares count at 0"
+    # Unpriced, the shares count at what they cost, as a strategy's do (CR3-429): never at 0.
+    assert risk_of_account(unpriced.s, LEDGER, unpriced)[1] == D("39588.00")
+    half = Book(open={"C1": (-1, -412), "U": (200, 80000)})
+    assert risk_of_account(half.s, LEDGER, half)[1] == D("39588.00"), "the shares used, pro rata"
 
 
 def test_one_share_covers_a_contract_that_delivers_one(world):
@@ -1013,3 +1018,112 @@ def test_a_strategys_shares_follow_a_merger_at_its_ratio(alice):
         ("ACQ", 50), ("MSFT1 20NOV26 500 C", -1)]  # fmt: skip
     assert _figures(v) == _figures(before) | {"breakevens": [791.76]}
     assert alice.get(f"/ui/api/accounts/{a}").json()["capitalAtRisk"] == 39588
+
+
+def _merged_calls(alice, strikes=("500",)):
+    """100 MSFT bought and a call sold for each strike, $4.12 each, left ungrouped; MSFT then
+    merged into ACQ, half a share each, every call adjusted from the memo to deliver 50 ACQ,
+    and ACQ last traded at $800 in another account: the account, and ACQ's instrument."""
+    a = new_account(alice, type="brokerage")["id"]
+    r = create(alice, "Txn", accountId=a, date="2026-09-01", kind="buy", symbol="MSFT",
+               quantity="100", price="400", amount="-40000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    msft = saved(r)["instrumentId"]
+    for k in strikes:
+        assert option(alice, a, "sell-to-open", "2026-10-02", "4.12", right="call", strike=k,
+                      fees="0").status_code == 200  # fmt: skip
+    r = create(alice, "CorpA", accountId=a, instrumentId=msft, kind="merger",
+               date="2026-10-06", newSymbol="ACQ", ratio="0.5")  # fmt: skip
+    assert r.status_code == 200, r.text
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    acq50 = [{"symbol": "ACQ", "shares": "50"}]
+    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-06", "contracts": [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": cn["strike"],
+         "deliverable": acq50} for cn in g["contracts"]]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    [acq] = [x["instrumentId"] for x in alice.get("/ui/api/positions").json()["open"]
+             if x["accountId"] == a and x["symbol"] == "ACQ"]  # fmt: skip
+    b = new_account(alice, type="brokerage", name="Other", mask="5151")["id"]
+    r = create(alice, "Txn", accountId=b, instrumentId=acq, date="2026-10-07", kind="buy",
+               quantity="1", price="800", amount="-800.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    return a, acq
+
+
+def _taken(p):
+    """A proposal's legs, as a strategy taken as proposed saves them."""
+    return [{"instrumentId": x["instrumentId"], **({"quantity": x["quantity"]} if x["quantity"]
+             else {})} for x in p["legs"]]  # fmt: skip
+
+
+def test_a_call_adjusted_to_deliver_the_acquirers_shares_held_is_proposed_covered(alice):
+    """S3.5.1, S3.10: MSFT merged into ACQ and the short call adjusted to deliver 50 ACQ: the
+    50 ACQ held cover it, as its underlying's own shares would, so it is proposed as a covered
+    call on ACQ, and taken as proposed it is one."""
+    a, _ = _merged_calls(alice)
+    [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
+    assert (p["kind"], p["shape"], p["underlying"]) == ("covered-call", "Covered call", "ACQ")
+    assert [(x["symbol"], x["quantity"]) for x in p["legs"]] == [
+        ("ACQ", 50), ("MSFT1 20NOV26 500 C", None)]  # fmt: skip
+    st = saved(create(alice, "Strat", accountId=a, legs=_taken(p)))
+    assert (st["shape"], st["underlying"]) == ("Covered call", "ACQ")
+    assert alice.get("/ui/api/positions/strategies").json()["proposals"] == []
+
+
+def test_the_acquirers_shares_cover_an_adjusted_call_outside_a_strategy_until_sold(alice):
+    """S3.5.6, S3.10: outside a strategy, the 50 ACQ held cover the call adjusted to deliver
+    them: a covered call's risk, their value less the premium, the same as grouped; sold, the
+    call is uncovered and the account's risk unlimited."""
+    a, acq = _merged_calls(alice)
+    alone = _risk(alice, a)
+    assert alone == 50 * 800 - 412
+    [p] = alice.get("/ui/api/positions/strategies").json()["proposals"]
+    st = saved(create(alice, "Strat", accountId=a, legs=_taken(p)))
+    assert st["capitalAtRiskNow"] == alone, "grouped, the same legs risk the same"
+    assert remove(alice, "Strat", st).status_code == 200
+    assert _risk(alice, a) == alone
+    r = create(alice, "Txn", accountId=a, instrumentId=acq, date="2026-10-09", kind="sell",
+               quantity="50", price="800", amount="40000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert _risk(alice, a) is None
+
+
+def test_the_acquirers_shares_cover_adjusted_calls_in_turn(alice):
+    """S3.5.6: two calls adjusted to deliver 50 ACQ each and 50 ACQ held: the shares cover one
+    call, never both, so the other is uncovered; 50 more bought, both are covered."""
+    a, acq = _merged_calls(alice, ("500", "510"))
+    assert _risk(alice, a) is None
+    r = create(alice, "Txn", accountId=a, instrumentId=acq, date="2026-10-09", kind="buy",
+               quantity="50", price="800", amount="-40000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert _risk(alice, a) == 100 * 800 - 2 * 412
+
+
+def test_a_covered_call_rolls_onto_the_acquirers_calls_after_a_merger(alice):
+    """S3.5.2, S3.10: the covered call grouped on MSFT, MSFT merged into ACQ and the call
+    adjusted to deliver 50 ACQ; the adjusted call assigned and an ACQ call sold the same day is
+    offered as its roll, on the same underlying, and taken in."""
+    a, shares, before = _grouped_covered_call(alice)
+    r = create(alice, "CorpA", accountId=a, instrumentId=shares, kind="merger",
+               date="2026-10-06", newSymbol="ACQ", ratio="0.5")  # fmt: skip
+    assert r.status_code == 200, r.text
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    [cn] = g["contracts"]
+    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-06", "contracts": [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": "500",
+         "deliverable": [{"symbol": "ACQ", "shares": "50"}]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    [old] = [x["instrumentId"] for x in _strategy(alice)["legs"] if x["symbol"][:5] == "MSFT1"]
+    r = alice.post(f"/ui/api/accounts/{a}/options/{old}/settle",
+                   json={"how": "assign", "date": "2026-10-09", "contracts": "1"})  # fmt: skip
+    assert r.status_code == 201, r.text
+    r = option_trade(alice, a, "2026-10-09", "sell-to-open", "acq", "call", "900",
+                     "2026-12-18", "1", "5.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    [roll] = alice.get("/ui/api/positions/strategies").json()["proposals"]
+    assert (roll["kind"], roll["strategyId"], roll["underlying"]) == ("roll", before["id"], "ACQ")
+    r = alice.post(f"/ui/api/strategies/{before['id']}/roll",
+                   json={"roll": [{"instrumentId": roll["legs"][0]["instrumentId"]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert (v["underlying"], v["closedOn"], len(v["legs"])) == ("ACQ", None, 3)

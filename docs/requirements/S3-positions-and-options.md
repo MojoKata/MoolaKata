@@ -41,10 +41,12 @@
    per leg.
    1. **Grouping is proposed, never forced.** Legs on one underlying opened in one account on
       the same day are offered as a strategy on the Positions screen (*Group as an iron
-      condor?*), and a short call against 100 or more shares held, whenever they were
-      bought, as a covered call. Legs can be grouped by hand (select them, **Group**) and a
-      group undone at any time. A strategy's legs are in one account, on one underlying. A
-      proposal turned down (*Not a strategy*) isn't made again.
+      condor?*), and a short call against the shares it delivers held (100 a contract, or
+      what an adjusted one delivers, S3.10.2), whenever they were bought, as a covered call.
+      Legs can be grouped by hand (select them, **Group**) and a group undone at any time. A
+      strategy's legs are in one account, on one underlying; the shares an underlying became
+      by a symbol change or a merger in that account are its own (S3.10). A proposal turned
+      down (*Not a strategy*) isn't made again.
    2. **Rolls**: a leg closed and another opened on the same underlying the same day is
       offered to stay in the group, or turned down. A strategy keeps its history (its legs,
       its rolls and its P/L from open to close, closed legs included); it opened when its
@@ -76,7 +78,7 @@
       short put without the *cash-secured* tick, a long straddle or a butterfly are counted
       too; a calendar or diagonal risks its net debit, or the margin typed; one *not priced*
       (S3.5.4) the margin typed, or reads *not priced*.
-      *Now* uses today's prices; *at open* uses the legs the strategy opened with, as they
+      *Now* uses today's prices (shares without one at what they cost); *at open* uses the legs the strategy opened with, as they
       were at the end of that day and at its prices, whatever is rolled, closed or adjusted
       later (S3.10), and is what a strategy's **return on capital at risk** is worked on. The
       shares' cost basis shows on their own leg. An unlimited risk counts as such: a total with
@@ -87,8 +89,9 @@
       **Capital at risk** beside their options' market value, counting each option outside a
       strategy as a strategy of its own shape by the table above: a long option its premium, a
       short put its strike less its premium, a short call the account's shares cover as a
-      covered call (shares no strategy holds, given to the calls in turn), an uncovered one
-      *unlimited*. Allocation charts keep market value.
+      covered call (shares no strategy holds, given to the calls in turn; the shares its
+      underlying became by a symbol change or a merger cover a call adjusted to deliver them,
+      S3.10), an uncovered one *unlimited*. Allocation charts keep market value.
 6. **Expiry** is applied automatically the day after an option expires out of the money by the
    underlying's closing price. An in-the-money expiry asks the user what happened: expired,
    assigned or exercised, on which day, and how many contracts, from 1 to those held (an
@@ -158,7 +161,10 @@
     way through a symbol change or a merger (S2.4): it holds the new shares, its shares times
     the action's ratio, and they are its underlying from then on, in its payoff and in what an
     adjusted contract delivers; deleting the action gives the leg back its shares. A spin-off
-    moves no leg: the shares are still held.
+    moves no leg: the shares are still held. Outside a strategy the account's new shares are
+    the underlying's the same way: a call adjusted to deliver them, with them held, is
+    offered as a covered call, a roll onto their options stays on its underlying, and
+    capital at risk counts the call covered (S3.5.1, S3.5.2, S3.5.6).
     1. **A whole-number split** (2:1, 4:1) is applied with the stock's split (S2.4), in the
        account the split is recorded or imported in: contracts × the ratio, strike ÷ the ratio
        rounded to the thousandth, as the OCC prints it, the basis spread over the new
