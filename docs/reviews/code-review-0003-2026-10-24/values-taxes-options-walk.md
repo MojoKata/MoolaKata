@@ -306,4 +306,40 @@ All on one branch, `cr3-values-taxes-options` (PR #32), in the approved order.
     its run-to-run spread measured at 32 (`aab42cd`). **R3.11** (input means what it says) and
     **ValueInput** came of CR3-403 (`5681c11`, `809d634`); issues #33 (other fields to fix to
     R3.11) and #34 (an intermittent 500 from `GET plan529`; a browser test now shows the
-    server's log on a 5xx, `84c55b7`).
+    server's log on a 5xx, `84c55b7`).14. **Tightening, speed, and the area's screens walked** (the walk of the bugs found by the
+    area's agents, approved item by item): `_consume` refuses a lot method not known and takes
+    picks only for a sale; `valuation.flows` reads a sold item by its sale day (`1139aed`,
+    `3171eab`); reads over many accounts ask for prices once per owner, Holdings at 50 accounts
+    in 493 queries, not 1,083 (`ffc50ca`). Browser tests for loans and payoff, the Taxes
+    panels, positions and strategies (`ab26e57`); coverage taken before a page navigates, and a
+    race in the household's receipt fixed (`614e294`). Found and fixed: **CR3-406** to
+    **CR3-413**, with two checks that keep their kinds away (`test_markup_spaces.py`,
+    `test_dec_compare.py`).
+15. **The Taxes panels' findings** (walked in four items, the last three decided by the
+    recommendation while the user was away; see *Decided while away* below): **CR3-414**
+    (`f333376`) and **CR3-415** (`e3e2310`). The OpenAPI document drifted on every codegen
+    from a Money default (`33aa091`).
+
+## Decided while away
+
+The user, away from Nov 3, 10:26 PM, approved every recommendation in advance, to be walked
+through when back. Each is applied and can be undone.
+
+1. **Taxes (2 of 4): a sale without a lot to match.** Recommended and applied: its day bought
+   is *missing*, as its basis is (CR3-415). Not chosen: *Various* as for shares moved in
+   (says several lots, which we don't know), or the sale's day (a date we never had). Detail
+   decided on the way: TXF has no blank date, so the row is left out of TXF and counted
+   beside it ("1 sale without a lot"), as collectables are; the CSV leaves the date blank.
+2. **Taxes (3 of 4): browser coverage undercounts across pages.** No change. Measured on the
+   branch, the empty-year tests raise `taxpanels.js` (lines 661 → 662 of 669, branches 214 →
+   233), and two-page experiments with `deno coverage` merge lines and branches correctly in
+   either order. The agent measured before coverage was taken ahead of a page's navigation
+   (`614e294`); its pages navigate.
+3. **Taxes (4 of 4): "Son · qualifying child".** No change. The hand mockup, the design
+   reference, writes the same line ("Daughter · qualifying child · 12 months · student"): the
+   relation reads as a name, the facts after it in lower case.
+4. **The account world's loans under rule (A).** CI failed every account world: its reference
+   counted only the payments recorded, while rule (A) assumes each payment day before the
+   first recorded one. The reference now assumes them too, as S1.9.1–S1.9.3 say.
+5. **The options mutation survivors** (543 on `33aa091`: 211 in `options/__init__.py`, 277
+   in `strategies.py`, 55 in `adjust.py`) settled by the rules of `docs/mutation-testing.md`.
