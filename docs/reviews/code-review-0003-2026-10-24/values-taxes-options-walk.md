@@ -377,3 +377,13 @@ through when back. Each is applied and can be undone.
    split over-adjusted a contract delivering cash or another company's shares; such a
    contract now waits for the memo, recommended over dividing the cash and shares by the
    ratio, which leaves fractional shares the OCC wouldn't print) and **CR3-423** (`52a3361`).
+10. **Strategies' survivors** (277 in `strategies.py`): settled, with **CR3-424** (breakevens
+    past twice the highest strike) and **CR3-425** (a 500 for a contract delivering none of
+    its underlying), `d8fa9f2`. **Open, for the user:**
+    1. Such a contract counts another company's shares at nothing, so a short put's maximum
+       profit can show as a loss. Recommended: value them at that company's price when one is
+       known, and say *not priced* when none is.
+    2. A strategy's shares leg doesn't follow a symbol change or merger of its shares, as an
+       option leg follows its adjustment (CR3-401): after one, a covered call reads as naked.
+       Recommended: the shares leg follows the shares through a symbol change or merger (not
+       a spin-off, which leaves them where they are).
