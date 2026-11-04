@@ -80,7 +80,7 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
     assert "D,long,4 VTI,2024-01-05,2026-02-01,600.00,400.00,,,200.00,Brokerage" in csv.text
     txf = alice.get(f"/ui/api/tax-books/{b}/exports/moolakata.txf").text
     assert txf.startswith("V042\r\n") and "N323\r\n" in txf and "N321\r\n" in txf
-    assert p["txfLeftOut"] == {"digital": 0, "collectable": 0, "personalUse": 0}
+    assert p["txfLeftOut"] == {"digital": 0, "collectable": 0, "personalUse": 0, "noLot": 0}
     pdf = alice.get(f"/ui/api/tax-books/{b}/exports/summary.pdf")
     assert pdf.content.startswith(b"%PDF-1.4") and pdf.content.rstrip().endswith(b"%%EOF")
 
@@ -110,7 +110,7 @@ def test_collectables_and_personal_use_losses(alice):
     assert {rows["Coin"]["kind"], rows["Car"]["kind"]} == {"item"}
     assert p["scheduleD"]["collectables"] == "2000.00"
     # TXF has no field for C or L (S8.2): both are left out of it and counted beside it.
-    assert p["txfLeftOut"] == {"digital": 0, "collectable": 1, "personalUse": 1}
+    assert p["txfLeftOut"] == {"digital": 0, "collectable": 1, "personalUse": 1, "noLot": 0}
     txf = alice.get(f"/ui/api/tax-books/{book_id}/exports/moolakata.txf").text
     assert "PCoin" not in txf and "PCar" not in txf
 
@@ -135,9 +135,15 @@ def test_txf_counts_what_it_leaves_out_by_why():
             "Acct",
         )
 
-    rows = [row("A"), row("D", "W"), row("I"), row("K"), row("F", "C"), row("C", "L")]
-    assert [exports.in_txf(r) for r in rows] == [True, True, False, False, False, False]
-    assert exports.txf_left_out(rows) == {"digital": 2, "collectable": 1, "personalUse": 1}
+    rows = [row("A"), row("D", "W"), row("I"), row("K"), row("F", "C"), row("C", "L"), row("A")]
+    rows[-1].lotMissing = True  # no day bought to write (CR3-415)
+    assert [exports.in_txf(r) for r in rows] == [True, True, False, False, False, False, False]
+    assert exports.txf_left_out(rows) == {
+        "digital": 2,
+        "collectable": 1,
+        "personalUse": 1,
+        "noLot": 1,
+    }
 
 
 def test_income_retirement_and_an_rmd(alice):
@@ -185,7 +191,8 @@ def test_deductions_loans_and_issues(alice):
     saved(loan_payment(alice, home["id"], "2026-02-01", "1798.65"))
     brk = new_account(alice, name="Brokerage", type="brokerage")
     trade(alice, brk["id"], "2026-05-01", "sell", "3", "100", "MSFT")  # nothing to sell
-    p = panels(alice, book(alice))
+    b = book(alice)
+    p = panels(alice, b)
     tags = {d["label"]: d for d in p["deductions"]}
     assert tags["Medical and dental"]["total"] == "240.00"
     assert tags["Medical and dental"]["withReceipts"] == 0
@@ -193,6 +200,21 @@ def test_deductions_loans_and_issues(alice):
     assert p["loans"][0]["interest"] == "1500.00" and p["loans"][0]["form"] == "1098"
     kinds = {i["kind"] for i in p["issues"]}
     assert {"sale-without-lot", "sale-basis"} <= kinds
+    # Sold without a lot: its day bought is missing as its basis is, never its sale's day;
+    # the CSV leaves it blank and TXF leaves the row out, counted (S8.1, S8.2, CR3-415).
+    (row,) = [r for r in p["rows"] if r["description"] == "3 MSFT"]
+    assert (row["acquired"], row["basis"], row["lotMissing"], row["longTerm"]) == (
+        None,
+        None,
+        True,
+        False,
+    )
+    (issue,) = [i for i in p["issues"] if i["kind"] == "sale-basis"]
+    assert issue["text"] == "Brokerage: the sale of 3 MSFT on May 1 has no basis or day bought"
+    assert p["txfLeftOut"]["noLot"] == 1
+    csv = alice.get(f"/ui/api/tax-books/{b}/exports/8949.csv").text
+    assert "A,short,3 MSFT,,2026-05-01,300.00,,,,,Brokerage" in csv
+    assert "P3 MSFT" not in alice.get(f"/ui/api/tax-books/{b}/exports/moolakata.txf").text
 
 
 def test_an_ira_limit_holds_across_a_persons_accounts(alice):

@@ -29,6 +29,7 @@ class RowOut(Model):
     account: str
     collectable: bool
     kind: Literal["holding", "return-of-capital", "option", "item"]
+    lotMissing: bool  # sold without a lot to match: `acquired` is missing, not VARIOUS
 
 
 class WashOut(Model):
@@ -212,6 +213,7 @@ class TxfLeftOut(Model):
 
     digital: int  # in a digital asset's box, G to L
     collectable: int  # code C
+    noLot: int  # sold without a lot to match: no day bought to write
     personalUse: int  # code L, a loss on personal-use property
 
 

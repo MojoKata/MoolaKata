@@ -15,13 +15,16 @@ produces worksheets and exports. It never files, and says so (R1.16).
    or a wallet's) is a digital asset, whether typed or imported. A written option's row has
    the premium received as its proceeds and what closing it cost as its basis, dated from its
    opening to its close; a row's acquired date is *VARIOUS* only when a snapshot stood in for
-   the lot's history (R3.2). Sources: the [2025 Form
+   the lot's history (R3.2). A sale without a matching lot (4) has its acquired date missing,
+   as its basis is: never the day it was sold; it counts as short-term until the lot is
+   entered. Sources: the [2025 Form
    8949](https://www.irs.gov/pub/irs-pdf/f8949.pdf) and [its
    instructions](https://www.irs.gov/pub/irs-pdf/i8949.pdf), kept in `docs/external/`.
 2. **Exports**: Form 8949 CSV, **TXF** (which TurboTax and others import), and a PDF summary
    for a preparer. Each export says what it covers and what it does not. TXF (format V042)
-   carries boxes A to F and the wash-sale adjustment only: a row with another code (C, L) or in
-   a digital asset's box (G to L) is left out of it and entered from the CSV. A book with such
+   carries boxes A to F and the wash-sale adjustment only: a row with another code (C, L), in
+   a digital asset's box (G to L), or without a matching lot (no date to write; the CSV leaves
+   it blank) is left out of it and entered from the CSV. A book with such
    rows counts them by why beside the TXF export (*TXF leaves out 4 sales (3 digital assets,
    1 collectable): enter them from the CSV.*).
 3. **Wash sales** found (S3.8), with the disallowed amounts and the replacement lots, and

@@ -12190,7 +12190,7 @@
             "title": "Originalpayoff"
           },
           "overdue": {
-            "default": "\u0000554370eaa7e17c53#0.00",
+            "default": "\u000030a88c37caf16a24#0.00",
             "examples": [
               1234.5
             ],
@@ -25521,6 +25521,10 @@
             "title": "Digital",
             "type": "integer"
           },
+          "noLot": {
+            "title": "Nolot",
+            "type": "integer"
+          },
           "personalUse": {
             "title": "Personaluse",
             "type": "integer"
@@ -25529,6 +25533,7 @@
         "required": [
           "digital",
           "collectable",
+          "noLot",
           "personalUse"
         ],
         "title": "TxfLeftOut",
@@ -29081,6 +29086,10 @@
             "title": "Longterm",
             "type": "boolean"
           },
+          "lotMissing": {
+            "title": "Lotmissing",
+            "type": "boolean"
+          },
           "proceeds": {
             "examples": [
               1234.5
@@ -29108,7 +29117,8 @@
           "box",
           "account",
           "collectable",
-          "kind"
+          "kind",
+          "lotMissing"
         ],
         "title": "RowOut",
         "type": "object"

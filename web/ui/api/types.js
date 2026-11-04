@@ -4408,6 +4408,7 @@
  * @typedef {Object} TxfLeftOut
  * @property {number} digital
  * @property {number} collectable
+ * @property {number} noLot
  * @property {number} personalUse
  */
 
@@ -4995,6 +4996,7 @@
  * @property {string} account
  * @property {boolean} collectable
  * @property {("holding" | "return-of-capital" | "option" | "item")} kind
+ * @property {boolean} lotMissing
  */
 
 /**

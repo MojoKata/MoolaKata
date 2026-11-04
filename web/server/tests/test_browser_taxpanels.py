@@ -308,7 +308,7 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
     assert rows["5 FSKAX"][0] == "E" and rows["0.5 ETH"][0] == "C"
     assert rows["2 VTI"][2] == "Various" and rows["2 VTI"][5] == "$160.00"
     msft = rows["3 MSFT"]
-    assert (msft[5], msft[8]) == ("missing", "—")
+    assert (msft[2], msft[5], msft[8]) == ("missing", "missing", "—")  # CR3-415
     coin, car = rows["TP coin"], rows["TP car"]
     assert (coin[0], coin[1], coin[6], coin[8]) == ("F", "TP coin TP collectables · collectable",
                                                     "C", "+$2,000.00")  # fmt: skip
@@ -513,7 +513,11 @@ def test_the_issues_panel_lists_what_to_look_at(browser, world):
     with nothing to sell, its basis missing, and Form 8615; each with a way to it where
     there is one."""
     page, problems = opened(
-        browser, world, YEAR, "issues", 'text="TP broker: the sale of 3 MSFT on May 3 has no basis"'
+        browser,
+        world,
+        YEAR,
+        "issues",
+        'text="TP broker: the sale of 3 MSFT on May 3 has no basis or day bought"',
     )
     issues = world.panels(YEAR)["issues"]
     items = page.locator("main .card .list-item")
@@ -528,7 +532,7 @@ def test_the_issues_panel_lists_what_to_look_at(browser, world):
         "TP broker: the sale of 2 VTI on Mar 2 is of shares moved in: when they were bought, "
         "for its term Look"
     ) in shown
-    assert "TP broker: the sale of 3 MSFT on May 3 has no basis" in shown
+    assert "TP broker: the sale of 3 MSFT on May 3 has no basis or day bought" in shown
     links = [a.get_attribute("href") for a in items.locator("a").all()]
     assert links == [i["link"] for i in issues if i["link"]]
     assert problems == []
@@ -560,7 +564,8 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     hrefs = [a.get_attribute("href") for a in exports.locator("a.btn").all()]
     assert hrefs == [f"{base}/8949.csv", f"{base}/moolakata.txf", f"{base}/summary.pdf"]
     assert " ".join(exports.locator(".notice").inner_text().split()) == (
-        "TXF leaves out 2 sales (1 collectable, 1 personal-use loss): enter them from the CSV."
+        "TXF leaves out 3 sales (1 collectable, 1 personal-use loss, 1 sale without a lot): "
+        "enter them from the CSV."
     )
     status, kind, csv = page.evaluate(
         "async (u) => { const r = await fetch(u);"

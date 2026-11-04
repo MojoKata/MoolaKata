@@ -73,6 +73,7 @@ class Row:
     # What was sold: a holding (shares, a fund, a coin), a return of capital past its basis,
     # an option, or a physical item; the panels group by it, never by the words.
     kind: str = "holding"
+    lotMissing: bool = False  # sold without a lot to match: its day bought is missing (S8.1)
 
     @property
     def gain(self) -> Decimal | None:
@@ -170,7 +171,8 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 if d.method == "return-of-capital"
                 else f"{_qty(d.quantity)} {inst.symbol}",
                 # VARIOUS when not known: a stand-in's, or shares moved in without it (S2.2)
-                acquired=None if d.standIn or d.acquiredMissing else d.acquiredOn,
+                # Missing when sold without a lot to match (CR3-415).
+                acquired=None if d.standIn or d.acquiredMissing or d.lotMissing else d.acquiredOn,
                 sold=d.soldOn,
                 proceeds=proceeds,
                 basis=basis,
@@ -184,6 +186,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 instrumentId=inst.id,
                 quantity=d.quantity,
                 acquiredMissing=d.acquiredMissing,
+                lotMissing=d.lotMissing,
                 kind="return-of-capital"
                 if d.method == "return-of-capital"
                 else "option"
@@ -1068,7 +1071,8 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
             out.append(
                 Issue(
                     "sale-basis",
-                    f"{r.account}: the sale of {r.description} on {r.sold:%b %-d} has no basis",
+                    f"{r.account}: the sale of {r.description} on {r.sold:%b %-d} has no basis"
+                    + (" or day bought" if r.lotMissing else ""),
                 )
             )
     # Dependents (S8.14.5): claimed on two books, a filer claimed on another, Form 8615.

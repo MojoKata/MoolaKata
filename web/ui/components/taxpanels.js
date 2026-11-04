@@ -125,13 +125,14 @@ export function SummaryFigures({ b }) {
 /**
  * The sales TXF can't carry, counted by why (S8.2): "TXF leaves out 4 sales (3 digital
  * assets, 1 collectable): enter them from the CSV."
- * @param {{ digital: number, collectable: number, personalUse: number }} n
+ * @param {{ digital: number, collectable: number, personalUse: number, noLot: number }} n
  */
 function txfLeftOut(n) {
   const kinds = /** @type {[number, string, string][]} */ ([
     [n.digital, 'digital asset', 'digital assets'],
     [n.collectable, 'collectable', 'collectables'],
     [n.personalUse, 'personal-use loss', 'personal-use losses'],
+    [n.noLot, 'sale without a lot', 'sales without a lot'],
   ]).filter(([c]) => c);
   const all = kinds.reduce((t, [c]) => t + c, 0);
   if (!all) return null;
@@ -190,7 +191,11 @@ function Gains({ p }) {
                           .collectable
                         ? ' · collectable'
                         : ''}</div></td>
-                      <td class="small">${r.acquired ? date(r.acquired) : 'Various'}</td>
+                      <td class="small">${r.acquired
+                        ? date(r.acquired)
+                        : r.lotMissing
+                        ? html`<span class="pill warn">missing</span>`
+                        : 'Various'}</td>
                       <td class="small">${date(r.sold)}</td>
                       <td class="num">
                         <${Amt} v=${r.proceeds} />

@@ -52,6 +52,9 @@ class Disposal:
     standIn: bool = False  # from a lot a snapshot stood in for: when it was bought is unknown
     # From shares moved in whose day bought isn't known: its term is unknown (S2.2, CR3-399).
     acquiredMissing: bool = False
+    # Sold without a lot to match (S8.4): when it was bought is missing, as its basis is; its
+    # acquiredOn is the sale's day only to place it, never written on a form (CR3-415).
+    lotMissing: bool = False
 
     @property
     def gain(self) -> Decimal | None:
@@ -738,6 +741,7 @@ def _unmatched(out: Replay, t, qty: Decimal, proceeds: Decimal, realize: bool, m
                 proceeds.quantize(CENT),
                 None,
                 method,
+                lotMissing=True,
             )
         )
 

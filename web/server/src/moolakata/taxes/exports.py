@@ -59,7 +59,8 @@ def csv_8949(rows: list[Row], year: int, bitcoin_fees: str = "sale") -> str:
                 r.box,
                 "long" if r.longTerm else "short",
                 r.description,
-                r.acquired.isoformat() if r.acquired else "VARIOUS",
+                # Blank when sold without a lot to match: no day to write (CR3-415).
+                r.acquired.isoformat() if r.acquired else "" if r.lotMissing else "VARIOUS",
                 r.sold.isoformat(),
                 _money(r.proceeds),
                 _money(r.basis),
@@ -78,17 +79,20 @@ def _txf_date(d: dt.date | None) -> str:
 
 def in_txf(r: Row) -> bool:
     """TXF (V042) carries boxes A to F and the wash-sale adjustment, nothing else."""
-    return r.box in TXF_CODE and r.code in ("", "W")
+    return r.box in TXF_CODE and r.code in ("", "W") and not r.lotMissing
 
 
 def txf_left_out(rows: list[Row]) -> dict[str, int]:
     """The rows TXF can't carry, counted by why (S8.2): a digital asset's box (G to L), a
-    collectable's code C, a personal-use loss's code L."""
-    out = {"digital": 0, "collectable": 0, "personalUse": 0}
+    collectable's code C, a personal-use loss's code L, a sale without a lot to match (no day
+    bought to write)."""
+    out = {"digital": 0, "collectable": 0, "personalUse": 0, "noLot": 0}
     for r in rows:
         if in_txf(r):
             continue
-        if r.box not in TXF_CODE:
+        if r.lotMissing:
+            out["noLot"] += 1
+        elif r.box not in TXF_CODE:
             out["digital"] += 1
         elif r.code == "C":
             out["collectable"] += 1
