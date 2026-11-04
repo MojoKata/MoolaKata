@@ -36,10 +36,22 @@ def free_port() -> int:
 SERVER_LOG: list = []
 
 
-def server_log_tail(lines: int = 80) -> str:
-    """Each server log's tracebacks, the last few of each; without any, the end of the log of
-    the server started last."""
+def server_log_tail(lines: int = 80, paths=()) -> str:
+    """Each server log's tracebacks, the last few of each; each log's lines for the paths
+    that failed (a request that broke before its answer started is logged with status 0);
+    without either, the end of the log of the server started last."""
     out = []
+    for log in dict.fromkeys(SERVER_LOG):
+        if not paths or not log.exists():
+            continue
+        text = log.read_text(errors="replace").splitlines()
+        hits = [n for n, x in enumerate(text) if any(f" {q} " in x for q in paths)]
+        if hits:
+            shown = sorted({m for n in hits[-6:] for m in range(max(0, n - 3), n + 8)})
+            out.append(
+                f"--- {log}: {', '.join(paths)} ---\n"
+                + "\n".join(text[m] for m in shown if m < len(text))
+            )
     for log in dict.fromkeys(SERVER_LOG):  # in order, each once
         if not log.exists():
             continue

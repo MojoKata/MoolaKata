@@ -67,7 +67,10 @@ def pytest_runtest_makereport(item, call):
     if rep.failed and rep.when == "call" and re.search(r"\b5\d\d (for |\{)", str(rep.longrepr)):
         from browser import server_log_tail
 
-        rep.sections.append(("the servers' logs, their tracebacks", server_log_tail()))
+        paths = sorted(
+            set(re.findall(r"\b5\d\d for \w+://[^/\s]+(/[^\s'\"?]*)", str(rep.longrepr)))
+        )
+        rep.sections.append(("the servers' logs, their tracebacks", server_log_tail(paths=paths)))
 
 
 @pytest.hookimpl(trylast=True)
