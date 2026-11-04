@@ -347,3 +347,417 @@ def test_a_split_strike_is_rounded_to_the_thousandth():
     assert adjusted_strike(Decimal("100"), Decimal("3")) == Decimal("33.333")
     assert adjusted_strike(Decimal("50"), Decimal("1.5")) == Decimal("33.333")
     assert adjusted_strike(Decimal("200"), Decimal("2")) == Decimal("100")
+
+
+# ---------- each rule, with data that tells a wrong answer apart ----------
+
+
+def test_a_symbol_is_upper_case_with_its_right_as_c_or_p():
+    from moolakata import options
+
+    day = dt.date(2026, 11, 20)
+    assert options.symbol("msft", day, "call", D("482.50")) == "MSFT 20NOV26 482.5 C"
+    assert options.symbol("msft", day, "put", D("480")) == "MSFT 20NOV26 480 P"
+
+
+def test_an_occ_ticker_has_the_strike_in_thousandths_over_eight_digits():
+    from types import SimpleNamespace as NS
+
+    from moolakata import options
+
+    day = dt.date(2026, 11, 20)
+    put = NS(right="put", strike=D("480"), expiry=day)
+    assert options.occ("MSFT", put) == "O:MSFT261120P00480000"
+    call = NS(right="call", strike=D("33.333"), expiry=day)
+    assert options.occ("MSFT1", call) == "O:MSFT1261120C00033333"
+
+
+def test_in_the_money_is_past_the_strike_never_on_it():
+    from types import SimpleNamespace as NS
+
+    from moolakata import options
+
+    prices = [D("479.99"), D("480"), D("480.01")]
+    call, put = NS(right="call", strike=D("480")), NS(right="put", strike=D("480"))
+    assert [options.in_the_money(call, p) for p in prices] == [False, False, True]
+    assert [options.in_the_money(put, p) for p in prices] == [True, False, False]
+
+
+def test_a_contract_is_made_once_with_its_terms_and_named_for_people(server):
+    from moolakata import options
+
+    day = dt.date(2026, 11, 20)
+    with server.db.tx(unscoped="test") as s:
+        call, cc = options.contract(s, "msft", "call", D("482.50"), day)
+        assert call.symbol == "MSFT 20NOV26 482.5 C"
+        assert call.name == "MSFT call 482.5, expiring Nov 20, 2026"
+        assert (cc.right, cc.strike, cc.expiry, cc.multiplier) == ("call", D("482.50"), day, 100)
+        put, pc = options.contract(s, "msft", "put", D("480"), day, multiplier=10)
+        assert put.name == "MSFT put 480, expiring Nov 20, 2026" and pc.multiplier == 10
+        put.name = "The hedge"  # a name given is kept
+        again, same = options.contract(s, "MSFT", "put", D("480"), day)
+        assert (again.id, same.id, again.name) == (put.id, pc.id, "The hedge")
+        put_id = put.id
+        pc.mark_deleted(None)
+    with server.db.tx(unscoped="test") as s:
+        assert options.contract_of(s, put_id) is None, "a deleted contract is no contract"
+
+
+def _plain(**kw):
+    from types import SimpleNamespace as NS
+
+    return NS(**({"deliverable": None, "deliverableCash": None, "underlyingId": "U",
+                  "multiplier": 100} | kw))  # fmt: skip
+
+
+def _parts(cash=None):
+    """An adjusted contract: 100 shares of A, 50 of B, and its cash."""
+    import json
+
+    rows = [{"instrumentId": "A", "shares": "100"}, {"instrumentId": "B", "shares": 50}]
+    return _plain(deliverable=json.dumps(rows), deliverableCash=cash)
+
+
+def _book(monkeypatch, name, prices, *, owned, session=None):
+    """valuation's `name` answered from `prices`, {(owner or None, instrument, day): Price},
+    for the session given alone: the session to call with."""
+    from moolakata import valuation
+
+    session = session or object()
+
+    def lookup(s, ids, day=None, **kw):
+        assert s is session, "read in the caller's session"
+        assert ("owner" in kw) == owned
+        who = kw.get("owner")
+        return {i: prices[who, i, day] for i in ids if (who, i, day) in prices}
+
+    monkeypatch.setattr(valuation, name, lookup)
+    return session
+
+
+def test_the_market_close_is_the_underlyings_or_the_deliverables_worth_a_share(monkeypatch):
+    # S3.6, S3.10.5: 100 A at 10 and 50 B at 3, and 25 in cash, over 100 shares: 11.75 a
+    # share, as of the older of the two closes; a part without a close leaves it unknown.
+    from moolakata import options
+    from moolakata.valuation import Price
+
+    day, before = dt.date(2026, 11, 20), dt.date(2026, 11, 19)
+    closes = {
+        (None, "U", day): Price(D("480.5"), before, "close"),
+        (None, "A", day): Price(D("10"), day, "close"),
+        (None, "B", day): Price(D("3"), before, "close"),
+    }
+    s = _book(monkeypatch, "closes", closes, owned=False)
+    assert options.market_close(s, _plain(), day) == (D("480.5"), before)
+    assert options.market_close(s, _plain(underlyingId="X"), day) is None
+    assert options.market_close(s, _plain(), before) is None, "the day asked, no other"
+    assert options.market_close(s, _parts(D("25")), day) == (D("11.75"), before)
+    assert options.market_close(s, _parts(), day) == (D("11.5"), before), "no cash is none"
+    del closes[None, "B", day]
+    assert options.market_close(s, _parts(D("25")), day) is None
+
+
+def test_a_contracts_worth_a_share_reads_its_owners_prices_that_day(monkeypatch):
+    # S3.10.5, as the market close above, from the prices the owner sees on the day asked.
+    from moolakata import options
+    from moolakata.valuation import Price
+
+    day, before = dt.date(2026, 11, 20), dt.date(2026, 11, 19)
+    prices = {
+        ("Usr_1", "U", day): Price(D("480.5"), before, "statement"),
+        ("Usr_1", "A", day): Price(D("10"), day, "close"),
+        ("Usr_1", "B", day): Price(D("3"), before, "trade"),
+    }
+    s = _book(monkeypatch, "prices", prices, owned=True)
+    assert options.per_share(s, _plain(), day, "Usr_1") == (D("480.5"), before)
+    assert options.per_share(s, _plain(), day, "Usr_2") is None
+    assert options.per_share(s, _plain(), None, "Usr_1") is None
+    assert options.per_share(s, _parts(D("25")), day, "Usr_1") == (D("11.75"), before)
+    assert options.per_share(s, _parts(), day, "Usr_1") == (D("11.5"), before)
+    assert options.per_share(s, _parts(), day, "Usr_2") is None
+    assert options.per_share(s, _parts(), None, "Usr_1") is None
+
+
+def test_a_deliverables_parts_are_weighed_by_value_or_by_shares_without_prices(monkeypatch):
+    # S3.10.4: 100 A at 10 and 50 B at 30 weigh 1,000 to 1,500; with a price missing, 100
+    # shares to 50. A contract never adjusted delivers its multiplier of the underlying.
+    from types import SimpleNamespace as NS
+
+    from moolakata import options
+    from moolakata.store.entities.accounts import Instrument
+    from moolakata.valuation import Price
+
+    day = dt.date(2026, 11, 20)
+    prices = {
+        ("Usr_1", "A", day): Price(D("10"), day, "close"),
+        ("Usr_1", "B", day): Price(D("30"), day, "close"),
+    }
+    s = NS(get=lambda kind, iid: NS(id=iid) if kind is Instrument else None)
+    _book(monkeypatch, "prices", prices, owned=True, session=s)
+
+    def weights(c, owner, when=day):
+        return [(i.id, q, w) for i, q, w in options.deliverable(s, c, when, owner)]
+
+    assert weights(_plain(multiplier=10), "Usr_1") == [("U", D(10), D(1))]
+    assert weights(_parts(), "Usr_1") == [("A", D(100), D("0.4")), ("B", D(50), D("0.6"))]
+    by_shares = [("A", D(100), D(100) / 150), ("B", D(50), D(50) / 150)]
+    assert weights(_parts(), "Usr_2") == by_shares
+    assert weights(_parts(), "Usr_1", None) == by_shares
+    # Parts all worth nothing that day weigh nothing: the last part takes the strike.
+    prices["Usr_1", "A", day] = prices["Usr_1", "B", day] = Price(D(0), day, "close")
+    assert weights(_parts(), "Usr_1") == [("A", D(100), D(0)), ("B", D(50), D(0))]
+
+
+def test_a_read_asks_for_each_contract_once(server):
+    # A read over many accounts asks for an option's contract, or that a stock has none, once.
+    from sqlalchemy import event
+
+    from moolakata import options
+
+    with server.db.tx(unscoped="test") as s:
+        inst, c = options.contract(s, "msft", "put", D("480"), dt.date(2026, 11, 20))
+        asked_for = [inst.id, c.underlyingId]
+    with server.db.read(unscoped="test") as s:
+        asked = []
+        event.listen(s, "do_orm_execute", asked.append)
+        first = [options.contract_of(s, i) for i in asked_for]
+        again = [options.contract_of(s, i) for i in asked_for]
+        assert len(asked) == 2 and first[1] is None
+        assert [x and x.id for x in again] == [first[0].id, None]
+
+
+def _ended(server, acct_id, symbol, how, contracts=None, terms=None):
+    """options.settle as the route calls it, on Nov 20, 2026, after `terms` changes the
+    contract: the account's owner, and each record made as its fields, with the basis of the
+    lot it opened."""
+    from types import SimpleNamespace as NS
+
+    from moolakata import options
+    from moolakata.store.entities.accounts import Account, Instrument, Lot
+
+    keys = ("id", "kind", "amount", "payee", "instrumentId", "quantity", "price", "lotMethod",
+            "proceedsAdjustment", "optionTransactionId", "createdById")  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        a = s.get(Account, acct_id)
+        inst = s.query(Instrument).filter_by(symbol=symbol, deleted=False).one()
+        if terms:
+            terms(s, options.contract_of(s, inst.id))
+        made = options.settle(s, a.ownerId, a, inst, how, dt.date(2026, 11, 20), contracts)
+        s.flush()
+        basis = {x.transactionId: x.costBasis for x in s.query(Lot).filter_by(accountId=a.id)}
+        return a.ownerId, [
+            NS(**{k: getattr(t, k) for k in keys}, basis=basis.get(t.id)) for t in made
+        ]
+
+
+def _adjusted(cash, *symbols):
+    """Terms that adjust a contract to 10 shares of each of `symbols` and `cash` a contract."""
+
+    def terms(s, c):
+        import json
+
+        from moolakata.store.repos import ledger as repo
+
+        ids_ = [repo.instrument(s, x, None, "equity").id for x in symbols]
+        c.deliverable = json.dumps([{"instrumentId": i, "shares": "10"} for i in ids_])
+        c.deliverableCash = D(cash)
+
+    return terms
+
+
+@pytest.mark.parametrize(
+    ("held", "how", "contracts", "error"),
+    [
+        ("shares", "assign", "1", ("instrumentId", "not-an-option", "That isn't an option.")),
+        ("closed", "expired", None,
+         ("instrumentId", "nothing-open", "Nothing of it is open in this account.")),
+        ("short", "assign", "3", ("contracts", "contracts-invalid", "Up to 2 contracts.")),
+        ("short", "assign", "0", ("contracts", "contracts-invalid", "Up to 2 contracts.")),
+        ("short", "exercise", "1",
+         ("how", "short-exercise", "A short option is assigned, not exercised.")),
+        ("long", "assign", "1",
+         ("how", "long-assign", "A long option is exercised, not assigned.")),
+    ],
+)  # fmt: skip
+def test_a_settlement_refused_names_its_field_and_says_why(server, alice, held, how, contracts,
+                                                          error):  # fmt: skip
+    from moolakata.errors import Problem
+
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    symbol = "MSFT 20NOV26 480 P"
+    if held == "shares":
+        add(alice, brk, "-40000.00", "2026-08-03", kind="buy", symbol="MSFT", quantity="100",
+            price="400")  # fmt: skip
+        symbol = "MSFT"
+    elif held == "long":  # one contract: a long position of 1 is long
+        opt(alice, brk, "buy-to-open", "2026-09-02", "6.40", fees="0")
+    else:
+        opt(alice, brk, "sell-to-open", "2026-09-02", "6.40", contracts="2", fees="0")
+        if held == "closed":
+            opt(alice, brk, "buy-to-close", "2026-09-03", "6.40", contracts="2", fees="0")
+    with pytest.raises(Problem) as e:
+        _ended(server, brk, symbol, how, contracts and D(contracts))
+    assert [(f.field, f.code, f.message) for f in e.value.errors] == [error]
+
+
+def test_an_expiry_ends_every_contract_held_and_makes_nothing_else(server, alice):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    opt(alice, brk, "sell-to-open", "2026-09-02", "6.40", contracts="2", fees="0")
+    owner, made = _ended(server, brk, "MSFT 20NOV26 480 P", "expired")
+    assert [(t.kind, t.amount, t.quantity, t.payee, t.createdById) for t in made] == [
+        ("expire", D(0), D(2), "Expired MSFT 20NOV26 480 P", owner)
+    ]
+
+
+def test_an_assignment_or_exercise_trades_the_shares_at_the_strike_and_says_which(server, alice):
+    # S3.4: a short put assigned buys at the strike, opening a lot; a long put exercised sells
+    # at it, by the account's lot method. Each names what it was, and is the user's.
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    opt(alice, brk, "sell-to-open", "2026-09-02", "6.40", strike="482.5", fees="0")
+    opt(alice, brk, "buy-to-open", "2026-09-02", "3.00", strike="470", fees="0")
+    owner, (end, buy) = _ended(server, brk, "MSFT 20NOV26 482.5 P", "assign")
+    assert (end.kind, end.payee) == ("assign", "Assigned MSFT 20NOV26 482.5 P")
+    assert (buy.kind, buy.amount, buy.quantity, buy.price) == ("buy", D("-48250"), 100, D("482.5"))
+    assert (buy.payee, buy.lotMethod, buy.basis) == ("Buy MSFT at 482.5 (assigned)", None, D(48250))
+    assert (buy.optionTransactionId, buy.proceedsAdjustment) == (end.id, None)
+    assert (end.createdById, buy.createdById) == (owner, owner)
+    owner, (end, sell) = _ended(server, brk, "MSFT 20NOV26 470 P", "exercise")
+    assert (end.kind, end.payee) == ("exercise", "Exercised MSFT 20NOV26 470 P")
+    assert (sell.kind, sell.amount, sell.quantity, sell.price) == ("sell", D(47000), 100, D(470))
+    assert (sell.payee, sell.lotMethod, sell.basis) == (
+        "Sell MSFT at 470 (exercised)",
+        "fifo",
+        None,
+    )
+    assert (sell.optionTransactionId, sell.proceedsAdjustment) == (end.id, None)
+    assert (end.createdById, sell.createdById) == (owner, owner)
+
+
+def test_an_adjusted_assignment_spreads_strike_and_cash_the_last_part_taking_the_rounding(
+    server, alice
+):
+    # S3.10.4: 2 of 3 short puts at 100, adjusted to 10 shares each of three companies and
+    # 0.50 a contract, without prices (a third each): the 20,000 paid is 6,666.67, 6,666.67
+    # and 6,666.66, and the 1.00 of cash, which comes in as its own deposit, comes off the
+    # bases as 0.33, 0.33 and 0.34, all of it.
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    opt(alice, brk, "sell-to-open", "2026-09-02", "1.00", contracts="3", strike="100", fees="0")
+    terms = _adjusted("0.50", "AAA", "BBB", "CCC")
+    owner, made = _ended(server, brk, "MSFT 20NOV26 100 P", "assign", D(2), terms)
+    end, *buys, cash = made
+    assert end.quantity == 2
+    assert [(t.kind, t.amount, t.quantity, t.price, t.basis) for t in buys] == [
+        ("buy", D("-6666.67"), 20, D("333.3335"), D("6666.34")),
+        ("buy", D("-6666.67"), 20, D("333.3335"), D("6666.34")),
+        ("buy", D("-6666.66"), 20, D("333.333"), D("6666.32")),
+    ]
+    assert [t.payee for t in buys] == [f"Buy {x} at 100 (assigned)" for x in ("AAA", "BBB", "CCC")]
+    assert {(t.lotMethod, t.proceedsAdjustment, t.optionTransactionId) for t in buys} == {
+        (None, None, end.id)
+    }
+    assert (cash.kind, cash.amount, cash.payee, cash.optionTransactionId) == (
+        "deposit",
+        D("1.00"),
+        "Deliverable cash (assigned MSFT 20NOV26 100 P)",
+        end.id,
+    )
+    assert {t.createdById for t in made} == {owner}
+
+
+def test_an_adjusted_exercise_sells_each_part_its_cash_going_with_the_proceeds(server, alice):
+    # S3.10.4: 2 long puts at 100 on the same three parts: each sold for a third of 20,000,
+    # the 1.00 of cash delivered out of the account and off the proceeds, all of it.
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    opt(alice, brk, "buy-to-open", "2026-09-02", "1.00", contracts="2", strike="100", fees="0")
+    terms = _adjusted("0.50", "AAA", "BBB", "CCC")
+    owner, made = _ended(server, brk, "MSFT 20NOV26 100 P", "exercise", None, terms)
+    end, *sells, cash = made
+    assert [(t.kind, t.amount, t.proceedsAdjustment, t.lotMethod, t.basis) for t in sells] == [
+        ("sell", D("6666.67"), D("-0.33"), "fifo", None),
+        ("sell", D("6666.67"), D("-0.33"), "fifo", None),
+        ("sell", D("6666.66"), D("-0.34"), "fifo", None),
+    ]
+    assert [t.payee for t in sells] == [
+        f"Sell {x} at 100 (exercised)" for x in ("AAA", "BBB", "CCC")
+    ]
+    assert (cash.kind, cash.amount, cash.payee, cash.optionTransactionId, cash.createdById) == (
+        "withdrawal",
+        D("-1.00"),
+        "Deliverable cash (exercised MSFT 20NOV26 100 P)",
+        end.id,
+        owner,
+    )
+
+
+def test_an_adjusted_assignment_weighs_its_parts_by_the_owners_prices_that_day(
+    server, alice, monkeypatch
+):
+    # S3.10.4: 10 AAA at 30 and 10 BBB at 10 take three quarters and a quarter of the 10,000
+    # paid; prices another day, or another owner's, would weigh them by shares, half each.
+    from moolakata.store.entities.accounts import Account
+    from moolakata.valuation import Price
+
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    opt(alice, brk, "sell-to-open", "2026-09-02", "1.00", strike="100", fees="0")
+    with server.db.read(unscoped="test") as s:
+        owner = s.get(Account, brk).ownerId
+    adjust = _adjusted("0", "AAA", "BBB")
+
+    def terms(s, c):
+        from moolakata.store.repos import ledger as repo
+
+        adjust(s, c)
+        day = dt.date(2026, 11, 20)
+        aaa, bbb = (repo.instrument(s, x, None, "equity").id for x in ("AAA", "BBB"))
+        prices = {
+            (owner, aaa, day): Price(D(30), day, "close"),
+            (owner, bbb, day): Price(D(10), day, "close"),
+        }
+        _book(monkeypatch, "prices", prices, owned=True, session=s)
+
+    _, (_, aaa, bbb) = _ended(server, brk, "MSFT 20NOV26 100 P", "assign", None, terms)
+    assert [(t.amount, t.price) for t in (aaa, bbb)] == [(D(-7500), D(750)), (D(-2500), D(250))]
+
+
+def test_expiring_what_is_due_passes_over_the_rest_and_counts_each(server, alice):
+    # S3.6: on Oct 13, of what expired Oct 9 the 480 and 470 puts were out of the money at
+    # that day's close of 500 and expire; the AAPL put without a close and the 530 put in the
+    # money wait for the user, as does the 460 put expiring that day; the shares and the
+    # checking account (not for investing) are passed over, not stopped at, and a deleted
+    # account's 480 put is left as it is.
+    from moolakata import options
+    from moolakata.prices import refresh as pricing
+    from moolakata.store.entities.accounts import Account, Instrument, Transaction
+    from moolakata.store.entities.prices import Price
+
+    pricing.install()
+    new_account(alice, name="Checking")
+    gone = new_account(alice, name="Closed", type="brokerage")["id"]
+    opt(alice, gone, "sell-to-open", "2026-09-03", "1.00", expiry="2026-10-09", fees="0")
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    add(alice, brk, "-40000.00", "2026-08-03", kind="buy", symbol="MSFT", quantity="100",
+        price="400")  # fmt: skip
+    option_trade(alice, brk, "2026-09-01", "sell-to-open", "aapl", "put", "200", "2026-10-09",
+                 "1", "1.00")  # fmt: skip
+    for day, strike, expiry in [
+        ("2026-09-02", "530", "2026-10-09"),
+        ("2026-09-03", "480", "2026-10-09"),
+        ("2026-09-04", "470", "2026-10-09"),
+        ("2026-09-05", "460", "2026-10-13"),
+    ]:
+        opt(alice, brk, "sell-to-open", day, "1.00", strike=strike, expiry=expiry, fees="0")
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, gone).mark_deleted(None)
+        msft = s.query(Instrument).filter_by(symbol="MSFT").one()
+        for day in (dt.date(2026, 10, 9), dt.date(2026, 10, 13)):
+            s.add(Price(instrumentId=msft.id, date=day, close=500, source="test",
+                        fetchedAt=clock.now(), updatedAt=clock.now()))  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        assert options.expire_due(s, dt.date(2026, 10, 13)) == 2
+    with server.db.read(unscoped="test") as s:
+        owner = s.get(Account, brk).ownerId
+        ended = {(t.accountId, t.payee, t.date, t.createdById) for t in s.query(Transaction)
+                 .filter_by(kind="expire", deleted=False)}  # fmt: skip
+    assert ended == {
+        (brk, f"Expired MSFT 09OCT26 {k} P", dt.date(2026, 10, 9), owner) for k in ("480", "470")
+    }

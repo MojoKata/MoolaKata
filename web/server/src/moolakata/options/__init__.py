@@ -107,9 +107,10 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
     n = abs(held) if contracts is None else Decimal(contracts)
     if n <= 0 or n > abs(held) or n != n.to_integral_value():
         raise refuse("contracts", "contracts-invalid", f"Up to {abs(held)} contracts.")
-    if how == "exercise" and held < 0:
+    long = held > 0
+    if how == "exercise" and not long:
         raise refuse("how", "short-exercise", "A short option is assigned, not exercised.")
-    if how == "assign" and held > 0:
+    if how == "assign" and long:
         raise refuse("how", "long-assign", "A long option is exercised, not assigned.")
     made = []
     end = Transaction(
@@ -134,17 +135,18 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
     parts = deliverable(s, c, day, account.ownerId)
     extra = ((c.deliverableCash or Decimal(0)) * n).quantize(CENT)
     word = "assigned" if how == "assign" else "exercised"
-    given = Decimal(0)
+    given = extra_given = Decimal(0)
     for i, (under, per, weight) in enumerate(parts):
         shares = per * n
         # The strike and the deliverable's cash are spread over its parts by their value
-        # that day (S3.10.4); the last takes what rounding leaves. The premium goes into the
-        # basis or proceeds as the account is replayed, so an edit to the opening trade
-        # follows through (S3.4).
+        # that day (S3.10.4); the last takes what rounding leaves of each, so the parts come
+        # to all of it. The premium goes into the basis or proceeds as the account is
+        # replayed, so an edit to the opening trade follows through (S3.4).
         last = i == len(parts) - 1
         cash = paid - given if last else (paid * weight).quantize(CENT)
         given += cash
-        extra_part = (extra * weight).quantize(CENT)
+        extra_part = extra - extra_given if last else (extra * weight).quantize(CENT)
+        extra_given += extra_part
         stock = Transaction(
             id=ids.new_id("Txn"),
             accountId=account.id,
@@ -155,7 +157,7 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
             f"({word})",
             instrumentId=under.id,
             quantity=shares,
-            price=(cash / shares).quantize(Decimal("0.0001")) if shares else c.strike,
+            price=(cash / shares).quantize(Decimal("0.0001")),  # a part has shares (S3.10.2)
             lotMethod=None if buys else account.lotMethod,
             optionTransactionId=end.id,
             createdById=user_id,
@@ -175,7 +177,6 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
                     acquiredOn=day,
                     quantity=shares,
                     costBasis=cash - extra_part,
-                    basisMissing=False,
                 )
             )
         made.append(stock)
@@ -210,12 +211,10 @@ def deliverable(s: Session, c: OptionContract, day: dt.date, owner: str) -> list
         for x in json.loads(c.deliverable)
     ]
     found = valuation.prices(s, [i.id for i, _ in rows], day, owner=owner)
-    if all(i.id in found for i, _ in rows):
-        values = [found[i.id].price * q for i, q in rows]
-    else:
-        values = [q for _, q in rows]
-    total = sum(values, Decimal(0)) or Decimal(1)
-    return [(i, q, v / total) for (i, q), v in zip(rows, values, strict=True)]
+    priced = all(i.id in found for i, _ in rows)
+    worth = [(i, q, found[i.id].price * q if priced else q) for i, q in rows]
+    total = sum(v for _, _, v in worth) or Decimal(1)
+    return [(i, q, v / total) for i, q, v in worth]
 
 
 def expire_due(s: Session, today: dt.date) -> int:
@@ -226,9 +225,8 @@ def expire_due(s: Session, today: dt.date) -> int:
     from ..store.entities.accounts import Account
 
     done = 0
-    for a in s.scalars(select(Account).where(Account.deleted == false())):
-        if not atypes.investing(a.type):
-            continue
+    kinds = [t for t in atypes.GROUPS if atypes.investing(t)]  # only these hold options
+    for a in s.scalars(select(Account).where(Account.deleted == false(), Account.type.in_(kinds))):
         replay = repo.load(s, a).replay()
         for iid in replay.positions():
             c = contract_of(s, iid)
@@ -248,43 +246,35 @@ def market_close(s: Session, c: OptionContract, day: dt.date):
     """What a contract delivers, per share of its multiplier, at the market's stored closes of
     the day alone, and the oldest close used: what decides an automatic expiry (S3.6, CR3-24).
     No one's typed price, statement or trade. None without closes."""
-    import json
-
     from .. import valuation
 
-    if not c.deliverable:
-        p = valuation.closes(s, [c.underlyingId], day).get(c.underlyingId)
-        return (p.price, p.asOf) if p is not None else None
-    rows = json.loads(c.deliverable)
-    found = valuation.closes(s, [x["instrumentId"] for x in rows], day)
-    if any(x["instrumentId"] not in found for x in rows):
-        return None
-    worth = sum(
-        (found[x["instrumentId"]].price * Decimal(str(x["shares"])) for x in rows), Decimal(0)
-    ) + (c.deliverableCash or Decimal(0))
-    return worth / c.multiplier, min(found[x["instrumentId"]].asOf for x in rows)
+    return _worth_a_share(c, lambda ids: valuation.closes(s, ids, day))
 
 
 def per_share(s: Session, c: OptionContract, day: dt.date | None, owner: str):
     """What a contract delivers, per share of its multiplier, at a day's closes, and the
     oldest close used: the underlying's price, or for an adjusted contract its deliverable's
     value (its shares and cash) divided by the multiplier (S3.10.5). None without closes."""
-    import json
-
     from .. import valuation
 
+    return _worth_a_share(c, lambda ids: valuation.prices(s, ids, day, owner=owner))
+
+
+def _worth_a_share(c: OptionContract, priced):
+    """What a contract delivers, per share of its multiplier, at the prices `priced` finds
+    for a list of instruments, and the oldest of them; None without one for every part."""
+    import json
+
     if not c.deliverable:
-        p = valuation.prices(s, [c.underlyingId], day, owner=owner).get(c.underlyingId)
+        p = priced([c.underlyingId]).get(c.underlyingId)
         return (p.price, p.asOf) if p is not None else None
     rows = json.loads(c.deliverable)
-    found = valuation.prices(s, [x["instrumentId"] for x in rows], day, owner=owner)
+    found = priced([x["instrumentId"] for x in rows])
     if any(x["instrumentId"] not in found for x in rows):
         return None
-    worth = sum(
-        (found[x["instrumentId"]].price * Decimal(str(x["shares"])) for x in rows), Decimal(0)
-    ) + (c.deliverableCash or Decimal(0))
-    asof = min(found[x["instrumentId"]].asOf for x in rows)
-    return worth / c.multiplier, asof
+    worth = sum(found[x["instrumentId"]].price * Decimal(str(x["shares"])) for x in rows)
+    worth += c.deliverableCash or 0
+    return worth / c.multiplier, min(found[x["instrumentId"]].asOf for x in rows)
 
 
 def in_the_money(c: OptionContract, price: Decimal) -> bool:
