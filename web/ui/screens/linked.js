@@ -152,9 +152,9 @@ function Frame({ id, st, reload, sub, subId, tab }) {
   } /></button></div>
       <div class="content">${
     h.locked ? html`<${Locked} id=${id} st=${st} reload=${reload} />` : html`
-      <div class="peer-strip" data-help="strip"><${Icon} name="link" /><b>${h.serverName}</b>
-        <span>read only</span><span class="dim">synced ${ago(h.syncedAt)}</span>
-        <span class="dim">unlocked by ${st.unlockedBy} · locks after ${Math.round(
+      <div class="peer-strip" data-help="strip"><${Icon} name="link" /><b>${h.serverName}</b> <span
+        >read only</span><span class="dim">synced ${ago(h.syncedAt)}</span> <span class="dim"
+        >unlocked by ${st.unlockedBy} · locks after ${Math.round(
           (st.locksInSeconds || 0) / 60,
         )} min unused</span><span class="spacer"></span><button type="button" class="btn sm"
           disabled=${lock.busy} onClick=${() => lock.run().catch(() => {})}><${Icon}
@@ -218,8 +218,8 @@ function Locked({ id, st, reload }) {
             setWords(e.currentTarget.value)} autocomplete="off"
             spellcheck="false"></textarea>
           </${Field}>
-          <button class="btn primary" disabled=${go.busy || !words.trim()}><${Icon} name="lock" />
-          Open</button>
+          <button class="btn primary" disabled=${go.busy || !words.trim()}><${Icon}
+            name="lock" /> Open</button>
           <p class="small dim">Once open, it stays open for everyone it shares with, each seeing only
           what names them, until it goes unused.</p>
       `
@@ -608,8 +608,9 @@ function Portfolio({ pid }) {
   if (!pf) return html`<${Loading} lines=${5} />`;
   const pts = /** @type {any} */ (series.data)?.points;
   return html`
-    <div class="toolbar"><b style=${{ fontSize: '16px' }}>${pf.name}</b><span class="spacer"></span>
-      <span style=${{ fontSize: '22px', fontWeight: 650 }}><${Amt} v=${pf.value} /></span></div>
+    <div class="toolbar"><b style=${{ fontSize: '16px' }}>${pf
+      .name}</b><span class="spacer"></span><span
+        style=${{ fontSize: '22px', fontWeight: 650 }}><${Amt} v=${pf.value} /></span></div>
     ${pts?.length
       ? html`
         <div class="card mb">

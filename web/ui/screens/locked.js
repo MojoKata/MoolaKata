@@ -143,8 +143,8 @@ export default function Locked() {
                 : 'eye'} /></button></span>
           </${Field}>
           ${lock?.error
-            ? html`<div class="notice small bad" role="status">The last unlock couldn't finish:
-              ${lock.error}</div>`
+            ? html`<div class="notice small bad" role="status">The last unlock couldn't
+              finish: ${lock.error}</div>`
             : null}
           <${FormError} error=${unlock.error} />
           <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}

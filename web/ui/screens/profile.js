@@ -812,8 +812,8 @@ function IgnoredLines() {
               onClick=${() => remove(x)}>Remove</button></div>
           `
         )
-        : html`<p class="small dim">None. When you leave a statement's line out, <b>Remember…</b>
-          ignores lines that start like it from then on.</p>`}
+        : html`<p class="small dim">None. When you leave a statement's line
+          out, <b>Remember…</b> ignores lines that start like it from then on.</p>`}
     </div>
   `;
 }

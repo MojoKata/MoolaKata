@@ -82,8 +82,8 @@ export function Strategies() {
           <${Icon} name="info" />
           <div>${p.kind === 'roll'
             ? html`
-              ${p.legs[0].symbol} opened ${date(p.openedOn)} in ${p.accountName}, the day a leg of
-                        <b>${p.shape}</b> on ${p
+              ${p.legs[0].symbol} opened ${date(p.openedOn)} in ${p.accountName}, the day a leg
+                        of <b>${p.shape}</b> on ${p
                           .underlying} closed: a roll? <button type="button" class="btn sm
                         primary" disabled=${act.busy} onClick=${() =>
                           roll(p, true)}>Keep it in the strategy</button> <button
@@ -122,9 +122,7 @@ export function Strategies() {
                         style=${{ whiteSpace: 'nowrap' }}><b>${x.name}</b> · ${x
                           .underlying}${x.name !==
                             x.shape
-                          ? html`
-                            <span class="small dim">(${x.shape})</span>
-                          `
+                          ? html`${' '}<span class="small dim">(${x.shape})</span>`
                           : null}<div class="small dim">${x.accountName} · opened ${date(
                             x.openedOn,
                           )}${x
@@ -377,7 +375,8 @@ function StrategyDialog({ close, x }) {
   return html`
     <${DraftDialog} f=${f} title=${`${x.name} · ${x.underlying}`} close=${close}
       what="This strategy"
-      done=${rec?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
+      done=${(/** @type {any} */ d) =>
+        d?.records[0]?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
       extra=${({ save }) =>
         html`
           <button type="button" class="btn danger" disabled=${save.busy || !rec}

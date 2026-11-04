@@ -286,7 +286,7 @@ function Holdings({ a }) {
                             <tr>
                               <td>${date(l.acquiredOn)}${l.standIn
                                 ? html`
-                                  <span class="pill"
+                                  ${' '}<span class="pill"
                                     data-tip="From the broker's positions: earlier history wasn't imported">stand-in</span>
                                 `
                                 : null}</td>
@@ -352,8 +352,7 @@ function Transactions({ a, all }) {
     offset: offsetOf(page),
   }, ['import']);
   const d = /** @type {any} */ (res.data);
-  return html`<div class="toolbar"><span class="spacer"></span>
-    ${
+  return html`<div class="toolbar"><span class="spacer"></span>${
     canAdd('Txn', a)
       ? html`
         <button type="button" class="btn" onClick=${() =>
@@ -1106,9 +1105,7 @@ function StatementChecks({ v }) {
             >statement ${h.statement ?? '—'} · MoolaKata ${h.held ?? 'not held'}${
               h
                   .statementBasis != null
-                ? html`
-                  · basis on the statement <${Amt} v=${h.statementBasis} />
-                `
+                ? html`${' '}· basis on the statement <${Amt} v=${h.statementBasis} />`
                 : null
             }</div></div>${
               h.difference == null

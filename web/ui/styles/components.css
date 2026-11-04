@@ -1097,6 +1097,14 @@
     padding: 9px 0;
     border-bottom: 1px solid var(--border);
   }
+  /* A row whose buttons go below its words once the card is too narrow for both (CR3-412). */
+  .list-item.wraps {
+    flex-wrap: wrap;
+  }
+  .list-item.wraps > .grow {
+    flex: 1 1 14em;
+    min-width: 14em;
+  }
   .list-item:last-child {
     border-bottom: 0;
   }

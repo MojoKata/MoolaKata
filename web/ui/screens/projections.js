@@ -130,18 +130,15 @@ function Detail({ id, reloadList }) {
   ).join(', ');
   return html`
     <div class="toolbar mt">
-      <b style=${{ fontSize: '16px' }}>${x.name}</b>
-      <span class="small dim">${GOAL[x.goal]?.[0] || x.goal} · on ${x.builtOnLabel}</span>
-      ${x.active
+      <b style=${{ fontSize: '16px' }}>${x.name}</b> <span class="small dim">${GOAL[x.goal]?.[0] ||
+        x.goal} · on ${x.builtOnLabel}</span> ${x.active
         ? html`<span class=${'pill ' + (TONE[x.status] || '')}>active${
           x.status && x.status !==
               'untracked'
             ? ` · ${x.status}`
             : ''
         }</span>`
-        : html`<span class="pill">scenario</span>`}
-      <span class="spacer"></span>
-      ${x.access.shareable
+        : html`<span class="pill">scenario</span>`}<span class="spacer"></span>${x.access.shareable
         ? html`<button type="button" class="btn" onClick=${() =>
           openDialog(ShareDialog, { kind: 'projection', id: x.id, name: x.name }).then(
             reload,

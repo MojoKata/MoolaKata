@@ -12,7 +12,7 @@ import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { TimeChart } from '../charts/chart.js';
-import { num as float } from '../app/dec.js';
+import { dec, num as float } from '../app/dec.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { saveNow } from './draft-form.js';
@@ -257,7 +257,7 @@ function Results({ r, className, rows, showRows }) {
   const rc = r.recast;
   const line = (/** @type {any} */ o) =>
     o.balances.map((/** @type {any} */ x) => /** @type {[string, string]} */ ([x.date, x.balance]));
-  const changed = p.payoffDate !== s.payoffDate || p.interest !== s.interest;
+  const changed = p.payoffDate !== s.payoffDate || !dec(p.interest).eq(s.interest); // exact (CR3-411)
   return html`
     <${TimeChart} label="The loan's balance: the schedule against your plan" series=${[
       { name: 'Schedule', color: '--fg-muted', dash: true, points: line(s) },
@@ -454,11 +454,9 @@ function Saved({ a, canWrite, f, plans, reload, load }) {
         ? plans.map((p) =>
           html`
             <div
-              class="list-item"><div class="grow">${p.name}<div class="small dim">${p
+              class="list-item wraps"><div class="grow">${p.name}<div class="small dim">${p
                   .following
-                ? html`
-                  the plan you're following, since ${date(p.followingSince)} ·
-                `
+                ? html`the plan you're following, since ${date(p.followingSince)} ·${' '}`
                 : null}${p.headline}</div></div>
                         <button class="btn sm" onClick=${() => load(p.inputs)}>Show</button>
                         ${canWrite

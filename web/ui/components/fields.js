@@ -207,11 +207,7 @@ export function FormError({ error, shown = [] }) {
     : error.message;
   if (error.errors?.length && !errs.length) return null;
   return html`<div class="notice bad" role="alert">${text}${
-    error.errorId
-      ? html`
-        <span class="small dim">(${error.errorId})</span>
-      `
-      : null
+    error.errorId ? html`${' '}<span class="small dim">(${error.errorId})</span>` : null
   }</div>`;
 }
 

@@ -320,8 +320,8 @@ function Retirement({ p }) {
                     <td>${c.owner}</td>
                     <td class="num">
                       <${Amt} v=${c.contributed} />${c.across
-                        ? html`<div class="small dim">${html`<${Amt} v=${c.personTotal} />`}
-                          across their ${c.across}</div>`
+                        ? html`<div class="small dim">${html`<${Amt} v=${c.personTotal} />`} across
+                          their ${c.across}</div>`
                         : null}
                     </td>
                     <td class="num">${c.limit
@@ -352,8 +352,7 @@ function Retirement({ p }) {
               <div
                 class="grow">${x.account}<div class="small dim">${x
                   .owner}, ${x.age}: <${Amt} v=${x
-                  .balance} cents=${false} /> at the end of last year ÷
-                        ${x.factor}</div></div>
+                  .balance} cents=${false} /> at the end of last year ÷ ${x.factor}</div></div>
               <${Amt} v=${x.due} />
             </div>
           `
@@ -365,11 +364,7 @@ function Retirement({ p }) {
         ? r.conversions.map((/** @type {any} */ m) =>
           html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
             class="small dim">${date(m.date)}${
-            m.taxable != null
-              ? html`
-                · taxed <${Amt} v=${m.taxable} /> by Form 8606
-              `
-              : ''
+            m.taxable != null ? html`${' '}· taxed <${Amt} v=${m.taxable} /> by Form 8606` : ''
           }</div></span><${Amt} v=${m.amount} /></div>`
         )
         : html`<p class="small dim">None in ${p.year}.</p>`}</div>
@@ -654,7 +649,8 @@ function Issues({ p, b, reload }) {
             class="list-item"><${Icon} name="alert" /><span class="grow">${i.text}</span>${i
                     .kind === 'changed-after-filing' && b.access.writable
               ? html`
-                <a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><button class="btn sm"
+                ${''}<a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><button
+                  class="btn sm"
                   onClick=${waive}>No amendment needed</button>
               `
               : i.link

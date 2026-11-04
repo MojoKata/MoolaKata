@@ -111,7 +111,7 @@ function Overview({ v, reload }) {
             editPlan();
           }}>Edit</a>`}${plan.access.shareable
           ? html`
-            · <a href="#" onClick=${(/** @type {Event} */ e) => {
+            ${' '}· <a href="#" onClick=${(/** @type {Event} */ e) => {
               e.preventDefault();
               openDialog(ShareDialog, {
                 kind: 'giving-plan',
@@ -352,9 +352,9 @@ function Fund({ v, year }) {
   const res = useList('/giving/donations', { year });
   const grants = (/** @type {any[]} */ (res.data) || []).filter((d) => d.kind === 'daf-grant');
   if (!v.funds.length) {
-    return html`<${Empty}>No donor-advised fund. Add one as an account of type
-      <b>Donor-advised fund</b>: contributions to it are deducted when made, and its grants are
-      not deducted again.</${Empty}>`;
+    return html`<${Empty}>No donor-advised fund. Add one as an account of
+      type <b>Donor-advised fund</b>: contributions to it are deducted when made, and its grants
+      are not deducted again.</${Empty}>`;
   }
   return html`
     ${v.funds.map((/** @type {any} */ f) =>

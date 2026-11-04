@@ -76,7 +76,7 @@ export function Connections() {
         : rows.map((c) =>
           html`
             <div
-              class="list-item"><div class="grow"><b>${c
+              class="list-item wraps"><div class="grow"><b>${c
                 .label}</b><div class="small dim">${DRIVERS[c.driver] ||
                 c.driver} driver${c.institutionAccounts.length
                 ? ` · ${accountsOf(c).join(', ')}`
@@ -342,7 +342,7 @@ export function ConnectionDialog({ close, connection }) {
           ? html`
             <div class="notice">
               <${Icon} name="info" />
-              <div>Schwab signs you in on its own page.
+              <div>Schwab signs you in on its own page.${' '}
               ${existing?.signInAddress
                 ? html`<a href=${existing.signInAddress} target="_blank" rel="noopener">Open
                     Schwab's sign-in at ${existing.signInHost}</a>, sign in, then paste the address you land on below.`

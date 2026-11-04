@@ -290,8 +290,8 @@ function Plain({ section }) {
           }}>Receipts are kept encrypted in the data
             directory, each file once. Backups hold the database alone: the host's own backup of
             the data directory keeps the files.</p>
-          <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP, HEIC
-            <span class="small dim">· checked from the content</span></div>
+          <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP,
+            HEIC <span class="small dim">· checked from the content</span></div>
           <${Field} label="Largest file (MB)" id="receipt-max-mb" error=${errAt(e, 'receiptMaxMb')}>
             <${Input} value=${f.receiptMaxMb} onInput=${set(
               'receiptMaxMb',
@@ -443,9 +443,7 @@ function Prices() {
               html`
                 <tr>
                   <td><b>${src.label}</b>${src.name === 'stub'
-                    ? html`
-                      <span class="pill bad">dev</span>
-                    `
+                    ? html`${' '}<span class="pill bad">dev</span>`
                     : null}<div class="small dim">${src.terms}</div></td>
                   <td class="small dim">${src.classes.join(', ')}</td>
                   <td class="small">${!src.needsKey
@@ -548,7 +546,7 @@ function AddSource({ close, sources }) {
         ${
                 chosen.keyUrl
                   ? html`
-                    <a href=${chosen
+                    ${' '}<a href=${chosen
                       .keyUrl} target="_blank" rel="noopener noreferrer">Get a free key</a>
                   `
                   : null
@@ -734,11 +732,9 @@ function TaxTables() {
               html`
                 <tr>
                   <td>${r.label}${r.corrected
-                    ? html`
-                      <span class="pill warn" title=${`Shipped: ${
-                        show(r.shipped)
-                      }`}>corrected</span>
-                    `
+                    ? html`${' '}<span class="pill warn" title=${`Shipped: ${
+                      show(r.shipped)
+                    }`}>corrected</span>`
                     : null}<div class="small dim">${r.source}</div></td>
                   <td class="num"><input class="in num" style=${{
                     maxWidth: '200px',
@@ -1533,14 +1529,14 @@ function Keys() {
             : null}
           ${v.reminderDue
             ? html`
-              <span class="pill warn">time to rotate</span>
+              ${' '}<span class="pill warn">time to rotate</span>
             `
             : null}</div>
         <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${(v
           .databaseBytes / 1048576).toFixed(1)} MB), ${v.receipts} receipt file${v.receipts === 1
           ? ''
-          : 's'}, ${v.secrets} secret${v.secrets === 1 ? '' : 's'}
-          <span class="small dim">· passwords are hashed</span></div>
+          : 's'}, ${v.secrets} secret${v.secrets === 1 ? '' : 's'} <span
+            class="small dim">· passwords are hashed</span></div>
         <div class="list-item"><span class="grow dim">Previous keys</span>${v.previous.length
           ? html`<span>${
             v.previous.map((/** @type {any} */ p) =>
@@ -1610,10 +1606,11 @@ function Keys() {
                         : ', from Settings'}${last.receiptsSetAside.length ||
                           last.secretsSetAside.length
                         ? html`
-                          : set aside ${last.receiptsSetAside.length} receipt files and left ${last
+                          ${''}: set aside ${last.receiptsSetAside
+                            .length} receipt files and left ${last
                             .secretsSetAside
                             .length} secrets that opened under neither key (the files are in <code
-                          >receipts-set-aside/</code> in the data directory)
+                          >receipts-set-aside/</code> in the data directory)${''}
                         `
                         : ': everything opened'}.</div>
                       ${last.rotationUnfinished
@@ -1631,9 +1628,8 @@ function Keys() {
                           lastCopies.map(([name, o]) =>
                             html`<li><code>${name}</code>: ${o}${
                               leftUnder(String(o))
-                                ? html`
-                                  <span class="pill warn">still opens with an old key</span>
-                                `
+                                ? html`${' '}<span class="pill warn">still opens with an old
+                                  key</span>`
                                 : null
                             }</li>`
                           )
@@ -1669,10 +1665,10 @@ function Keys() {
             <div class="notice small bad mt" role="status" data-help="after-restore">
               <${Icon}
                 name="alert" />
-              <div>After the restore of <code>${v.lastRestore.source}</code>:
+              <div>After the restore of <code>${v.lastRestore.source}</code>:${' '}
                       ${v.lastRestore.receiptsUnopened
-                        .length} receipts' files don't open (or are missing),
-                      ${v.lastRestore.secretsUnopened.length} secrets don't open, and
+                        .length} receipts' files don't open (or are missing),${' '}
+                      ${v.lastRestore.secretsUnopened.length} secrets don't open, and${' '}
                       ${v.lastRestore.receiptsSetAside
                         .length} files were set aside. Put the receipts back from
                       the host's own backup of the same moment; enter the secrets again.</div>
@@ -1685,8 +1681,8 @@ function Keys() {
             <button type="button" class="btn" onClick=${rotate}>Rotate</button>
             <button type="button" class="btn" onClick=${() =>
               setArmed(true)}>Re-encrypt now</button>
-          `}
-          <span class="small dim">Rotate gives a new phrase, for a leaked or lost one or the yearly
+          `}<span
+            class="small dim">Rotate gives a new phrase, for a leaked or lost one or the yearly
             reminder. Re-encrypt now keeps the phrase and makes a new data key, for when the data key
             may have been read: a memory dump or a debugging session. Both restart MoolaKata, which
             then asks for the phrase.</span></div>

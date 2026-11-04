@@ -243,11 +243,7 @@ export function Contributions({ a }) {
                 html`<tr><td>${date(c.date)}</td><td>${c.name}${
                   c.relationship ? html`<span class="small dim"> · ${c.relationship}</span>` : null
                 }${
-                  c.fiveYear
-                    ? html`
-                      <span class="pill info">five-year election</span>
-                    `
-                    : null
+                  c.fiveYear ? html`${' '}<span class="pill info">five-year election</span>` : null
                 }</td><td class="num"><${Amt} v=${c.amount} /></td>${
                   a.access.writable
                     ? html`
@@ -507,11 +503,9 @@ function Expense({ x, canWrite, done }) {
       class="small dim">${x.kindLabel} · ${date(x.date)}${x.year !== Number(x.date.slice(0, 4))
         ? ` · counts in ${x.year}`
         : ''}${x.documents.length
-        ? html`
-          · <${Icon} name="clip" /> ${x.documents.length} receipt${x.documents.length === 1
-            ? ''
-            : 's'}
-        `
+        ? html`${' '}· <${Icon} name="clip" /> ${x.documents.length} receipt${
+          x.documents.length === 1 ? '' : 's'
+        }`
         : ''}</div></div><${Amt} v=${x.amount} />${canWrite
         ? html`
           <label class="btn sm" for=${fid}><${Icon} name="clip" /> ${busy

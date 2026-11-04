@@ -33,19 +33,17 @@ export default function Portfolio({ id, tab }) {
   return html`
     <div
       class="toolbar"><${Tile} group="investing" icon="pie" /><b style=${{ fontSize: '16px' }}>${p
-        .name}</b>
-        ${!p.access.mine
-          ? html`<span class="pill">${p.ownerName} · ${p.access.writable ? 'write' : 'read'}</span>`
-          : null}<span class="spacer"></span>
-        ${p.access.shareable && !p.implicit
-          ? html`
-            <button type="button" class="btn" onClick=${() =>
-              openDialog(ShareDialog, { kind: 'portfolio', id: p.id, name: p.name }).then(
-                res.reload,
-              )}>
-              <${Icon} name="share" /> Share</button>
-          `
-          : null}
+        .name}</b> ${!p.access.mine
+        ? html`<span class="pill">${p.ownerName} · ${p.access.writable ? 'write' : 'read'}</span>`
+        : null}<span class="spacer"></span>${p.access.shareable && !p.implicit
+        ? html`
+          <button type="button" class="btn" onClick=${() =>
+            openDialog(ShareDialog, { kind: 'portfolio', id: p.id, name: p.name }).then(
+              res.reload,
+            )}>
+            <${Icon} name="share" /> Share</button>
+        `
+        : null}
         ${p.access.writable && !p.implicit
           ? html`
             <button type="button" class="btn"
@@ -198,9 +196,7 @@ function Holdings({ p }) {
             html`
               <tr>
                 <td><b>${x.symbol}</b>${x.stale
-                  ? html`
-                    <span class="pill warn">stale</span>
-                  `
+                  ? html`${' '}<span class="pill warn">stale</span>`
                   : null}
                     <div class="small dim">${x.accounts.join(', ')}</div></td>
                 <td class="dim">${x.name || ''}</td>

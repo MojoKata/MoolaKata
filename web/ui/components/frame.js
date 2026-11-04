@@ -81,8 +81,8 @@ function PriceStatus() {
       ? 'Some prices are older than they should be'
       : 'Daily closes: prices are delayed, never live'
   }>
-    <span class=${'dot' + (s.stale ? ' stale' : '')} aria-hidden="true"></span>
-    <span class="txt">Prices ${when}</span><span class="sr-only">${s.stale ? ' (stale)' : ''}</span>
+    <span class=${'dot' + (s.stale ? ' stale' : '')} aria-hidden="true"></span><span
+      class="txt">Prices ${when}</span><span class="sr-only">${s.stale ? ' (stale)' : ''}</span>
   </div>`;
 }
 
@@ -183,7 +183,7 @@ export function Frame({ children, onSignOut }) {
           aria-current=${active ? 'page' : undefined} data-tip=${collapsed.value
             ? n.label
             : undefined}>
-                  <${Icon} name=${n.icon} /><span class="nav-label">${n.label}</span>
+                  <${Icon} name=${n.icon} /><span class="nav-label">${n.label}</span>${' '}
                   ${count ? html`<span class="nav-badge">${count}</span>` : null}</a>
       `;
     })

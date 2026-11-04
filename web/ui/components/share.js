@@ -252,9 +252,7 @@ export function ShareDialog({ close, kind, id, name }) {
             ${view.links.map((/** @type {any} */ l) =>
               html`
                 <h4>On ${l.serverName}${l.householdName
-                  ? html`
-                    <span class="small dim">${l.householdName}</span>
-                  `
+                  ? html`${' '}<span class="small dim">${l.householdName}</span>`
                   : null}</h4>
                 <div class="why" data-help="linked-people">People on a linked server, as it
                   names them: always Read, seen only in its window there.</div>

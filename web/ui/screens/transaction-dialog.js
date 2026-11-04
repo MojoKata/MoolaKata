@@ -211,8 +211,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                     categoryId: t?.get('categoryId') || null,
                   }), 0);
               }}>Make a rule</button>`
-              : null}
-            <span class="spacer" style=${{ flex: 1 }}></span>
+              : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
       ${t
@@ -264,8 +263,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               ? html`
                 <div class="field">
                   <div class="toolbar" style=${{ marginBottom: 0 }}>
-                    <span class="small dim">${parts.length ? 'Split across categories' : ''}</span>
-                    <span class="spacer"></span>
+                    <span class="small dim">${parts.length
+                      ? 'Split across categories'
+                      : ''}</span><span class="spacer"></span>
                     <button type="button" class="btn sm" onClick=${addPart}>
                       ${parts.length ? 'Add a part' : 'Split…'}</button>
                   </div>
@@ -462,15 +462,17 @@ function InBudgets({ txn, rec }) {
       <legend class="small" style=${{ color: 'var(--fg-dim)' }}>In budgets</legend>
       ${rows.map((r) => {
         const left = out.includes(r.budgetId);
-        return html`<div class="list-item"><span class="grow">${r.name}<div class="small dim">${
-          left
-            ? 'left out: counts nowhere in it'
-            : `counts in ${r.countsAs || 'nothing yet: uncategorised'}`
-        }</div></span>
-          <span class="small dim">Leave out</span>
-          <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
-            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
-          .writable} /></div>`;
+        return html`
+          <div
+            class="list-item"><span class="grow">${r.name}<div class="small dim">${left
+              ? 'left out: counts nowhere in it'
+              : `counts in ${
+                r.countsAs || 'nothing yet: uncategorised'
+              }`}</div></span> <span class="small dim">Leave out</span>
+                    <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
+                      label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
+                        .writable} /></div>
+        `;
       })}
       <div class="hint">The category is the transaction's: changing it changes every budget that
         counts it.</div>
@@ -572,8 +574,8 @@ function TransferLots({ t }) {
       )}
       <div class="toolbar"><span class="small dim">${rows.length
         ? 'They add up to the shares moved in.'
-        : 'None typed: one lot whose day bought is missing, its term unknown until you add it.'}</span>
-        <span class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
+        : 'None typed: one lot whose day bought is missing, its term unknown until you add it.'}</span><span
+        class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
           put([...rows, {
             acquiredOn: null,
             quantity: null,

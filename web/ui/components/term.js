@@ -84,8 +84,7 @@ export function Term({ term, word, title, text, source, quiet = false }) {
     <span class="term-tip" ref=${card} hidden=${!open}>
       <span class="term-head">
         <span class="term-abbr">${term}</span><b>${title}</b>${link}
-      </span>
-      <span class="term-text" id=${id}>${text}</span>
+      </span><span class="term-text" id=${id}>${text}</span>
     </span>
   `;
   return html`

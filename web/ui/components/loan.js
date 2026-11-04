@@ -300,11 +300,7 @@ function Candidates({ a, again }) {
       ${rows.map((c) =>
         html`<div class="list-item"><div class="grow">${c.payee || 'Payment'}<div
           class="small dim">${c.accountName} · ${date(c.date)}${
-          c.pairWith
-            ? html`
-              · pair with the payment of ${date(c.pairWith.date)}
-            `
-            : null
+          c.pairWith ? html`${' '}· pair with the payment of ${date(c.pairWith.date)}` : null
         }</div></div><${Amt} v=${c.amount} /><button class="btn sm" disabled=${link.busy} onClick=${() =>
           link.run(c).catch(() => {})}>${c.pairWith ? 'Pair' : 'Link'}</button></div>`
       )}
@@ -341,13 +337,7 @@ export function Schedule({ a }) {
           <tbody>${shown.map((/** @type {any} */ r) =>
             html`<tr class=${r.past ? 'dim' : ''}><td style=${{
               whiteSpace: 'nowrap',
-            }}>${date(r.date)}${
-              r.past
-                ? html`
-                  <span class="pill ok">paid</span>
-                `
-                : null
-            }</td>
+            }}>${date(r.date)}${r.past ? html`${' '}<span class="pill ok">paid</span>` : null}</td>
             <td class="num"><${Amt} v=${r.payment} /></td><td class="num"><${Amt} v=${r.principal} /></td><td class="num"><${Amt} v=${r.interest} /></td>${
               escrow
                 ? html`
