@@ -192,7 +192,7 @@ def _a_leg_risks_what_its_shape_does(made):
 
 def _the_underlying_is_priced(made):
     with made.server.db.read(unscoped="test") as s:
-        got = {i.symbol: day for i, day in pricing.priced(s, benchmarks=False)}
+        got = {i.symbol: day for i, day in pricing.priced(s)}
     missing = [o.symbol for o in made.w.options if got.get(o.symbol) != ow.OPENED.replace(day=1)
                and got.get(o.symbol) is None]  # fmt: skip
     assert not missing, f"not priced: {missing}"

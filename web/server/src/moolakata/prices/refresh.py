@@ -9,6 +9,7 @@ closes, through `stored_closes`, never a source during a request.
 import datetime as dt
 import json
 import logging
+import math
 from decimal import Decimal
 
 from sqlalchemy import and_, false, func, insert, select
@@ -42,9 +43,14 @@ def trading_days_between(a: dt.date, b: dt.date) -> int:
     return n
 
 
+def typed_stale(as_of: dt.date, today: dt.date) -> bool:
+    """A typed price, as a statement's value, is stale after 90 days (S4.7)."""
+    return (today - as_of).days > STATEMENT_STALE_DAYS
+
+
 def is_stale(cls: str, source: str, as_of: dt.date, today: dt.date) -> bool:
-    if source in ("manual", "statement"):
-        return (today - as_of).days > STATEMENT_STALE_DAYS
+    if source == "manual":
+        return typed_stale(as_of, today)
     if cls in STALE_DAYS:
         return (today - as_of).days > STALE_DAYS[cls]
     # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
@@ -66,7 +72,7 @@ def stored_closes(
     rows = s.execute(
         select(Price, Instrument.instrumentClass)
         .join(latest, and_(latest.c.instrumentId == Price.instrumentId, latest.c.d == Price.date))
-        .join(Instrument, Instrument.id == Price.instrumentId)
+        .join(Instrument)
     ).all()
     today = clock.today()
     return {
@@ -116,7 +122,7 @@ def install() -> None:
 
 
 def preference(src: PriceSource) -> dict[str, int]:
-    return json.loads(src.preference or "{}")
+    return json.loads(src.preference)
 
 
 def enabled(s: Session, dev: bool) -> list[PriceSource]:
@@ -131,9 +137,10 @@ def hosts(s: Session, dev: bool) -> list[str]:
 
 
 def for_class(sources: list[PriceSource], cls: str) -> list[PriceSource]:
-    """The sources that serve a class, in its order of preference."""
+    """The sources that serve a class, in its order of preference: those not ranked for it
+    after every one ranked, oldest first."""
     serving = [r for r in sources if cls in SOURCES[r.name].classes and SOURCES[r.name].fetches]
-    return sorted(serving, key=lambda r: (preference(r).get(cls, 999), r.createdAt))
+    return sorted(serving, key=lambda r: (preference(r).get(cls, math.inf), r.createdAt))
 
 
 # ---------- what needs a price ----------
@@ -180,26 +187,23 @@ def _held_by(s: Session, viewer: str) -> list[str]:
     ]
 
 
-def priced(s: Session, benchmarks: bool = True) -> list[tuple[Instrument, dt.date]]:
+def priced(s: Session) -> list[tuple[Instrument, dt.date]]:
     """Every instrument held in a live account, or used as a benchmark, with the first day
-    its history is wanted. Without benchmarks: only what is held."""
+    its history is wanted."""
     holding = held(s)
     firsts: dict[str, dt.date] = {}
     for iid, day in s.execute(
         select(Transaction.instrumentId, func.min(Transaction.date))
-        .join(Account, Account.id == Transaction.accountId)
-        .where(
-            Transaction.instrumentId.is_not(None),
-            Transaction.deleted == false(),
-            Account.deleted == false(),
-        )
+        .join(Account)
+        .where(Transaction.deleted == false(), Account.deleted == false())
         .group_by(Transaction.instrumentId)
     ):
+        # Cash moves, of no instrument, come as one row of none: never held.
         if iid in holding:
             firsts[iid] = day
     for iid, day in s.execute(
         select(Holding.instrumentId, func.min(Holding.asOf))
-        .join(Account, Account.id == Holding.accountId)
+        .join(Account)
         .where(Holding.deleted == false(), Account.deleted == false())
         .group_by(Holding.instrumentId)
     ):
@@ -223,7 +227,7 @@ def priced(s: Session, benchmarks: bool = True) -> list[tuple[Instrument, dt.dat
 
     for metal, day in s.execute(
         select(Item.metal, func.min(Item.acquiredOn))
-        .join(Account, Account.id == Item.accountId)
+        .join(Account)
         .where(Item.valuation == "spot", Item.deleted == false(), Account.deleted == false())
         .group_by(Item.metal)
     ):
@@ -236,16 +240,15 @@ def priced(s: Session, benchmarks: bool = True) -> list[tuple[Instrument, dt.dat
             firsts[inst.id] = min(day, firsts.get(inst.id, day))
     today = clock.today()
     for inst in s.scalars(
-        select(Instrument).where(
-            Instrument.symbol.in_(BENCHMARKS if benchmarks else ()), Instrument.deleted == false()
-        )
+        select(Instrument).where(Instrument.symbol.in_(BENCHMARKS), Instrument.deleted == false())
     ):
         firsts.setdefault(inst.id, today - dt.timedelta(days=BACKFILL_DAYS))
+    # Every id here is an instrument's: a key, or a contract's part, and none is ever removed.
     insts = {i.id: i for i in s.scalars(select(Instrument).where(Instrument.id.in_(firsts)))}
     return [
         (insts[i], firsts[i])
         for i in firsts
-        if i in insts and insts[i].instrumentClass not in ("cash", "money-market")
+        if insts[i].instrumentClass not in ("cash", "money-market")
     ]
 
 
@@ -304,17 +307,19 @@ def store(
 
 
 def build(server, src: PriceSource, ctx: TaskContext | None) -> TickerSource:
+    """A source ready to call: its key, a client if it calls out, and its limits kept by the
+    task it runs in (a call outside a task waits for nothing)."""
     cls = SOURCES[src.name]
     key = None
     if cls.needs_key:
-        with server.db.read(unscoped="prices.refresh: build") as s:
+        # Secrets have no access view: named or not, the reason changes nothing read.
+        with server.db.read(unscoped="prices.refresh: build") as s:  # pragma: no mutate
             key = secret_repo.use(s, server.keys.secrets, "PriceSource", src.id, "apiKey")
-    if ctx is not None:
-        ctx.limits.set(src.name, cls.limits)
-        wait = lambda: ctx.wait_for(src.name)  # noqa: E731
-    else:
-        wait = lambda: None  # noqa: E731
-    return cls(server.http() if cls.hosts else None, key, wait)
+    client = server.http() if cls.hosts else None
+    if ctx is None:
+        return cls(client, key)
+    ctx.limits.set(src.name, cls.limits)
+    return cls(client, key, lambda: ctx.wait_for(src.name))
 
 
 def refresh(server, ctx: TaskContext | None = None) -> dict:
@@ -325,7 +330,8 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         sources = enabled(s, dev)
         wanted = priced(s)
         last = last_stored(s)
-    runs: dict[str, dict] = {r.id: {"ok": False, "error": None, "used": False} for r in sources}
+    # A source tried either answers ("ok") or fails, and then has its "error".
+    runs: dict[str, dict] = {r.id: {"ok": False, "used": False} for r in sources}
     built: dict[str, TickerSource] = {}
     stored = missing = 0
     for inst, first in wanted:
@@ -342,15 +348,19 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         ref = Ref(inst.id, inst.symbol, inst.instrumentClass)
         end = today
         if inst.instrumentClass == "option":
-            # An option is fetched by its OCC ticker, and only until it expires (S4.4).
-            with server.db.read(unscoped="prices.refresh: refresh") as s:
+            # An option is fetched by its OCC ticker, and only until it expires (S4.4); one a
+            # file named without a contract MoolaKata could read is not fetched at all.
+            # Contracts and instruments have no access view: named or not, the reason changes
+            # nothing read.
+            with server.db.read(unscoped="prices.refresh: refresh") as s:  # pragma: no mutate
                 c = options.contract_of(s, inst.id)
-                under = s.get(Instrument, c.underlyingId) if c else None
-            if c is None or under is None or c.expiry < start:
+                root = (c.root or s.get(Instrument, c.underlyingId).symbol) if c else None
+            if c is None or c.expiry < start:
                 continue
-            ref = Ref(inst.id, options.occ(c.root or under.symbol, c), "option")
+            ref = Ref(inst.id, options.occ(root, c), "option")
             end = min(today, c.expiry)
-        per_share = None
+        # Only tested for truth: None and "" alike leave the closes undivided.
+        per_share = None  # pragma: no mutate
         if not candidates and inst.symbol in METAL_PROXIES:
             # Metal spot from a proxy's closes, divided by the metal each share holds (S4.3).
             symbol, cls, figure = METAL_PROXIES[inst.symbol]
@@ -358,7 +368,8 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             ref = Ref(inst.id, symbol, cls)
             per_share = Decimal(1)
             if figure:
-                with server.db.read(unscoped="prices.refresh: refresh") as s:
+                # Tax figures have no access view: named or not, the reason changes nothing read.
+                with server.db.read(unscoped="prices.refresh: refresh") as s:  # pragma: no mutate
                     per_share = Decimal(str(taxtables.figures(s)[figure]))
         if not candidates:
             missing += 1
@@ -383,7 +394,8 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             run["ok"] = True
             if per_share:
                 closes = [(d, (c / per_share).quantize(Decimal("0.01"))) for d, c in closes]
-            with server.db.tx(unscoped="prices.refresh: refresh") as s:
+            # Closes have no access view: named or not, the reason changes nothing written.
+            with server.db.tx(unscoped="prices.refresh: refresh") as s:  # pragma: no mutate
                 stored += store(s, inst.id, closes, src.name)
             break
     now = clock.now()
@@ -403,20 +415,20 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
     return {"stored": stored, "unpriced": missing}
 
 
-def status(s: Session, dev: bool, viewer: str | None = None) -> dict:
+def status(s: Session, dev: bool, viewer: str) -> dict:
     """The header's last refresh and whether held prices are stale (S12.5): what the viewer's
-    accounts hold, with the prices they typed (S4.10); without a viewer, what is held."""
+    accounts hold, with the prices they typed (S4.10). Held prices only: the benchmarks every
+    server watches leave a new server, which holds nothing, with nothing to be stale."""
     rows = enabled(s, dev)
     last = max((r.lastOkAt for r in rows if r.lastOkAt), default=None)
-    # Held prices only: the benchmarks every server watches leave a new server, which holds
-    # nothing, with nothing to be stale.
-    ids = [i.id for i, _ in priced(s, benchmarks=False)] if viewer is None else _held_by(s, viewer)
+    ids = _held_by(s, viewer)
     today = clock.today()
-    closes = stored_closes(s, ids, today)
-    if viewer is not None:
-        for t in valuation.typed(s, viewer, ids, None, today):
-            if t.instrumentId not in closes or t.date >= closes[t.instrumentId].asOf:
-                stale = is_stale("", "manual", t.date, today)
-                closes[t.instrumentId] = valuation.Price(t.close, t.date, "manual", stale)
-    stale = any(p.stale for p in closes.values()) or (bool(ids) and len(closes) < len(ids))
-    return {"lastRefresh": last, "stale": stale and bool(ids), "sources": len(rows)}
+    # Each held instrument's latest price, as (its day, whether stale): a close, or a price
+    # the viewer typed on its day or after.
+    latest = {i: (p.asOf, p.stale) for i, p in stored_closes(s, ids, today).items()}
+    for t in valuation.typed(s, viewer, ids, None, today):
+        if t.instrumentId not in latest or t.date >= latest[t.instrumentId][0]:
+            latest[t.instrumentId] = (t.date, typed_stale(t.date, today))
+    # One held with no price at all is stale too.
+    stale = len(latest) < len(ids) or any(old for _, old in latest.values())
+    return {"lastRefresh": last, "stale": stale, "sources": len(rows)}
