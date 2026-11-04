@@ -38,9 +38,13 @@ def _household_left_as_found(request):
     if "household" not in request.fixturenames:
         yield
         return
+    from browser import Household
     from edits import remove
 
     h = request.getfixturevalue("household")
+    if not isinstance(h, Household):  # a module's own household, not the browser tests' one
+        yield
+        return
 
     def ids() -> set[str]:
         return {a["id"] for a in h.c.get("/ui/api/accounts").json()["items"]}
