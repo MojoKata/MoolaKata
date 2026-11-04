@@ -40,19 +40,20 @@ def is_physical(account_type: str) -> bool:
 
 
 def parse_purity(text: str) -> Decimal:
-    """'.9999', '0.925', '99.99%' or '22k' as a fraction; ValueError when it is none."""
+    """'.9999', '0.925', '99.99%' or '22k' as a fraction; ValueError when it is none, which the
+    form words for itself."""
     try:
         return _purity(text)
     except InvalidOperation as e:
-        raise ValueError("not a purity") from e
+        raise ValueError from e
 
 
 def _purity(text: str) -> Decimal:
     t = text.strip().lower().replace(" ", "")
     if t.endswith("k"):
         k = Decimal(t[:-1])
-        if not 0 < k <= 24:
-            raise ValueError("karats are 1 to 24")
+        if not 0 < k <= 24:  # 24 karats is pure
+            raise ValueError
         return (k / 24).quantize(Decimal("0.0001"))
     if t.endswith("%"):
         v = Decimal(t[:-1]) / 100
@@ -60,8 +61,8 @@ def _purity(text: str) -> Decimal:
         v = Decimal(t)
         if v > 1:
             v = v / 1000 if v > 100 else v / 100  # 999.9 fine, or 99.99
-    if not 0 < v <= 1:
-        raise ValueError("a purity up to 1")
+    if not 0 < v <= 1:  # a fraction of the whole
+        raise ValueError
     return v
 
 
@@ -154,8 +155,9 @@ def is_stale(item: Item, d: Detail, day: dt.date) -> bool:
 
 
 def gain(item: Item, d: Detail) -> Decimal | None:
-    """A sale's realized gain or loss: proceeds less fees, less the cost basis."""
-    if item.soldOn is None or item.proceeds is None:
+    """A sale's realized gain or loss: proceeds less fees, less the cost basis. A sale has its
+    day and its proceeds both, or neither (the table's check)."""
+    if item.soldOn is None:
         return None
     return item.proceeds - (item.saleFees or ZERO) - basis(item, d, item.soldOn)
 
@@ -175,7 +177,8 @@ def find_metal(s: Session, metal: str) -> Instrument | None:
 
 
 def _spot_ids(s: Session, items: list[Item]) -> dict[str, str]:
-    metals = {i.metal for i in items if i.valuation == "spot" and i.metal}
+    # An item at spot always names its metal (the table's check).
+    metals = {i.metal for i in items if i.valuation == "spot"}
     found = {m: find_metal(s, m) for m in metals}
     return {m: inst.id for m, inst in found.items() if inst is not None}
 
@@ -212,10 +215,6 @@ def worth_on(s: Session, item: Item, day: dt.date) -> Decimal:
     )
 
 
-def value(s: Session, account: Account, day: dt.date | None = None) -> Decimal:
-    return sum((v for _, v in worth(s, account, day)), ZERO)
-
-
 def series(
     s: Session,
     account: Account,
@@ -230,7 +229,7 @@ def series(
     ds = details(s, items)
     ids = _spot_ids(s, items)
     points = valuation.price_points(s, list(ids.values()), first, last, owner=account.ownerId)
-    by_metal = {m: points.get(iid, []) for m, iid in ids.items()}
+    by_metal = {m: points[iid] for m, iid in ids.items()}
     cursor: dict[str, int] = defaultdict(int)
     current: dict[str, Decimal | None] = {m: None for m in ids}
     out = []
@@ -243,12 +242,12 @@ def series(
         out.append(
             (
                 day,
-                sum((value_on(i, ds[i.id], day, current.get(i.metal or "")) for i in items), ZERO),
+                sum((value_on(i, ds[i.id], day, current.get(i.metal)) for i in items), ZERO),
             )
         )
         nxt = day + dt.timedelta(days=step_days)
-        if day < last < nxt:
-            nxt = last
+        if day < last:
+            nxt = min(nxt, last)  # the last day is always a point
         day = nxt
     return out
 
