@@ -366,7 +366,7 @@ through when back. Each is applied and can be undone.
    added: a 30-year loan settles in 9 ms, not the first version's 0.6 s.
    **A HELOC draw after its draw period** (found by the same agent): it no longer
    re-amortized the payment, so the last payment took it as a lump, and S1.9 said nothing.
-   Applied (**CR3-426**, `c0ffee0`): such a draw is a change, like a reset: the payment is set
+   Applied (**CR3-426**, `7ec40cf`): such a draw is a change, like a reset: the payment is set
    again from the next payment day, so the end stays level. Not chosen: refusing a draw in the
    repayment period, first recommended, then dropped: a fee or charge the servicer adds to the
    balance arrives as one, and refusing it would refuse real statements.
