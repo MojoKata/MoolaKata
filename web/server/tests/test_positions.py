@@ -270,3 +270,231 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, alice):
     r = create(alice, "CorpA", accountId=a, instrumentId=held["FB"], kind="spin-off",
                date="2026-06-09", newSymbol="X", ratio="1", basisShare="150")  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "basisShare"
+
+
+# ---- Each row as Positions shows it (S3.1) ----
+
+
+def _option(c, acct, action, day, premium, right="put", strike="480", expiry="2026-11-20",
+            contracts="1", under="msft"):  # fmt: skip
+    from edits import option_trade
+
+    r = option_trade(c, acct, day, action, under, right, strike, expiry, contracts, premium,
+                     "0.65")  # fmt: skip
+    assert r.status_code == 200, r.text
+
+
+def _held_book(alice):
+    """20 MSFT, half bought in 2024 at $100 and half in June at $200, its last trade; two MSFT
+    480 puts sold, a 310 put bought expiring in 8 days and a 300 put in 7, and an AAPL call
+    with no price for AAPL."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    trade(alice, brk, "2024-01-05", "buy", "10", "100", "MSFT")
+    trade(alice, brk, "2026-06-01", "buy", "10", "200", "MSFT")
+    _option(alice, brk, "sell-to-open", "2026-09-02", "6.40", contracts="2")
+    _option(alice, brk, "buy-to-open", "2026-09-03", "1.00", strike="300", expiry="2026-10-20")
+    _option(alice, brk, "buy-to-open", "2026-09-03", "1.00", strike="310", expiry="2026-10-21")
+    _option(alice, brk, "buy-to-open", "2026-09-04", "2.00", right="call", strike="250",
+            under="aapl")  # fmt: skip
+    return brk
+
+
+def test_an_open_row_is_its_lots_cost_value_and_gain_largest_first(alice):
+    """S3.1: the rows by their value's size; a short position's cost its credit, its average
+    a positive price and its gain a share of that credit; an option's days to expiry and
+    whether it is in the money at its underlying's last price, unknown without one."""
+    _held_book(alice)
+    v = alice.get("/ui/api/positions").json()
+    keys = ("symbol", "name", "instrumentClass", "side", "quantity", "cost", "averageCost",
+            "value", "priceSource", "unrealized", "unrealizedPct", "realized", "term", "days",
+            "expiry", "daysToExpiry", "inTheMoney")  # fmt: skip
+    assert [tuple(r[k] for k in keys) for r in v["open"]] == [
+        ("MSFT 20NOV26 480 P", "MSFT put 480, expiring Nov 20, 2026", "option", "short", "-2.0",
+         "-1279.35", "639.675", "-56000.00", "intrinsic", "-54720.65", "-4277.22", "0.00",
+         "short", 41, "2026-11-20", 38, True),
+        ("MSFT 21OCT26 310 P", "MSFT put 310, expiring Oct 21, 2026", "option", "long", "1.0",
+         "100.65", "100.65", "11000.00", "intrinsic", "10899.35", "10828.96", "0.00", "short",
+         40, "2026-10-21", 8, True),
+        ("MSFT 20OCT26 300 P", "MSFT put 300, expiring Oct 20, 2026", "option", "long", "1.0",
+         "100.65", "100.65", "10000.00", "intrinsic", "9899.35", "9835.42", "0.00", "short",
+         40, "2026-10-20", 7, True),
+        ("MSFT", None, "equity", "long", "20.0", "3000.00", "150.0", "4000.00", "trade",
+         "1000.00", "33.33", "0.00", "mixed", 1012, None, None, None),
+        ("AAPL 20NOV26 250 C", "AAPL call 250, expiring Nov 20, 2026", "option", "long", "1.0",
+         "200.65", "200.65", None, None, None, None, "0.00", "short", 39, "2026-11-20", 38,
+         None),
+    ]  # fmt: skip
+    msft = v["open"][3]
+    assert [(x["acquiredOn"], x["heldFrom"], x["quantity"], x["basis"], x["days"],
+             x["longTerm"]) for x in msft["lots"]] == [
+        ("2024-01-05", None, "10.0", "1000.00", 1012, True),
+        ("2026-06-01", None, "10.0", "2000.00", 134, False)]  # fmt: skip
+    assert v["summary"]["expiringSoon"] == [
+        {"symbol": "MSFT 20OCT26 300 P", "days": 7, "inTheMoney": True}
+    ]
+    assert v["summary"]["unrealized"] == "-32921.95"
+
+
+def test_a_call_above_its_underlyings_price_is_out_of_the_money(alice):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    trade(alice, brk, "2026-06-01", "buy", "10", "200", "MSFT")
+    _option(alice, brk, "sell-to-open", "2026-09-02", "1.00", right="call", strike="250")
+    [call] = alice.get("/ui/api/positions", params={"kind": "options"}).json()["open"]
+    assert (call["inTheMoney"], call["value"], call["priceSource"]) == (False, 0, "intrinsic")
+
+
+def test_shares_moved_in_with_no_basis_have_no_cost_average_or_gain(alice):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    trade(alice, brk, "2026-06-01", "buy", "10", "200", "MSFT")
+    add(alice, brk, "0.00", "2026-09-12", kind="transfer-in", symbol="MSFT", quantity="5")
+    [row] = alice.get("/ui/api/positions").json()["open"]
+    assert (row["cost"], row["averageCost"], row["value"], row["unrealized"],
+            row["unrealizedPct"]) == (None, None, "3000.00", None, None)  # fmt: skip
+    assert alice.get("/ui/api/positions").json()["summary"]["unrealized"] == "0.00"
+
+
+def test_positions_of_a_kind_are_its_open_and_closed_rows_alone(alice):
+    """Stocks, options or crypto: each asked for alone leaves out the others' rows, open and
+    closed, whichever comes first."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    for sym in ("VTI", "MSFT", "AAPL"):
+        trade(alice, brk, "2026-06-01", "buy", "10", "100", sym)
+        trade(alice, brk, "2026-07-01", "sell", "5", "120", sym)
+    for strike in ("300", "310", "320"):
+        _option(alice, brk, "buy-to-open", "2026-09-03", "1.00", strike=strike)
+        _option(alice, brk, "sell-to-close", "2026-09-04", "2.00", strike=strike, contracts="1")
+        _option(alice, brk, "buy-to-open", "2026-09-05", "1.00", strike=strike)
+    want = {"stocks": {"VTI", "MSFT", "AAPL"},
+            "options": {f"MSFT 20NOV26 {k} P" for k in ("300", "310", "320")},
+            "crypto": set()}  # fmt: skip
+    for kind, symbols in want.items():
+        v = alice.get("/ui/api/positions", params={"kind": kind}).json()
+        assert {r["symbol"] for r in v["open"]} == symbols
+        assert {r["symbol"] for r in v["closed"]} == symbols
+    v = alice.get("/ui/api/positions").json()
+    assert len(v["open"]) == len(v["closed"]) == 6
+
+
+def test_a_closed_row_is_each_closing_trade_latest_first_with_how_it_closed(alice):
+    """S3.1: a sale from two lots is one row, opened when the first was bought; a short
+    position's close is short; how each closed in words, or the action's own name; a sale with
+    no lot to match has no cost, no gain and an unknown term (CR3-415)."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    trade(alice, brk, "2025-01-02", "buy", "10", "100", "VTI")
+    trade(alice, brk, "2025-06-02", "buy", "10", "110", "VTI")
+    trade(alice, brk, "2026-03-02", "sell", "15", "120", "VTI")
+    trade(alice, brk, "2026-03-03", "sell", "2", "50", "IBM")
+    _option(alice, brk, "sell-to-open", "2026-09-02", "6.40", contracts="2")
+    _option(alice, brk, "buy-to-close", "2026-09-10", "2.10", contracts="2")
+    _option(alice, brk, "buy-to-open", "2026-09-03", "3.00", right="call", strike="500")
+    _option(alice, brk, "sell-to-close", "2026-09-11", "4.00", right="call", strike="500")
+    _option(alice, brk, "sell-to-open", "2026-09-04", "1.00", strike="300", expiry="2026-10-09")
+    trade(alice, brk, "2025-01-02", "buy", "10", "40", "TWTR")
+    held = {r["symbol"]: r["instrumentId"] for r in alice.get("/ui/api/positions").json()["open"]}
+    r = alice.post(f"/ui/api/accounts/{brk}/options/{held['MSFT 09OCT26 300 P']}/settle",
+                   json={"how": "expired", "date": "2026-10-09", "contracts": "1"})  # fmt: skip
+    assert r.status_code == 201, r.text
+    r = create(alice, "CorpA", accountId=brk, instrumentId=held["TWTR"], kind="merger",
+               date="2026-10-12", cashPerShare="54.20")  # fmt: skip
+    assert r.status_code == 200, r.text
+    keys = ("symbol", "instrumentClass", "side", "quantity", "opened", "closed", "how",
+            "proceeds", "cost", "realized", "washDisallowed", "term")  # fmt: skip
+    v = alice.get("/ui/api/positions").json()
+    assert [tuple(r[k] for k in keys) for r in v["closed"]] == [
+        ("TWTR", "equity", "long", "10.0", "2025-01-02", "2026-10-12", "merger", "542.00",
+         "400.00", "142.00", "0.00", "long"),
+        ("MSFT 09OCT26 300 P", "option", "short", "1.0", "2026-09-04", "2026-10-09", "expired",
+         "0.00", "-99.35", "99.35", "0.00", "short"),
+        ("MSFT 20NOV26 500 C", "option", "long", "1.0", "2026-09-03", "2026-09-11", "sold",
+         "399.35", "300.65", "98.70", "0.00", "short"),
+        ("MSFT 20NOV26 480 P", "option", "short", "2.0", "2026-09-02", "2026-09-10",
+         "bought back", "-420.65", "-1279.35", "858.70", "0.00", "short"),
+        ("IBM", "equity", "long", "2.0", "2026-03-03", "2026-03-03", "sold", "100.00", None,
+         None, "0.00", "unknown"),
+        ("VTI", "equity", "long", "15.0", "2025-01-02", "2026-03-02", "sold", "1800.00",
+         "1550.00", "250.00", "0.00", "mixed"),
+    ]  # fmt: skip
+    assert all(r["saleId"].startswith("Txn_") for r in v["closed"])
+
+
+# ---- Option trades (S3.9.2) ----
+
+
+def test_each_option_trade_open_latest_first_then_each_closed_latest_first(alice):
+    """S3.9.2: an open trade is worth its mark, and without one has no P/L; a long option
+    requires its premium, so one bought for nothing has no return; an assignment and an
+    exercise close a trade in words."""
+    from edits import option_trade
+
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    add(alice, brk, "100000.00", "2025-01-01", kind="deposit")
+    trade(alice, brk, "2026-06-01", "buy", "10", "200", "MSFT")
+    _option(alice, brk, "buy-to-open", "2026-09-06", "5.00", right="call", strike="100",
+            expiry="2026-10-09")  # fmt: skip
+    _option(alice, brk, "sell-to-open", "2026-09-05", "5.00", strike="450", expiry="2026-10-09")
+    _option(alice, brk, "buy-to-open", "2026-09-07", "2.00", strike="500")
+    _option(alice, brk, "buy-to-open", "2026-09-08", "2.00", right="call", strike="250",
+            under="aapl")  # fmt: skip
+    r = option_trade(alice, brk, "2026-09-09", "buy-to-open", "msft", "call", "900",
+                     "2026-11-20", "1", "0", "0")  # fmt: skip
+    assert r.status_code == 200, r.text
+    held = {r["symbol"]: r["instrumentId"] for r in alice.get("/ui/api/positions").json()["open"]}
+    for symbol, how, day in (("MSFT 09OCT26 450 P", "assign", "2026-10-09"),
+                             ("MSFT 09OCT26 100 C", "exercise", "2026-10-08")):  # fmt: skip
+        r = alice.post(f"/ui/api/accounts/{brk}/options/{held[symbol]}/settle",
+                       json={"how": how, "date": day, "contracts": "1"})  # fmt: skip
+        assert r.status_code == 201, r.text
+    keys = ("symbol", "side", "contracts", "opened", "closed", "how", "premiumIn", "premiumOut",
+            "value", "pl", "capitalRequired", "returnPct")  # fmt: skip
+    rows = alice.get("/ui/api/positions/option-trades").json()["items"]
+    assert [tuple(r[k] for k in keys) for r in rows] == [
+        ("MSFT 20NOV26 900 C", "long", "1.0", "2026-09-09", None, None, "0.00", "0.00", "0.00",
+         "0.00", "0.00", None),
+        ("AAPL 20NOV26 250 C", "long", "1.0", "2026-09-08", None, None, "0.00", "200.65", None,
+         None, "200.65", None),
+        ("MSFT 20NOV26 500 P", "long", "1.0", "2026-09-07", None, None, "0.00", "200.65",
+         "5000.00", "4799.35", "200.65", "2391.90"),
+        ("MSFT 09OCT26 450 P", "short", "1.0", "2026-09-05", "2026-10-09", "assigned",
+         "499.35", "0.00", None, "499.35", "45000.00", "1.11"),
+        ("MSFT 09OCT26 100 C", "long", "1.0", "2026-09-06", "2026-10-08", "exercised", "0.00",
+         "500.65", None, "-500.65", "500.65", "-100.0"),
+    ]  # fmt: skip
+
+
+def test_an_adjusted_contracts_trade_ends_adjusted_and_continues_on_the_side_it_was(alice):
+    """S3.10.4: the old contract's trade ends *adjusted*, and the adjusted contract's continues
+    on the side held when it was adjusted: a put sold, bought back and then bought is long; a
+    call bought, sold and then sold again is short."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    for action, day, contracts in (("sell-to-open", "2026-09-01", "2"),
+                                   ("buy-to-close", "2026-09-02", "2"),
+                                   ("buy-to-open", "2026-09-03", "1")):  # fmt: skip
+        _option(alice, brk, action, day, "1.00", contracts=contracts)
+    for action, day, contracts in (("buy-to-open", "2026-09-01", "2"),
+                                   ("sell-to-close", "2026-09-02", "2"),
+                                   ("sell-to-open", "2026-09-03", "1")):  # fmt: skip
+        _option(alice, brk, action, day, "1.00", right="call", strike="500",
+                contracts=contracts)  # fmt: skip
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    contracts = [
+        {
+            "instrumentId": cn["instrumentId"],
+            "root": "MSFT1",
+            "strike": str(cn["strike"]),
+            "deliverable": [{"symbol": "MSFT", "shares": "150"}],
+        }
+        for cn in g["contracts"]
+    ]
+    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": contracts})
+    assert r.status_code == 200, r.text
+    rows = alice.get("/ui/api/positions/option-trades").json()["items"]
+    got = sorted((r["symbol"], r["side"], r["contracts"], r["opened"], r["closed"], r["how"])
+                 for r in rows)  # fmt: skip
+    assert got == [
+        ("MSFT 20NOV26 480 P", "long", "1.0", "2026-09-03", "2026-10-05", "adjusted"),
+        ("MSFT 20NOV26 480 P", "short", "2.0", "2026-09-01", "2026-09-02", "bought back"),
+        ("MSFT 20NOV26 500 C", "long", "2.0", "2026-09-01", "2026-09-02", "sold"),
+        ("MSFT 20NOV26 500 C", "short", "1.0", "2026-09-03", "2026-10-05", "adjusted"),
+        ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-10-05", None, None),
+        ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-10-05", None, None),
+    ]

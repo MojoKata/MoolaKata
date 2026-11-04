@@ -88,6 +88,7 @@ import pytest  # noqa: E402
 from conftest import make_user, sign_in  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 from test_accounts import new_account  # noqa: E402
+from test_options import _logged  # noqa: E402
 from test_options import opt as option  # noqa: E402
 
 from moolakata import clock  # noqa: E402
@@ -1127,3 +1128,243 @@ def test_a_covered_call_rolls_onto_the_acquirers_calls_after_a_merger(alice):
     assert r.status_code == 200, r.text
     v = r.json()
     assert (v["underlying"], v["closedOn"], len(v["legs"])) == ("ACQ", None, 3)
+
+
+# ---- A strategy as its draft saves it (S3.5) ----
+
+
+def _book_of_legs(alice):
+    """An account with 100 MSFT bought Jan 5, a MSFT 480 put sold Sep 2, a MSFT 500 call sold
+    Sep 15 and an AAPL 200 put sold Sep 1, and another account's MSFT 470 put: the account and
+    each holding's instrument, by a short name."""
+    a = new_account(alice, type="brokerage", name="Brokerage")["id"]
+    r = create(alice, "Txn", accountId=a, date="2026-01-05", kind="buy", symbol="MSFT",
+               quantity="100", price="400", amount="-40000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    for day, right, strike, under in (("2026-09-02", "put", "480", "msft"),
+                                      ("2026-09-15", "call", "500", "msft"),
+                                      ("2026-09-01", "put", "200", "aapl")):  # fmt: skip
+        r = option_trade(alice, a, day, "sell-to-open", under, right, strike, "2026-11-20", "1",
+                         "2.00")  # fmt: skip
+        assert r.status_code == 200, r.text
+    b = new_account(alice, type="brokerage", name="Other", mask="5150")["id"]
+    r = option(alice, b, "sell-to-open", "2026-09-02", "2.00", strike="470", fees="0")
+    assert r.status_code == 200, r.text
+    names = {"MSFT": "shares", "MSFT 20NOV26 480 P": "put", "MSFT 20NOV26 500 C": "call",
+             "AAPL 20NOV26 200 P": "aapl", "MSFT 20NOV26 470 P": "other"}  # fmt: skip
+    held = {names[x["symbol"]]: x["instrumentId"] for x in
+            alice.get("/ui/api/positions").json()["open"]}  # fmt: skip
+    return a, held
+
+
+def _legs(held, *names):
+    return [{"instrumentId": held[n], **({"quantity": "100"} if n == "shares" else {})}
+            for n in names]  # fmt: skip
+
+
+def _refused(r):
+    assert r.status_code == 422, r.text
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+@pytest.mark.parametrize(
+    ("legs", "more", "error"),
+    [
+        ((), {}, ("legs", "legs-missing", "The legs it groups.")),
+        (("put", "put"), {}, ("legs", "legs-twice", "Each leg once.")),
+        (("put", "other"), {}, ("legs", "leg-not-held", "Legs held in this account.")),
+        (("put", "aapl"), {}, ("legs", "legs-differ", "Legs on one underlying.")),
+        (("shares",), {}, ("legs", "no-option", "At least one option leg.")),
+        (("put",), {"marginRequirement": "-0.01"},
+         ("marginRequirement", "margin-invalid", "An amount, or none.")),
+    ],
+)  # fmt: skip
+def test_a_strategy_refused_names_its_field_and_says_why(alice, legs, more, error):
+    a, held = _book_of_legs(alice)
+    r = create(alice, "Strat", accountId=a, legs=_legs(held, *legs), **more)
+    assert _refused(r) == [error]
+
+
+def test_an_option_leg_is_in_one_strategy_and_shares_in_any(server, alice):
+    """A contract grouped is taken; shares can cover a call in one strategy and back another;
+    a proposal turned down is kept whatever its legs are in."""
+    a, held = _book_of_legs(alice)
+    saved(create(alice, "Strat", accountId=a, legs=_legs(held, "shares", "call")))
+    r = create(alice, "Strat", accountId=a, legs=_legs(held, "put", "call"))
+    assert _refused(r) == [("legs", "leg-grouped", "A leg is already in a strategy.")]
+    st = saved(create(alice, "Strat", accountId=a, legs=_legs(held, "shares", "put")))
+    assert [x["symbol"] for x in st["legs"]] == ["MSFT", "MSFT 20NOV26 480 P"]
+    saved(create(alice, "Strat", accountId=a, legs=_legs(held, "put", "call"), dismissed=True))
+    texts = [e["text"] for e in alice.get("/ui/api/activity").json()["items"]]
+    assert sum("grouped legs as a strategy in Brokerage" in x for x in texts) == 2
+    me = alice.get("/ui/api/session").json()["user"]["id"]
+    assert _logged(server, "strategy.grouped") == (me, "account", a, me, "{}")
+
+
+def test_a_strategy_opens_the_day_its_earliest_leg_did_and_keeps_what_is_typed(alice):
+    a, held = _book_of_legs(alice)
+    st = saved(create(alice, "Strat", accountId=a, legs=_legs(held, "call", "put"),
+                      name=f"  {'W' * 85}  ", cashSecured=True, marginRequirement="0"))  # fmt: skip
+    assert (st["openedOn"], st["name"], st["cashSecured"], st["marginRequirement"]) == (
+        "2026-09-02", "W" * 80, True, "0.00")  # fmt: skip
+    assert [x["addedOn"] for x in st["legs"]] == ["2026-09-02", "2026-09-02"]
+    assert [(x["symbol"], x["kind"], x["strike"], x["expiry"], x["value"]) for x in
+            st["legs"]] == [("MSFT 20NOV26 500 C", "call", 500, "2026-11-20", 0),
+                            ("MSFT 20NOV26 480 P", "put", 480, "2026-11-20", -8000)]  # fmt: skip
+    assert (st["unrealized"], st["realized"], st["pl"], st["credit"]) == (-7600, 0, -7600, 400)
+    unnamed = saved(create(alice, "Strat", accountId=a, legs=_legs(held, "aapl"), name="   "))
+    assert unnamed["name"] == "Short put", "a blank name is none: the shape names it"
+
+
+def test_a_strategys_legs_account_and_turning_down_are_fixed(alice):
+    a, held = _book_of_legs(alice)
+    b = new_account(alice, type="brokerage", name="Third", mask="5151")["id"]
+    st = saved(create(alice, "Strat", accountId=a, legs=_legs(held, "shares", "call")))
+    same = _legs(held, "shares", "call")
+    for field, value in (("accountId", b), ("legs", _legs(held, "call")), ("dismissed", True)):
+        fields = {"accountId": a, "legs": same, field: value}
+        r = change(alice, "Strat", st, **fields)
+        assert _refused(r) == [
+            (field, "strategy-fixed", "Its legs change by a roll; undo it to regroup.")
+        ]
+    r = change(alice, "Strat", st, accountId=a, legs=same, marginRequirement="-1")
+    assert _refused(r) == [("marginRequirement", "margin-invalid", "An amount, or none.")]
+    r = change(alice, "Strat", st, accountId=a, legs=same, name=f" {'N' * 81}",
+               cashSecured=True, marginRequirement="0")  # fmt: skip
+    v = saved(r)
+    assert (v["name"], v["cashSecured"], v["marginRequirement"], v["version"]) == (
+        "N" * 80, True, "0.00", st["version"] + 1)  # fmt: skip
+    v = saved(change(alice, "Strat", v, accountId=a, legs=same, marginRequirement="10"))
+    assert (v["name"], v["cashSecured"]) == ("N" * 80, True), "what isn't sent stays"
+    for blank in ("  ", None):
+        v = saved(change(alice, "Strat", v, accountId=a, legs=same, name=blank,
+                         cashSecured=False, marginRequirement=None))  # fmt: skip
+        assert (v["name"], v["cashSecured"], v["marginRequirement"]) == (
+            "Covered call", False, None)  # fmt: skip
+        v = saved(change(alice, "Strat", v, accountId=a, legs=same, name="Named"))
+
+
+def test_a_strategy_turned_down_or_gone_is_not_found_and_another_users_is_not_theirs(server):
+    from edits import share
+    from test_sharing import setup
+
+    u, c = setup(server)
+    alice, bob = c["alice"], c["bob"]
+    a, held = _book_of_legs(alice)
+    no = saved(create(alice, "Strat", accountId=a, legs=_legs(held, "put"), dismissed=True))
+    assert no["id"] and no["legs"][0]["symbol"] == "MSFT 20NOV26 480 P"
+    assert change(alice, "Strat", no, accountId=a, legs=_legs(held, "put"),
+                  dismissed=True).status_code == 404  # fmt: skip
+    st = saved(create(alice, "Strat", accountId=a, legs=_legs(held, "put")))
+    assert share(alice, "account", a, users={u["bob"].id: "read"}).status_code == 200
+    assert change(bob, "Strat", st, accountId=a, legs=_legs(held, "put"),
+                  name="Mine").status_code == 403  # fmt: skip
+    assert create(bob, "Strat", accountId=a, legs=_legs(held, "aapl")).status_code == 403
+    v = bob.get("/ui/api/positions/strategies").json()
+    assert [x["id"] for x in v["strategies"]] == [st["id"]] and v["proposals"] == []
+    assert alice.get("/ui/api/positions/strategies").json()["proposals"] != []
+    assert remove(alice, "Strat", st).status_code == 200
+    assert remove(alice, "Strat", st).status_code == 404
+
+
+def _spread(alice, a, day="2026-10-02"):
+    """A 540/530 bull put spread opened on `day` for an $80 credit: its legs."""
+    for action, strike, premium in (("sell-to-open", "540", "2.00"),
+                                    ("buy-to-open", "530", "1.20")):  # fmt: skip
+        r = option(alice, a, action, day, premium, strike=strike, fees="0")
+        assert r.status_code == 200, r.text
+    return [{"instrumentId": x["instrumentId"]} for x in alice.get("/ui/api/positions").json()[
+        "open"] if x["accountId"] == a and x["symbol"].split()[2] in ("540", "530")]  # fmt: skip
+
+
+def test_a_strategys_return_is_its_pl_on_its_capital_at_risk_at_open(alice):
+    """S3.5.5: $100 realized, closed, on the $920 the spread risked at open is 10.87%; a short
+    straddle with no margin typed risks no limit, and with a margin of 0 nothing: neither has a
+    return."""
+    a = new_account(alice, type="brokerage")["id"]
+    st = saved(create(alice, "Strat", accountId=a, legs=_spread(alice, a)))
+    option(alice, a, "buy-to-close", "2026-10-09", "1.00", strike="540", fees="0")
+    option(alice, a, "sell-to-close", "2026-10-09", "1.20", strike="530", fees="0")
+    [v] = alice.get("/ui/api/positions/strategies").json()["strategies"]
+    assert (v["id"], v["pl"], v["capitalAtRiskAtOpen"], v["returnPct"]) == (
+        st["id"], 100, 920, 10.87)  # fmt: skip
+    b = new_account(alice, type="brokerage", name="Straddle", mask="5150")["id"]
+    for right in ("call", "put"):
+        assert option(alice, b, "sell-to-open", "2026-10-02", "3.00", right=right,
+                      fees="0").status_code == 200  # fmt: skip
+    legs = [{"instrumentId": x["instrumentId"]} for x in
+            alice.get("/ui/api/positions").json()["open"] if x["accountId"] == b]  # fmt: skip
+    st = saved(create(alice, "Strat", accountId=b, legs=legs))
+    for right in ("call", "put"):
+        assert option(alice, b, "buy-to-close", "2026-10-09", "1.00", right=right,
+                      fees="0").status_code == 200  # fmt: skip
+    [v] = [x for x in alice.get("/ui/api/positions/strategies").json()["strategies"]
+           if x["id"] == st["id"]]  # fmt: skip
+    assert (v["pl"], v["capitalAtRiskAtOpen"], v["returnPct"]) == (400, None, None)
+    v = saved(change(alice, "Strat", v, accountId=b, legs=legs, marginRequirement="0"))
+    assert (v["pl"], v["capitalAtRiskAtOpen"], v["returnPct"]) == (400, 0, None)
+
+
+def test_strategies_list_open_first_by_underlying_then_the_day_opened(alice):
+    a = new_account(alice, type="brokerage")["id"]
+    opened = (("msft", "2026-09-03", "100"), ("aapl", "2026-09-04", "100"),
+              ("msft", "2026-09-01", "110"), ("aapl", "2026-09-02", "110"))  # fmt: skip
+    for under, day, strike in opened:
+        r = option_trade(alice, a, day, "sell-to-open", under, "put", strike, "2026-11-20", "1",
+                         "1.00")  # fmt: skip
+        assert r.status_code == 200, r.text
+    for x in alice.get("/ui/api/positions").json()["open"]:
+        saved(create(alice, "Strat", accountId=a, legs=[{"instrumentId": x["instrumentId"]}]))
+    r = alice.post(f"/ui/api/accounts/{a}/options/"
+                   f"{_strategy_of(alice, 'AAPL', '2026-09-02')}/settle",
+                   json={"how": "expired", "date": "2026-09-30", "contracts": "1"})  # fmt: skip
+    assert r.status_code == 201, r.text
+    got = [(x["underlying"], x["openedOn"], x["closedOn"]) for x in
+           alice.get("/ui/api/positions/strategies").json()["strategies"]]  # fmt: skip
+    assert got == [("AAPL", "2026-09-04", None), ("MSFT", "2026-09-01", None),
+                   ("MSFT", "2026-09-03", None), ("AAPL", "2026-09-02", "2026-09-30")]  # fmt: skip
+
+
+def _strategy_of(alice, underlying, opened):
+    v = alice.get("/ui/api/positions/strategies").json()["strategies"]
+    [st] = [x for x in v if (x["underlying"], x["openedOn"]) == (underlying, opened)]
+    return st["legs"][0]["instrumentId"]
+
+
+def test_a_roll_takes_new_legs_on_its_underlying_and_turned_down_isnt_offered_again(alice):
+    a = new_account(alice, type="brokerage")["id"]
+    st = saved(create(alice, "Strat", accountId=a, legs=_spread(alice, a)))
+    option(alice, a, "buy-to-close", "2026-10-10", "1.00", strike="540", fees="0")
+    option(alice, a, "sell-to-open", "2026-10-10", "1.50", strike="535", fees="0")
+    r = option_trade(alice, a, "2026-10-10", "sell-to-open", "aapl", "put", "200",
+                     "2026-11-20", "1", "1.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    held = {x["symbol"]: x["instrumentId"] for x in alice.get("/ui/api/positions").json()["open"]}
+    url = f"/ui/api/strategies/{st['id']}/roll"
+    r = alice.post(url, json={"roll": [{"instrumentId": held["AAPL 20NOV26 200 P"]}]})
+    assert _refused(r) == [("roll", "legs-differ", "A roll stays on the same underlying.")]
+    r = alice.post(url, json={"declineRoll": [held["MSFT 20NOV26 535 P"]]})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["legs"]) == 2
+    v = alice.get("/ui/api/positions/strategies").json()
+    assert [p["kind"] for p in v["proposals"] if p["strategyId"] == st["id"]] == []
+    # Taken in by hand after all, a leg already in it is passed over.
+    r = alice.post(url, json={"roll": [{"instrumentId": held["MSFT 20NOV26 535 P"]},
+                                       {"instrumentId": held["MSFT 20NOV26 530 P"]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    legs = {x["symbol"]: x["addedOn"] for x in r.json()["legs"]}
+    assert legs == {"MSFT 20NOV26 540 P": "2026-10-02", "MSFT 20NOV26 530 P": "2026-10-02",
+                    "MSFT 20NOV26 535 P": "2026-10-10"}  # fmt: skip
+
+
+def test_a_roll_is_of_a_strategy_the_caller_may_change(server):
+    from edits import share
+    from test_sharing import setup
+
+    u, c = setup(server)
+    a = new_account(c["alice"], type="brokerage")["id"]
+    st = saved(create(c["alice"], "Strat", accountId=a, legs=_spread(c["alice"], a)))
+    assert share(c["alice"], "account", a, users={u["bob"].id: "read"}).status_code == 200
+    assert c["bob"].post(f"/ui/api/strategies/{st['id']}/roll", json={}).status_code == 403
+    assert c["alice"].post("/ui/api/strategies/Strat_01m4tj4gg0f02s596bvjcn26rw/roll",
+                           json={}).status_code == 404  # fmt: skip

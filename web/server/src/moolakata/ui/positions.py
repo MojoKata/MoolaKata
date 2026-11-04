@@ -106,7 +106,7 @@ def _long_term(acquired: dt.date, day: dt.date) -> bool:
 
 def _term(flags: list[bool | None]) -> str:
     if any(f is None for f in flags):
-        return "unknown"  # shares moved in whose day bought is missing (CR3-73)
+        return "unknown"  # a lot whose day bought is missing (CR3-73, CR3-415)
     if all(flags):
         return "long"
     if not any(flags):
@@ -114,9 +114,8 @@ def _term(flags: list[bool | None]) -> str:
     return "mixed"
 
 
-def _how(t: Transaction | None) -> str:
-    if t is None:
-        return "sold"
+def _how(t: Transaction) -> str:
+    """How a closing trade closed: in words, or its kind."""
     return {
         "sell": "sold",
         "sell-to-close": "sold",
@@ -218,7 +217,8 @@ def gather(s, c: Caller, kind: str = "all"):
             inst = insts[iid]
             if classes and inst.instrumentClass not in classes:
                 continue
-            t = s.get(Transaction, sale) if sale else None
+            # Every disposal is a transaction's: its sale, close, expiry or action.
+            t = s.get(Transaction, sale)
             known = [d.basis for d in ds if d.basis is not None]
             cost = sum(known, ZERO) if len(known) == len(ds) else None
             proceeds = sum((d.proceeds for d in ds), ZERO)
@@ -239,7 +239,11 @@ def gather(s, c: Caller, kind: str = "all"):
                     cost=cost,
                     realized=(sum((d.gain for d in ds), ZERO) if cost is not None else None),
                     washDisallowed=sum((d.adjustment for d in ds), ZERO),
-                    term=_term([None if d.acquiredMissing else d.longTerm for d in ds]),
+                    # A sale without a lot to match has no day bought, as shares moved in
+                    # without one: its term is unknown (CR3-415).
+                    term=_term(
+                        [None if d.acquiredMissing or d.lotMissing else d.longTerm for d in ds]
+                    ),
                 )
             )
     open_rows.sort(key=lambda r: -(abs(r.value) if r.value is not None else ZERO))
@@ -462,6 +466,7 @@ def _adjusted_long(led, t: Transaction) -> bool:
 
 
 def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTradeRow:
+    """A trade closed by `last`, or still open (`last` None) and worth `value` now."""
     pl = trade["in"] - trade["out"]
     if last is None:
         pl = pl + value if value is not None else None
@@ -481,7 +486,7 @@ def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTra
         how=_how(last) if last else None,
         premiumIn=trade["in"],
         premiumOut=trade["out"],
-        value=value if last is None else None,
+        value=value,
         pl=pl,
         capitalRequired=risk,
         returnPct=(pl / risk * 100).quantize(PCT) if pl is not None and risk else None,

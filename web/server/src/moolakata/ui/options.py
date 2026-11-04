@@ -5,7 +5,7 @@ import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import false, select
+from sqlalchemy import select
 
 from .. import access, activity, options, washes
 from ..errors import FieldError, Problem, refuse
@@ -16,7 +16,7 @@ from ..taxes import closed
 from . import save
 from .conventions import ExactRoute, IdOf, Model, Money, Quantity
 from .deps import Caller, caller, server
-from .transactions import TxnOut, shape
+from .transactions import TxnOut, _raise, shape
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["options"])
 
@@ -46,11 +46,12 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
         e.append(FieldError("expiry", "expiry-required", "The day it expires."))
     elif body.kind.endswith("to-open") and body.expiry < body.date:
         e.append(FieldError("expiry", "expired", "It expired before the trade."))
-    multiplier = body.multiplier or 100
+    # None is a trade that names no multiplier: 100. A 0 typed is refused, never read as 100
+    # (R3.11).
+    multiplier = 100 if body.multiplier is None else body.multiplier
     if not 1 <= multiplier <= 10000:
         e.append(FieldError("multiplier", "multiplier-invalid", "Shares a contract: 100."))
-    if e:
-        raise Problem(422, e[0].code, e[0].message, e)
+    _raise(e)
     a, _ = access.account(s, c.id, body.accountId, "write")
     if not atypes.investing(a.type):
         raise refuse("kind", "kind-not-for-account", "Options belong in an investing account.")
@@ -379,11 +380,13 @@ def _action_update(ctx, action: CorporateAction, body: CorporateActionRecord) ->
 
 
 def _made_from(s, action_id: str) -> list[Transaction]:
+    """The transactions an action made, in the order made (ids are made in order). None of a
+    live action's is deleted: deleting one deletes the action (S2.4)."""
     return list(
         s.scalars(
             select(Transaction)
-            .where(Transaction.corporateActionId == action_id, Transaction.deleted == false())
-            .order_by(Transaction.createdAt, Transaction.id)
+            .where(Transaction.corporateActionId == action_id)
+            .order_by(Transaction.id)
         )
     )
 
@@ -393,11 +396,11 @@ def _action_delete(ctx, action: CorporateAction) -> None:
     from .transactions import delete_txn
 
     a, _ = access.account(ctx.s, ctx.caller.id, action.accountId, "write")
+    action.mark_deleted(ctx.caller.id)
     for t in _made_from(ctx.s, action.id):
+        # Deleting one of a pair deletes the other with it.
         if not t.deleted:
             delete_txn(ctx.s, ctx.caller, t, a)
-    if not action.deleted:
-        action.mark_deleted(ctx.caller.id)
 
 
 def _action_read(ctx, record_id: str) -> CorporateActionOut:

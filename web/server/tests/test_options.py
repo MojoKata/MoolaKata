@@ -6,7 +6,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, make, option_trade, remove, saved
+from edits import change, create, make, option_trade, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -761,3 +761,402 @@ def test_expiring_what_is_due_passes_over_the_rest_and_counts_each(server, alice
     assert ended == {
         (brk, f"Expired MSFT 09OCT26 {k} P", dt.date(2026, 10, 9), owner) for k in ("480", "470")
     }
+
+
+# ---- An option trade as its draft records it (S3.2) ----
+
+
+def _trade(c, acct, **changed):
+    """A sell-to-open of one MSFT 480 put for $6.40 with $0.65 fees, with `changed` in place of
+    its fields, as the dialog's draft sends it."""
+    fields = {"accountId": acct, "date": "2026-09-02", "kind": "sell-to-open", "symbol": "msft",
+              "right": "put", "strike": "480", "expiry": "2026-11-20", "quantity": "1",
+              "price": "6.40", "fees": "0.65", "amount": "639.35", **changed}  # fmt: skip
+    return create(c, "Txn", **fields)
+
+
+def _refused(r):
+    assert r.status_code == 422, r.text
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+@pytest.mark.parametrize(
+    ("changed", "error"),
+    [
+        ({"right": "Call"}, ("right", "right-invalid", "A call or a put.")),
+        ({"right": None}, ("right", "right-invalid", "A call or a put.")),
+        ({"symbol": None}, ("symbol", "symbol-invalid", "The underlying's symbol: MSFT.")),
+        ({"symbol": "   "}, ("symbol", "symbol-invalid", "The underlying's symbol: MSFT.")),
+        ({"symbol": "ABCDEFGHIJKLM"},
+         ("symbol", "symbol-invalid", "The underlying's symbol: MSFT.")),
+        ({"strike": "0"}, ("strike", "strike-invalid", "More than zero.")),
+        ({"strike": None}, ("strike", "strike-invalid", "More than zero.")),
+        ({"quantity": "0"}, ("quantity", "contracts-invalid", "A whole number of contracts.")),
+        ({"quantity": "-1"}, ("quantity", "contracts-invalid", "A whole number of contracts.")),
+        ({"quantity": None}, ("quantity", "contracts-invalid", "A whole number of contracts.")),
+        ({"quantity": "1.5"}, ("quantity", "contracts-invalid", "A whole number of contracts.")),
+        ({"price": "-0.01"}, ("price", "premium-invalid", "Zero or more, a share.")),
+        ({"price": None}, ("price", "premium-invalid", "Zero or more, a share.")),
+        ({"fees": "-0.01"}, ("fees", "fees-invalid", "Zero or more.")),
+        ({"expiry": None}, ("expiry", "expiry-required", "The day it expires.")),
+        ({"expiry": "2026-09-01"}, ("expiry", "expired", "It expired before the trade.")),
+        ({"multiplier": 0}, ("multiplier", "multiplier-invalid", "Shares a contract: 100.")),
+        ({"multiplier": 10001}, ("multiplier", "multiplier-invalid", "Shares a contract: 100.")),
+    ],
+)  # fmt: skip
+def test_an_option_trade_refused_names_its_field_and_says_why(alice, changed, error):
+    """R3.11: a blank, a zero or a value out of range is refused, never read as the default."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    assert _refused(_trade(alice, brk, **changed)) == [error]
+
+
+def test_an_option_trade_says_each_field_wrong_in_the_forms_order(alice):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    r = _trade(alice, brk, right="x", symbol="", strike="0", quantity="0", price="-1",
+               fees="-1", expiry=None, multiplier=0)  # fmt: skip
+    assert [e[:2] for e in _refused(r)] == [
+        ("right", "right-invalid"), ("symbol", "symbol-invalid"), ("strike", "strike-invalid"),
+        ("quantity", "contracts-invalid"), ("price", "premium-invalid"),
+        ("fees", "fees-invalid"), ("expiry", "expiry-required"),
+        ("multiplier", "multiplier-invalid")]  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("changed", "symbol"),
+    [
+        ({"symbol": " abcdefghijkl "}, "ABCDEFGHIJKL 20NOV26 480 P"),
+        ({"strike": "0.5", "amount": "639.35"}, "MSFT 20NOV26 0.5 P"),
+        ({"price": "0", "amount": "-0.65"}, "MSFT 20NOV26 480 P"),
+        ({"expiry": "2026-09-02"}, "MSFT 02SEP26 480 P"),
+        ({"multiplier": 1, "amount": "5.75"}, "MSFT 20NOV26 480 P"),
+        ({"multiplier": 10000, "amount": "63999.35"}, "MSFT 20NOV26 480 P"),
+    ],
+)
+def test_an_option_trade_takes_each_field_on_its_bound(alice, changed, symbol):
+    """An underlying of 12 letters, a strike above zero, a premium of zero, an expiry the day of
+    the opening trade, and a multiplier from 1 to 10,000 are all taken."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    t = saved(_trade(alice, brk, **changed))
+    assert (t["symbol"], t["amount"]) == (symbol, changed.get("amount", "639.35"))
+
+
+def test_options_belong_in_an_investing_account(alice):
+    chk = new_account(alice, name="Checking")["id"]
+    assert _refused(_trade(alice, chk)) == [
+        ("kind", "kind-not-for-account", "Options belong in an investing account.")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("opened", "kind", "contracts", "holds"),
+    [
+        (None, "sell-to-close", "1", "0 long"),
+        ("buy-to-open", "sell-to-close", "3", "2 long"),
+        ("buy-to-open", "buy-to-close", "1", "2 long"),
+        ("sell-to-open", "buy-to-close", "3", "2 short"),
+        ("sell-to-open", "sell-to-close", "1", "2 short"),
+    ],
+)
+def test_a_close_is_of_contracts_held_on_its_side(alice, opened, kind, contracts, holds):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    if opened:
+        assert opt(alice, brk, opened, "2026-09-01", "6.40", contracts="2").status_code == 200
+    r = opt(alice, brk, kind, "2026-09-02", "1.00", contracts=contracts)
+    assert _refused(r) == [
+        ("quantity", "nothing-to-close", f"The account holds {holds} contracts of it.")
+    ]
+
+
+@pytest.mark.parametrize(("opened", "kind"), [("buy-to-open", "sell-to-close"),
+                                              ("sell-to-open", "buy-to-close")])  # fmt: skip
+def test_every_contract_held_closes_even_after_its_expiry(alice, opened, kind):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    assert opt(alice, brk, opened, "2026-09-01", "6.40", contracts="2").status_code == 200
+    t = saved(opt(alice, brk, kind, "2026-11-23", "0.10", contracts="2"))
+    assert (t["kind"], t["quantity"]) == (kind, "2.0")
+    assert alice.get("/ui/api/positions").json()["open"] == []
+
+
+def test_an_option_trade_comes_to_its_cash_or_is_refused_saying_what(alice):
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    r = _trade(alice, brk, quantity="20", amount="12799.00")
+    assert _refused(r) == [("amount", "amount-mismatch", "The trade comes to 12,799.35.")]
+
+
+def test_an_option_trade_is_saved_with_its_contract_payee_and_who_made_it(server, alice):
+    """Its payee the trade and contract unless typed, its fees none when there are none, the
+    trade in the account's activity."""
+    from moolakata.store.entities.accounts import Transaction
+
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    t = saved(_trade(alice, brk, fees=None, amount="640.00", memo="Wheel"))
+    assert (t["payee"], t["memo"], t["fees"], t["quantity"], t["price"]) == (
+        "Sell to open MSFT 20NOV26 480 P", "Wheel", None, "1.0", "6.4")  # fmt: skip
+    typed = saved(_trade(alice, brk, payee="  Schwab  ", fees="0", amount="640.00"))
+    assert (typed["payee"], typed["fees"]) == ("Schwab", None)
+    blank = saved(_trade(alice, brk, payee="  ", kind="buy-to-open", amount="-640.65"))
+    assert blank["payee"] == "Buy to open MSFT 20NOV26 480 P"
+    with server.db.read(unscoped="test") as s:
+        made = s.get(Transaction, t["id"])
+        assert made.createdById == alice.get("/ui/api/session").json()["user"]["id"]
+    texts = [e["text"] for e in alice.get("/ui/api/activity").json()["items"]]
+    assert sum("recorded an option trade in Brokerage" in x for x in texts) == 3
+
+
+# ---- Corporate actions as their dialog's draft records them (S2.4) ----
+
+
+def _holding(c, symbol="FB", qty="10", account_type="brokerage"):
+    """An account holding `qty` shares of `symbol` bought at $100: the account and the
+    shares' instrument."""
+    a = new_account(c, name="Brokerage", type=account_type)["id"]
+    t = add(c, a, f"-{int(qty) * 100}.00", "2025-01-02", kind="buy", symbol=symbol,
+            quantity=qty, price="100")  # fmt: skip
+    return a, t["instrumentId"]
+
+
+@pytest.mark.parametrize(
+    ("changed", "error"),
+    [
+        ({"kind": "dividend"},
+         ("kind", "kind-invalid", "A split, symbol change, spin-off or merger.")),
+        ({"instrumentId": "Instr_01m4tj4gg0f02s596bvjcn26rw"},
+         ("instrumentId", "instrument-unknown", "Choose a holding.")),
+    ],
+)  # fmt: skip
+def test_a_corporate_action_refused_names_its_field_and_says_why(alice, changed, error):
+    a, fb = _holding(alice)
+    fields = {"accountId": a, "instrumentId": fb, "kind": "symbol-change", "date": "2026-06-09",
+              "newSymbol": "META", **changed}  # fmt: skip
+    assert _refused(create(alice, "CorpA", **fields)) == [error]
+
+
+def test_a_corporate_action_is_of_shares_in_an_investing_account(alice):
+    """An option is adjusted from the OCC's memo, never by a corporate action of its own."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    assert opt(alice, brk, "sell-to-open", "2026-09-02", "6.40").status_code == 200
+    [put] = alice.get("/ui/api/positions").json()["open"]
+    r = create(alice, "CorpA", accountId=brk, instrumentId=put["instrumentId"],
+               kind="split", date="2026-10-01", ratio="2")  # fmt: skip
+    assert _refused(r) == [("instrumentId", "instrument-unknown", "Choose a holding.")]
+    chk = new_account(alice, name="Checking")["id"]
+    r = create(alice, "CorpA", accountId=chk, instrumentId=put["instrumentId"],
+               kind="split", date="2026-10-01", ratio="2")  # fmt: skip
+    assert _refused(r) == [
+        ("kind", "kind-not-for-account", "These belong in an investing account.")
+    ]
+
+
+def test_a_corporate_action_is_saved_as_typed_with_the_transactions_made_from_it(alice):
+    a, fb = _holding(alice)
+    act = saved(create(alice, "CorpA", accountId=a, instrumentId=fb, kind="symbol-change",
+                       date="2026-06-09", newSymbol=" meta "))  # fmt: skip
+    assert (act["accountId"], act["instrumentId"], act["symbol"], act["kind"], act["date"],
+            act["newSymbol"], act["ratio"], act["basisShare"], act["cashPerShare"],
+            act["newPrice"]) == (a, fb, "FB", "symbol-change", "2026-06-09", "META", None, None,
+                                 None, None)  # fmt: skip
+    assert [(t["kind"], t["symbol"], t["quantity"]) for t in act["transactions"]] == [
+        ("symbol-change", "FB", "10.0"), ("symbol-change", "META", "10.0")]  # fmt: skip
+    split = saved(create(alice, "CorpA", accountId=a, instrumentId=act["transactions"][1][
+        "instrumentId"], kind="split", date="2026-07-01", ratio="2", newSymbol="  "))  # fmt: skip
+    assert (split["ratio"], split["newSymbol"]) == ("2.0", None)
+    assert [t["kind"] for t in split["transactions"]] == ["split"]
+    texts = [e["text"] for e in alice.get("/ui/api/activity").json()["items"]]
+    assert any("recorded a symbol change in Brokerage" in x for x in texts)
+    assert any("recorded a split in Brokerage" in x for x in texts)
+
+
+def test_a_corporate_action_is_deleted_and_recorded_again_never_changed(alice):
+    a, fb = _holding(alice)
+    act = saved(create(alice, "CorpA", accountId=a, instrumentId=fb, kind="split",
+                       date="2026-06-09", ratio="2"))  # fmt: skip
+    r = change(alice, "CorpA", act, accountId=a, instrumentId=fb, kind="split",
+               date="2026-06-10", ratio="2")  # fmt: skip
+    assert _refused(r) == [
+        (None, "action-fixed", "A corporate action is deleted, and recorded again if it differs.")
+    ]
+    assert remove(alice, "CorpA", {"id": "CorpA_01m4tj4gg0f02s596bvjcn26rw", "version": 1}
+                  ).status_code == 404  # fmt: skip
+
+
+def test_only_who_may_change_the_account_records_or_deletes_its_corporate_actions(server):
+    from edits import share
+    from test_sharing import setup
+
+    u, c = setup(server)
+    a, fb = _holding(c["alice"])
+    assert share(c["alice"], "account", a, users={u["bob"].id: "read"}).status_code == 200
+    fields = {"accountId": a, "instrumentId": fb, "kind": "split", "date": "2026-06-09",
+              "ratio": "2"}  # fmt: skip
+    assert create(c["bob"], "CorpA", **fields).status_code == 403
+    act = saved(create(c["alice"], "CorpA", **fields))
+    assert remove(c["bob"], "CorpA", act).status_code == 403
+    assert remove(c["alice"], "CorpA", act).status_code == 200
+
+
+# ---- An option's end and an adjustment from the memo, through their routes (S3.4, S3.10.2) --
+
+
+def _put(c, name="Brokerage", mask="4821"):
+    """An account with two MSFT 480 puts sold: the account and the put's instrument."""
+    a = new_account(c, name=name, type="brokerage", mask=mask)["id"]
+    assert opt(c, a, "sell-to-open", "2026-09-02", "6.40", contracts="2").status_code == 200
+    [put] = [x for x in c.get("/ui/api/positions").json()["open"] if x["accountId"] == a]
+    return a, put["instrumentId"]
+
+
+def test_an_end_is_expired_assigned_or_exercised_of_an_option_there(alice):
+    a, put = _put(alice)
+    r = alice.post(f"/ui/api/accounts/{a}/options/{put}/settle",
+                   json={"how": "sold", "date": "2026-11-20", "contracts": "1"})  # fmt: skip
+    assert _refused(r) == [("how", "how-invalid", "Expired, assigned or exercised.")]
+    r = alice.post(f"/ui/api/accounts/{a}/options/Instr_01m4tj4gg0f02s596bvjcn26rw/settle",
+                   json={"how": "expired", "date": "2026-11-20", "contracts": "1"})  # fmt: skip
+    assert _refused(r) == [("instrumentId", "not-found", "No such option.")]
+    r = alice.post(f"/ui/api/accounts/{a}/options/{put}/settle",
+                   json={"how": "expired", "date": "2026-11-20", "contracts": "1"})  # fmt: skip
+    assert r.status_code == 201, r.text
+    assert [(t["kind"], t["quantity"], t["accountId"]) for t in r.json()] == [
+        ("expire", "1.0", a)]  # fmt: skip
+    texts = [e["text"] for e in alice.get("/ui/api/activity").json()["items"]]
+    assert any("recorded an option's expiry, assignment or exercise in Brokerage" in x
+               for x in texts)  # fmt: skip
+
+
+def _adjust(c, *contracts, day="2026-10-05"):
+    return c.post("/ui/api/options/adjust", json={"date": day, "contracts": list(contracts)})
+
+
+def _to(put, root="MSFT1", strike="480", deliverable=({"symbol": "MSFT", "shares": "150"},)):
+    return {"instrumentId": put, "root": root, "strike": strike,
+            "deliverable": list(deliverable)}  # fmt: skip
+
+
+def test_an_adjustment_refused_names_its_contracts_field_and_says_why(alice):
+    a, put = _put(alice)
+    shares = add(alice, a, "-4000.00", "2026-09-01", kind="buy", symbol="MSFT", quantity="10",
+                 price="400")["instrumentId"]  # fmt: skip
+    assert _refused(_adjust(alice)) == [
+        ("contracts", "contracts-missing", "At least one contract.")]  # fmt: skip
+    assert _refused(_adjust(alice, _to(put), _to(shares))) == [
+        ("contracts.1.instrumentId", "not-an-option", "An open contract.")]  # fmt: skip
+    assert _refused(_adjust(alice, _to(put, root="MSFT"))) == [
+        ("contracts.0.root", "root-invalid", "The new root, such as XYZ1.")]  # fmt: skip
+    assert _refused(_adjust(alice, _to(put, strike="0"))) == [
+        ("contracts.0.strike", "strike-invalid", "A strike above 0.")]  # fmt: skip
+    assert _refused(_adjust(alice, _to(put, deliverable=()))) == [
+        ("contracts.0.deliverable", "deliverable-missing", "What it delivers.")]  # fmt: skip
+
+
+def test_an_adjustment_moves_each_contract_in_every_account_the_caller_may_change(server):
+    """S3.10.2: the same contract held in two accounts moves in both, and is counted once; an
+    account shared to read is left as it is; a root typed again in lower case is the root."""
+    from edits import share
+    from test_sharing import setup
+
+    u, c = setup(server)
+    alice, bob = c["alice"], c["bob"]
+    a, put = _put(alice)
+    b, _ = _put(alice, name="Second", mask="5150")
+    theirs, _ = _put(bob, name="Bob's", mask="5151")
+    assert share(bob, "account", theirs, users={u["alice"].id: "read"}).status_code == 200
+    r = _adjust(alice, _to(put, root=" msft1 "))
+    assert r.status_code == 200, r.text
+    assert r.json() == {"contracts": 2, "accounts": 2}
+    syms = {(x["accountId"], x["symbol"]) for x in alice.get("/ui/api/positions").json()["open"]}
+    assert syms == {(a, "MSFT1 20NOV26 480 P"), (b, "MSFT1 20NOV26 480 P"),
+                    (theirs, "MSFT 20NOV26 480 P")}  # fmt: skip
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    [cn] = g["contracts"]
+    assert (cn["root"], cn["held"]) == ("MSFT1", ["Short 2 in Brokerage", "Short 2 in Second"])
+    r = _adjust(alice, _to(cn["instrumentId"], root="msft1", strike="490"))
+    assert r.status_code == 200, r.text  # the root it has, typed again
+    texts = [e["text"] for e in alice.get("/ui/api/activity").json()["items"]]
+    assert sum("adjusted options in" in x for x in texts) == 4
+    me = _me(alice)
+    assert _logged(server, "option.adjusted") in {(me, "account", x, me, "{}") for x in (a, b)}
+
+
+def _logged(server, kind):
+    """The last activity of a kind, as stored: its actor, subject, owner and detail."""
+    from sqlalchemy import select
+
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.scalars(select(Activity).where(Activity.kind == kind)).all()
+        x = sorted(rows, key=lambda r: r.id)[-1]
+        return x.actorId, x.subjectKind, x.subjectId, x.ownerId, x.detail
+
+
+def _me(c):
+    return c.get("/ui/api/session").json()["user"]["id"]
+
+
+def test_a_corporate_action_and_what_it_made_are_the_callers_and_logged(server, alice):
+    """Who recorded an action and its transactions; the account's activity names it; read
+    back, the pair's new leg names its other half's account to the caller."""
+    from moolakata.store.entities.accounts import CorporateAction, Transaction
+
+    a, fb = _holding(alice)
+    act = saved(create(alice, "CorpA", accountId=a, instrumentId=fb, kind="symbol-change",
+                       date="2026-06-09", newSymbol="META"))  # fmt: skip
+    me = _me(alice)
+    with server.db.read(unscoped="test") as s:
+        assert s.get(CorporateAction, act["id"]).createdById == me
+        assert {s.get(Transaction, t["id"]).createdById for t in act["transactions"]} == {me}
+    assert _logged(server, "account.corporate-action") == (
+        me, "account", a, me, '{"name": "symbol change"}')  # fmt: skip
+    old, new = act["transactions"]
+    assert (new["transferId"], new["transferAccountName"]) == (old["id"], "Brokerage")
+    t = saved(_trade(alice, a))
+    assert _logged(server, "option.traded") == (me, "account", a, me, "{}")
+    r = alice.post(f"/ui/api/accounts/{a}/options/{t['instrumentId']}/settle",
+                   json={"how": "expired", "date": "2026-11-20", "contracts": "1"})  # fmt: skip
+    assert r.status_code == 201, r.text
+    assert _logged(server, "option.settled") == (me, "account", a, me, "{}")
+
+
+def test_a_corporate_action_deleted_is_marked_by_who_deleted_it(server, alice):
+    from moolakata.store.entities.accounts import CorporateAction, Transaction
+
+    a, fb = _holding(alice)
+    act = saved(create(alice, "CorpA", accountId=a, instrumentId=fb, kind="symbol-change",
+                       date="2026-06-09", newSymbol="META"))  # fmt: skip
+    assert remove(alice, "CorpA", act).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        gone = s.get(CorporateAction, act["id"])
+        assert (gone.deleted, gone.deletedById) == (True, _me(alice))
+        assert all(s.get(Transaction, t["id"]).deleted for t in act["transactions"])
+    r = remove(alice, "CorpA", act)
+    assert (r.status_code, _refused_as(r)) == (404, [(None, "not-found", "Not found")])
+
+
+def _refused_as(r):
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+def test_a_corporate_action_is_deleted_only_by_who_may_change_the_account(server):
+    from edits import share
+    from test_sharing import setup
+
+    u, c = setup(server)
+    a, fb = _holding(c["alice"])
+    act = saved(create(c["alice"], "CorpA", accountId=a, instrumentId=fb, kind="split",
+                       date="2026-06-09", ratio="2"))  # fmt: skip
+    assert share(c["alice"], "account", a, users={u["bob"].id: "read"}).status_code == 200
+    r = remove(c["bob"], "CorpA", act)
+    assert (r.status_code, [e["code"] for e in r.json()["errors"]]) == (403, ["share-read-only"])
+
+
+def test_an_all_cash_merger_at_a_loss_is_a_wash_sale_with_shares_bought_elsewhere(alice):
+    """S3.8: the merger's cash is a sale, at a loss; the same shares bought in the household's
+    other account within 30 days replace them, so the loss is disallowed."""
+    a, twtr = _holding(alice, symbol="TWTR")
+    b = new_account(alice, name="Other", type="brokerage", mask="5150")["id"]
+    add(alice, b, "-250.00", "2026-10-01", kind="buy", symbol="TWTR", quantity="5", price="50")
+    saved(create(alice, "CorpA", accountId=a, instrumentId=twtr, kind="merger",
+                 date="2026-10-12", cashPerShare="54.20"))  # fmt: skip
+    [row] = [r for r in alice.get("/ui/api/positions").json()["closed"] if r["accountId"] == a]
+    assert (row["how"], row["realized"], row["washDisallowed"]) == ("merger", "-229.00",
+                                                                     "229.00")  # fmt: skip
