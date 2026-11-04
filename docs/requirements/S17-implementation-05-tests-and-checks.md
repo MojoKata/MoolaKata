@@ -132,8 +132,9 @@
          not points: one branch is a point of a one-file area), as a percentage rounded down
          to a tenth, and never lowers one: a lower floor is written by hand, with its reason
          in the commit. The slack is 3 for the server's and the connector's areas, whose
-         tests measure the same each run, and 20 for the browser app's, whose figures move
-         with the browser tests' timing. `totals.json` keeps each area's counts for it.
+         tests measure the same each run, and 40 for the browser app's, whose figures move
+         with the browser tests' timing (its components by as much as 32 lines from one run to
+         the next with nothing changed). `totals.json` keeps each area's counts for it.
       5. **The coverage site**: the repository's GitHub Pages site
          (`https://mojokata.github.io/MoolaKata/`) holds the HTML reports of the last merge
          to `main` and the history of every merge since the site began. Its page shows:

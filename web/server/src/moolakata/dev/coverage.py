@@ -40,7 +40,7 @@ ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine lar
 # The lines or branches an area's measure may move by between runs: a count, not points, since
 # one branch is a point of a one-file area. The server's and the connector's tests measure the
 # same each run; the browser's move 10 or more lines and branches with their timing.
-SLACK = {"server": 3, "connector": 3, "browser": 20}
+SLACK = {"server": 3, "connector": 3, "browser": 40}
 BAR = 10  # the job summary's bars, in characters
 # How well an area is tested, whatever its floor: the usual three bands (green from 80%, red
 # under 60%), each with its dot in the job summary and its colour on the site.
