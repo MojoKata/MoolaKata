@@ -63,7 +63,7 @@ def seed_loans(s, people: dict) -> None:
         if day > today:
             break
         amount = regular + (D(5000) if i == 7 else 0)
-        p = loans.split_for(t, paid, [], day, amount)
+        p = loans.split_for(t, paid, [], day, amount, catch_up=True)  # recorded here
         out = Transaction(
             id=ids.new_id("Txn"),
             accountId=checking.id,

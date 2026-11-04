@@ -82,12 +82,20 @@ def test_an_overpayment_pays_it_off_sooner():
 def test_a_recast_lowers_the_payment_and_keeps_the_end():
     t = mortgage_terms()
     pays = []
-    for i in range(1, 13):
+    for i in range(1, 12):
         d = L.add_months(t.start, i)
         pays.append(L.split_for(t, pays, [], d, D("1798.65") + (D(50000) if i == 6 else 0)))
     t.recasts = [(dt.date(2025, 12, 15), D(250))]
-    s, _ = L.summary(t, pays, [], dt.date(2026, 1, 15))
+    # Its first payment day after it, Jan 1, pays the level the balance then needs by the end.
+    s, _ = L.summary(t, pays, [], dt.date(2025, 12, 20))
+    assert s.nextDate == dt.date(2026, 1, 1)
     assert s.payment < D("1500") and s.payoffDate == dt.date(2055, 1, 1)
+    # The old payment kept up on Jan 1 is principal beyond the new level: an overpayment,
+    # which brings the end nearer.
+    jan = L.split_for(t, pays, [], dt.date(2026, 1, 1), D("1798.65"))
+    assert jan.overpayment == D("1798.65") - s.payment
+    later, _ = L.summary(t, [*pays, jan], [], dt.date(2026, 1, 15))
+    assert later.payment == s.payment and later.payoffDate < dt.date(2055, 1, 1)
 
 
 def test_an_arm_reset_changes_the_payment():
@@ -659,3 +667,94 @@ def test_a_heloc_not_yet_drawn_has_nothing_a_late_payment_goes_back_to():
     sm, rows = L.summary(t, [may, june], draws, dt.date(2026, 7, 10), "recorded")
     assert sm.missed == 0 and sm.nextDate == dt.date(2026, 7, 1)
     assert [r.status for r in rows if r.past] == ["paid", "paid"]
+
+
+# ---- Interest once per payment day; a HELOC's last payment; the level kept (S1.9.2) ----
+
+
+def test_interest_is_due_once_per_payment_day():
+    """CR3-417: a second payment toward the same payment day pays no second month's interest,
+    escrow or PMI; it is all principal, an overpayment."""
+    t = mortgage_terms(start=dt.date(2026, 1, 1), escrowTax=D(300), pmi=D(90))
+    first = L.split_for(t, [], [], dt.date(2026, 2, 1), D("2188.65"))
+    assert (first.interest, first.escrowTax, first.pmi) == (D("1500.00"), D(300), D(90))
+    second = L.split_for(t, [first], [], dt.date(2026, 2, 10), D(1000))
+    assert (second.interest, second.escrowTax, second.pmi, second.principal) == (0, 0, 0, 1000)
+    assert second.overpayment == 1000
+    # The same day too: the first already paid the day.
+    again = L.split_for(t, [first], [], dt.date(2026, 2, 1), D(1000))
+    assert (again.interest, again.principal, again.overpayment) == (0, 1000, 1000)
+    # A first payment short of the interest leaves the rest to the next toward that day.
+    short = L.split_for(t, [], [], dt.date(2026, 2, 1), D(1000))
+    rest = L.split_for(t, [short], [], dt.date(2026, 2, 5), D("1188.65"))
+    assert short.interest + rest.interest == D("1500.00") and rest.escrowTax == 300
+    # Through the schedule: the second payment is an overpayment on its row.
+    sm, rows = L.summary(t, [first, second], [], dt.date(2026, 2, 20), "recorded")
+    assert [r.overpayment for r in rows if r.past] == [0, 1000] and sm.overpaid == 1000
+
+
+def test_after_a_missed_day_two_payments_in_one_grace_pay_two_days():
+    """CR3-417, S1.9.3: recorded here, a payment after a missed day pays the oldest one first,
+    so a second in the same grace pays its own day, with its own month's interest; assumed as
+    scheduled, the second pays no more interest."""
+    t = mortgage_terms(start=dt.date(2026, 1, 1))
+    pi = L.scheduled_payment(t)
+    feb = L.split_for(t, [], [], dt.date(2026, 2, 1), pi, catch_up=True)
+    late = L.split_for(t, [feb], [], dt.date(2026, 4, 1), pi, catch_up=True)  # pays March
+    own = L.split_for(t, [feb, late], [], dt.date(2026, 4, 5), pi, catch_up=True)  # April
+    assert late.interest > 0 and own.interest == L.cents(L.balance_on(t, [feb, late], []) / 200)
+    assert own.overpayment == 0
+    sm, _ = L.summary(t, [feb, late, own], [], dt.date(2026, 4, 20), "recorded")
+    assert sm.missed == 0 and sm.nextDate == dt.date(2026, 5, 1)
+    alone = L.split_for(t, [feb, late], [], dt.date(2026, 4, 5), pi)  # assumed: April's twice
+    assert alone.interest == 0 and alone.overpayment == pi
+
+
+def test_a_daily_interest_loans_second_payment_pays_the_days_since_the_first():
+    t = L.Terms(
+        principal=D(25000), start=dt.date(2026, 1, 15), months=60, rate=D("7.3"), method="daily"
+    )
+    first = L.split_for(t, [], [], dt.date(2026, 2, 15), D(500))
+    second = L.split_for(t, [first], [], dt.date(2026, 2, 20), D(300))
+    owed = D(25000) - first.principal
+    assert second.interest == L.cents(owed * D("0.073") * 5 / 365)
+    assert L.split_for(t, [first], [], dt.date(2026, 2, 15), D(300)).interest == 0
+
+
+def test_a_helocs_repayment_ends_on_its_last_payment_day():
+    """CR3-418: repaid from the draw period's end, payment day 120, to the term's last, 240:
+    121 payments, the last on the term's end, not one before it."""
+    t = L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
+    draws = [(dt.date(2026, 2, 1), D(30000))]
+    _, rows = L.summary(t, [], draws, dt.date(2026, 3, 15))
+    repay = [r for r in rows if r.principal]
+    assert repay[0].date == L.draw_ends(t) and rows[-1].date == t.end and len(repay) == 121
+    assert abs(rows[-1].payment - repay[0].payment) < 1, "no change left at the end"
+    drawn = L.Terms(principal=D(30000), start=t.start, months=240, rate=D(8), drawMonths=120)
+    assert L.scheduled_payment(drawn) == L.level_payment(D(30000), D(8), 121)
+
+
+def test_after_a_reset_the_payment_stays_level_until_the_next_change():
+    """CR3-419, S1.9.2: the rows passed, assumed as scheduled, keep the level set on the first
+    payment day after the reset, as the rows ahead do; it is worked out again only after the
+    next change."""
+    t = mortgage_terms(
+        start=dt.date(2016, 1, 1),
+        resets=[(dt.date(2021, 1, 15), D("8.125")), (dt.date(2024, 1, 15), D("5.5"))],
+    )
+    sm, rows = L.summary(t, [], [], dt.date(2026, 10, 13))
+    pi = [(r.date, r.principal + r.interest) for r in rows]
+    first = {x for d, x in pi if dt.date(2021, 2, 1) <= d <= dt.date(2024, 1, 1)}
+    second = {x for d, x in pi[:-1] if d >= dt.date(2024, 2, 1)}
+    assert len(first) == 1 and len(second) == 1 and first != second
+    assert sm.payment in second
+
+
+def test_a_payment_short_of_the_days_dues_pays_them_in_order_and_no_principal():
+    """S1.9.3: less than the interest and escrow, what there is pays the interest, then the
+    escrow, then PMI; nothing goes to principal."""
+    t = mortgage_terms(start=dt.date(2026, 1, 1), escrowTax=D(300), pmi=D(90))
+    p = L.split_for(t, [], [], dt.date(2026, 2, 1), D(1600))
+    assert (p.interest, p.escrowTax, p.pmi, p.principal) == (D("1500.00"), 100, 0, 0)
+    rest = L.split_for(t, [p], [], dt.date(2026, 2, 3), D(2000))
+    assert (rest.interest, rest.escrowTax, rest.pmi) == (0, 200, 90)

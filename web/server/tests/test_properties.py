@@ -71,6 +71,79 @@ def test_a_loans_payment_is_its_schedules_next_row_and_the_rows_pay_what_is_owed
     assert ahead[-1].balance == 0
 
 
+@PROPERTIES
+@given(
+    principal=st.integers(min_value=1_000, max_value=900_000).map(D),
+    rate=rates,
+    escrow=st.integers(min_value=0, max_value=800).map(D),
+    first=st.integers(min_value=1, max_value=99).map(lambda x: D(x) / 100),
+    later=st.integers(min_value=0, max_value=14),
+    extra=cents,
+)
+def test_one_payment_days_dues_are_paid_once_however_the_payment_is_split(
+    principal, rate, escrow, first, later, extra
+):
+    """CR3-417: a payment day's interest and escrow are due once: paying it in two parts within
+    its grace pays the same interest, escrow and principal as paying it in one."""
+    t = L.Terms(principal=principal, start=dt.date(2026, 1, 1), months=360, rate=rate,
+                escrowTax=escrow)  # fmt: skip
+    day = dt.date(2026, 2, 1)
+    due = L.cents(principal * rate / 1200) + escrow
+    whole = due + extra
+    a = L.split_for(t, [], [], day, (whole * first).quantize(D("0.01")))
+    b = L.split_for(t, [a], [], day + dt.timedelta(days=later), whole - a.total)
+    one = L.split_for(t, [], [], day, whole)
+    assert a.interest + b.interest == one.interest
+    assert a.escrowTax + b.escrowTax == one.escrowTax
+    assert a.principal + b.principal == one.principal
+
+
+@PROPERTIES
+@given(
+    months=st.integers(min_value=13, max_value=480),
+    share=st.integers(min_value=1, max_value=95),
+    rate=rates,
+    drawn=st.integers(min_value=1_000, max_value=500_000).map(D),
+)
+def test_a_helocs_repayment_ends_on_its_terms_last_payment_day(months, share, rate, drawn):
+    """CR3-418: drawn in its draw period and repaid as scheduled, a HELOC's last payment falls
+    on the term's end, its repayment level to the last."""
+    draw_months = max(1, months * share // 100)
+    t = L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=months, rate=rate,
+                drawMonths=draw_months)  # fmt: skip
+    _, rows = L.summary(t, [], [(dt.date(2026, 1, 10), drawn)], dt.date(2026, 1, 20))
+    repay = [r for r in rows if not L._in_draw(t, r.date)]
+    assert rows[-1].date == t.end and repay[0].date == L.draw_ends(t)
+    assert len(repay) == months - draw_months + 1
+    level = repay[0].principal + repay[0].interest
+    assert all(r.principal + r.interest == level for r in repay[:-1])
+
+
+@PROPERTIES
+@given(
+    start=st.dates(min_value=dt.date(2010, 1, 1), max_value=dt.date(2020, 12, 31)),
+    rate=rates,
+    reset_after=st.integers(min_value=1, max_value=60),
+    new_rate=rates,
+    recast=st.booleans(),
+)
+def test_the_level_payment_holds_between_the_days_that_change_it(
+    start, rate, reset_after, new_rate, recast
+):
+    """CR3-419, S1.9.2: assumed as scheduled, every row from the first payment day after a
+    reset or recast to the last but one pays the same principal and interest, the rows passed
+    and those ahead alike."""
+    when = start + dt.timedelta(days=30 * reset_after + 10)
+    t = L.Terms(principal=D(250000), start=start, months=360, rate=rate)
+    if recast:
+        t.recasts = [(when, D(250))]
+    else:
+        t.resets = [(when, new_rate)]
+    _, rows = L.summary(t, [], [], dt.date(2026, 10, 13))
+    after = [r for r in rows[:-1] if r.date > when]
+    assert len({r.principal + r.interest for r in after}) == 1
+
+
 def _txn(i, account, amount, day, paired=False):
     return SimpleNamespace(id=f"t{i}", accountId=account, amount=amount, date=day,
                            transferId="x" if paired else None)  # fmt: skip

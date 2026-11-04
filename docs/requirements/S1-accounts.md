@@ -328,9 +328,12 @@
       rate takes four, as an index plus a margin can give (7.3125%).
    2. **The amortization schedule** is computed from the terms: each payment's interest,
       principal, escrow and remaining balance. It is recomputed when a payment differs
-      from the schedule, the rate resets, or the loan is **recast**. Interest is rounded half
-      up to the cent, and a balance of less than $1 left by rounding goes with the last
-      payment.
+      from the schedule, the rate resets, or the loan is **recast**. Between the payment days
+      that change it (the first after a rate reset or a recast, and a HELOC's first repayment
+      day) the principal and interest due stays level; on such a day it becomes what pays off
+      the balance then owed by the term's last payment day, that day counted. Interest is
+      rounded half up to the cent, and a balance of less than $1 left by rounding goes with
+      the last payment.
    3. **Payments**: a payment transaction from a bank account (matched as a transfer, S1.7) is
       **split** into principal, interest, escrow, PMI and fees by the schedule, as is every
       payment into the loan however it arrives (imported, or typed in the loan's account): one
@@ -364,7 +367,10 @@
 
       A payment goes with the payment day whose grace it is made in, from 15 days after one
       day to 15 days after the next; recorded here, a payment made after a missed day pays the
-      oldest one missed first, as a servicer applies one.
+      oldest one missed first, as a servicer applies one. A payment day's interest, escrow and
+      PMI are due once: a later payment toward the same day pays what the earlier ones left of
+      them, and the rest is principal, an overpayment. A payment short of them pays the
+      interest, then the escrow, then PMI, and no principal.
    4. **Reconciling**: the servicer's statement balance can be typed in on a date, and a
       difference from the computed balance is shown until it is explained (a fee, a missed
       payment, a wrong rate).

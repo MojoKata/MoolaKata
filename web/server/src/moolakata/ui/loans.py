@@ -456,7 +456,10 @@ def suggest_split(
         if row is None:
             raise Problem(409, "no-terms", "Set the loan's terms first.")
         payments, draws = loans.history(s, a)
-        p = loans.split_new(loans.terms_of(row), payments, draws, date, amount)
+        # Recording it makes Automatic read as recorded here: a late one pays the oldest day
+        # missed (S1.9.3).
+        catch_up = (row.paymentsMode or loans.RECORDED) == loans.RECORDED
+        p = loans.split_new(loans.terms_of(row), payments, draws, date, amount, catch_up)
         cats = _categories(s)
         return SplitOut(
             principal=p.principal,
