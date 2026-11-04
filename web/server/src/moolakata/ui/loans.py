@@ -168,8 +168,8 @@ class LoanView(Model):
     # (S1.9.3); none until the terms are set.
     paymentsResolved: str | None = None
     paymentsAutomatic: str | None = None
-    missed: int = 0  # recorded here: payment days passed their grace with none recorded
-    overdue: Money = Decimal(0)  # what those were due
+    missed: int  # recorded here: payment days passed their grace with none recorded
+    overdue: Money  # what those were due
     rows: list[RowOut]
     servicer: ServicerCheck | None
     equity: Equity | None = None
@@ -260,6 +260,8 @@ def view(s, a: Account) -> LoanView:
             interestAhead=Decimal(0),
             principalThisYear=Decimal(0),
             overpaid=Decimal(0),
+            missed=0,
+            overdue=Decimal(0),
             rows=[],
             servicer=None,
         )

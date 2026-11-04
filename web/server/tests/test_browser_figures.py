@@ -6,6 +6,7 @@ records made are taken away again, so the shared household's other figures stay 
 """
 
 import datetime as dt
+import json
 import re
 from decimal import Decimal
 
@@ -44,7 +45,10 @@ def test_holdings_and_a_projection_show_loans_and_items(browser, household):
                    builtOn={"kind": "portfolio", "id": p["id"]},
                    inputs={"target": 50000, "targetDate": "2030-01-01"}))  # fmt: skip
     try:
-        api = h.c.get(f"/ui/api/portfolios/{p['id']}/holdings").json()
+        # Read exactly: a float parse of $207,036.40 is 207036.3999… (money is a JSON number).
+        api = json.loads(
+            h.c.get(f"/ui/api/portfolios/{p['id']}/holdings").text, parse_float=Decimal
+        )
         page, problems = signed_in(browser, h, f"/ui/portfolios/{p['id']}/holdings", "table.t")
         table = page.locator("table.t")
         text = table.inner_text()

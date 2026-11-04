@@ -2020,8 +2020,8 @@
  * @property {(string | null)} [interestOnlyUntil]
  * @property {(string | null)} [paymentsResolved]
  * @property {(string | null)} [paymentsAutomatic]
- * @property {number} [missed]
- * @property {import('../app/dec.js').Dec} [overdue]
+ * @property {number} missed
+ * @property {import('../app/dec.js').Dec} overdue
  * @property {Array<moolakata__ui__loans__RowOut>} rows
  * @property {(ServicerCheck | null)} servicer
  * @property {(Equity | null)} [equity]

@@ -12161,7 +12161,6 @@
             "type": "number"
           },
           "missed": {
-            "default": 0,
             "title": "Missed",
             "type": "integer"
           },
@@ -12190,7 +12189,6 @@
             "title": "Originalpayoff"
           },
           "overdue": {
-            "default": "\u000030a88c37caf16a24#0.00",
             "examples": [
               1234.5
             ],
@@ -12318,6 +12316,8 @@
           "interestAhead",
           "principalThisYear",
           "overpaid",
+          "missed",
+          "overdue",
           "rows",
           "servicer"
         ],
