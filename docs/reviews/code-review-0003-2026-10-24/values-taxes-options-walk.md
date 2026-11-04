@@ -360,3 +360,20 @@ through when back. Each is applied and can be undone.
    3. **CR3-419**: assumed and missed rows re-amortize on every day after a reset, recast or
       draw end, while the schedule keeps the payment level between those days (S1.9.2).
       Recommended: one helper, the level payment set at the latest change.
+   Applied as recommended (`fca4212`), with **CR3-421**, found by a property test written for
+   them: a payment short of the day's dues pays interest, escrow, then PMI, and no
+   principal. S1.9.2 and S1.9.3 say so. The walk of the payments keeps its state as they are
+   added: a 30-year loan settles in 9 ms, not the first version's 0.6 s.
+   **Open, for the user:** a HELOC draw recorded after its draw period ends no longer
+   re-amortizes the payment (the last payment takes it as a lump). S1.9 doesn't say what such a
+   draw does: treat it as a change, like a reset, or refuse a draw in the repayment period
+   (recommended: refuse it, as a lender does, saying why).
+8. **CI on af17181: a 500 from the dashboard, and the drafts test.** The 500 doesn't happen
+   locally (every seeded user's dashboard answers 200), so every browser test failing on a 5xx
+   now carries the servers' tracebacks (`c6947c5`, issue #34), for the next run that hits it.
+   The drafts test found **CR3-420** (`3c57299`): Back pressed just after Keep editing left
+   the form without asking.
+9. **Adjusted options' survivors** (55 in `adjust.py`): settled, with **CR3-422** (a whole
+   split over-adjusted a contract delivering cash or another company's shares; such a
+   contract now waits for the memo, recommended over dividing the cash and shares by the
+   ratio, which leaves fractional shares the OCC wouldn't print) and **CR3-423** (`52a3361`).
