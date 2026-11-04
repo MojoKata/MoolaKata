@@ -28,13 +28,39 @@ measure_the_browser_app()
 month_cache.CHECK = True
 
 
+@pytest.fixture(autouse=True)
+def _household_left_as_found(request):
+    """A browser test on the shared household takes away the accounts it made, with what is
+    in them: the household is shared by every test on a worker, in whatever order they come,
+    and a test's leftovers changed another's figures (a 529 in an empty tax year, a coin
+    account's 1099-DA among the expected documents). What a module's fixture made, before the
+    test, stays."""
+    if "household" not in request.fixturenames:
+        yield
+        return
+    from edits import remove
+
+    h = request.getfixturevalue("household")
+
+    def ids() -> set[str]:
+        return {a["id"] for a in h.c.get("/ui/api/accounts").json()["items"]}
+
+    before = ids()
+    yield
+    for gone in ids() - before:
+        record = h.c.get(f"/ui/api/accounts/{gone}").json()
+        r = remove(h.c, "Acct", record, confirm=True)
+        assert r.status_code == 200, f"a test's account left in the household: {r.text}"
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """A test failing on a server's 5xx (a page's problems, a wait) carries the servers' logs,
     so a bug reached only in CI shows its traceback in the run that hit it (issue #34)."""
     outcome = yield
     rep = outcome.get_result()
-    if rep.failed and rep.when == "call" and re.search(r"\b5\d\d for ", str(rep.longrepr)):
+    # "500 for <url>" from a page's problems, ": 500 {…}" from an API helper's assertion.
+    if rep.failed and rep.when == "call" and re.search(r"\b5\d\d (for |\{)", str(rep.longrepr)):
         from browser import server_log_tail
 
         rep.sections.append(("the servers' logs, their tracebacks", server_log_tail()))

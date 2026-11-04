@@ -342,15 +342,13 @@ def test_option_trades_show_the_closed_with_how_and_the_open_if_closed_now(brows
 
 
 def gains_sold(h: Household) -> None:
-    """A gain short term and one long, sold last month in their own account, once."""
-    if "gains" in h.extra:
-        return
+    """A gain short term and one long, sold last month in their own account (made again by
+    each test: a test's accounts go when it ends)."""
     acct = brokerage(h, "Gains desk")
     trade(h, acct, f"{months_back(30)}-03", "buy", "ZGL", 10, 100)
     trade(h, acct, f"{months_back(3)}-03", "buy", "ZGS", 10, 50)
     trade(h, acct, CLOSED, "sell", "ZGL", 10, 130)
     trade(h, acct, CLOSED, "sell", "ZGS", 10, 45)
-    h.extra["gains"] = acct
 
 
 @pytest.mark.parametrize(
