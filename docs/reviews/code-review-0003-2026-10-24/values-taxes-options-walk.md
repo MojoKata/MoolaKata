@@ -392,8 +392,10 @@ through when back. Each is applied and can be undone.
        naked after one). Applied: it follows them, and the new shares are its underlying; a
        spin-off moves nothing. Found on the way: **CR3-428**, at open came to $0 after any
        adjustment.
-    Still open, the same question elsewhere: covered-call proposals and an account's risk for
-    calls outside a strategy don't yet see an acquirer's shares covering a call adjusted to
-    deliver them.
+    The same rule then reached covered-call proposals, rolls and an account's risk outside a
+    strategy (`21772fa`), with **CR3-429** (unpriced covering shares counted at $0). Left as is:
+    a merger the account never recorded isn't known (bought ACQ separately, the call reads
+    uncovered), and an unadjusted call counts the acquirer's shares one for one until the
+    adjustment is typed (the adjustable list asks for it).
 11. **Options' own survivors** (211 in `options/__init__.py`): settled (`a2f2d53`), with
     **CR3-427**: an adjusted contract's cash lost a cent to rounding across its parts.
