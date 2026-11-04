@@ -245,14 +245,12 @@ def test_staleness():
     """S4.5, S4.7, each on its bound: an option's close after one trading day, a stock's after
     two, a coin's after two days, a typed price after 90 days."""
     friday = dt.date(2026, 10, 9)
-    assert not pricing.is_stale("option", "close", friday, dt.date(2026, 10, 12))
-    assert pricing.is_stale("option", "close", friday, dt.date(2026, 10, 13))
-    assert not pricing.is_stale("etf", "close", friday, dt.date(2026, 10, 13))
-    assert pricing.is_stale("etf", "close", friday, dt.date(2026, 10, 14))  # three days
-    assert not pricing.is_stale("crypto", "close", friday, dt.date(2026, 10, 11))  # two days
-    assert pricing.is_stale("crypto", "close", friday, dt.date(2026, 10, 12))
-    assert not pricing.is_stale("other", "manual", friday, friday + dt.timedelta(days=90))
-    assert pricing.is_stale("other", "manual", friday, friday + dt.timedelta(days=91))
+    assert not pricing.is_stale("option", friday, dt.date(2026, 10, 12))
+    assert pricing.is_stale("option", friday, dt.date(2026, 10, 13))
+    assert not pricing.is_stale("etf", friday, dt.date(2026, 10, 13))
+    assert pricing.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
+    assert not pricing.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
+    assert pricing.is_stale("crypto", friday, dt.date(2026, 10, 12))
     assert not pricing.typed_stale(friday, friday + dt.timedelta(days=90))
     assert pricing.typed_stale(friday, friday + dt.timedelta(days=91))
 
@@ -662,14 +660,12 @@ class Rows:
 def test_a_days_close_is_the_latest_live_one_and_says_how_old_it_is(server, monday):
     """S4.6, S4.7: the latest close on or before the day for each instrument, never a deleted
     one nor another instrument's day; a coin's close from Friday is stale on Monday, a stock's
-    isn't; a close typed before typed prices were their typers' is manual, and stale after 90
-    days only."""
+    isn't."""
     with server.db.tx(unscoped="test") as s:
         r = Rows(s)
-        coin, stock, typed, fixed = r.inst("C1", "crypto"), r.inst("S1"), r.inst("M1"), r.inst("X1")
+        coin, stock, fixed = r.inst("C1", "crypto"), r.inst("S1"), r.inst("X1")
         r.price(coin, _d(10, 9))
         r.price(stock, _d(10, 9))
-        r.price(typed, _d(9, 1), source="manual")
         r.price(fixed, _d(10, 8), 100)
         r.price(fixed, _d(10, 9), 999, deleted=True)
         # Pairs where one's latest day is a day the other has an older close on: the latest
@@ -681,12 +677,11 @@ def test_a_days_close_is_the_latest_live_one_and_says_how_old_it_is(server, mond
                 r.price(a, day, day.day)
             r.price(b, _d(10, 1))
             pairs.append(a)
-        ids_ = [coin.id, stock.id, typed.id, fixed.id, *(p.id for p in pairs)]
+        ids_ = [coin.id, stock.id, fixed.id, *(p.id for p in pairs)]
     with server.db.read(unscoped="test") as s:
         got = pricing.stored_closes(s, ids_, D0)
     assert got[coin.id] == valuation.Price(D(10), _d(10, 9), "close", True)
     assert got[stock.id] == valuation.Price(D(10), _d(10, 9), "close", False)
-    assert got[typed.id] == valuation.Price(D(10), _d(9, 1), "manual", False)
     assert got[fixed.id] == valuation.Price(D(100), _d(10, 8), "close", False)
     assert [got[p.id].asOf for p in pairs] == [_d(10, 2), _d(10, 2)]
     assert len(got) == len(ids_)
@@ -708,41 +703,38 @@ def test_a_close_history_is_one_instruments_live_closes_after_first_up_to_last_b
 
 
 def test_the_last_stored_close_is_the_latest_fetched_live_one(server, monday):
-    """A typed close (source manual) or a deleted one is never where a refresh resumes."""
+    """A deleted close is never where a refresh resumes."""
     with server.db.tx(unscoped="test") as s:
         r = Rows(s)
-        a, b, typed_only = r.inst("A1"), r.inst("B1"), r.inst("T1")
+        a, b = r.inst("A1"), r.inst("B1")
         r.price(a, _d(10, 5))
-        r.price(a, _d(10, 8), source="manual")
         r.price(a, _d(10, 9), deleted=True)
         r.price(b, _d(10, 2))
-        r.price(typed_only, _d(10, 2), source="manual")
     with server.db.read(unscoped="test") as s:
         assert pricing.last_stored(s) == {a.id: _d(10, 5), b.id: _d(10, 2)}
 
 
 def test_storing_adds_new_closes_replaces_changed_fetched_ones_and_counts_both(server, monday):
     """S4.6: a close fetched again unchanged is left be and not counted; a changed one is
-    replaced and counted; a typed one (source manual) is never replaced; another
-    instrument's close on the same day is no reason to skip one."""
+    replaced and counted; another instrument's close on the same day is no reason to skip
+    one."""
     with server.db.tx(unscoped="test") as s:
         r = Rows(s)
         a, b = r.inst("A1"), r.inst("B1")
         r.price(a, _d(10, 1), 10, source="old-test")
         r.price(a, _d(10, 2), 20, source="old-test")
-        r.price(a, _d(10, 3), 30, source="manual")
         r.price(b, _d(10, 4), 40, source="old-test")
     with server.db.tx(unscoped="test") as s:
         assert pricing.store(s, a.id, [], "new-test") == 0
         closes = [(_d(10, 1), D(10)), (_d(10, 2), D(21)), (_d(10, 3), D(31)),
                   (_d(10, 4), D(44)), (_d(10, 5), D(50))]  # fmt: skip
-        assert pricing.store(s, a.id, closes, "new-test") == 3
+        assert pricing.store(s, a.id, closes, "new-test") == 4
     with server.db.read(unscoped="test") as s:
         rows = {(p.instrumentId, p.date): (p.close, p.source) for p in s.scalars(select(Price))}
     assert rows == {
         (a.id, _d(10, 1)): (D(10), "old-test"),
         (a.id, _d(10, 2)): (D(21), "new-test"),
-        (a.id, _d(10, 3)): (D(30), "manual"),
+        (a.id, _d(10, 3)): (D(31), "new-test"),
         (a.id, _d(10, 4)): (D(44), "new-test"),
         (a.id, _d(10, 5)): (D(50), "new-test"),
         (b.id, _d(10, 4)): (D(40), "old-test"),

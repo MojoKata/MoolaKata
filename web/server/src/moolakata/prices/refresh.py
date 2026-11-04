@@ -48,9 +48,9 @@ def typed_stale(as_of: dt.date, today: dt.date) -> bool:
     return (today - as_of).days > STATEMENT_STALE_DAYS
 
 
-def is_stale(cls: str, source: str, as_of: dt.date, today: dt.date) -> bool:
-    if source == "manual":
-        return typed_stale(as_of, today)
+def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:
+    """A fetched close's staleness by its class (S4.7). Only a fetching source stores closes; a
+    typed price is a TypedPrice, stale by `typed_stale`."""
     if cls in STALE_DAYS:
         return (today - as_of).days > STALE_DAYS[cls]
     # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
@@ -79,8 +79,8 @@ def stored_closes(
         p.instrumentId: valuation.Price(
             p.close,
             p.date,
-            "manual" if p.source == "manual" else "close",
-            is_stale(cls, p.source, p.date, min(day, today)),
+            "close",
+            is_stale(cls, p.date, min(day, today)),
         )
         for p, cls in rows
     }
@@ -256,7 +256,7 @@ def last_stored(s: Session) -> dict[str, dt.date]:
     return dict(
         s.execute(
             select(Price.instrumentId, func.max(Price.date))
-            .where(Price.deleted == false(), Price.source != "manual")
+            .where(Price.deleted == false())
             .group_by(Price.instrumentId)
         ).all()
     )
@@ -297,7 +297,7 @@ def store(
     n = len(fresh)
     for day, close in closes:
         old = have.get(day)
-        if old is not None and old.source != "manual" and old.close != close:
+        if old is not None and old.close != close:
             old.close, old.source, old.fetchedAt = close, source, now
             n += 1
     return n
