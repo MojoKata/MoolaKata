@@ -141,6 +141,9 @@ def _pss_gb() -> float:
             cmd = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
             if not (cmd.startswith("mutmut: ") or "/bin/mutmut run" in cmd):
                 continue
+            # Only this checkout's run: another worktree's runs in its own copy.
+            if not Path(f"/proc/{pid}/cwd").resolve().is_relative_to(COPY.resolve()):
+                continue
             for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
                 if line.startswith("Pss:"):
                     total += int(line.split()[1])

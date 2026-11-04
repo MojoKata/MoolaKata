@@ -267,7 +267,8 @@ function AdjustDialog({ close }) {
         <p class="small dim" style=${{ marginTop: 0 }}>A split that isn't a whole number, a
           merger, a spin-off or a large special dividend changes each open contract's root and
           deliverable, as the OCC's information memo says. The lots carry over: nothing is
-          sold. A whole-number split needs none of this.</p>
+          sold. A whole-number split needs none of this, unless a contract delivers cash or another
+          company's shares.</p>
         <div class="row">
           <${Field} label="Underlying" id="adjust-underlying">
             <${Select} value=${g.underlyingId} onChange=${setUnder}

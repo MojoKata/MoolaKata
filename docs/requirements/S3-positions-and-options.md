@@ -154,7 +154,9 @@
        account the split is recorded or imported in: contracts × the ratio, strike ÷ the ratio
        rounded to the thousandth, as the OCC prints it, the basis spread over the new
        contracts. The old contract ends. Deleting the split undoes it. A reverse split, not a
-       whole number, is adjusted as below.
+       whole number, is adjusted as below, and so is a contract whose deliverable has cash or
+       another company's shares: they don't split, so more contracts would deliver more of
+       them.
     2. **Any other adjustment** gives the contract a new root (AAPL becomes *AAPL1*), keeps
        its strike, and changes its **deliverable**: shares other than 100 (150 for a 3:2
        split), shares and cash, or shares of two companies. Recording the corporate action

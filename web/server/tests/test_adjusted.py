@@ -7,12 +7,22 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import make, remove, saved
+from edits import create, make, option_trade, remove, saved
+from sqlalchemy import false, select
 from test_accounts import new_account
 from test_options import opt
 
-from moolakata import clock
+from moolakata import clock, ids
+from moolakata.errors import FieldError, Problem
+from moolakata.options import adjust, contract_of
 from moolakata.options.adjust import parse_occ
+from moolakata.store.entities.accounts import (
+    Account,
+    Instrument,
+    OptionContract,
+    Transaction,
+)
+from moolakata.store.entities.users import User
 
 T0 = dt.datetime(2026, 10, 13, 12, tzinfo=dt.UTC)
 
@@ -285,3 +295,251 @@ def test_a_deliverable_of_no_shares_is_refused(alice):
     _, r = _adjusted_put(alice, deliverable=[{"symbol": "MSFT", "shares": "0"}])
     assert r.status_code == 422, r.text
     assert r.json()["errors"][0]["code"] == "deliverable-invalid"
+
+
+def test_a_splits_strike_rounds_half_up_to_the_thousandth():
+    """S3.10.1: as the OCC prints it, a half thousandth goes up, not to the even digit."""
+    assert adjust.adjusted_strike(D("4.125"), D("2")) == D("2.063")
+    assert adjust.adjusted_strike(D("480"), D("3")) == D("160")
+
+
+def _uid(server, name="alice"):
+    with server.db.read(unscoped="test") as s:
+        return s.scalars(select(User.id).where(User.username == name)).one()
+
+
+def _split(s, a, uid, ratio, day=dt.date(2026, 10, 16)):
+    """A split of MSFT recorded in the account, its options not yet adjusted."""
+    msft = s.scalars(
+        select(Instrument).where(Instrument.symbol == "MSFT", Instrument.deleted == false())
+    ).one()
+    t = Transaction(id=ids.new_id("Txn"), accountId=a, date=day, kind="split", amount=D(0),
+                    instrumentId=msft.id, splitRatio=ratio, createdById=uid)  # fmt: skip
+    s.add(t)
+    s.flush()
+    return t
+
+
+def _pairs(s, a):
+    """Each adjustment's pair in the account: (out, into)."""
+    rows = s.scalars(
+        select(Transaction).where(Transaction.accountId == a, Transaction.kind == "option-adjust")
+    ).all()
+    return [(t, s.get(Transaction, t.transferId)) for t in rows if t.splitRatio is None]
+
+
+def _book(c):
+    """100 MSFT shares; on MSFT a short put of two contracts, a long mini call (10 shares a
+    contract), a short put expiring on the split's day and one expired before it; an AAPL put."""
+    a = new_account(c, type="brokerage")["id"]
+    saved(create(c, "Txn", accountId=a, date="2026-08-01", kind="buy", symbol="MSFT",
+                 quantity="100", price="400", amount="-40000.00"))  # fmt: skip
+    saved(opt(c, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
+    saved(opt(c, a, "buy-to-open", "2026-09-01", "2.00", right="call", strike="450", fees="0",
+              multiplier="10"))  # fmt: skip
+    saved(opt(c, a, "sell-to-open", "2026-09-01", "1.00", strike="500", expiry="2026-10-16",
+              fees="0"))  # fmt: skip
+    saved(opt(c, a, "sell-to-open", "2026-09-01", "1.00", strike="300", expiry="2026-10-09",
+              fees="0"))  # fmt: skip
+    saved(option_trade(c, a, "2026-09-01", "sell-to-open", "aapl", "put", "200", "2026-11-20",
+                       "1", "1.00"))  # fmt: skip
+    return a
+
+
+def test_a_whole_split_adjusts_each_contract_on_the_stock_open_on_its_day(server, alice):
+    """S3.10.1: each MSFT contract open on the split's day, the one expiring that day too, is
+    carried to its contract at half the strike, its right, root, deliverable and multiplier as
+    they were: a pair of rows by the one who recorded the split, naming it, moving no cash.
+    The shares, the AAPL put and the contract expired before stay."""
+    a = _book(alice)
+    uid = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        split = _split(s, a, uid, D("2"))
+        assert adjust.with_split(s, uid, s.get(Account, a), split) == 3
+        name = {}
+        moved = set()
+        for out, into in _pairs(s, a):
+            for t in (out, into):
+                assert (t.amount, t.createdById, t.optionTransactionId) == (0, uid, split.id)
+            assert into.transferId == out.id
+            old, new = (s.get(Instrument, t.instrumentId).symbol for t in (out, into))
+            name[new] = into.instrumentId
+            moved.add((old, out.quantity, out.payee, new, into.quantity, into.splitRatio,
+                       into.payee))  # fmt: skip
+        cs = {n: contract_of(s, i) for n, i in name.items()}
+        terms = {
+            n: (c.right, c.strike, c.expiry, c.multiplier, c.root, c.deliverable)
+            for n, c in cs.items()
+        }
+        s.rollback()
+    assert moved == {
+        ("MSFT 20NOV26 480 P", 2, "Adjusted: MSFT 20NOV26 480 P became MSFT 20NOV26 240 P",
+         "MSFT 20NOV26 240 P", 4, 2, "Adjusted from MSFT 20NOV26 480 P"),
+        ("MSFT 20NOV26 450 C", 1, "Adjusted: MSFT 20NOV26 450 C became MSFT 20NOV26 225 C",
+         "MSFT 20NOV26 225 C", 2, 2, "Adjusted from MSFT 20NOV26 450 C"),
+        ("MSFT 16OCT26 500 P", 1, "Adjusted: MSFT 16OCT26 500 P became MSFT 16OCT26 250 P",
+         "MSFT 16OCT26 250 P", 2, 2, "Adjusted from MSFT 16OCT26 500 P"),
+    }  # fmt: skip
+    nov, oct16 = dt.date(2026, 11, 20), dt.date(2026, 10, 16)
+    assert terms == {
+        "MSFT 20NOV26 240 P": ("put", 240, nov, 100, None, None),
+        "MSFT 20NOV26 225 C": ("call", 225, nov, 10, None, None),
+        "MSFT 16OCT26 250 P": ("put", 250, oct16, 100, None, None),
+    }
+
+
+@pytest.mark.parametrize("ratio", [None, D("1"), D("1.5"), D("2.5"), D("0.5")])
+def test_a_split_below_two_or_not_whole_adjusts_no_option(server, alice, ratio):
+    """S3.10.1: only a whole split of 2 or more adjusts by itself; any other waits for the
+    OCC's memo."""
+    a = new_account(alice, type="brokerage")["id"]
+    saved(opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
+    uid = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        split = _split(s, a, uid, ratio)
+        assert adjust.with_split(s, uid, s.get(Account, a), split) == 0
+        assert _pairs(s, a) == []
+        s.rollback()
+
+
+@pytest.mark.parametrize(
+    ("deliverable", "cash", "after"),
+    [
+        # Only MSFT shares, which split too: twice the contracts, each delivering the same.
+        ([{"symbol": "MSFT", "shares": "150"}], "0", ("MSFT1 20NOV26 240 P", -4)),
+        # Another company's shares, or cash, don't split: twice the contracts would deliver
+        # twice as many of them, so the contract waits for the OCC's memo.
+        ([{"symbol": "MSFT", "shares": "100"}, {"symbol": "SPUN", "shares": "20"}], "0",
+         ("MSFT1 20NOV26 480 P", -2)),
+        ([{"symbol": "MSFT", "shares": "100"}], "50", ("MSFT1 20NOV26 480 P", -2)),
+    ],
+)  # fmt: skip
+def test_a_whole_split_adjusts_an_adjusted_contract_only_when_it_delivers_just_the_stock(
+    server, alice, deliverable, cash, after
+):
+    """S3.10.1: a 2:1 split of MSFT with a contract adjusted from the memo before it, and a
+    plain put opened after, which the split adjusts whatever the other does. The adjusted
+    contract keeps its new root and deliverable through the split."""
+    a, r = _adjusted_put(alice, deliverable=deliverable, cash=cash)
+    assert r.status_code == 200, r.text
+    saved(opt(alice, a, "sell-to-open", "2026-10-06", "1.00", strike="500", fees="0"))
+    r = make(alice, "Txn", accountId=a, date="2026-10-07", kind="split", symbol="MSFT",
+             amount="0", splitRatio="2")  # fmt: skip
+    assert r.status_code == 200, r.text
+    sym = after[0]
+    assert held(alice) == {
+        sym: (after[1], -600, "2026-09-01"),
+        "MSFT 20NOV26 250 P": (-2, -100, "2026-10-06"),
+    }
+    with server.db.read(unscoped="test") as s:
+        terms = {
+            i.symbol: (c.root, c.deliverable)
+            for i, c in s.execute(
+                select(Instrument, OptionContract).join(
+                    OptionContract, OptionContract.instrumentId == Instrument.id
+                )
+            )
+        }
+    assert terms[sym] == terms["MSFT1 20NOV26 480 P"]
+    assert terms[sym][0] == "MSFT1"
+
+
+def test_a_deliverables_refusal_names_its_contract_and_its_part(alice):
+    """R3.7: a part refused in the second contract's deliverable is shown at that part."""
+    a = new_account(alice, type="brokerage")["id"]
+    for strike in ("480", "500"):
+        saved(opt(alice, a, "sell-to-open", "2026-09-01", "3.00", strike=strike, fees="0"))
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    good = [{"symbol": "MSFT", "shares": "100"}]
+    bad = [{"symbol": "MSFT", "shares": "100"}, {"symbol": "MSFT", "shares": "0"}]
+    contracts = [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": str(cn["strike"]),
+         "deliverable": d} for cn, d in zip(g["contracts"], (good, bad), strict=True)
+    ]  # fmt: skip
+    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": contracts})
+    assert r.status_code == 422, r.text
+    errors = [(e["field"], e["code"]) for e in r.json()["errors"]]
+    assert errors == [("contracts.1.deliverable.1", "deliverable-invalid")]
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        {"shares": "5"},
+        {"symbol": "  ", "shares": "5"},
+        {"symbol": "MSFT"},
+        {"symbol": "MSFT", "shares": "0"},
+        {"symbol": "MSFT", "shares": "-1"},
+    ],
+)
+def test_a_deliverable_part_needs_a_symbol_and_shares_above_zero(server, part):
+    with server.db.tx(unscoped="test") as s, pytest.raises(Problem) as e:
+        adjust.check_deliverable(s, [{"symbol": "MSFT", "shares": "100"}, part], "c.0.deliverable")
+    assert e.value.errors == [
+        FieldError("c.0.deliverable.1", "deliverable-invalid", "A symbol and its shares.")
+    ]
+
+
+def test_a_deliverable_part_of_any_shares_above_zero_is_kept_under_its_symbol(server):
+    with server.db.tx(unscoped="test") as s:
+        parts = adjust.check_deliverable(
+            s, [{"symbol": " msft ", "shares": "1"}, {"symbol": "SPUN", "shares": D("0.5")}], "d"
+        )
+        named = [(s.get(Instrument, i).symbol, q) for i, q in parts]
+        s.rollback()
+    assert named == [("MSFT", D("1")), ("SPUN", D("0.5"))]
+
+
+T1 = dt.datetime(2026, 10, 1, 9, tzinfo=dt.UTC)
+
+
+def test_deleting_a_split_undoes_only_the_adjustments_it_made(server, alice):
+    """S3.10: its pairs are deleted by whoever deleted it. A pair from the memo, a half
+    deleted before (it keeps its time), and a row of another kind that names the split stay
+    as they were."""
+    a, r = _adjusted_put(alice, deliverable=[{"symbol": "MSFT", "shares": "150"}])
+    assert r.status_code == 200, r.text
+    saved(opt(alice, a, "sell-to-open", "2026-09-01", "1.00", strike="500", fees="0"))
+    uid = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        [memo] = _pairs(s, a)
+        split = _split(s, a, uid, D("2"))
+        assert adjust.with_split(s, uid, s.get(Account, a), split) == 2
+        mine = [p for p in _pairs(s, a) if p != memo]
+        before = mine[0][1]
+        before.mark_deleted(uid, T1)
+        other = Transaction(id=ids.new_id("Txn"), accountId=a, date=split.date, kind="deposit",
+                            amount=D(1), optionTransactionId=split.id)  # fmt: skip
+        s.add(other)
+        s.flush()
+        adjust.undo(s, uid, split)
+        undone = {(t.deletedAt, t.deletedById) for p in mine for t in p if t is not before}
+        kept = (before.deletedAt, other.deletedAt, [t.deletedAt for t in memo])
+        s.rollback()
+    assert undone == {(T0, uid)}
+    assert kept == (T1, None, [None, None])
+
+
+def test_deleting_one_half_of_a_pair_deletes_the_other_once(server, alice):
+    """S3.10: the other half, deleted already, keeps its time; a transfer's halves, which
+    aren't an adjustment, are left to the transfer."""
+    a, r = _adjusted_put(alice)
+    assert r.status_code == 200, r.text
+    uid = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        [(out, into)] = _pairs(s, a)
+        into.mark_deleted(uid, T1)
+        adjust.undo(s, uid, out)
+        sent = Transaction(id=ids.new_id("Txn"), accountId=a, date=T0.date(), kind="withdrawal",
+                           amount=D(-5))  # fmt: skip
+        s.add(sent)
+        s.flush()
+        came = Transaction(id=ids.new_id("Txn"), accountId=a, date=T0.date(), kind="deposit",
+                           amount=D(5), transferId=sent.id)  # fmt: skip
+        s.add(came)
+        s.flush()
+        sent.transferId = came.id
+        adjust.undo(s, uid, sent)
+        kept = (into.deletedAt, came.deletedAt)
+        s.rollback()
+    assert kept == (T1, None)

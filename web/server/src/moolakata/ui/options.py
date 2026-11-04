@@ -245,7 +245,9 @@ def adjust_contracts(body: Adjustment, request: Request, c: Caller = Depends(cal
             if x.strike <= 0:
                 raise refuse(f"contracts.{i}.strike", "strike-invalid", "A strike above 0.")
             parts = adjust.check_deliverable(
-                s, [{"symbol": p.symbol, "shares": p.shares} for p in x.deliverable]
+                s,
+                [{"symbol": p.symbol, "shares": p.shares} for p in x.deliverable],
+                f"contracts.{i}.deliverable",
             )
             if not parts:
                 raise refuse(
