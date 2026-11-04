@@ -134,6 +134,9 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(alice):
     v = alice.get("/ui/api/positions/strategies").json()
     [roll] = v["proposals"]
     assert (roll["kind"], roll["strategyId"]) == ("roll", st["id"])
+    # An unnamed strategy is named in the roll as it is shown: by its shape (CR3-408).
+    [shown] = [x for x in v["strategies"] if x["id"] == st["id"]]
+    assert roll["shape"] == shown["name"] != ""
     r = alice.post(
         f"/ui/api/strategies/{st['id']}/roll",
         json={"roll": [{"instrumentId": roll["legs"][0]["instrumentId"]}]},

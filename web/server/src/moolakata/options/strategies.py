@@ -424,6 +424,18 @@ def at_prices(book: Book, legs: list[Leg], day: dt.date) -> list[Leg]:
     return out
 
 
+def named(st: Strategy, kind: str) -> str:
+    """A strategy as it is shown: its name, or its shape when it has none (S3.5.4)."""
+    return st.name or kind
+
+
+def shape_of(book: Book, st: Strategy, today: dt.date | None = None) -> str:
+    """A strategy's shape, from its legs now."""
+    today = today or clock.today()
+    legs = [x for x in (leg(book, r, st.openedOn, today) for r in legs_of(book.s, st)) if x]
+    return shape(legs, st.cashSecured)
+
+
 def view(book: Book, st: Strategy, today: dt.date | None = None) -> View:
     s = book.s
     today = today or clock.today()
@@ -455,7 +467,7 @@ def view(book: Book, st: Strategy, today: dt.date | None = None) -> View:
     )
     return View(
         st,
-        st.name or kind,
+        named(st, kind),
         kind,
         under.symbol if under else "?",
         legs,
@@ -550,7 +562,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                             st.underlyingId,
                             day,
                             [(iid, None)],
-                            st.name or "",
+                            named(st, shape_of(book, st)),  # CR3-408
                             st.id,
                         )
                     )
