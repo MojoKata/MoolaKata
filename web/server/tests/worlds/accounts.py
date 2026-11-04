@@ -384,28 +384,127 @@ def price_of(w: World, a: Account, symbol: str, day: dt.date = TODAY) -> D | Non
     return max(trades, key=lambda t: t.day).price if trades else None
 
 
-def owed(loan: Loan, txns: list[Txn], day: dt.date = TODAY) -> D:
-    """What is owed on a day, payment by payment as the schedule splits them: each pays its
-    interest on what was owed since the last (a month's, or the days', at the rate then), the
-    rest principal; a draw adds to it."""
-    bal, last = loan.principal, loan.start
-    for t in sorted(txns, key=lambda t: t.day):
-        if t.day > day:
-            break
-        if t.amount < 0:
-            bal += -t.amount
-            continue
-        rate = loan.rate
-        for d, r in loan.resets:
-            if d <= t.day:
-                rate = r
+GRACE = dt.timedelta(days=15)  # a servicer's usual grace period (S1.9.3)
+
+
+def pay_day(loan: Loan, k: int) -> dt.date:
+    """The loan's k-th payment day. App convention: the start's day of the month, k months on,
+    or that month's last day when it is shorter (a loan started on the 31st)."""
+    y, m = divmod(loan.start.year * 12 + loan.start.month - 1 + k, 12)
+    m += 1
+    last = (dt.date(y + m // 12, m % 12 + 1, 1) - dt.timedelta(days=1)).day
+    return dt.date(y, m, min(loan.start.day, last))
+
+
+def goes_with(loan: Loan, day: dt.date) -> int:
+    """The payment day a payment made on this day goes with: the one whose grace it is made in,
+    from 15 days after one payment day to 15 days after the next (S1.9.3)."""
+    k = 1
+    while pay_day(loan, k) + GRACE < day:
+        k += 1
+    return k
+
+
+def _rate_on(loan: Loan, day: dt.date) -> D:
+    rate = loan.rate
+    for d, r in sorted(loan.resets):
+        if d <= day:
+            rate = r
+    return rate
+
+
+def _level(balance: D, rate: D, n: int) -> D:
+    """The monthly payment that pays the balance off in n months. App convention: the
+    annuity formula at a twelfth of the yearly rate, half up to the cent (also the payment of
+    a loan with daily interest)."""
+    r = rate / 100 / 12
+    if r == 0:
+        return _interest(balance / n)
+    return _interest(balance * r / (1 - (1 + r) ** -n))
+
+
+def _owed(loan: Loan, paid: list[tuple[dt.date, D]], draws: list[tuple[dt.date, D]],
+          day: dt.date) -> D:  # fmt: skip
+    """The principal (nothing before the start) and the draws, less the principal paid, on a
+    day."""
+    bal = loan.principal if loan.start <= day else D(0)
+    bal += sum((x for d, x in draws if d <= day), D(0))
+    bal -= sum((p for d, p in paid if d <= day), D(0))
+    return max(bal, D(0))
+
+
+def _scheduled(loan: Loan, k: int, bal: D, interest: D, day: dt.date) -> D:
+    """The principal the schedule has due on payment day k, from what was owed the day before
+    (S1.9.1, S1.9.2): none in a HELOC's draw period; else the level payment less the interest.
+    A reset or recast re-amortizes over what is left so the end date stays; a HELOC past its
+    draw period amortizes over what is left of its term. The last payment, or one leaving less
+    than $1, takes what is left."""
+    if k < loan.draw_months:
+        return D(0)
+    if any(d <= day for d, _ in (*loan.resets, *loan.recasts)):
+        # App conventions: re-amortized on every payment day from the reset or recast on, at
+        # that day's rate, over the payments left counting this one (the end stays).
+        pi = _level(bal, _rate_on(loan, day), max(1, loan.months - k + 1))
+    elif loan.draw_months:
+        # App convention: a HELOC's repayment re-amortizes on every payment day over the
+        # months left after this one's (its term's last payment day not counted).
+        pi = _level(bal, _rate_on(loan, day), max(1, loan.months - k))
+    else:
+        pi = _level(loan.principal, loan.rate, loan.months)
+    principal = max(min(pi - interest, bal), D(0))
+    if k >= loan.months or bal - principal < 1:
+        principal = bal
+    return principal
+
+
+def loan_payments(loan: Loan, txns: list[Txn], today: dt.date = TODAY) -> list[tuple[dt.date, D]]:
+    """Each payment's day and principal, in date order, as the loan's Payments setting reads
+    them today (S1.9.3). The world sets none: Automatic, which is *Recorded here* once a
+    payment is recorded, else *Assumed as scheduled*. Recorded here, the record starts at the
+    first payment recorded: every payment day before that payment's own day counts as paid as
+    scheduled; a day after it with nothing recorded is missed, which leaves the balance as it
+    was (and a later payment paying the oldest missed day changes which day it goes with, not
+    its split). Each payment pays its interest on what was owed the day before (a month's, or
+    the days' since the last payment on a daily-interest loan, at the rate of its day), the
+    rest principal."""
+    draws = [(t.day, -t.amount) for t in txns if t.amount < 0]
+    made = sorted((t for t in txns if t.amount > 0), key=lambda t: t.day)
+    until = pay_day(loan, goes_with(loan, made[0].day)) if made else today
+    # (day, recorded first on a day, amount recorded or None, payment day assumed)
+    events: list[tuple[dt.date, int, D | None, int]] = [(t.day, 0, t.amount, 0) for t in made]
+    k = 1
+    while pay_day(loan, k) < min(until, today):
+        events.append((pay_day(loan, k), 1, None, k))
+        k += 1
+    events.sort(key=lambda e: (e[0], e[1]))
+    paid: list[tuple[dt.date, D]] = []
+    for day, _, amount, k in events:
+        # App convention: what was owed before the payment's day, so two payments on one day
+        # each pay interest on the same balance.
+        before = [(d, p) for d, p in paid if d < day]
+        bal = _owed(loan, before, draws, day - dt.timedelta(days=1))
+        rate = _rate_on(loan, day)
         if loan.method == "daily":
-            interest = _interest(bal * rate / 100 * (t.day - last).days / 365)
+            last = before[-1][0] if before else loan.start
+            interest = _interest(bal * rate / 100 * (day - last).days / 365)
         else:
             interest = _interest(bal * rate / 100 / 12)
-        bal -= max(t.amount - interest, D(0))
-        last = t.day
-    return max(bal, D(0))
+        if amount is None:
+            if bal <= 0:
+                continue  # nothing owed: nothing assumed
+            paid.append((day, _scheduled(loan, k, bal, interest, day)))
+        else:
+            # A recorded payment pays its interest first; the rest is principal, up to what
+            # is owed.
+            paid.append((day, min(max(amount - interest, D(0)), bal)))
+    return paid
+
+
+def owed(loan: Loan, txns: list[Txn], day: dt.date = TODAY) -> D:
+    """What is owed on a day: the principal and the draws less the principal of each payment
+    up to then, recorded or assumed as today's reading of the Payments setting has them."""
+    draws = [(t.day, -t.amount) for t in txns if t.amount < 0]
+    return _owed(loan, loan_payments(loan, txns), draws, day)
 
 
 def item_value(it: ItemD, w: World, day: dt.date = TODAY) -> D:
