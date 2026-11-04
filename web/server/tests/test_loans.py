@@ -734,6 +734,23 @@ def test_a_helocs_repayment_ends_on_its_last_payment_day():
     assert L.scheduled_payment(drawn) == L.level_payment(D(30000), D(8), 121)
 
 
+def test_a_heloc_draw_in_its_repayment_period_sets_the_payment_again():
+    """S1.9.2: a draw after the draw period (a fee or charge the servicer adds counts too) is a
+    change: from the next payment day the payment pays the new balance off by the term's end,
+    so the last payment is level with the rest, not a lump."""
+    t = L.Terms(principal=D(0), start=dt.date(2016, 1, 1), months=240, rate=D(8), drawMonths=120)
+    draws = [(dt.date(2016, 2, 1), D(30000)), (dt.date(2026, 6, 10), D(5000))]
+    _, rows = L.summary(t, [], draws, dt.date(2026, 10, 13))
+    before = {
+        r.principal + r.interest
+        for r in rows
+        if dt.date(2026, 2, 1) <= r.date <= dt.date(2026, 6, 1)
+    }
+    after = [r.principal + r.interest for r in rows if r.date >= dt.date(2026, 7, 1)]
+    assert len(before) == 1 and after[0] > max(before), "the payment rises with the draw"
+    assert rows[-1].date == t.end and abs(rows[-1].payment - after[0]) < 1, "no lump at the end"
+
+
 def test_after_a_reset_the_payment_stays_level_until_the_next_change():
     """CR3-419, S1.9.2: the rows passed, assumed as scheduled, keep the level set on the first
     payment day after the reset, as the rows ahead do; it is worked out again only after the

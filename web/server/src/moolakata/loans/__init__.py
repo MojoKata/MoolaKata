@@ -413,7 +413,7 @@ class _Walker:
 
     def __init__(self, t: Terms, draws, catch_up: bool, settled: dt.date | None) -> None:
         self.t, self.draws, self.catch_up = t, draws, catch_up
-        self.effects = _effects(t)
+        self.effects = _effects(t, draws)
         self.levels: dict[dt.date, Decimal] = {}
         self.days: dict[int, _Day] = {}
         self.paid = ZERO  # principal paid so far
@@ -517,6 +517,7 @@ def _due(t: Terms, before: list[Payment], draws, day: dt.date, since: dt.date) -
         t,
         day,
         lambda e: balance_on(t, [p for p in prior if p.date < e], draws, e - dt.timedelta(days=1)),
+        draws,
     )
     principal = _scheduled_principal(t, owed, interest, day, pi)
     if day >= t.end or owed - principal < 1:
@@ -624,11 +625,13 @@ def _scheduled_principal(
     return max(min(pi - interest, owed), ZERO)
 
 
-def _effects(t: Terms) -> list[dt.date]:
+def _effects(t: Terms, draws=()) -> list[dt.date]:
     """The payment days on which the principal and interest due is worked out again (S1.9.2):
-    the first after each rate reset and each recast, and a HELOC's first repayment day."""
+    the first after each rate reset, each recast, and each HELOC draw in its repayment period
+    (a fee or charge added to what is owed is one), and a HELOC's first repayment day."""
     out: set[dt.date] = set()
-    for c in [d for d, _ in t.recasts] + [d for d, _ in t.resets]:
+    late = [d for d, _ in draws if t.drawMonths and not _in_draw(t, d)]
+    for c in [d for d, _ in t.recasts] + [d for d, _ in t.resets] + late:
         k = max(1, _months_between(t.start, c))
         while add_months(t.start, k) <= c:
             k += 1
@@ -646,12 +649,12 @@ def _level_at(t: Terms, day: dt.date, owed: Decimal) -> Decimal:
     return level_payment(owed, t.rate_on(day), max(1, left))
 
 
-def _level_on(t: Terms, day: dt.date, owed_on: Callable[[dt.date], Decimal]) -> Decimal:
+def _level_on(t: Terms, day: dt.date, owed_on: Callable[[dt.date], Decimal], draws=()) -> Decimal:
     """Principal and interest due on a payment day: the scheduled payment, until a day that
     works it out again (a recast, a reset, a HELOC's repayment starting); from the latest such
     day on or before this one, the level set then from what was owed then (`owed_on`), which
     stays until the next (CR3-419)."""
-    e = max((x for x in _effects(t) if x <= day), default=None)
+    e = max((x for x in _effects(t, draws) if x <= day), default=None)
     if e is None:
         return scheduled_payment(t)
     return _level_at(t, e, owed_on(e))
@@ -719,7 +722,7 @@ def schedule(
     # The payment stays level between the days that change it: a recast, a rate reset, or a
     # HELOC's draw period ending (`_level_on`, as the rows passed have it). Overpayments in
     # between shorten the loan.
-    effects = set(_effects(t))
+    effects = set(_effects(t, draws))
     pi = _level_on(
         t,
         day,
@@ -728,6 +731,7 @@ def schedule(
             if e >= day
             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
         ),
+        draws,
     )
     first = True
     guard = 0

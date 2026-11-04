@@ -433,12 +433,14 @@ def _owed(loan: Loan, paid: list[tuple[dt.date, D]], draws: list[tuple[dt.date, 
     return max(bal, D(0))
 
 
-def _effects(loan: Loan) -> list[int]:
+def _effects(loan: Loan, draws: list[tuple[dt.date, D]] = ()) -> list[int]:
     """The payment days (their numbers) on which the principal and interest due is worked out
-    again (S1.9.2): the first after each reset and each recast, and a HELOC's first repayment
-    day, its draw period's end."""
+    again (S1.9.2): the first after each reset, each recast and each HELOC draw in its
+    repayment period, and a HELOC's first repayment day, its draw period's end."""
     out = set()
-    for c, _ in (*loan.resets, *loan.recasts):
+    late = [(d, x) for d, x in draws
+            if loan.draw_months and d >= pay_day(loan, loan.draw_months)]  # fmt: skip
+    for c, _ in (*loan.resets, *loan.recasts, *late):
         k = 1
         while pay_day(loan, k) <= c:
             k += 1
@@ -458,7 +460,7 @@ def _scheduled(loan: Loan, k: int, bal: D, interest: D, paid: list[tuple[dt.date
     the next. The last payment, or one leaving less than $1, takes what is left."""
     if k < loan.draw_months:
         return D(0)
-    e = max((x for x in _effects(loan) if x <= k), default=None)
+    e = max((x for x in _effects(loan, draws) if x <= k), default=None)
     if e is None:
         pi = _level(loan.principal, loan.rate, loan.months)
     else:

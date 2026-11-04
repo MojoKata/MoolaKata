@@ -364,10 +364,12 @@ through when back. Each is applied and can be undone.
    them: a payment short of the day's dues pays interest, escrow, then PMI, and no
    principal. S1.9.2 and S1.9.3 say so. The walk of the payments keeps its state as they are
    added: a 30-year loan settles in 9 ms, not the first version's 0.6 s.
-   **Open, for the user:** a HELOC draw recorded after its draw period ends no longer
-   re-amortizes the payment (the last payment takes it as a lump). S1.9 doesn't say what such a
-   draw does: treat it as a change, like a reset, or refuse a draw in the repayment period
-   (recommended: refuse it, as a lender does, saying why).
+   **A HELOC draw after its draw period** (found by the same agent): it no longer
+   re-amortized the payment, so the last payment took it as a lump, and S1.9 said nothing.
+   Applied (**CR3-426**, `c0ffee0`): such a draw is a change, like a reset: the payment is set
+   again from the next payment day, so the end stays level. Not chosen: refusing a draw in the
+   repayment period, first recommended, then dropped: a fee or charge the servicer adds to the
+   balance arrives as one, and refusing it would refuse real statements.
 8. **CI on af17181: a 500 from the dashboard, and the drafts test.** The 500 doesn't happen
    locally (every seeded user's dashboard answers 200), so every browser test failing on a 5xx
    now carries the servers' tracebacks (`c6947c5`, issue #34), for the next run that hits it.
