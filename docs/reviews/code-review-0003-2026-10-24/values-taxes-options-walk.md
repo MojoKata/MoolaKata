@@ -381,11 +381,19 @@ through when back. Each is applied and can be undone.
    ratio, which leaves fractional shares the OCC wouldn't print) and **CR3-423** (`52a3361`).
 10. **Strategies' survivors** (277 in `strategies.py`): settled, with **CR3-424** (breakevens
     past twice the highest strike) and **CR3-425** (a 500 for a contract delivering none of
-    its underlying), `d8fa9f2`. **Open, for the user:**
-    1. Such a contract counts another company's shares at nothing, so a short put's maximum
-       profit can show as a loss. Recommended: value them at that company's price when one is
-       known, and say *not priced* when none is.
-    2. A strategy's shares leg doesn't follow a symbol change or merger of its shares, as an
-       option leg follows its adjustment (CR3-401): after one, a covered call reads as naked.
-       Recommended: the shares leg follows the shares through a symbol change or merger (not
-       a spin-off, which leaves them where they are).
+    its underlying), `d8fa9f2`. Two recommendations from it, applied (`12ed6e0`):
+    1. Such a contract counted another company's shares at nothing, so a short put's maximum
+       profit could show as a loss. Applied: they count at that company's price (the opening
+       day's at open); without one the figures read *not priced*, risk is the margin typed or
+       *not priced*, and a total holding one reads *unlimited* (not chosen: a separate
+       not-priced total, which needs new fields on the account and portfolio). An option
+       outside a strategy still risks its strike less its premium (S3.5.6).
+    2. A strategy's shares leg didn't follow a symbol change or merger (a covered call read as
+       naked after one). Applied: it follows them, and the new shares are its underlying; a
+       spin-off moves nothing. Found on the way: **CR3-428**, at open came to $0 after any
+       adjustment.
+    Still open, the same question elsewhere: covered-call proposals and an account's risk for
+    calls outside a strategy don't yet see an acquirer's shares covering a call adjusted to
+    deliver them.
+11. **Options' own survivors** (211 in `options/__init__.py`): settled (`a2f2d53`), with
+    **CR3-427**: an adjusted contract's cash lost a cent to rounding across its parts.
