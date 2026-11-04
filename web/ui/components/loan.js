@@ -23,6 +23,12 @@ export const METHODS = /** @type {[string, string][]} */ ([
   ['daily', 'Simple interest, daily'],
 ]);
 
+/** How a payment day with none recorded reads (S1.9.3), by the Payments setting. */
+const MODES = /** @type {{ [mode: string]: string }} */ ({
+  recorded: 'Recorded here',
+  assumed: 'Assumed as scheduled',
+});
+
 /** "2055-01-01" as "Jan 2055". */
 const month = (/** @type {string} */ iso) => date(iso).replace(/ \d+,/, '');
 
@@ -49,6 +55,7 @@ export class LoanRec extends Record {
     securedById: null,
     budgetCounting: 'split',
     budgetCategoryId: null,
+    paymentsMode: null,
   };
   /** @override */
   static rules = {
@@ -204,6 +211,15 @@ export function LoanSummary({ a, reload }) {
       <div class="list-item"><span class="grow dim">Next due</span>${v.nextDate
         ? date(v.nextDate)
         : '—'}</div>
+      ${v.missed
+        ? html`
+          <div class="list-item" id="loan-missed"><span class="grow dim">Missed</span><span><span
+                class="pill bad">${v.missed} ${v.missed === 1
+                  ? 'payment'
+                  : 'payments'}</span>${' '}<span class="small down"><${Amt} v=${v
+                  .overdue} /> overdue</span></span></div>
+        `
+        : null}
       <div class="list-item"><span class="grow dim">Paid off</span><span>${v.payoffDate
         ? month(v.payoffDate)
         : '—'}${v.originalPayoff && v.originalPayoff !== v.payoffDate
@@ -335,9 +351,9 @@ export function Schedule({ a }) {
             : null}<th class="num">Extra</th><th class="num">Balance</th></tr>
           </thead>
           <tbody>${shown.map((/** @type {any} */ r) =>
-            html`<tr class=${r.past ? 'dim' : ''}><td style=${{
+            html`<tr class=${r.past && r.status !== 'missed' ? 'dim' : ''}><td style=${{
               whiteSpace: 'nowrap',
-            }}>${date(r.date)}${r.past ? html`${' '}<span class="pill ok">paid</span>` : null}</td>
+            }}>${date(r.date)}${r.past ? html`${' '}<${RowPill} status=${r.status} />` : null}</td>
             <td class="num"><${Amt} v=${r.payment} /></td><td class="num"><${Amt} v=${r.principal} /></td><td class="num"><${Amt} v=${r.interest} /></td>${
               escrow
                 ? html`
@@ -361,6 +377,16 @@ export function Schedule({ a }) {
           onClick=${() => setAll(!all)}>${all ? 'Show fewer' : 'Show all'}</button></div>
     </div>
   `;
+}
+
+/**
+ * A past row's state (S1.9.3): paid as recorded, assumed as scheduled, or missed.
+ * @param {{ status: string }} p
+ */
+function RowPill({ status }) {
+  if (status === 'missed') return html`<span class="pill bad">missed</span>`;
+  if (status === 'assumed') return html`<span class="pill info">assumed as scheduled</span>`;
+  return html`<span class="pill ok">paid</span>`;
 }
 
 const PARTS = /** @type {[string, string][]} */ ([
@@ -598,6 +624,17 @@ export function TermsCard({ a, rec }) {
   return html`
     <div class="card"><h3>Loan terms</h3>
       <${TermsFields} rec=${rec} type=${a.type} />
+      <${RecField} rec=${rec} name="paymentsMode" label="Payments" id="payments-mode"
+        hint="A payment day with none recorded: missed 15 days after it, or paid as scheduled."
+        options=${[
+          [
+            '',
+            v?.paymentsAutomatic
+              ? `Automatic: ${MODES[v.paymentsAutomatic].toLowerCase()}`
+              : 'Automatic',
+          ],
+          ...Object.entries(MODES),
+        ]} />
       <${Dated} rec=${rec} name="resets" label="Rate resets" what="rate" add="Add a reset"
         hint="An adjustable rate's new rate from a date, typed when known." />
       <${Dated} rec=${rec} name="recasts" label="Recasts" what="fee" add="Add a recast"

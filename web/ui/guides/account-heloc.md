@@ -6,7 +6,8 @@
 
 What is owed, the rate, the payment (and with escrow), the next due date, the payoff date against
 the original schedule, interest paid so far and still to pay, and principal paid this year.
-**Overpaid** is principal paid beyond the schedule.
+**Overpaid** is principal paid beyond the schedule. **Missed**, with payments recorded here, is how
+many payment days passed 15 days with no payment recorded, and what they were due.
 
 ## Record a payment
 
@@ -88,6 +89,16 @@ payment** counts it all in one category.
 ## Counts in {#budget-category}
 
 The category the whole payment counts in: _Loan payments_ unless you choose another.
+
+## Payments {#payments-mode}
+
+How a payment day with no payment recorded reads. **Recorded here**: every payment is recorded in
+MoolaKata from the first one, so one not recorded 15 days after its day is missed; the Overview says
+how many and what is overdue, and the balance stays what it was. The days before the first payment
+recorded count as paid as scheduled. **Assumed as scheduled**: the payments are made
+elsewhere, so a day with none recorded counts as paid as the schedule says. **Automatic** is
+recorded here once the loan has a payment recorded or a connection keeping it, and assumed until
+then; it names which applies.
 
 ## Rate resets
 

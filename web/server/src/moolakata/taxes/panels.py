@@ -70,6 +70,9 @@ class Row:
     quantity: Decimal | None = None
     accountId: str | None = None
     acquiredMissing: bool = False  # shares moved in whose day bought isn't known (S2.2)
+    # What was sold: a holding (shares, a fund, a coin), a return of capital past its basis,
+    # an option, or a physical item; the panels group by it, never by the words.
+    kind: str = "holding"
 
     @property
     def gain(self) -> Decimal | None:
@@ -181,6 +184,11 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 instrumentId=inst.id,
                 quantity=d.quantity,
                 acquiredMissing=d.acquiredMissing,
+                kind="return-of-capital"
+                if d.method == "return-of-capital"
+                else "option"
+                if inst.instrumentClass == "option"
+                else "holding",
             )
             if d.basis is not None and d.saleId and d.proceeds < d.basis:
                 losses[d.saleId] = losses.get(d.saleId, ZERO) + d.basis - d.proceeds
@@ -373,6 +381,7 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
                 account=a.name,
                 accountId=a.id,
                 collectable=collectable,
+                kind="item",
             )
         )
     return out
@@ -774,7 +783,8 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
         tagged = {c.builtIn: c.taxTag for c in cats.values() if c.builtIn}
         for a in loan_accounts:
             for pay in loans.history(s, a)[0]:
-                if not first <= pay.date <= last:
+                # A payment assumed as scheduled (S1.9.3) isn't one recorded: no deduction.
+                if pay.assumed or not first <= pay.date <= last:
                     continue
                 for part, key in loans.PARTS.items():
                     amount = getattr(pay, part)
@@ -929,7 +939,7 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
         if a.type not in ("mortgage", "heloc", "student-loan"):
             continue
         payments, _ = loans.history(s, a)
-        mine = [p for p in payments if p.date.year == book.year]
+        mine = [p for p in payments if p.date.year == book.year and not p.assumed]
         row = loans.loan_of(s, a)
         secured = None
         if row is not None and row.securedById:

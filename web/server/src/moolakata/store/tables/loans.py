@@ -34,8 +34,16 @@ Loan = record(
     # payments categories, or whole in one category (the shipped Loan payments when none).
     Column("budgetCounting", Text, nullable=False, server_default=text("'split'")),
     Column("budgetCategoryId", Text, ForeignKey("Category.id")),
+    # How a payment day with no payment recorded reads (S1.9.3): every payment is recorded
+    # here, so one not recorded is missed; or they are made elsewhere, so it counts as paid as
+    # scheduled. None: Automatic, recorded here once the loan has a payment or a connection.
+    Column("paymentsMode", Text),
     CheckConstraint("method IN ('amortized', 'daily')", name="method"),
     CheckConstraint("\"budgetCounting\" IN ('split', 'whole')", name="budget_counting"),
+    CheckConstraint(
+        "\"paymentsMode\" IS NULL OR \"paymentsMode\" IN ('recorded', 'assumed')",
+        name="payments_mode",
+    ),
     CheckConstraint('"termMonths" > 0', name="term"),
     seen=Seen.child("accountId"),
 )

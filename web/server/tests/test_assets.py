@@ -182,12 +182,18 @@ def test_a_home_with_improvements_a_mortgage_and_its_equity(alice):
     loan = new_account(alice, name="Mortgage", type="mortgage")
     r = terms(alice, loan["id"], principal="448000", startDate="2026-09-01", termMonths=360,
               rate="6", pmi="150", originalValue="560000", securedById=home["id"])  # fmt: skip
-    e = saved(r)["equity"]
-    assert e["value"] == "640000.00" and e["equity"] == "192000.00" and e["ltv"] == "70.00"
+    # None recorded yet: Oct 1's payment counts as paid as scheduled (S1.9.3), its $445.99 of
+    # principal off the $448,000 borrowed.
+    v = saved(r)
+    assert [(x["date"], x["status"], x["principal"]) for x in v["rows"][:1]] == [
+        ("2026-10-01", "assumed", "445.99")
+    ]
+    e = v["equity"]
+    assert e["value"] == "640000.00" and e["equity"] == "192445.99" and e["ltv"] == "69.90"
     # PMI goes at 78% of the original value: 436,800; on request at 80%: 448,000 (now).
     assert e["pmiRequest"] < e["pmiEnds"]
     items = alice.get(f"/ui/api/accounts/{homes['id']}/items").json()["items"]
-    assert items[0]["loans"][0]["name"] == "Mortgage" and items[0]["equity"] == "192000.00"
+    assert items[0]["loans"][0]["name"] == "Mortgage" and items[0]["equity"] == "192445.99"
 
 
 def test_documents_are_receipts_kept_with_the_item(alice):

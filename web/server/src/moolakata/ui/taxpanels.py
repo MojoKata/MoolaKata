@@ -2,6 +2,7 @@
 
 import datetime as dt
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -27,6 +28,7 @@ class RowOut(Model):
     box: str
     account: str
     collectable: bool
+    kind: Literal["holding", "return-of-capital", "option", "item"]
 
 
 class WashOut(Model):

@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from . import ZERO, Payment, Row, Terms, add_months, cents, schedule
+from . import ASSUMED, ZERO, Payment, Row, Terms, add_months, cents, schedule
 
 
 @dataclass
@@ -122,12 +122,17 @@ def plan_outcomes(
     today: dt.date,
     plan: Plan,
     expected_return: float,
+    mode: str = ASSUMED,
 ) -> Result:
-    base_rows = schedule(t, payments, draws, today)
+    """The schedule, the plan and its recast from the same past: the loan's Payments setting
+    (S1.9.3) reads its payment days as the loan's screen does."""
+    base_rows = schedule(t, payments, draws, today, mode=mode)
     base = _outcome(base_rows, ZERO, None)
     lumps = lump_days(plan, [r for r in base_rows if not r.past])
     first_lump = min(lumps) if lumps else None
-    planned = _outcome(schedule(t, payments, draws, today, _Extras(plan, t)), ZERO, first_lump)
+    planned = _outcome(
+        schedule(t, payments, draws, today, _Extras(plan, t), mode), ZERO, first_lump
+    )
     recast = None
     if plan.recast and lumps:
         recast_terms = dataclasses.replace(
@@ -135,7 +140,7 @@ def plan_outcomes(
         )
         fees = plan.recastFee * len(lumps)
         recast = _outcome(
-            schedule(recast_terms, payments, draws, today, _Extras(plan, t)),
+            schedule(recast_terms, payments, draws, today, _Extras(plan, t), mode),
             fees,
             first_lump,
         )

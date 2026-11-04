@@ -68,6 +68,9 @@ class TermsIn(Model):
     # How its payments count in budgets (S1.9.7): split by the schedule, or whole.
     budgetCounting: str = "split"
     budgetCategoryId: str | None = None  # whole: the category; none is Loan payments
+    # A payment day with none recorded (S1.9.3): `recorded` here, so it is missed; `assumed`
+    # as scheduled; none: Automatic.
+    paymentsMode: str | None = None
 
 
 class ResetView(Model):
@@ -98,6 +101,7 @@ class TermsOut(Model):
     securedById: str | None
     budgetCounting: str
     budgetCategoryId: str | None
+    paymentsMode: str | None
     computedPayment: Money
     id: str
     version: int
@@ -113,6 +117,7 @@ class RowOut(Model):
     balance: Money
     past: bool
     overpayment: Money
+    status: str  # paid, assumed (as scheduled), missed, or ahead
 
 
 class ServicerCheck(Model):
@@ -159,6 +164,12 @@ class LoanView(Model):
     principalThisYear: Money
     overpaid: Money
     interestOnlyUntil: dt.date | None = None  # a HELOC in its draw period (S1.9.1)
+    # The Payments setting as it reads, `recorded` or `assumed`, and what Automatic reads as
+    # (S1.9.3); none until the terms are set.
+    paymentsResolved: str | None = None
+    paymentsAutomatic: str | None = None
+    missed: int = 0  # recorded here: payment days passed their grace with none recorded
+    overdue: Money = Decimal(0)  # what those were due
     rows: list[RowOut]
     servicer: ServicerCheck | None
     equity: Equity | None = None
@@ -225,6 +236,7 @@ def _terms_out(row: Loan) -> TermsOut:
         securedById=row.securedById,
         budgetCounting=row.budgetCounting,
         budgetCategoryId=row.budgetCategoryId,
+        paymentsMode=row.paymentsMode,
         computedPayment=loans.scheduled_payment(t),
         id=row.id,
         version=row.version,
@@ -252,8 +264,9 @@ def view(s, a: Account) -> LoanView:
             servicer=None,
         )
     terms = loans.terms_of(row)
-    payments, draws = loans.history(s, a)
-    sm, rows = loans.summary(terms, payments, draws, today)
+    mode, automatic = loans.modes(s, a, row)
+    payments, draws = loans.history(s, a, today)
+    sm, rows = loans.summary(terms, payments, draws, today, mode)
     anchor = s.scalars(
         select(Anchor)
         .where(Anchor.accountId == a.id, Anchor.deleted == false(), Anchor.source == "typed")
@@ -283,6 +296,10 @@ def view(s, a: Account) -> LoanView:
         principalThisYear=sm.principalThisYear,
         overpaid=sm.overpaid,
         interestOnlyUntil=sm.interestOnlyUntil,
+        paymentsResolved=mode,
+        paymentsAutomatic=automatic,
+        missed=sm.missed,
+        overdue=sm.overdue,
         rows=[RowOut(**r.__dict__) for r in rows],
         servicer=servicer,
         equity=_equity(s, row, terms, sm.balance, rows, today),
@@ -343,6 +360,12 @@ def _check(body: TermsIn) -> list[FieldError]:
         e.append(
             FieldError("budgetCounting", "counting-invalid", "Split by the schedule, or whole.")
         )
+    if body.paymentsMode is not None and body.paymentsMode not in loans.MODES:
+        e.append(
+            FieldError(
+                "paymentsMode", "payments-mode-invalid", "Automatic, recorded here, or assumed."
+            )
+        )
     for f in ("payment", "escrowTax", "escrowInsurance", "pmi", "originalValue"):
         v = getattr(body, f)
         if v is not None and v < 0:
@@ -392,6 +415,7 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
         "securedById": body.securedById,
         "budgetCounting": body.budgetCounting,
         "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
+        "paymentsMode": body.paymentsMode,
     }
 
 
@@ -430,7 +454,7 @@ def suggest_split(
         if row is None:
             raise Problem(409, "no-terms", "Set the loan's terms first.")
         payments, draws = loans.history(s, a)
-        p = loans.split_for(loans.terms_of(row), payments, draws, date, amount)
+        p = loans.split_new(loans.terms_of(row), payments, draws, date, amount)
         cats = _categories(s)
         return SplitOut(
             principal=p.principal,
@@ -455,7 +479,8 @@ def candidates(account_id: str, request: Request, c: Caller = Depends(caller)):
         if row is None:
             return []
         payments, draws = loans.history(s, a)
-        sm, _ = loans.summary(loans.terms_of(row), payments, draws, clock.today())
+        mode, _ = loans.modes(s, a, row)
+        sm, _ = loans.summary(loans.terms_of(row), payments, draws, clock.today(), mode)
         want = sm.total
         if not want:
             return []
@@ -716,7 +741,10 @@ def _compute(s, c: Caller, a: Account, plan: payoff.Plan) -> payoff.Result:
     figures = assumptions.load(s, c.id)
     rate = float(figures["classes"][plan.investClass]["return"])
     payments, draws = loans.history(s, a)
-    return payoff.plan_outcomes(loans.terms_of(row), payments, draws, clock.today(), plan, rate)
+    mode, _ = loans.modes(s, a, row)
+    return payoff.plan_outcomes(
+        loans.terms_of(row), payments, draws, clock.today(), plan, rate, mode
+    )
 
 
 def _rows(rows) -> list[RowOut]:

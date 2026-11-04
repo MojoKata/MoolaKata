@@ -107,6 +107,7 @@ def test_collectables_and_personal_use_losses(alice):
     rows = {r["description"]: r for r in p["rows"]}
     assert rows["Coin"]["collectable"] and rows["Coin"]["box"] == "F"
     assert rows["Car"]["code"] == "L" and rows["Car"]["gain"] == "0.00"
+    assert {rows["Coin"]["kind"], rows["Car"]["kind"]} == {"item"}
     assert p["scheduleD"]["collectables"] == "2000.00"
     # TXF has no field for C or L (S8.2): both are left out of it and counted beside it.
     assert p["txfLeftOut"] == {"digital": 0, "collectable": 1, "personalUse": 1}
@@ -582,6 +583,8 @@ def test_a_funds_distributions_and_return_of_capital_reach_the_return(alice):
     inc = p["income"]
     assert inc["capitalGainDistributions"] == "50.00" and inc["returnOfCapital"] == "1200.00"
     (row,) = [r for r in p["rows"] if r["description"] == "VTI return of capital over basis"]
+    # Its own kind: the Property panel lists only items sold, never this (CR3-414).
+    assert row["kind"] == "return-of-capital"
     assert (row["acquired"], row["sold"], row["gain"], row["longTerm"]) == (
         "2026-01-05",
         "2026-07-01",

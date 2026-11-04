@@ -581,7 +581,7 @@ function Education({ p }) {
 
 /** @param {{ p: any }} p */
 function Property({ p }) {
-  const sold = p.rows.filter((/** @type {any} */ r) => !r.description.match(/^\d/));
+  const sold = p.rows.filter((/** @type {any} */ r) => r.kind === 'item');
   return html`
     <div class="grid g2">
       <div class="card"><h3>Loans (1098, 1098-E)</h3>${p.loans.length

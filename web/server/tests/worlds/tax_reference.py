@@ -119,10 +119,11 @@ class Row:
     adjustment: Decimal
     long_term: bool
     box: str
+    kind: str
 
     def key(self) -> tuple:
         return (self.account, self.description, self.acquired, self.sold, self.proceeds,
-                self.basis, self.adjustment, self.long_term, self.box)  # fmt: skip
+                self.basis, self.adjustment, self.long_term, self.box, self.kind)  # fmt: skip
 
 
 @dataclass
@@ -500,6 +501,7 @@ def rows(h: Household, year: int, filers: tuple[str, ...]) -> list[Row]:
                 adjustment=cents(p.adjustment),
                 long_term=not p.written and long_term(p.held_from or p.acquired, p.sold),
                 box=box(p, year),
+                kind="option" if class_of(p.symbol) == "option" else "holding",
             )
         )
     return out

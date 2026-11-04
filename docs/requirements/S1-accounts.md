@@ -345,7 +345,26 @@
       within those days of an unpaired payment of another amount isn't offered. Recording a
       payment from a bank account that already holds its half pairs with it the same way. A payment recorded or linked there is saved
       whole: the loan's transaction, its split and the bank account's half of the transfer
-      together (S12.15).
+      together (S12.15). A payment day that passes with no payment recorded is read by the
+      loan's **Payments** setting (its Settings):
+      1. **Recorded here**: every payment is recorded in MoolaKata from the first one recorded,
+         so one not recorded 15 days after its day (a servicer's usual grace period) is
+         **missed**; the payment days before that first one count as paid as scheduled (a loan
+         entered years in has nothing missed before its record starts). The schedule shows
+         the row as missed with what was due; the loan's screen says how many are missed and
+         what is overdue (their payments: the interest of the missed months is owed with them,
+         not added to the balance); the balance owed stays what it was, and the schedule ahead
+         starts from the next payment day.
+      2. **Assumed as scheduled**: the payments are made elsewhere and not all recorded, so a
+         payment day with none recorded counts as paid as the schedule says. The balance
+         follows the schedule, and nothing is missed.
+      3. **Automatic** (the setting's default): *Recorded here* once the loan has a payment
+         recorded (a bank payment linked to it is one) or a connection importing its
+         statements; *Assumed as scheduled* until then. The screen names which applies.
+
+      A payment goes with the payment day whose grace it is made in, from 15 days after one
+      day to 15 days after the next; recorded here, a payment made after a missed day pays the
+      oldest one missed first, as a servicer applies one.
    4. **Reconciling**: the servicer's statement balance can be typed in on a date, and a
       difference from the computed balance is shown until it is explained (a fee, a missed
       payment, a wrong rate).

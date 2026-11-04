@@ -12006,6 +12006,18 @@
             "default": null,
             "title": "Payment"
           },
+          "paymentsMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paymentsmode"
+          },
           "pmi": {
             "anyOf": [
               {
@@ -12148,6 +12160,11 @@
             "title": "Interestpaid",
             "type": "number"
           },
+          "missed": {
+            "default": 0,
+            "title": "Missed",
+            "type": "integer"
+          },
           "nextDate": {
             "anyOf": [
               {
@@ -12172,6 +12189,15 @@
             ],
             "title": "Originalpayoff"
           },
+          "overdue": {
+            "default": "\u0000554370eaa7e17c53#0.00",
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Overdue",
+            "type": "number"
+          },
           "overpaid": {
             "examples": [
               1234.5
@@ -12187,6 +12213,28 @@
             "format": "money",
             "title": "Payment",
             "type": "number"
+          },
+          "paymentsAutomatic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentsautomatic"
+          },
+          "paymentsResolved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentsresolved"
           },
           "payoffDate": {
             "anyOf": [
@@ -18611,6 +18659,7 @@
               "pattern-invalid",
               "payee-too-long",
               "payment-fixed",
+              "payments-mode-invalid",
               "people-missing",
               "percent-invalid",
               "period-backwards",
@@ -19072,6 +19121,7 @@
                   "pattern-invalid",
                   "payee-too-long",
                   "payment-fixed",
+                  "payments-mode-invalid",
                   "people-missing",
                   "percent-invalid",
                   "period-backwards",
@@ -24813,6 +24863,17 @@
             ],
             "title": "Payment"
           },
+          "paymentsMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentsmode"
+          },
           "pmi": {
             "anyOf": [
               {
@@ -24900,6 +24961,7 @@
           "securedById",
           "budgetCounting",
           "budgetCategoryId",
+          "paymentsMode",
           "computedPayment",
           "id",
           "version"
@@ -28449,6 +28511,10 @@
             "format": "money",
             "title": "Principal",
             "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
@@ -28460,7 +28526,8 @@
           "pmi",
           "balance",
           "past",
-          "overpayment"
+          "overpayment",
+          "status"
         ],
         "title": "RowOut",
         "type": "object"
@@ -29000,6 +29067,16 @@
             ],
             "title": "Gain"
           },
+          "kind": {
+            "enum": [
+              "holding",
+              "return-of-capital",
+              "option",
+              "item"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
           "longTerm": {
             "title": "Longterm",
             "type": "boolean"
@@ -29030,7 +29107,8 @@
           "longTerm",
           "box",
           "account",
-          "collectable"
+          "collectable",
+          "kind"
         ],
         "title": "RowOut",
         "type": "object"

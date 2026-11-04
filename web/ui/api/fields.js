@@ -312,6 +312,7 @@ export const FIELDS = {
     securedById: {"type": "text", "nullable": true},
     budgetCounting: {"type": "text"},
     budgetCategoryId: {"type": "text", "nullable": true},
+    paymentsMode: {"type": "text", "nullable": true},
     accountId: {"type": "ref", "prefix": "Acct"},
   },
   LotPickRecord: {

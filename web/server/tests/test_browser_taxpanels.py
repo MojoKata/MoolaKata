@@ -100,6 +100,10 @@ def build(h) -> World:
     w.txn(brk, f"{y}-06-01", "25.00", kind="capital-gain", symbol="VXUS")
     w.txn(brk, f"{y}-07-01", "100.00", kind="return-of-capital", symbol="VXUS")
     w.txn(brk, f"{y}-06-30", "-12.34", kind="foreign-tax", symbol="VXUS")
+    # A return of capital past its basis: a row of its own kind, never a physical item sold
+    # (CR3-414).
+    w.trade(brk, f"{y}-01-06", "buy", "SCHD", 1, "10")
+    w.txn(brk, f"{y}-07-01", "30.00", kind="return-of-capital", symbol="SCHD")
     sav = w.acct("savings", "TP savings", "savings", institution="TP Ally")
     w.txn(sav, f"{y}-06-30", "120.50", kind="interest")
     # Coins: some bought and half sold, a reward received as income.
@@ -290,7 +294,7 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
     to sell, its basis missing; Schedule D's totals with last year's carryover."""
     page, problems = opened(browser, world, YEAR, "gains", f'{ROWS}:has-text("10 KO")')
     rows = _rows(page)
-    assert len(rows) == len(world.panels(YEAR)["rows"]) == 9
+    assert len(rows) == len(world.panels(YEAR)["rows"]) == 10
     ibm, ko = rows["10 IBM"], rows["10 KO"]
     assert (ibm[0], ibm[1], ibm[2], ibm[3]) == (
         "A",
@@ -310,10 +314,10 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
                                                     "C", "+$2,000.00")  # fmt: skip
     assert (car[6], car[7], car[8]) == ("L", "$12,000.00", "$0.00")
     facts = _text(page, ".card.facts")
-    for box, gain in (("A", "+$380.00"), ("C", "+$500.00"), ("D", "−$60.00"), ("E", "+$350.00"),
+    for box, gain in (("A", "+$400.00"), ("C", "+$500.00"), ("D", "−$60.00"), ("E", "+$350.00"),
                       ("F", "+$102,000.00")):  # fmt: skip
         assert f"Box {box} {gain}" in facts, facts
-    assert "Short term +$880.00 Long term +$102,290.00" in facts
+    assert "Short term +$900.00 Long term +$102,290.00" in facts
     assert "Of it, collectables +$2,000.00" in facts
     assert "Loss carried from last year $1,700.00" in facts
     washes = _text(page, _card("Wash sales"))
@@ -333,7 +337,11 @@ def test_form_8949_shows_one_term_at_a_time(browser, world):
     long_ = sorted(r["description"] for r in api if r["longTerm"])
     page.click('.chips button:text-is("Short term")')
     wait(page, '.chips button.on:text-is("Short term")', problems)
-    assert sorted(_rows(page)) == short == ["0.5 ETH", "10 IBM", "2 VTI", "3 MSFT"]
+    assert (
+        sorted(_rows(page))
+        == short
+        == ["0.5 ETH", "10 IBM", "2 VTI", "3 MSFT", "SCHD return of capital over basis"]
+    )
     page.click('.chips button:text-is("Long term")')
     wait(page, f'{ROWS}:has-text("TP cottage")', problems)
     assert sorted(_rows(page)) == long_ and "10 IBM" not in long_
@@ -353,7 +361,7 @@ def test_the_income_panel_shows_each_line(browser, world):
     div = _text(page, _card("Dividends (1099-DIV)"))
     assert (
         "Ordinary (1a) $350.00 Qualified (1b) $300.00 Capital-gain distributions (2a) $25.00 "
-        "Return of capital $100.00 TP Schwab $375.00"
+        "Return of capital $130.00 TP Schwab $375.00"
     ) in div
     assert _text(page, _card("Foreign tax paid (7)")).endswith("TP Schwab $12.34")
     assert _text(page, _card("Crypto income")).endswith("TP exchange $20.00")
@@ -495,7 +503,7 @@ def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
         "TP cottage, your primary residence, sold Jul 1, 2021 after 6.1 years: a gain of "
         "$100,000.00. The exclusion is the preparer's to apply."
     ) in sold
-    assert "10 IBM" not in sold
+    assert "10 IBM" not in sold and "SCHD" not in sold
     assert problems == []
     page.close()
 
@@ -534,7 +542,7 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     page, problems = opened(browser, world, YEAR, "summary", 'text="2 acknowledgements missing"')
     kpis = [" ".join(x.split()) for x in page.locator(".card.kpi").all_inner_texts()]
     assert kpis[:4] == [
-        "Net capital gain or loss +$103,170 short +$880 · long +$102,290",
+        "Net capital gain or loss +$103,190 short +$900 · long +$102,290",
         "Dividends $350 qualified $300",
         "Interest $3,121 2 payers",
         "Charitable gifts $6,800 2 acknowledgements missing",

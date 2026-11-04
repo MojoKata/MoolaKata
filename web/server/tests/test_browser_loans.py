@@ -516,11 +516,14 @@ def test_a_helocs_draw_period_is_interest_only(browser, household, new_loan):
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", facts)
     text = page.locator(facts).inner_text()
     assert f"Payment\n$333.33\ninterest only until {day(v['interestOnlyUntil'])}" in text
-    # The schedule: interest alone until the draw period ends, all of it on asking.
+    # The schedule: interest alone until the draw period ends, all of it on asking. None
+    # recorded, the days passed are assumed as scheduled (S1.9.3): three are shown before the
+    # next.
     tab(page, problems, "Schedule", 'table:has(caption:text("Amortization schedule"))')
     rows = page.locator('table:has(caption:text("Amortization schedule")) tbody tr')
     assert rows.count() == 15
-    first = rows.first.locator("td").all_inner_texts()
+    assert rows.first.locator(".pill.info").inner_text() == "assumed as scheduled"
+    first = rows.nth(3).locator("td").all_inner_texts()
     assert first == [day(v["nextDate"]), "$333.33", "$0.00", "$333.33", "—", "$50,000.00"]
     assert page.locator("thead").inner_text().count("Escrow") == 0
     note = page.locator('.toolbar:has(button:text("Show all")) .small').inner_text()
@@ -677,12 +680,66 @@ def test_resets_and_recasts_are_typed_in_the_terms(browser, household, new_loan)
     page.close()
 
 
+def test_the_payments_setting_and_a_payment_missed(browser, household, new_loan):
+    """S1.9.3: a payment recorded, Automatic reads as recorded here: the days after it with
+    none recorded are missed on the Schedule, and the Overview says how many and what is
+    overdue. Payments in Settings names what Automatic reads as; assumed as scheduled, nothing
+    is missed."""
+    h = household
+    a = new_loan("Missed mortgage", principal="200000", startDate=f"{months_back(4)}-01",
+                 termMonths=360, rate="6")  # fmt: skip
+    due = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["total"]
+    assert loan_payment(h.c, a["id"], f"{months_back(3)}-01", due).status_code == 200
+    v = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()
+    assert v["paymentsResolved"] == "recorded" and v["missed"] >= 2
+    # The Overview: how many are missed and what is overdue, the pill and the amount apart.
+    page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", "#loan-missed")
+    assert flat(page.locator("#loan-missed").inner_text()) == (
+        f"Missed {v['missed']} payments {money(v['overdue'])} overdue"
+    )
+    # The Schedule: each a row marked missed, with what was due and the balance as it was.
+    tab(page, problems, "Schedule", 'table:has(caption:text("Amortization schedule"))')
+    rows = page.locator('table:has(caption:text("Amortization schedule")) tbody tr')
+    missed = [r for r in v["rows"] if r["status"] == "missed"]
+    shown = rows.filter(has=page.locator(".pill.bad"))
+    assert shown.count() == min(len(missed), 3)
+    last = missed[-1]
+    cells = shown.last.locator("td").all_inner_texts()
+    assert cells[0] == f"{day(last['date'])} missed" and cells[-1] == money(v["balance"])
+    assert cells[1] == money(last["payment"]) and shown.last.get_attribute("class") == ""
+    # Settings: Automatic names what it reads as; assumed as scheduled, nothing is missed.
+    form = 'form.draft-form:has-text("Loan terms")'
+    tab(page, problems, "Settings", form)
+    wait(page, '#f-payments-mode option:text("Automatic: recorded here")', problems,
+         state="attached")  # fmt: skip
+    options = page.locator("#f-payments-mode option").all_inner_texts()
+    assert options == ["Automatic: recorded here", "Recorded here", "Assumed as scheduled"]
+    assert page.locator("#f-payments-mode").input_value() == ""
+    page.select_option("#f-payments-mode", "assumed")
+    page.click(f"{form} button.primary:enabled")
+    wait(page, '.toast:has-text("Saved")', problems)
+    v = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()
+    assert v["terms"]["paymentsMode"] == "assumed" and v["missed"] == 0
+    tab(page, problems, "Overview", '.card.facts:has(h3:has-text("Loan"))')
+    assert page.locator("#loan-missed").count() == 0
+    # Back to Automatic: recorded here again.
+    tab(page, problems, "Settings", form)
+    page.select_option("#f-payments-mode", "")
+    page.click(f"{form} button.primary:enabled")
+    wait(page, '.toast:has-text("Saved")', problems)
+    v = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()
+    assert v["terms"]["paymentsMode"] is None and v["missed"] >= 2
+    assert problems == []
+    page.close()
+
+
 # ---------- the Overview's dialogs ----------
 
 
 def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan):
     h = household
-    # Made last month, its first payment not recorded: $300,000 owed until one is.
+    # Made last month: $300,000 owed until its first payment day, this month's (none recorded,
+    # it then counts as paid as scheduled, S1.9.3).
     a = new_loan("Servicer mortgage", principal="300000", startDate=f"{months_back(1)}-01",
                  termMonths=360, rate="6")  # fmt: skip
     facts = '.card.facts:has(h3:has-text("Loan"))'
@@ -710,8 +767,13 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     wait(page, f"{facts} .pill.warn", problems)
+    # A later statement, $299,000, against the schedule's balance that day.
+    s = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["servicer"]
+    assert s["date"] == as_of and Decimal(str(s["difference"])) == 299000 - Decimal(
+        str(s["computed"])
+    )
     assert flat(row.inner_text()) == f"Servicer's balance $299,000.00 on {day(as_of)} off by " \
-        "−$1,000.00 Type it"  # fmt: skip
+        f"{money(s['difference'])} Type it"  # fmt: skip
     assert problems == []
     page.close()
 

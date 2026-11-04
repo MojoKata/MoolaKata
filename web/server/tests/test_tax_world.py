@@ -196,7 +196,7 @@ def _app_key(r: dict) -> tuple:
     return (r["account"], r["description"],
             dt.date.fromisoformat(r["acquired"]) if r["acquired"] else None,
             dt.date.fromisoformat(r["sold"]), _d(r["proceeds"]), _d(r["basis"]),
-            _d(r["adjustment"]), r["longTerm"], r["box"])  # fmt: skip
+            _d(r["adjustment"]), r["longTerm"], r["box"], r["kind"])  # fmt: skip
 
 
 def _diff(app: list[tuple], want: list[tuple]) -> str:

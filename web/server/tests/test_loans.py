@@ -23,7 +23,8 @@ def frozen():
 
 
 def mortgage_terms(**kw):
-    return L.Terms(principal=D(300000), start=dt.date(2025, 1, 1), months=360, rate=D(6), **kw)
+    kw = {"start": dt.date(2025, 1, 1), **kw}
+    return L.Terms(principal=D(300000), months=360, rate=D(6), **kw)
 
 
 def test_the_level_payment_and_its_first_split():
@@ -122,7 +123,10 @@ def test_payments_through_the_api(server, frozen):
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
     v = saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
                     rate="6", escrowTax="300", escrowInsurance="100"))  # fmt: skip
-    assert v["terms"]["computedPayment"] == "1798.65" and v["balance"] == "300000.00"
+    # No payment recorded yet: Automatic reads as assumed as scheduled, Feb to Oct paid.
+    assert v["terms"]["computedPayment"] == "1798.65" and v["paymentsResolved"] == "assumed"
+    assert [r["status"] for r in v["rows"][:10]] == ["assumed"] * 9 + ["ahead"]
+    assert v["balance"] == v["rows"][8]["balance"] and v["missed"] == 0
     # A payment from the checking account: both halves, split by the schedule.
     r = loan_payment(c, loan["id"], "2026-02-01", "2198.65", from_account=bank["id"])
     assert r.status_code == 200, r.text
@@ -154,8 +158,10 @@ def test_the_servicers_balance_against_the_computed_one(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
     loan = new_account(c, name="Car", type="auto-loan")
-    saved(terms(c, loan["id"], principal="20000", startDate="2026-01-01", termMonths=60, rate="5"))
-    r = create(c, "Anchr", accountId=loan["id"], date="2026-10-01", balance="-19950.00")
+    saved(terms(c, loan["id"], principal="20000", startDate="2026-01-01", termMonths=60, rate="5",
+                paymentsMode="recorded"))  # fmt: skip
+    # Before the first payment day: the balance is the principal, whatever the setting reads.
+    r = create(c, "Anchr", accountId=loan["id"], date="2026-01-15", balance="-19950.00")
     assert r.status_code == 200, r.text
     v = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
     assert v["servicer"]["difference"] == "-50.00"
@@ -356,6 +362,11 @@ def test_a_payment_recorded_on_the_loan_alone_pairs_with_its_bank_half(server, f
     c, bank, loan = _a_loan_and_checking(server)
     r = loan_payment(c, loan["id"], "2026-10-01", "1798.65")
     assert r.status_code == 200, r.text
+    # The first payment recorded: Feb to Sep before it count as paid as scheduled (S1.9.3), so
+    # nine payments are made by the schedule.
+    v = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
+    assert [x["status"] for x in v["rows"][:10]] == ["assumed"] * 8 + ["paid", "ahead"]
+    assert v["balance"] == "297257.77" and v["missed"] == 0
     debit = add(c, bank["id"], "-1798.65", "2026-10-02", payee="ROCKET MORTGAGE")
     # The save pairs them itself (S1.7); a path that doesn't (an unlinked pair, a file posted
     # in the background) leaves both halves unpaired, as here.
@@ -369,7 +380,7 @@ def test_a_payment_recorded_on_the_loan_alone_pairs_with_its_bank_half(server, f
     assert c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"] == []
     loan_rows = _rows(c, loan["id"])
     assert len(loan_rows) == 1 and loan_rows[0]["transferAccountName"] == "Checking"
-    assert c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"] == "299701.35"
+    assert c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"] == "297257.77"
 
 
 def test_a_debit_beside_a_payment_of_another_amount_isnt_offered(server, frozen):
@@ -442,3 +453,209 @@ def test_a_plans_extra_on_each_payment_day():
     assert up(d(2026, 2, 1), D(1000), owed=D("195000.01")) == 20
     assert up(d(2026, 2, 1), D(1000), owed=D(195000)) == 0
     assert _Extras(Plan(biweekly=True), t)(d(2026, 2, 1), D(1200)) == 100
+
+
+# ---- A payment day with none recorded: the Payments setting (S1.9.3) ----
+
+
+def _monthly_pays(t, upto: int, skip=(), amount=None):
+    """The scheduled payment recorded on payment days 1 to `upto`, but those in `skip`."""
+    amount = amount or L.scheduled_payment(t) + t.escrow
+    pays = []
+    for i in range(1, upto + 1):
+        if i not in skip:
+            pays.append(L.split_for(t, pays, [], L.add_months(t.start, i), amount))
+    return pays
+
+
+def test_assumed_a_loan_with_no_payments_follows_its_schedule_to_the_end():
+    """CR3-413: a 2024 loan with none recorded no longer owes what it borrowed and ends with a
+    balloon; each day passed counts as paid as the schedule says, and it pays off on time."""
+    t = mortgage_terms(start=dt.date(2024, 3, 1), escrowTax=D(300))
+    today = dt.date(2026, 10, 13)
+    sm, rows = L.summary(t, [], [], today, "assumed")
+    past = [r for r in rows if r.past]
+    assert [r.status for r in past] == ["assumed"] * 31 and past[-1].date == dt.date(2026, 10, 1)
+    # The same as paying the scheduled amount on each of those days.
+    paid = _monthly_pays(t, 31)
+    assert sm.balance == L.balance_on(t, paid, [], today) == past[-1].balance
+    assert sm.interestPaid == sum(p.interest for p in paid) and sm.missed == 0
+    assert sm.nextDate == dt.date(2026, 11, 1) and sm.payoffDate == t.end
+    regular = L.scheduled_payment(t) + t.escrow
+    assert abs(rows[-1].payment - regular) < 5, "no balloon at the end"
+    assert all(r.overpayment == 0 for r in rows)
+
+
+def test_recorded_here_a_day_is_missed_once_its_grace_has_passed():
+    t = mortgage_terms(start=dt.date(2026, 1, 1), escrowTax=D(300))
+    pays = _monthly_pays(t, 8)  # Feb to Sep paid; Oct 1 not
+    owed = L.balance_on(t, pays, [])
+    # Fifteen days after it, the day is still in its grace: the payment due next.
+    sm, rows = L.summary(t, pays, [], dt.date(2026, 10, 16), "recorded")
+    assert sm.missed == 0 and sm.overdue == 0 and sm.nextDate == dt.date(2026, 10, 1)
+    assert not [r for r in rows if r.status == "missed"]
+    # The day after, it is missed: what was due, nothing paid, the balance as it was.
+    sm, rows = L.summary(t, pays, [], dt.date(2026, 10, 17), "recorded")
+    missed = [r for r in rows if r.status == "missed"]
+    assert [r.date for r in missed] == [dt.date(2026, 10, 1)] and missed[0].past
+    m = missed[0]
+    assert m.interest == L.cents(owed * D("0.005")) and m.escrow == D(300)
+    assert m.principal + m.interest == L.scheduled_payment(t) and m.balance == owed
+    assert sm.balance == owed and sm.missed == 1 and sm.overdue == m.payment
+    assert sm.nextDate == dt.date(2026, 11, 1)
+    # Assumed as scheduled, the same day counts as paid: nothing missed, the balance lower.
+    a, arows = L.summary(t, pays, [], dt.date(2026, 10, 17), "assumed")
+    assert a.missed == 0 and a.balance < owed
+    assert [r.status for r in arows if r.past][-2:] == ["paid", "assumed"]
+
+
+def test_missed_months_no_longer_vanish_and_their_payments_are_overdue():
+    """CR3-413: recorded here, the months after the last payment are each a missed row with
+    what was due, and the schedule ahead starts from the next payment day, not a month after
+    the last payment with one month's interest."""
+    t = mortgage_terms(start=dt.date(2026, 1, 1), escrowTax=D(300), pmi=D(90))
+    pays = _monthly_pays(t, 3)  # Feb, Mar, Apr
+    sm, rows = L.summary(t, pays, [], dt.date(2026, 10, 13), "recorded")
+    days = [r.date for r in rows[:10]]
+    assert days == [L.add_months(t.start, i) for i in range(1, 11)], "no month left out"
+    assert [r.status for r in rows[:10]] == ["paid"] * 3 + ["missed"] * 5 + ["ahead"] * 2
+    missed = rows[3:8]
+    assert sm.missed == 5 and sm.overdue == sum(r.payment for r in missed)
+    assert all(r.pmi == 90 and r.escrow == 300 and r.balance == sm.balance for r in missed)
+    # Oct 1 is still in its grace: due next, from the balance as it was.
+    assert sm.nextDate == dt.date(2026, 10, 1) and rows[8].interest == missed[0].interest
+
+
+def test_a_late_payment_pays_the_oldest_day_missed():
+    t = mortgage_terms(start=dt.date(2026, 1, 1))
+    pi = L.scheduled_payment(t)
+    feb = L.split_for(t, [], [], dt.date(2026, 2, 1), pi)
+    late = L.split_for(t, [feb], [], dt.date(2026, 3, 25), pi)  # March's, after its grace
+    sm, _ = L.summary(t, [feb, late], [], dt.date(2026, 4, 10), "recorded")
+    assert sm.missed == 0 and sm.nextDate == dt.date(2026, 4, 1)
+    sm, _ = L.summary(t, [feb, late], [], dt.date(2026, 4, 17), "recorded")
+    assert sm.missed == 1 and sm.nextDate == dt.date(2026, 5, 1)
+    # An extra payment in a month already paid pays no other day.
+    extra = L.split_for(t, [feb], [], dt.date(2026, 2, 10), D(5000))
+    sm, _ = L.summary(t, [feb, extra], [], dt.date(2026, 3, 20), "recorded")
+    assert sm.missed == 1 and sm.nextDate == dt.date(2026, 4, 1)
+
+
+def test_a_daily_interest_loans_missed_and_assumed_days():
+    t = L.Terms(
+        principal=D(25000), start=dt.date(2026, 1, 15), months=60, rate=D("7.3"), method="daily"
+    )
+    feb = L.split_for(t, [], [], dt.date(2026, 2, 15), D(500))
+    owed = D(25000) - feb.principal
+    sm, rows = L.summary(t, [feb], [], dt.date(2026, 4, 5), "recorded")
+    # Mar 15 missed: its interest is the days since the last payment; the next row's accrues
+    # from Mar 15, the missed month's interest owed with it and not added to the balance.
+    m = next(r for r in rows if r.status == "missed")
+    assert m.date == dt.date(2026, 3, 15) and m.balance == owed
+    assert m.interest == L.cents(owed * D("0.073") * 28 / 365)
+    nxt = next(r for r in rows if not r.past)
+    assert nxt.date == dt.date(2026, 4, 15) and nxt.interest == L.cents(
+        owed * D("0.073") * 31 / 365
+    )
+    assert sm.overdue == m.payment == m.principal + m.interest
+    # Assumed, Mar 15 is paid as the schedule says, its interest the same days.
+    a, arows = L.summary(t, [feb], [], dt.date(2026, 4, 5), "assumed")
+    assumed = next(r for r in arows if r.status == "assumed")
+    assert assumed.interest == m.interest and a.balance == owed - assumed.principal
+
+
+def test_settling_twice_adds_nothing_and_a_payment_recorded_takes_the_assumed_ones_place():
+    t = mortgage_terms(start=dt.date(2026, 1, 1))
+    today = dt.date(2026, 10, 13)
+    once = L.settle(t, [], [], today, today)
+    assert len(once) == 9 and L.settle(t, once, [], today, today) == once
+    pi = L.scheduled_payment(t)
+    # Recorded for Jun 3, whatever the setting: June's assumed payment goes, and those before
+    # stay (assumed; recorded here, the days before the first payment recorded are too), so
+    # the split is from the balance after May: June's own.
+    p = L.split_new(t, once, [], dt.date(2026, 6, 3), pi)
+    assert (p.interest, p.principal) == (once[4].interest, once[4].principal)
+    assert p.interest < L.split_for(t, [], [], dt.date(2026, 6, 3), pi).interest
+    # Settled with it, it is the one on June's day, the days before it still assumed.
+    p.transactionId = "Txn_june"
+    for mode in ("assumed", "recorded"):
+        after = L.settle(t, [p], [], today, L.assumed_before(t, [p], today, mode))
+        assert [x.date.month for x in after if x.assumed] == (
+            [2, 3, 4, 5, 7, 8, 9, 10] if mode == "assumed" else [2, 3, 4, 5]
+        )
+
+
+def test_automatic_reads_as_recorded_once_a_payment_or_a_connection_says_so():
+    assert L.automatic(False, False) == "assumed"
+    assert L.automatic(True, False) == L.automatic(False, True) == "recorded"
+
+
+def test_the_payments_setting_through_the_api(server, frozen):
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    loan = new_account(c, name="Home", type="mortgage")
+    home = {"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"}
+    v = saved(terms(c, loan["id"], **home, escrowTax="300"))
+    assert v["terms"]["paymentsMode"] is None
+    assert (v["paymentsResolved"], v["paymentsAutomatic"]) == ("assumed", "assumed")
+    assert v["missed"] == 0 and {r["status"] for r in v["rows"] if r["past"]} == {"assumed"}
+    # Recorded here with nothing recorded yet: the record hasn't started, so nothing is
+    # missed; the days before a first payment count as paid as scheduled (S1.9.3).
+    v = saved(terms(c, loan["id"], paymentsMode="recorded"))
+    assert v["terms"]["paymentsMode"] == "recorded" and v["paymentsResolved"] == "recorded"
+    assert v["paymentsAutomatic"] == "assumed"
+    assert v["missed"] == 0 and {r["status"] for r in v["rows"] if r["past"]} == {"assumed"}
+    assert v["nextDate"] == "2026-11-01" and v["overdue"] == "0.00"
+    assert v["balance"] == [r for r in v["rows"] if r["past"]][-1]["balance"]
+    r = terms(c, loan["id"], paymentsMode="sometimes")
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "paymentsMode"
+    # Back to Automatic, then a payment recorded: Automatic reads as recorded here.
+    saved(terms(c, loan["id"], paymentsMode=None))
+    saved(loan_payment(c, loan["id"], "2026-02-01", "2098.65"))
+    v = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
+    assert (v["paymentsResolved"], v["paymentsAutomatic"]) == ("recorded", "recorded")
+    # The record starts with February's: March to September are missed, $2,098.65 each
+    # overdue, and October, in its grace, is due next.
+    assert v["balance"] == "299701.35" and v["missed"] == 7 and v["overdue"] == "14690.55"
+    assert [r["status"] for r in v["rows"][:9]] == ["paid"] + ["missed"] * 7 + ["ahead"]
+    assert v["nextDate"] == "2026-10-01"
+    # The loan counts in net worth as the balance the setting reads.
+    assert c.get(f"/ui/api/accounts/{loan['id']}").json()["balance"] == "-299701.35"
+    v = saved(terms(c, loan["id"], paymentsMode="assumed"))
+    assert v["missed"] == 0 and D(v["balance"]) < D("299701.35")
+    assert D(c.get(f"/ui/api/accounts/{loan['id']}").json()["balance"]) == -D(v["balance"])
+
+
+def test_recorded_here_counts_from_the_first_payment_recorded():
+    """S1.9.3: the days before the first payment recorded count as paid as scheduled; only
+    the gaps after it are missed; with none recorded, none is missed."""
+    t = mortgage_terms(start=dt.date(2024, 3, 1))
+    today = dt.date(2026, 10, 13)
+    sm, rows = L.summary(t, [], [], today, "recorded")
+    assert sm.missed == 0 and {r.status for r in rows if r.past} == {"assumed"}
+    assert sm.nextDate == dt.date(2026, 11, 1)
+    # Recorded from Jun 2026, with July left out.
+    assumed = L.settle(t, [], [], dt.date(2026, 6, 1), dt.date(2026, 6, 1))
+    pays = list(assumed)
+    for m in (6, 8, 9):
+        pays.append(L.split_for(t, pays, [], dt.date(2026, m, 1), L.scheduled_payment(t)))
+    recorded = [p for p in pays if not p.assumed]
+    sm, rows = L.summary(t, recorded, [], today, "recorded")
+    past = [r for r in rows if r.past]
+    # One behind: August's payment paid July, the oldest missed, and September's August, so
+    # September's day is the one missed.
+    assert [r.status for r in past] == ["assumed"] * 26 + ["paid"] * 3 + ["missed"]
+    assert past[-1].date == dt.date(2026, 9, 1) and sm.missed == 1
+    assert sm.overdue == past[-1].payment and sm.nextDate == dt.date(2026, 10, 1)
+
+
+def test_a_heloc_not_yet_drawn_has_nothing_a_late_payment_goes_back_to():
+    """Days with nothing owed before the first payment recorded are settled: a payment pays
+    its own day, not an undrawn month's."""
+    t = L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
+    draws = [(dt.date(2026, 4, 10), D(30000))]
+    may = L.split_for(t, [], draws, dt.date(2026, 5, 1), D(200))
+    june = L.split_for(t, [may], draws, dt.date(2026, 6, 1), D(200))
+    sm, rows = L.summary(t, [may, june], draws, dt.date(2026, 7, 10), "recorded")
+    assert sm.missed == 0 and sm.nextDate == dt.date(2026, 7, 1)
+    assert [r.status for r in rows if r.past] == ["paid", "paid"]

@@ -12,6 +12,13 @@
   payments, as most car loans use. A HELOC pays interest only during its draw period, then
   amortizes over what is left of its term. A **recast** keeps the end date and lowers the
   payment to what the balance then needs.
+- A **payment day** with no payment recorded is read by the loan's Payments setting (S1.9.3):
+  **recorded here**, it is **missed** once 15 days have passed (what was due is overdue, the
+  balance stays); **assumed as scheduled**, it counts as paid as the schedule says. Automatic
+  (none set) is recorded here once the loan has a payment recorded or a connection keeping it.
+- A payment goes with the payment day whose grace it is made in: from 15 days after one day to
+  15 days after the next. Recorded here, it pays the oldest day missed before it first, as a
+  servicer applies a late payment.
 """
 
 import calendar
@@ -24,9 +31,13 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
+from .. import clock
 from ..store.entities.accounts import Account, Category, Loan, Split, Transaction
 
 ZERO = Decimal(0)
+RECORDED, ASSUMED = "recorded", "assumed"
+MODES = (RECORDED, ASSUMED)
+GRACE = dt.timedelta(days=15)  # a servicer's usual grace period (S1.9.3)
 CENT = Decimal("0.01")
 PMI_ENDS = Decimal("0.78")
 TYPES = ("mortgage", "heloc", "auto-loan", "student-loan", "personal-loan", "loan")
@@ -67,11 +78,14 @@ class Payment:
     fees: Decimal = ZERO
     transactionId: str | None = None
     overpayment: Decimal = ZERO
+    assumed: bool = False  # no payment recorded: made as the schedule says (S1.9.3)
 
 
 @dataclass
 class Row:
-    """One payment of the schedule, past (as it was split) or ahead (as computed)."""
+    """One payment of the schedule, past (as it was split) or ahead (as computed). Its status:
+    `paid` (recorded), `assumed` (as scheduled, none recorded), `missed` (what was due, not
+    paid) or `ahead` (the first of which may be a day passed, still in its grace)."""
 
     date: dt.date
     payment: Decimal
@@ -82,6 +96,7 @@ class Row:
     balance: Decimal
     past: bool
     overpayment: Decimal = ZERO
+    status: str = "ahead"
 
 
 @dataclass
@@ -179,8 +194,31 @@ def _category_keys(s: Session) -> dict[str, str]:
     }
 
 
-def history(s: Session, account: Account) -> tuple[list[Payment], list[tuple[dt.date, Decimal]]]:
-    """The payments made, with their parts, and the HELOC draws (money taken out)."""
+def automatic(recorded: bool, connected: bool) -> str:
+    """What Automatic reads as (S1.9.3): recorded here once the loan has a payment recorded or
+    a connection importing its statements; assumed as scheduled until then. A bank account
+    pays it by a payment linked from it, which is a payment recorded."""
+    return RECORDED if recorded or connected else ASSUMED
+
+
+def modes(s: Session, account: Account, row: Loan) -> tuple[str, str]:
+    """The loan's Payments setting as it reads, and what Automatic would read as."""
+    recorded = s.scalars(
+        select(Transaction.id).where(
+            Transaction.accountId == account.id,
+            Transaction.deleted == false(),
+            Transaction.amount > 0,
+        )
+    ).first()
+    auto = automatic(recorded is not None, account.connectionId is not None)
+    return row.paymentsMode or auto, auto
+
+
+def history(
+    s: Session, account: Account, today: dt.date | None = None
+) -> tuple[list[Payment], list[tuple[dt.date, Decimal]]]:
+    """The payments made, with their parts, and the HELOC draws (money taken out). Assumed as
+    scheduled, a payment day before today with none recorded has its payment, `assumed`."""
     keys = _category_keys(s)
     by_part = {v: k for k, v in PARTS.items()}
     txns = s.scalars(
@@ -197,7 +235,7 @@ def history(s: Session, account: Account) -> tuple[list[Payment], list[tuple[dt.
             splits.setdefault(sp.transactionId, []).append(sp)
     row = loan_of(s, account)
     terms = terms_of(row) if row is not None else None
-    payments: list[Payment] = []
+    recorded: list[Payment | tuple[dt.date, Decimal, str]] = []
     draws: list[tuple[dt.date, Decimal]] = []
     for t in txns:
         if t.amount < 0:
@@ -209,15 +247,146 @@ def history(s: Session, account: Account) -> tuple[list[Payment], list[tuple[dt.
             for sp in parts:
                 part = by_part.get(keys.get(sp.categoryId or "", ""), "principal")
                 setattr(p, part, getattr(p, part) + sp.amount)
+            recorded.append(p)
         elif terms is not None:
             # However it arrived (a transfer matched from the bank, an import, a row typed in
             # the loan's account), a payment is split by the schedule (S1.9.3).
-            p = split_for(terms, payments, draws, t.date, t.amount)
-            p.transactionId = t.id
+            recorded.append((t.date, t.amount, t.id))
         else:
-            p = Payment(t.date, t.amount, principal=t.amount, transactionId=t.id)
-        payments.append(p)
-    return payments, draws
+            recorded.append(Payment(t.date, t.amount, principal=t.amount, transactionId=t.id))
+    if terms is None:
+        return [p for p in recorded if isinstance(p, Payment)], draws
+    paid = any(t.amount > 0 for t in txns)
+    mode = row.paymentsMode or automatic(paid, account.connectionId is not None)
+    today = today or clock.today()
+    return settle(
+        terms, recorded, draws, today, assumed_before(terms, recorded, today, mode)
+    ), draws
+
+
+def settle(
+    t: Terms,
+    recorded: list,
+    draws,
+    today: dt.date,
+    assume_before: dt.date | None,
+) -> list[Payment]:
+    """The payments in date order: each recorded one (a Payment, or its date, amount and
+    transaction id to split by the schedule) and one on each payment day before
+    `assume_before` with none recorded, assumed as scheduled and split as the schedule splits
+    it (`assumed_before` says until when). Settling twice adds nothing: an assumed payment is
+    in its own day's grace."""
+    assume = assume_before is not None
+    covered = _covered(t, [_dated(x) for x in recorded], catch_up=False) if assume else set()
+    events: list[tuple[dt.date, int, object]] = [(_dated(x), 0, x) for x in recorded]
+    if assume:
+        k, day = 1, add_months(t.start, 1)
+        while day < min(assume_before, today):
+            if k not in covered:
+                events.append((day, 1, None))
+            k += 1
+            day = add_months(t.start, k)
+    events.sort(key=lambda e: (e[0], e[1]))
+    out: list[Payment] = []
+    for day, _, x in events:
+        if x is None:
+            p = _as_scheduled(t, out, draws, day)
+            if p is not None:
+                out.append(p)
+        elif isinstance(x, Payment):
+            out.append(x)
+        else:
+            _, amount, txn = x
+            p = split_for(t, out, draws, day, amount)
+            p.transactionId = txn
+            out.append(p)
+    return out
+
+
+def assumed_before(t: Terms, recorded: list, today: dt.date, mode: str) -> dt.date | None:
+    """Until when payment days with none recorded count as paid as scheduled: assumed, until
+    today; recorded here, until the first payment recorded, whose day starts the record (S1.9.3:
+    a loan entered years in, its payments recorded from now, has nothing missed before)."""
+    if mode == ASSUMED:
+        return today
+    real = [_dated(x) for x in recorded if not (isinstance(x, Payment) and x.assumed)]
+    if not real:
+        return today
+    return add_months(t.start, day_of(t, min(real)))
+
+
+def _dated(x) -> dt.date:
+    return x.date if isinstance(x, Payment) else x[0]
+
+
+def day_of(t: Terms, day: dt.date) -> int:
+    """The payment day (its number from the start) a payment on this day goes with: the first
+    whose grace hasn't passed by then."""
+    k = max(1, _months_between(t.start, day) - 1)
+    while add_months(t.start, k) + GRACE < day:
+        k += 1
+    return k
+
+
+def _covered(
+    t: Terms, dates: list[dt.date], catch_up: bool, settled: dt.date | None = None
+) -> set[int]:
+    """The payment days the payments on these dates pay, and those before `settled` (assumed
+    as scheduled, or with nothing owed). With `catch_up` (recorded here), a payment pays the
+    oldest day missed before it first, as a servicer applies one."""
+    paid: set[int] = set()
+    k = 1
+    while settled is not None and add_months(t.start, k) < settled:
+        paid.add(k)
+        k += 1
+    low = k  # the oldest day not paid
+    for d in sorted(dates):
+        k = day_of(t, d)
+        if catch_up and low < k and add_months(t.start, low) + GRACE < d:
+            k = low
+        paid.add(k)
+        while low in paid:
+            low += 1
+    return paid
+
+
+def _as_scheduled(t: Terms, before: list[Payment], draws, day: dt.date) -> Payment | None:
+    """A payment day's payment as the schedule makes it, from what is owed then; none when
+    nothing is."""
+    row = _due(t, before, draws, day, before[-1].date if before else t.start)
+    if row is None:
+        return None
+    return Payment(
+        day,
+        row.payment,
+        principal=row.principal,
+        interest=row.interest,
+        escrowTax=t.escrowTax,
+        escrowInsurance=t.escrowInsurance,
+        pmi=row.pmi,
+        assumed=True,
+    )
+
+
+def _due(t: Terms, before: list[Payment], draws, day: dt.date, since: dt.date) -> Row | None:
+    """What the schedule has due on a payment day, from the balance owed the day before: its
+    interest (on a daily-interest loan, the days since `since`), principal, escrow and PMI.
+    None when nothing is owed."""
+    owed = balance_on(t, [p for p in before if p.date < day], draws, day - dt.timedelta(days=1))
+    if owed <= 0:
+        return None
+    rate = t.rate_on(day) / 100
+    if t.method == "daily":
+        interest = cents(owed * rate * (day - since).days / 365)
+    else:
+        interest = cents(owed * rate / 12)
+    principal = _scheduled_principal(t, owed, interest, day)
+    if day >= t.end or owed - principal < 1:
+        principal = owed
+    pmi = t.pmi_due(owed - principal)
+    return Row(
+        day, principal + interest + t.escrow + pmi, principal, interest, t.escrow, pmi, owed, True
+    )
 
 
 def balance_on(t: Terms, payments: list[Payment], draws, day: dt.date | None = None) -> Decimal:
@@ -302,47 +471,61 @@ def schedule(
     draws,
     today: dt.date,
     extra: Callable[[dt.date, Decimal], Decimal] | None = None,
+    mode: str = ASSUMED,
 ) -> list[Row]:
-    """The payments made, then those ahead until the balance is paid. `extra` gives the
-    payoff planner's overpayment on a payment's day, from the principal and interest due."""
-    rows: list[Row] = []
-    for p in payments:
-        rows.append(
-            Row(
-                p.date,
-                p.total,
-                p.principal,
-                p.interest,
-                p.escrowTax + p.escrowInsurance,
-                p.pmi,
-                balance_on(t, payments, draws, p.date),
-                True,
-                max(
-                    p.principal
-                    - _scheduled_principal(
+    """The payments made (and, assumed as scheduled, those assumed; recorded here, the days
+    missed), then those ahead until the balance is paid. `extra` gives the payoff planner's
+    overpayment on a payment's day, from the principal and interest due."""
+    until = assumed_before(t, payments, today, mode)
+    payments = settle(t, payments, draws, today, until)
+    rows: list[Row] = [
+        Row(
+            p.date,
+            p.total,
+            p.principal,
+            p.interest,
+            p.escrowTax + p.escrowInsurance,
+            p.pmi,
+            balance_on(t, payments, draws, p.date),
+            True,
+            ZERO
+            if p.assumed
+            else max(
+                p.principal
+                - _scheduled_principal(
+                    t,
+                    balance_on(
                         t,
-                        balance_on(
-                            t,
-                            [x for x in payments if x.date < p.date],
-                            draws,
-                            p.date - dt.timedelta(days=1),
-                        ),
-                        p.interest,
-                        p.date,
+                        [x for x in payments if x.date < p.date],
+                        draws,
+                        p.date - dt.timedelta(days=1),
                     ),
-                    ZERO,
+                    p.interest,
+                    p.date,
                 ),
-            )
+                ZERO,
+            ),
+            "assumed" if p.assumed else "paid",
         )
-    owed = balance_on(t, payments, draws, today)
-    # The next payment falls on the loan's day of the month, after today and the last paid.
-    last = payments[-1].date if payments else t.start
-    after = max(last, today)
-    k = max(1, _months_between(t.start, after))
-    while add_months(t.start, k) <= after:
+        for p in payments
+    ]
+    # The days before `until` are settled: assumed, or nothing was owed (a HELOC not yet
+    # drawn), so a late payment never goes back to one.
+    paid = _covered(
+        t, [p.date for p in payments], catch_up=mode == RECORDED, settled=min(until, today)
+    )
+    # The first payment day ahead: the first not passed (recorded here, not past its grace),
+    # after the last one paid.
+    k = 1
+    while add_months(t.start, k) + (GRACE if mode == RECORDED else dt.timedelta(0)) < today:
         k += 1
+    k = max(k, max(paid, default=0) + 1)
     day = add_months(t.start, k)
-    previous = last if payments else t.start
+    if mode == RECORDED:
+        rows += _missed(t, payments, draws, paid, k)
+        rows.sort(key=lambda r: r.date)
+    owed = balance_on(t, payments, draws, today)
+    previous = max((r.date for r in rows if r.date < day), default=t.start)
     # The payment stays level between the days that change it: a recast, a rate reset, or a
     # HELOC's draw period ending. Overpayments in between shorten the loan.
     changes = sorted({d for d, _ in t.recasts} | {d for d, _ in t.resets})
@@ -395,6 +578,27 @@ def schedule(
     return rows
 
 
+def _missed(t: Terms, payments: list[Payment], draws, paid: set[int], ahead: int) -> list[Row]:
+    """Recorded here, each payment day before the first ahead that no payment paid: what was
+    due, nothing paid, and the balance as it was. Its interest is owed with it, not added to
+    the balance; a daily-interest loan's next accrues from it."""
+    rows: list[Row] = []
+    for k in range(1, ahead):
+        if k in paid:
+            continue
+        day = add_months(t.start, k)
+        since = max(
+            [p.date for p in payments if p.date < day] + [r.date for r in rows], default=t.start
+        )
+        due = _due(t, payments, draws, day, since)
+        if due is None:
+            continue
+        due.balance = balance_on(t, payments, draws, day)
+        due.status = "missed"
+        rows.append(due)
+    return rows
+
+
 @dataclass
 class Summary:
     balance: Decimal
@@ -409,15 +613,21 @@ class Summary:
     overpaid: Decimal
     originalPayoff: dt.date
     interestOnlyUntil: dt.date | None = None  # a HELOC's draw period's end, while in it
+    missed: int = 0  # recorded here: payment days passed their grace with none recorded
+    overdue: Decimal = ZERO  # and what they were due: principal, interest, escrow and PMI
 
 
-def summary(t: Terms, payments: list[Payment], draws, today: dt.date) -> tuple[Summary, list[Row]]:
+def summary(
+    t: Terms, payments: list[Payment], draws, today: dt.date, mode: str = ASSUMED
+) -> tuple[Summary, list[Row]]:
     """The loan's figures today. What is due next is the schedule's next row, the one source
     the screen, the payment dialog and the bank transactions offered all read (CR3-21): in a
     HELOC's draw period its interest alone, on a daily-interest loan that month's days, and at
-    the end what rounding left."""
-    rows = schedule(t, payments, draws, today)
+    the end what rounding left. Assumed as scheduled, the payments assumed count as made."""
+    payments = settle(t, payments, draws, today, assumed_before(t, payments, today, mode))
+    rows = schedule(t, payments, draws, today, mode=mode)
     ahead = [r for r in rows if not r.past]
+    missed = [r for r in rows if r.status == "missed"]
     owed = balance_on(t, payments, draws, today)
     due = ahead[0] if ahead and owed > 0 else None
     pi = due.principal + due.interest if due else ZERO
@@ -439,9 +649,21 @@ def summary(t: Terms, payments: list[Payment], draws, today: dt.date) -> tuple[S
             ),
             overpaid=sum((r.overpayment for r in rows if r.past), ZERO),
             originalPayoff=t.end,
+            missed=len(missed),
+            overdue=sum((r.payment for r in missed), ZERO),
         ),
         rows,
     )
+
+
+def split_new(t: Terms, payments: list[Payment], draws, day: dt.date, amount: Decimal) -> Payment:
+    """How the schedule splits a payment about to be recorded, as `split_for` does, from the
+    payments as they will read once it is: it takes the place of the one assumed on its day.
+    Those assumed before it stay, whatever the setting: assumed as scheduled, they are paid;
+    recorded here, the days before the first payment recorded are too (S1.9.3)."""
+    k = day_of(t, day)
+    kept = [p for p in payments if not (p.assumed and day_of(t, p.date) == k)]
+    return split_for(t, kept, draws, day, amount)
 
 
 def value(s: Session, account: Account, day: dt.date | None = None) -> Decimal:

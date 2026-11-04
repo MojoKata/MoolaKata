@@ -493,6 +493,10 @@ def flows(
         add(terms.start, -terms.principal)
         for t in ledger.transactions:
             add(t.date, t.amount)  # a payment in, a draw out
+        # A payment assumed as scheduled (S1.9.3) is money in as a recorded one is.
+        for p in loans.history(s, a)[0]:
+            if p.assumed:
+                add(p.date, p.total)
         return out
     if assets.is_physical(a.type):
         # Only the items are read, not their worth, and the items don't depend on the day.

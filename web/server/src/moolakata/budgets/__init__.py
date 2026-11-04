@@ -337,7 +337,9 @@ def _count_loan_payment(s, tr, out, t, other, loans_seen) -> None:
     o, loan_account = other
     if loan_account.id not in loans_seen:
         row = loans.loan_of(s, loan_account)
-        payments = {p.transactionId: p for p in loans.history(s, loan_account)[0]}
+        payments = {
+            p.transactionId: p for p in loans.history(s, loan_account)[0] if p.transactionId
+        }
         loans_seen[loan_account.id] = {"row": row, "payments": payments}
     seen = loans_seen[loan_account.id]
     row = seen["row"]

@@ -37,11 +37,18 @@ def test_a_loan_owes_its_principal_from_its_start_and_takes_its_payments_and_dra
     add(alice, loan["id"], "2000.00", "2026-07-01", kind="deposit")
     add(alice, loan["id"], "-500.00", "2026-08-01", kind="withdrawal")
     year = flows(server, loan["id"], d(2025, 12, 31), d(2026, 12, 31))
-    assert year == {d(2026, 1, 1): D("-300000.00"), d(2026, 7, 1): D("2000.00"),
+    # The days before the first payment recorded count as paid as scheduled (S1.9.3): each
+    # assumed payment is money in, as a recorded one is.
+    assumed = {d(2026, m, 1): D("1798.65") for m in range(2, 7)}
+    assert year == {d(2026, 1, 1): D("-300000.00"), **assumed, d(2026, 7, 1): D("2000.00"),
                     d(2026, 8, 1): D("-500.00")}  # fmt: skip
     # The window's first day is left out and its last counted.
-    assert flows(server, loan["id"], d(2026, 1, 1), d(2026, 7, 1)) == {d(2026, 7, 1): D("2000.00")}
-    assert flows(server, loan["id"], d(2026, 1, 1), d(2026, 6, 30)) == {}
+    assert flows(server, loan["id"], d(2026, 1, 1), d(2026, 7, 1)) == {
+        **assumed,
+        d(2026, 7, 1): D("2000.00"),
+    }
+    assert flows(server, loan["id"], d(2026, 1, 1), d(2026, 6, 30)) == assumed
+    assert flows(server, loan["id"], d(2026, 6, 1), d(2026, 6, 30)) == {}
 
 
 def test_a_loan_without_terms_has_no_flows(server, alice):

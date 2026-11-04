@@ -293,6 +293,7 @@ class Loan(Record):
     securedById: str | None = None
     budgetCounting: str = "split"
     budgetCategoryId: str | None = None
+    paymentsMode: str | None = None  # None: Automatic (S1.9.3)
 
 
 @dataclass(kw_only=True, eq=False)
