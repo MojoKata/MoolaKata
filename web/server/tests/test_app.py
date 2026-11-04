@@ -7,7 +7,16 @@ import time
 from collections import deque
 
 import pytest
-from devapp import DEV, LOAD_FAILED, check_guide, close_dialog, open_dialog, visit, wait_guide
+from devapp import (
+    DEV,
+    LOAD_FAILED,
+    api_items,
+    check_guide,
+    close_dialog,
+    open_dialog,
+    visit,
+    wait_guide,
+)
 
 # Its tests share one page and its dev server, one after another: one worker runs them all.
 pytestmark = [pytest.mark.browser, pytest.mark.xdist_group("app")]
@@ -220,7 +229,7 @@ def test_a_linked_households_window_opens_with_its_words(page):
     each of its screens with its guide."""
     from moolakata.dev.seed_links import words
 
-    homes = page.evaluate("async () => (await (await fetch('/ui/api/linked')).json()).items")
+    homes = api_items(page, "/ui/api/linked")
     assert [h["name"] for h in homes] == ["Margaret & Tom"]
     link = homes[0]["linkId"]
     visit(page, f"/ui/linked/{link}/")
@@ -230,9 +239,7 @@ def test_a_linked_households_window_opens_with_its_words(page):
     page.fill("#f-access-key", words())
     page.get_by_role("button", name="Open").click()
     page.wait_for_selector(".peer-strip")
-    items = page.evaluate(
-        f"async () => (await (await fetch('/ui/api/linked/{link}/items')).json()).items"
-    )
+    items = api_items(page, f"/ui/api/linked/{link}/items")
     kinds = {i["kind"]: i["id"] for i in items}
     assert set(kinds) == {"account", "portfolio", "budget"}
     acct = next(i["id"] for i in items if i["name"] == "Mom's Retirement")

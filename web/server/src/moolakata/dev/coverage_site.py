@@ -181,14 +181,17 @@ def short(rel: str) -> str:
 
 
 def meter(kind: str, v: float | None, floor: float | None = None, was: float | None = None) -> str:
-    """A bar for a percentage, a tick at the floor (red below it), the figure and its change."""
+    """A bar for a percentage in its band's colour (S17.5.8), a tick at the floor (striped below
+    it), the figure and its change."""
     if v is None:
         return "<td class='m'><span class='meter none'></span><span class='pct'>—</span></td>"
     below = " below" if floor is not None and v < floor else ""
     tick = f"<i style='left:{floor}%' title='floor {pct(floor)}'></i>" if floor is not None else ""
     delta = change(v, was)
+    name = coverage.band(v)[0]
     return (
-        f"<td class='m'><span class='meter {kind}{below}'><b style='width:{v}%'></b>{tick}</span>"
+        f"<td class='m'><span class='meter {kind} {name}{below}'><b style='width:{v}%'></b>"
+        f"{tick}</span>"
         f"<span class='pct'>{pct(v)}</span><span class='delta'>{delta}</span></td>"
     )
 
@@ -340,6 +343,7 @@ TEMPLATE = """<!doctype html>
   --surface: #fcfcfb; --raised: #f3f2ee; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --track: #e9e8e2; --border: rgba(11, 11, 11, 0.10);
   --lines: #2a78d6; --branches: #eb6834; --bad: #c8312b;
+  --good: #2f9e55; --fair: #d79b0f; --stripe: rgba(255, 255, 255, 0.55);
 }}
 @media (prefers-color-scheme: dark) {{
   :root {{
@@ -347,6 +351,7 @@ TEMPLATE = """<!doctype html>
     --surface: #1a1a19; --raised: #232321; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
     --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
     --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
+    --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5);
   }}
 }}
 * {{ box-sizing: border-box; }}
@@ -404,9 +409,11 @@ td.n {{ color: var(--text-2); }}
   vertical-align: middle; border-radius: 6px; background: var(--track); }}
 #areas tr.file .meter {{ height: 8px; }}
 .meter b {{ position: absolute; inset: 0 auto 0 0; border-radius: 6px; }}
-.meter.lines b {{ background: var(--lines); }}
-.meter.branches b {{ background: var(--branches); }}
-.meter.below b {{ background: var(--bad); }}
+.meter.good b {{ background-color: var(--good); }}
+.meter.fair b {{ background-color: var(--fair); }}
+.meter.low b {{ background-color: var(--bad); }}
+.meter.below b {{ background-image: repeating-linear-gradient(135deg, transparent 0 3px,
+  var(--stripe) 3px 6px); }}
 .meter.none {{ visibility: hidden; }}
 .meter i {{ position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
   background: var(--text); }}
@@ -418,6 +425,13 @@ td.n {{ color: var(--text-2); }}
 .key {{ display: inline-block; width: 14px; height: 2px; vertical-align: middle;
   margin-right: 6px; border-radius: 1px; }}
 .key.lines {{ background: var(--lines); }}
+.swatch {{ display: inline-block; width: 22px; height: 12px; vertical-align: middle;
+  margin-right: 6px; border-radius: 6px; }}
+.swatch.good {{ background-color: var(--good); }}
+.swatch.fair {{ background-color: var(--fair); }}
+.swatch.low {{ background-color: var(--bad); }}
+.swatch.below {{ background-image: repeating-linear-gradient(135deg, transparent 0 3px,
+  var(--stripe) 3px 6px); }}
 .key.branches {{ background: var(--branches); }}
 .charts {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 16px; }}
@@ -469,8 +483,13 @@ Line by line: <a href="server/index.html">the server and the connector</a>,
 {sums}
 </tfoot>
 </table></div>
-<p>The change is since the merge before. The tick on a bar is the area's floor (its lines' /
-branches' in the last column), and a bar below it is red. <i>Server</i> and <i>Browser</i> are
+<div class="legend"><span><span class="swatch good"></span>80% and up</span>
+<span><span class="swatch fair"></span>60% to 80%</span>
+<span><span class="swatch low"></span>under 60%</span>
+<span><span class="swatch fair below"></span>below its floor</span></div>
+<p>The change is since the merge before. A bar's colour is how well it is tested; the tick on
+it is the area's floor (its lines' / branches' in the last column), and a bar below its floor
+is striped. <i>Server</i> and <i>Browser</i> are
 their areas together; <i>Overall</i> is every area, the connector's too. Sorting by a count
 sorts by size.</p>
 

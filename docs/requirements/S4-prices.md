@@ -35,8 +35,10 @@
    | No free ticker: 529 portfolios, 401(k) collective trusts, individual corporate and municipal bonds | **manual** | — | a value from a statement or an import, or a typed price, with its date. A statement value older than 90 days is marked stale and raises an alert (S12.11) |
 
 4. **Schedule**: once a day, after the US market close (6:00 PM Eastern by default), a
-   background task loads the day's close for every **held or watched** instrument, and
-   backfills history when an instrument is first held, from a week before its first
+   background task loads the day's close for every **held or watched** instrument (watched:
+   the underlying of an open option, or an adjusted contract's deliverable parts, whether or
+   not the account holds it, from the option's first trade, so its expiry has a close to decide
+   it, S3.6), and backfills history when an instrument is first held, from a week before its first
    transaction and at most five years back. SPY, VT and BND are always loaded, as the
    benchmarks (S5.2.1). **Refresh prices** does the same on demand. Requests are spread to
    stay inside each source's limits (Tiingo's 50 an hour means a few hours for a large
@@ -70,5 +72,6 @@
 9. **Linked servers never call price sources for each other.** A peer's shared data carries its
    own values and their `as_of` (S11.5).
 10. **A typed price** is its typer's: it values their own accounts, and another user's only
-    when they type one too. Where an instrument has no stored close, a holding is valued from
+    when they type one too. It is for an instrument held or watched (S4.4) in an account the
+    typer can change: a holding, or the underlying of an option traded there. Where an instrument has no stored close, a holding is valued from
     the viewer's own trades in it, never from another user's.

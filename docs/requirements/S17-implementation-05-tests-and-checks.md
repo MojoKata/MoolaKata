@@ -107,17 +107,22 @@
       `python -m moolakata.dev.coverage report` then gives:
       1. **By area**: line and branch coverage of each server package (its top-level modules
          as one), each directory of the browser app, and the connector. A browser file's
-         branches count only where its code ran.
+         branches count only where its code ran. Each figure falls in a band of how well it
+         is tested, whatever its floor: **good** from 80%, **fair** from 60%, **low** under
+         60%, shown as 🟢, 🟡 and 🔴 where only text is shown, and as green, amber and red
+         on the site.
       2. **The changed lines**: how many of the lines added or changed since the base (the
          merge base with `main`; in CI, the commit before) the tests reach, and each stretch
          they don't.
       3. **Where it is shown**: the terminal; HTML reports in `web/.dev/coverage/html/`; in
          CI, the job's summary, a notice with the headline and one on each of the nine
          largest unreached stretches of changed lines (shown on those lines in a pull
-         request), and the HTML as the run's `coverage` artifact, kept 30 days; after each
+         request), and the run's `coverage` artifact, kept 30 days: the HTML, and the data to
+         query (`server.json`, coverage.py's JSON, and `browser.lcov`: each file's lines and
+         branches missed); after each
          merge to `main`, the coverage site. The terminal's and the job summary's table gives
-         each area's files, its lines and branches as a bar of ten characters (each a tenth)
-         with the percentage, the counts reached, and its floor, marking an area below its
+         each area's files, its lines and branches as its band's dot, a bar of ten characters
+         (each a tenth) and the percentage, the counts reached, and its floor, marking an area below its
          floor; its last rows are the server's areas together, the browser's, and every area
          as one (the connector's too), each summed from their counts. `files.json` keeps each
          file's counts, and where its line-by-line report is.
@@ -127,15 +132,16 @@
          not points: one branch is a point of a one-file area), as a percentage rounded down
          to a tenth, and never lowers one: a lower floor is written by hand, with its reason
          in the commit. The slack is 3 for the server's and the connector's areas, whose
-         tests measure the same each run, and 20 for the browser app's, whose figures move
-         with the browser tests' timing. `totals.json` keeps each area's counts for it.
+         tests measure the same each run, and 40 for the browser app's, whose figures move
+         with the browser tests' timing (its components by as much as 32 lines from one run to
+         the next with nothing changed). `totals.json` keeps each area's counts for it.
       5. **The coverage site**: the repository's GitHub Pages site
          (`https://mojokata.github.io/MoolaKata/`) holds the HTML reports of the last merge
          to `main` and the history of every merge since the site began. Its page shows:
          1. **The headline**: line and branch coverage of every area as one, with the counts
             behind them, each side's line coverage, and the number of files.
-         2. **By area**: each area's lines and branches as a bar with a tick at its floor (red
-            below it), the percentage, the change since the merge before and the counts
+         2. **By area**: each area's lines and branches as a bar in its band's colour with a
+            tick at its floor (striped below it), with a key to both, the percentage, the change since the merge before and the counts
             reached; its files and floor; and, last, the rows that sum the areas as the
             job summary does. Clicking an area opens its files, each with the same bars and
             counts and a link to its line-by-line report. Clicking a heading sorts the areas
@@ -189,6 +195,19 @@
       (`tests/test_canaries.py`). Only the mail folder may hold one; and every file must be
       a kind known by its header (a SQLCipher database, a sealed file, a keyring, a backup's
       manifest), so a new kind of file fails before it ever holds data.
+   12. **Mutation testing**: an area's tests are measured by changing its code one small way at
+      a time (mutmut: an operator, a bound, a constant, an argument dropped, a statement
+      emptied) and running the tests that reach it; a change no test notices is a gap, whatever
+      the coverage says. It is not part of `web/check`, since every reaching test runs once per
+      change: each area's hardening runs it over the area's modules with the fast tests that
+      reach them (the generated worlds are left out: run once per change they take hours, and a
+      rule is pinned by a fast test, not by a world). The run ends with every surviving change
+      either caught by a fast test that names the rule it pins, or marked `# pragma: no
+      mutate` on its statement, with the reason no output can differ on the line above. A mark
+      silences every change on its statement, so one whose other changes tests catch stays
+      unmarked, and its equivalents are listed with the area's results. Code that only a mark
+      would keep (unreachable, never read) is removed instead. How to run it:
+      `docs/mutation-testing.md`.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

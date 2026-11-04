@@ -80,7 +80,13 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(alice):
     assert "D,long,4 VTI,2024-01-05,2026-02-01,600.00,400.00,,,200.00,Brokerage" in csv.text
     txf = alice.get(f"/ui/api/tax-books/{b}/exports/moolakata.txf").text
     assert txf.startswith("V042\r\n") and "N323\r\n" in txf and "N321\r\n" in txf
-    assert p["txfLeftOut"] == {"digital": 0, "collectable": 0, "personalUse": 0}
+    assert p["txfLeftOut"] == {
+        "digital": 0,
+        "collectable": 0,
+        "personalUse": 0,
+        "noLot": 0,
+        "noBasis": 0,
+    }
     pdf = alice.get(f"/ui/api/tax-books/{b}/exports/summary.pdf")
     assert pdf.content.startswith(b"%PDF-1.4") and pdf.content.rstrip().endswith(b"%%EOF")
 
@@ -107,9 +113,16 @@ def test_collectables_and_personal_use_losses(alice):
     rows = {r["description"]: r for r in p["rows"]}
     assert rows["Coin"]["collectable"] and rows["Coin"]["box"] == "F"
     assert rows["Car"]["code"] == "L" and rows["Car"]["gain"] == "0.00"
+    assert {rows["Coin"]["kind"], rows["Car"]["kind"]} == {"item"}
     assert p["scheduleD"]["collectables"] == "2000.00"
     # TXF has no field for C or L (S8.2): both are left out of it and counted beside it.
-    assert p["txfLeftOut"] == {"digital": 0, "collectable": 1, "personalUse": 1}
+    assert p["txfLeftOut"] == {
+        "digital": 0,
+        "collectable": 1,
+        "personalUse": 1,
+        "noLot": 0,
+        "noBasis": 0,
+    }
     txf = alice.get(f"/ui/api/tax-books/{book_id}/exports/moolakata.txf").text
     assert "PCoin" not in txf and "PCar" not in txf
 
@@ -135,8 +148,18 @@ def test_txf_counts_what_it_leaves_out_by_why():
         )
 
     rows = [row("A"), row("D", "W"), row("I"), row("K"), row("F", "C"), row("C", "L")]
-    assert [exports.in_txf(r) for r in rows] == [True, True, False, False, False, False]
-    assert exports.txf_left_out(rows) == {"digital": 2, "collectable": 1, "personalUse": 1}
+    rows += [row("A"), row("B"), row("E", "W")]
+    rows[6].lotMissing = True  # no day bought to write (CR3-415)
+    rows[7].basis = rows[8].basis = None  # no basis to write, never a 0 (CR3-416)
+    assert [exports.in_txf(r) for r in rows] == [True, True] + [False] * 7
+    assert exports.txf_left_out(rows) == {
+        "digital": 2,
+        "collectable": 1,
+        "personalUse": 1,
+        "noLot": 1,
+        "noBasis": 2,
+    }
+    assert "$0.00" not in exports.txf(rows, dt.date(2027, 1, 2))
 
 
 def test_income_retirement_and_an_rmd(alice):
@@ -184,7 +207,8 @@ def test_deductions_loans_and_issues(alice):
     saved(loan_payment(alice, home["id"], "2026-02-01", "1798.65"))
     brk = new_account(alice, name="Brokerage", type="brokerage")
     trade(alice, brk["id"], "2026-05-01", "sell", "3", "100", "MSFT")  # nothing to sell
-    p = panels(alice, book(alice))
+    b = book(alice)
+    p = panels(alice, b)
     tags = {d["label"]: d for d in p["deductions"]}
     assert tags["Medical and dental"]["total"] == "240.00"
     assert tags["Medical and dental"]["withReceipts"] == 0
@@ -192,6 +216,21 @@ def test_deductions_loans_and_issues(alice):
     assert p["loans"][0]["interest"] == "1500.00" and p["loans"][0]["form"] == "1098"
     kinds = {i["kind"] for i in p["issues"]}
     assert {"sale-without-lot", "sale-basis"} <= kinds
+    # Sold without a lot: its day bought is missing as its basis is, never its sale's day;
+    # the CSV leaves it blank and TXF leaves the row out, counted (S8.1, S8.2, CR3-415).
+    (row,) = [r for r in p["rows"] if r["description"] == "3 MSFT"]
+    assert (row["acquired"], row["basis"], row["lotMissing"], row["longTerm"]) == (
+        None,
+        None,
+        True,
+        False,
+    )
+    (issue,) = [i for i in p["issues"] if i["kind"] == "sale-basis"]
+    assert issue["text"] == "Brokerage: the sale of 3 MSFT on May 1 has no basis or day bought"
+    assert p["txfLeftOut"]["noLot"] == 1
+    csv = alice.get(f"/ui/api/tax-books/{b}/exports/8949.csv").text
+    assert "A,short,3 MSFT,,2026-05-01,300.00,,,,,Brokerage" in csv
+    assert "P3 MSFT" not in alice.get(f"/ui/api/tax-books/{b}/exports/moolakata.txf").text
 
 
 def test_an_ira_limit_holds_across_a_persons_accounts(alice):
@@ -251,7 +290,7 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(alice):
     held = alice.get("/ui/api/positions", params={"kind": "options"}).json()["open"][0]
     r = alice.post(
         f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",
-        json={"how": "assign", "date": "2026-09-18"},
+        json={"how": "assign", "date": "2026-09-18", "contracts": "1"},
     )
     assert r.status_code == 201, r.text
     p = panels(alice, book(alice))
@@ -418,3 +457,177 @@ def test_a_book_lists_the_wash_sales_of_the_accounts_it_counts(alice):
     saved(create(alice, "TxBkA", bookId=b, accountId=brk["id"], counted=False))
     p = panels(alice, b)
     assert p["rows"] == [] and p["washes"] == []
+
+
+def test_a_roth_conversion_and_a_rollover_are_no_contributions(alice):
+    """CR3-37: a matched transfer from a traditional IRA to a Roth IRA is a conversion, from a
+    401(k) to an IRA a rollover; neither counts against a limit nor as a distribution."""
+    trad = new_account(alice, name="Traditional IRA", type="ira")
+    roth = new_account(alice, name="Roth IRA", type="roth-ira")
+    plan = new_account(alice, name="Old 401(k)", type="401k")
+    out = add(alice, trad["id"], "-50000.00", "2026-03-02", kind="transfer", payee="Conversion")
+    back = add(alice, roth["id"], "50000.00", "2026-03-02", kind="transfer", payee="Conversion")
+    assert back["transferId"] == out["id"], "the two halves matched"
+    out = add(alice, plan["id"], "-20000.00", "2026-05-04", kind="transfer", payee="Rollover")
+    back = add(alice, trad["id"], "20000.00", "2026-05-04", kind="transfer", payee="Rollover")
+    assert back["transferId"] == out["id"]
+    add(alice, roth["id"], "3000.00", "2026-06-01", kind="deposit")
+    r = panels(alice, book(alice))["retirement"]
+    c = {x["account"]: x for x in r["contributions"]}
+    assert c["Roth IRA"]["contributed"] == "3000.00" and not c["Roth IRA"]["over"]
+    assert c["Traditional IRA"]["contributed"] == "0.00"
+    assert [(m["fromAccount"], m["toAccount"], m["amount"]) for m in r["conversions"]] == [
+        ("Traditional IRA", "Roth IRA", "50000.00")
+    ]
+    assert [(m["fromAccount"], m["toAccount"]) for m in r["rollovers"]] == [
+        ("Old 401(k)", "Traditional IRA")
+    ]
+    assert r["distributions"] == []
+
+
+def test_an_hsa_counts_its_employers_money_against_its_coverages_limit(server, frozen):
+    """CR3-37, 7.1: an HSA's limit is its coverage's, $1,000 more at 55; the employer's money
+    counts against it beside the owner's."""
+    from edits import edit
+
+    make_user(server, "harry", born=1970)  # 56 in 2026
+    c = sign_in(server, "harry")
+    hsa = new_account(c, name="HSA", type="hsa")
+    add(c, hsa["id"], "3000.00", "2026-02-01", kind="deposit", contributionSource="employer")
+    add(c, hsa["id"], "2500.00", "2026-03-01", kind="deposit")
+    b = book(c)
+    [x] = panels(c, b)["retirement"]["contributions"]
+    assert x["contributed"] == "5500.00" and x["limit"] == "9750.00", "family 8,750 + 1,000"
+    assert "set the coverage" in x["note"]
+    r = edit(c, "Acct", f"/ui/api/accounts/{hsa['id']}", hsaCoverage="self")
+    assert r.status_code == 200, r.text
+    [x] = panels(c, b)["retirement"]["contributions"]
+    assert x["limit"] == "5400.00" and x["over"], "self-only 4,400 + 1,000, and 5,500 is over"
+
+
+def test_foreign_tax_and_crypto_income_on_the_income_panel(alice):
+    """CR3-38: foreign tax a fund paid shows by payer; coins received as income count at
+    their value when received, which is the basis of the lot they make."""
+    brk = new_account(alice, name="Brokerage", type="brokerage", institution="Fidelity")
+    add(alice, brk["id"], "180.00", "2026-06-30", kind="dividend", symbol="VXUS")
+    add(alice, brk["id"], "-14.22", "2026-06-30", kind="foreign-tax", symbol="VXUS")
+    ex = new_account(alice, name="Exchange", type="crypto-exchange", institution="Coinbase")
+    add(alice, ex["id"], "0.00", "2026-04-01", kind="reward", symbol="ETH", quantity="0.01",
+        price="2500")  # fmt: skip
+    b = book(alice)
+    inc = panels(alice, b)["income"]
+    assert [(x["label"], x["amount"]) for x in inc["foreignTax"]] == [("Fidelity", "14.22")]
+    assert [(x["label"], x["amount"]) for x in inc["cryptoIncome"]] == [("Exchange", "25.00")]
+    lots = alice.get(f"/ui/api/accounts/{ex['id']}/holdings").json()["holdings"]
+    assert [(h["symbol"], h["costBasis"]) for h in lots] == [("ETH", "25.00")]
+    r = add(alice, ex["id"], "-5.00", "2026-04-02", kind="foreign-tax")
+    assert r  # money out is the only sign it takes; a deposit's sign is refused below
+    bad = make(alice, "Txn", accountId=brk["id"], date="2026-07-01", amount="5.00",
+               kind="foreign-tax", symbol="VXUS")  # fmt: skip
+    assert bad.status_code == 422 and bad.json()["errors"][0]["code"] == "amount-sign"
+
+
+def _rows_8949(c, b):
+    return [(r["description"], r["acquired"], r["basis"], r["longTerm"]) for r in
+            panels(c, b)["rows"]]  # fmt: skip
+
+
+def test_shares_moved_in_keep_the_days_they_were_bought(alice):
+    """CR3-73: a transfer-in typed lot by lot keeps each lot's day bought and basis, so a
+    sale soon after is long term for the old lot; one typed without lots has its day bought
+    missing, its term unknown and the book says so."""
+    fid = new_account(alice, name="Fidelity", type="brokerage")
+    r = make(alice, "Txn", accountId=fid["id"], date="2026-01-10", kind="transfer-in",
+             symbol="VTI", quantity="100", amount="0.00",
+             transferLots=[{"acquiredOn": "2019-03-04", "quantity": "60", "costBasis": "9000"},
+                           {"acquiredOn": "2025-11-20", "quantity": "40",
+                            "costBasis": "11000"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    trade(alice, fid["id"], "2026-03-02", "sell", "100", "300")
+    b = book(alice)
+    rows = sorted(_rows_8949(alice, b), key=lambda x: x[1])
+    assert [(x[1], x[2], x[3]) for x in rows] == [
+        ("2019-03-04", "9000.00", True),
+        ("2025-11-20", "11000.00", False),
+    ]
+    bad = make(alice, "Txn", accountId=fid["id"], date="2026-01-12", kind="transfer-in",
+               symbol="KO", quantity="10", amount="0.00",
+               transferLots=[{"acquiredOn": "2020-01-02", "quantity": "9"}])  # fmt: skip
+    assert bad.status_code == 422 and bad.json()["errors"][0]["code"] == "lots-unbalanced"
+    r = make(alice, "Txn", accountId=fid["id"], date="2026-02-01", kind="transfer-in",
+             symbol="KO", quantity="10", amount="0.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    [ko] = [h for h in alice.get(f"/ui/api/accounts/{fid['id']}/holdings").json()["holdings"]
+            if h["symbol"] == "KO"]  # fmt: skip
+    assert ko["lots"][0]["acquiredMissing"] and ko["lots"][0]["longTerm"] is None
+    kinds = [i["kind"] for i in panels(alice, b)["issues"]]
+    assert "acquired-missing" in kinds
+
+
+def test_shares_moved_between_two_accounts_carry_their_lots(alice):
+    """CR3-73: a transfer out and in of the same shares between two of the owner's accounts
+    is offered as a pair; matched, the shares arrive with the lots they left with."""
+    schwab = new_account(alice, name="Schwab", type="brokerage")
+    fid = new_account(alice, name="Fidelity", type="brokerage")
+    add(alice, schwab["id"], "15000.00", "2019-01-02", kind="deposit")
+    trade(alice, schwab["id"], "2019-03-04", "buy", "100", "150")
+    add(alice, schwab["id"], "0.00", "2026-01-09", kind="transfer-out", symbol="VTI",
+        quantity="100")  # fmt: skip
+    add(alice, fid["id"], "0.00", "2026-01-10", kind="transfer-in", symbol="VTI",
+        quantity="100")  # fmt: skip
+    pairs = alice.get("/ui/api/transfers/bitcoin").json()["items"]
+    assert [(p["symbol"], p["fromAccount"], p["toAccount"]) for p in pairs] == [
+        ("VTI", "Schwab", "Fidelity")
+    ]
+    r = alice.post(f"/ui/api/transfers/bitcoin/{pairs[0]['id']}", json={"confirm": True},
+                   headers={"If-Match": f'"{pairs[0]["version"]}"'})  # fmt: skip
+    assert r.status_code == 200, r.text
+    [vti] = alice.get(f"/ui/api/accounts/{fid['id']}/holdings").json()["holdings"]
+    assert [(x["acquiredOn"], x["basis"], x["longTerm"]) for x in vti["lots"]] == [
+        ("2019-03-04", "15000.00", True)
+    ]
+
+
+def test_a_sale_of_shares_moved_in_without_their_day_bought_says_so(alice):
+    """S2.2, CR3-399: shares moved in with their basis but not the day they were bought, two
+    sold: Positions shows the sale's term unknown, its Form 8949 date is VARIOUS, and Taxes
+    lists the sale until the day is typed."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    add(alice, brk["id"], "0.00", "2026-01-12", kind="transfer-in", symbol="VTI", quantity="5",
+        costBasis="400")  # fmt: skip
+    trade(alice, brk["id"], "2026-03-02", "sell", "2", "120")
+    closed = alice.get("/ui/api/positions").json()["closed"]
+    assert [(x["symbol"], x["term"]) for x in closed] == [("VTI", "unknown")]
+    p = panels(alice, book(alice))
+    (row,) = [r for r in p["rows"] if r["description"] == "2 VTI"]
+    assert row["acquired"] is None and row["basis"] == "160.00"
+    (issue,) = [i for i in p["issues"] if i["kind"] == "sale-acquired-missing"]
+    assert issue["text"] == (
+        "Brokerage: the sale of 2 VTI on Mar 2 is of shares moved in: when they were bought, "
+        "for its term"
+    )
+    assert issue["link"] == f"/ui/accounts/{brk['id']}/holdings"
+
+
+def test_a_funds_distributions_and_return_of_capital_reach_the_return(alice):
+    """S2.4, S8.3: a capital-gain distribution is income on its own line; a return of capital
+    comes off the basis, and what passes the basis is a gain on Form 8949, its term the lot's;
+    Positions holds the lot at what is left of its basis."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")
+    trade(alice, brk["id"], "2026-01-05", "buy", "10", "100")
+    add(alice, brk["id"], "50.00", "2026-06-01", kind="capital-gain", symbol="VTI")
+    add(alice, brk["id"], "1200.00", "2026-07-01", kind="return-of-capital", symbol="VTI")
+    p = panels(alice, book(alice))
+    inc = p["income"]
+    assert inc["capitalGainDistributions"] == "50.00" and inc["returnOfCapital"] == "1200.00"
+    (row,) = [r for r in p["rows"] if r["description"] == "VTI return of capital over basis"]
+    # Its own kind: the Property panel lists only items sold, never this (CR3-414).
+    assert row["kind"] == "return-of-capital"
+    assert (row["acquired"], row["sold"], row["gain"], row["longTerm"]) == (
+        "2026-01-05",
+        "2026-07-01",
+        "200.00",
+        False,
+    )
+    [vti] = [x for x in alice.get("/ui/api/positions").json()["open"] if x["symbol"] == "VTI"]
+    assert (vti["quantity"], vti["cost"]) == (10, 0)

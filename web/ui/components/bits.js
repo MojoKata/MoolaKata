@@ -106,9 +106,7 @@ export function Failed({ error }) {
       <${Icon} name="alert" />
       <div>${error?.message ||
         'This could not be loaded.'}${error?.errorId
-        ? html`
-          <span class="small dim">(${error.errorId})</span>
-        `
+        ? html`${' '}<span class="small dim">(${error.errorId})</span>`
         : null}</div>
     </div>
   `;

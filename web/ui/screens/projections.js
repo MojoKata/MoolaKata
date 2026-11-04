@@ -130,18 +130,15 @@ function Detail({ id, reloadList }) {
   ).join(', ');
   return html`
     <div class="toolbar mt">
-      <b style=${{ fontSize: '16px' }}>${x.name}</b>
-      <span class="small dim">${GOAL[x.goal]?.[0] || x.goal} · on ${x.builtOnLabel}</span>
-      ${x.active
+      <b style=${{ fontSize: '16px' }}>${x.name}</b> <span class="small dim">${GOAL[x.goal]?.[0] ||
+        x.goal} · on ${x.builtOnLabel}</span> ${x.active
         ? html`<span class=${'pill ' + (TONE[x.status] || '')}>active${
           x.status && x.status !==
               'untracked'
             ? ` · ${x.status}`
             : ''
         }</span>`
-        : html`<span class="pill">scenario</span>`}
-      <span class="spacer"></span>
-      ${x.access.shareable
+        : html`<span class="pill">scenario</span>`}<span class="spacer"></span>${x.access.shareable
         ? html`<button type="button" class="btn" onClick=${() =>
           openDialog(ShareDialog, { kind: 'projection', id: x.id, name: x.name }).then(
             reload,
@@ -195,6 +192,14 @@ function Detail({ id, reloadList }) {
             0.1}% a year.${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
             ? ` Bitcoin follows the ${r.bitcoinModel} model, a model others publish; other coins keep the crypto assumption.`
             : ''} Seeded (${r.seed}), so the same inputs give the same figures.</p>
+        ${r.leftOut?.length
+          ? html`<p class="small dim" data-help="left-out">Left out: ${
+            r.leftOut.map((
+              /** @type {any} */ o,
+            ) => `${o.name} ${dollars(o.value)}`).join('; ')
+          }. A projection grows cash, securities
+            and metals; a loan, a home, a car and options aren't drawn on.</p>`
+          : null}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         ${a.kind === 'retirement'

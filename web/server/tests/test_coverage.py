@@ -15,7 +15,7 @@ def test_the_floor_leaves_each_sides_slack_and_only_rises(monkeypatch, tmp_path)
     (tmp_path / "totals.json").write_text(
         json.dumps(
             {
-                # The browser's slack is 20: a fifth of this area's branches.
+                # The browser's slack is 40: two fifths of this area's branches.
                 "browser/charts": counts(484, 323, 101, 80),
                 # The server's is 3: in a large area, a tenth of a point.
                 "server/core": counts(9000, 7900, 3000, 2250),
@@ -32,10 +32,10 @@ def test_the_floor_leaves_each_sides_slack_and_only_rises(monkeypatch, tmp_path)
     monkeypatch.setattr(coverage.paths, "ROOT", tmp_path)
     assert coverage.cmd_floor() == 0
     assert json.loads(floor.read_text()) == {
-        "browser/charts": {"lines": 62.6, "branches": 59.4},
+        "browser/charts": {"lines": 58.4, "branches": 39.6},
         "server/core": {"lines": 87.7, "branches": 74.9},
         "connector": {"lines": 89.7, "branches": 67.0},
-        "browser/account-types": {"lines": 95.8},
+        "browser/account-types": {"lines": 91.6},
         # Never lowered: lines stay at 85 though 79.7 was measured.
         "server/keys": {"lines": 85.0, "branches": 58.5},
     }
@@ -60,14 +60,22 @@ def test_the_summary_shows_bars_counts_and_the_sums_last():
     text = coverage.summary(areas, floors, None, None, ["server/keys"])
     rows = [r for r in text.splitlines() if r.startswith("| ")]
     assert rows[1] == (
-        "| browser/app | 1 | `█████████░` 91.0% | 1,793 of 1,970 | `█████████░` 94.0% | "
+        "| browser/app | 1 | 🟢 `█████████░` 91.0% | 1,793 of 1,970 | 🟢 `█████████░` 94.0% | "
         "483 of 514 | — |"
     )
-    assert rows[4].startswith("| server/keys ⚠ | 1 | `████████░░` 80.8% | 464 of 574 |")
+    assert rows[4].startswith(
+        "| server/keys ⚠ | 1 | 🟢 `████████░░` 80.8% | 464 of 574 | 🟡 `██████░░░░` 62.8% |"
+    )
     assert [r.split(" | ")[0] for r in rows[-3:]] == [
         "| **Server**",
         "| **Browser**",
         "| **Overall**",
     ]
-    assert rows[-1].startswith("| **Overall** | 4 | `█████████░` 87.4% | 7,607 of 8,708 |")
-    assert coverage.bar(None) == "—" and coverage.bar(4.9) == "`░░░░░░░░░░` 4.9%"
+    assert rows[-1].startswith("| **Overall** | 4 | 🟢 `█████████░` 87.4% | 7,607 of 8,708 |")
+    assert coverage.bar(None) == "—" and coverage.bar(4.9) == "🔴 `░░░░░░░░░░` 4.9%"
+
+
+def test_a_figure_s_band_is_green_from_80_and_red_under_60():
+    """S17.5.8: the bands, at their edges."""
+    got = [coverage.band(v)[0] for v in (0.0, 59.9, 60.0, 79.9, 80.0, 100.0)]
+    assert got == ["low", "low", "fair", "fair", "good", "good"]

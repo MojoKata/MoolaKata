@@ -88,6 +88,7 @@ class AccountDetail(AccountRow):
     statementIntervalProposal: str | None  # learned from what arrives, not yet accepted
     statementIntervalDismissed: str | None  # a proposal set aside
     withdrawalsAMonth: int | None  # a savings account's limit, the bank's (S1.2)
+    hsaCoverage: str | None  # an HSA's: self or family (S8.6)
     optionsValue: Money | None  # an investing account's options' market value
     capitalAtRisk: Money | None  # beside it (S3.5.6)
     capitalAtRiskUnlimited: bool = False
@@ -136,6 +137,7 @@ class AccountRecord(Model):
     # The interval learned from what arrives, set aside until another is learned.
     statementIntervalDismissed: str | None = None
     withdrawalsAMonth: int | None = None  # a savings account's limit, the bank's (S1.2)
+    hsaCoverage: str | None = None  # an HSA's: self or family (S8.6)
     # Sync using MoolaKata Connector (S18.6.2), the owner's alone: a Connection of theirs and
     # the institution account; null turns it off.
     connectionId: IdOf("Conn") | None = None  # type: ignore[valid-type]
@@ -166,7 +168,8 @@ class LotRow(Model):
     basis: Money | None
     basisMissing: bool
     standIn: bool
-    longTerm: bool
+    longTerm: bool | None  # None: the day bought is missing, the term unknown (CR3-73)
+    acquiredMissing: bool = False
 
 
 class HoldingRow(Model):
@@ -401,6 +404,7 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
         statementIntervalProposal=expected.proposal(a, imports_of(s, a.id)),
         statementIntervalDismissed=a.statementIntervalDismissed,
         withdrawalsAMonth=a.withdrawalsAMonth,
+        hsaCoverage=a.hsaCoverage,
         **_options_risk(s, a, ledger),
         **wallets.current(s, a),
         **_counted_ref(s, ctx.userId, a, p),
@@ -508,6 +512,7 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         "connectionId",
         "syncAccount",
         "withdrawalsAMonth",
+        "hsaCoverage",
     }
     if not p.configurable and sent & settings_fields:
         raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
@@ -543,6 +548,15 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
             )
         a.withdrawalsAMonth = body.withdrawalsAMonth
         changed.append("withdrawalsAMonth")
+    if "hsaCoverage" in sent and a.hsaCoverage != body.hsaCoverage:
+        if body.hsaCoverage is not None and (
+            a.type != "hsa" or body.hsaCoverage not in ("self", "family")
+        ):
+            message = "An HSA's coverage: self-only or family."
+            raise Problem(422, "coverage-invalid", message,
+                          [FieldError("hsaCoverage", "coverage-invalid", message)])  # fmt: skip
+        a.hsaCoverage = body.hsaCoverage
+        changed.append("hsaCoverage")
     if "statementInterval" in sent and a.statementInterval != body.statementInterval:
         a.statementInterval = body.statementInterval
         changed.append("statementInterval")
@@ -623,7 +637,10 @@ def account_holdings(account_id: str, request: Request, c: Caller = Depends(call
         a, _ = access.account(s, c.id, account_id)
         ledger = repo.load(s, a)
         replay = ledger.replay()
-        positions = valuation.positions(s, ledger)
+        # The account's parts (S5.2.3): a loan's or an item account's total is what it owes or
+        # its items are worth, never its ledger's balance.
+        parts = valuation.parts(s, ledger, atypes.investing(a.type))
+        positions = [x.position for x in parts if x.position is not None]
         insts = {
             i.id: i
             for i in s.scalars(
@@ -655,14 +672,17 @@ def account_holdings(account_id: str, request: Request, c: Caller = Depends(call
                             basis=x.basis,
                             basisMissing=x.basisMissing,
                             standIn=x.standIn,
-                            longTerm=long_term(x.heldFrom or x.acquiredOn, clock.today()),
+                            longTerm=None
+                            if x.acquiredMissing
+                            else long_term(x.heldFrom or x.acquiredOn, clock.today()),
+                            acquiredMissing=x.acquiredMissing,
                         )
                         for x in sorted(lots, key=lambda x: x.acquiredOn)
                     ],
                 )
             )
-        cash = ledger.balance()
-        total = cash + sum((r.value or Decimal(0) for r in rows), Decimal(0))
+        cash = sum((x.value for x in parts if x.kind == "cash"), Decimal(0))
+        total = sum((x.value or Decimal(0) for x in parts), Decimal(0))
         problems = [
             {
                 "kind": p.kind,
@@ -1028,6 +1048,7 @@ def _account_current(ctx, a: Account) -> dict:
         "statementInterval": a.statementInterval,
         "statementIntervalDismissed": a.statementIntervalDismissed,
         "withdrawalsAMonth": a.withdrawalsAMonth,
+        "hsaCoverage": a.hsaCoverage,
         "connectionId": a.connectionId,
         "syncAccount": a.syncAccount,
         **{f: getattr(a, f) for f in ACCOUNT_FIELDS},

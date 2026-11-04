@@ -11,9 +11,18 @@
    ticker, and a coin in an exchange's or a wallet's account (G27: correcting one). An
    option's symbol follows OCC (`AAPL  261218C00250000`); it is stored as people read it, `AAPL
    18DEC26 250 C`, and shown as `AAPL 18 Dec 26 250 C`.
-2. **Lots** are created by buys and by transfers in with a cost basis. A transfer in without a
-   cost basis asks for one, and the lot is marked *basis missing* until it has one. Taxes
-   lists these (S8.4).
+2. **Lots** are created by buys and by transfers in with a cost basis. Every lot is made by
+   a transaction: value that arrives comes with what moved it in, so returns count it as money
+   in, not growth (S5.2). A transfer in takes its
+   lots as they were bought: each with its day bought, quantity and basis, adding up to the
+   shares moved in, so a sale's term and gain count from the day bought, not the day they
+   arrived. One paired with a transfer out of another of the owner's accounts carries that
+   one's lots instead (S1.7.1). A transfer in without its lots (a broker's file says nothing
+   of them) is one lot marked *day bought missing* and *basis missing*: its term shows as
+   unknown, and Taxes lists it until both are typed (S8.4). What is known of a lot goes with it
+   wherever it goes: a sale from it has its term unknown and its Form 8949 date *VARIOUS*, and
+   Taxes lists the sale too; a symbol change, spin-off or merger carries the mark to the new
+   shares. Editing the transfer's date moves only a lot whose day bought is missing.
 3. **Sales consume lots** by the account's **lot method**: FIFO (the default), LIFO, HIFO,
    specific identification (chosen per sale), or **average cost** (mutual funds, and crypto
    where elected: a listed share in an account set to average cost is sold first in). The method in force at the sale is recorded on it, however the sale arrives

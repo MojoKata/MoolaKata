@@ -131,6 +131,9 @@ class Database:
         with Session(self.engine, expire_on_commit=False, autoflush=False) as s:
             self._scope(s, user, unscoped)
             s.connection(execution_options={"mk_mode": "read"})
+            # Nothing changes under it, so what it has read may be kept for its life: an
+            # account's ledger, an option's contract (`read_once`).
+            s.info["read_only"] = True
             # Leaving the block closes the session: the pool rolls the connection back, and
             # what was read stays loaded (a rollback here would expire it).
             yield s
@@ -150,3 +153,12 @@ def live(entity, table, *, include_deleted: bool = False):
     view = views.view_table(table)
     on = and_(*(table.c[c.name] == view.c[c.name] for c in table.primary_key.columns))
     return stmt.join(view, on).where(view.c.effectiveDeleted == false())
+
+
+def read_once(s, what: str) -> dict | None:
+    """A read session's store for what it has read already, by kind (an account's ledger, an
+    option's contract, an owner's prices on a day); None in a session that may write, where
+    what was read can change."""
+    if not s.info.get("read_only"):
+        return None
+    return s.info.setdefault(what, {})

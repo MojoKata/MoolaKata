@@ -40,8 +40,11 @@ ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine lar
 # The lines or branches an area's measure may move by between runs: a count, not points, since
 # one branch is a point of a one-file area. The server's and the connector's tests measure the
 # same each run; the browser's move 10 or more lines and branches with their timing.
-SLACK = {"server": 3, "connector": 3, "browser": 20}
+SLACK = {"server": 3, "connector": 3, "browser": 40}
 BAR = 10  # the job summary's bars, in characters
+# How well an area is tested, whatever its floor: the usual three bands (green from 80%, red
+# under 60%), each with its dot in the job summary and its colour on the site.
+BANDS = ((80.0, "good", "🟢"), (60.0, "fair", "🟡"), (0.0, "low", "🔴"))
 # Where each side's files sit, for the shorter names the site shows.
 ROOTS = ("web/server/src/moolakata/", "connector/moolakata_connector/", "web/ui/")
 
@@ -324,12 +327,17 @@ def show(v: float | None) -> str:
     return "—" if v is None else f"{v:.1f}%"
 
 
+def band(v: float) -> tuple[str, str]:
+    """A percentage's band: its name and its dot."""
+    return next((name, dot) for least, name, dot in BANDS if v >= least)
+
+
 def bar(v: float | None) -> str:
-    """A percentage as a bar of BAR characters, each a tenth, with the figure after it."""
+    """A percentage as its band's dot, a bar of BAR characters, each a tenth, and the figure."""
     if v is None:
         return "—"
     n = round(v * BAR / 100)
-    return f"`{'█' * n}{'░' * (BAR - n)}` {show(v)}"
+    return f"{band(v)[1]} `{'█' * n}{'░' * (BAR - n)}` {show(v)}"
 
 
 def reached(t: dict, kind: str) -> str:

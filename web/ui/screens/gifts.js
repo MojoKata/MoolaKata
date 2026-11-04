@@ -93,9 +93,8 @@ function Upcoming() {
                           <div class="small dim">${date(u.date)} · ${u.days === 0
                             ? 'today'
                             : `in ${u.days} day${u.days === 1 ? '' : 's'}`}${u.inLead
-                            ? html`
-                              · <span class="pill warn">inside the reminder time</span>
-                            `
+                            ? html`${' '}· <span class="pill warn">inside the reminder
+                              time</span>`
                             : null}</div>
                           <div class="toolbar" style=${{
                             margin: '6px 0 0',
@@ -182,9 +181,7 @@ function People() {
                     /** @type {KeyboardEvent} */ e,
                   ) => e.key === 'Enter' && open({ plan: p, person })}>
                     <td style=${{ whiteSpace: 'nowrap' }}><b>${person.name}</b>${person.private
-                      ? html`
-                        <span class="pill">private</span>
-                      `
+                      ? html`${' '}<span class="pill">private</span>`
                       : null}<div class="small dim">${[
                       person.relation,
                       p.access.mine ? null : `shared by ${p.ownerName}`,
@@ -256,9 +253,7 @@ function GiftList() {
                     <td class="small" style=${{ whiteSpace: 'nowrap' }}>${g
                       .occasionLabel}${g.occasionYear ? ` ${g.occasionYear}` : ''}</td>
                     <td>${g.description}${g.status === 'received' && g.thankYou
-                      ? html`
-                        <span class="small dim">· thanked</span>
-                      `
+                      ? html`${' '}<span class="small dim">· thanked</span>`
                       : null}</td>
                     <td>
                       <${StatusPill} status=${g.status} />
@@ -640,7 +635,7 @@ function PersonDialog({ close, row }) {
                   <div><b>${clash.name} is already here</b>${clash.visible
                     ? html`. <button type="button" class="btn sm" onClick=${use}>Use ${clash.name}</button>`
                     : html`
-                      , kept private by ${clash.createdBy || 'someone'}. <button type="button"
+                      ${''}, kept private by ${clash.createdBy || 'someone'}. <button type="button"
                         class="btn sm" disabled=${ask.busy} onClick=${() =>
                           ask.run().catch(() => {})}>Ask to share</button>
                     `} <button type="button" class="btn sm" onClick=${() =>

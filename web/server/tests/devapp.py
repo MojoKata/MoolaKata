@@ -3,6 +3,7 @@
 screen's or a dialog's guide (S12.7.6)."""
 
 import contextlib
+import json
 import re
 import socket
 import subprocess
@@ -13,8 +14,9 @@ from pathlib import Path
 
 import httpx
 import pytest
+from browser import SERVER_LOG
 
-from moolakata.dev.settled import SETTLED, TRACK_FETCHES
+from moolakata.dev.settled import SETTLED, TRACK_FETCHES, WAITING
 
 # A failed request shows in the console without its address; failed responses are checked by
 # address instead, where the session check before signing in may answer 401.
@@ -58,6 +60,7 @@ def dev_server(tmp_path_factory):
     data = tmp_path_factory.mktemp("dev")
     port = free_port()
     log = open(data / "server.log", "wb")  # noqa: SIM115 - closed below
+    SERVER_LOG.append(data / "server.log")
     # A file, not a pipe: a pipe nobody reads fills up and stops the server mid-request.
     proc = subprocess.Popen(
         [
@@ -182,17 +185,17 @@ def visit(page, path: str) -> None:
     pace(page)
     page.goto(page.base + path)
     try:
-        page.wait_for_selector(".content > *", timeout=15000)
+        page.wait_for_selector(".content > *", timeout=60000)
     except Exception:
         page.screenshot(path=str(Path(__file__).parent.parent / ".pytest_cache" / "stuck.png"))
-        raise AssertionError(f"{path} drew nothing in 15 s") from None
-    for _ in range(200):
-        if not page.evaluate("document.querySelector('.content [aria-busy=\"true\"]')"):
-            break
-        page.wait_for_timeout(50)
-    # Settled, so the next screen never tears this one down half-loaded (S17.5.8).
-    page.wait_for_function(SETTLED, timeout=15000)
-    page.wait_for_timeout(300)
+        raise AssertionError(f"{path} drew nothing in 60 s") from None
+    # Settled, so the next screen never tears this one down half-loaded (S17.5.8). A generous
+    # wait on the condition, never a fixed one: a slow runner takes longer, not a wrong turn.
+    try:
+        page.wait_for_function(SETTLED, timeout=60000)
+    except Exception:
+        waiting = page.evaluate(WAITING)
+        raise AssertionError(f"{path} didn't settle in 60 s, waiting on {waiting}") from None
 
 
 def pace(page) -> None:
@@ -204,10 +207,27 @@ def pace(page) -> None:
         page.wait_for_timeout(1000 * (61 - (time.monotonic() - times[0])))
 
 
+def api_items(page, path: str) -> list[dict]:
+    """A list route's items, fetched in the page as the app fetches them. A 429 (the API's
+    limit per session, S13.7.5) is waited out as its Retry-After says, at most three times;
+    any other failure names its status and answer instead of reading `.items` of an error."""
+    for _ in range(4):
+        r = page.evaluate(
+            """async (p) => { const r = await fetch(p);
+                return { status: r.status, wait: r.headers.get('retry-after'),
+                         body: await r.text() }; }""",
+            path,
+        )
+        if r["status"] == 429:
+            time.sleep(min(int(r["wait"] or 1), 60))
+            continue
+        assert r["status"] == 200, f"{path}: {r['status']} {r['body'][:300]}"
+        return json.loads(r["body"])["items"]
+    raise AssertionError(f"{path}: still 429 after waiting three times")
+
+
 def account_ids(page) -> dict[str, str]:
-    return page.evaluate("""async () => Object.fromEntries(
-        (await (await fetch('/ui/api/accounts')).json()).items
-        .map((a) => [a.type, a.id]))""")
+    return {a["type"]: a["id"] for a in api_items(page, "/ui/api/accounts")}
 
 
 def wait_guide(page, key: str) -> None:

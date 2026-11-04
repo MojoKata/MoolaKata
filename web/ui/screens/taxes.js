@@ -123,8 +123,7 @@ export default function Taxes({ tab }) {
               options=${held.map((r) => [r.id, r.label])} />
             </${Field}>
         `
-        : null}
-      <span class="spacer"></span>
+        : null}<span class="spacer"></span>
       <button class="btn" onClick=${create}><${Icon} name="plus" /> New tax book</button>
       ${chosen && chosen.access.shareable
         ? html`<button class="btn" onClick=${() =>
@@ -330,7 +329,7 @@ function Dependents({ b, done }) {
                 : null}</div></div><span class="small">${ageLine(d, b.year)}</span>${d
                   .claimedElsewhere
                 ? html`
-                  <span class="pill warn" title="Claimed on another tax book for this year"
+                  ${' '}<span class="pill warn" title="Claimed on another tax book for this year"
                   >also claimed elsewhere</span>
                 `
                 : null}</div>
@@ -510,9 +509,7 @@ function Filings({ b, done }) {
                       <div><div class="small dim">Filed</div>${f.filedOn
                         ? date(f.filedOn)
                         : '—'}${f.sentBy
-                        ? html`
-                          <span class="small dim">· ${f.sentBy}</span>
-                        `
+                        ? html`${' '}<span class="small dim">· ${f.sentBy}</span>`
                         : null}</div>
                       <div><div class="small dim">Result</div>${f.resultKind === 'refund'
                         ? html`Refund <${Amt} v=${f.resultAmount} />`
@@ -582,9 +579,7 @@ function Documents({ b, done }) {
                 ? html`<span class="pill ok"><${Icon} name="check" /> received</span>${
                   e.document
                       .fileName
-                    ? html`
-                      <span class="small dim"><${Icon} name="clip" /> ${e.document.fileName}</span>
-                    `
+                    ? html`${' '}<span class="small dim"><${Icon} name="clip" /> ${e.document.fileName}</span>`
                     : null
                 }`
                 : b.access.writable
@@ -607,12 +602,9 @@ function Documents({ b, done }) {
               <td class="dim">${d.issuer || '—'}</td>
               <td
                 class="small dim">added</td>
-              <td><span class="pill ok"><${Icon} name="check" />
-                        received</span>${d.fileName
-                          ? html`
-                            <span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>
-                          `
-                          : null}</td>
+              <td><span class="pill ok"><${Icon} name="check" /> received</span>${d.fileName
+                ? html`${' '}<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
+                : null}</td>
             </tr>
           `
         )}

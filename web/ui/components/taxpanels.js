@@ -125,13 +125,15 @@ export function SummaryFigures({ b }) {
 /**
  * The sales TXF can't carry, counted by why (S8.2): "TXF leaves out 4 sales (3 digital
  * assets, 1 collectable): enter them from the CSV."
- * @param {{ digital: number, collectable: number, personalUse: number }} n
+ * @param {{ digital: number, collectable: number, personalUse: number, noLot: number, noBasis: number }} n
  */
 function txfLeftOut(n) {
   const kinds = /** @type {[number, string, string][]} */ ([
     [n.digital, 'digital asset', 'digital assets'],
     [n.collectable, 'collectable', 'collectables'],
     [n.personalUse, 'personal-use loss', 'personal-use losses'],
+    [n.noLot, 'sale without a lot', 'sales without a lot'],
+    [n.noBasis, 'sale without its basis', 'sales without their basis'],
   ]).filter(([c]) => c);
   const all = kinds.reduce((t, [c]) => t + c, 0);
   if (!all) return null;
@@ -190,7 +192,11 @@ function Gains({ p }) {
                           .collectable
                         ? ' · collectable'
                         : ''}</div></td>
-                      <td class="small">${r.acquired ? date(r.acquired) : 'Various'}</td>
+                      <td class="small">${r.acquired
+                        ? date(r.acquired)
+                        : r.lotMissing
+                        ? html`<span class="pill warn">missing</span>`
+                        : 'Various'}</td>
                       <td class="small">${date(r.sold)}</td>
                       <td class="num">
                         <${Amt} v=${r.proceeds} />
@@ -280,6 +286,16 @@ function Income({ p }) {
             v=${x.amount} /></div>`
         )}
       </div>
+      <div class="card"><h3 data-help="foreign-tax">Foreign tax paid (7)</h3>${i.foreignTax.length
+        ? i.foreignTax.map((/** @type {any} */ x) =>
+          html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
+        )
+        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+      <div class="card"><h3 data-help="crypto-income">Crypto income</h3>${i.cryptoIncome.length
+        ? i.cryptoIncome.map((/** @type {any} */ x) =>
+          html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
+        )
+        : html`<p class="small dim">No staking or rewards in ${p.year}.</p>`}</div>
     </div>
   `;
 }
@@ -310,8 +326,8 @@ function Retirement({ p }) {
                     <td>${c.owner}</td>
                     <td class="num">
                       <${Amt} v=${c.contributed} />${c.across
-                        ? html`<div class="small dim">${html`<${Amt} v=${c.personTotal} />`}
-                          across their ${c.across}</div>`
+                        ? html`<div class="small dim">${html`<${Amt} v=${c.personTotal} />`} across
+                          their ${c.across}</div>`
                         : null}
                     </td>
                     <td class="num">${c.limit
@@ -342,13 +358,28 @@ function Retirement({ p }) {
               <div
                 class="grow">${x.account}<div class="small dim">${x
                   .owner}, ${x.age}: <${Amt} v=${x
-                  .balance} cents=${false} /> at the end of last year ÷
-                        ${x.factor}</div></div>
+                  .balance} cents=${false} /> at the end of last year ÷ ${x.factor}</div></div>
               <${Amt} v=${x.due} />
             </div>
           `
         )
         : html`<p class="small dim">None due: no owner has reached the RMD age.</p>`}</div>
+    </div>
+    <div class="grid g2 mt">
+      <div class="card"><h3 data-help="conversions">Roth conversions</h3>${r.conversions.length
+        ? r.conversions.map((/** @type {any} */ m) =>
+          html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
+            class="small dim">${date(m.date)}${
+            m.taxable != null ? html`${' '}· taxed <${Amt} v=${m.taxable} /> by Form 8606` : ''
+          }</div></span><${Amt} v=${m.amount} /></div>`
+        )
+        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+      <div class="card"><h3 data-help="rollovers">Rollovers</h3>${r.rollovers.length
+        ? r.rollovers.map((/** @type {any} */ m) =>
+          html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
+            class="small dim">${date(m.date)}</div></span><${Amt} v=${m.amount} /></div>`
+        )
+        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
     </div>
   `;
 }
@@ -556,7 +587,7 @@ function Education({ p }) {
 
 /** @param {{ p: any }} p */
 function Property({ p }) {
-  const sold = p.rows.filter((/** @type {any} */ r) => !r.description.match(/^\d/));
+  const sold = p.rows.filter((/** @type {any} */ r) => r.kind === 'item');
   return html`
     <div class="grid g2">
       <div class="card"><h3>Loans (1098, 1098-E)</h3>${p.loans.length
@@ -624,7 +655,8 @@ function Issues({ p, b, reload }) {
             class="list-item"><${Icon} name="alert" /><span class="grow">${i.text}</span>${i
                     .kind === 'changed-after-filing' && b.access.writable
               ? html`
-                <a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><button class="btn sm"
+                ${''}<a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><button
+                  class="btn sm"
                   onClick=${waive}>No amendment needed</button>
               `
               : i.link

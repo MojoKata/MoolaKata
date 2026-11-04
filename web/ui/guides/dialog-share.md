@@ -24,9 +24,10 @@ name or figures, and it can't be shared on from there.
 
 ## Include receipts {#include-receipts}
 
-Off by default: receipts are large and personal. On, the item's receipts (and a tax book's
-document files) cross to that server with the text read from them; off, they see only how many
-receipts a transaction has.
+Off by default: receipts are large and personal. On, the item's receipts (an account's, a gift
+plan's, a giving plan's, or a tax book's document files) cross to that server with the text read
+from them; off, they see only how many receipts a transaction has. Shown only for what has files
+to send.
 
 ## Share these accounts too
 

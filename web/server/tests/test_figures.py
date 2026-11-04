@@ -6,6 +6,7 @@ from edits import edit, make, remove
 from sqlalchemy import text
 from test_accounts import add, new_account
 
+from moolakata import clock
 from moolakata.ledger import performance as perf
 
 d = dt.date
@@ -172,3 +173,147 @@ def test_a_deleted_account_leaves_a_portfolios_past(server):
     s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "1Y"}).json()
     by_day = {x["date"]: x["value"] for x in s["points"]}
     assert by_day["2026-08-01"] == "1000.00"
+
+
+# ---------- one breakdown of an account (CR3-30, CR3-32, CR3-394) ----------
+
+
+def _checking_and_mortgage(server):
+    from edits import saved, terms
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    bank = new_account(c, name="Checking", openingBalance="0.00", openingDate="2026-06-30")
+    add(c, bank["id"], "5000.00", "2026-07-01", kind="deposit")
+    loan = new_account(c, name="Mortgage", type="mortgage")
+    saved(
+        terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
+    )
+    add(c, loan["id"], "2000.00", "2026-07-01", kind="deposit")
+    p = make(c, "Portf", name="Both", accountIds=[bank["id"], loan["id"]]).json()
+    return c, p, loan
+
+
+def test_holdings_count_a_loan_at_what_is_owed(server):
+    """CR3-30: a loan's payments aren't cash; it counts minus what is owed, on a row of its
+    own, and the Holdings total is the portfolio's value."""
+    c, p, loan = _checking_and_mortgage(server)
+    owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
+    value = c.get(f"/ui/api/portfolios/{p['id']}").json()["value"]
+    h = c.get(f"/ui/api/portfolios/{p['id']}/holdings").json()
+    assert h["cash"] == "5000.00"
+    assert [(o["kind"], o["name"], o["value"], o["weight"]) for o in h["others"]] == [
+        ("loan", "Mortgage", f"-{owed}", None)
+    ]
+    assert h["total"] == value == f"{D('5000') - D(owed):.2f}"
+    assert c.get(f"/ui/api/accounts/{loan['id']}/holdings").json()["total"] == f"-{owed}"
+
+
+def test_a_projection_leaves_a_loan_out_and_names_it(server):
+    """CR3-32: a projection on checking and a mortgage starts from the cash, all of it cash,
+    and names the mortgage it leaves out; start + left out = the portfolio's value."""
+    c, p, loan = _checking_and_mortgage(server)
+    owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
+    r = make(c, "Prjct", name="Save", goal="savings", builtOn={"kind": "portfolio", "id": p["id"]},
+             inputs={"target": 20000, "targetDate": "2030-01-01"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    res = c.get(f"/ui/api/projections/{r.json()['id']}").json()["result"]
+    assert res["start"] == "5000.00" and res["weights"] == {"cash": 1.0}
+    assert res["leftOut"] == [{"name": "Mortgage", "value": f"-{owed}"}]
+    value = D(c.get(f"/ui/api/portfolios/{p['id']}").json()["value"])
+    assert D(res["start"]) + sum(D(x["value"]) for x in res["leftOut"]) == value
+
+
+def test_an_accounts_value_on_a_past_day_holds_what_it_held_then(server):
+    """CR3-394: a past day's value counts the shares held that day, not today's."""
+    from moolakata import valuation
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.repos import ledger as repo
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Brokerage", type="brokerage", openingBalance="0.00",
+                    openingDate="2026-01-01")  # fmt: skip
+    add(c, a["id"], "3000.00", "2026-01-02", kind="deposit")
+    add(c, a["id"], "-1000.00", "2026-01-02", kind="buy", symbol="VTI", quantity="10", price="100")
+    add(c, a["id"], "-1100.00", "2026-06-01", kind="buy", symbol="VTI", quantity="10", price="110")
+    with server.db.read(unscoped="test") as s:
+        led = repo.load(s, s.get(Account, a["id"]))
+        march = valuation.account_value(s, led, True, dt.date(2026, 3, 1))
+        june = valuation.account_value(s, led, True, dt.date(2026, 6, 2))
+    # March: $2,000 cash and 10 shares at the last trade's $100; June: $900 and 20 at $110.
+    assert (march, june) == (D("3000.00"), D("3100.00"))
+
+
+def test_shares_moved_in_are_money_in_not_growth(server):
+    """CR3-28: shares transferred in from another broker count as contributed, at the price the
+    series values them; the time-weighted return takes none of them as performance."""
+    clock.fix(dt.datetime(2026, 10, 13, 15, 0, tzinfo=dt.UTC))
+    try:
+        make_user(server, "alice")
+        c = sign_in(server, "alice")
+        a = new_account(c, name="Brokerage", type="brokerage", openingBalance="0.00",
+                        openingDate="2026-01-01")  # fmt: skip
+        add(c, a["id"], "10000.00", "2026-01-02", kind="deposit")
+        add(c, a["id"], "-10000.00", "2026-01-02", kind="buy", symbol="VTI", quantity="100",
+            price="100")  # fmt: skip
+        add(c, a["id"], "0.00", "2026-06-01", kind="transfer-in", symbol="VTI", quantity="50",
+            costBasis="4000")  # fmt: skip
+        p = make(c, "Portf", name="Mine", accountIds=[a["id"]]).json()
+        s = c.get(f"/ui/api/portfolios/{p['id']}/series", params={"range": "YTD"}).json()
+        assert s["end"] == "15000.00"
+        assert s["contributed"] == "15000.00" and s["growth"] == "0.00"
+        assert D(s["twr"] or "0") == 0
+    finally:
+        clock.fix(None)
+
+
+def _npv(rate, start, cash):
+    return sum(c / (1 + rate) ** ((day - start).days / 365.25) for day, c in cash)
+
+
+def test_irr_finds_the_rate_to_a_billionth_and_says_none_when_there_is_none():
+    """The money-weighted rate (S5.4): found to within 1e-9 of the exact one, flows counted
+    only inside the period (after its first day, to its last), and None when nothing went in,
+    nothing came out, or no rate from -99% to +1000% a year fits."""
+    start, end = d(2026, 1, 1), d(2027, 1, 1)
+    years = D((end - start).days) / D("365.25")
+    exact = D("1.1") ** (1 / years) - 1
+    assert abs(perf.irr(start, D(100), {}, end, D(110)) - exact) < D("1e-8")
+    loss = perf.irr(start, D(100), {}, end, D(50))
+    assert abs(loss - (D("0.5") ** (1 / years) - 1)) < D("1e-8")
+    flow = {d(2026, 4, 1): D(50), d(2026, 9, 1): D(-30)}
+    rate = perf.irr(start, D(100), flow, end, D(140))
+    cash = [(start, -100.0), (d(2026, 4, 1), -50.0), (d(2026, 9, 1), 30.0), (end, 140.0)]
+    assert abs(_npv(float(rate), start, cash)) < 1e-6
+    # Flows on the first day or after the last aren't the period's.
+    outside = {start: D(1000), d(2027, 1, 2): D(1000), **flow}
+    assert perf.irr(start, D(100), outside, end, D(140)) == rate
+    assert perf.irr(start, D(0), {}, end, D(100)) is None  # nothing went in
+    assert perf.irr(start, D(100), {}, end, D(0)) is None  # nothing came out
+    assert perf.irr(start, D(1), {}, end, D(1000)) is None  # +99,900%: past the bracket
+
+
+def test_an_option_without_a_mark_is_worth_what_exercising_it_would_be(server):
+    """S3.7: with no close or typed mark, an option counts its intrinsic value at the
+    underlying's price, times its 100 shares a contract, labelled as such; one out of the
+    money counts nothing, never less."""
+    from edits import create, option_trade, saved
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Options", type="brokerage", openingBalance="0.00",
+                    openingDate="2026-01-01")  # fmt: skip
+    r = create(c, "Txn", accountId=a["id"], date="2026-09-01", kind="buy", symbol="MSFT",
+               quantity="10", price="500", amount="-5000.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    for right, strike, n in (("call", "480", "2"), ("put", "520", "1"), ("call", "550", "1")):
+        saved(option_trade(c, a["id"], "2026-09-02", "buy-to-open", "MSFT", right, strike,
+                           "2026-12-18", n, "5.00"))  # fmt: skip
+    h = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
+    got = {x["symbol"]: (x["price"], x["value"], x["priceSource"]) for x in h if " " in x["symbol"]}
+    assert got == {
+        "MSFT 18DEC26 480 C": (20, 4000, "intrinsic"),
+        "MSFT 18DEC26 520 P": (20, 2000, "intrinsic"),
+        "MSFT 18DEC26 550 C": (0, 0, "intrinsic"),
+    }

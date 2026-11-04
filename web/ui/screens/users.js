@@ -27,7 +27,9 @@ export default function Users() {
   const [busy, setBusy] = useState('');
   const u = /** @type {any[]} */ (users.data);
   const g = /** @type {any[]} */ (groups.data);
-  if (users.error) return html`<${Failed} error=${users.error} />`;
+  if (users.error || groups.error) {
+    return html`<${Failed} error=${users.error || groups.error} />`;
+  }
   if (!u || !g) return html`<${Loading} lines=${8} />`;
   const name = (/** @type {string} */ id) => g.find((x) => x.id === id)?.name;
   const reload = () => {
@@ -121,11 +123,7 @@ export default function Users() {
                       )}>Resend invitation</button>
                 `
                 : html`
-                  ${x.twoStep
-                    ? html`
-                      <span class="pill ok">two-step</span>
-                    `
-                    : null}<span
+                  ${x.twoStep ? html`<span class="pill ok">two-step</span>${' '}` : null}<span
                     class="small dim">${x.lastSignInAt
                       ? 'signed in ' + ago(x.lastSignInAt)
                       : 'never signed in'}</span>
@@ -169,9 +167,7 @@ export default function Users() {
             <tr class="click" onClick=${() =>
               openDialog(GroupDialog, { users: u, group: x }).then((r) => r && reload())}>
               <td><b>${x.name}</b>${x.builtIn
-                ? html`
-                  <span class="pill">built in</span>
-                `
+                ? html`${' '}<span class="pill">built in</span>`
                 : null}</td>
               <td>${x.memberIds.map((/** @type {string} */ m) => {
                 const who = u.find((y) => y.id === m);
@@ -375,9 +371,7 @@ function GroupPicker({ groups, ids, setIds, error }) {
         setIds(ids.includes(g.id) ? ids.filter((x) => x !== g.id) : [...ids, g.id])} />
       <span class="grow">${g.name}${
         g.builtIn
-          ? html`
-            <span class="small dim">· manages users, groups and Settings</span>
-          `
+          ? html`${' '}<span class="small dim">· manages users, groups and Settings</span>`
           : null
       }</span></label>`
     )

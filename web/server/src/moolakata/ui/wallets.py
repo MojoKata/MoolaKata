@@ -11,7 +11,7 @@ from ..bitcoin import keys as bk
 from ..bitcoin import wallet
 from ..errors import Problem, refuse
 from ..store.entities.accounts import WalletKey
-from .conventions import ExactRoute, Model, if_match, version_of
+from .conventions import ExactRoute, Model, Quantity, if_match, version_of
 from .deps import Caller, caller, server
 from .prices import apply_egress
 
@@ -211,6 +211,8 @@ class TransferPair(Model):
     fromDate: dt.date
     toDate: dt.date
     sats: int
+    symbol: str
+    quantity: Quantity
     version: int
 
 

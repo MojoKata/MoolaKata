@@ -55,6 +55,14 @@ function shareRec(kind) {
 }
 
 /** @param {{ close: (v?: any) => void, kind: string, id: string, name: string }} p */
+/** What *Include receipts* sends, for the kinds that have files to send (S11.5.1). */
+const FILES = /** @type {Record<string, string>} */ ({
+  account: 'Its receipts, their images and the text read from them,',
+  'gift-plan': 'Its gifts’ receipts and documents',
+  'giving-plan': 'Its donations’ receipts',
+  'tax-book': 'Its documents’ files (a W-2, a 1099) and the text read from them',
+});
+
 export function ShareDialog({ close, kind, id, name }) {
   const ShareRec = shareRec(kind);
   useDialogGuide('dialog-share');
@@ -244,9 +252,7 @@ export function ShareDialog({ close, kind, id, name }) {
             ${view.links.map((/** @type {any} */ l) =>
               html`
                 <h4>On ${l.serverName}${l.householdName
-                  ? html`
-                    <span class="small dim">${l.householdName}</span>
-                  `
+                  ? html`${' '}<span class="small dim">${l.householdName}</span>`
                   : null}</h4>
                 <div class="why" data-help="linked-people">People on a linked server, as it
                   names them: always Read, seen only in its window there.</div>
@@ -261,9 +267,11 @@ export function ShareDialog({ close, kind, id, name }) {
                     </div>
                   `
                 )}
-                ${l.users.some((/** @type {any} */ u) => users[u.id] === 'read')
+                ${FILES[kind] && l.users.some((/** @type {any} */ u) => users[u.id] === 'read')
                   ? html`<div class="list-item"><span class="grow">Include receipts<div
-                      class="small dim">Their images and the text read from them cross to ${l.serverName} too.</div></span><${Switch} label=${
+                      class="small dim">${
+                    FILES[kind]
+                  } cross to ${l.serverName} too.</div></span><${Switch} label=${
                     'Include receipts for ' +
                     l.serverName
                   } id=${l.linkId} help="include-receipts" on=${!!receipts[

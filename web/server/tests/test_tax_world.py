@@ -1,5 +1,5 @@
-"""Generated tax worlds (`tax_world`), made through the API and held to the reference model
-(`tax_reference`) and to the tax panels' own sums (requirements S2.3, S3.1, S3.8, S8.1, S8.2,
+"""Generated tax worlds (`worlds.tax`), made through the API and held to the reference model
+(`worlds.tax_reference`) and to the tax panels' own sums (requirements S2.3, S3.1, S3.8, S8.1, S8.2,
 S8.3, S8.14).
 
 For every tax book of every world:
@@ -17,10 +17,10 @@ import io
 from decimal import Decimal
 
 import pytest
-import tax_reference as ref
-import tax_world as tw
 from conftest import make_user, sign_in
 from edits import create, make, option_trade
+from worlds import tax as tw
+from worlds import tax_reference as ref
 
 from moolakata import clock
 
@@ -28,12 +28,11 @@ T0 = dt.datetime(tw.TODAY.year, tw.TODAY.month, tw.TODAY.day, 15, 0, tzinfo=dt.U
 
 
 def test_the_worlds_meet_every_pair_of_data_shapes():
-    for kind in tw.AXES:
-        got = set()
-        for seed in tw.SEEDS:
-            got |= tw.pairs(tw.world(seed))[kind]
-        missing = tw.all_pairs(kind) - got
-        assert not missing, (kind, sorted(sorted(p) for p in missing)[:10])
+    """Every pair of values of two axes of one record that can exist meets in some world, and
+    no world holds a pair the rules say can't."""
+    worlds = [tw.world(seed) for seed in tw.SEEDS]
+    assert not tw.AXES.missing(worlds), {k: v[:10] for k, v in tw.AXES.missing(worlds).items()}
+    assert not tw.AXES.impossible_reached(worlds)
 
 
 def test_the_reference_settles_every_world():
@@ -197,7 +196,7 @@ def _app_key(r: dict) -> tuple:
     return (r["account"], r["description"],
             dt.date.fromisoformat(r["acquired"]) if r["acquired"] else None,
             dt.date.fromisoformat(r["sold"]), _d(r["proceeds"]), _d(r["basis"]),
-            _d(r["adjustment"]), r["longTerm"], r["box"])  # fmt: skip
+            _d(r["adjustment"]), r["longTerm"], r["box"], r["kind"])  # fmt: skip
 
 
 def _diff(app: list[tuple], want: list[tuple]) -> str:
@@ -217,6 +216,18 @@ def _diff(app: list[tuple], want: list[tuple]) -> str:
 def test_a_world(made):
     """Each book's Form 8949 and income are the reference model's; its Schedule D, wash sales
     and CSV export follow its rows."""
+    check(made)
+
+
+def check_world(server, seed: int) -> None:
+    """Make the world of `seed` and check it; run under each of `PLANTS` by `test_worlds`."""
+    try:
+        check(Made(server, tw.world(seed)))
+    finally:
+        clock.fix(None)
+
+
+def check(made) -> None:
     _the_rows_are_the_reference_models(made)
     _schedule_d_washes_and_the_export_follow_the_rows(made)
     _income_is_the_reference_models(made)
@@ -232,6 +243,7 @@ def _income_is_the_reference_models(made):
             "ordinary": (_d(got["ordinary"]), want.ordinary),
             "qualified": (_d(got["qualified"]), want.qualified),
             "gain distributions": (_d(got["capitalGainDistributions"]), want.gain_distributions),
+            "return of capital": (_d(got["returnOfCapital"]), want.return_of_capital),
         }
         wrong += [f"{year} {'+'.join(filers)} {k}: got {g}, want {w}"
                   for k, (g, w) in pairs.items() if g != w]  # fmt: skip

@@ -15,13 +15,17 @@ produces worksheets and exports. It never files, and says so (R1.16).
    or a wallet's) is a digital asset, whether typed or imported. A written option's row has
    the premium received as its proceeds and what closing it cost as its basis, dated from its
    opening to its close; a row's acquired date is *VARIOUS* only when a snapshot stood in for
-   the lot's history (R3.2). Sources: the [2025 Form
+   the lot's history (R3.2). A sale without a matching lot (4) has its acquired date missing,
+   as its basis is: never the day it was sold; it counts as short-term until the lot is
+   entered. Sources: the [2025 Form
    8949](https://www.irs.gov/pub/irs-pdf/f8949.pdf) and [its
    instructions](https://www.irs.gov/pub/irs-pdf/i8949.pdf), kept in `docs/external/`.
 2. **Exports**: Form 8949 CSV, **TXF** (which TurboTax and others import), and a PDF summary
    for a preparer. Each export says what it covers and what it does not. TXF (format V042)
-   carries boxes A to F and the wash-sale adjustment only: a row with another code (C, L) or in
-   a digital asset's box (G to L) is left out of it and entered from the CSV. A book with such
+   carries boxes A to F and the wash-sale adjustment only: a row with another code (C, L), in
+   a digital asset's box (G to L), without a matching lot (no date to write; the CSV leaves
+   it blank), or without its basis (never written as 0) is left out of it and entered from
+   the CSV. A book with such
    rows counts them by why beside the TXF export (*TXF leaves out 4 sales (3 digital assets,
    1 collectable): enter them from the CSV.*).
 3. **Wash sales** found (S3.8), with the disallowed amounts and the replacement lots, and
@@ -32,10 +36,24 @@ produces worksheets and exports. It never files, and says so (R1.16).
    preparer (S3.8.5), and edits made since the federal return was filed (S8.15).
 5. **Income**: interest (1099-INT), dividends ordinary, qualified and capital-gain
    distributions (1099-DIV), foreign tax paid, and crypto income (staking, rewards) at fair
-   value when received.
+   value when received. Foreign tax is a transaction of its own kind (`foreign-tax`, money
+   out, of the fund that paid it), shown by payer as box 7; a broker's file brings it on its
+   own line (Fidelity's *Foreign Tax Paid*), and it can be typed. Coins received as income are
+   a `reward`: a quantity at the day's price (typed, else the owner's price that day), no
+   cash; that value is the ordinary income, by account, and the basis of the lot it makes. An
+   exchange's file brings them as its *Staking Income* and *Rewards Income* lines.
 6. **Retirement**: contributions per account against the year's limits (with catch-up by
    age), Roth eligibility by MAGI as the user enters it, backdoor-Roth steps (non-deductible
-   contribution, conversion, Form 8606 figures), distributions, and RMDs due.
+   contribution, conversion, Form 8606 figures), distributions, and RMDs due. Each movement of
+   money into or out of a retirement account is one thing, told once: a **contribution** (the
+   owner's, or the employer's), a **rollover** (between accounts of the same tax treatment, a
+   trustee-to-trustee move too), a **conversion** (pre-tax to Roth) or a **distribution**. A
+   matched transfer tells it by its other half's account; a source set on the transaction
+   says it otherwise. Only contributions count against a limit; rollovers and conversions are
+   listed apart, a conversion with its part taxed by Form 8606's pro rata rule when the basis
+   is known, and neither is a distribution. An HSA's limit is its coverage's (self-only or
+   family, set on the account; unset, the family limit, and the panel asks), $1,000 more at
+   55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their
    transactions and **receipts**. Charitable gifts above the substantiation threshold show
    whether a receipt is attached. Medical, childcare, education, HSA, and estimated tax

@@ -199,8 +199,8 @@ def _secured(s, item_ids: list[str], day: dt.date) -> dict[str, list[SecuredLoan
     for row in s.scalars(
         select(Loan).where(Loan.securedById.in_(item_ids), Loan.deleted == false())
     ):
-        a = s.get(Account, row.accountId)
-        if a is None or a.deleted:
+        a = s.get(Account, row.accountId)  # a loan's account is always there, if deleted
+        if a.deleted:
             continue
         owed = -loans.value(s, a, day)
         out[row.securedById].append(SecuredLoan(accountId=a.id, name=a.name, owed=owed))
@@ -239,6 +239,7 @@ def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRo
     latest = assets.latest_valuation(d, today)
     owed = sum((x.owed for x in secured), Decimal(0))
     end = it.soldOn or today
+    sale = _sale(a, it, d)
     return ItemRow(
         id=it.id,
         accountId=a.id,
@@ -254,13 +255,13 @@ def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRo
         else None,
         basis=basis,
         value=value,
-        gain=(value - basis) if it.soldOn is None else (assets.gain(it, d) or Decimal(0)),
+        gain=sale.gain if sale else value - basis,
         years=round((end - it.acquiredOn).days / 365.25, 1),
         latest=_valuation_out(latest) if latest else None,
         stale=assets.is_stale(it, d, today),
-        sale=_sale(a, it, d),
+        sale=sale,
         loans=secured,
-        equity=(value - owed) if secured and it.soldOn is None else None,
+        equity=(value - owed) if secured and sale is None else None,
         version=it.version,
     )
 
@@ -292,14 +293,15 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     sp = assets.spots(s, [it], today).get(it.metal or "")
     sec = _secured(s, [it.id], today)[it.id]
     base = _row(a, it, d, sp.price if sp else None, sec, today)
-    # Its value at each month's end since it was acquired, for its history.
+    # Its value at each month's end since it was acquired, for its history: acquired by today
+    # and sold no earlier (the save's rules), its first month ends on or after the day acquired.
     first = it.acquiredOn
     history = []
     month = dt.date(first.year, first.month, 1)
     pts = []
     inst = assets.find_metal(s, it.metal) if it.valuation == "spot" and it.metal else None
     if inst is not None:
-        pts = valuation.price_points(s, [inst.id], first, today).get(inst.id, [])
+        pts = valuation.price_points(s, [inst.id], first, today, owner=a.ownerId).get(inst.id, [])
     end = it.soldOn or today
     k = 0
     current = None
@@ -309,7 +311,7 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
         while k < len(pts) and pts[k][0] <= day:
             current = pts[k][1]
             k += 1
-        history.append((day, assets.value_on(it, d, max(day, first), current)))
+        history.append((day, assets.value_on(it, d, day, current)))
         month = nxt
     return ItemDetail(
         **base.model_dump(),
@@ -495,7 +497,7 @@ class ImprovementRecord(ImprovementIn):
 ITEM_FIELDS = tuple(f for f in ItemIn.model_fields if f != "purity")
 
 
-def _sale_values(it: Item, body: ItemRecord) -> dict:
+def _sale_values(body: ItemRecord) -> dict:
     """Recorded, the gain or loss is realized and the item leaves the account's value from
     that day (S1.10.5); taken away, it is held again."""
     if body.soldOn is None:
@@ -530,7 +532,7 @@ def _item_create(ctx, record_id: str, body: ItemRecord) -> None:
     if it.metal:
         assets.metal_instrument(s, it.metal)  # so the refresh prices its spot
     s.flush()
-    for k, v in _sale_values(it, body).items():
+    for k, v in _sale_values(body).items():
         setattr(it, k, v)
     _documents(s, c, it, [], body.receiptIds)
     _record(s, "item.added", c, a)
@@ -556,9 +558,9 @@ def _item_update(ctx, it: Item, body: ItemRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.accountId != it.accountId:
         raise refuse("accountId", "item-fixed", "An item stays in its account.")
-    _, a, _ = _item(s, c, it.id, "write")
+    a = s.get(Account, it.accountId)  # written by the caller: `_item_editable` asked
     sold = it.soldOn
-    for k, v in {**_values(body, a.type), **_sale_values(it, body)}.items():
+    for k, v in {**_values(body, a.type), **_sale_values(body)}.items():
         setattr(it, k, v)
     if it.metal:
         assets.metal_instrument(s, it.metal)
@@ -569,7 +571,7 @@ def _item_update(ctx, it: Item, body: ItemRecord) -> None:
 
 def _item_delete(ctx, it: Item) -> None:
     """Its valuations and improvements go with it (schema.md §4)."""
-    _, a, _ = _item(ctx.s, ctx.caller, it.id, "write")
+    a = ctx.s.get(Account, it.accountId)  # written by the caller: `_item_editable` asked
     it.mark_deleted(ctx.caller.id)
     _record(ctx.s, "item.deleted", ctx.caller, a)
 
@@ -579,13 +581,18 @@ def _item_read(ctx, record_id: str) -> ItemDetail:
     return detail(ctx.s, ctx.caller, it, a, held)
 
 
-def _valuation_create(ctx, record_id: str, body: ValuationRecord) -> None:
+def _valuation_checked(body: ValuationRecord) -> None:
+    """A valuation, made or changed: zero or more, from a known source, on a day not ahead."""
     if body.value < 0:
         raise refuse("value", "amount-invalid", "Zero or more.")
     if body.source not in SOURCES:
         raise refuse("source", "source-invalid", "Appraisal, sale, guide or estimate.")
     if body.date > clock.today():
         raise refuse("date", "date-ahead", "Not after today.")
+
+
+def _valuation_create(ctx, record_id: str, body: ValuationRecord) -> None:
+    _valuation_checked(body)
     it, _, _ = _item(ctx.s, ctx.caller, body.itemId)
     ctx.s.add(
         ItemValuation(
@@ -600,26 +607,19 @@ def _valuation_create(ctx, record_id: str, body: ValuationRecord) -> None:
     )
 
 
-def _part_of_item(entity, what: str):
-    """Read for a change: a valuation's or an improvement's item, written by the caller."""
-
-    def editable(ctx, record_id: str):
-        x = ctx.s.get(entity, record_id)
-        if x is None or x.deleted:
-            raise Problem(404, "not-found", f"No such {what}.")
-        _item(ctx.s, ctx.caller, x.itemId, "write")
-        return x
-
-    return editable
+def _part_of_item(ctx, entity, what: str, record_id: str):
+    """Read for a change: a valuation or an improvement, its item written by the caller."""
+    x = ctx.s.get(entity, record_id)
+    if x is None or x.deleted:
+        raise Problem(404, "not-found", f"No such {what}.")
+    _item(ctx.s, ctx.caller, x.itemId, "write")
+    return x
 
 
 def _valuation_update(ctx, v: ItemValuation, body: ValuationRecord) -> None:
     if body.itemId != v.itemId:
         raise refuse("itemId", "valuation-fixed", "A valuation stays with its item.")
-    if body.value < 0:
-        raise refuse("value", "amount-invalid", "Zero or more.")
-    if body.source not in SOURCES:
-        raise refuse("source", "source-invalid", "Appraisal, sale, guide or estimate.")
+    _valuation_checked(body)
     v.date, v.value, v.source, v.note = body.date, body.value, body.source, _clean(body.note)
 
 
@@ -670,7 +670,7 @@ save.register(
         entity=ItemValuation,
         fields=ValuationRecord,
         create=_valuation_create,
-        editable=_part_of_item(ItemValuation, "valuation"),
+        editable=lambda ctx, record_id: _part_of_item(ctx, ItemValuation, "valuation", record_id),
         current=lambda ctx, v: {
             "itemId": v.itemId,
             "date": v.date,
@@ -689,7 +689,7 @@ save.register(
         entity=Improvement,
         fields=ImprovementRecord,
         create=_improvement_create,
-        editable=_part_of_item(Improvement, "improvement"),
+        editable=lambda ctx, record_id: _part_of_item(ctx, Improvement, "improvement", record_id),
         current=lambda ctx, m: {
             "itemId": m.itemId,
             "date": m.date,

@@ -10,4 +10,4 @@ The day it expired, or was assigned or exercised.
 
 ## Contracts {#settle-contracts}
 
-How many: all of them unless only some were.
+How many, from 1 to the contracts held: **All** fills in every one.

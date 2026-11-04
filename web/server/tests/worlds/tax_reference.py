@@ -1,5 +1,5 @@
 """A reference model of Form 8949 (requirements S2.2, S2.3, S3.1, S3.8, S8.1), written apart from
-the app and as plainly as possible: it reads a generated tax world (`tax_world`) and works out,
+the app and as plainly as possible: it reads a generated tax world (`worlds.tax`) and works out,
 for each tax book, the rows its Form 8949 must have. It imports nothing of MoolaKata, so a rule
 the app gets wrong everywhere the same way still fails against it.
 
@@ -35,7 +35,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Decimal
 
-import tax_world as tw
+from worlds import tax as tw
 
 CENT = Decimal("0.01")
 WINDOW = 30
@@ -119,10 +119,11 @@ class Row:
     adjustment: Decimal
     long_term: bool
     box: str
+    kind: str
 
     def key(self) -> tuple:
         return (self.account, self.description, self.acquired, self.sold, self.proceeds,
-                self.basis, self.adjustment, self.long_term, self.box)  # fmt: skip
+                self.basis, self.adjustment, self.long_term, self.box, self.kind)  # fmt: skip
 
 
 @dataclass
@@ -435,11 +436,13 @@ class IncomeTotals:
     ordinary: Decimal = Decimal(0)  # qualified included (1099-DIV box 1a includes 1b)
     qualified: Decimal = Decimal(0)
     gain_distributions: Decimal = Decimal(0)
+    return_of_capital: Decimal = Decimal(0)  # 1099-DIV box 3
 
 
 def income(w: tw.World, year: int, filers: tuple[str, ...]) -> IncomeTotals:
     """The book's income (S8.5): interest; dividends paid or reinvested, a dividend typed as
-    neither qualified nor anything else ordinary; capital-gain distributions."""
+    neither qualified nor anything else ordinary; capital-gain distributions; returns of
+    capital (on symbols never traded, so no lot's basis changes)."""
     out = IncomeTotals()
     accounts = counted(w, year, filers)
     for i in w.incomes:
@@ -450,6 +453,8 @@ def income(w: tw.World, year: int, filers: tuple[str, ...]) -> IncomeTotals:
             out.interest += amount
         elif i.kind == "capital-gain":
             out.gain_distributions += amount
+        elif i.kind == "return-of-capital":
+            out.return_of_capital += amount
         else:
             out.ordinary += amount
             if i.dividend_type == "qualified":
@@ -496,6 +501,7 @@ def rows(h: Household, year: int, filers: tuple[str, ...]) -> list[Row]:
                 adjustment=cents(p.adjustment),
                 long_term=not p.written and long_term(p.held_from or p.acquired, p.sold),
                 box=box(p, year),
+                kind="option" if class_of(p.symbol) == "option" else "holding",
             )
         )
     return out

@@ -850,6 +850,35 @@
     position: relative;
     display: block;
   }
+  /* A field with its special values as controls (ValueInput, R3.11): × and ↺ inside it at
+     its end, All, Max and Min outside it, a little apart. */
+  .value-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .value-in {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+  .value-in.ends-1 input.in {
+    padding-right: 34px;
+  }
+  .value-in.ends-2 input.in {
+    padding-right: 62px;
+  }
+  .value-input .btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .value-ends {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+  }
   .pw input.in {
     padding-right: 38px;
   }
@@ -1067,6 +1096,14 @@
     gap: 10px;
     padding: 9px 0;
     border-bottom: 1px solid var(--border);
+  }
+  /* A row whose buttons go below its words once the card is too narrow for both (CR3-412). */
+  .list-item.wraps {
+    flex-wrap: wrap;
+  }
+  .list-item.wraps > .grow {
+    flex: 1 1 14em;
+    min-width: 14em;
   }
   .list-item:last-child {
     border-bottom: 0;

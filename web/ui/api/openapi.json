@@ -153,6 +153,17 @@
             "title": "Group",
             "type": "string"
           },
+          "hsaCoverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hsacoverage"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -441,6 +452,7 @@
           "statementIntervalProposal",
           "statementIntervalDismissed",
           "withdrawalsAMonth",
+          "hsaCoverage",
           "optionsValue",
           "capitalAtRisk",
           "connectionId",
@@ -520,6 +532,18 @@
             "default": 20,
             "title": "Gaplimit",
             "type": "integer"
+          },
+          "hsaCoverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hsacoverage"
           },
           "institution": {
             "anyOf": [
@@ -2905,6 +2929,16 @@
             "format": "date",
             "title": "Date",
             "type": "string"
+          },
+          "pairWith": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PairWith"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "payee": {
             "anyOf": [
@@ -9606,11 +9640,25 @@
             "title": "Capitalgaindistributions",
             "type": "number"
           },
+          "cryptoIncome": {
+            "items": {
+              "$ref": "#/components/schemas/Amount"
+            },
+            "title": "Cryptoincome",
+            "type": "array"
+          },
           "dividendsByPayer": {
             "items": {
               "$ref": "#/components/schemas/Amount"
             },
             "title": "Dividendsbypayer",
+            "type": "array"
+          },
+          "foreignTax": {
+            "items": {
+              "$ref": "#/components/schemas/Amount"
+            },
+            "title": "Foreigntax",
             "type": "array"
           },
           "interest": {
@@ -9660,7 +9708,9 @@
           "qualified",
           "capitalGainDistributions",
           "returnOfCapital",
-          "dividendsByPayer"
+          "dividendsByPayer",
+          "foreignTax",
+          "cryptoIncome"
         ],
         "title": "IncomeOut",
         "type": "object"
@@ -11956,6 +12006,18 @@
             "default": null,
             "title": "Payment"
           },
+          "paymentsMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paymentsmode"
+          },
           "pmi": {
             "anyOf": [
               {
@@ -12078,6 +12140,18 @@
             "title": "Interestahead",
             "type": "number"
           },
+          "interestOnlyUntil": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interestonlyuntil"
+          },
           "interestPaid": {
             "examples": [
               1234.5
@@ -12085,6 +12159,10 @@
             "format": "money",
             "title": "Interestpaid",
             "type": "number"
+          },
+          "missed": {
+            "title": "Missed",
+            "type": "integer"
           },
           "nextDate": {
             "anyOf": [
@@ -12110,6 +12188,14 @@
             ],
             "title": "Originalpayoff"
           },
+          "overdue": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Overdue",
+            "type": "number"
+          },
           "overpaid": {
             "examples": [
               1234.5
@@ -12125,6 +12211,28 @@
             "format": "money",
             "title": "Payment",
             "type": "number"
+          },
+          "paymentsAutomatic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentsautomatic"
+          },
+          "paymentsResolved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentsresolved"
           },
           "payoffDate": {
             "anyOf": [
@@ -12208,6 +12316,8 @@
           "interestAhead",
           "principalThisYear",
           "overpaid",
+          "missed",
+          "overdue",
           "rows",
           "servicer"
         ],
@@ -12391,8 +12501,15 @@
             "title": "Heldfrom"
           },
           "longTerm": {
-            "title": "Longterm",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longterm"
           },
           "quantity": {
             "examples": [
@@ -12455,6 +12572,11 @@
       "LotRow": {
         "additionalProperties": false,
         "properties": {
+          "acquiredMissing": {
+            "default": false,
+            "title": "Acquiredmissing",
+            "type": "boolean"
+          },
           "acquiredOn": {
             "format": "date",
             "title": "Acquiredon",
@@ -12480,8 +12602,15 @@
             "type": "boolean"
           },
           "longTerm": {
-            "title": "Longterm",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longterm"
           },
           "lotId": {
             "anyOf": [
@@ -13485,6 +13614,57 @@
         "title": "MovedRow",
         "type": "object"
       },
+      "MovementOut": {
+        "additionalProperties": false,
+        "description": "A rollover, or a conversion to Roth with its taxed part by Form 8606 (S8.6).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "fromAccount": {
+            "title": "Fromaccount",
+            "type": "string"
+          },
+          "taxable": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxable"
+          },
+          "toAccount": {
+            "title": "Toaccount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "fromAccount",
+          "toAccount",
+          "amount",
+          "taxable"
+        ],
+        "title": "MovementOut",
+        "type": "object"
+      },
       "Named": {
         "additionalProperties": false,
         "properties": {
@@ -14230,12 +14410,12 @@
             "title": "Accountname",
             "type": "string"
           },
-          "capitalAtRisk": {
+          "capitalRequired": {
             "examples": [
               1234.5
             ],
             "format": "money",
-            "title": "Capitalatrisk",
+            "title": "Capitalrequired",
             "type": "number"
           },
           "closed": {
@@ -14362,7 +14542,7 @@
           "premiumOut",
           "value",
           "pl",
-          "capitalAtRisk",
+          "capitalRequired",
           "returnPct"
         ],
         "title": "OptionTradeRow",
@@ -14547,6 +14727,66 @@
           "who": "code"
         },
         "x-entity": "Orgzn"
+      },
+      "OtherHolding": {
+        "additionalProperties": false,
+        "description": "A part that isn't a security (S5.2.3): what a loan owes (negative) or an item.",
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountType": {
+            "title": "Accounttype",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "account",
+          "accountId",
+          "accountType",
+          "value",
+          "weight"
+        ],
+        "title": "OtherHolding",
+        "type": "object"
       },
       "OutcomeOut": {
         "additionalProperties": false,
@@ -16295,6 +16535,32 @@
         },
         "x-entity": "Rmbrs"
       },
+      "PairWith": {
+        "additionalProperties": false,
+        "description": "A payment already on the loan that a bank transaction is the other half of (S1.7).",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "date"
+        ],
+        "title": "PairWith",
+        "type": "object"
+      },
       "PairingOut": {
         "additionalProperties": false,
         "properties": {
@@ -17626,6 +17892,13 @@
             ],
             "title": "Optionsvalue"
           },
+          "others": {
+            "items": {
+              "$ref": "#/components/schemas/OtherHolding"
+            },
+            "title": "Others",
+            "type": "array"
+          },
           "total": {
             "examples": [
               1234.5
@@ -17637,6 +17910,7 @@
         },
         "required": [
           "holdings",
+          "others",
           "cash",
           "total",
           "optionsValue",
@@ -18146,6 +18420,7 @@
               "amount-invalid",
               "amount-mismatch",
               "amount-negative",
+              "amount-sign",
               "ancestor-loop",
               "anchor-fixed",
               "anchor-imported",
@@ -18194,6 +18469,7 @@
               "counted-fixed",
               "counted-set",
               "counting-invalid",
+              "coverage-invalid",
               "daf-invalid",
               "date-ahead",
               "date-in-future",
@@ -18296,8 +18572,10 @@
               "locked",
               "locked-out",
               "long-assign",
+              "lot-invalid",
               "lot-method-invalid",
               "lot-unknown",
+              "lots-unbalanced",
               "made-by-an-assignment",
               "mapping-does-not-read",
               "mapping-incomplete",
@@ -18381,6 +18659,7 @@
               "pattern-invalid",
               "payee-too-long",
               "payment-fixed",
+              "payments-mode-invalid",
               "people-missing",
               "percent-invalid",
               "period-backwards",
@@ -18603,6 +18882,7 @@
                   "amount-invalid",
                   "amount-mismatch",
                   "amount-negative",
+                  "amount-sign",
                   "ancestor-loop",
                   "anchor-fixed",
                   "anchor-imported",
@@ -18651,6 +18931,7 @@
                   "counted-fixed",
                   "counted-set",
                   "counting-invalid",
+                  "coverage-invalid",
                   "daf-invalid",
                   "date-ahead",
                   "date-in-future",
@@ -18753,8 +19034,10 @@
                   "locked",
                   "locked-out",
                   "long-assign",
+                  "lot-invalid",
                   "lot-method-invalid",
                   "lot-unknown",
+                  "lots-unbalanced",
                   "made-by-an-assignment",
                   "mapping-does-not-read",
                   "mapping-incomplete",
@@ -18838,6 +19121,7 @@
                   "pattern-invalid",
                   "payee-too-long",
                   "payment-fixed",
+                  "payments-mode-invalid",
                   "people-missing",
                   "percent-invalid",
                   "period-backwards",
@@ -21426,6 +21710,13 @@
             "title": "Contributions",
             "type": "array"
           },
+          "conversions": {
+            "items": {
+              "$ref": "#/components/schemas/MovementOut"
+            },
+            "title": "Conversions",
+            "type": "array"
+          },
           "distributions": {
             "items": {
               "$ref": "#/components/schemas/Amount"
@@ -21439,13 +21730,22 @@
             },
             "title": "Rmds",
             "type": "array"
+          },
+          "rollovers": {
+            "items": {
+              "$ref": "#/components/schemas/MovementOut"
+            },
+            "title": "Rollovers",
+            "type": "array"
           }
         },
         "required": [
           "contributions",
           "distributions",
           "rmds",
-          "basis8606"
+          "basis8606",
+          "conversions",
+          "rollovers"
         ],
         "title": "RetirementOut",
         "type": "object"
@@ -22697,19 +22997,12 @@
         "additionalProperties": false,
         "properties": {
           "contracts": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
+            "examples": [
+              12.5
             ],
-            "title": "Contracts"
+            "format": "decimal",
+            "title": "Contracts",
+            "type": "number"
           },
           "date": {
             "format": "date",
@@ -22723,7 +23016,8 @@
         },
         "required": [
           "how",
-          "date"
+          "date",
+          "contracts"
         ],
         "title": "Settle",
         "type": "object"
@@ -23893,6 +24187,10 @@
             ],
             "title": "Pl"
           },
+          "priced": {
+            "title": "Priced",
+            "type": "boolean"
+          },
           "realized": {
             "examples": [
               1234.5
@@ -23962,6 +24260,7 @@
           "maxLoss",
           "breakevens",
           "expiryKnown",
+          "priced",
           "capitalAtRiskNow",
           "capitalAtRiskAtOpen",
           "returnPct",
@@ -24569,6 +24868,17 @@
             ],
             "title": "Payment"
           },
+          "paymentsMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentsmode"
+          },
           "pmi": {
             "anyOf": [
               {
@@ -24656,6 +24966,7 @@
           "securedById",
           "budgetCounting",
           "budgetCategoryId",
+          "paymentsMode",
           "computedPayment",
           "id",
           "version"
@@ -24951,6 +25262,46 @@
         "title": "TransferIn",
         "type": "object"
       },
+      "TransferLot": {
+        "additionalProperties": false,
+        "description": "One lot shares moved in arrive as (S2.2, CR3-73): when it was bought, and its basis.",
+        "properties": {
+          "acquiredOn": {
+            "format": "date",
+            "title": "Acquiredon",
+            "type": "string"
+          },
+          "costBasis": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Costbasis"
+          },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "acquiredOn",
+          "quantity"
+        ],
+        "title": "TransferLot",
+        "type": "object"
+      },
       "TransferPair": {
         "additionalProperties": false,
         "properties": {
@@ -24967,9 +25318,21 @@
             "title": "Id",
             "type": "string"
           },
+          "quantity": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Quantity",
+            "type": "number"
+          },
           "sats": {
             "title": "Sats",
             "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
           },
           "toAccount": {
             "title": "Toaccount",
@@ -24992,6 +25355,8 @@
           "fromDate",
           "toDate",
           "sats",
+          "symbol",
+          "quantity",
           "version"
         ],
         "title": "TransferPair",
@@ -25161,6 +25526,14 @@
             "title": "Digital",
             "type": "integer"
           },
+          "noBasis": {
+            "title": "Nobasis",
+            "type": "integer"
+          },
+          "noLot": {
+            "title": "Nolot",
+            "type": "integer"
+          },
           "personalUse": {
             "title": "Personaluse",
             "type": "integer"
@@ -25169,6 +25542,8 @@
         "required": [
           "digital",
           "collectable",
+          "noLot",
+          "noBasis",
           "personalUse"
         ],
         "title": "TxfLeftOut",
@@ -25508,6 +25883,20 @@
               }
             ],
             "title": "Transferid"
+          },
+          "transferLots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TransferLot"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transferlots"
           },
           "version": {
             "title": "Version",
@@ -25866,6 +26255,21 @@
             "title": "Tagids",
             "type": "array",
             "uniqueItems": true
+          },
+          "transferLots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TransferLot"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transferlots"
           },
           "transferWithId": {
             "anyOf": [
@@ -28122,6 +28526,10 @@
             "format": "money",
             "title": "Principal",
             "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
@@ -28133,7 +28541,8 @@
           "pmi",
           "balance",
           "past",
-          "overpayment"
+          "overpayment",
+          "status"
         ],
         "title": "RowOut",
         "type": "object"
@@ -28673,8 +29082,22 @@
             ],
             "title": "Gain"
           },
+          "kind": {
+            "enum": [
+              "holding",
+              "return-of-capital",
+              "option",
+              "item"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
           "longTerm": {
             "title": "Longterm",
+            "type": "boolean"
+          },
+          "lotMissing": {
+            "title": "Lotmissing",
             "type": "boolean"
           },
           "proceeds": {
@@ -28703,7 +29126,9 @@
           "longTerm",
           "box",
           "account",
-          "collectable"
+          "collectable",
+          "kind",
+          "lotMissing"
         ],
         "title": "RowOut",
         "type": "object"
@@ -29321,6 +29746,100 @@
           }
         },
         "summary": "Candidates",
+        "tags": [
+          "loans"
+        ]
+      }
+    },
+    "/ui/api/accounts/{account_id}/loan/halves": {
+      "get": {
+        "description": "The bank transactions already in `account` that a payment of `amount` on `date` from\nit would be the other half of, by S1.7's rule (the same amount out, within days, not yet a\ntransfer): the payment dialog pairs with one rather than recording it again (CR3-22).",
+        "operationId": "halves_ui_api_accounts__account_id__loan_halves_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "title": "Account",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "examples": [
+                1234.5
+              ],
+              "format": "money",
+              "title": "Amount",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Candidate_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Halves",
         "tags": [
           "loans"
         ]
@@ -33962,7 +34481,7 @@
     },
     "/ui/api/positions/option-trades": {
       "get": {
-        "description": "Each option trade (S3.9): from the first contract opened to the last one closed, with the\npremium in and out, its P/L and its return on the capital at risk. A long option risks its\npremium; a short one the strike on every contract's shares, cash for a put and the shares\nfor a call.",
+        "description": "Each option trade (S3.9): from the first contract opened to the last one closed, with the\npremium in and out, its P/L and its return on the capital it required. A long option\nrequires its premium; a short one the strike on every contract's shares, cash for a put and\nthe shares for a call.",
         "operationId": "option_trades_ui_api_positions_option_trades_get",
         "parameters": [
           {

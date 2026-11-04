@@ -75,7 +75,7 @@ export function LinksSection() {
     toast('Saved');
     s.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !values || !rec) return html`<${Loading} />`;
   const live = v.links.filter((/** @type {any} */ l) => l.state !== 'ended');
   const ended = v.links.filter((/** @type {any} */ l) => l.state === 'ended');
@@ -140,15 +140,11 @@ export function LinksSection() {
                             <div class="small">${l.householdName}</div>
                           `
                           : null}<div class="small dim">${l.address || ''}${l.fingerprint
-                          ? html`
-                            · <code>${l.fingerprint}</code>
-                          `
+                          ? html`${' '}· <code>${l.fingerprint}</code>`
                           : ''}${l.peerVersion
                           ? ` · MoolaKata ${l.peerVersion}`
                           : ''}${l.certificate
-                          ? html`
-                            · certificate <code>${l.certificate}</code>
-                          `
+                          ? html`${' '}· certificate <code>${l.certificate}</code>`
                           : ''}</div></div>
                       </div>
                     </td>
@@ -257,8 +253,8 @@ export function LinksSection() {
           each to the people there it names, read only. Only the kinds and their owners show here.</p>
         ${
         l.outgoing.map((/** @type {any} */ x) =>
-          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b>
-            <span class="small dim">of ${x.ownerName} since ${day(x.sharedAt)}${
+          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b> <span
+            class="small dim">of ${x.ownerName} since ${day(x.sharedAt)}${
             x.includeReceipts ? ', with its receipts' : ''
           }</span></div><span class="small">to ${x.names.join(', ')}</span></div>`
         )
@@ -270,8 +266,8 @@ export function LinksSection() {
           each share. Names and amounts stay inside the encrypted copy.</p>
         ${
         l.incoming.map((/** @type {any} */ x) =>
-          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b>
-            <span class="small dim">shared by ${x.ownerName} on ${day(x.sharedAt)}${
+          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b> <span
+            class="small dim">shared by ${x.ownerName} on ${day(x.sharedAt)}${
             x
                 .includeReceipts
               ? ', with its receipts'
@@ -290,8 +286,8 @@ export function LinksSection() {
         never sign in here.</p>
       ${people.length
         ? people.map((/** @type {any} */ l) =>
-          html`<div class="small dim" style=${{ margin: '10px 0 2px' }}><${Icon} name="server" />
-            <b>${l.peerName}</b></div>${
+          html`<div class="small dim" style=${{ margin: '10px 0 2px' }}><${Icon}
+            name="server" /> <b>${l.peerName}</b></div>${
             l.users.map((/** @type {any} */ u) =>
               html`
                 <div

@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-10-31",
+  "auditedAt": "2026-11-04",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -35,6 +35,14 @@
         "www.freedesktop.org"
       ],
       "inImage": true,
+      "words": []
+    },
+    "click": {
+      "hosts": [
+        "click.palletsprojects.com",
+        "fishshell.com"
+      ],
+      "inImage": false,
       "words": []
     },
     "coverage": {
@@ -145,6 +153,37 @@
         "utils.py"
       ]
     },
+    "hypothesis": {
+      "hosts": [
+        "adamj.eu",
+        "antithesis.com",
+        "blog.ganssle.io",
+        "blog.nelhage.com",
+        "blog.regehr.org",
+        "code.djangoproject.com",
+        "docs.djangoproject.com",
+        "docs.pytest.org",
+        "faultlore.com",
+        "hillelwayne.com",
+        "hpiers.obspm.fr",
+        "hypofuzz.com",
+        "hypothesis.works",
+        "moyix.blogspot.com",
+        "nearley.js.org",
+        "no-color.org",
+        "numpy.org",
+        "pyo3.rs",
+        "qntm.org",
+        "simonbyrne.github.io",
+        "unix.stackexchange.com",
+        "wcventure.github.io",
+        "www.keithschwarz.com"
+      ],
+      "inImage": false,
+      "words": [
+        "tlds-alpha-by-domain.txt"
+      ]
+    },
     "id": {
       "hosts": [
         "test.audience"
@@ -152,11 +191,43 @@
       "inImage": false,
       "words": []
     },
+    "libcst": {
+      "hosts": [
+        "docs.scipy.org",
+        "lwn.net",
+        "pyre-check.org",
+        "redbaron.pycqa.org"
+      ],
+      "inImage": false,
+      "words": []
+    },
+    "linkify-it-py": {
+      "hosts": [],
+      "inImage": false,
+      "words": [
+        "tlds.py"
+      ]
+    },
     "markdown-it-py": {
       "hosts": [
         "jgm.github.io",
         "mathiasbynens.be",
         "spec.commonmark.org"
+      ],
+      "inImage": false,
+      "words": []
+    },
+    "mdit-py-plugins": {
+      "hosts": [
+        "anorien.csc.warwick.ac.uk",
+        "ctan.org",
+        "docutils.sourceforge.io",
+        "htmlpreview.github.io",
+        "image.com",
+        "johnmacfarlane.net",
+        "pandoc.org",
+        "python-markdown.github.io",
+        "squidfunk.github.io"
       ],
       "inImage": false,
       "words": []
@@ -1099,6 +1170,24 @@
         "opentelemetry.py"
       ]
     },
+    "textual": {
+      "hosts": [
+        "docs.microsoft.com",
+        "easings.net",
+        "facelessuser.github.io",
+        "harlequin.sh",
+        "msdn.microsoft.com",
+        "posting.sh",
+        "sw.kovidgoyal.net",
+        "textual.textualize.io",
+        "www.easyrgb.com",
+        "www.ibb.net"
+      ],
+      "inImage": false,
+      "words": [
+        "_project_data.py"
+      ]
+    },
     "tqdm": {
       "hosts": [
         "api.slack.com",
@@ -1135,6 +1224,6 @@
   },
   "hashes": {
     "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
-    "uv.lock": "sha256:c12c8d30bffb425582dd672c908dd0eb1daaec500cf9d30d45371d67813267da"
+    "uv.lock": "sha256:7fce26198aedacd651732fc2e8dec50b622fc878d031de5ad19800963e0ba1cd"
   }
 }

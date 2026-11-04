@@ -8,7 +8,8 @@ Grouping is a label: each leg keeps its own lots, gains and wash sales.
 ## Proposed
 
 Legs on one underlying opened in one account on the same day are offered as a strategy, and so is a
-short call against 100 or more shares held. **Group them**, or **Not a strategy**, which isn't
+short call against the shares it delivers, held: 100 a contract, or what an adjusted contract
+delivers, the shares a merger brought included. **Group them**, or **Not a strategy**, which isn't
 asked again. A leg closed and another opened on the same underlying the same day is offered as a
 roll: kept in the strategy, it keeps its history, closed legs and their P/L included.
 
@@ -21,13 +22,18 @@ condor or iron butterfly, a butterfly, a calendar or a diagonal; anything else i
 ## Max profit and max loss
 
 At expiry, _unlimited_ where it is. Shares count at their value on the day the strategy opened. A
-calendar or diagonal shows its P/L only, as its outcome rests on volatility.
+contract adjusted to deliver another company's shares counts them at that company's price; with no
+price for them, the figures read _not priced_. A calendar or diagonal shows its P/L only, as its
+outcome rests on volatility.
+
+After a symbol change or a merger, the strategy's shares are the new ones, at the action's ratio.
 
 ## At risk now {#at-risk-now}
 
 Capital at risk at today's prices: the most the strategy can lose at expiry. For a strategy whose
 loss has no limit, the broker's margin requirement you type, or _unlimited_, and then the total is
-unlimited too.
+unlimited too. One _not priced_ takes the margin you type too, or reads _not priced_, and the total
+reads unlimited, as no limit to it is known.
 
 ## At open {#at-open}
 

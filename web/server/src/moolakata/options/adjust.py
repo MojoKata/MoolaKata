@@ -39,7 +39,8 @@ def adjusted_contract(
     cash: Decimal | None = None,
 ) -> tuple[Instrument, OptionContract]:
     """The contract an adjustment makes: a new root (or the same), a strike, and what it
-    delivers; found again if it is already here."""
+    delivers (or the same); found again if it is already here. Only the memo gives cash: a
+    whole split adjusts no contract with cash (`splits_whole`)."""
     under = s.get(Instrument, old.underlyingId)
     name = symbol(root or old.root or under.symbol, old.expiry, old.right, strike)
     inst = repo.instrument(s, name, None, "option")
@@ -57,7 +58,7 @@ def adjusted_contract(
             deliverable=json.dumps([{"instrumentId": i, "shares": str(q)} for i, q in deliverable])
             if deliverable
             else old.deliverable,
-            deliverableCash=cash if cash is not None else old.deliverableCash,
+            deliverableCash=cash,
         )
         s.add(c)
         s.flush()
@@ -113,26 +114,40 @@ def carry(
 
 
 def open_contracts(s: Session, account, underlying_id: str, day: dt.date) -> list[OptionContract]:
-    replay = repo.load(s, account).replay()
+    """The account's contracts on the stock still open on the day (one expiring that day is)."""
     out = []
-    for iid, qty in replay.positions().items():
+    # Positions holds only what isn't zero.
+    for iid in repo.load(s, account).replay().positions():
         c = contract_of(s, iid)
-        if c is not None and c.underlyingId == underlying_id and qty and c.expiry >= day:
+        if c is not None and c.underlyingId == underlying_id and c.expiry >= day:
             out.append(c)
     return out
+
+
+def splits_whole(c: OptionContract) -> bool:
+    """Whether a whole-number split adjusts the contract by itself: it delivers only shares of
+    its underlying, which split with it, and no cash. Another company's shares and cash don't
+    split, so more contracts each delivering the same would deliver more of them in all: such
+    a contract waits for the OCC's memo (S3.10.1)."""
+    parts = json.loads(c.deliverable) if c.deliverable else []
+    return not c.deliverableCash and all(x["instrumentId"] == c.underlyingId for x in parts)
 
 
 def with_split(s: Session, user_id: str, account, split: Transaction) -> int:
     """A whole-number split (2:1, 4:1) applied to the account's open options on the stock:
     contracts times the ratio, strike divided by it, the basis spread over the new contracts
-    (S3.10.1). Any other ratio waits for the adjustment from the OCC's memo."""
+    (S3.10.1). Any other ratio, and a contract delivering more than its underlying's shares,
+    waits for the adjustment from the OCC's memo."""
     ratio = split.splitRatio
     if not ratio or ratio < 2 or ratio != ratio.to_integral_value():
         return 0
     done = 0
     for c in open_contracts(s, account, split.instrumentId, split.date):
+        if not splits_whole(c):
+            continue
         old = s.get(Instrument, c.instrumentId)
-        new, _ = adjusted_contract(s, c, c.root, adjusted_strike(c.strike, ratio))
+        # Its root and deliverable stay: only the strike changes.
+        new, _ = adjusted_contract(s, c, None, adjusted_strike(c.strike, ratio))
         if carry(s, user_id, account, old, new, ratio, split.date, split):
             done += 1
     return done
@@ -177,15 +192,16 @@ def parse_occ(text: str) -> tuple[str, dt.date, str, Decimal] | None:
     )
 
 
-def check_deliverable(s: Session, rows: list[dict]) -> list[tuple[str, Decimal]]:
+def check_deliverable(s: Session, rows: list[dict], at: str) -> list[tuple[str, Decimal]]:
+    """A deliverable's parts as instruments and shares. A part without a symbol or with no
+    shares is refused at its own row under `at`, the contract's deliverable field."""
     out = []
     for i, x in enumerate(rows):
-        sym = (x.get("symbol") or "").strip().upper()
+        # The instrument is found and made by its symbol in capitals.
+        sym = (x.get("symbol") or "").strip()
         shares = x.get("shares")
         if not sym or shares is None or Decimal(str(shares)) <= 0:
-            raise refuse(
-                f"contracts.deliverable.{i}", "deliverable-invalid", "A symbol and its shares."
-            )
+            raise refuse(f"{at}.{i}", "deliverable-invalid", "A symbol and its shares.")
         inst = repo.instrument(s, sym, None, "equity")
         out.append((inst.id, Decimal(str(shares))))
     return out

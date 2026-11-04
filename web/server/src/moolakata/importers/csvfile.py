@@ -76,6 +76,11 @@ GUESSES = {
     "fees": ["fees", "commission", "fees and/or spread", "fee"],
 }
 ACTIONS = [
+    # Foreign tax a fund paid (1099-DIV box 7), and coins received as income (S8.5): before
+    # the words they contain.
+    ("foreign tax", "foreign-tax"),
+    ("staking", "reward"),
+    ("reward", "reward"),
     ("reinvest", "reinvest"),
     ("dividend", "dividend"),
     ("div", "dividend"),
@@ -316,8 +321,11 @@ def read(data: bytes, mapping: dict) -> ParsedFile:
             value = -abs(value)
         elif symbol and kind == "sell":
             value = abs(value)
-        elif symbol and kind in ("transfer-in", "transfer-out"):
+        elif symbol and kind in ("transfer-in", "transfer-out", "reward"):
+            # Coins received as income bring no cash: their value is the day's price (S8.5).
             value = Decimal(0)
+        elif kind == "foreign-tax":
+            value = -abs(value)
         if (
             symbol
             and symbol not in out.securities

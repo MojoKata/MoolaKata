@@ -152,9 +152,9 @@ function Frame({ id, st, reload, sub, subId, tab }) {
   } /></button></div>
       <div class="content">${
     h.locked ? html`<${Locked} id=${id} st=${st} reload=${reload} />` : html`
-      <div class="peer-strip" data-help="strip"><${Icon} name="link" /><b>${h.serverName}</b>
-        <span>read only</span><span class="dim">synced ${ago(h.syncedAt)}</span>
-        <span class="dim">unlocked by ${st.unlockedBy} · locks after ${Math.round(
+      <div class="peer-strip" data-help="strip"><${Icon} name="link" /><b>${h.serverName}</b> <span
+        >read only</span><span class="dim">synced ${ago(h.syncedAt)}</span> <span class="dim"
+        >unlocked by ${st.unlockedBy} · locks after ${Math.round(
           (st.locksInSeconds || 0) / 60,
         )} min unused</span><span class="spacer"></span><button type="button" class="btn sm"
           disabled=${lock.busy} onClick=${() => lock.run().catch(() => {})}><${Icon}
@@ -218,8 +218,8 @@ function Locked({ id, st, reload }) {
             setWords(e.currentTarget.value)} autocomplete="off"
             spellcheck="false"></textarea>
           </${Field}>
-          <button class="btn primary" disabled=${go.busy || !words.trim()}><${Icon} name="lock" />
-          Open</button>
+          <button class="btn primary" disabled=${go.busy || !words.trim()}><${Icon}
+            name="lock" /> Open</button>
           <p class="small dim">Once open, it stays open for everyone it shares with, each seeing only
           what names them, until it goes unused.</p>
       `
@@ -281,7 +281,7 @@ function Screen({ id, rows, sub, subId, tab }) {
   }
   if (sub === 'positions') return html`<${Positions} rows=${of('account')} />`;
   if (sub === 'tax-book' && subId) {
-    return html`<${TaxBook} base=${base} bid=${subId} tab=${tab || 'gains'} />`;
+    return html`<${TaxBook} id=${id} base=${base} bid=${subId} tab=${tab || 'gains'} />`;
   }
   if (sub === 'accounts') return html`<${Accounts} base=${base} rows=${of('account')} />`;
   if (sub === 'transactions') return html`<${AllTransactions} rows=${of('account')} />`;
@@ -608,8 +608,9 @@ function Portfolio({ pid }) {
   if (!pf) return html`<${Loading} lines=${5} />`;
   const pts = /** @type {any} */ (series.data)?.points;
   return html`
-    <div class="toolbar"><b style=${{ fontSize: '16px' }}>${pf.name}</b><span class="spacer"></span>
-      <span style=${{ fontSize: '22px', fontWeight: 650 }}><${Amt} v=${pf.value} /></span></div>
+    <div class="toolbar"><b style=${{ fontSize: '16px' }}>${pf
+      .name}</b><span class="spacer"></span><span
+        style=${{ fontSize: '22px', fontWeight: 650 }}><${Amt} v=${pf.value} /></span></div>
     ${pts?.length
       ? html`
         <div class="card mb">
@@ -863,14 +864,55 @@ function Positions({ rows }) {
   }`;
 }
 
-/** @param {{ base: string, bid: string, tab: string }} p */
-function TaxBook({ base, bid, tab }) {
+/** @param {{ id: string, base: string, bid: string, tab: string }} p */
+function TaxBook({ id, base, bid, tab }) {
   useGuide('linked-taxes');
-  const tabs = PANEL_TABS;
+  const tabs = /** @type {[string, string][]} */ ([...PANEL_TABS, ['documents', 'Documents']]);
   return html`
     <${Tabs} tabs=${tabs} current=${tab} base=${`${base}/tax-book/${bid}`} />
-    <${Panel} b=${{ id: bid }} tab=${tab} />
+    ${tab === 'documents'
+      ? html`<${TaxDocuments} id=${id} bid=${bid} />`
+      : html`<${Panel} b=${{ id: bid }} tab=${tab} />`}
   `;
+}
+
+/**
+ * A linked tax book's documents (S11.5.1, CR3-10): each with its file to open when the book
+ * was shared with Include receipts and the file has arrived.
+ * @param {{ id: string, bid: string }} p
+ */
+function TaxDocuments({ id, bid }) {
+  const book = useApi(`/tax-books/${bid}`);
+  const files = useList(`/linked/${id}/files`);
+  const b = /** @type {any} */ (book.data);
+  if (book.error || files.error) {
+    return html`<${Failed} error=${book.error || files.error} />`;
+  }
+  if (!b || !files.data) return html`<${Loading} lines=${3} />`;
+  const sent = new Map((/** @type {any[]} */ (files.data)).map((f) => [f.id, f]));
+  if (!b.documents.length) return html`<${Empty}>No documents in this book.</${Empty}>`;
+  /** @param {any} d */
+  const file = (d) =>
+    !d.receiptId
+      ? null
+      : !sent.has(d.receiptId)
+      ? html`<span class="small dim" title="Its file comes with Include receipts">stays home</span>`
+      : sent.get(d.receiptId).arrived === false
+      ? html`<span class="small dim" title="Asked for again at the next exchange">not arrived</span>`
+      : html`
+        <a class="btn sm" href=${`/ui/api/linked/${id}/files/${d.receiptId}`}
+          target="_blank" rel="noopener">Open</a>
+      `;
+  return html`<div class="card">${
+    b.documents.map((/** @type {any} */ d) =>
+      html`
+        <div
+          class="list-item"><${Icon} name="receipt" /><span class="grow">${d.form}${d.issuer
+            ? ` · ${d.issuer}`
+            : ''}<div class="small dim">${d.fileName || 'no file'}</div></span>${file(d)}</div>
+      `
+    )
+  }</div>`;
 }
 
 /** @param {{ rows: any[] }} p */

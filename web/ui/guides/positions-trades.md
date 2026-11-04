@@ -17,8 +17,10 @@ received and paid (fees included), and the P/L. A trade still open shows the P/L
 closed at its current mark. An assigned or exercised option's premium is also folded into the
 shares' basis or proceeds; here it is counted once, as the option's.
 
-## Capital at risk {#capital-at-risk}
+## Capital required {#capital-required}
 
-What the trade put at risk, and the return on it. A long option risks its premium. A short one
-risks the strike on every share its contracts cover: the cash to buy them for a put, the shares
-to deliver for a call.
+What the trade tied up, and the return on it. A long option requires its premium. A short one
+requires the strike on every share its contracts cover: the cash to buy them for a put, the
+shares to deliver for a call. A leg of a strategy takes its strategy's capital at risk at open
+instead, where that is finite. Capital at risk is another figure: what a position can lose
+(the account's and the strategies'), *unlimited* for an uncovered call.

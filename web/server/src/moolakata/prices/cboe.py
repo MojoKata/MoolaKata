@@ -10,7 +10,7 @@ non-commercial use, and may change it.
 """
 
 import datetime as dt
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from .. import clock
@@ -49,12 +49,12 @@ def split_occ(ticker: str) -> tuple[str, str]:
 
 def mark(row: dict) -> Decimal | None:
     """A contract's mark: the middle of the bid and the ask when both are quoted, else the
-    last trade's price, rounded to the cent."""
+    last trade's price, rounded to the cent (half to even, as every amount is: S14.3)."""
     bid, ask = Decimal(str(row.get("bid") or 0)), Decimal(str(row.get("ask") or 0))
     if bid > 0 and ask >= bid:
-        return ((bid + ask) / 2).quantize(CENT, rounding=ROUND_HALF_EVEN)
+        return ((bid + ask) / 2).quantize(CENT)
     last = Decimal(str(row.get("last_trade_price") or 0))
-    return last.quantize(CENT, rounding=ROUND_HALF_EVEN) if last > 0 else None
+    return last.quantize(CENT) if last > 0 else None
 
 
 @register

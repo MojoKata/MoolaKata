@@ -10,7 +10,7 @@ import { useList, useSubmit } from '../app/hooks.js';
 import { money, today } from '../app/format.js';
 import { Dialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Seg } from './fields.js';
+import { CountInput, errAt, Field, FormError, Input, Seg } from './fields.js';
 import { toast } from './toast.js';
 import { dec } from '../app/dec.js';
 
@@ -119,10 +119,11 @@ export function OptionTrade({ close, accountId, start }) {
 export function Settle({ close, row }) {
   useDialogGuide('dialog-option-settle');
   const short = row.side === 'short';
+  const held = dec(row.quantity).abs().toNumber(); // contracts: a whole number
   const [f, setF] = useState({
     how: row.inTheMoney === false ? 'expired' : short ? 'assign' : 'exercise',
     date: row.expiry || today(),
-    contracts: String(dec(row.quantity).abs()).replace(/\.0+$/, ''),
+    contracts: '',
   });
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
   const save = useSubmit(async () => {
@@ -150,8 +151,8 @@ export function Settle({ close, row }) {
             value=${f.date} onInput=${set('date')} />
           </${Field}>
           <${Field} label="Contracts" id="settle-contracts" error=${errAt(e, 'contracts')}>
-            <${Input}
-              value=${f.contracts} onInput=${set('contracts')} inputmode="numeric" />
+            <${CountInput} value=${f.contracts} onInput=${set('contracts')} max=${held}
+              noun="contracts" />
             </${Field}>
             </div>
             <p class="small dim">${f.how === 'expired'

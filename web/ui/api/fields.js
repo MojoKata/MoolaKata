@@ -18,6 +18,7 @@ export const FIELDS = {
     statementInterval: {"type": "text", "nullable": true},
     statementIntervalDismissed: {"type": "text", "nullable": true},
     withdrawalsAMonth: {"type": "int", "nullable": true},
+    hsaCoverage: {"type": "text", "nullable": true},
     connectionId: {"type": "ref", "prefix": "Conn", "nullable": true},
     syncAccount: {"type": "text", "nullable": true},
     walletKeys: {"type": "text", "nullable": true},
@@ -311,6 +312,7 @@ export const FIELDS = {
     securedById: {"type": "text", "nullable": true},
     budgetCounting: {"type": "text"},
     budgetCategoryId: {"type": "text", "nullable": true},
+    paymentsMode: {"type": "text", "nullable": true},
     accountId: {"type": "ref", "prefix": "Acct"},
   },
   LotPickRecord: {
@@ -525,6 +527,11 @@ export const FIELDS = {
     items: {"type": "list", "items": {"type": "json", "schema": "TokenItem"}},
     days: {"type": "int"},
   },
+  TransferLot: {
+    acquiredOn: {"type": "date"},
+    quantity: {"type": "quantity"},
+    costBasis: {"type": "money", "nullable": true},
+  },
   TxnRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
     date: {"type": "date"},
@@ -542,6 +549,7 @@ export const FIELDS = {
     contributionYear: {"type": "int", "nullable": true},
     contributionSource: {"type": "text", "nullable": true},
     costBasis: {"type": "money", "nullable": true},
+    transferLots: {"type": "list", "items": {"type": "json", "schema": "TransferLot"}, "nullable": true},
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
     cleared: {"type": "bool"},

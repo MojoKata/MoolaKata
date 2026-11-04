@@ -225,7 +225,8 @@ function ThisMonth({ b, month, reloadList }) {
               ? 'more is assigned than there is'
               : 'left to hand out'}${canMove
               ? html`
-                · <button type="button" class="linklike" onClick=${() => moveTo()}>Assign</button>
+                ${' '}· <button type="button" class="linklike"
+                  onClick=${() => moveTo()}>Assign</button>
               `
               : null}</div>
           </div>
@@ -281,11 +282,10 @@ function ThisMonth({ b, month, reloadList }) {
           </div>
         </div>
       `}
-    <div class="card mt"><h3>${envelope ? 'Envelopes' : 'Categories'}<span class="spacer"></span>
-      <span class="small dim" style=${{ fontWeight: 400 }}>${b.access.mine
+    <div class="card mt"><h3>${envelope ? 'Envelopes' : 'Categories'}<span
+      class="spacer"></span><span class="small dim" style=${{ fontWeight: 400 }}>${b.access.mine
         ? b.sharedWith ? `shared with ${b.sharedWith}` : 'yours'
-        : `${b.ownerName}'s · ${b.access.writable ? 'write' : 'read'}`}</span>
-      ${b.access.shareable
+        : `${b.ownerName}'s · ${b.access.writable ? 'write' : 'read'}`}</span>${b.access.shareable
         ? html`<button type="button" class="btn sm" onClick=${() =>
           openDialog(ShareDialog, { kind: 'budget', id: b.id, name: b.name }).then(
             reloadList,
@@ -412,8 +412,8 @@ function ThisMonth({ b, month, reloadList }) {
       : null}
     ${v.moved.length
       ? html`
-        <div class="card mt"><h3>Left or entered the budget<span class="spacer"></span>
-          <span class="small dim" style=${{ fontWeight: 400 }}>transfers with no category count
+        <div class="card mt"><h3>Left or entered the budget<span class="spacer"></span><span
+          class="small dim" style=${{ fontWeight: 400 }}>transfers with no category count
             nowhere until sorted</span></h3>
           ${v.moved.map((/** @type {any} */ m) =>
             html`
@@ -444,9 +444,7 @@ function BudgetRow({ r, cover }) {
   return html`
     <div class="budget-row">
       <div>${r.label}${r.cadence === 'year'
-        ? html`
-          <span class="pill">year</span>
-        `
+        ? html`${' '}<span class="pill">year</span>`
         : null}</div>
       <div class="bar" role="meter" aria-valuemin="0" aria-valuemax=${r.planned}
         aria-valuenow=${r
@@ -460,9 +458,7 @@ function BudgetRow({ r, cover }) {
         class="num small amt">${money(r.actual)} <span class="dim">of ${money(r.planned, {
           cents: false,
         })}</span>${r.state === 'over'
-          ? html`
-            <span class="pill bad">over</span>
-          `
+          ? html`${' '}<span class="pill bad">over</span>`
           : null}${r.state === 'over' && cover
           ? html`<div><button type="button" class="linklike" data-help="cover-from"
             onClick=${cover}>Cover from…</button></div>`
@@ -520,8 +516,7 @@ function Review({ b }) {
           setMonth(e.currentTarget.value)}>
         ${months.map((x) => html`<option value=${x}>${monthLabel(x)}</option>`)}
       </select>
-      <span class="spacer"></span>
-      ${write
+      <span class="spacer"></span>${write
         ? html`
           <button type="button" class="btn primary" disabled=${mark.busy}
             onClick=${() => mark.run().catch(() => {})}><${Icon} name="check" /> ${v.reviewed
@@ -606,9 +601,7 @@ function Review({ b }) {
                 <div
                   class="grow">${monthLabel(h.month.slice(0, 7))}${h
                       .changes.length
-                    ? html`
-                      <span class="pill warn">changed since reviewed</span>
-                    `
+                    ? html`${' '}<span class="pill warn">changed since reviewed</span>`
                     : null}<div class="small dim">reviewed ${date(h.at.slice(0, 10))}${h.byName
                     ? ` by ${h.byName}`
                     : ''}${h.changes.length ? ` · ${h.changes.join('; ')}` : ''}</div></div>
@@ -629,21 +622,16 @@ function BudgetList({ budgets, reload }) {
   const active = budgets.find((x) => x.active);
   const item = (/** @type {any} */ x) =>
     html`
-      <div class="list-item">
+      <div class="list-item wraps">
         <div class="grow"><b>${x.name}</b> <span class="pill">${x.method === 'envelope'
           ? 'Envelope'
-          : 'Tracking'}</span>${x.active
-          ? html`
-            <span class="pill ok">active</span>
-          `
-          : null}
+          : 'Tracking'}</span>${x.active ? html`${' '}<span class="pill ok">active</span>` : null}
           <div class="small dim">${x.accountIds.length} account${x.accountIds.length === 1
             ? ''
             : 's'}${x.reserves ? ' · reserves' : ''}${x.moves ? ' · moves' : ''} · ${x.access.mine
             ? (x.sharedWith ? `shared with ${x.sharedWith}` : 'yours')
             : `${x.ownerName}'s`}</div></div>
-        <a href=${`/ui/budgets/${x.id}/month`}>Open</a>
-        ${x.active
+        <a href=${`/ui/budgets/${x.id}/month`}>Open</a>${x.active
           ? null
           : html`<button type="button" class="btn sm" onClick=${() =>
             openDialog(MakeActiveDialog, { b: x, from: active }).then((y) =>
@@ -916,12 +904,8 @@ function ReserveRow({ r, held }) {
         r.target,
         { cents: false },
       )}</span>${r.state === 'funded'
-        ? html`
-          <span class="pill ok">Funded</span>
-        `
-        : html`
-          <span class="dim" style=${{ marginLeft: '4px' }}>${Math.round(p * 100)}%</span>
-        `}
+        ? html`${' '}<span class="pill ok">Funded</span>`
+        : html`<span class="dim" style=${{ marginLeft: '4px' }}>${Math.round(p * 100)}%</span>`}
         <div class="dim">${dec(r.putIn).gt(0)
           ? `+${money(r.putIn, { cents: false })} put in`
           : 'nothing put in'}${dec(r.actual).gt(0)
@@ -1067,11 +1051,9 @@ function WhereMoneyIs({ b, month }) {
                   }`}. It reads backed once
                             the transfer is imported and paired, whichever of the budget's accounts it involves.${h
                                 .overLimit
-                              ? html`
-                                <b>This would be withdrawal ${h.withdrawals + 1} from ${h
-                                  .accountName} this
-                                              month; it allows ${h.limit}.</b>
-                              `
+                              ? html`${' '}<b>This would be withdrawal ${
+                                h.withdrawals + 1
+                              } from ${h.accountName} this month; it allows ${h.limit}.</b>`
                               : null}</div>
               </div>
             `}
@@ -1325,8 +1307,8 @@ function Reimbursements({ b }) {
     openDialog(PairDialog, { item: r }).then((x) => x && res.reload());
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting reimbursement<span class="spacer"></span>
-        <span class="small dim" style=${{ fontWeight: 400 }}>not counted while awaited</span></h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting reimbursement<span class="spacer"></span><span
+        class="small dim" style=${{ fontWeight: 400 }}>not counted while awaited</span></h3>
       <table class="t">
         <thead>
           <tr>
@@ -1344,9 +1326,7 @@ function Reimbursements({ b }) {
             <tr>
               <td>${date(r.date)}</td>
               <td>${r.payee || '—'}${r.splitId
-                ? html`
-                  <span class="small dim">(one part)</span>
-                `
+                ? html`${' '}<span class="small dim">(one part)</span>`
                 : null}<div class="small dim">${r.accountName}</div></td>
               <td>${r.category || '—'}</td>
               <td>${r.owedBy || '—'}</td>

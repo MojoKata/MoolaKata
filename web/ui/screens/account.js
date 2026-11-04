@@ -124,8 +124,8 @@ function Overview({ a, reload }) {
   const s = /** @type {any} */ (series.data);
   return html`
     <${PlansFor} kind="account" id=${a.id} />
-    ${a.type.startsWith('crypto') && a.access.configurable
-      ? html`<${BitcoinPairs} a=${a} reload=${reload} />`
+    ${(a.type.startsWith('crypto') || a.investing) && a.access.configurable
+      ? html`<${TransferPairs} a=${a} reload=${reload} />`
       : null}
     <div class="grid g-main">
       <div class="card"><h3>${a.investing
@@ -286,7 +286,7 @@ function Holdings({ a }) {
                             <tr>
                               <td>${date(l.acquiredOn)}${l.standIn
                                 ? html`
-                                  <span class="pill"
+                                  ${' '}<span class="pill"
                                     data-tip="From the broker's positions: earlier history wasn't imported">stand-in</span>
                                 `
                                 : null}</td>
@@ -294,7 +294,11 @@ function Holdings({ a }) {
                               <td class="num">${l.basis
                                 ? html`<${Amt} v=${l.basis} />`
                                 : html`<span class="pill warn">missing</span>`}</td>
-                              <td class="small">${l.longTerm ? 'long term' : 'short term'}</td>
+                              <td class="small">${l.acquiredMissing
+                                ? html`<span class="pill warn" title="When they were bought isn't known yet">term unknown</span>`
+                                : l.longTerm
+                                ? 'long term'
+                                : 'short term'}</td>
                             </tr>
                           `
                         )}</tbody>
@@ -348,8 +352,7 @@ function Transactions({ a, all }) {
     offset: offsetOf(page),
   }, ['import']);
   const d = /** @type {any} */ (res.data);
-  return html`<div class="toolbar"><span class="spacer"></span>
-    ${
+  return html`<div class="toolbar"><span class="spacer"></span>${
     canAdd('Txn', a)
       ? html`
         <button type="button" class="btn" onClick=${() =>
@@ -1008,6 +1011,13 @@ function Settings({ a, reload }) {
                         hint="The bank's limit, empty for none. Budgets sum the moves back within it." />
                     `
                     : null}
+                  ${a.type === 'hsa'
+                    ? html`
+                      <${RecField} rec=${rec} name="hsaCoverage" label="Coverage" id="hsa-coverage"
+                        hint="Self-only or family: the year's contribution limit is the one it says."
+                        options=${[['', 'Not set'], ['self', 'Self-only'], ['family', 'Family']]} />
+                    `
+                    : null}
                 </div>
               `}
           </div>
@@ -1095,9 +1105,7 @@ function StatementChecks({ v }) {
             >statement ${h.statement ?? '—'} · MoolaKata ${h.held ?? 'not held'}${
               h
                   .statementBasis != null
-                ? html`
-                  · basis on the statement <${Amt} v=${h.statementBasis} />
-                `
+                ? html`${' '}· basis on the statement <${Amt} v=${h.statementBasis} />`
                 : null
             }</div></div>${
               h.difference == null
@@ -1116,18 +1124,18 @@ function StatementChecks({ v }) {
 }
 
 /**
- * Bitcoin moved between the owner's accounts, proposed as pairs (S1.7.1): confirmed, the coins
- * arrive with the lots they left with.
+ * Shares, funds or coins moved between the owner's accounts, proposed as pairs (S1.7.1,
+ * CR3-73): confirmed, they arrive with the lots they left with.
  * @param {{ a: any, reload: () => void }} p
  */
-function BitcoinPairs({ a, reload }) {
+function TransferPairs({ a, reload }) {
   const res = useList('/transfers/bitcoin', {}, ['import']);
   const rows = /** @type {any[]} */ (res.data || []).filter((x) =>
     x.fromAccount === a.name || x.toAccount === a.name
   );
   const act = useSubmit(async (/** @type {any} */ x, /** @type {boolean} */ confirm) => {
     await api.post(`/transfers/bitcoin/${x.id}`, { confirm }, { version: x.version });
-    toast(confirm ? 'Matched: the coins carry their lots' : 'Not a transfer between your accounts');
+    toast(confirm ? 'Matched: they carry their lots' : 'Not a transfer between your accounts');
     res.reload();
     reload();
   });
@@ -1136,10 +1144,11 @@ function BitcoinPairs({ a, reload }) {
       html`
         <div class="notice mb" role="status">
           <${Icon} name="info" />
-          <div><b>${bitcoin(
-            x.sats,
-            true,
-          )}</b> left ${x.fromAccount} on ${date(x.fromDate)} and arrived in ${x
+          <div><b>${x.symbol === 'BTC'
+            ? bitcoin(x.sats, true)
+            : `${quantity(x.quantity)} ${x.symbol}`}</b> left ${x.fromAccount} on ${date(
+              x.fromDate,
+            )} and arrived in ${x
             .toAccount} on ${date(
               x.toDate,
             )}: one transfer? <button type="button" class="btn sm primary" disabled=${act.busy}

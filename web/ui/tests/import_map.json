@@ -1,5 +1,8 @@
 {
   "imports": {
-    "@preact/signals-core": "../vendor/signals-core/dist/signals-core.mjs"
+    "@preact/signals-core": "../vendor/signals-core/dist/signals-core.mjs",
+    "preact": "../vendor/preact/dist/preact.mjs",
+    "preact/hooks": "../vendor/preact/hooks/dist/hooks.mjs",
+    "htm": "../vendor/htm/dist/htm.mjs"
   }
 }

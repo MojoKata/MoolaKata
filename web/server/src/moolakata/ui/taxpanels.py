@@ -2,6 +2,7 @@
 
 import datetime as dt
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -27,6 +28,8 @@ class RowOut(Model):
     box: str
     account: str
     collectable: bool
+    kind: Literal["holding", "return-of-capital", "option", "item"]
+    lotMissing: bool  # sold without a lot to match: `acquired` is missing, not VARIOUS
 
 
 class WashOut(Model):
@@ -73,6 +76,8 @@ class IncomeOut(Model):
     capitalGainDistributions: Money
     returnOfCapital: Money
     dividendsByPayer: list[Amount]
+    foreignTax: list[Amount]  # by payer (1099-DIV box 7)
+    cryptoIncome: list[Amount]  # coins received as income, by account (S8.5)
 
 
 class ContributionOut(Model):
@@ -98,11 +103,23 @@ class RmdOut(Model):
     due: Money
 
 
+class MovementOut(Model):
+    """A rollover, or a conversion to Roth with its taxed part by Form 8606 (S8.6)."""
+
+    date: dt.date
+    fromAccount: str
+    toAccount: str
+    amount: Money
+    taxable: Money | None
+
+
 class RetirementOut(Model):
     contributions: list[ContributionOut]
     distributions: list[Amount]
     rmds: list[RmdOut]
     basis8606: Money | None
+    conversions: list[MovementOut]
+    rollovers: list[MovementOut]
 
 
 class TagOut(Model):
@@ -196,6 +213,8 @@ class TxfLeftOut(Model):
 
     digital: int  # in a digital asset's box, G to L
     collectable: int  # code C
+    noLot: int  # sold without a lot to match: no day bought to write
+    noBasis: int  # sold from a lot without its basis: no basis to write
     personalUse: int  # code L, a loss on personal-use property
 
 
@@ -290,6 +309,8 @@ def _build(s, b) -> Panels:
             capitalGainDistributions=inc.capitalGainDistributions,
             returnOfCapital=inc.returnOfCapital,
             dividendsByPayer=[Amount(label=k, amount=v) for k, v in inc.byPayer],
+            foreignTax=[Amount(label=k, amount=v) for k, v in inc.foreignTax],
+            cryptoIncome=[Amount(label=k, amount=v) for k, v in inc.crypto],
         ),
         retirement=RetirementOut(
             contributions=[
@@ -311,6 +332,8 @@ def _build(s, b) -> Panels:
             distributions=[Amount(label=k, amount=v) for k, v in ret.distributions],
             rmds=[RmdOut(**r.__dict__) for r in ret.rmds],
             basis8606=ret.basis8606,
+            conversions=[_movement(m) for m in ret.conversions],
+            rollovers=[_movement(m) for m in ret.rollovers],
         ),
         deductions=[TagOut(**t.__dict__) for t in tags],
         dependents=[
@@ -527,3 +550,8 @@ def _filers(s, b):
     from .taxes import _filers as filers_of
 
     return filers_of(s, b)
+
+
+def _movement(m) -> MovementOut:
+    return MovementOut(date=m.date, fromAccount=m.fromAccount, toAccount=m.toAccount,
+                       amount=m.amount, taxable=m.taxable)  # fmt: skip

@@ -38,6 +38,7 @@ class Account(Record):
     connectionId: str | None = None
     syncAccount: str | None = None
     withdrawalsAMonth: int | None = None
+    hsaCoverage: str | None = None  # an HSA's: self or family (S8.6)
 
 
 @dataclass(kw_only=True, eq=False)
@@ -194,9 +195,10 @@ class Lot(Record):
     instrumentId: str
     acquiredOn: dt.date
     quantity: Decimal
-    transactionId: str | None = None
+    transactionId: str  # the transaction that made it (S2.2): a lot never stands alone
     costBasis: Decimal | None = None
     basisMissing: bool = False
+    acquiredMissing: bool = False  # shares moved in, the day bought not known yet (S2.2)
 
 
 @dataclass(kw_only=True, eq=False)
@@ -291,6 +293,7 @@ class Loan(Record):
     securedById: str | None = None
     budgetCounting: str = "split"
     budgetCategoryId: str | None = None
+    paymentsMode: str | None = None  # None: Automatic (S1.9.3)
 
 
 @dataclass(kw_only=True, eq=False)

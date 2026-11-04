@@ -589,3 +589,28 @@ def test_childcare_paid_in_a_split_expects_the_providers_statement(server, coupl
     assert dependent(alice, b["id"], kid).status_code == 200
     exp = alice.get(f"/ui/api/tax-books/{b['id']}").json()["expected"]
     assert any(e["form"] == "Childcare provider statement" for e in exp), exp
+
+
+def test_a_tax_documents_file_goes_with_the_book_to_its_helpers(server, couple):
+    """CR3-9, CR3-74: a preparer the book is shared with at write opens the W-2 a filer
+    attached, as a read share does; a stranger still can't."""
+    from edits import share
+
+    alice, _bob, a_id, _b_id = couple
+    make_user(server, "dave")
+    make_user(server, "erin")
+    make_user(server, "mallory")
+    dave, erin, mallory = (sign_in(server, u) for u in ("dave", "erin", "mallory"))
+    uid = {n: c.get("/ui/api/session").json()["user"]["id"]
+           for n, c in (("dave", dave), ("erin", erin))}  # fmt: skip
+    b = book(alice, 2026, [a_id])
+    up = alice.post(
+        "/ui/api/receipts", files={"file": ("w2.pdf", b"%PDF-1.4 w2", "application/pdf")}
+    ).json()
+    r = make(alice, "TxDoc", bookId=b["id"], form="W-2", issuer="Acme Corp", receiptId=up["id"])
+    assert r.status_code == 200, r.text
+    assert share(alice, "tax-book", b["id"], users={uid["dave"]: "write"}).status_code == 200
+    assert share(alice, "tax-book", b["id"], users={uid["erin"]: "read"}).status_code == 200
+    assert dave.get(f"/ui/api/receipts/{up['id']}/file").status_code == 200
+    assert erin.get(f"/ui/api/receipts/{up['id']}/file").status_code == 200
+    assert mallory.get(f"/ui/api/receipts/{up['id']}/file").status_code == 404

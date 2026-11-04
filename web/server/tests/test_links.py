@@ -1040,3 +1040,36 @@ def test_a_locked_copys_inbox_names_no_one(admins):
     assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
     assert carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
     assert not any(inbox.iterdir()), "applied"
+
+
+def test_a_tax_books_document_files_cross_when_included(admins):
+    """CR3-10: a tax book shared with Include receipts sends its documents' files, each named
+    by its form and issuer; without the tick they stay home (S11.5.1)."""
+    from test_receipts import png
+
+    a, b, ca, cb, _ = admins
+    make_user(b, "carol")
+    a_id, b_id = linked(ca, cb)
+    make_user(a, "alice")
+    alice = sign_in(a, "alice")
+    me = alice.get("/ui/api/session").json()["user"]["id"]
+    book = make(alice, "TaxBk", year=2026, filers=[me]).json()
+    image = png()
+    rid = alice.post(
+        "/ui/api/receipts", files={"file": ("w2.png", image, "application/octet-stream")}
+    ).json()["id"]
+    r = make(alice, "TxDoc", bookId=book["id"], form="W-2", issuer="Acme Corp", receiptId=rid)
+    assert r.status_code == 200, r.text
+    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
+    share(alice, "tax-book", book["id"], users={carol_here["id"]: "read"})
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    carol = sign_in(b, "carol")
+    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    assert carol.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "not included"
+    share(alice, "tax-book", book["id"], users={carol_here["id"]: "read"}, receipts={a_id: True})
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    files = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert [f["meta"]["payee"] for f in files] == ["W-2 · Acme Corp"]
+    got = carol.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
+    assert got.status_code == 200 and got.content == image

@@ -79,6 +79,9 @@ TXN_KINDS = (
     "symbol-change",
     "spin-off",
     "merger",
+    # Income kinds (S8.5, CR3-38): foreign tax a fund paid, and crypto received as income.
+    "foreign-tax",
+    "reward",
 )
 INSTRUMENT_CLASSES = (
     "cash",
@@ -150,6 +153,8 @@ Account = record(
     Column("syncAccount", Text),
     # A savings or money-market account's limit on withdrawals a month, the bank's (S1.2).
     Column("withdrawalsAMonth", Integer),
+    # An HSA's coverage, self-only or family, which its yearly limit is (S8.6); none: unset.
+    Column("hsaCoverage", Text),
     _in("type", ACCOUNT_TYPES, "type"),
     _in("lotMethod", LOT_METHODS, "lot_method"),
     CheckConstraint("mask IS NULL OR (length(mask) = 4 AND mask GLOB '[0-9]*')", name="mask"),
@@ -157,6 +162,9 @@ Account = record(
         '"statementInterval" IS NULL OR '
         "\"statementInterval\" IN ('monthly', 'quarterly', 'yearly', 'none')",
         name="statement_interval",
+    ),
+    CheckConstraint(
+        "\"hsaCoverage\" IS NULL OR \"hsaCoverage\" IN ('self', 'family')", name="hsa_coverage"
     ),
     Index("ix_Account_ownerId", "ownerId"),
     seen=Seen.root(
@@ -175,6 +183,7 @@ Account = record(
             "connectionId",
             "syncAccount",
             "withdrawalsAMonth",
+            "hsaCoverage",
         ),
     ),
 )
@@ -347,7 +356,7 @@ Transaction = record(
     ),
     CheckConstraint(
         '"contributionSource" IS NULL OR "contributionSource" IN '
-        "('employee', 'employer', 'rollover')",
+        "('employee', 'employer', 'rollover', 'conversion')",
         name="contribution_source",
     ),
     CheckConstraint(
@@ -414,12 +423,17 @@ Lot = record(
     "Lot",
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
     Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
-    # The buy or transfer in that made it; null for a lot that stands in for missing history.
-    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE")),
+    # The buy, transfer in or other transaction that made it: value arrives with the money
+    # that moved it in (S2.2, S5.2). A lot standing in for missing history is the replay's,
+    # from a holding snapshot, never a row.
+    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("acquiredOn", Day, nullable=False),
     Column("quantity", Dec, nullable=False),
     Column("costBasis", Cents),
     Column("basisMissing", Boolean, nullable=False, server_default=text("0")),
+    # Shares moved in whose day bought isn't known yet: `acquiredOn` is the day they arrived,
+    # their term unknown until it is typed (S2.2, CR3-73).
+    Column("acquiredMissing", Boolean, nullable=False, server_default=text("0")),
     Index("ix_Lot_account_instrument", "accountId", "instrumentId"),
     seen=Seen.child("accountId"),
 )

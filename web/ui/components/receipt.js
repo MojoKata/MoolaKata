@@ -66,12 +66,12 @@ export function ReceiptCard({ r, onOpen }) {
   return html`
     <button type="button" class="receipt" onClick=${onOpen} aria-label=${'Receipt ' +
       (r.payee || r.fileName)}>
-      <div class="thumb"><span class="pill kind">${KIND[r.mediaType] || ''}</span>
-        ${r.hasThumbnail
-          ? html`<${ApiImg} src=${`/ui/api/receipts/${r.id}/thumbnail`} alt="" />`
-          : html`<div class="paper"><i></i><i style=${{ width: '70%' }}></i><i></i><i style=${{
-            width: '50%',
-          }}></i></div>`}</div>
+      <div class="thumb"><span class="pill kind">${KIND[r.mediaType] || ''}</span>${r
+          .hasThumbnail
+        ? html`<${ApiImg} src=${`/ui/api/receipts/${r.id}/thumbnail`} alt="" />`
+        : html`<div class="paper"><i></i><i style=${{ width: '70%' }}></i><i></i><i style=${{
+          width: '50%',
+        }}></i></div>`}</div>
       <div class="meta">
         <div class="ellipsis" style=${{ fontWeight: 550 }}>${r.payee ||
           r.fileName}</div>
@@ -213,8 +213,7 @@ export function ReceiptDialog({ close, id }) {
                     alt="The PDF's first page" />
                 `
                 : null
-            }
-              <span class="btn sm"><${Icon} name="download" /> Open the PDF</span></a>`
+            }<span class="btn sm"><${Icon} name="download" /> Open the PDF</span></a>`
             : html`<a href=${file} target="_blank" rel="noopener" title="Open full size"><${ApiImg}
               src=${file} alt=${'Receipt ' + r.fileName} /></a>`}
           ${r.text
@@ -232,16 +231,16 @@ export function ReceiptDialog({ close, id }) {
             ? "Read from the PDF's text layer"
             : r.readMethod === 'ocr'
             ? 'Read with OCR'
-            : ''}${r.suggested.card ? ` · card ending ${r.suggested.card.value}` : ''}</span>
-            <span class="spacer"></span>${canEdit && !reading
-              ? html`
-                <button type="button" class="btn sm" disabled=${again.busy}
-                  onClick=${() =>
-                    again.run().catch((e) =>
-                      toast(e.message)
-                    )}><${Icon} name="refresh" /> Read again</button>
-              `
-              : null}</div>
+            : ''}${r.suggested.card ? ` · card ending ${r.suggested.card.value}` : ''}</span><span
+              class="spacer"></span>${canEdit && !reading
+                ? html`
+                  <button type="button" class="btn sm" disabled=${again.busy}
+                    onClick=${() =>
+                      again.run().catch((e) =>
+                        toast(e.message)
+                      )}><${Icon} name="refresh" /> Read again</button>
+                `
+                : null}</div>
           ${r.filePrunedAt ? null : html`
             <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'

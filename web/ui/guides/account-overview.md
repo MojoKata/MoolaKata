@@ -22,5 +22,7 @@ imported.
 
 ## Options · capital at risk {#capital-at-risk}
 
-Its options' market value, and what they put at risk: each strategy's, and each option on its own
-as a single leg. Allocation charts keep market value.
+Its options' market value, and what they put at risk: the most each strategy can lose at expiry, and
+each option on its own counted the same way, as a strategy of its shape: a long option its premium,
+a short put its strike less its premium, a short call the account's shares cover as a covered
+call, and an uncovered one *unlimited*. Allocation charts keep market value.

@@ -53,10 +53,9 @@ chart (line, or candles from daily OHLC where available) with the user's buys an
 ## L6: More of a linked household's window
 
 **What it is:** in a linked household's window (S12.10), positions with their gains and option
-trades, a loan's view with its payoff plans, and a physical-asset account's items; and a tax
-book's document files crossing a link with Include receipts (S11.5.1).
+trades, a loan's view with its payoff plans, and a physical-asset account's items.
 
-**Touches:** S11.3.1, S11.5.1, S12.10.3.4.
+**Touches:** S11.3.1, S12.10.3.4.
 
 ## L7: Limits checked in projections and giving
 

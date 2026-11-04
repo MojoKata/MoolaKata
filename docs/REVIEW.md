@@ -375,6 +375,12 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    confirmations, and its header then reads "quick, checked later".
 5. **What a review recommends but no one takes up** goes to the gaps, the questions or later
    work with an id, so it is not lost when the next review starts.
+6. **Each area's fix cycle ends with its hardening**, in the same pull request: the area's
+   code and data-shape coverage looked at again (what the code branches on, each fact a record
+   carries crossed with what can happen to it, the dimensions the generated worlds leave out)
+   and a mutation run over its modules (S17.5.12, `mutation-testing.md`), until every
+   surviving change is caught by a fast test or marked with its reason. What it finds is
+   fixed there, with review ids; only what belongs to another area goes to an issue.
 
 ## 12. Parallel agents, when asked
 

@@ -535,7 +535,7 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
             continue
         old = [
             p.asOf
-            for p in valuation.prices(s, list(held), today, a.ownerId).values()
+            for p in valuation.prices(s, list(held), today, owner=a.ownerId).values()
             if p.source == "statement" and (today - p.asOf).days > STATEMENT_STALE_DAYS
         ]
         if old:

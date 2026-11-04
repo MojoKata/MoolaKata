@@ -6,7 +6,9 @@ a large special dividend, the OCC adjusts its open options and says how in an in
 contract, with their days held and their basis: nothing is sold, and there is no wash sale.
 
 A whole-number split (2:1, 4:1) needs none of this: recorded or imported on the stock, it takes the
-account's open options with it, contracts times the ratio and strike divided by it.
+account's open options with it, contracts times the ratio and strike divided by it. A contract
+already adjusted to deliver cash or another company's shares is the exception: those don't split,
+so it waits for the OCC's memo and is typed here.
 
 ## Underlying {#adjust-underlying}
 

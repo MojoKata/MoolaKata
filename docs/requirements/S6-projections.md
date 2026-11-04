@@ -75,9 +75,13 @@
          couple's household retires when the last of them does. A target date part-way
          through a year counts that part of it.
       2. **The mix** comes from the holdings of what it is built on: cash and money-market
-         funds are cash, bonds and bond funds bonds, crypto crypto, metals metals; other
-         funds and shares are US stocks unless their name says international, emerging or
-         real estate. A typed amount gives its own mix (60/40 stocks and bonds unless set).
+         funds are cash, bonds and bond funds bonds, crypto crypto, metals metals (precious-
+         metal items too, at spot); other funds and shares are US stocks unless their name says
+         international, emerging or real estate. A typed amount gives its own mix (60/40
+         stocks and bonds unless set). A loan, an item other than a precious metal (a home, a
+         car) and options aren't grown: the projection leaves them out of its start and its
+         tracking alike and names each, with its value, under its chart, to a viewer only where
+         they can see the account.
       3. **A bitcoin model** sets the median growth of the bitcoin each year, and the
          crypto volatility spreads it.
       4. **The savings answer** names the monthly saving that reaches the target with a 90%

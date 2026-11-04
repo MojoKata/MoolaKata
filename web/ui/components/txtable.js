@@ -80,7 +80,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
             ${t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind)}${
               t.receipts
                 ? html`
-                  <span class="dim" title=${`${t.receipts} receipt${
+                  ${' '}<span class="dim" title=${`${t.receipts} receipt${
                     t.receipts === 1 ? '' : 's'
                   }`}><${Icon} name="clip" /></span>
                 `

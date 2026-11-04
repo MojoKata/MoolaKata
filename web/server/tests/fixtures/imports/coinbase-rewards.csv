@@ -1,0 +1,8 @@
+Transactions
+User,Alice Example,6f1c2a90-0000-4000-8000-000000000000
+
+Timestamp,Transaction Type,Asset,Quantity Transacted,Spot Price Currency,Spot Price at Transaction,Subtotal,Total (inclusive of fees and/or spread),Fees and/or Spread,Notes
+2026-09-01T15:02:11Z,Deposit,USD,500,USD,1.00,500.00,500.00,0.00,Deposit from Checking
+2026-09-03T14:22:10Z,Buy,ETH,0.1,USD,2400.00,240.00,243.00,3.00,Bought 0.1 ETH for 243.00 USD
+2026-10-01T04:00:00Z,Staking Income,ETH,0.002,USD,2500.00,5.00,5.00,0.00,Received 0.002 ETH from Coinbase Staking
+2026-10-15T09:30:00Z,Rewards Income,SOL,0.05,USD,150.00,7.50,7.50,0.00,Received 0.05 SOL from Coinbase Rewards

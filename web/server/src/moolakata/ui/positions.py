@@ -32,7 +32,7 @@ class LotOut(Model):
     quantity: Quantity
     basis: Money | None
     days: int
-    longTerm: bool
+    longTerm: bool | None  # None: shares moved in, the day bought missing (S2.2)
 
 
 class OpenRow(Model):
@@ -51,7 +51,7 @@ class OpenRow(Model):
     unrealized: Money | None
     unrealizedPct: Ratio | None
     realized: Money  # all its closes so far
-    term: str  # short, long or mixed
+    term: str  # short, long, mixed, or unknown (a lot whose day bought is missing)
     days: int  # since the oldest open lot
     lots: list[LotOut]
     expiry: dt.date | None = None  # an option's
@@ -104,7 +104,9 @@ def _long_term(acquired: dt.date, day: dt.date) -> bool:
     return long_term(acquired, day)
 
 
-def _term(flags: list[bool]) -> str:
+def _term(flags: list[bool | None]) -> str:
+    if any(f is None for f in flags):
+        return "unknown"  # a lot whose day bought is missing (CR3-73, CR3-415)
     if all(flags):
         return "long"
     if not any(flags):
@@ -112,9 +114,8 @@ def _term(flags: list[bool]) -> str:
     return "mixed"
 
 
-def _how(t: Transaction | None) -> str:
-    if t is None:
-        return "sold"
+def _how(t: Transaction) -> str:
+    """How a closing trade closed: in words, or its kind."""
     return {
         "sell": "sold",
         "sell-to-close": "sold",
@@ -164,7 +165,10 @@ def gather(s, c: Caller, kind: str = "all"):
             p = positions.get(iid)
             value = p.value if p is not None else None
             gain = value - cost if value is not None and cost is not None else None
-            flags = [_long_term(lot.heldFrom or lot.acquiredOn, today) for lot in lots]
+            flags = [
+                None if lot.acquiredMissing else _long_term(lot.heldFrom or lot.acquiredOn, today)
+                for lot in lots
+            ]
             extra = {}
             oc = options.contract_of(s, iid) if inst.instrumentClass == "option" else None
             if oc is not None:
@@ -213,7 +217,8 @@ def gather(s, c: Caller, kind: str = "all"):
             inst = insts[iid]
             if classes and inst.instrumentClass not in classes:
                 continue
-            t = s.get(Transaction, sale) if sale else None
+            # Every disposal is a transaction's: its sale, close, expiry or action.
+            t = s.get(Transaction, sale)
             known = [d.basis for d in ds if d.basis is not None]
             cost = sum(known, ZERO) if len(known) == len(ds) else None
             proceeds = sum((d.proceeds for d in ds), ZERO)
@@ -234,7 +239,11 @@ def gather(s, c: Caller, kind: str = "all"):
                     cost=cost,
                     realized=(sum((d.gain for d in ds), ZERO) if cost is not None else None),
                     washDisallowed=sum((d.adjustment for d in ds), ZERO),
-                    term=_term([d.longTerm for d in ds]),
+                    # A sale without a lot to match has no day bought, as shares moved in
+                    # without one: its term is unknown (CR3-415).
+                    term=_term(
+                        [None if d.acquiredMissing or d.lotMissing else d.longTerm for d in ds]
+                    ),
                 )
             )
     open_rows.sort(key=lambda r: -(abs(r.value) if r.value is not None else ZERO))
@@ -349,7 +358,10 @@ class OptionTradeRow(Model):
     premiumOut: Money  # debits paid, with fees
     value: Money | None  # what is still open is worth now
     pl: Money | None  # in less out, plus what is open
-    capitalAtRisk: Money
+    # The per-trade return's base (S3.9.2): a long option's premium, a short one's strike on
+    # every share its contracts cover; a leg of a strategy, its strategy's capital at risk at
+    # open, where that is finite.
+    capitalRequired: Money
     returnPct: Ratio | None
 
 
@@ -361,9 +373,9 @@ ENDS = ("expire", "assign", "exercise", "option-adjust")
 @router.get("/positions/option-trades", response_model=list[OptionTradeRow])
 def option_trades(request: Request, c: Caller = Depends(caller)):
     """Each option trade (S3.9): from the first contract opened to the last one closed, with the
-    premium in and out, its P/L and its return on the capital at risk. A long option risks its
-    premium; a short one the strike on every contract's shares, cash for a put and the shares
-    for a call."""
+    premium in and out, its P/L and its return on the capital it required. A long option
+    requires its premium; a short one the strike on every contract's shares, cash for a put and
+    the shares for a call."""
     out: list[OptionTradeRow] = []
     with server(request).db.read(user=c.id) as s:
         for a, _ in access.accounts(s, c.id):
@@ -414,7 +426,8 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
                 if trade is not None:
                     p = positions.get(iid)
                     out.append(_trade_row(a, inst, oc, trade, None, p.value if p else None))
-        # A leg in a strategy takes its strategy's capital at risk at open (S3.9.2).
+        # A leg in a strategy takes its strategy's capital at risk at open, where that is
+        # finite (S3.9.2): an unlimited one leaves the trade's own capital required.
         from ..options import strategies as strat
 
         at_open: dict[tuple[str, str], Decimal] = {}
@@ -431,7 +444,7 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
         for r in out:
             risk = at_open.get((r.accountId, r.instrumentId))
             if risk is not None:
-                r.capitalAtRisk = risk
+                r.capitalRequired = risk
                 r.returnPct = (r.pl / risk * 100).quantize(PCT) if r.pl is not None else None
     open_rows = [r for r in out if r.closed is None]
     done = sorted((r for r in out if r.closed is not None), key=lambda r: r.closed, reverse=True)
@@ -453,6 +466,7 @@ def _adjusted_long(led, t: Transaction) -> bool:
 
 
 def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTradeRow:
+    """A trade closed by `last`, or still open (`last` None) and worth `value` now."""
     pl = trade["in"] - trade["out"]
     if last is None:
         pl = pl + value if value is not None else None
@@ -472,8 +486,8 @@ def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTra
         how=_how(last) if last else None,
         premiumIn=trade["in"],
         premiumOut=trade["out"],
-        value=value if last is None else None,
+        value=value,
         pl=pl,
-        capitalAtRisk=risk,
+        capitalRequired=risk,
         returnPct=(pl / risk * 100).quantize(PCT) if pl is not None and risk else None,
     )

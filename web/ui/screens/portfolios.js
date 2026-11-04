@@ -32,8 +32,7 @@ export default function Portfolios() {
         p.implicit
           ? 'Your accounts, and shared ones you count'
           : `${p.accountIds.length} account${p.accountIds.length === 1 ? '' : 's'}`
-      }</div></div><span class="spacer"></span>
-        ${
+      }</div></div><span class="spacer"></span>${
         p.access.mine
           ? p.sharedWith
             ? html`<span class="mark" data-tip="Shared by me"><${Icon} name="share" /> ${p.sharedWith}</span>`
