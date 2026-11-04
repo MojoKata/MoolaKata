@@ -525,6 +525,13 @@ def transactions(h: Household) -> dict:
     from test_receipts import png
 
     receipt = made(c.post("/ui/api/receipts", files={"file": ("coffee.png", png(), "image/png")}))
+    # Its reading saves the receipt, and a change made meanwhile is refused as stale (as a
+    # user's is, S12.15): the edit waits for the read to finish.
+    for _ in range(600):
+        status = c.get(f"/ui/api/receipts/{receipt['id']}").json()["readStatus"]
+        if status not in ("waiting", "reading"):
+            break
+        time.sleep(0.1)
     coffee = {"add": [tag(c, "coffee")], "remove": []}
     receipt = saved(
         edit(c, "Rcpt", f"/ui/api/receipts/{receipt['id']}", date=f"{months_back(1)}-12",

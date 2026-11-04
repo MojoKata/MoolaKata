@@ -4,7 +4,8 @@ before it closes, each of the app's files it ran is written there in the form `d
 --coverage` writes, so `deno coverage` reads both together.
 
 Pages are found by wrapping Playwright's `new_page` and `close`: a page opened another way (a
-pop-up) is not measured."""
+pop-up) is not measured. A page's `goto` and `reload` take what it ran first, since the
+document it leaves takes its scripts' coverage with it."""
 
 import contextlib
 import json
@@ -27,11 +28,13 @@ def _start(page) -> None:
     _started.add(page)
 
 
-def _take(page, out: Path) -> None:
-    """The page's coverage so far, of the app's own files (served under /ui/v/<version>/)."""
+def _take(page, out: Path, leaving: bool = True) -> None:
+    """The page's coverage so far, of the app's own files (served under /ui/v/<version>/); a
+    page staying open (navigating on) keeps being measured."""
     if page not in _started or page.is_closed():
         return
-    _started.discard(page)
+    if leaving:
+        _started.discard(page)
     # Settled first, as browser.wait() does, so a page counts the same each run; a page gone
     # elsewhere or never settling gives what ran.
     with contextlib.suppress(Exception):
@@ -76,5 +79,16 @@ def install() -> None:
     Browser.new_page = opened(Browser.new_page)
     BrowserContext.new_page = opened(BrowserContext.new_page)
     Page.close = closing(Page.close, lambda p: [p])
+
+    def navigating(go):
+        def wrapped(self, *a, **kw):
+            if "/ui/" in self.url:  # a blank page has run nothing of the app's yet
+                _take(self, out, leaving=False)
+            return go(self, *a, **kw)
+
+        return wrapped
+
+    Page.goto = navigating(Page.goto)
+    Page.reload = navigating(Page.reload)
     BrowserContext.close = closing(BrowserContext.close, lambda c: list(c.pages))
     Browser.close = closing(Browser.close, lambda b: [p for c in b.contexts for p in c.pages])
