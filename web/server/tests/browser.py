@@ -6,6 +6,7 @@ The server runs on the real clock, so months count back from today."""
 
 import datetime as dt
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -47,6 +48,17 @@ def server_log_tail(lines: int = 80) -> str:
         if tracebacks:
             tail = "\n".join("".join(tracebacks[-3:]).splitlines()[-lines:])
             out.append(f"--- {log} ---\n{tail}")
+    if out:
+        return "\n".join(out)
+    # No traceback: each log's answers of 5xx and its errors, with what follows each.
+    for log in dict.fromkeys(SERVER_LOG):
+        if not log.exists():
+            continue
+        lines = log.read_text(errors="replace").splitlines()
+        hits = [n for n, x in enumerate(lines) if re.search(r" 5\d\d |ERROR|CRITICAL|Exception", x)]
+        if hits:
+            shown = sorted({m for n in hits[-10:] for m in range(n, min(n + 15, len(lines)))})
+            out.append(f"--- {log} ---\n" + "\n".join(lines[m] for m in shown))
     if out:
         return "\n".join(out)
     if not SERVER_LOG or not SERVER_LOG[-1].exists():
