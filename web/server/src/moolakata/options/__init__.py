@@ -8,6 +8,7 @@ from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import ids
+from ..store.db import read_once
 from ..store.entities.accounts import Instrument, OptionContract
 from ..store.repos import ledger as repo
 
@@ -29,11 +30,18 @@ def occ(underlying: str, c: OptionContract) -> str:
 
 
 def contract_of(s: Session, instrument_id: str) -> OptionContract | None:
-    return s.scalars(
+    """An option's contract; None for an instrument that isn't one. A read asks once each."""
+    kept = read_once(s, "contracts")
+    if kept is not None and instrument_id in kept:
+        return kept[instrument_id]
+    c = s.scalars(
         select(OptionContract).where(
             OptionContract.instrumentId == instrument_id, OptionContract.deleted == false()
         )
     ).first()
+    if kept is not None:
+        kept[instrument_id] = c
+    return c
 
 
 def contract(

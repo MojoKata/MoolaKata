@@ -26,11 +26,12 @@ READS = (
     "/projections/{projection}",
     "/accounts/{loan}/loan",
 )
-# Queries an account may add to a read that is over every account (its ledger, its lots, its
-# prices, a loan's terms or an item's valuations). Measured at 13 to 24, as on main before this
-# batch (Holdings 1,083 queries, about 1.5 s, at 50 accounts): a ceiling against growth, not a
-# goal; reading the accounts' ledgers together would bring it down.
-PER_ACCOUNT = 25
+# Queries an account may add to a read that is over every account (its ledger and lots, a
+# loan's terms or an item's valuations; its prices are asked once per owner, and a read keeps
+# each ledger, contract, position and price it has read). Measured at 8 to 9 (Holdings 493
+# queries, about 1.2 s, at 50 accounts; 1,083 before prices were asked once): a ceiling
+# against growth.
+PER_ACCOUNT = 10
 
 
 def _counted(c, path: str) -> tuple[int, float]:

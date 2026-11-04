@@ -16,7 +16,7 @@ from ...ledger import types as atypes
 from ...ledger.categories import DEFAULTS
 from ...money import CENT
 from .. import scoping
-from ..db import live
+from ..db import live, read_once
 from ..entities.accounts import (
     Account,
     Anchor,
@@ -101,7 +101,19 @@ class Ledger:
 
 
 def load(s: Session, account: Account, raw: bool = False, _depth: int = 0) -> Ledger:
-    """The account's ledger; raw leaves out the wash sales, for working them out."""
+    """The account's ledger; raw leaves out the wash sales, for working them out. A read
+    loads each once (a request over many accounts reads one several times)."""
+    kept = read_once(s, "ledgers")
+    key = (account.id, raw, _depth)
+    if kept is not None and key in kept:
+        return kept[key]
+    ledger = _load(s, account, raw, _depth)
+    if kept is not None:
+        kept[key] = ledger
+    return ledger
+
+
+def _load(s: Session, account: Account, raw: bool, _depth: int) -> Ledger:
     aid = account.id
     txns = s.scalars(
         select(Transaction)

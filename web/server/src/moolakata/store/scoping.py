@@ -98,6 +98,8 @@ def as_server(s: Session, why: str, expire: bool = True) -> Iterator[Session]:
         join_transaction_mode="create_savepoint",
     ) as server:
         scope_server(server, why)
+        # On a read's connection, under query_only: a read too, keeping what it reads.
+        server.info["read_only"] = bool(s.info.get("read_only"))
         yield server
         server.commit()
     # What it changed is read afresh by the user's session; work that changes nothing the

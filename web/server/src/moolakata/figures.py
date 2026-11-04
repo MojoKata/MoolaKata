@@ -44,6 +44,8 @@ def combine(
 ) -> Combined:
     by: dict[str, list[tuple[dt.date, Decimal]]] = {}
     flow: dict[dt.date, Decimal] = {}
+    investing = [repo.load(s, a) for a in accounts if atypes.investing(a.type)]
+    valuation.price_ahead(s, investing, first, last)
     for a in accounts:
         led = repo.load(s, a)
         series = valuation.series(s, led, atypes.investing(a.type), first, last, step)

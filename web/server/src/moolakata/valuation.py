@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from . import clock
 from .ledger import balances
 from .money import CENT
+from .store.db import read_once
 from .store.entities.accounts import Account, Holding, Instrument, Transaction
 from .store.entities.prices import TypedPrice
 
@@ -155,12 +156,34 @@ def prices(
     `owner`: the last point of `price_points` up to that day."""
     day = day or clock.today()
     ids_ = list(dict.fromkeys(instrument_ids))
-    out = {}
-    for iid, tiers in _tiers(s, ids_, day, day, owner).items():
-        p = _effective(tiers, day)
-        if p is not None:
-            out[iid] = p
-    return out
+    kept = read_once(s, "prices")
+    book = {} if kept is None else kept.setdefault((owner, day), {})
+    missing = [i for i in ids_ if i not in book]
+    if missing:
+        # A read asks once for each: Holdings over many accounts asks for them all at once.
+        found = _tiers(s, missing, day, day, owner)
+        for iid in missing:
+            book[iid] = _effective(found[iid], day) if iid in found else None
+    return {i: book[i] for i in ids_ if book[i] is not None}
+
+
+def price_ahead(
+    s: Session, ledgers: list, day: dt.date | None = None, until: dt.date | None = None
+) -> None:
+    """Every instrument these ledgers have held, priced for each owner at once (on `day`, or
+    from `day` to `until` as points), so a read over many accounts asks once per owner, not
+    once per account: `prices` and `price_points` keep what a read asked."""
+    by_owner: dict[str, set[str]] = {}
+    for led in ledgers:
+        held = {t.instrumentId for t in led.transactions if t.instrumentId}
+        by_owner.setdefault(led.account.ownerId, set()).update(held)
+    for owner, ids_ in by_owner.items():
+        if not ids_:
+            continue
+        if until is None:
+            prices(s, sorted(ids_), day, owner=owner)
+        else:
+            price_points(s, sorted(ids_), day or until, until, owner=owner)
 
 
 def closes(s: Session, instrument_ids: list[str], day: dt.date) -> dict[str, Price]:
@@ -199,7 +222,18 @@ class Position:
 
 def positions(s: Session, ledger, day: dt.date | None = None) -> list[Position]:
     """An investing account's holdings on a day (today when none), from its lots replayed to
-    that day, valued at that day's prices."""
+    that day, valued at that day's prices. A read works each ledger's out once a day."""
+    kept = read_once(s, "positions")
+    key = (id(ledger), day)
+    if kept is not None and key in kept:
+        return kept[key]
+    out = _positions(s, ledger, day)
+    if kept is not None:
+        kept[key] = out
+    return out
+
+
+def _positions(s: Session, ledger, day: dt.date | None) -> list[Position]:
     replay = ledger.replay(day)
     by: dict[str, list] = {}
     for lot in replay.open:
@@ -329,10 +363,18 @@ def price_points(
     """Each instrument's price from `first` to `last`, as the days it changes on, oldest
     first, by the one order of sources (`_tiers`): its value on any day is the last point on or
     before it, which is what `prices` gives for that day."""
+    kept = read_once(s, "points")
+    book = {} if kept is None else kept.setdefault((owner, first, last), {})
+    missing = [i for i in dict.fromkeys(instrument_ids) if i not in book]
+    if missing:
+        # A read asks once for each: a portfolio's series over many accounts, all at once.
+        book.update(_points(s, missing, first, last, owner))
+    return {i: book.get(i, []) for i in instrument_ids}
+
+
+def _points(s: Session, instrument_ids: list[str], first: dt.date, last: dt.date, owner: str):
     out: dict[str, list[tuple[dt.date, Decimal]]] = {i: [] for i in instrument_ids}
-    if not instrument_ids:
-        return out
-    for iid, tiers in _tiers(s, list(dict.fromkeys(instrument_ids)), first, last, owner).items():
+    for iid, tiers in _tiers(s, instrument_ids, first, last, owner).items():
         # Walked once, day by day of the points: each tier's latest so far, the first tier
         # with one deciding, as `_effective` does for a single day.
         days = sorted({max(p.asOf, first) for tier in tiers for p in tier if p.asOf <= last})

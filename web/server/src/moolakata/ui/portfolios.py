@@ -80,6 +80,7 @@ def seen_accounts(s, user_id: str, p: Portfolio | None) -> list[Account]:
 
 def value_of(s, accounts: list[Account], day: dt.date | None = None) -> Decimal:
     total = Decimal(0)
+    valuation.price_ahead(s, [repo.load(s, a) for a in accounts if atypes.investing(a.type)], day)
     for a in accounts:
         total += valuation.account_value(s, repo.load(s, a), atypes.investing(a.type), day)
     return total
@@ -441,6 +442,7 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
         opts = Decimal(0)
         risk: Decimal | None = Decimal(0)
         any_open = False
+        valuation.price_ahead(s, [repo.load(s, a) for a in accounts if atypes.investing(a.type)])
         for a in accounts:
             led = repo.load(s, a)
             investing = atypes.investing(a.type)
