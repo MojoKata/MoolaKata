@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from decimal import Decimal as D
 
 import pytest
-from test_ledger import Lot, Pick, Snap, Txn
+from test_ledger import Lot, Pick, Snap, Txn, replay
 
 from moolakata.ledger import lots
 
@@ -76,7 +76,7 @@ def test_a_sale_takes_its_lots_in_its_methods_order(method, averaged, want):
     """Three shares sold for $90 out of three lots of two: each lot taken realizes its share of
     the proceeds by quantity, the last what rounding leaves."""
     sale = Txn(d(2025, 3, 1), "sell", D(90), "VTI", D(-3))
-    r = lots.replay(method, [sale], three_lots(), [], [], averaged=frozenset(averaged))
+    r = replay(method, [sale], three_lots(), [], [], averaged=frozenset(averaged))
     assert sold(r) == want
     assert r.quantity("VTI") == D(3)
 
@@ -84,7 +84,7 @@ def test_a_sale_takes_its_lots_in_its_methods_order(method, averaged, want):
 def test_picked_lots_make_a_sale_specific_whatever_the_method():
     sale = Txn(d(2025, 3, 1), "sell", D(90), "VTI", D(-3))
     picks = [Pick(sale.id, "L3", D(1)), Pick(sale.id, "L1", D(2))]
-    r = lots.replay("fifo", [sale], three_lots(), picks, [])
+    r = replay("fifo", [sale], three_lots(), picks, [])
     assert sold(r) == [("L3", D(1), D(30), D(20), "specific"),
                        ("L1", D(2), D(60), D(20), "specific")]  # fmt: skip
 
@@ -95,14 +95,14 @@ def test_proceeds_split_by_quantity_the_last_lot_taking_what_rounding_leaves():
         Lot("B", "VTI", d(2024, 2, 1), D(2), D(20)),
     ]
     sale = Txn(d(2025, 3, 1), "sell", D(100), "VTI", D(-3))
-    r = lots.replay("fifo", [sale], made, [], [])
+    r = replay("fifo", [sale], made, [], [])
     assert [x.proceeds for x in r.disposals] == [D("33.33"), D("66.67")]
 
 
 def test_a_sales_proceeds_take_its_adjustment():
     made = [Lot("A", "VTI", d(2024, 1, 1), D(1), D(10))]
     sale = T(d(2025, 3, 1), "sell", D(50), "VTI", D(-1), proceedsAdjustment=D(5))
-    assert sold(lots.replay("fifo", [sale], made, [], [])) == [("A", D(1), D(55), D(10), "fifo")]
+    assert sold(replay("fifo", [sale], made, [], [])) == [("A", D(1), D(55), D(10), "fifo")]
 
 
 def test_more_sold_than_held_is_a_sale_without_a_lot():
@@ -110,11 +110,11 @@ def test_more_sold_than_held_is_a_sale_without_a_lot():
     basis, and a problem (S8.4). A transfer out has the problem only."""
     made = [Lot("A", "VTI", d(2024, 1, 1), D(2), D(20))]
     sale = Txn(d(2025, 3, 1), "sell", D(100), "VTI", D(-5), lotMethod="lifo")
-    r = lots.replay("fifo", [sale], made, [], [])
+    r = replay("fifo", [sale], made, [], [])
     assert sold(r) == [("A", D(2), D(40), D(20), "lifo"), (None, D(3), D(60), None, "lifo")]
     assert problems(r) == [("sale-without-lot", "VTI", d(2025, 3, 1), D(3))]
     out = Txn(d(2025, 3, 1), "transfer-out", D(0), "VTI", D(-5))
-    r = lots.replay("fifo", [out], made, [], [])
+    r = replay("fifo", [out], made, [], [])
     assert r.disposals == []
     assert problems(r) == [("sale-without-lot", "VTI", d(2025, 3, 1), D(3))]
 
@@ -135,7 +135,7 @@ def test_more_sold_than_held_is_a_sale_without_a_lot():
     ],
 )
 def test_a_lot_opens_at_its_cost_on_its_day(txn, basis):
-    r = lots.replay("fifo", [txn], [], [], [], by_snapshots=False)
+    r = replay("fifo", [txn], [], [], [], by_snapshots=False)
     (lot,) = r.open
     assert (lot.lotId, lot.instrumentId, lot.acquiredOn, lot.quantity, lot.basis) == (
         None, txn.instrumentId, txn.date, txn.quantity, basis
@@ -151,7 +151,7 @@ def test_a_transfer_out_takes_its_lots_with_what_is_known_of_them():
     snap = Snap("VXUS", d(2026, 1, 6), D(4))
     out = Txn(d(2026, 2, 1), "transfer-out", D(0), "VTI", D(-2), createdAt=at(2))
     out2 = Txn(d(2026, 2, 1), "transfer-out", D(0), "VXUS", D(-1), createdAt=at(3))
-    r = lots.replay("fifo", [into, out, out2], made, [], [snap], by_snapshots=True)
+    r = replay("fifo", [into, out, out2], made, [], [snap], by_snapshots=True)
     assert r.moved[out.id] == [lots.OpenLot(None, "VTI", d(2026, 1, 5), D(2), D(200),
                                             acquiredMissing=True)]  # fmt: skip
     assert r.moved[out2.id] == [lots.OpenLot(None, "VXUS", d(2026, 1, 6), D(1), None,
@@ -162,7 +162,7 @@ def test_a_transfer_in_opens_the_lots_its_pair_took_whole():
     carried = lots.OpenLot(None, "VTI", d(2020, 3, 1), D(2), D(200), standIn=True,
                            heldFrom=d(2019, 3, 1), acquiredMissing=True)  # fmt: skip
     into = Txn(d(2026, 2, 1), "transfer-in", D(0), "VTI", D(2), accountId="B")
-    r = lots.replay("fifo", [into], [], [], [], carried_in={into.id: [carried]})
+    r = replay("fifo", [into], [], [], [], carried_in={into.id: [carried]})
     assert r.open == [carried]
 
 
@@ -180,7 +180,7 @@ def test_a_snapshot_explains_what_the_transactions_dont_and_says_so():
     ]
     for n, h in enumerate(snaps):
         h.createdAt, h.id = at(n), f"H{n}"
-    r = lots.replay("fifo", [buy], [], [], snaps, by_snapshots=True)
+    r = replay("fifo", [buy], [], [], snaps, by_snapshots=True)
     assert problems(r) == [("history-missing", "VTI", d(2026, 1, 31), D(7)),
                            ("history-missing", "VTI", d(2026, 2, 28), D(-6))]  # fmt: skip
     # The buy's three went first; four of the stand-in's seven are left.
@@ -193,7 +193,7 @@ def test_a_snapshot_explains_what_the_transactions_dont_and_says_so():
 
 
 def run(*txns):
-    return lots.replay("fifo", list(txns), [], [], [])
+    return replay("fifo", list(txns), [], [], [])
 
 
 def opt(day, kind, amount, qty, n, **kw):
@@ -253,7 +253,7 @@ def test_an_assignment_moves_its_share_of_the_premium_into_the_shares_bought():
     leg = T(d(2026, 3, 20), "buy", D(-5000), "VTI", D(100), createdAt=at(2),
             optionTransactionId=end.id)  # fmt: skip
     made = [Lot("S", "VTI", d(2026, 3, 20), D(100), D(5000), transactionId=leg.id)]
-    r = lots.replay("fifo", [put, leg, end], made, [], [])
+    r = replay("fifo", [put, leg, end], made, [], [])
     assert [(x.instrumentId, x.quantity, x.basis) for x in r.open] == [
         ("OPT", D(-1), D(-200)),
         ("VTI", D(100), D(4800)),
@@ -277,7 +277,7 @@ def old_and_new(kind, n_new_first=True, **new):
 def test_a_symbol_change_carries_the_lots_whole():
     made = [L("A", "OLD", d(2024, 1, 1), D(10), D(1000), acquiredMissing=True)]
     old, nxt = old_and_new("symbol-change")
-    r = lots.replay("fifo", [old, nxt], made, [], [])
+    r = replay("fifo", [old, nxt], made, [], [])
     assert r.open == [lots.OpenLot("A", "NEW", d(2024, 1, 1), D(10), D(1000), acquiredMissing=True)]
 
 
@@ -286,7 +286,7 @@ def test_a_spin_off_moves_its_share_of_the_basis_to_the_new_shares():
     old, nxt = old_and_new("spin-off", oldRatio=D("0.2"), splitRatio=D("0.5"))
     old.transferId = None
     old.quantity = D(0)
-    r = lots.replay("fifo", [old, nxt], made, [], [])
+    r = replay("fifo", [old, nxt], made, [], [])
     assert [(x.lotId, x.instrumentId, x.acquiredOn, x.quantity, x.basis) for x in r.open] == [
         ("A", "OLD", d(2024, 1, 1), D(10), D(800)),
         ("A", "NEW", d(2024, 1, 1), D(5), D(200)),
@@ -301,7 +301,7 @@ def test_a_mergers_cash_is_a_gain_only_as_far_as_the_gain_goes(basis, gain, kept
     """Ten shares for twenty of the acquirer at $50 and $300 cash (IRC §356)."""
     made = [Lot("A", "OLD", d(2024, 1, 1), D(10), basis)]
     old, nxt = old_and_new("merger", cash=D(300), splitRatio=D(2), price=D(50))
-    r = lots.replay("fifo", [old, nxt], made, [], [])
+    r = replay("fifo", [old, nxt], made, [], [])
     assert [(x.instrumentId, x.quantity, x.basis) for x in r.open] == [("NEW", D(20), kept)]
     assert sold(r) == ([("A", D(0), gain, D(0), "merger")] if gain else [])
 
@@ -309,7 +309,7 @@ def test_a_mergers_cash_is_a_gain_only_as_far_as_the_gain_goes(basis, gain, kept
 def test_an_all_cash_merger_is_a_sale():
     made = [Lot("A", "OLD", d(2024, 1, 1), D(10), D(1000))]
     old = T(d(2026, 5, 1), "merger", D(1500), "OLD", D(-10))
-    r = lots.replay("fifo", [old], made, [], [])
+    r = replay("fifo", [old], made, [], [])
     assert sold(r) == [("A", D(10), D(1500), D(1000), "fifo")] and r.open == []
 
 
@@ -332,7 +332,7 @@ def _carried(**fact):
 
 def _run(lot, *txns, by_snapshots=False):
     into = T(d(2025, 1, 2), "transfer-in", D(0), "VTI", D(10), createdAt=at(1))
-    return lots.replay("fifo", [into, *txns], [], [], [], by_snapshots=by_snapshots,
+    return replay("fifo", [into, *txns], [], [], [], by_snapshots=by_snapshots,
                        carried_in={into.id: [lot]})  # fmt: skip
 
 
@@ -352,7 +352,7 @@ def _move(lot):
     out = T(d(2025, 3, 1), "transfer-out", D(0), "VTI", D(-4), createdAt=at(2))
     r = _run(lot, out)
     into = T(d(2025, 3, 1), "transfer-in", D(0), "VTI", D(4), accountId="B")
-    there = lots.replay("fifo", [into], [], [], [], carried_in={into.id: r.moved[out.id]})
+    there = replay("fifo", [into], [], [], [], carried_in={into.id: r.moved[out.id]})
     return [*r.moved[out.id], *r.open, *there.open]
 
 
@@ -418,7 +418,7 @@ def test_an_assignments_premium_is_spread_over_its_stock_trades_by_their_cash():
           optionTransactionId=end.id)  # fmt: skip
     made = [Lot("A", "AAA", d(2026, 3, 20), D(100), D(3000), transactionId=a.id),
             Lot("B", "BBB", d(2026, 3, 20), D(50), D(1001), transactionId=b.id)]  # fmt: skip
-    r = lots.replay("fifo", [put, a, b, end], made, [], [])
+    r = replay("fifo", [put, a, b, end], made, [], [])
     # 300 credit: 3000/4001 of it is 224.94, the rest 75.06.
     assert [(x.instrumentId, x.basis) for x in r.open] == [
         ("AAA", D("2775.06")), ("BBB", D("925.94"))

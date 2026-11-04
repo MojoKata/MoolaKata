@@ -158,12 +158,10 @@ def _take(lot: OpenLot, qty: Decimal) -> Decimal | None:
     return basis
 
 
-def kept_by_snapshots(transactions: list, lots: list) -> bool:
-    """No trades of its own: no transaction that makes or takes away a lot, and no lot typed
-    on its own."""
-    return not any(t.instrumentId and t.kind in TRADES for t in transactions) and all(
-        x.transactionId for x in lots
-    )
+def kept_by_snapshots(transactions: list) -> bool:
+    """No trades of its own: no transaction that makes or takes away a lot (every lot is made
+    by one, S2.2)."""
+    return not any(t.instrumentId and t.kind in TRADES for t in transactions)
 
 
 # What average cost applies to (S2.3): fund shares and coins.
@@ -188,13 +186,14 @@ def replay(
     The snapshots count only for an account kept by them (`by_snapshots`, worked out from
     the transactions and lots when not given)."""
     if by_snapshots is None:
-        by_snapshots = kept_by_snapshots(transactions, lots)
+        by_snapshots = kept_by_snapshots(transactions)
     if not by_snapshots:
         snapshots = []
     lots_by_txn: dict[str, list] = {}
     for lot in lots:
-        if lot.transactionId:
-            lots_by_txn.setdefault(lot.transactionId, []).append(lot)
+        if not lot.transactionId:
+            raise ValueError(f"lot {lot.id} has no transaction: every lot is made by one (S2.2)")
+        lots_by_txn.setdefault(lot.transactionId, []).append(lot)
     picks_by_sale: dict[str, list] = {}
     for p in picks:
         picks_by_sale.setdefault(p.saleId, []).append(p)
@@ -208,9 +207,6 @@ def replay(
             t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", None)
         )
         events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
-    for lot in lots:
-        if not lot.transactionId:
-            events.append((lot.acquiredOn, 0, lot.createdAt, lot.id, "lot", lot))
     for h in snapshots:
         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
     # A wash sale settles on its replacement right after the loss sale (CR3-388): a replacement
@@ -239,18 +235,7 @@ def replay(
         if t.kind in CORPORATE and t.transferId:
             out.paired.add(t.transferId)
     for _, _, _, _, what, obj in events:
-        if what == "lot":
-            out.open.append(
-                OpenLot(
-                    obj.id,
-                    obj.instrumentId,
-                    obj.acquiredOn,
-                    obj.quantity,
-                    None if obj.basisMissing else obj.costBasis,
-                    acquiredMissing=bool(getattr(obj, "acquiredMissing", False)),
-                )
-            )
-        elif what == "snapshot":
+        if what == "snapshot":
             _snapshot(out, obj)
         elif what == "settle":
             settled.add(obj.id)

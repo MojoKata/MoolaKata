@@ -423,8 +423,10 @@ Lot = record(
     "Lot",
     Column("accountId", Text, ForeignKey("Account.id", ondelete="CASCADE"), nullable=False),
     Column("instrumentId", Text, ForeignKey("Instrument.id"), nullable=False),
-    # The buy or transfer in that made it; null for a lot that stands in for missing history.
-    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE")),
+    # The buy, transfer in or other transaction that made it: value arrives with the money
+    # that moved it in (S2.2, S5.2). A lot standing in for missing history is the replay's,
+    # from a holding snapshot, never a row.
+    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
     Column("acquiredOn", Day, nullable=False),
     Column("quantity", Dec, nullable=False),
     Column("costBasis", Cents),

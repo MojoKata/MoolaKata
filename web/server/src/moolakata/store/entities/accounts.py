@@ -195,7 +195,7 @@ class Lot(Record):
     instrumentId: str
     acquiredOn: dt.date
     quantity: Decimal
-    transactionId: str | None = None
+    transactionId: str  # the transaction that made it (S2.2): a lot never stands alone
     costBasis: Decimal | None = None
     basisMissing: bool = False
     acquiredMissing: bool = False  # shares moved in, the day bought not known yet (S2.2)

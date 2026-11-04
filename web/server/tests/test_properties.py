@@ -140,16 +140,14 @@ def histories(draw):
 def test_shares_moved_out_carry_their_lots_whole(case):
     """CR3-73: what a transfer out takes, its pair opens: the same shares, the same basis, on
     the days they were bought; nothing is lost or made between the two accounts."""
-    from test_ledger import Txn
-
-    from moolakata.ledger import lots
+    from test_ledger import Txn, replay
 
     txns, made, out, moved = case
-    src = lots.replay("fifo", txns, made, [], [])
+    src = replay("fifo", txns, made, [], [])
     taken = src.moved[out.id]
     assert sum((x.quantity for x in taken), D(0)) == moved
     into = Txn(out.date, "transfer-in", D(0), "VTI", moved, accountId="B", transferId=out.id)
-    dst = lots.replay("fifo", [into], [], [], [], carried_in={into.id: taken})
+    dst = replay("fifo", [into], [], [], [], carried_in={into.id: taken})
     assert sorted((x.acquiredOn, x.quantity, x.basis) for x in dst.open) == sorted(
         (x.acquiredOn, x.quantity, x.basis) for x in taken
     )
@@ -228,6 +226,7 @@ def test_what_is_known_of_a_lot_is_never_lost_or_made_up(case):
     """S2.2, CR3-398/399: whatever happens to a lot, every lot and sale part that comes of it
     carries what was known of the lot it came from, and nothing else; and the shares held are
     what a plain count says (a split multiplies, a sale or move takes what is there)."""
+    from test_ledger import replay
     from test_lot_rules import T, at
 
     from moolakata.ledger import lots
@@ -235,7 +234,7 @@ def test_what_is_known_of_a_lot_is_never_lost_or_made_up(case):
     held, ops = case
     into = T(dt.date(2025, 1, 2), "transfer-in", D(0), "VTI", sum(x.quantity for x in held),
              createdAt=at(1))  # fmt: skip
-    r = lots.replay("fifo", [into, *ops], [], [], [], by_snapshots=False,
+    r = replay("fifo", [into, *ops], [], [], [], by_snapshots=False,
                     carried_in={into.id: [lots.OpenLot(**vars(x)) for x in held]})  # fmt: skip
     known = {(x.standIn, x.heldFrom, x.acquiredMissing, x.basis is None) for x in held}
     moved = [x for v in r.moved.values() for x in v]

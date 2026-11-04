@@ -11,7 +11,9 @@
    ticker, and a coin in an exchange's or a wallet's account (G27: correcting one). An
    option's symbol follows OCC (`AAPL  261218C00250000`); it is stored as people read it, `AAPL
    18DEC26 250 C`, and shown as `AAPL 18 Dec 26 250 C`.
-2. **Lots** are created by buys and by transfers in with a cost basis. A transfer in takes its
+2. **Lots** are created by buys and by transfers in with a cost basis. Every lot is made by
+   a transaction: value that arrives comes with what moved it in, so returns count it as money
+   in, not growth (S5.2). A transfer in takes its
    lots as they were bought: each with its day bought, quantity and basis, adding up to the
    shares moved in, so a sale's term and gain count from the day bought, not the day they
    arrived. One paired with a transfer out of another of the owner's accounts carries that

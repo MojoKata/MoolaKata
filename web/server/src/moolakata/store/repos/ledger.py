@@ -92,7 +92,7 @@ class Ledger:
             [h for h in self.snapshots if h.asOf <= day],
             [w for w in self.washes if self.sale_at.get(w.saleId, (dt.date.max,))[0] <= day],
             # Kept by snapshots or not, as the whole account is.
-            by_snapshots=lots.kept_by_snapshots(self.transactions, self.lots),
+            by_snapshots=lots.kept_by_snapshots(self.transactions),
             basis_added=lots.adds_basis(self.account.type),
             averaged=self.averaged,
             sale_at=self.sale_at,
@@ -640,7 +640,6 @@ def _apply_import(
                 Transaction.accountId == account.id, Transaction.deleted == false()
             )
         ).all(),
-        s.scalars(select(Lot).where(Lot.accountId == account.id, Lot.deleted == false())).all(),
     )
     for pos in parsed.positions:
         inst = instruments.get(pos.security)
