@@ -407,3 +407,8 @@ through when back. Each is applied and can be undone.
     test now removes the accounts it made (`7cdc9dc`, `8c3e54c`). The dev server's dashboard
     answered 500 once more in CI (on 8c3e54c) with no traceback in its log; the report now shows
     each log's 5xx answers and errors (`f494cc3`), for issue #34.
+14. **Price refresh's survivors** (304 in `prices/refresh.py`): settled, no bug. **For the
+    user:** a price row of source `manual` can't be made (the Manual source fetches nothing and a
+    typed price is a TypedPrice), yet `stored_closes`, `last_stored`, `store` and `is_stale`
+    handle one, now pinned by tests. Recommended: remove those branches (and refuse the shape),
+    as CR3-405 did for a lot without its transaction. Not applied yet.
