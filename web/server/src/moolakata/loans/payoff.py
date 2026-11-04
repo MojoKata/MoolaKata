@@ -101,12 +101,13 @@ def _outcome(rows: list[Row], fees: Decimal, after: dt.date | None) -> Outcome:
     ahead = [r for r in rows if not r.past]
     pi = [r.principal + r.interest - r.overpayment for r in ahead]
     later = [r.principal + r.interest - r.overpayment for r in ahead if after and r.date > after]
+    # No mutant differs: fees is a Decimal, so a sum started from int 0 gives the same Decimal.
+    paid = sum((r.payment for r in ahead), ZERO) + fees  # pragma: no mutate
     return Outcome(
         payoffDate=ahead[-1].date if ahead else None,
         months=len(ahead),
         interest=sum((r.interest for r in ahead), ZERO),
-        # No mutant differs: fees is a Decimal, so a sum started from int 0 gives the same Decimal.
-        paid=sum((r.payment for r in ahead), ZERO) + fees,  # pragma: no mutate
+        paid=paid,
         payment=pi[0] if pi else ZERO,
         paymentAfter=later[0] if later else (pi[0] if pi else ZERO),
         fees=fees,

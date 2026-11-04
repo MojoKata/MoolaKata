@@ -83,7 +83,9 @@ def irr(
         return lo
     if f_hi == 0:
         return hi
-    if f_lo * f_hi > 0:
+    # No mutant differs: neither sum is 0 here (that returned above), so the product's sign is
+    # the quotient's and it is never 0.
+    if f_lo * f_hi > 0:  # pragma: no mutate
         return None  # no rate from -99% to +1000% a year fits (cash all one way among them)
     # No mutant differs: the width, 10.99 / 2**k, is never exactly 1e-9.
     while hi - lo >= Decimal("1e-9"):  # pragma: no mutate

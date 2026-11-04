@@ -83,6 +83,13 @@ def test_irr_returns_an_exact_root_as_it_is():
     assert perf.irr(start, D(100), {}, end, D(100) * D("5.505") ** 4) == D("4.505")
 
 
+def test_irr_at_the_top_of_its_bracket_is_that_rate_exactly():
+    """+1000% a year is the top of the range searched: 100 that becomes 100 x 11^4 in four
+    years (1,461 days, four years of 365.25 exactly) is that rate, found as the bound itself."""
+    start, end = d(2024, 1, 1), d(2028, 1, 1)
+    assert perf.irr(start, D(100), {}, end, D(100) * D(11) ** 4) == D(10)
+
+
 def test_irr_at_the_bottom_of_its_bracket_is_found():
     """CR3-404: -99% a year is inside the range searched: 100 that becomes
     100 x 0.01^4 in four years is -99% a year."""
