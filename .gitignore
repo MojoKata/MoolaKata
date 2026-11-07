@@ -11,3 +11,6 @@ web/ui/vendor/*/
 
 # A review's withheld claims (docs/REVIEW.md §2)
 docs/reviews/*/withheld.md
+
+# This machine's settings (coworker/README.md)
+/local.env
