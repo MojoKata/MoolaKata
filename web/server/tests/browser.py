@@ -6,6 +6,7 @@ The server runs on the real clock, so months count back from today."""
 
 import datetime as dt
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -29,6 +30,76 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+# The logs of the servers started in this process (a test's own, the shared household's, the
+# seeded dev server): a test that sees a 5xx shows them, so a server bug reached only in CI is
+# diagnosed from the run that hit it (issue #34).
+SERVER_LOG: list = []
+
+
+_RECORD = re.compile(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d+ ")
+
+
+def _rest_of_record(lines: list[str], n: int) -> list[int]:
+    """The lines after line n that belong to its log record: up to the next record's start."""
+    out = []
+    for m in range(n + 1, len(lines)):
+        if _RECORD.match(lines[m]):
+            break
+        out.append(m)
+    return out
+
+
+def server_log_tail(lines: int = 80, paths=()) -> str:
+    """Each server log's tracebacks, the last few of each; each log's lines for the paths
+    that failed (a request that broke before its answer started is logged with status 0);
+    without either, the end of the log of the server started last."""
+    out = []
+    for log in dict.fromkeys(SERVER_LOG):
+        if not paths or not log.exists():
+            continue
+        text = log.read_text(errors="replace").splitlines()
+        hits = [n for n, x in enumerate(text) if any(f" {q} " in x for q in paths)]
+        if hits:
+            shown = sorted({m for n in hits[-6:] for m in range(max(0, n - 3), n + 8)})
+            # A record shown in part (a traceback under an error) is shown whole.
+            for m in list(shown):
+                shown.extend(_rest_of_record(text, m))
+            shown = sorted(set(shown))
+            out.append(
+                f"--- {log}: {', '.join(paths)} ---\n"
+                + "\n".join(text[m] for m in shown if m < len(text))
+            )
+    for log in dict.fromkeys(SERVER_LOG):  # in order, each once
+        if not log.exists():
+            continue
+        text = log.read_text(errors="replace")
+        rows = text.splitlines()
+        starts = [n for n, x in enumerate(rows) if x.startswith("Traceback")]
+        # Each traceback alone, without the log's records after it.
+        tracebacks = [
+            "\n".join(rows[m] for m in [n, *_rest_of_record(rows, n)]) + "\n" for n in starts
+        ]
+        if tracebacks:
+            tail = "\n".join("".join(tracebacks[-3:]).splitlines()[-lines:])
+            out.append(f"--- {log} ---\n{tail}")
+    if out:
+        return "\n".join(out)
+    # No traceback: each log's answers of 5xx and its errors, with what follows each.
+    for log in dict.fromkeys(SERVER_LOG):
+        if not log.exists():
+            continue
+        lines = log.read_text(errors="replace").splitlines()
+        hits = [n for n, x in enumerate(lines) if re.search(r" 5\d\d |ERROR|CRITICAL|Exception", x)]
+        if hits:
+            shown = sorted({m for n in hits[-10:] for m in range(n, min(n + 15, len(lines)))})
+            out.append(f"--- {log} ---\n" + "\n".join(lines[m] for m in shown))
+    if out:
+        return "\n".join(out)
+    if not SERVER_LOG or not SERVER_LOG[-1].exists():
+        return "(no server log)"
+    return "\n".join(SERVER_LOG[-1].read_text(errors="replace").splitlines()[-lines:])
+
+
 def start(tmp, keyed: bool):
     """A server from this checkout, as the image runs it: with a keyring, locked; without,
     uninitialised (S15.4.4). Its base address, its process and its key (None without)."""
@@ -50,6 +121,7 @@ socket = "{tmp / "run" / "sock"}"
         key = os.urandom(16)
         master.create_keyring(load(config), key)
     log = open(tmp / "server.log", "wb")  # noqa: SIM115 - a file: an unread pipe fills up
+    SERVER_LOG.append(tmp / "server.log")
     proc = subprocess.Popen(
         [sys.executable, "-m", "moolakata.main", "--config", str(config), "serve"],
         stdout=log,
@@ -143,7 +215,10 @@ def wait(page, selector: str, problems: list, **kw) -> None:
         shot = os.environ.get("MK_FAIL_SHOT")
         if shot:
             page.screenshot(path=shot)
-        pytest.fail(f"{selector} {kw}: never; the page said {problems}")
+        said = f"{selector} {kw}: never; the page said {problems}"
+        if any(str(p)[:1] == "5" for p in problems):
+            said += f"\n--- the server's log, its end ---\n{server_log_tail()}"
+        pytest.fail(said)
 
 
 def months_back(n: int) -> str:
@@ -510,6 +585,13 @@ def transactions(h: Household) -> dict:
     from test_receipts import png
 
     receipt = made(c.post("/ui/api/receipts", files={"file": ("coffee.png", png(), "image/png")}))
+    # Its reading saves the receipt, and a change made meanwhile is refused as stale (as a
+    # user's is, S12.15): the edit waits for the read to finish.
+    for _ in range(600):
+        status = c.get(f"/ui/api/receipts/{receipt['id']}").json()["readStatus"]
+        if status not in ("waiting", "reading"):
+            break
+        time.sleep(0.1)
     coffee = {"add": [tag(c, "coffee")], "remove": []}
     receipt = saved(
         edit(c, "Rcpt", f"/ui/api/receipts/{receipt['id']}", date=f"{months_back(1)}-12",

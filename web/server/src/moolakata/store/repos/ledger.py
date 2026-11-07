@@ -14,8 +14,9 @@ from ...importers.parsed import ParsedFile
 from ...ledger import balances, lots, transfers
 from ...ledger import types as atypes
 from ...ledger.categories import DEFAULTS
+from ...money import CENT
 from .. import scoping
-from ..db import live
+from ..db import live, read_once
 from ..entities.accounts import (
     Account,
     Anchor,
@@ -50,6 +51,9 @@ class Ledger:
     # Each wash sale's loss sale, by id: its day and making, so its replacement settles right
     # after it (CR3-388).
     sale_at: dict = field(default_factory=dict)
+    # A transfer in paired with a transfer out of another account: the lots that one took, by
+    # the transfer in's id, carried whole (CR3-73).
+    carried_in: dict = field(default_factory=dict)
 
     def opening(self) -> balances.Opening:
         return balances.opening(self.account, self.transactions, self.anchors)
@@ -58,22 +62,58 @@ class Ledger:
         day = day or dt.date.max
         return balances.balance_on(day, self.opening(), self.transactions)
 
-    def replay(self) -> lots.Replay:
+    def replay(self, day: dt.date | None = None) -> lots.Replay:
+        """The account's lots replayed; with a day, as they stood at its end (CR3-394): the
+        trades, lots and snapshots up to it, the wash sales whose loss sale had happened."""
+        if day is None:
+            return lots.replay(
+                self.account.lotMethod,
+                self.transactions,
+                self.lots,
+                self.picks,
+                self.snapshots,
+                self.washes,
+                basis_added=lots.adds_basis(self.account.type),
+                averaged=self.averaged,
+                sale_at=self.sale_at,
+                carried_in=self.carried_in,
+            )
+        txns = [t for t in self.transactions if t.date <= day]
+        used = {t.id for t in txns}
         return lots.replay(
             self.account.lotMethod,
-            self.transactions,
-            self.lots,
-            self.picks,
-            self.snapshots,
-            self.washes,
+            txns,
+            [
+                x
+                for x in self.lots
+                if x.transactionId in used or (x.transactionId is None and x.acquiredOn <= day)
+            ],
+            [p for p in self.picks if p.saleId in used],
+            [h for h in self.snapshots if h.asOf <= day],
+            [w for w in self.washes if self.sale_at.get(w.saleId, (dt.date.max,))[0] <= day],
+            # Kept by snapshots or not, as the whole account is.
+            by_snapshots=lots.kept_by_snapshots(self.transactions),
             basis_added=lots.adds_basis(self.account.type),
             averaged=self.averaged,
             sale_at=self.sale_at,
+            carried_in=self.carried_in,
         )
 
 
-def load(s: Session, account: Account, raw: bool = False) -> Ledger:
-    """The account's ledger; raw leaves out the wash sales, for working them out."""
+def load(s: Session, account: Account, raw: bool = False, _depth: int = 0) -> Ledger:
+    """The account's ledger; raw leaves out the wash sales, for working them out. A read
+    loads each once (a request over many accounts reads one several times)."""
+    kept = read_once(s, "ledgers")
+    key = (account.id, raw, _depth)
+    if kept is not None and key in kept:
+        return kept[key]
+    ledger = _load(s, account, raw, _depth)
+    if kept is not None:
+        kept[key] = ledger
+    return ledger
+
+
+def _load(s: Session, account: Account, raw: bool, _depth: int) -> Ledger:
     aid = account.id
     txns = s.scalars(
         select(Transaction)
@@ -142,7 +182,39 @@ def load(s: Session, account: Account, raw: bool = False) -> Ledger:
         list(washes),
         averaged,
         sale_at,
+        _carried_in(s, txns, raw, _depth),
     )
+
+
+def _carried_in(s: Session, txns, raw: bool, depth: int) -> dict:
+    """For each transfer in paired with a transfer out of the same instrument in another
+    account, the lots that one took, worked out by replaying its account (CR3-73): days held,
+    basis and wash-sale adjustments go with the shares, as bitcoin's pairs and corporate
+    actions carry them. Chains of pairs are followed a few accounts deep."""
+    ins = {t.transferId: t for t in txns if t.kind == "transfer-in" and t.transferId}
+    if not ins or depth > 4:
+        return {}
+    outs = s.scalars(
+        select(Transaction).where(
+            Transaction.id.in_(list(ins)),
+            Transaction.deleted == false(),
+            Transaction.kind == "transfer-out",
+        )
+    ).all()
+    out: dict = {}
+    by_account: dict[str, list] = {}
+    for o in outs:
+        if o.instrumentId == ins[o.id].instrumentId and o.accountId != ins[o.id].accountId:
+            by_account.setdefault(o.accountId, []).append(o)
+    for account_id, pairs in by_account.items():
+        src = s.get(Account, account_id)
+        if src is None or src.deleted:
+            continue
+        moved = load(s, src, raw, depth + 1).replay().moved
+        for o in pairs:
+            if o.id in moved:
+                out[ins[o.id].id] = moved[o.id]
+    return out
 
 
 # ---------- categories ----------
@@ -496,6 +568,10 @@ def _apply_import(
     for x in reversed(existing):
         if not x.fitId:
             loose.setdefault(_loose_key(x.date, x.amount, x.payeeRaw), []).append(x)
+    # A transfer's half typed by hand (a loan payment recorded from this account, a move to
+    # savings) is the row the bank's file brings later, under the bank's payee and its own
+    # day: the same amount within S1.7's days (CR3-395).
+    typed_halves = [x for x in existing if not x.fitId and not x.deleted and x.transferId]
 
     # An option's end in the file is settled after the trades that opened it, and the stock
     # trade the broker reports with an assignment or exercise is the one settling makes.
@@ -514,6 +590,10 @@ def _apply_import(
             # A row typed by hand or brought by a file without ids is the same row.
             bucket = loose.get(_loose_key(row.date, row.amount, row.payee))
             found = bucket.pop(0) if bucket else None
+            if found is None:
+                found = _typed_half(typed_halves, row)
+            if found is not None and found in typed_halves:
+                typed_halves.remove(found)
             if found is not None and row.fitId:
                 found.fitId = row.fitId
         if found is not None and found.deleted:
@@ -572,7 +652,6 @@ def _apply_import(
                 Transaction.accountId == account.id, Transaction.deleted == false()
             )
         ).all(),
-        s.scalars(select(Lot).where(Lot.accountId == account.id, Lot.deleted == false())).all(),
     )
     for pos in parsed.positions:
         inst = instruments.get(pos.security)
@@ -619,6 +698,10 @@ def _apply_import(
 
         s.flush()
         washes.recompute(s, account.ownerId)
+    # Shares or coins it moved between the owner's accounts, offered as pairs (CR3-73).
+    from ...bitcoin import transfers as pairs
+
+    pairs.propose(s, account.ownerId)
     return result
 
 
@@ -650,7 +733,12 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
     )
     s.add(txn)
     s.flush()
-    if inst and row.kind in ("buy", "reinvest", "transfer-in") and row.quantity:
+    if inst and row.kind in ("buy", "reinvest", "transfer-in", "reward") and row.quantity:
+        if row.kind == "reward":
+            # Income received in coins: their basis is their value that day (S8.5).
+            basis = (abs(row.quantity) * row.price).quantize(CENT) if row.price else None
+        else:
+            basis = -row.amount if row.kind != "transfer-in" else None
         s.add(
             Lot(
                 id=ids.new_id("Lot"),
@@ -659,8 +747,10 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
                 transactionId=txn.id,
                 acquiredOn=row.date,
                 quantity=row.quantity,
-                costBasis=-row.amount if row.kind != "transfer-in" else None,
-                basisMissing=row.kind == "transfer-in",
+                costBasis=basis,
+                basisMissing=basis is None,
+                # A file's shares moved in say nothing of when they were bought (CR3-73).
+                acquiredMissing=row.kind == "transfer-in",
             )
         )
     return txn
@@ -757,6 +847,24 @@ def txns_made(s: Session, import_id: str) -> list[Transaction]:
             )
         )
     )
+
+
+def _typed_half(halves: list[Transaction], row) -> Transaction | None:
+    """The transfer half typed by hand that a file's row is (CR3-395): the same amount in
+    cents, within S1.7's days, the closest; none when two are as close."""
+    cents = money.to_cents(row.amount)
+    near = sorted(
+        (
+            x
+            for x in halves
+            if money.to_cents(x.amount) == cents and abs((x.date - row.date).days) <= transfers.DAYS
+        ),
+        key=lambda x: abs((x.date - row.date).days),
+    )
+    gap = [abs((x.date - row.date).days) for x in near[:2]]
+    if not near or (len(gap) > 1 and gap[0] == gap[1]):
+        return None
+    return near[0]
 
 
 def _loose_key(day: dt.date, amount: Decimal, payee: str | None) -> tuple:

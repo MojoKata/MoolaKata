@@ -12,7 +12,7 @@ import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
-import { Field, Switch, SwitchRow } from '../components/fields.js';
+import { Field, Input, Switch, SwitchRow } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
@@ -36,11 +36,13 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
   ['capital-gain', 'Capital-gain distribution'],
   ['transfer-in', 'Shares transferred in'],
   ['transfer-out', 'Shares transferred out'],
+  ['reward', 'Coins received as income'],
+  ['foreign-tax', 'Foreign tax paid'],
   ['deposit', 'Cash in'],
   ['withdrawal', 'Cash out'],
   ['fee', 'Fee'],
 ]);
-const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out'];
+const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out', 'reward'];
 
 /**
  * A transaction as its dialog's draft edits it (S2.6, S12.15). Its parts are records of their
@@ -209,8 +211,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                     categoryId: t?.get('categoryId') || null,
                   }), 0);
               }}>Make a rule</button>`
-              : null}
-            <span class="spacer" style=${{ flex: 1 }}></span>
+              : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
       ${t
@@ -241,13 +242,19 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               ? html`<${LotPicks} t=${t} draft=${draft} saleId=${editing ? txn.id : null} />`
               : null}
             <div class="row">
-              <${RecField} rec=${t} name="amount" label="Amount" hint=${trade
+              <${RecField} rec=${t} name="amount" label="Amount" hint=${kind === 'reward'
+                ? 'No cash moves: 0. The coins are income at the price, their basis that value.'
+                : kind === 'foreign-tax'
+                ? 'What the fund paid abroad, as money out (1099-DIV box 7).'
+                : trade
                 ? 'The cash effect: − for a buy, + for a sale, after fees.'
                 : '− for money out, + for money in.'} />
               ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}
             </div>
-            <${RecField} rec=${t} name="costBasis" label="Cost basis"
-              hint="What the shares cost. Without it, the lot is marked basis missing until you add it." />
+            ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} />` : html`
+              <${RecField} rec=${t} name="costBasis" label="Cost basis"
+                hint="What the shares cost. Without it, the lot is marked basis missing until you add it." />
+            `}
             ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
             ${!trade && !parts.length
               ? html`<${RecField} rec=${t} name="categoryId" label="Category" options=${options} />`
@@ -256,8 +263,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               ? html`
                 <div class="field">
                   <div class="toolbar" style=${{ marginBottom: 0 }}>
-                    <span class="small dim">${parts.length ? 'Split across categories' : ''}</span>
-                    <span class="spacer"></span>
+                    <span class="small dim">${parts.length
+                      ? 'Split across categories'
+                      : ''}</span><span class="spacer"></span>
                     <button type="button" class="btn sm" onClick=${addPart}>
                       ${parts.length ? 'Add a part' : 'Split…'}</button>
                   </div>
@@ -301,6 +309,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                         ['employee', 'Me'],
                         ['employer', 'My employer'],
                         ['rollover', 'A rollover'],
+                        ['conversion', 'A Roth conversion'],
                       ]} />
                     </${Field}>
                     </div>
@@ -453,15 +462,17 @@ function InBudgets({ txn, rec }) {
       <legend class="small" style=${{ color: 'var(--fg-dim)' }}>In budgets</legend>
       ${rows.map((r) => {
         const left = out.includes(r.budgetId);
-        return html`<div class="list-item"><span class="grow">${r.name}<div class="small dim">${
-          left
-            ? 'left out: counts nowhere in it'
-            : `counts in ${r.countsAs || 'nothing yet: uncategorised'}`
-        }</div></span>
-          <span class="small dim">Leave out</span>
-          <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
-            label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
-          .writable} /></div>`;
+        return html`
+          <div
+            class="list-item"><span class="grow">${r.name}<div class="small dim">${left
+              ? 'left out: counts nowhere in it'
+              : `counts in ${
+                r.countsAs || 'nothing yet: uncategorised'
+              }`}</div></span> <span class="small dim">Leave out</span>
+                    <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
+                      label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
+                        .writable} /></div>
+        `;
       })}
       <div class="hint">The category is the transaction's: changing it changes every budget that
         counts it.</div>
@@ -520,6 +531,56 @@ function TxnReceipts({ txn, draft, canWrite }) {
           ? null
           : html`<span class="small dim">None.</span>`}
       </div>
+    </div>
+  `;
+}
+
+/**
+ * Shares moved in, lot by lot (S2.2, CR3-73): when each was bought, how many, and what it
+ * cost. None typed, they arrive as one lot whose day bought is missing until it is.
+ * @param {{ t: Txn }} p
+ */
+function TransferLots({ t }) {
+  const rows = /** @type {any[]} */ (t.get('transferLots') || []);
+  /** @param {any[]} next */
+  const put = (next) => t.set('transferLots', next.length ? next : null);
+  /** @param {number} i @param {string} k @param {string} v */
+  const edit = (i, k, v) => put(rows.map((r, j) => (j === i ? { ...r, [k]: v || null } : r)));
+  return html`
+    <div class="field" id="f-transfer-lots">
+      <label>Lots, as bought</label>
+      ${rows.map((r, i) =>
+        html`
+          <div class="row">
+            <${Input} type="date" value=${r.acquiredOn || ''} aria-label=${`Lot ${
+              i + 1
+            }: bought on`}
+              onInput=${(/** @type {string} */ v) => edit(i, 'acquiredOn', v)} />
+            <${Input} value=${r.quantity || ''} inputmode="decimal" aria-label=${`Lot ${
+              i + 1
+            }: quantity`}
+              placeholder="quantity" onInput=${(/** @type {string} */ v) =>
+                edit(i, 'quantity', v)} />
+            <${Input} value=${r.costBasis || ''} inputmode="decimal" aria-label=${`Lot ${
+              i + 1
+            }: cost basis`}
+              placeholder="cost basis" onInput=${(/** @type {string} */ v) =>
+                edit(i, 'costBasis', v)} />
+            <button type="button" class="btn sm" onClick=${() =>
+              put(rows.filter((_, j) => j !== i))}>
+              Remove</button>
+          </div>
+        `
+      )}
+      <div class="toolbar"><span class="small dim">${rows.length
+        ? 'They add up to the shares moved in.'
+        : 'None typed: one lot whose day bought is missing, its term unknown until you add it.'}</span><span
+        class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
+          put([...rows, {
+            acquiredOn: null,
+            quantity: null,
+            costBasis: null,
+          }])}>Add a lot</button></div>
     </div>
   `;
 }

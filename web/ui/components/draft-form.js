@@ -175,11 +175,22 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
  * draft only when it saves. `extra` draws the footer's other buttons, given the save (a
  * Delete removes its record and saves); `hideSave` leaves the save's button out.
  * @param {{ f: ReturnType<typeof useDraft>, title: string, close: (v?: any) => void,
- *   what: string, done?: string, label?: string, confirm?: string, wide?: boolean, note?: any,
+ *   what: string, done?: Done, label?: string, confirm?: string, wide?: boolean, note?: any,
  *   before?: () => boolean | void, changed?: () => boolean, disabled?: boolean,
  *   saved?: (o: any) => void, hideSave?: boolean,
  *   extra?: (s: { save: any, outcome: any }) => any, children: any }} p
  */
+/**
+ * @typedef {string | ((draft: any) => string)} Done
+ * What a save says once done: words, or words worked out from what was saved, at that moment
+ * (Ungroup removes the strategy in the click that saves it, CR3-407).
+ */
+
+/** @param {Done} done @param {any} draft */
+function doneText(done, draft) {
+  return typeof done === 'function' ? done(draft) : done;
+}
+
 export function DraftDialog(p) {
   const { f, close } = p;
   const draft = f.draft;
@@ -195,7 +206,7 @@ export function DraftDialog(p) {
   const { save, outcome, clear } = useSave(draft, {
     before: p.before,
     saved: p.saved || ((o) => {
-      if (p.done) toast(p.done);
+      if (p.done) toast(doneText(p.done, draft));
       close(o.saved);
     }),
   });
@@ -227,14 +238,19 @@ export function DraftDialog(p) {
 
 /**
  * The question before a screen's form loses its changes (S12.15.6).
- * @param {{ close: (v?: any) => void, where: string }} p
+ * `answered` hears the answer as it is given, before the dialog has gone.
+ * @param {{ close: (v?: any) => void, where: string, answered?: () => void }} p
  */
-function DiscardDialog({ close, where }) {
+function DiscardDialog({ close, where, answered }) {
+  const answer = (/** @type {boolean} */ discard) => {
+    answered?.();
+    close(discard);
+  };
   return html`
-    <${Dialog} title="Discard your changes?" close=${() => close(false)} footer=${html`
-      <button type="button" class="btn danger" onClick=${() => close(true)}>Discard</button>
+    <${Dialog} title="Discard your changes?" close=${() => answer(false)} footer=${html`
+      <button type="button" class="btn danger" onClick=${() => answer(true)}>Discard</button>
       <button type="button" class="btn primary" autofocus onClick=${() =>
-        close(false)}>Keep editing</button>
+        answer(false)}>Keep editing</button>
     `}>
       <p class="small dim">What you changed in ${where} isn't saved. Keep editing to save it, or
         discard it and go on.</p>
@@ -248,7 +264,7 @@ function DiscardDialog({ close, where }) {
  * names it in the question ("Settings › General").
  * `extra` draws the buttons beside Save, given the save (a Delete removes its record and saves);
  * `class` styles the form (a card).
- * @param {{ f: ReturnType<typeof useDraft>, where: string, what: string, done?: string,
+ * @param {{ f: ReturnType<typeof useDraft>, where: string, what: string, done?: Done,
  *   label?: string, confirm?: string, before?: () => boolean | void,
  *   saved?: (o: any) => void, extra?: (s: { save: any, outcome: any }) => any,
  *   class?: string, children: any }} p
@@ -260,7 +276,7 @@ export function DraftForm(p) {
   const { save, outcome, clear } = useSave(draft, {
     before: p.before,
     saved: p.saved || (() => {
-      if (p.done) toast(p.done);
+      if (p.done) toast(doneText(p.done, draft));
       f.reload();
     }),
   });
@@ -271,7 +287,7 @@ export function DraftForm(p) {
       guardForm({
         has: () => changedRef.current(),
         where: p.where,
-        ask: (where) => openDialog(DiscardDialog, { where }),
+        ask: (where, answered) => openDialog(DiscardDialog, { where, answered }),
         route,
       }),
     [p.where],

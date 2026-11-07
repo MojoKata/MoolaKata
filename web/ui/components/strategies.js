@@ -31,6 +31,12 @@ const legLine = (x) => {
 const money = (v, cents = false) =>
   v == null ? html`<span class="dim">unlimited</span>` : html`<${Amt} v=${v} cents=${cents} />`;
 
+// Another company's shares a contract delivers, with no price: its figures aren't known (S3.5.4).
+const notPriced = html`<span class="dim">not priced</span>`;
+
+/** A strategy's capital at risk: none is unlimited, or not priced. @param {any} x @param {string} k */
+const atRisk = (x, k) => x[k] == null && !x.priced ? notPriced : money(x[k]);
+
 export function Strategies() {
   const res = useApi('/positions/strategies', {}, ['import', 'prices']);
   const v = /** @type {any} */ (res.data);
@@ -82,8 +88,8 @@ export function Strategies() {
           <${Icon} name="info" />
           <div>${p.kind === 'roll'
             ? html`
-              ${p.legs[0].symbol} opened ${date(p.openedOn)} in ${p.accountName}, the day a leg of
-                        <b>${p.shape}</b> on ${p
+              ${p.legs[0].symbol} opened ${date(p.openedOn)} in ${p.accountName}, the day a leg
+                        of <b>${p.shape}</b> on ${p
                           .underlying} closed: a roll? <button type="button" class="btn sm
                         primary" disabled=${act.busy} onClick=${() =>
                           roll(p, true)}>Keep it in the strategy</button> <button
@@ -122,9 +128,7 @@ export function Strategies() {
                         style=${{ whiteSpace: 'nowrap' }}><b>${x.name}</b> · ${x
                           .underlying}${x.name !==
                             x.shape
-                          ? html`
-                            <span class="small dim">(${x.shape})</span>
-                          `
+                          ? html`${' '}<span class="small dim">(${x.shape})</span>`
                           : null}<div class="small dim">${x.accountName} · opened ${date(
                             x.openedOn,
                           )}${x
@@ -139,17 +143,23 @@ export function Strategies() {
                       <td class="num">${x.pl == null
                         ? '—'
                         : html`<${Amt} v=${x.pl} signed cents=${false} />`}</td>
-                      <td class="num">${x.expiryKnown
+                      <td class="num">${!x.expiryKnown
+                        ? html`<span class="dim">—</span>`
+                        : x.priced
                         ? money(x.maxProfit)
-                        : html`<span class="dim">—</span>`}</td>
-                      <td class="num">${x.expiryKnown
+                        : notPriced}</td>
+                      <td class="num">${!x.expiryKnown
+                        ? html`<span class="dim">—</span>`
+                        : x.priced
                         ? money(x.maxLoss)
-                        : html`<span class="dim">—</span>`}</td>
-                      <td class="small">${x.expiryKnown
+                        : notPriced}</td>
+                      <td class="small">${!x.expiryKnown
+                        ? 'P/L only: it rests on volatility'
+                        : x.priced
                         ? x.breakevens.map((/** @type {any} */ b) => String(b)).join(' · ') || '—'
-                        : 'P/L only: it rests on volatility'}</td>
-                      <td class="num">${x.closedOn ? '—' : money(x.capitalAtRiskNow)}</td>
-                      <td class="num">${money(x.capitalAtRiskAtOpen)}${x.returnPct != null
+                        : notPriced}</td>
+                      <td class="num">${x.closedOn ? '—' : atRisk(x, 'capitalAtRiskNow')}</td>
+                      <td class="num">${atRisk(x, 'capitalAtRiskAtOpen')}${x.returnPct != null
                         ? html`<div class="small">${x.returnPct}%</div>`
                         : null}</td>
                       <td>${x.access.writable
@@ -269,7 +279,8 @@ function AdjustDialog({ close }) {
         <p class="small dim" style=${{ marginTop: 0 }}>A split that isn't a whole number, a
           merger, a spin-off or a large special dividend changes each open contract's root and
           deliverable, as the OCC's information memo says. The lots carry over: nothing is
-          sold. A whole-number split needs none of this.</p>
+          sold. A whole-number split needs none of this, unless a contract delivers cash or another
+          company's shares.</p>
         <div class="row">
           <${Field} label="Underlying" id="adjust-underlying">
             <${Select} value=${g.underlyingId} onChange=${setUnder}
@@ -377,7 +388,8 @@ function StrategyDialog({ close, x }) {
   return html`
     <${DraftDialog} f=${f} title=${`${x.name} · ${x.underlying}`} close=${close}
       what="This strategy"
-      done=${rec?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
+      done=${(/** @type {any} */ d) =>
+        d?.records[0]?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
       extra=${({ save }) =>
         html`
           <button type="button" class="btn danger" disabled=${save.busy || !rec}

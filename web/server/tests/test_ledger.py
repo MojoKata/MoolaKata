@@ -46,6 +46,27 @@ class Lot:
     createdAt: dt.datetime = T0
 
 
+def bought(made: list) -> list:
+    """The transaction that made each lot given without one (every lot is made by its
+    transaction, S2.2): a transfer in on its day, which opens the lot as it is given (a short
+    lot too), made when the lot was. A lot keeps its transaction from one replay to the next."""
+    out = []
+    for lot in made:
+        t = getattr(lot, "made_by", None)
+        if t is None and lot.transactionId is None:
+            t = Txn(lot.acquiredOn, "transfer-in", D(0), lot.instrumentId, lot.quantity,
+                    createdAt=lot.createdAt)  # fmt: skip
+            lot.made_by, lot.transactionId = t, t.id
+        if t is not None:
+            out.append(t)
+    return out
+
+
+def replay(method, txns, made, *rest, **kw):
+    """lots.replay with each lot given without its buy given one first."""
+    return lots.replay(method, [*bought(made), *txns], made, *rest, **kw)
+
+
 @dataclass
 class Pick:
     saleId: str
@@ -93,7 +114,7 @@ def test_fifo_lifo_hifo():
         ("hifo", D(4000), False),
     ):
         s = sell(15, 3750, method=method)
-        r = lots.replay("fifo", [*txns, s], lots_, [], [])
+        r = replay("fifo", [*txns, s], lots_, [], [])
         assert sum(x.basis for x in r.disposals) == basis, method
         assert sum(x.proceeds for x in r.disposals) == D(3750)
         assert r.disposals[0].longTerm is long_term
@@ -102,20 +123,20 @@ def test_fifo_lifo_hifo():
 
 def test_the_method_recorded_on_the_sale_wins():
     txns, lots_ = book()
-    r = lots.replay("fifo", [*txns, sell(10, 2500, method="lifo")], lots_, [], [])
+    r = replay("fifo", [*txns, sell(10, 2500, method="lifo")], lots_, [], [])
     assert r.disposals[0].lotId == lots_[2].id
 
 
 def test_specific_identification_and_average_cost():
     txns, lots_ = book()
     s = sell(5, 1250, method="specific")
-    r = lots.replay("fifo", [*txns, s], lots_, [Pick(s.id, lots_[1].id, D(5))], [])
+    r = replay("fifo", [*txns, s], lots_, [Pick(s.id, lots_[1].id, D(5))], [])
     assert r.disposals[0].lotId == lots_[1].id and r.disposals[0].basis == D(1500)
-    r = lots.replay("average", [*txns, sell(15, 3750)], lots_, [], [], averaged=frozenset({"VTI"}))
+    r = replay("average", [*txns, sell(15, 3750)], lots_, [], [], averaged=frozenset({"VTI"}))
     assert sum(x.basis for x in r.disposals) == D(3000)  # $200 average
     assert sum(x.basis for x in r.open) == D(3000)
     # Average cost is for funds and coins (S2.3, CR3-387): a share goes first in.
-    r = lots.replay("average", [*txns, sell(15, 3750)], lots_, [], [])
+    r = replay("average", [*txns, sell(15, 3750)], lots_, [], [])
     assert [x.method for x in r.disposals] == ["fifo", "fifo"]
 
 
@@ -123,10 +144,10 @@ def test_splits_return_of_capital_and_problems():
     txns, lots_ = book()
     split = Txn(d(2025, 7, 1), "split", D(0), "VTI", splitRatio=D(2))
     roc = Txn(d(2025, 7, 2), "return-of-capital", D(60), "VTI")
-    r = lots.replay("fifo", [*txns, split, roc], lots_, [], [])
+    r = replay("fifo", [*txns, split, roc], lots_, [], [])
     assert r.quantity("VTI") == D(60)
     assert sum(x.basis for x in r.open) == D(5940)
-    r = lots.replay("fifo", [*txns, sell(40, 8000)], lots_, [], [])
+    r = replay("fifo", [*txns, sell(40, 8000)], lots_, [], [])
     assert r.problems[0].kind == "sale-without-lot" and r.problems[0].quantity == D(10)
     assert r.disposals[-1].basis is None
 
@@ -138,14 +159,14 @@ def test_return_of_capital_over_every_lot_and_its_excess_a_gain():
     t2 = Txn(d(2025, 3, 5), "transfer-in", D(0), "VTI", D(10))
     l2 = Lot(f"L{t2.id}", "VTI", t2.date, D(10), None, t2.id, basisMissing=True)
     roc = Txn(d(2025, 7, 2), "return-of-capital", D(300), "VTI")
-    r = lots.replay("fifo", [b1, t2, roc], [l1, l2], [], [])
+    r = replay("fifo", [b1, t2, roc], [l1, l2], [], [])
     first, second = sorted(r.open, key=lambda x: x.acquiredOn)
     assert first.basis == 0 and second.basis is None
     (gain,) = r.disposals
     assert gain.proceeds == D(50) and gain.basis == 0 and gain.quantity == 0
     assert gain.acquiredOn == d(2024, 1, 5) and gain.longTerm
     l2.costBasis, l2.basisMissing = D(1000), False  # its basis entered: its share applies
-    r = lots.replay("fifo", [b1, t2, roc], [l1, l2], [], [])
+    r = replay("fifo", [b1, t2, roc], [l1, l2], [], [])
     assert sorted(x.basis for x in r.open) == [0, D(850)]
 
 
@@ -153,14 +174,14 @@ def test_a_snapshot_is_the_holdings_only_of_an_account_kept_by_snapshots():
     # B9: in an account with trades of its own, a file's positions are a check and change no
     # lot; an account with none is kept by its snapshots, which stand in for its history.
     txns, lots_ = book()
-    r = lots.replay("fifo", txns, lots_, [], [Snap("VTI", d(2025, 9, 30), D(45))])
+    r = replay("fifo", txns, lots_, [], [Snap("VTI", d(2025, 9, 30), D(45))])
     assert not any(x.standIn for x in r.open) and r.quantity("VTI") == D(30)
     assert r.problems == []
-    r = lots.replay("fifo", [], [], [], [Snap("VTI", d(2025, 9, 30), D(45))])
+    r = replay("fifo", [], [], [], [Snap("VTI", d(2025, 9, 30), D(45))])
     stand = [x for x in r.open if x.standIn]
     assert stand and stand[0].quantity == D(45) and stand[0].basisMissing
     assert r.problems[0].kind == "history-missing"
-    r = lots.replay(
+    r = replay(
         "fifo",
         [],
         [],
@@ -176,10 +197,10 @@ def test_income_on_a_holding_is_not_a_trade():
     snap = [Snap("VTI", d(2025, 9, 30), D(100))]
     for kind in ("dividend", "interest", "fee", "return-of-capital", "split"):
         income = [Txn(d(2025, 9, 15), kind, D(12), "VTI")]
-        assert lots.kept_by_snapshots(income, []), kind
-        assert lots.replay("fifo", income, [], [], snap).quantity("VTI") == D(100), kind
+        assert lots.kept_by_snapshots(income), kind
+        assert replay("fifo", income, [], [], snap).quantity("VTI") == D(100), kind
     for kind in ("buy", "reinvest", "transfer-in", "sell"):
-        assert not lots.kept_by_snapshots([Txn(d(2025, 9, 15), kind, D(-12), "VTI", D(1))], [])
+        assert not lots.kept_by_snapshots([Txn(d(2025, 9, 15), kind, D(-12), "VTI", D(1))])
 
 
 @dataclass

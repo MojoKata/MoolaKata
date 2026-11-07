@@ -41,10 +41,12 @@
    per leg.
    1. **Grouping is proposed, never forced.** Legs on one underlying opened in one account on
       the same day are offered as a strategy on the Positions screen (*Group as an iron
-      condor?*), and a short call against 100 or more shares held, whenever they were
-      bought, as a covered call. Legs can be grouped by hand (select them, **Group**) and a
-      group undone at any time. A strategy's legs are in one account, on one underlying. A
-      proposal turned down (*Not a strategy*) isn't made again.
+      condor?*), and a short call against the shares it delivers held (100 a contract, or
+      what an adjusted one delivers, S3.10.2), whenever they were bought, as a covered call.
+      Legs can be grouped by hand (select them, **Group**) and a group undone at any time. A
+      strategy's legs are in one account, on one underlying; the shares an underlying became
+      by a symbol change or a merger in that account are its own (S3.10). A proposal turned
+      down (*Not a strategy*) isn't made again.
    2. **Rolls**: a leg closed and another opened on the same underlying the same day is
       offered to stay in the group, or turned down. A strategy keeps its history (its legs,
       its rolls and its P/L from open to close, closed legs included); it opened when its
@@ -57,8 +59,11 @@
    4. **Figures**: cost or credit, mark, unrealized and realized P/L, **max profit**, **max
       loss** and **breakevens at expiry**, *unlimited* where it is, worked out from the payoff
       at each strike, at zero and beyond the highest, so a *Custom* strategy gets them too.
-      Shares count at their value on the day the strategy opened. A calendar or diagonal
-      shows its P/L only, as its outcome depends on volatility.
+      Shares count at their value on the day the strategy opened. The payoff is on the
+      underlying's price; another company's shares a contract delivers (S3.10.2) count at that
+      company's price, today's (the opening day's *at open*), and without one the figures read
+      *not priced*. A calendar or diagonal shows its P/L only, as its outcome depends on
+      volatility.
    5. **Capital at risk**, shown **now** and **at open**:
 
       | Strategy | Capital at risk |
@@ -71,19 +76,28 @@
 
       Each row is the strategy's max loss at expiry where that is finite, which is how a
       short put without the *cash-secured* tick, a long straddle or a butterfly are counted
-      too; a calendar or diagonal risks its net debit, or the margin typed.
-      *Now* uses today's prices; *at open* uses the legs the strategy opened with, as they
-      were at the end of that day and at its prices, whatever is rolled or closed later, and
-      is what a strategy's **return on capital at risk** is worked on. The shares' cost basis
-      shows on their own leg. An unlimited risk counts as such: a total with one in it is
-      *unlimited*, never the sum of the rest.
+      too; a calendar or diagonal risks its net debit, or the margin typed; one *not priced*
+      (S3.5.4) the margin typed, or reads *not priced*.
+      *Now* uses today's prices (shares without one at what they cost); *at open* uses the legs the strategy opened with, as they
+      were at the end of that day and at its prices, whatever is rolled, closed or adjusted
+      later (S3.10), and is what a strategy's **return on capital at risk** is worked on. The
+      shares' cost basis shows on their own leg. An unlimited risk counts as such: a total with
+      one in it is *unlimited*, never the sum of the rest; so is a total with one not priced,
+      as no limit to it is known.
    6. **Where it shows**: Positions has a **Strategies** tab listing each strategy with its
       legs and these figures, and the proposals; an investing account and a portfolio show
       **Capital at risk** beside their options' market value, counting each option outside a
-      strategy as a single leg (S3.9.2). Allocation charts keep market value.
+      strategy as a strategy of its own shape by the table above: a long option its premium, a
+      short put its strike less its premium, a short call the account's shares cover as a
+      covered call (shares no strategy holds, given to the calls in turn; the shares its
+      underlying became by a symbol change or a merger cover a call adjusted to deliver them,
+      S3.10), an uncovered one *unlimited*. Allocation charts keep market value.
 6. **Expiry** is applied automatically the day after an option expires out of the money by the
-   underlying's closing price. An in-the-money expiry asks the user what happened. The close
-   used is the expiry day's; without it, the user is asked too. A close exactly at the strike
+   underlying's closing price. An in-the-money expiry asks the user what happened: expired,
+   assigned or exercised, on which day, and how many contracts, from 1 to those held (an
+   **All** button fills in every one; a blank or 0 is refused, never taken for all). The close
+   used is the expiry day's, a price source's stored close: no one's typed price, statement
+   value or trade decides it; without it, the user is asked too. A close exactly at the strike
    counts as out of the money.
 7. **Valuation**: an open option's mark is the price source's daily option close where there is
    one (S4.5), otherwise the user's manual mark, otherwise intrinsic value, labelled as such.
@@ -130,22 +144,34 @@
       The issue names the rule it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;
    unrealized now; and **per trade** for options (open date, close date, premium in and out,
-   P/L, return on capital at risk).
+   P/L, return on capital required).
    1. An option trade runs from the first contract opened in an account to the moment none
       is open. Premium in and out are the cash received and paid, fees included; a trade
       still open adds what it is worth at its current mark, as *if closed now*.
-   2. **Capital at risk**: for a long option, the premium paid; for a short one, the strike
+   2. **Capital required**: for a long option, the premium paid; for a short one, the strike
       on every share the most contracts open at once cover (the cash to buy them for a put,
       the shares to deliver for a call). The return is the P/L over it. A leg in a strategy
-      takes its strategy's capital at risk at open instead (S3.5.5).
+      takes its strategy's capital at risk at open instead (S3.5.5), where that is finite.
+      Capital at risk (S3.5.5) is what a position can lose; this is what a trade tied up.
 10. **Adjusted contracts**: when the underlying splits, merges, spins off a company or pays a
     large special dividend, the OCC adjusts its open options. The lot carries over to the
-    adjusted contract: no sale, and no wash sale.
+    adjusted contract: no sale, and no wash sale. A strategy holding the contract holds the
+    adjusted one, its contracts times the ratio, with its legs and days as they were; undoing
+    the adjustment gives the leg back its contract. Its shares leg follows its shares the same
+    way through a symbol change or a merger (S2.4): it holds the new shares, its shares times
+    the action's ratio, and they are its underlying from then on, in its payoff and in what an
+    adjusted contract delivers; deleting the action gives the leg back its shares. A spin-off
+    moves no leg: the shares are still held. Outside a strategy the account's new shares are
+    the underlying's the same way: a call adjusted to deliver them, with them held, is
+    offered as a covered call, a roll onto their options stays on its underlying, and
+    capital at risk counts the call covered (S3.5.1, S3.5.2, S3.5.6).
     1. **A whole-number split** (2:1, 4:1) is applied with the stock's split (S2.4), in the
        account the split is recorded or imported in: contracts × the ratio, strike ÷ the ratio
        rounded to the thousandth, as the OCC prints it, the basis spread over the new
        contracts. The old contract ends. Deleting the split undoes it. A reverse split, not a
-       whole number, is adjusted as below.
+       whole number, is adjusted as below, and so is a contract whose deliverable has cash or
+       another company's shares: they don't split, so more contracts would deliver more of
+       them.
     2. **Any other adjustment** gives the contract a new root (AAPL becomes *AAPL1*), keeps
        its strike, and changes its **deliverable**: shares other than 100 (150 for a 3:2
        split), shares and cash, or shares of two companies. Recording the corporate action

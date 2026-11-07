@@ -51,11 +51,12 @@ class StrategyOut(Model):
     unrealized: Money | None
     realized: Money
     pl: Money | None
-    maxProfit: Money | None  # none: unlimited, or not known for a calendar
+    maxProfit: Money | None  # none: unlimited, or not known for a calendar or not priced
     maxLoss: Money | None
     breakevens: list[Money]
     expiryKnown: bool
-    capitalAtRiskNow: Money | None  # none: unlimited
+    priced: bool  # false: another company's shares a contract delivers have no price
+    capitalAtRiskNow: Money | None  # none: unlimited, or not priced with no margin typed
     capitalAtRiskAtOpen: Money | None
     returnPct: Ratio | None  # on capital at risk at open
     cashSecured: bool
@@ -123,6 +124,7 @@ def _out(a, v: strat.View, held: Perms) -> StrategyOut:
         maxLoss=v.figures.maxLoss,
         breakevens=v.figures.breakevens,
         expiryKnown=v.figures.expiryKnown,
+        priced=v.figures.priced,
         capitalAtRiskNow=v.riskNow,
         capitalAtRiskAtOpen=v.riskAtOpen,
         returnPct=(v.pl / v.riskAtOpen * 100).quantize(Decimal("0.01"))
@@ -141,6 +143,7 @@ def account_view(s, a, held: Perms, book: strat.Book | None = None):
     props = []
     if held.writable:
         for p in strat.proposals(s, a, book):
+            # A proposal is of contracts held, so its underlying is an instrument here.
             under = s.get(Instrument, p.underlyingId)
             props.append(
                 ProposalOut(
@@ -148,7 +151,7 @@ def account_view(s, a, held: Perms, book: strat.Book | None = None):
                     kind=p.kind,
                     accountId=a.id,
                     accountName=a.name,
-                    underlying=under.symbol if under else "?",
+                    underlying=under.symbol,
                     openedOn=p.openedOn,
                     shape=p.shape,
                     legs=[
@@ -182,27 +185,27 @@ class LegIn(Model):
     quantity: Quantity | None = None  # shares, for a stock leg
 
 
-def _check_legs(s, account, legs: list[LegIn]) -> tuple[str, dt.date]:
-    """The legs are held in the account, all on one underlying; their underlying and the day
-    the earliest opened."""
-    book = strat.Book(s, repo.load(s, account))
+def _check_legs(
+    s, account, legs: list[LegIn], book: strat.Book | None = None
+) -> tuple[str, dt.date]:
+    """The legs are held in the account, all on one underlying (shares the underlying became by
+    a symbol change or a merger are its own, S3.10); their underlying and the day the earliest
+    opened."""
+    book = book or strat.Book(s, repo.load(s, account))
     under = None
-    first = None
     for x in legs:
         qty, _ = book.open.get(x.instrumentId, (Decimal(0), Decimal(0)))
         if not qty:
             raise refuse("legs", "leg-not-held", "Legs held in this account.")
         oc = contract_of(s, x.instrumentId)
-        u = oc.underlyingId if oc is not None else x.instrumentId
+        u = book.became(oc.underlyingId if oc is not None else x.instrumentId)[-1]
         if under is not None and u != under:
             raise refuse("legs", "legs-differ", "Legs on one underlying.")
         under = u
-        d = book.first.get(x.instrumentId)
-        if d is not None and (first is None or d < first):
-            first = d
     if all(contract_of(s, x.instrumentId) is None for x in legs):
         raise refuse("legs", "no-option", "At least one option leg.")
-    return under, first or clock.today()
+    # Each leg is open, so the book has the day its earliest lot was bought.
+    return under, min(book.first[x.instrumentId] for x in legs)
 
 
 class Rolled(Model):
@@ -239,17 +242,18 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
         st, a, held = _own(s, c, strategy_id)
         have = {r.instrumentId for r in strat.legs_of(s, st)}
         today = clock.today()
+        book = strat.Book(s, repo.load(s, a))
         for x in body.roll:
             if x.instrumentId in have:
                 continue
-            u, opened = _check_legs(s, a, [x])
-            if u != st.underlyingId:
+            u, opened = _check_legs(s, a, [x], book)
+            if u != book.became(st.underlyingId)[-1]:
                 raise refuse("roll", "legs-differ", "A roll stays on the same underlying.")
             s.add(
                 StrategyLeg(
                     strategyId=st.id,
                     instrumentId=x.instrumentId,
-                    addedOn=opened or today,
+                    addedOn=opened,
                     createdAt=clock.now(),
                 )
             )
@@ -275,6 +279,12 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
         return _out(a, strat.view(book, st), held)
 
 
+def _check_margin(body: StrategyRecord) -> None:
+    """The margin typed is an amount of zero or more, or none (S3.5.5)."""
+    if body.marginRequirement is not None and body.marginRequirement < 0:
+        raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
+
+
 def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
     """Legs grouped by hand or as proposed, or a proposal turned down."""
     s, c = ctx.s, ctx.caller
@@ -293,8 +303,7 @@ def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
         if any(x.instrumentId in taken for x in body.legs):
             raise refuse("legs", "leg-grouped", "A leg is already in a strategy.")
     under, opened = _check_legs(s, a, body.legs)
-    if body.marginRequirement is not None and body.marginRequirement < 0:
-        raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
+    _check_margin(body)
     st = Strategy(
         id=record_id,
         accountId=a.id,
@@ -336,7 +345,7 @@ def _strategy_current(ctx, st: Strategy) -> dict:
             LegIn(instrumentId=r.instrumentId, quantity=r.quantity)
             for r in strat.legs_of(ctx.s, st)
         ],
-        "dismissed": bool(st.dismissed),
+        "dismissed": False,  # a strategy turned down is never edited (_own)
         "name": st.name,
         "cashSecured": bool(st.cashSecured),
         "marginRequirement": st.marginRequirement,
@@ -348,12 +357,10 @@ def _strategy_update(ctx, st: Strategy, body: StrategyRecord) -> None:
     for fixed in ("accountId", "legs", "dismissed"):
         if getattr(body, fixed) != current[fixed]:
             raise refuse(fixed, "strategy-fixed", "Its legs change by a roll; undo it to regroup.")
-    if body.marginRequirement is not None and body.marginRequirement < 0:
-        raise refuse("marginRequirement", "margin-invalid", "An amount, or none.")
+    _check_margin(body)
     st.name = (body.name or "").strip()[:80] or None
     st.cashSecured = body.cashSecured
     st.marginRequirement = body.marginRequirement
-    st.updatedAt = clock.now()
 
 
 def _strategy_read(ctx, record_id: str) -> StrategyOut:

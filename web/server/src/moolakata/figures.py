@@ -44,10 +44,12 @@ def combine(
 ) -> Combined:
     by: dict[str, list[tuple[dt.date, Decimal]]] = {}
     flow: dict[dt.date, Decimal] = {}
+    investing = [repo.load(s, a) for a in accounts if atypes.investing(a.type)]
+    valuation.price_ahead(s, investing, first, last)
     for a in accounts:
         led = repo.load(s, a)
         series = valuation.series(s, led, atypes.investing(a.type), first, last, step)
-        flows = perf.flows(led.transactions)
+        flows = valuation.flows(s, led, atypes.investing(a.type), first, last)
         closed = getattr(a, "closedOn", None)
         gone = closed + dt.timedelta(days=1) if closed is not None else None
         if gone is not None:
@@ -107,7 +109,7 @@ def benchmark_index(
         ).first()
         if inst is None:
             return []
-        pts = valuation.price_points(s, [inst.id], first, last).get(inst.id, [])
+        pts = valuation.market_points(s, [inst.id], first, last).get(inst.id, [])
         return [(d, p) for d, p in pts if d >= first - dt.timedelta(days=7)]
 
     if name == "60-40":

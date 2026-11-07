@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from decimal import Decimal
 
 import pytest
@@ -25,6 +26,51 @@ measure_the_browser_app()
 # Every kept budget month is worked out again on a hit and compared (S7.3.10): each test that
 # reads a month twice also proves the cache answers what the data says.
 month_cache.CHECK = True
+
+
+@pytest.fixture(autouse=True)
+def _household_left_as_found(request):
+    """A browser test on the shared household takes away the accounts it made, with what is
+    in them: the household is shared by every test on a worker, in whatever order they come,
+    and a test's leftovers changed another's figures (a 529 in an empty tax year, a coin
+    account's 1099-DA among the expected documents). What a module's fixture made, before the
+    test, stays."""
+    if "household" not in request.fixturenames:
+        yield
+        return
+    from browser import Household
+    from edits import remove
+
+    h = request.getfixturevalue("household")
+    if not isinstance(h, Household):  # a module's own household, not the browser tests' one
+        yield
+        return
+
+    def ids() -> set[str]:
+        return {a["id"] for a in h.c.get("/ui/api/accounts").json()["items"]}
+
+    before = ids()
+    yield
+    for gone in ids() - before:
+        record = h.c.get(f"/ui/api/accounts/{gone}").json()
+        r = remove(h.c, "Acct", record, confirm=True)
+        assert r.status_code == 200, f"a test's account left in the household: {r.text}"
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """A test failing on a server's 5xx (a page's problems, a wait) carries the servers' logs,
+    so a bug reached only in CI shows its traceback in the run that hit it (issue #34)."""
+    outcome = yield
+    rep = outcome.get_result()
+    # "500 for <url>" from a page's problems, ": 500 {…}" from an API helper's assertion.
+    if rep.failed and rep.when == "call" and re.search(r"\b5\d\d (for |\{)", str(rep.longrepr)):
+        from browser import server_log_tail
+
+        paths = sorted(
+            set(re.findall(r"\b5\d\d for \w+://[^/\s]+(/[^\s'\"?]*)", str(rep.longrepr)))
+        )
+        rep.sections.append(("the servers' logs, their tracebacks", server_log_tail(paths=paths)))
 
 
 @pytest.hookimpl(trylast=True)
@@ -61,6 +107,22 @@ def pytest_sessionfinish(session):
     if cov := coverage.Coverage.current():
         cov.stop()
         cov.save()
+
+
+def pytest_terminal_summary(terminalreporter):
+    """Each generated world's time, added up over its tests (setup, call and teardown), so a
+    world that grows shows in CI's log (S17.5.8)."""
+    by: dict[str, float] = {}
+    for reports in terminalreporter.stats.values():
+        for r in reports:
+            nodeid = getattr(r, "nodeid", "")
+            module = nodeid.split("::")[0].rsplit("/", 1)[-1]
+            if module.startswith("test_") and "world" in module:
+                by[module] = by.get(module, 0.0) + getattr(r, "duration", 0.0)
+    if by:
+        terminalreporter.write_sep("-", "generated worlds")
+        for module, secs in sorted(by.items(), key=lambda kv: -kv[1]):
+            terminalreporter.write_line(f"{secs:8.1f} s  {module}")
 
 
 @pytest.fixture(autouse=True)

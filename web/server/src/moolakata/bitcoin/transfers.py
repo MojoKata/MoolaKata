@@ -15,17 +15,6 @@ from ..store.repos import ledger as repo
 DAYS = 3
 
 
-def _btc(s: Session) -> str | None:
-    i = s.scalars(
-        select(Instrument.id).where(
-            Instrument.symbol == "BTC",
-            Instrument.instrumentClass == "crypto",
-            Instrument.deleted == false(),
-        )
-    ).first()
-    return i
-
-
 def _taken(s: Session, owner_id: str) -> set[str]:
     """Transactions in a pair proposed or confirmed, or one turned down with this partner."""
     out = set()
@@ -41,9 +30,9 @@ def _taken(s: Session, owner_id: str) -> set[str]:
 
 
 def propose(s: Session, owner_id: str) -> int:
-    btc = _btc(s)
-    if btc is None:
-        return 0
+    """Shares, funds or coins that left one of the owner's accounts and arrived in another,
+    the same quantity within days, proposed as a pair (S1.7.1, CR3-73): confirmed, they carry
+    the lots they left with."""
     accounts = {
         a.id: a
         for a in s.scalars(
@@ -54,7 +43,7 @@ def propose(s: Session, owner_id: str) -> int:
         s.scalars(
             select(Transaction).where(
                 Transaction.accountId.in_(list(accounts)),
-                Transaction.instrumentId == btc,
+                Transaction.instrumentId.is_not(None),
                 Transaction.kind.in_(("transfer-in", "transfer-out")),
                 Transaction.transferId.is_(None),
                 Transaction.deleted == false(),
@@ -78,7 +67,8 @@ def propose(s: Session, owner_id: str) -> int:
             if (
                 i.id in taken
                 or i.accountId == o.accountId
-                or i.quantity != o.quantity
+                or i.instrumentId != o.instrumentId
+                or abs(i.quantity or 0) != abs(o.quantity or 0)
                 or abs((i.date - o.date).days) > DAYS
                 or (o.id, i.id) in rejected
             ):
@@ -126,17 +116,17 @@ def confirm(s: Session, user_id: str, m: TransferMatch) -> int:
     for lot in s.scalars(select(Lot).where(Lot.transactionId == into.id, Lot.deleted == false())):
         lot.mark_deleted(user_id)
     n = 0
-    for acquired, qty, basis in moved:
+    for lot in moved:
         s.add(
             Lot(
                 id=ids.new_id("Lot"),
                 accountId=into.accountId,
                 instrumentId=into.instrumentId,
                 transactionId=into.id,
-                acquiredOn=acquired,
-                quantity=qty,
-                costBasis=basis,
-                basisMissing=basis is None,
+                acquiredOn=lot.acquiredOn,
+                quantity=lot.quantity,
+                costBasis=lot.basis,
+                basisMissing=lot.basis is None,
             )
         )
         n += 1
@@ -161,7 +151,9 @@ def describe(s: Session, m: TransferMatch) -> dict:
         "toAccount": s.get(Account, into.accountId).name,
         "fromDate": out.date,
         "toDate": into.date,
-        "sats": int(out.quantity * 100_000_000),
+        "sats": int(abs(out.quantity) * 100_000_000),
+        "symbol": s.get(Instrument, out.instrumentId).symbol,
+        "quantity": abs(out.quantity),
         "version": m.version,
     }
 

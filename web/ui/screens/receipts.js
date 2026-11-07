@@ -58,8 +58,7 @@ export default function Receipts() {
         ? html`<span class="pill info">${
           rows.filter((r) => r.readStatus === 'waiting' || r.readStatus === 'reading').length
         } being read</span>`
-        : null}
-      <span class="spacer"></span>
+        : null}<span class="spacer"></span>
       <input class="in" style=${{ maxWidth: '280px' }} id="f-search" value=${q}
         placeholder="Search the receipts' text, payee, amount…" aria-label="Search receipts"
         onInput=${(/** @type {any} */ e) => setQ(e.currentTarget.value)} />

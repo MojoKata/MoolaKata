@@ -52,13 +52,22 @@ export function dialogHasChanges() {
   return (!!current.value && unsaved()) || formChanges();
 }
 
+/** The history entry a closing dialog takes back with it, while it goes (a Promise). */
+let leaving = Promise.resolve();
+
 /** @param {any} [value] */
 export function closeDialog(value) {
   const d = current.value;
   if (!d) return;
   current.value = null;
-  d.resolve(value);
-  setTimeout(() => d.back?.focus?.(), 0);
+  // Once the dialog is gone and so is its history entry: a caller that goes somewhere next
+  // isn't sent back by the entry's late `history.back()` (CR3-406).
+  setTimeout(() => {
+    leaving.then(() => {
+      d.resolve(value);
+      d.back?.focus?.();
+    });
+  }, 0);
 }
 
 export function DialogHost() {
@@ -115,7 +124,13 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
       removeEventListener('popstate', onPop);
       removeEventListener('beforeunload', onUnload);
       unsaved = () => false;
-      if (history.state?.mkDialog === mark.mkDialog) history.back();
+      if (history.state?.mkDialog === mark.mkDialog) {
+        leaving = new Promise((done) => {
+          addEventListener('popstate', () => done(undefined), { once: true });
+          setTimeout(done, 1000); // a browser that never says: go on regardless
+        });
+        history.back();
+      }
     };
   }, []);
   useEffect(() => {

@@ -9,7 +9,7 @@ import itertools
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -69,6 +69,9 @@ class BuiltOn:
     accounts: list[Account]
     label: str
     bitcoin: Decimal  # the value held in bitcoin, which a bitcoin model can follow
+    # The parts a projection doesn't grow (S6.4.2.2): loans, items other than metals, options;
+    # (account id, name, value), named under its chart.
+    leftOut: list[tuple[str, str, Decimal]] = field(default_factory=list)
 
     @property
     def bitcoin_share(self) -> float:
@@ -111,35 +114,76 @@ def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
         )
     by_class: dict[str, Decimal] = {}
     btc = Decimal(0)
+    left: dict[tuple[str, str], Decimal] = {}
+    options: dict[str, int] = {}
     for a in accounts:
         ledger = repo.load(s, a)
-        investing = atypes.investing(a.type)
-        cash = ledger.balance()
-        by_class["cash"] = by_class.get("cash", Decimal(0)) + cash
-        if not investing:
-            continue
-        for pos in valuation.positions(s, ledger):
-            if pos.value is None:
-                continue
-            inst = s.get(Instrument, pos.instrumentId)
-            cls = asset_class(inst) if inst else None
+        for part in valuation.parts(s, ledger, atypes.investing(a.type)):
+            cls = grows_as(s, part)
             if cls is None:
+                if part.value:
+                    name = "" if part.kind == "option" else part.name
+                    if part.kind == "option":
+                        options[a.id] = options.get(a.id, 0) + 1
+                    left[(a.id, name)] = left.get((a.id, name), Decimal(0)) + part.value
                 continue
-            by_class[cls] = by_class.get(cls, Decimal(0)) + pos.value
-            if cls == "crypto" and inst and BTC.match(inst.symbol or ""):
-                btc += pos.value
+            if part.value is None:
+                continue
+            by_class[cls] = by_class.get(cls, Decimal(0)) + part.value
+            if cls == "crypto" and part.position is not None:
+                inst = s.get(Instrument, part.position.instrumentId)
+                if inst and BTC.match(inst.symbol or ""):
+                    btc += part.value
     value = sum(by_class.values(), Decimal(0))
     positive = {k: v for k, v in by_class.items() if v > 0}
     total = sum(positive.values(), Decimal(0))
     weights = {k: float(v / total) for k, v in positive.items()} if total else {"cash": 1.0}
-    return BuiltOn(value, weights, accounts, label, btc)
+    left_out = []
+    for (aid, name), v in left.items():
+        if not name:
+            n = options[aid]
+            name = f"{n} option position{'s' if n != 1 else ''}"
+        left_out.append((aid, name, v))
+    return BuiltOn(value, weights, accounts, label, btc, left_out)
+
+
+def _seen(s: Session, viewer: str) -> set[str]:
+    return {a.id for a, _ in access.accounts(s, viewer)}
+
+
+def grows_as(s: Session, part) -> str | None:
+    """The assumption row a part of what a projection is built on grows by (S6.4.2.2), or
+    None when the projection leaves it out: a loan, an option, an item other than a precious
+    metal (a home or a car isn't drawn on; a metal is, at spot)."""
+    if part.kind == "cash":
+        return "cash"
+    if part.kind == "security":
+        inst = s.get(Instrument, part.position.instrumentId)
+        return asset_class(inst) if inst else None
+    if part.kind == "item":
+        return "metals" if getattr(part.item, "metal", None) else None
+    return None
+
+
+def _grown_series(s: Session, a: Account, first: dt.date, last: dt.date, step: int):
+    """An account's value over time, of the parts a projection grows (`grows_as`), so tracking
+    follows what the start counted: no loan, no option, an item only if it is a metal."""
+    from .. import assets, loans
+
+    if loans.is_loan(a.type):
+        return []
+    if assets.is_physical(a.type):
+        return assets.series(s, a, first, last, step, only=lambda it: bool(it.metal))
+    return valuation.series(
+        s, repo.load(s, a), atypes.investing(a.type), first, last, step, options=False
+    )
 
 
 def _btc_price(s: Session) -> float | None:
     inst = s.scalars(select(Instrument).where(Instrument.symbol.in_(("BTC", "BTC-USD")))).first()
     if inst is None:
         return None
-    found = valuation.prices(s, [inst.id]).get(inst.id)
+    found = valuation.closes(s, [inst.id], clock.today()).get(inst.id)
     return float(found.price) if found else None
 
 
@@ -285,6 +329,12 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         "start": prep.base.value,  # exact, as the tracking figures are (S6.9)
         "builtOnLabel": prep.base.label,
         "weights": prep.base.weights,
+        # Named for the viewer only where they can see the account (S6.1).
+        "leftOut": [
+            {"name": name, "value": value}
+            for aid, name, value in prep.base.leftOut
+            if viewer == p.ownerId or aid in _seen(s, viewer)
+        ],
         "assumptions": prep.figures,
         "bitcoinModel": prep.model,
         "bitcoinShare": prep.base.bitcoin_share,
@@ -474,9 +524,7 @@ def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> d
     theirs: dict[dt.date, Decimal] = {}
     step = max(1, (today - start).days // 60)
     for a in on.accounts:
-        for day, value in valuation.series(
-            s, repo.load(s, a), atypes.investing(a.type), start, today, step
-        ):
+        for day, value in _grown_series(s, a, start, today, step):
             totals[day] = totals.get(day, Decimal(0)) + value
             if seen is not None and a.id in seen:
                 theirs[day] = theirs.get(day, Decimal(0)) + value

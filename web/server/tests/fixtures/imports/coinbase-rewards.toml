@@ -1,0 +1,20 @@
+about = """An exchange's history with staking and rewards income: coins received, valued at the
+day's spot price, read as rewards (S8.5, CR3-38): no cash, and each a lot whose basis is its value
+then, which the Income panel counts as ordinary income."""
+account = { type = "crypto-exchange", institution = "Coinbase" }
+mapping = { payee = "Notes" }
+
+[result]
+added = 4
+
+[expect]
+covered = ["2026-09-01", "2026-10-15"]
+transactions = [
+    "2026-09-01 deposit 500.00 | Deposit from Checking",
+    "2026-09-03 buy -243.00 ETH 0.1",
+    "2026-10-01 reward 0.00 ETH 0.002",
+    "2026-10-15 reward 0.00 SOL 0.05",
+]
+holdings = ["ETH 0.102", "SOL 0.05"]
+cash = "257.00"
+instruments = { ETH = "crypto", SOL = "crypto" }

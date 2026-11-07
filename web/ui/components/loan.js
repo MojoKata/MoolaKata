@@ -23,6 +23,12 @@ export const METHODS = /** @type {[string, string][]} */ ([
   ['daily', 'Simple interest, daily'],
 ]);
 
+/** How a payment day with none recorded reads (S1.9.3), by the Payments setting. */
+const MODES = /** @type {{ [mode: string]: string }} */ ({
+  recorded: 'Recorded here',
+  assumed: 'Assumed as scheduled',
+});
+
 /** "2055-01-01" as "Jan 2055". */
 const month = (/** @type {string} */ iso) => date(iso).replace(/ \d+,/, '');
 
@@ -49,6 +55,7 @@ export class LoanRec extends Record {
     securedById: null,
     budgetCounting: 'split',
     budgetCategoryId: null,
+    paymentsMode: null,
   };
   /** @override */
   static rules = {
@@ -198,10 +205,21 @@ export function LoanSummary({ a, reload }) {
       <div class="list-item"><span class="grow dim">Payment</span><span><${Amt} v=${v
         .payment} />${dec(v.total).gt(dec(v.payment))
         ? html`<span class="small dim"> · <${Amt} v=${v.total} /> with escrow</span>`
+        : null}${v.interestOnlyUntil
+        ? html`<div class="small dim">interest only until ${date(v.interestOnlyUntil)}</div>`
         : null}</span></div>
       <div class="list-item"><span class="grow dim">Next due</span>${v.nextDate
         ? date(v.nextDate)
         : '—'}</div>
+      ${v.missed
+        ? html`
+          <div class="list-item" id="loan-missed"><span class="grow dim">Missed</span><span><span
+                class="pill bad">${v.missed} ${v.missed === 1
+                  ? 'payment'
+                  : 'payments'}</span>${' '}<span class="small down"><${Amt} v=${v
+                  .overdue} /> overdue</span></span></div>
+        `
+        : null}
       <div class="list-item"><span class="grow dim">Paid off</span><span>${v.payoffDate
         ? month(v.payoffDate)
         : '—'}${v.originalPayoff && v.originalPayoff !== v.payoffDate
@@ -271,6 +289,18 @@ function Candidates({ a, again }) {
   const rows = /** @type {any[]} */ (res.data) || [];
   // The payment on the loan made and paired with the bank's transaction (S1.9.3).
   const link = useSubmit(async (/** @type {any} */ c) => {
+    if (c.pairWith) {
+      // The payment is on the loan already: the two become one transfer, nothing new made.
+      await saveNow((d) => {
+        const loan = d.load(PayTxn, { ...c.pairWith, accountId: a.id, transferWithId: null });
+        loan.set('kind', 'transfer');
+        loan.set('transferWithId', c.transactionId);
+      });
+      toast('Paired with the payment already recorded');
+      res.reload();
+      again();
+      return;
+    }
     const split = await splitOf(a, c.date, c.amount);
     await saveNow((d) => {
       const loan = d.add(PayTxn, { accountId: a.id, date: c.date, amount: c.amount });
@@ -285,10 +315,10 @@ function Candidates({ a, again }) {
     <div class="card"><h3>Looks like a payment</h3>
       ${rows.map((c) =>
         html`<div class="list-item"><div class="grow">${c.payee || 'Payment'}<div
-          class="small dim">${c.accountName} · ${
-          date(c.date)
+          class="small dim">${c.accountName} · ${date(c.date)}${
+          c.pairWith ? html`${' '}· pair with the payment of ${date(c.pairWith.date)}` : null
         }</div></div><${Amt} v=${c.amount} /><button class="btn sm" disabled=${link.busy} onClick=${() =>
-          link.run(c).catch(() => {})}>Link</button></div>`
+          link.run(c).catch(() => {})}>${c.pairWith ? 'Pair' : 'Link'}</button></div>`
       )}
       <p class="small dim">Linking makes it the transfer into this loan, split by the schedule.</p>
     </div>
@@ -321,15 +351,9 @@ export function Schedule({ a }) {
             : null}<th class="num">Extra</th><th class="num">Balance</th></tr>
           </thead>
           <tbody>${shown.map((/** @type {any} */ r) =>
-            html`<tr class=${r.past ? 'dim' : ''}><td style=${{
+            html`<tr class=${r.past && r.status !== 'missed' ? 'dim' : ''}><td style=${{
               whiteSpace: 'nowrap',
-            }}>${date(r.date)}${
-              r.past
-                ? html`
-                  <span class="pill ok">paid</span>
-                `
-                : null
-            }</td>
+            }}>${date(r.date)}${r.past ? html`${' '}<${RowPill} status=${r.status} />` : null}</td>
             <td class="num"><${Amt} v=${r.payment} /></td><td class="num"><${Amt} v=${r.principal} /></td><td class="num"><${Amt} v=${r.interest} /></td>${
               escrow
                 ? html`
@@ -353,6 +377,16 @@ export function Schedule({ a }) {
           onClick=${() => setAll(!all)}>${all ? 'Show fewer' : 'Show all'}</button></div>
     </div>
   `;
+}
+
+/**
+ * A past row's state (S1.9.3): paid as recorded, assumed as scheduled, or missed.
+ * @param {{ status: string }} p
+ */
+function RowPill({ status }) {
+  if (status === 'missed') return html`<span class="pill bad">missed</span>`;
+  if (status === 'assumed') return html`<span class="pill info">assumed as scheduled</span>`;
+  return html`<span class="pill ok">paid</span>`;
 }
 
 const PARTS = /** @type {[string, string][]} */ ([
@@ -456,10 +490,31 @@ export function PaymentDialog({ close, a, v }) {
       gone = true;
     };
   }, [day, amount]);
+  // The bank's half already there, when the payment was imported first (S1.7, CR3-22): the
+  // payment pairs with it rather than recording it again.
+  const [half, setHalf] = useState(/** @type {any} */ (null));
+  useEffect(() => {
+    setHalf(null);
+    if (!from || !day || !amount || !(Number(amount) > 0)) return;
+    let gone = false;
+    api.get(`/accounts/${a.id}/loan/halves`, { account: from, date: day, amount }).then(
+      (/** @type {any} */ r) => !gone && setHalf(r.items[0] || null),
+      () => {},
+    );
+    return () => {
+      gone = true;
+    };
+  }, [from, day, amount]);
   const before = () => {
     if (!f.draft || !loan || !split) return false;
     if (!own.current.has(f.draft)) own.current.set(f.draft, { parts: {} });
-    fillPayment(f.draft, a, loan, own.current.get(f.draft), { from, split });
+    fillPayment(
+      f.draft,
+      a,
+      loan,
+      own.current.get(f.draft),
+      half ? { pairedWith: half.transactionId, split } : { from, split },
+    );
   };
   const e = failed;
   return html`
@@ -473,11 +528,19 @@ export function PaymentDialog({ close, a, v }) {
             <${RecField} rec=${loan} name="amount" label="Amount" id="amount" />
           </div>
           <${Field} label="From account" id="from-account"
-            hint="Its half of the transfer is recorded too. None: the payment is recorded here only.">
+            hint="Its half of the transfer is recorded too, or paired with it when already there. None: recorded here only.">
             <${Select} value=${from} onChange=${setFrom} options=${[
               ['', 'None'],
               ...banks.map((b) => [b.id, b.name]),
             ]} /></${Field}>
+          ${half
+            ? html`
+              <div
+                class="notice">${half.accountName} already holds this payment (${date(
+                  half.date,
+                )}, <${Amt} v=${half.amount} />): it is paired with it, not recorded again.</div>
+            `
+            : null}
           <div class="toolbar"><span class="small dim">${shown
             ? 'Split by the schedule. Correct it from the servicer’s statement if it differs.'
             : 'The schedule splits it into principal, interest, escrow and PMI.'}</span><span
@@ -561,6 +624,17 @@ export function TermsCard({ a, rec }) {
   return html`
     <div class="card"><h3>Loan terms</h3>
       <${TermsFields} rec=${rec} type=${a.type} />
+      <${RecField} rec=${rec} name="paymentsMode" label="Payments" id="payments-mode"
+        hint="A payment day with none recorded: missed 15 days after it, or paid as scheduled."
+        options=${[
+          [
+            '',
+            v?.paymentsAutomatic
+              ? `Automatic: ${MODES[v.paymentsAutomatic].toLowerCase()}`
+              : 'Automatic',
+          ],
+          ...Object.entries(MODES),
+        ]} />
       <${Dated} rec=${rec} name="resets" label="Rate resets" what="rate" add="Add a reset"
         hint="An adjustable rate's new rate from a date, typed when known." />
       <${Dated} rec=${rec} name="recasts" label="Recasts" what="fee" add="Add a recast"

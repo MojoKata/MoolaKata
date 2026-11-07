@@ -7,7 +7,9 @@ A loan's amortization schedule, computed from its terms and the payments made.
 ## Due
 
 Each payment's due date. Payments already made are marked **paid**, with what was actually paid and
-how it split.
+how it split. A day with no payment recorded is marked by the loan's Payments setting: **assumed as
+scheduled**, split as the schedule says, or **missed** 15 days after it, with what was due and the
+balance unchanged.
 
 ## Payment
 

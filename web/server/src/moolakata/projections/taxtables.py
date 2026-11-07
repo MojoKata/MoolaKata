@@ -34,6 +34,7 @@ FIGURES = [
     Figure("k401CatchUp6063", "401(k) catch-up (60–63)", "money", "Retirement", "IRS"),
     Figure("hsaSelf", "HSA, self-only", "money", "Retirement", "IRS"),
     Figure("hsaFamily", "HSA, family", "money", "Retirement", "IRS"),
+    Figure("hsaCatchUp", "HSA catch-up (55+)", "money", "Retirement", "IRS"),
     Figure("rmdAge", "RMD starting age", "number", "Retirement", "IRS"),
     Figure("giftExclusion", "Annual gift exclusion", "money", "Gifts and giving", "IRS"),
     Figure("rothFrom529", "529 to Roth IRA, lifetime", "money", "Gifts and giving", "IRS"),
@@ -143,7 +144,15 @@ _KEYS = (
 )
 
 SHIPPED: dict[int, dict] = {
-    **{row[0]: {**dict(zip(_KEYS, row[1:], strict=True)), "collectablesRate": 28} for row in _PAST},
+    # The HSA catch-up at 55 is the statute's $1,000, not indexed (IRC §223(b)(3)).
+    **{
+        row[0]: {
+            **dict(zip(_KEYS, row[1:], strict=True)),
+            "collectablesRate": 28,
+            "hsaCatchUp": 1000,
+        }
+        for row in _PAST
+    },
     2025: {
         "iraLimit": 7000,
         "iraCatchUp": 1000,
@@ -152,6 +161,7 @@ SHIPPED: dict[int, dict] = {
         "k401CatchUp6063": 11250,
         "hsaSelf": 4300,
         "hsaFamily": 8550,
+        "hsaCatchUp": 1000,
         "rmdAge": 73,
         "giftExclusion": 19000,
         "rothFrom529": 35000,
@@ -174,6 +184,7 @@ SHIPPED: dict[int, dict] = {
         "k401CatchUp6063": 11250,
         "hsaSelf": 4400,
         "hsaFamily": 8750,
+        "hsaCatchUp": 1000,
         "rmdAge": 73,
         "giftExclusion": 19000,
         "rothFrom529": 35000,

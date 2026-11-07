@@ -38,6 +38,12 @@ default.
 A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
 value today and their mix of asset classes; each class follows your assumptions in Profile.
 
+## Left out {#left-out}
+
+What a projection doesn't grow, named under its chart with its value today: a loan, a home, a
+car or another item, and options. A projection grows cash, securities and precious metals, the
+money that can be drawn on; a home isn't sold to pay for retirement, and a car loses value.
+
 ## Amount {#typed-amount}
 
 The typed amount it starts from.

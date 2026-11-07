@@ -50,7 +50,9 @@
       re-imported file adds only what is new, matched by the file's transaction id (an OFX
       file's `FITID`) or by date, amount and payee, amounts compared in cents as stored. A row
       whose id isn't here yet still matches, by date, amount and payee, a row that has none (one
-      typed by hand, or from a file without ids), which takes the id. Rows the owner deleted are
+      typed by hand, or from a file without ids), which takes the id; failing that, a half of a
+      transfer typed by hand (a loan payment recorded from the account, a move to savings) of
+      the same amount within S1.7's days, the closest, and none when two are as close. Rows the owner deleted are
       matched too, and stay deleted: no file, nor the connector's overlapping downloads, brings
       one back. An id a file repeats is another row, kept beside the first and flagged with it
       as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with
@@ -286,13 +288,16 @@
    are linked as a transfer, the closest in date; when two are equally close, neither is,
    and the owner links one by hand. Cash taken out of a bank account pairs this way with
    its deposit in a `cash` account, and money sent to a payment app with its arrival there.
-   1. **Bitcoin moved between the owner's accounts** (a wallet and an exchange, or two
-      wallets): a transfer out and a transfer in of the same amount less the network fee,
-      within 3 days, are **proposed** as a pair, on each account's Overview, and the owner
-      confirms or rejects it; a rejected pair isn't proposed again. Once
-      confirmed, the coins arrive with the **lots they left with**: their basis and the day
-      each was acquired carry over, the fee aside (S8.19), so nothing is missing a basis and
-      nothing is taxed. A transfer in left unmatched stays missing its basis (S8.4).
+   1. **Shares, funds or bitcoin moved between the owner's accounts** (two brokerages, a
+      wallet and an exchange, two wallets): a transfer out and a transfer in of the same
+      instrument and quantity (bitcoin's less the network fee), within days, are
+      **proposed** as a pair, on each account's Overview, and the owner confirms or rejects
+      it; a rejected pair isn't proposed again. Once confirmed, they arrive with the **lots
+      they left with**, worked out from the account they left whenever its lots change:
+      their basis, the day each was acquired, a wash sale's holding period, the fee aside
+      (S8.19), so nothing is missing a basis and nothing is taxed. A transfer in left
+      unmatched takes the lots typed with it (S2.2), else stays missing its basis and its
+      day bought (S8.4).
    2. **In a budget**, a transfer between one of its accounts and one it doesn't count is
       money leaving or entering it, and counts by its category (S7.3.2).
 8. **529 plans.** A `529` account holds funds and cash like a brokerage account, plus:
@@ -323,9 +328,13 @@
       rate takes four, as an index plus a margin can give (7.3125%).
    2. **The amortization schedule** is computed from the terms: each payment's interest,
       principal, escrow and remaining balance. It is recomputed when a payment differs
-      from the schedule, the rate resets, or the loan is **recast**. Interest is rounded half
-      up to the cent, and a balance of less than $1 left by rounding goes with the last
-      payment.
+      from the schedule, the rate resets, or the loan is **recast**. Between the payment days
+      that change it (the first after a rate reset, a recast, or a HELOC draw in its repayment
+      period, a fee or charge added to what is owed being one, and a HELOC's first repayment
+      day) the principal and interest due stays level; on such a day it becomes what pays off
+      the balance then owed by the term's last payment day, that day counted. Interest is
+      rounded half up to the cent, and a balance of less than $1 left by rounding goes with
+      the last payment.
    3. **Payments**: a payment transaction from a bank account (matched as a transfer, S1.7) is
       **split** into principal, interest, escrow, PMI and fees by the schedule, as is every
       payment into the loan however it arrives (imported, or typed in the loan's account): one
@@ -334,14 +343,43 @@
       correct a split from the servicer's statement. Principal beyond the schedule is
       recorded as an **overpayment**. Bank transactions of the last 90 days within 2% of the
       payment, not yet a transfer and not filed under another category, are offered on the
-      loan's screen to link as its payments. A payment recorded or linked there is saved
+      loan's screen to link as its payments. A transaction is the other half of a payment
+      already recorded on the loan alone when S1.7 matches them (the same amount, days
+      apart): it is offered to **pair** with that payment, which records nothing new; one
+      within those days of an unpaired payment of another amount isn't offered. Recording a
+      payment from a bank account that already holds its half pairs with it the same way. A payment recorded or linked there is saved
       whole: the loan's transaction, its split and the bank account's half of the transfer
-      together (S12.15).
+      together (S12.15). A payment day that passes with no payment recorded is read by the
+      loan's **Payments** setting (its Settings):
+      1. **Recorded here**: every payment is recorded in MoolaKata from the first one recorded,
+         so one not recorded 15 days after its day (a servicer's usual grace period) is
+         **missed**; the payment days before that first one count as paid as scheduled (a loan
+         entered years in has nothing missed before its record starts). The schedule shows
+         the row as missed with what was due; the loan's screen says how many are missed and
+         what is overdue (their payments: the interest of the missed months is owed with them,
+         not added to the balance); the balance owed stays what it was, and the schedule ahead
+         starts from the next payment day.
+      2. **Assumed as scheduled**: the payments are made elsewhere and not all recorded, so a
+         payment day with none recorded counts as paid as the schedule says. The balance
+         follows the schedule, and nothing is missed.
+      3. **Automatic** (the setting's default): *Recorded here* once the loan has a payment
+         recorded (a bank payment linked to it is one) or a connection importing its
+         statements; *Assumed as scheduled* until then. The screen names which applies.
+
+      A payment goes with the payment day whose grace it is made in, from 15 days after one
+      day to 15 days after the next; recorded here, a payment made after a missed day pays the
+      oldest one missed first, as a servicer applies one. A payment day's interest, escrow and
+      PMI are due once: a later payment toward the same day pays what the earlier ones left of
+      them, and the rest is principal, an overpayment. A payment short of them pays the
+      interest, then the escrow, then PMI, and no principal.
    4. **Reconciling**: the servicer's statement balance can be typed in on a date, and a
       difference from the computed balance is shown until it is explained (a fee, a missed
       payment, a wrong rate).
-   5. **The loan's screen** shows the balance, the rate, the payoff date, interest paid to
-      date and still to pay, principal paid this year, the schedule, and the **payoff
+   5. **The loan's screen** shows the balance, the rate, the payment due next (the schedule's
+      next row, which the payment dialog and the bank transactions offered read too; in a
+      HELOC's draw period its interest alone, noted *interest only until* the period's end),
+      the payoff date, interest paid to date and still to pay, principal paid this year, the
+      schedule, and the **payoff
       planner** (S6.10). A mortgage linked to a `real-estate` item shows the **equity** and the
       **loan-to-value**, and when PMI can be dropped (on request at 80% of the original
       value; automatically at 78%, when the schedule stops charging it).

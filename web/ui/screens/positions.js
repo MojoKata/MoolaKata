@@ -38,6 +38,7 @@ const TERM = /** @type {Record<string, string>} */ ({
   short: 'Short term',
   long: 'Long term',
   mixed: 'Mixed',
+  unknown: 'Unknown: when bought is missing',
 });
 
 /** @param {{ tab?: string }} p */
@@ -67,9 +68,10 @@ export default function Positions({ tab }) {
               class="value">
               <${Amt} v=${v.summary.realizedThisYear} signed cents=${false} />
             </div>
-            <div class="delta dim">short <${Amt} v=${v.summary
-              .realizedShort} signed cents=${false} />
-                    · long <${Amt} v=${v.summary.realizedLong} signed cents=${false} /></div>
+            <div
+              class="delta dim">short <${Amt} v=${v.summary
+                .realizedShort} signed cents=${false} /> · long <${Amt} v=${v.summary
+                .realizedLong} signed cents=${false} /></div>
           </div>
           <div class="card kpi">
             <div class="label">Open positions</div>
@@ -164,16 +166,13 @@ function Open({ rows, reload }) {
                   type="checkbox" aria-label=${'Select ' + r.symbol}
                   checked=${picked.includes(key)} onChange=${() => pick(key)} /></td>
                 <td><b>${r.symbol}</b>${r.daysToExpiry != null
-                  ? html`
-                    <span class=${'pill ' + (r.daysToExpiry <= 7 ? 'warn' : '')}>${r
-                        .daysToExpiry < 0
-                      ? 'expired'
-                      : `${r.daysToExpiry}d`}</span>${r.inTheMoney != null
-                      ? html`
-                        <span class="small dim">${r.inTheMoney ? 'ITM' : 'OTM'}</span>
-                      `
-                      : null}
-                  `
+                  ? html`${' '}<span class=${'pill ' + (r.daysToExpiry <= 7 ? 'warn' : '')}>${
+                    r.daysToExpiry < 0 ? 'expired' : `${r.daysToExpiry}d`
+                  }</span>${
+                    r.inTheMoney != null
+                      ? html`${' '}<span class="small dim">${r.inTheMoney ? 'ITM' : 'OTM'}</span>`
+                      : null
+                  }`
                   : null}${r.name ? html`<div class="small dim">${r.name}</div>` : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td><span class=${'pill ' + (r.side === 'short' ? 'warn' : '')}>${r.side === 'short'
@@ -210,13 +209,15 @@ function Open({ rows, reload }) {
                                     <div
                                       class="list-item"><span class="grow">${quantity(
                                         l.quantity,
-                                      )} bought ${date(
+                                      )} ${l.longTerm == null ? 'moved in' : 'bought'} ${date(
                                         l.acquiredOn,
                                       )}${l.heldFrom
                                         ? ` · held from ${date(l.heldFrom)} (a wash sale)`
-                                        : ''} · ${l.days} days · ${l.longTerm
-                                        ? 'long term'
-                                        : 'short term'}</span>${l.basis
+                                        : ''} · ${l.longTerm == null
+                                        ? 'when bought is missing, term unknown'
+                                        : `${l.days} days · ${
+                                          l.longTerm ? 'long term' : 'short term'
+                                        }`}</span>${l.basis
                                         ? html`<${Amt} v=${l.basis} />`
                                         : html`<span class="pill warn">no basis</span>`}</div>
                                   `
@@ -340,8 +341,8 @@ function Trades() {
               <th class="num">Premium in</th>
               <th class="num">Premium out</th>
               <th class="num">P/L</th>
-              <th class="num" data-help="capital-at-risk">Capital at risk</th>
-              <th class="num">Return</th>
+              <th class="num" data-help="capital-required">Capital required</th>
+              <th class="num" data-help="capital-required">Return on it</th>
             </tr>
           </thead>
           <tbody>${rows.map((r) =>
@@ -367,7 +368,7 @@ function Trades() {
                   ? null
                   : html`<div class="small dim">if closed now</div>`}</td>
                 <td class="num">
-                  <${Amt} v=${r.capitalAtRisk} cents=${false} />
+                  <${Amt} v=${r.capitalRequired} cents=${false} />
                 </td>
                 <td class="num">${r.returnPct != null ? `${r.returnPct}%` : '—'}</td>
               </tr>

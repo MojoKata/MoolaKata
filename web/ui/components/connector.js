@@ -54,7 +54,7 @@ export function ConnectorSection() {
     toast('Unpaired: every Connection stopped and every sync is off');
     res.reload();
   });
-  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (res.error || s.error) return html`<${Failed} error=${res.error || s.error} />`;
   if (!v || !values || !rec) return html`<${Loading} />`;
   const paired = v.state === 'paired';
   const tone = !paired ? '' : v.silentForSeconds ? 'bad' : v.locked ? 'warn' : 'ok';
@@ -76,9 +76,7 @@ export function ConnectorSection() {
         ? html`
           <div class="list-item"><span class="grow dim">Connector</span><code
               class="mono small">${v.fingerprint}</code>${v.connectorVersion
-                ? html`
-                  <span class="small dim">· version ${v.connectorVersion}</span>
-                `
+                ? html`${' '}<span class="small dim">· version ${v.connectorVersion}</span>`
                 : null}</div>
           ${v.page
             ? html`
@@ -121,11 +119,9 @@ export function ConnectorSection() {
           <div class="list-item"><span class="grow dim">Last report</span>${v.lastReportAt
             ? html`${ago(v.lastReportAt)}${
               v.pairedAt
-                ? html`
-                  <span class="small dim">· paired ${moment(v.pairedAt)}${v.pairedBy
-                    ? ` by ${v.pairedBy}`
-                    : ''}</span>
-                `
+                ? html`${' '}<span class="small dim">· paired ${moment(v.pairedAt)}${
+                  v.pairedBy ? ` by ${v.pairedBy}` : ''
+                }</span>`
                 : null
             }`
             : 'never'}</div>
@@ -134,7 +130,7 @@ export function ConnectorSection() {
         ? html`
           <div class="notice">
             <${Icon} name="info" />
-            <div>A pairing code is out until
+            <div>A pairing code is out until${' '}
                       ${moment(v.codeExpiresAt)}. Paste it into Pair on the connector's page (or run
                       it on its host), then compare the fingerprint both sides show.</div>
           </div>
@@ -167,8 +163,7 @@ export function ConnectorSection() {
           openDialog(PairDialog, {}).then(() => res.reload())}>${paired
           ? 'Pair a replacement…'
           : 'Pair…'}</button>
-        <span class="spacer"></span>
-        ${paired || v.state === 'pairing'
+        <span class="spacer"></span>${paired || v.state === 'pairing'
           ? html`<button class="btn danger" disabled=${unpair.busy} onClick=${async () => {
             const sure = await confirmAction({
               title: 'Unpair the connector?',

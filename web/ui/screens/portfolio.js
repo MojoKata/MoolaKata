@@ -33,19 +33,17 @@ export default function Portfolio({ id, tab }) {
   return html`
     <div
       class="toolbar"><${Tile} group="investing" icon="pie" /><b style=${{ fontSize: '16px' }}>${p
-        .name}</b>
-        ${!p.access.mine
-          ? html`<span class="pill">${p.ownerName} · ${p.access.writable ? 'write' : 'read'}</span>`
-          : null}<span class="spacer"></span>
-        ${p.access.shareable && !p.implicit
-          ? html`
-            <button type="button" class="btn" onClick=${() =>
-              openDialog(ShareDialog, { kind: 'portfolio', id: p.id, name: p.name }).then(
-                res.reload,
-              )}>
-              <${Icon} name="share" /> Share</button>
-          `
-          : null}
+        .name}</b> ${!p.access.mine
+        ? html`<span class="pill">${p.ownerName} · ${p.access.writable ? 'write' : 'read'}</span>`
+        : null}<span class="spacer"></span>${p.access.shareable && !p.implicit
+        ? html`
+          <button type="button" class="btn" onClick=${() =>
+            openDialog(ShareDialog, { kind: 'portfolio', id: p.id, name: p.name }).then(
+              res.reload,
+            )}>
+            <${Icon} name="share" /> Share</button>
+        `
+        : null}
         ${p.access.writable && !p.implicit
           ? html`
             <button type="button" class="btn"
@@ -174,7 +172,9 @@ function Holdings({ p }) {
   const h = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!h) return html`<${Loading} />`;
-  if (!h.holdings.length) return html`<${Empty}>Nothing held in these accounts yet.</${Empty}>`;
+  if (!h.holdings.length && !h.others.length) {
+    return html`<${Empty}>Nothing held in these accounts yet.</${Empty}>`;
+  }
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
@@ -196,9 +196,7 @@ function Holdings({ p }) {
             html`
               <tr>
                 <td><b>${x.symbol}</b>${x.stale
-                  ? html`
-                    <span class="pill warn">stale</span>
-                  `
+                  ? html`${' '}<span class="pill warn">stale</span>`
                   : null}
                     <div class="small dim">${x.accounts.join(', ')}</div></td>
                 <td class="dim">${x.name || ''}</td>
@@ -217,6 +215,22 @@ function Holdings({ p }) {
                   ? html`<${Amt} v=${x.costBasis} />`
                   : html`<span class="pill warn">missing</span>`}</td>
                 <td class="num">${x.gain != null ? html`<${Amt} v=${x.gain} signed />` : '—'}</td>
+                <td class="num">${x.weight != null ? `${x.weight}%` : '—'}</td>
+              </tr>
+            `
+          )}${h.others.map((/** @type {any} */ x) =>
+            html`
+              <tr>
+                <td><b>${x.name}</b>
+                  <div class="small dim">${x.account}</div></td>
+                <td class="dim">${x.kind === 'loan' ? 'Owed on the loan' : 'Item'}</td>
+                <td class="num"></td>
+                <td class="num"></td>
+                <td class="num">
+                  <${Amt} v=${x.value} />
+                </td>
+                <td class="num"></td>
+                <td class="num"></td>
                 <td class="num">${x.weight != null ? `${x.weight}%` : '—'}</td>
               </tr>
             `

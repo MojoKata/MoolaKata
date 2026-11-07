@@ -55,8 +55,7 @@ export function Pager({ shown, page, total, onPage, newer = 0, onNewer, label })
       <button type="button" disabled=${page >= pages} onClick=${() =>
     onPage(page + 1)} aria-label="Next page">›</button>
     </div>
-    <span class="spacer"></span>
-    ${
+    <span class="spacer"></span>${
     newer
       ? html`<button type="button" class="pill new" onClick=${onNewer}>+${newer} new</button>`
       : null

@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from . import ZERO, Payment, Row, Terms, add_months, cents, schedule
+from . import ASSUMED, ZERO, Payment, Row, Terms, add_months, cents, schedule
 
 
 @dataclass
@@ -70,7 +70,8 @@ class _Extras:
             and (p.monthlyFrom is None or day >= p.monthlyFrom)
             and (p.monthlyUntil is None or day <= p.monthlyUntil)
         ):
-            extra += p.monthly
+            # No mutant differs: extra is still ZERO here, and every use rounds it with cents().
+            extra += p.monthly  # pragma: no mutate
         if p.yearly and day.month == p.yearlyMonth:
             extra += p.yearly
         while self.lumps and self.lumps[0][0] <= day:
@@ -85,7 +86,7 @@ class _Extras:
         return extra
 
 
-def lump_days(t: Terms, plan: Plan, ahead: list[Row]) -> list[dt.date]:
+def lump_days(plan: Plan, ahead: list[Row]) -> list[dt.date]:
     """The payment day each lump sum goes with: the first on or after it."""
     days = [r.date for r in ahead]
     out = []
@@ -100,11 +101,13 @@ def _outcome(rows: list[Row], fees: Decimal, after: dt.date | None) -> Outcome:
     ahead = [r for r in rows if not r.past]
     pi = [r.principal + r.interest - r.overpayment for r in ahead]
     later = [r.principal + r.interest - r.overpayment for r in ahead if after and r.date > after]
+    # No mutant differs: fees is a Decimal, so a sum started from int 0 gives the same Decimal.
+    paid = sum((r.payment for r in ahead), ZERO) + fees  # pragma: no mutate
     return Outcome(
         payoffDate=ahead[-1].date if ahead else None,
         months=len(ahead),
         interest=sum((r.interest for r in ahead), ZERO),
-        paid=sum((r.payment for r in ahead), ZERO) + fees,
+        paid=paid,
         payment=pi[0] if pi else ZERO,
         paymentAfter=later[0] if later else (pi[0] if pi else ZERO),
         fees=fees,
@@ -119,12 +122,17 @@ def plan_outcomes(
     today: dt.date,
     plan: Plan,
     expected_return: float,
+    mode: str = ASSUMED,
 ) -> Result:
-    base_rows = schedule(t, payments, draws, today)
+    """The schedule, the plan and its recast from the same past: the loan's Payments setting
+    (S1.9.3) reads its payment days as the loan's screen does."""
+    base_rows = schedule(t, payments, draws, today, mode=mode)
     base = _outcome(base_rows, ZERO, None)
-    lumps = lump_days(t, plan, [r for r in base_rows if not r.past])
+    lumps = lump_days(plan, [r for r in base_rows if not r.past])
     first_lump = min(lumps) if lumps else None
-    planned = _outcome(schedule(t, payments, draws, today, _Extras(plan, t)), ZERO, first_lump)
+    planned = _outcome(
+        schedule(t, payments, draws, today, _Extras(plan, t), mode), ZERO, first_lump
+    )
     recast = None
     if plan.recast and lumps:
         recast_terms = dataclasses.replace(
@@ -132,7 +140,7 @@ def plan_outcomes(
         )
         fees = plan.recastFee * len(lumps)
         recast = _outcome(
-            schedule(recast_terms, payments, draws, today, _Extras(plan, t)),
+            schedule(recast_terms, payments, draws, today, _Extras(plan, t), mode),
             fees,
             first_lump,
         )

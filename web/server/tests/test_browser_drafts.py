@@ -4,6 +4,7 @@ Saved unchanged, every form changes nothing: one table, a row per form. What eve
 does (the question before discarding, Back, a click outside, typed text, questions, a reload
 after a 412) is tested once, on the shared form pieces, through the budget's plan dialog."""
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
@@ -1267,5 +1268,33 @@ def test_a_sale_picks_its_lots_in_the_dialog(browser, household):
     lots = h.c.get(f"/ui/api/accounts/{acct['id']}/lots", params={"date": newer}).json()["items"]
     (lot,) = [x for x in lots if x["acquiredOn"] == newer]
     assert [(p["lotId"], p["quantity"]) for p in sale["picks"]] == [(lot["lotId"], 8)]
+    assert problems == []
+    page.close()
+
+
+def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
+    # CR3-403, R3.11: the settle dialog's Contracts starts empty; 0 is marked as typed (and
+    # refused if saved); All fills in the contracts held and greys out; Record settles them.
+    h = household
+    acct = made(make(h.c, "Acct", name="Settled", type="brokerage"))
+    expiry = f"{months_back(1)}-15"
+    saved(option_trade(h.c, acct["id"], f"{months_back(2)}-01", "sell-to-open", "KO", "put",
+                       "60", expiry, "2", "1.10"))  # fmt: skip
+    page, problems = signed_in(browser, h, "/ui/positions/open", "text=KO")
+    page.get_by_role("row", name=re.compile(r"KO .* 60 P")).click()
+    page.get_by_role("button", name="Expired, assigned or exercised…").click()
+    wait(page, ".dialog .value-input input", problems)
+    field = page.locator(".dialog .value-input input")
+    assert field.input_value() == ""
+    field.fill("0")
+    wait(page, ".dialog .value-input input.bad", problems)
+    page.get_by_role("button", name="All: 2 contracts").click()
+    assert field.input_value() == "2"
+    assert page.get_by_role("button", name="All: 2 contracts").is_disabled()
+    assert page.locator(".dialog .value-input input.bad").count() == 0
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    held = h.c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
+    assert [x["symbol"] for x in held if x["symbol"].startswith("KO ")] == []
     assert problems == []
     page.close()

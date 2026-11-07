@@ -399,8 +399,8 @@ def _receipt_target() -> str:
 
 def _receipt() -> str:
     """S9.6: its owner's; read by whoever reads what it is kept with, and changed (attached,
-    filled in) by whoever may change that; a tax document's file by the book's filers
-    (S8.16). Only its owner deletes it."""
+    filled in) by whoever may change that; a tax document's file likewise, by whoever reads or
+    may change its document. Only its owner deletes it."""
     owner = (
         f"SELECT {_cols('r.id', 'r."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "ReceiptEffective" AS r\n'
@@ -413,12 +413,18 @@ def _receipt() -> str:
         'JOIN "ReceiptTarget" AS t ON t."receiptId" = r.id AND t.carried\n'
         'WHERE NOT r."effectiveDeleted"'
     )
+    # A tax document's file goes with its book (CR3-9, CR3-74): read by whoever reads the
+    # document (filers, helpers, read shares), changed by whoever may change it; across a link
+    # only with the book's *Include receipts* (S11.5.1, CR3-10).
     documents = (
-        f"SELECT {_cols('r.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('r.id', 'a."userId"', 'a.writable', '0', '0', '0', '0')}\n"
         'FROM "ReceiptEffective" AS r\n'
         'JOIN "TaxDocumentEffective" AS d ON d."receiptId" = r.id AND NOT d."effectiveDeleted"\n'
-        'JOIN "TaxDocumentAccess" AS a ON a."targetId" = d.id AND a.configurable\n'
-        'WHERE NOT r."effectiveDeleted"'
+        'JOIN "TaxDocumentAccess" AS a ON a."targetId" = d.id\n'
+        'JOIN "AccessUser" AS u ON u."userId" = a."userId"\n'
+        'WHERE NOT r."effectiveDeleted" AND (u.local OR EXISTS (SELECT 1 FROM '
+        '"TaxBookShareEffective" AS s WHERE s."targetId" = d."bookId" AND s."userId" = a."userId" '
+        'AND s."includeReceipts" AND NOT s."effectiveDeleted"))'
     )
     return _collapse("\nUNION ALL\n".join((owner, kept, documents)))
 

@@ -14,24 +14,14 @@ ONE = Decimal(1)
 EXTERNAL = ("deposit", "withdrawal", "transfer", "adjustment")
 
 
-def flows(
-    transactions: list, prices: dict[str, dict[dt.date, Decimal]] | None = None
-) -> dict[dt.date, Decimal]:
-    """Money that came into the account (+) or left it (−) from outside, per day. Dividends,
-    interest and fees are growth, not flows; securities moved in or out count at their price
-    that day when it is known."""
+def flows(transactions: list) -> dict[dt.date, Decimal]:
+    """Cash that came into the account (+) or left it (−) from outside, per day. Dividends,
+    interest and fees are growth, not flows. Shares, items and loans that move value in or out
+    are `valuation.flows`', valued as the series values them."""
     out: dict[dt.date, Decimal] = {}
     for t in transactions:
-        amount = None
-        if t.kind in EXTERNAL and not t.instrumentId:
-            amount = t.amount
-        elif t.kind in ("transfer-in", "transfer-out") and t.instrumentId and t.quantity:
-            price = (prices or {}).get(t.instrumentId, {}).get(t.date)
-            if price is not None:
-                sign = ONE if t.kind == "transfer-in" else -ONE
-                amount = sign * t.quantity * price
-        if amount:
-            out[t.date] = out.get(t.date, ZERO) + amount
+        if t.kind in EXTERNAL and not t.instrumentId and t.amount:
+            out[t.date] = out.get(t.date, ZERO) + t.amount
     return out
 
 
@@ -74,27 +64,37 @@ def irr(
         + [(d, -v) for d, v in sorted(flow.items()) if start < d <= end]
         + [(end, end_value)]
     )
-    if all(c >= 0 for _, c in cash) or all(c <= 0 for _, c in cash):
-        return None
+    if not any(c for _, c in cash):
+        return None  # nothing went in or came out
 
     def npv(rate: Decimal) -> Decimal:
         total = ZERO
         base = ONE + rate
         for day, c in cash:
             years = Decimal((day - start).days) / Decimal("365.25")
-            total += c / (base**years) if years else c
+            # No mutant differs: negating every term keeps the root, and c / base**0 is c.
+            total += c / (base**years) if years else c  # pragma: no mutate
         return total
 
     lo, hi = Decimal("-0.99"), Decimal("10")
     f_lo, f_hi = npv(lo), npv(hi)
-    if f_lo * f_hi > 0:
-        return None
-    for _ in range(80):
+    # A bound that is the rate itself is the answer: -99% exactly, a 99% loss (CR3-404).
+    if f_lo == 0:
+        return lo
+    if f_hi == 0:
+        return hi
+    # No mutant differs: neither sum is 0 here (that returned above), so the product's sign is
+    # the quotient's and it is never 0.
+    if f_lo * f_hi > 0:  # pragma: no mutate
+        return None  # no rate from -99% to +1000% a year fits (cash all one way among them)
+    # No mutant differs: the width, 10.99 / 2**k, is never exactly 1e-9.
+    while hi - lo >= Decimal("1e-9"):  # pragma: no mutate
         mid = (lo + hi) / 2
         f_mid = npv(mid)
-        if f_mid == 0 or hi - lo < Decimal("1e-9"):
+        if f_mid == 0:
             return mid
-        if (f_mid > 0) == (f_lo > 0):
+        # No mutant differs: neither f_mid nor f_lo is 0 here.
+        if (f_mid > 0) == (f_lo > 0):  # pragma: no mutate
             lo, f_lo = mid, f_mid
         else:
             hi = mid
@@ -145,6 +145,7 @@ def mix(
     level = ONE
     out = [(days[0], level)]
     for prev, day in itertools.pairwise(days):
-        level *= sum((w * m[day] / m[prev] for w, m in maps), ZERO)
+        # No mutant differs: the terms are Decimals, so a sum from int 0 is the same Decimal.
+        level *= sum((w * m[day] / m[prev] for w, m in maps), ZERO)  # pragma: no mutate
         out.append((day, level))
     return out

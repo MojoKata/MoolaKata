@@ -491,3 +491,16 @@ def test_an_account_closes_on_a_day_and_opens_again(server):
         assert "account.reopened" in kinds
     finally:
         clock.fix(None)
+
+
+def test_an_ofx_transfer_in_has_its_day_bought_missing(server):
+    """CR3-73: shares moved in by a broker's file say nothing of when they were bought: the lot
+    is marked so, its term unknown, until the day is typed."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Schwab", type="brokerage", institution="Charles Schwab")
+    data = (FIX / "imports" / "schwab-transfer-in.ofx").read_bytes()
+    assert upload(c, a["id"], "transfer.ofx", data)["state"] == "done"
+    [vti] = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
+    [lot] = vti["lots"]
+    assert lot["acquiredMissing"] and lot["longTerm"] is None and lot["basisMissing"]

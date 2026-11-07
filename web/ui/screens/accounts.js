@@ -98,8 +98,7 @@ export default function Accounts() {
         <section aria-labelledby=${'g-' + g}>
           <div
             class="group-head"><h2 id=${'g-' + g}>${labels[g]}</h2><span class="dim small">${as
-              .length}</span>
-                  <span class="num"><${Amt} v=${sum(as)} /></span></div>
+              .length}</span> <span class="num"><${Amt} v=${sum(as)} /></span></div>
           <div class="card" style=${{ padding: '4px 8px' }}>
             <div class="table-wrap">
               <table class="t">
@@ -127,12 +126,12 @@ export default function Accounts() {
                         <td class="small dim"><${Icon} name="sync" /> ${ago(a.lastUpdated)}
                                     ${a.mismatch
                                       ? html`
-                                        <a class="pill warn" href=${`/ui/accounts/${a.id}/reconcile`}>mismatch</a>
+                                        ${' '}<a class="pill warn" href=${`/ui/accounts/${a.id}/reconcile`}>mismatch</a>
                                       `
                                       : null}
                                     ${!a.mismatch && a.needsAnchor
                                       ? html`
-                                        <a class="pill" href=${`/ui/accounts/${a.id}/reconcile`}>balance needed</a>
+                                        ${' '}<a class="pill" href=${`/ui/accounts/${a.id}/reconcile`}>balance needed</a>
                                       `
                                       : null}</td>
                         <td class="num"><b><${Amt} v=${a.balance} /></b>${a.change != null

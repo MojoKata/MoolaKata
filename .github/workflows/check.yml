@@ -193,13 +193,18 @@ jobs:
           echo "coverage data: $(ls -a web/.dev/coverage/server | grep -c '^\.coverage') server files, $(ls web/.dev/coverage/js | wc -l) browser app files"
           set -o pipefail
           web/check coverage 2>&1 | tee "$RUNNER_TEMP/check.log"
-      # The coverage reports as HTML (S17.5.8); web/check writes the summary and annotations.
+      # The coverage reports as HTML and as data (S17.5.8); web/check writes the summary and
+      # annotations.
       - name: coverage reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
-          path: web/.dev/coverage/html/
+          # The reports, and their data to query: each file's lines and branches missed.
+          path: |
+            web/.dev/coverage/html/
+            web/.dev/coverage/server.json
+            web/.dev/coverage/browser.lcov
           if-no-files-found: ignore
           retention-days: 30
       # On main, the coverage site (S17.5.8): this run's reports, and its totals added to the
