@@ -73,10 +73,18 @@ lists every library with its purpose, its risks and when to look at it again.
 
 ## Development
 
-Needs Python 3.14, [uv](https://docs.astral.sh/uv/) and curl; `setup` fetches the pinned Deno
-and Playwright's Chromium.
+Clone with `--recurse-submodules` (or run `git submodule update --init coworker` in a
+checkout): `coworker/` is the [coworker](https://github.com/MojoKata/coworker) submodule, through
+which the projects on one development machine share its large downloads and VMs, and say what
+they need of it. Its `status` is the first step on a machine: it lists what the machine lacks for
+MoolaKata (`.coworker/deps.json`, each need with its reason) and the command for each.
+
+Needs Python 3 and curl; `setup` installs the pinned [uv](https://docs.astral.sh/uv/) (by the
+hashes in `web/install/build-requirements.txt`, into a venv of its own in `web/.tools`), which
+brings Python 3.14, and fetches the pinned Deno and Playwright's Chromium.
 
 ```
+coworker/bin/coworker status     # once per machine: what it lacks, and how to add it
 web/dev.sh setup                 # once
 web/dev.sh run --seed --stubs    # https://localhost:37373, seed users and stub prices
 web/check                        # every check, as CI runs it

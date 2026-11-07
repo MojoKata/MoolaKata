@@ -123,6 +123,32 @@ snapshot of the host holds no key (search it for the keyring's fingerprint and t
 words: neither is there), and the daily backup lands in `backups/`. Record what the page
 didn't say and fix it.
 
+## Shared ISOs
+
+The installer ISOs for T10 and T11 are kept on a development machine for scratch-VM runs, shared
+with the machine's other projects by [coworker](https://github.com/MojoKata/coworker), which
+this repository carries as its `coworker/` submodule and calls only through it. They live in the
+machine's coworker home (`~/coworker/downloads` unless `COWORKER_HOME` says otherwise), each
+beside its SHA-256. MoolaKata claims two under its name, `MoolaKata` (its checkout directory's),
+as `<iso>.MoolaKata`: `proxmox-ve_9.2-1.iso` and `TrueNAS-SCALE-25.10.7.iso`, the versions
+`DEPLOY.md` was run on. From the repository's root:
+
+    coworker/bin/downloads fetch ISO MoolaKata ISO_URL SHA_URL    # fetches (resuming), checks, claims
+    coworker/bin/downloads claim ISO MoolaKata
+    coworker/bin/downloads release ISO MoolaKata                  # the ISO goes with its last claim
+    coworker/bin/downloads list
+
+The two fetches, should either ISO be missing:
+
+    coworker/bin/downloads fetch proxmox-ve_9.2-1.iso MoolaKata \
+      https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso \
+      https://enterprise.proxmox.com/iso/SHA256SUMS
+    coworker/bin/downloads fetch TrueNAS-SCALE-25.10.7.iso MoolaKata \
+      https://download.sys.truenas.net/TrueNAS-SCALE-Goldeye/25.10.7/TrueNAS-SCALE-25.10.7.iso \
+      https://download.sys.truenas.net/TrueNAS-SCALE-Goldeye/25.10.7/TrueNAS-SCALE-25.10.7.iso.sha256
+
+Never download an ISO into this repository's folders. MoolaKata uses no shared VM.
+
 ## T12: a restore onto a new host
 
 Follow `operations.md` §6.2 with the phrase read from its offline copy, the receipts directory

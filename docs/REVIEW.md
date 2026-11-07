@@ -139,7 +139,7 @@ These hold in every phase, and keep each session inside its context with room to
    finding's re-check, a log row, a scratch file's name) it appears as its id, kind and
    severity, never beside words on what it is about (§2).
 11. **Scratch stays out of the repository.** Scratch tests and scripts live in the job's
-   scratch directory, even for a moment; `cd web/server && PYTHONPATH=tests uv run pytest -p
+   scratch directory, even for a moment; `PYTHONPATH=tests web/dev.sh uv run pytest -p
    conftest <path>` runs one with the server's fixtures.
 
 ## 4. Phase 0: the measures and the map

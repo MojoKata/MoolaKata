@@ -8,14 +8,16 @@ SERVER="$WEB/server"
 TOOLS="$WEB/.tools"
 # shellcheck source=pins
 source "$WEB/pins"
+# shellcheck source=uv-path
+source "$WEB/uv-path"
 unset VIRTUAL_ENV
 
 usage() {
   cat <<'USAGE'
 web/dev.sh <command>
 
-  setup        install the Python environment (uv), Deno and Playwright's Chromium,
-               and unpack the vendored browser libraries
+  setup        install the pinned uv (web/.tools), the Python environment, Deno and
+               Playwright's Chromium, and unpack the vendored browser libraries
   run [args]   run the dev server (moolakata dev): https://localhost:37373
                --seed  seed users and a year of data    --stubs  stub price source
                --peer  a second server on another port, for links
@@ -40,10 +42,18 @@ web/dev.sh <command>
   mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check)
   help-shots   rebuild the help guides' screenshots from the mockup
   deno [args]  run the pinned Deno
+  uv [args]    run the pinned uv in web/server
   vendor add NAME VERSION [--young REASON]
                adopt a browser library's version: cooldown, registry hash and
                provenance checked, diff of the served files written for review
 USAGE
+}
+
+setup_uv() {
+  [[ -x "$UV_HOME/bin/uv" ]] && return 0
+  python3 -m venv "$UV_HOME"
+  "$UV_HOME/bin/pip" install --quiet --disable-pip-version-check --require-hashes \
+    -r "$WEB/install/build-requirements.txt"
 }
 
 deno_bin() { echo "$TOOLS/deno-$DENO_VERSION/deno"; }
@@ -83,6 +93,7 @@ cmd="${1:-}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
   setup)
+    setup_uv
     (cd "$SERVER" && uv sync --frozen)
     python3 "$WEB/ui/vendor/vendor.py" extract
     setup_deno
@@ -165,6 +176,10 @@ case "$cmd" in
   deno)
     setup_deno
     exec "$(deno_bin)" "$@"
+    ;;
+  uv)
+    setup_uv
+    cd "$SERVER" && exec uv "$@"
     ;;
   *)
     usage

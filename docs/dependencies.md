@@ -84,7 +84,7 @@ for amd64 and arm64 (S17.8.1). *Direct* means named in `pyproject.toml`.
 | coverage | from `uv.lock` | what the tests reach, in `web/check` and `web/dev.sh coverage` (S17.5.8) | none; its files name only its documentation |
 | playwright | from `uv.lock` | browser tests; downloads its Chromium (`web/pins`) | **egress** at `web/dev.sh setup` only |
 | sigstore | from `uv.lock` | verifying npm provenance in `vendor add` (S17.3.1) | **egress** at `vendor add` only |
-| uv | 0.12.5 | the build stage's installer (`install/build-requirements.txt`, hashed) | fetches wheels at image build only |
+| uv | 0.12.5 | the build stage's installer (`install/build-requirements.txt`, hashed), and the development environment's: `web/dev.sh setup` installs it from the same file into its own venv in `web/.tools` (`web/uv-path`) | fetches wheels at image build and at setup only |
 | Deno | 2.9.7 | type-check, lint and format of the browser app (`web/pins`) | **egress** at `setup` only |
 | python:3.14-slim-bookworm | by digest in the Dockerfile | the image's base | security updates arrive only when the digest moves: with each release and on a Debian or Python fix, by `web/dev.sh base-update` (S17.8.5). Last moved: 2026-10-15, from 3.12 to 3.14 (Docker Hub's build of 2026-10-06) |
 

@@ -132,7 +132,7 @@ an earlier one between releases.
    seconds, and the generated mockup, in about ten minutes:
 
    ```sh
-   (cd web/server && uv run --frozen python -m moolakata.contract write)   # web/ui/api/openapi.json
+   web/dev.sh codegen                                                       # web/ui/api/openapi.json
    web/dev.sh mockup                                                        # docs/mockups/MoolaKata-app.html
    ```
 
@@ -167,7 +167,7 @@ an earlier one between releases.
    `test_install.py`.
    The generated mockup's crawl sometimes fails without a diff: a Playwright route-handler
    error, or a screen that *drew nothing in 20 s*. When that is the only failure, run it
-   again alone, `(cd web/server && uv run --frozen python ../ui/mockup/build.py --check)`.
+   again alone, `web/dev.sh uv run --frozen python ../ui/mockup/build.py --check`.
 7. **Commit and open the pull request** against `MojoKata/MoolaKata`'s `main`, titled
    `Release 0.2.0`. Because it touches `web/install/`, two workflows run on it: `check`
    (`web/check`, about half an hour) and `release`, which builds both images and smoke-runs

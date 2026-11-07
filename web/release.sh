@@ -4,6 +4,8 @@ set -euo pipefail
 
 WEB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$WEB")"
+# shellcheck source=uv-path
+source "$WEB/uv-path"
 REPO=MojoKata/MoolaKata
 OWNER=mojokata
 IMAGES=(moolakata moolakata-connector)

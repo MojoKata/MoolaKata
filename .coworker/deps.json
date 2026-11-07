@@ -1,0 +1,210 @@
+{
+  "host": [
+    {
+      "package": "python3",
+      "why": "web/dev.sh setup: makes the venv the pinned uv is installed into (web/uv-path), and unpacks Deno and the vendored browser libraries (web/ui/vendor/vendor.py)"
+    },
+    {
+      "package": "python3-venv",
+      "platform": "debian*",
+      "why": "web/dev.sh setup: python3 -m venv, for the pinned uv's venv"
+    },
+    {
+      "package": "python3-venv",
+      "platform": "ubuntu*",
+      "why": "web/dev.sh setup: python3 -m venv, for the pinned uv's venv"
+    },
+    {
+      "package": "curl",
+      "why": "web/dev.sh setup: downloads the pinned Deno (web/pins)"
+    },
+    {
+      "package": "git",
+      "why": "the repository; web/check measures the coverage of the lines changed since the base"
+    },
+    {
+      "package": "util-linux",
+      "why": "web/dev.sh audit: unshare runs the server with no network (docs/dependencies.md)"
+    },
+    {
+      "package": "docker-ce",
+      "platform": "rocky*",
+      "why": "web/install/smoke.sh builds and runs the two images; the DEPLOY.md labs run their VMs in containers; Docker's own repository's package"
+    },
+    {
+      "package": "nss",
+      "platform": "rocky*",
+      "why": "libnss3, libsmime3: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "nspr",
+      "platform": "rocky*",
+      "why": "libnspr4: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "dbus-libs",
+      "platform": "rocky*",
+      "why": "libdbus-1: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "expat",
+      "platform": "rocky*",
+      "why": "libexpat: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "glib2",
+      "platform": "rocky*",
+      "why": "libglib, libgio, libgobject: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "atk",
+      "platform": "rocky*",
+      "why": "libatk-1.0: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "at-spi2-atk",
+      "platform": "rocky*",
+      "why": "libatk-bridge-2.0: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "at-spi2-core",
+      "platform": "rocky*",
+      "why": "libatspi: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libdrm",
+      "platform": "rocky*",
+      "why": "libdrm: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "mesa-libgbm",
+      "platform": "rocky*",
+      "why": "libgbm: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libxkbcommon",
+      "platform": "rocky*",
+      "why": "libxkbcommon: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "alsa-lib",
+      "platform": "rocky*",
+      "why": "libasound: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libX11",
+      "platform": "rocky*",
+      "why": "libX11: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libxcb",
+      "platform": "rocky*",
+      "why": "libxcb: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libXext",
+      "platform": "rocky*",
+      "why": "libXext: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libXcomposite",
+      "platform": "rocky*",
+      "why": "libXcomposite: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libXdamage",
+      "platform": "rocky*",
+      "why": "libXdamage: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libXfixes",
+      "platform": "rocky*",
+      "why": "libXfixes: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    },
+    {
+      "package": "libXrandr",
+      "platform": "rocky*",
+      "why": "libXrandr: Playwright's headless Chromium (web/pins) links it, for the browser tests and the mockup checks"
+    }
+  ],
+  "network": [
+    {
+      "host": "github.com",
+      "why": "the repository, the coworker submodule, the pinned Deno, and uv's Python 3.14 builds"
+    },
+    {
+      "host": "release-assets.githubusercontent.com",
+      "why": "GitHub release downloads (Deno, uv's Python builds) redirect here"
+    },
+    {
+      "host": "pypi.org",
+      "why": "uv sync: the index for web/server/uv.lock; pip: the pinned uv"
+    },
+    {
+      "host": "files.pythonhosted.org",
+      "why": "uv sync and pip: the packages themselves"
+    },
+    {
+      "host": "cdn.playwright.dev",
+      "why": "web/dev.sh setup: Playwright's Chromium for the browser tests and the mockup checks (its first mirror)"
+    },
+    {
+      "host": "playwright.download.prss.microsoft.com",
+      "why": "web/dev.sh setup: Playwright's Chromium (its second mirror)"
+    },
+    {
+      "host": "registry.npmjs.org",
+      "why": "web/dev.sh vendor add: a browser library's tarball, hash and provenance (requirements S17.3.1)"
+    },
+    {
+      "host": "ghcr.io",
+      "why": "the published images (web/release.sh, DEPLOY.md's labs)"
+    },
+    {
+      "host": "pkg-containers.githubusercontent.com",
+      "why": "ghcr.io's image layers"
+    },
+    {
+      "host": "registry-1.docker.io",
+      "why": "Docker Hub: the Python base image the two images build on, and the published copies (web/release.sh)"
+    },
+    {
+      "host": "auth.docker.io",
+      "why": "Docker Hub: sign-in tokens for pulls"
+    },
+    {
+      "host": "production.cloudflare.docker.com",
+      "why": "Docker Hub: image layers"
+    },
+    {
+      "host": "enterprise.proxmox.com",
+      "why": "docs/test-plan.md, Shared ISOs: the Proxmox VE installer ISO and its SHA256SUMS"
+    },
+    {
+      "host": "download.sys.truenas.net",
+      "why": "docs/test-plan.md, Shared ISOs: the TrueNAS installer ISO and its SHA-256"
+    }
+  ],
+  "container_images": [
+    {
+      "image": "python:3.14-slim-bookworm@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
+      "why": "the base of both images (web/install/Dockerfile, connector/Dockerfile; web/dev.sh base-update moves it)"
+    },
+    {
+      "image": "moolakata",
+      "built": "web/install/smoke.sh",
+      "from": [
+        "python:3.14-slim-bookworm@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83"
+      ],
+      "why": "the server's image, built and run by the smoke test before a release"
+    },
+    {
+      "image": "moolakata-connector",
+      "built": "web/install/smoke.sh",
+      "from": [
+        "python:3.14-slim-bookworm@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83"
+      ],
+      "why": "the connector's image, built and run by the smoke test before a release"
+    }
+  ]
+}

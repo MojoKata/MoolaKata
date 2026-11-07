@@ -1,0 +1,3 @@
+[submodule "coworker"]
+	path = coworker
+	url = https://github.com/MojoKata/coworker.git
