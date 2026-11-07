@@ -123,6 +123,16 @@ snapshot of the host holds no key (search it for the keyring's fingerprint and t
 words: neither is there), and the daily backup lands in `backups/`. Record what the page
 didn't say and fix it.
 
+## Shared ISOs
+
+The installer ISOs for T10 and T11 are kept on a development machine for scratch-VM runs, in the
+folder the machine's projects share by the protocol in [`coworker/iso`](../coworker/iso/README.md):
+`$ISO_DIR` (`~/claude-downloads/iso` unless a `local.env` at the repository's root says otherwise).
+MoolaKata claims two, as `<iso>.moolakata`: `proxmox-ve_9.2-1.iso` and `TrueNAS-SCALE-25.10.7.iso`,
+the versions `DEPLOY.md` was run on. Fetch one with `coworker/iso/download.sh ISO moolakata ISO_URL
+SHA_URL`, and give a claim up with `coworker/iso/release.sh ISO moolakata`; the ISO goes only with
+the last claim. Never download an ISO into this repository's folders. MoolaKata uses no shared VM.
+
 ## T12: a restore onto a new host
 
 Follow `operations.md` §6.2 with the phrase read from its offline copy, the receipts directory
