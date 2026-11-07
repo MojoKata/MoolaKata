@@ -12,6 +12,8 @@ set -uo pipefail
 WEB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$WEB")"
 SERVER="$WEB/server"
+# shellcheck source=uv-path
+source "$WEB/uv-path"
 unset VIRTUAL_ENV
 failed=()
 

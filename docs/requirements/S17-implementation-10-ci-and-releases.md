@@ -3,8 +3,11 @@
 10. **Continuous integration and releases**, on GitHub Actions, whose standard runners are
     free for a public repository.
     1. **Checks**: `.github/workflows/check.yml` runs `web/check` on every pull request and
-       every push to `main`, after `web/dev.sh setup`, with uv installed from
-       `install/build-requirements.txt` by its hashes. It runs `web/check`'s parts as jobs
+       every push to `main`, after `web/dev.sh setup` (which installs uv from
+       `install/build-requirements.txt` by its hashes, into a venv of its own), and with the `coworker` submodule
+       checked out and its `status` run unattended (`COWORKER_UNATTENDED=1`), so a need
+       missing from `.coworker/deps.json` shows on a runner as it would on a developer's
+       machine. It runs `web/check`'s parts as jobs
        side by side (the server's tests in four parts, each part every fourth test
        (`MK_TEST_PART`), the first with the static checks and the last with the connector's
        tests; the browser tests in two parts the same way, a module whose tests run one after

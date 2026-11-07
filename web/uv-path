@@ -1,0 +1,7 @@
+# The pinned uv: web/dev.sh setup installs it, by the hashes in install/build-requirements.txt,
+# into a venv of its own under web/.tools, so no uv on the machine is needed or used. Sourced,
+# with WEB set, by dev.sh, check and release.sh, which put it first on PATH.
+UV_VERSION="$(sed -n 's/^uv==\([^ ]*\).*/\1/p' "$WEB/install/build-requirements.txt")"
+UV_HOME="$WEB/.tools/uv-$UV_VERSION"
+PATH="$UV_HOME/bin:$PATH"
+export PATH
