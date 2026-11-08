@@ -181,7 +181,9 @@ produces worksheets and exports. It never files, and says so (R1.16).
     payments: joint after separate, the two returns' carryovers and total tax are added, and
     each filer's 8606 basis stays their own. Separate after joint, the joint return's figures
     show marked *joint*; splitting its carryover is the filers' to decide (S8.18), so each book
-    counts the share its filer types, none until then, and its Issues ask for it.
+    counts the share its filer types, none until then, and, when the joint return carries a
+    loss forward (more than 0), its Issues ask for it. A book has one share: when both its
+    filers bring a joint return to split, the share they type is of both, counted once.
 18. **What MoolaKata does not do**: compute the tax owed, choose a filing status, apply state
     rules, or decide questions of judgement (substantially identical, cost-basis elections).
     It shows the numbers and their sources.

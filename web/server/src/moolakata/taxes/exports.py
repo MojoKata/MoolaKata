@@ -32,11 +32,12 @@ FEES = {
 }
 
 
-def covers(bitcoin_fees: str = "sale") -> str:
-    return f"{COVERS} {FEES.get(bitcoin_fees, FEES['sale'])}"
+def covers(bitcoin_fees: str) -> str:
+    """`bitcoin_fees` is the book's choice, one of FEES (the table's constraint)."""
+    return f"{COVERS} {FEES[bitcoin_fees]}"
 
 
-def csv_8949(rows: list[Row], year: int, bitcoin_fees: str = "sale") -> str:
+def csv_8949(rows: list[Row], year: int, bitcoin_fees: str) -> str:
     out = io.StringIO()
     w = csv.writer(out)
     w.writerow([f"# Form 8949 for {year}, from MoolaKata. {covers(bitcoin_fees)}"])
@@ -147,35 +148,32 @@ def pdf(title: str, sections: list[tuple[str, list[str]]]) -> bytes:
             pages.append([])
             y = height - margin
         pages[-1].append((font, size, y, _escape(text)))
-        y -= leading if size <= 10 else leading + 6
+        # The title and headings (bold) take 6 points more than a line.
+        y -= leading + 6 if font == "F2" else leading
 
     put("F2", 16, title)
     for heading, lines in sections:
         y -= 6
         put("F2", 12, heading)
         for line in lines:
-            # Long lines wrap at about 100 characters.
-            while len(line) > 100:
-                cut = line.rfind(" ", 0, 100)
-                cut = cut if cut > 40 else 100
-                put("F1", 9.5, line[:cut])
-                line = "    " + line[cut:].lstrip()
+            # Long lines wrap at about 100 characters: at the last space past the 40th, else
+            # at the 100th, the rest indented. Each piece takes at least 37 characters, so a
+            # pass for each character is always enough.
+            for _ in range(len(line)):
+                if len(line) > 100:
+                    cut = line.rfind(" ", 0, 100)
+                    cut = cut if cut > 40 else 100
+                    put("F1", 9.5, line[:cut])
+                    line = "    " + line[cut:].lstrip()
             put("F1", 9.5, line)
-    objects: list[bytes] = []
-
-    def add(body: bytes) -> int:
-        objects.append(body)
-        return len(objects)
-
-    catalog = add(b"")
-    tree = add(b"")
-    regular = add(
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
-    )
-    bold = add(
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
-    )
-    kids = []
+    # The objects, numbered from 1: the catalog, the page tree, the two fonts, then each page's
+    # content and the page itself.
+    catalog, tree, regular, bold = 1, 2, 3, 4
+    fonts = [
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+    ]
+    kids, page_objects = [], []
     for i, page in enumerate(pages):
         ops = []
         for font, size, at, text in page:
@@ -184,19 +182,21 @@ def pdf(title: str, sections: list[tuple[str, list[str]]]) -> bytes:
             )
         ops.append(b"BT /F1 8 Tf %d 30 Td (Page %d of %d) Tj ET" % (margin, i + 1, len(pages)))
         stream = b"\n".join(ops)
-        content = add(b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream))
-        kids.append(
-            add(
-                b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R "
-                b"/Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>"
-                % (tree, width, height, content, regular, bold)
-            )
+        content = bold + 1 + len(page_objects)
+        page_objects.append(b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream))
+        page_objects.append(
+            b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R "
+            b"/Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>"
+            % (tree, width, height, content, regular, bold)
         )
-    objects[catalog - 1] = b"<< /Type /Catalog /Pages %d 0 R >>" % tree
-    objects[tree - 1] = b"<< /Type /Pages /Kids [%s] /Count %d >>" % (
-        b" ".join(b"%d 0 R" % k for k in kids),
-        len(kids),
-    )
+        kids.append(content + 1)
+    objects = [
+        b"<< /Type /Catalog /Pages %d 0 R >>" % tree,
+        b"<< /Type /Pages /Kids [%s] /Count %d >>"
+        % (b" ".join(b"%d 0 R" % k for k in kids), len(kids)),
+        *fonts,
+        *page_objects,
+    ]
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n")
     offsets = []
