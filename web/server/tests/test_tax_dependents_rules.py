@@ -599,6 +599,22 @@ def test_a_candidate_related_to_both_filers_keeps_the_first_relation_but_a_desce
     assert got["Kit"] == ("granddaughter" if first == alice.id else "daughter")
 
 
+def test_a_person_has_one_relation_word_in_the_book_and_when_chosen(home):
+    """S8.14.5.5: Zoe is Alice's friend and Bob's daughter. Whichever filer is first, she is
+    a daughter both when chosen and in the book's list (CR3-440)."""
+    h = home
+    alice, bob = h.me(h.alice), h.me(h.bob)
+    zoe = h.person("Zoe", 2012)
+    h.relate(alice, zoe, "friend")
+    h.relate(bob, zoe, "child")
+    book = h.book(2025, h.alice, h.bob)
+    h.dep(book, zoe, "qualifying child")
+    h.s.flush()
+    chosen = {c.person.name: c.relation for c in dependents.candidates(h.s, h.alice.id, book)}
+    listed = {d.person.name: d.relation for d in dependents.listed(h.s, book)}
+    assert chosen["Zoe"] == listed["Zoe"] == "daughter"
+
+
 def test_a_descendant_is_a_child_or_grandchild_of_a_filer_on_dec_31(home):
     h = home
     p = family(h)

@@ -129,6 +129,9 @@ produces worksheets and exports. It never files, and says so (R1.16).
           passes the year's threshold for Form 8615, from the tax tables (S16.11).
        4. **A new tax book** copies them a year older, and leaves out anyone past a
           qualifying child's age who isn't claimed as a relative, saying whom.
+       5. **Their relation** to the filers on Dec 31 is one word, the same in the list and
+          when choosing: the first filer's, unless only the other filer's is a descendant (a
+          stepdaughter of one filer and a daughter of the other is a *daughter*).
 15. **Filings**: one per return: federal (Form 1040), a state's or a locality's. An
     **amended return** is a filing of its own that names the one it amends. Each filing has:
     1. the jurisdiction, the form, and the **filing status** as typed (MoolaKata never

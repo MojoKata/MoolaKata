@@ -114,10 +114,10 @@ class Candidate:
     age: int | None
 
 
-def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
-    """The household's people the caller can see, but the filers, each with their relation to
-    a filer on Dec 31 and their age then; relatives first."""
-    filers = filer_people(s, book)
+def relations(s: Session, book: TaxBook, filers: list[str]) -> dict[str, tree.Relation]:
+    """Each person's relation to the book's filers on Dec 31, one for both lists (S8.14.5.5):
+    the first filer's, unless only the other's is a descendant (a stepdaughter of one and a
+    daughter of the other is a daughter)."""
     g = tree.graph(s, year_end(book))
     rel: dict[str, tree.Relation] = {}
     for f in filers:
@@ -126,6 +126,14 @@ def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
                 r.key in DESCENDANTS and rel[r.personId].key not in DESCENDANTS
             ):
                 rel[r.personId] = r
+    return rel
+
+
+def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
+    """The household's people the caller can see, but the filers, each with their relation to
+    a filer on Dec 31 and their age then; relatives first."""
+    filers = filer_people(s, book)
+    rel = relations(s, book, filers)
     out = []
     for p, _ in people.visible(s, user_id):
         if p.id in filers or (p.diedOn is not None and p.diedOn.year < book.year):
@@ -214,20 +222,17 @@ def listed(s: Session, book: TaxBook) -> list[Dependent]:
     rows = of_book(s, book)
     if not rows:
         return []
-    g = tree.graph(s, year_end(book))
-    rel: dict[str, str] = {}
-    for f in filer_people(s, book):
-        for r in g.relations(f):
-            rel.setdefault(r.personId, r.word)
+    rel = relations(s, book, filer_people(s, book))
     out = []
     for d in rows:
         p = s.get(Person, d.personId)
         age = age_on_dec_31(p, book.year)
+        r = rel.get(p.id)
         out.append(
             Dependent(
                 row=d,
                 person=p,
-                relation=rel.get(p.id),
+                relation=r.word if r is not None else None,
                 age=age,
                 under17=age is not None and age < CREDIT_AGE,
                 under13=age is not None and age < CARE_AGE,
