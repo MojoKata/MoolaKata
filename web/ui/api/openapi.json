@@ -3896,9 +3896,16 @@
             "type": "string"
           },
           "opened": {
-            "format": "date",
-            "title": "Opened",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened"
           },
           "proceeds": {
             "examples": [

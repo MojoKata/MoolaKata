@@ -528,6 +528,7 @@ const POSITIONS_CLOSED = [
   { kind: 'option', inst: 'QQQ 18 Jul 26 520 C', acct: 'Schwab · Options', side: 'Long', qty: '3', open: '2026-06-03', close: '2026-07-10', proceeds: 2310.0, cost: 1425.0, gain: 885.0, term: 'Short', how: 'Sold to close' },
   { kind: 'stock', inst: 'INTC', acct: 'Fidelity · Individual', side: 'Long', qty: '200', open: '2024-02-12', close: '2026-04-03', proceeds: 4820.0, cost: 8840.0, gain: -4020.0, term: 'Long', how: 'Sold' },
   { kind: 'stock', inst: 'AMD', acct: 'Schwab · Options', side: 'Long', qty: '100', open: '2026-03-02', close: '2026-03-28', proceeds: 14120.0, cost: 15330.0, gain: -1210.0, term: 'Short', how: 'Sold', wash: 'Wash sale: −1,210.00 disallowed, added to the 2026-04-14 lot' },
+  { kind: 'stock', inst: 'T', acct: 'Fidelity · Individual', side: 'Long', qty: '80', open: null, close: '2026-06-12', proceeds: 1784.0, cost: 1520.0, gain: 264.0, term: 'Unknown: when bought is missing', how: 'Sold' },
   { kind: 'crypto', inst: 'SOL', acct: 'Coinbase', side: 'Long', qty: '40', open: '2024-11-02', close: '2026-05-19', proceeds: 6440.0, cost: 5210.0, gain: 1230.0, term: 'Long', how: 'Sold' },
 ];
 const TX = [
@@ -1287,7 +1288,7 @@ function positionsTable(compact) {
   }
   const rows = POSITIONS_CLOSED.filter((p) => !kind || p.kind === kind);
   return `<div class="card" style="padding:4px 8px"><div class="table-wrap"><table class="t"><thead><tr><th>Instrument</th>${compact ? '' : '<th>Account</th>'}<th>Opened</th><th>Closed</th><th>How</th><th class="num">Proceeds</th><th class="num">Cost</th><th class="num">Realized</th><th>Term</th></tr></thead><tbody>
-  ${rows.map((p) => `<tr><td><b>${esc(p.inst)}</b> <span class="pill ${p.side === 'Short' ? 'mockp' : ''}">${p.side} ${p.qty}</span>${p.wash ? `<div class="small"><span class="pill warn">${icon('alert')} wash sale</span> <span class="dim">${esc(p.wash)}</span></div>` : ''}</td>${compact ? '' : `<td class="small dim">${esc(p.acct)}</td>`}<td class="dim small">${p.open}</td><td class="dim small">${p.close}</td><td class="small">${esc(p.how)}</td><td class="num">${money(p.proceeds)}</td><td class="num">${money(p.cost)}</td><td class="num">${signed(p.gain)}</td><td class="small">${p.term}</td></tr>`).join('')}
+  ${rows.map((p) => `<tr><td><b>${esc(p.inst)}</b> <span class="pill ${p.side === 'Short' ? 'mockp' : ''}">${p.side} ${p.qty}</span>${p.wash ? `<div class="small"><span class="pill warn">${icon('alert')} wash sale</span> <span class="dim">${esc(p.wash)}</span></div>` : ''}</td>${compact ? '' : `<td class="small dim">${esc(p.acct)}</td>`}<td class="dim small">${p.open || '—'}</td><td class="dim small">${p.close}</td><td class="small">${esc(p.how)}</td><td class="num">${money(p.proceeds)}</td><td class="num">${money(p.cost)}</td><td class="num">${signed(p.gain)}</td><td class="small">${p.term}</td></tr>`).join('')}
   </tbody><tfoot><tr><td colspan="${compact ? 6 : 7}">Realized ${state.year}</td><td class="num">${signed(rows.reduce((s, p) => s + p.gain, 0))}</td><td></td></tr></tfoot></table></div></div>`;
 }
 SCREENS.positions = () => {

@@ -3,7 +3,9 @@
 1. **A position** is one instrument in one account. It is **open** while any lot is open,
    and **closed** when none is. The Positions screen lists open and closed positions with
    quantity, average cost, market value, unrealized gain or loss (amount and %), realized gain
-   or loss, days held, and short- or long-term status per lot.
+   or loss, days held, and short- or long-term status per lot. A closed position's day
+   opened is its earliest lot's day bought; where a lot's day bought is missing (shares moved
+   in without it, or a sale with no lot to match), the day opened and the term are unknown.
 2. **Option transactions:** *buy to open*, *sell to open*, *buy to close*, *sell to close*,
    **expire** (worthless), **assigned** and **exercised**. Each carries contracts, premium per
    share, fees and commission.

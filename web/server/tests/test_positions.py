@@ -72,6 +72,10 @@ def test_shares_moved_in_without_their_lots_list_with_their_term_unknown(alice):
     vti = next(x for x in r.json()["open"] if x["symbol"] == "VTI")
     assert [x["longTerm"] for x in vti["lots"]] == [True, None]
     assert vti["term"] == "unknown"
+    # Sold, the shares' row has its day opened unknown, as its term is (CR3-435).
+    trade(alice, brk["id"], "2026-10-01", "sell", "15", "110")
+    sold = alice.get("/ui/api/positions").json()["closed"]
+    assert [(x["symbol"], x["opened"], x["term"]) for x in sold] == [("VTI", None, "unknown")]
 
 
 def test_gains_by_month_account_and_term(alice):
@@ -409,8 +413,8 @@ def test_a_closed_row_is_each_closing_trade_latest_first_with_how_it_closed(alic
          "399.35", "300.65", "98.70", "0.00", "short"),
         ("MSFT 20NOV26 480 P", "option", "short", "2.0", "2026-09-02", "2026-09-10",
          "bought back", "-420.65", "-1279.35", "858.70", "0.00", "short"),
-        ("IBM", "equity", "long", "2.0", "2026-03-03", "2026-03-03", "sold", "100.00", None,
-         None, "0.00", "unknown"),
+        ("IBM", "equity", "long", "2.0", None, "2026-03-03", "sold", "100.00", None, None,
+         "0.00", "unknown"),
         ("VTI", "equity", "long", "15.0", "2025-01-02", "2026-03-02", "sold", "1800.00",
          "1550.00", "250.00", "0.00", "mixed"),
     ]  # fmt: skip

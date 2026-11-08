@@ -684,7 +684,7 @@
  * @property {string} instrumentClass
  * @property {string} side
  * @property {import('../app/dec.js').Dec} quantity
- * @property {string} opened
+ * @property {(string | null)} opened
  * @property {string} closed
  * @property {string} how
  * @property {import('../app/dec.js').Dec} proceeds

@@ -68,7 +68,7 @@ class ClosedRow(Model):
     instrumentClass: str
     side: str
     quantity: Quantity
-    opened: dt.date
+    opened: dt.date | None  # None: a part's day bought is missing (moved in, or no lot)
     closed: dt.date
     how: str  # sold, expired, assigned, exercised
     proceeds: Money
@@ -222,6 +222,7 @@ def gather(s, c: Caller, kind: str = "all"):
             known = [d.basis for d in ds if d.basis is not None]
             cost = sum(known, ZERO) if len(known) == len(ds) else None
             proceeds = sum((d.proceeds for d in ds), ZERO)
+            unknown = any(d.acquiredMissing or d.lotMissing for d in ds)
             closed_rows.append(
                 ClosedRow(
                     saleId=sale,
@@ -232,7 +233,9 @@ def gather(s, c: Caller, kind: str = "all"):
                     instrumentClass=inst.instrumentClass,
                     side="short" if any((d.basis or ZERO) < 0 for d in ds) else "long",
                     quantity=sum((d.quantity for d in ds), ZERO),
-                    opened=min(d.acquiredOn for d in ds),
+                    # A part without its day bought leaves the day opened unknown, as its
+                    # term is, never the sale's own day (CR3-435).
+                    opened=None if unknown else min(d.acquiredOn for d in ds),
                     closed=ds[0].soldOn,
                     how=_how(t),
                     proceeds=proceeds,
