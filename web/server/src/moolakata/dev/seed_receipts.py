@@ -31,8 +31,12 @@ def draw(lines: list[str], width: int = 420, line: int = 30) -> Image.Image:
 
 
 def _bytes(img: Image.Image, fmt: str) -> bytes:
+    """The image as a file. A PNG is stored uncompressed: the zlib Pillow carries compresses
+    by the CPU's features, so its size (shown in the generated mockup) would differ by
+    machine."""
     out = io.BytesIO()
-    img.save(out, fmt, **({"quality": 90} if fmt == "JPEG" else {}))
+    opts = {"JPEG": {"quality": 90}, "PNG": {"compress_level": 0}}.get(fmt, {})
+    img.save(out, fmt, **opts)
     return out.getvalue()
 
 
