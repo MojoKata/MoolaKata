@@ -193,14 +193,16 @@ def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[Wa
     return out
 
 
-def for_users(s: Session, user_ids: list[str], first: dt.date, last: dt.date) -> list[WashSale]:
-    """The wash sales of these users' sales between two days."""
+def for_accounts(
+    s: Session, account_ids: set[str], first: dt.date, last: dt.date
+) -> list[WashSale]:
+    """The wash sales of the sales in these accounts between two days, whoever owns them."""
     return list(
         s.scalars(
             select(WashSale)
             .join(Transaction, Transaction.id == WashSale.saleId)
             .where(
-                WashSale.ownerId.in_(user_ids),
+                Transaction.accountId.in_(account_ids),
                 Transaction.date >= first,
                 Transaction.date <= last,
             )

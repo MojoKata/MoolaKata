@@ -160,7 +160,8 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
         for d in led.replay().disposals:
             if not first <= d.soldOn <= last:
                 continue
-            inst = insts.get(d.instrumentId) or s.get(Instrument, d.instrumentId)
+            # The session keeps what it has read: a second get of an instrument reads nothing.
+            inst = s.get(Instrument, d.instrumentId)
             insts[inst.id] = inst
             proceeds, basis = d.proceeds, d.basis
             if d.written and d.basis is not None:
@@ -217,13 +218,13 @@ def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
 def _stored_washes(
     s: Session, book: TaxBook, losses: dict[str, Decimal], counted: set[str]
 ) -> list[Wash]:
-    """The book's wash sales: of the sales in the accounts it counts (CR3-393), read together
-    (one query for each kind of record, however many there are: the walk's decision 3.6)."""
+    """The book's wash sales: of the sales in the accounts it counts (CR3-393), an added
+    account's too, whoever owns it (S8.14.2), read together (one query for each kind of
+    record, however many there are: the walk's decision 3.6)."""
     from .. import washes
 
     first, last = _span(book.year)
-    who = [f.userId for f in books.filers(s, book) if f.acceptedAt is not None]
-    found = washes.for_users(s, who, first, last)
+    found = washes.for_accounts(s, counted, first, last)
     if not found:
         return []
     wanted = {w.saleId for w in found} | {w.replacementId for w in found}
@@ -249,8 +250,6 @@ def _stored_washes(
     out = []
     for w in found:
         sale, repl = txns[w.saleId], txns[w.replacementId]
-        if sale.accountId not in counted:
-            continue
         lot = lots_by.get(repl.id)
         into = accts[repl.accountId]
         basis = None
@@ -282,48 +281,48 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
 
     ids_ = {a.id: a for a in accounts}
     out = []
+
+    def first(near, *where) -> Transaction | None:
+        return s.scalars(select(Transaction).where(*near, *where)).first()
+
+    # The rows are the sales of the accounts given, each of an instrument in `insts`.
     for r in rows:
-        if r.gain is None or r.gain >= 0 or r.instrumentId is None:
+        if r.gain is None or r.gain >= 0:
             continue
-        inst = insts.get(r.instrumentId)
-        if inst is None:
-            continue
-        if inst.instrumentClass == "option":
-            c = opts.contract_of(s, inst.id)
-            targets = [c.underlyingId] if c else []
-            kinds = ("buy", "reinvest")
-        else:
-            targets = [
-                oc.instrumentId
-                for oc in s.scalars(
-                    select(OptionContract).where(OptionContract.underlyingId == inst.id)
-                )
-            ]
-            kinds = ("buy-to-open",)
-        if not ids_:
-            continue
+        inst = insts[r.instrumentId]
         near = (
             Transaction.accountId.in_(list(ids_)),
             Transaction.deleted == false(),
             Transaction.date >= r.sold - dt.timedelta(days=WASH_DAYS),
             Transaction.date <= r.sold + dt.timedelta(days=WASH_DAYS),
         )
-        hit = s.scalars(
-            select(Transaction).where(
-                *near, Transaction.instrumentId.in_(targets), Transaction.kind.in_(kinds)
+        if inst.instrumentClass == "option":
+            # Its stock bought; an option with no contract (a file's, unread) has none.
+            c = opts.contract_of(s, inst.id)
+            targets = [c.underlyingId] if c else []
+            hit = first(
+                near,
+                Transaction.instrumentId.in_(targets),
+                Transaction.kind.in_(("buy", "reinvest")),
             )
-        ).first()
-        if hit is None and inst.instrumentClass != "option":
-            # The stock bought back through an option: a put assigned, a call exercised.
-            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
-            hit = s.scalars(
-                select(Transaction).where(
-                    *near,
-                    Transaction.instrumentId == inst.id,
-                    Transaction.kind == "buy",
-                    Transaction.optionTransactionId.in_(ends),
+        else:
+            on_it = [
+                oc.instrumentId
+                for oc in s.scalars(
+                    select(OptionContract).where(OptionContract.underlyingId == inst.id)
                 )
-            ).first()
+            ]
+            # An option on it bought, or the stock bought back through an option: a put
+            # assigned, a call exercised.
+            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
+            hit = first(
+                near, Transaction.instrumentId.in_(on_it), Transaction.kind == "buy-to-open"
+            ) or first(
+                near,
+                Transaction.instrumentId == inst.id,
+                Transaction.kind == "buy",
+                Transaction.optionTransactionId.in_(ends),
+            )
         if hit is not None:
             out.append(
                 Wash(

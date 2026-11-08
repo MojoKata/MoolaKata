@@ -96,7 +96,8 @@ produces worksheets and exports. It never files, and says so (R1.16).
     2. **Accounts counted**: the filers' own accounts, each counted once even when the filers
        share it with each other. A filer can add an account they can see (a custodial account
        in a child's name) or leave one out, and the panels say what was left out. An added
-       account counts only while the filer who added it can still see it.
+       account counts whole, whoever owns it (its sales and their wash sales among them), and
+       only while the filer who added it can still see it.
     3. **Helping**: the filers hold the tax book as its owners, and any of them changes its
        sharing. Anyone else sees it only through a share: to users and groups, or, read only,
        to named people on a linked server, such as a preparer with a server of their own
