@@ -402,7 +402,8 @@
        value at death), the quantity, where it is kept, a serial or certificate number, its
        condition or grade, the insured value and policy, **notes** (Markdown), and photos
        and documents (purchase receipt, appraisal, certificate, title), stored as receipts
-       (S9).
+       (S9). Its dates (acquired, each valuation and improvement, the sale) are never after
+       today: a cost or value not yet real isn't counted.
     2. **Valuation**, one of:
        1. **spot**, for precious metals: the item's **fine weight** (weight per unit, in troy
           ounces, grams or kilograms, times purity, such as .9999, .925 or 22k, times

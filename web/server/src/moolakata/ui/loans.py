@@ -324,7 +324,9 @@ def _equity(s, row: Loan, terms, owed, rows, today) -> Equity | None:
     owed_all = owed + sum(
         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
     )
-    original = row.originalValue or assets.basis(it, d)
+    # Without one typed, the home's basis when the loan was made: a later improvement isn't
+    # in the value the loan started from (CR3-434).
+    original = row.originalValue or assets.basis(it, d, row.startDate)
     request = ends = None
     if terms.pmi and original:
         for r in rows:

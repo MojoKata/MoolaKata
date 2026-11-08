@@ -792,7 +792,7 @@ def test_a_valuation_is_zero_or_more_from_a_known_source_on_a_day_not_ahead(alic
     assert saved(change(alice, "Valtn", out, date=TODAY, note="As noted"))["note"] == "As noted"
 
 
-def test_an_improvement_says_what_was_done_for_more_than_nothing(alice):
+def test_an_improvement_says_what_was_done_for_more_than_nothing_on_a_day_not_ahead(alice):
     homes = new_account(alice, name="Home", type="real-estate")
     home = item(alice, homes["id"], name="Home")
     other = item(alice, homes["id"], name="Other")
@@ -805,6 +805,8 @@ def test_an_improvement_says_what_was_done_for_more_than_nothing(alice):
     nothing = [("amount", "amount-invalid", "More than zero.")]
     assert refused(improvement(description="  ")) == missing
     assert refused(improvement(amount="0")) == nothing
+    ahead = [("date", "date-ahead", "Not after today.")]
+    assert refused(improvement(date=TOMORROW)) == ahead
     m = improvement(description=" Roof ", amount="0.01").json()
     assert (m["date"], m["description"], m["amount"]) == ("2025-05-20", "Roof", "0.01")
     assert refused(change(alice, "Imprv", m, itemId=other["id"])) == [
@@ -812,6 +814,9 @@ def test_an_improvement_says_what_was_done_for_more_than_nothing(alice):
     ]
     assert refused(change(alice, "Imprv", m, description=" ")) == missing
     assert refused(change(alice, "Imprv", m, amount="0")) == nothing
+    assert refused(change(alice, "Imprv", m, date=TOMORROW)) == ahead
+    assert saved(change(alice, "Imprv", m, date=TODAY))["date"] == TODAY
+    m = alice.get(f"/ui/api/items/{home['id']}").json()["improvements"][0]
     out = saved(change(alice, "Imprv", m, date="2025-06-01", description=" New roof ",
                        amount="1"))  # fmt: skip
     assert (out["date"], out["description"], out["amount"]) == ("2025-06-01", "New roof", "1.00")
@@ -1011,3 +1016,34 @@ def test_an_item_changed_by_someone_it_is_shared_with_is_told_to_its_owner(serve
     assert edit(bob, "Item", f"/ui/api/items/{coin['id']}", name="Old coin").status_code == 200
     feed = alice.get("/ui/api/activity").json()["items"]
     assert (feed[0]["kind"], feed[0]["actorName"]) == ("item.changed", "Bob")
+
+
+def test_an_items_row_takes_its_basis_on_the_day_its_value_is_taken(alice):
+    """An improvement dated after the day shown (made today, the clock read a day back) is in
+    neither the basis nor the value: the gain stays what it was (CR3-433)."""
+    homes = new_account(alice, name="Home", type="real-estate")
+    home = item(alice, homes["id"], name="Home", acquiredOn="2025-01-02", costBasis="1000")
+    r = make(alice, "Imprv", itemId=home["id"], date=TODAY, description="Roof", amount="300")
+    assert r.status_code == 200, r.text
+    clock.fix(T0 - dt.timedelta(days=1))
+    row = alice.get(f"/ui/api/accounts/{homes['id']}/items").json()["items"][0]
+    assert (row["basis"], row["value"], row["gain"]) == ("1000.00", "1000.00", "0.00")
+
+
+def test_pmi_without_an_original_value_reads_the_homes_basis_when_the_loan_was_made(alice):
+    """An improvement made after the loan doesn't raise the value it started from (CR3-434)."""
+    homes = new_account(alice, name="Home", type="real-estate")
+    home = item(alice, homes["id"], name="Home", acquiredOn="2025-01-02", costBasis="500000")
+    loan = new_account(alice, name="Mortgage", type="mortgage")
+
+    def ends():
+        r = terms(alice, loan["id"], principal="450000", startDate="2025-02-01", termMonths=360,
+                  rate="6", pmi="150", securedById=home["id"])  # fmt: skip
+        e = saved(r)["equity"]
+        return e["pmiRequest"], e["pmiEnds"]
+
+    before = ends()
+    r = make(alice, "Imprv", itemId=home["id"], date="2026-01-05", description="Addition",
+             amount="200000")  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert ends() == before

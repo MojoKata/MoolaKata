@@ -235,7 +235,7 @@ def _sale(a: Account, it: Item, d: assets.Detail) -> Sale | None:
 
 def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRow:
     value = assets.value_on(it, d, today, spot)
-    basis = assets.basis(it, d)
+    basis = assets.basis(it, d, today)  # the day the value is taken on (CR3-433)
     latest = assets.latest_valuation(d, today)
     owed = sum((x.owed for x in secured), Decimal(0))
     end = it.soldOn or today
@@ -623,11 +623,19 @@ def _valuation_update(ctx, v: ItemValuation, body: ValuationRecord) -> None:
     v.date, v.value, v.source, v.note = body.date, body.value, body.source, _clean(body.note)
 
 
-def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
+def _improvement_checked(body: ImprovementRecord) -> None:
+    """An improvement, made or changed: what was done, for more than nothing, on a day not
+    ahead (a cost not yet paid isn't basis)."""
     if not body.description.strip():
         raise refuse("description", "description-missing", "What was done.")
     if body.amount <= 0:
         raise refuse("amount", "amount-invalid", "More than zero.")
+    if body.date > clock.today():
+        raise refuse("date", "date-ahead", "Not after today.")
+
+
+def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
+    _improvement_checked(body)
     it, _, _ = _item(ctx.s, ctx.caller, body.itemId)
     ctx.s.add(
         Improvement(
@@ -644,10 +652,7 @@ def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
 def _improvement_update(ctx, m: Improvement, body: ImprovementRecord) -> None:
     if body.itemId != m.itemId:
         raise refuse("itemId", "improvement-fixed", "An improvement stays with its item.")
-    if not body.description.strip():
-        raise refuse("description", "description-missing", "What was done.")
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "More than zero.")
+    _improvement_checked(body)
     m.date, m.description, m.amount = body.date, body.description.strip(), body.amount
 
 
