@@ -366,6 +366,10 @@ class OptionTradeRow(Model):
     # open, where that is finite.
     capitalRequired: Money
     returnPct: Ratio | None
+    # A trade that ran through its contract's adjustment (S3.10.4): the contract it opened on,
+    # and the day of the latest adjustment.
+    adjustedFrom: str | None = None
+    adjustedOn: dt.date | None = None
 
 
 OPTION_KINDS = ("buy-to-open", "sell-to-open", "buy-to-close", "sell-to-close")
@@ -386,49 +390,7 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
                 continue
             led = repo.load(s, a)
             positions = {p.instrumentId: p for p in valuation.positions(s, led)}
-            by_inst: dict[str, list[Transaction]] = defaultdict(list)
-            for t in led.transactions:
-                if t.instrumentId and t.kind in OPTION_KINDS + ENDS and not t.deleted:
-                    by_inst[t.instrumentId].append(t)
-            for iid, txns in by_inst.items():
-                oc = options.contract_of(s, iid)
-                if oc is None:
-                    continue
-                inst = s.get(Instrument, iid)
-                txns.sort(key=lambda t: (t.date, t.createdAt))
-                trade: dict | None = None
-                net = ZERO
-                for t in txns:
-                    qty = abs(t.quantity or ZERO)
-                    if t.kind in ("buy-to-open", "buy-to-close"):
-                        step = qty
-                    elif t.kind in ("sell-to-open", "sell-to-close"):
-                        step = -qty
-                    elif t.kind == "option-adjust" and t.splitRatio is not None:
-                        # The adjusted contract takes over the old one's side (S3.10).
-                        step = qty if _adjusted_long(led, t) else -qty
-                    else:
-                        step = -qty if net > 0 else qty
-                    if trade is None:
-                        trade = {
-                            "opened": t.date,
-                            "side": "short" if step < 0 else "long",
-                            "in": ZERO,
-                            "out": ZERO,
-                            "most": ZERO,
-                        }
-                    if t.amount > 0:
-                        trade["in"] += t.amount
-                    else:
-                        trade["out"] -= t.amount
-                    net += step
-                    trade["most"] = max(trade["most"], abs(net))
-                    if not net:
-                        out.append(_trade_row(a, inst, oc, trade, t, None))
-                        trade = None
-                if trade is not None:
-                    p = positions.get(iid)
-                    out.append(_trade_row(a, inst, oc, trade, None, p.value if p else None))
+            out.extend(_account_trades(s, a, led, positions))
         # A leg in a strategy takes its strategy's capital at risk at open, where that is
         # finite (S3.9.2): an unlimited one leaves the trade's own capital required.
         from ..options import strategies as strat
@@ -468,22 +430,98 @@ def _adjusted_long(led, t: Transaction) -> bool:
     return held > 0
 
 
-def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTradeRow:
-    """A trade closed by `last`, or still open (`last` None) and worth `value` now."""
+def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
+    """An account's option trades. An adjustment (S3.10) is a pair of `option-adjust` rows, one
+    taking the old contract's lots out and one putting them, times the ratio, in the new: it
+    sells nothing, so the trade goes on under the adjusted contract (S3.10.4)."""
+    txns = [t for t in led.transactions
+            if t.instrumentId and t.kind in OPTION_KINDS + ENDS and not t.deleted]  # fmt: skip
+    txns.sort(key=lambda t: (t.date, t.createdAt))
+    by_id = {t.id: t for t in txns}
+    # Each contract's trade is its first contract's: an adjusted one's, the one it came from.
+    chain: dict[str, str] = {}
+    for t in txns:
+        if t.kind == "option-adjust" and t.splitRatio is not None and t.transferId in by_id:
+            old = by_id[t.transferId].instrumentId
+            chain[t.instrumentId] = chain.get(old, old)
+    contracts = {iid: options.contract_of(s, iid) for iid in {t.instrumentId for t in txns}}
+    by_chain: dict[str, list[Transaction]] = defaultdict(list)
+    for t in txns:
+        if contracts[t.instrumentId] is not None:
+            by_chain[chain.get(t.instrumentId, t.instrumentId)].append(t)
+    out: list[OptionTradeRow] = []
+    for rows in by_chain.values():
+        trade: dict | None = None
+        net: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for t in rows:
+            qty = abs(t.quantity or ZERO)
+            moving_out = t.kind == "option-adjust" and t.splitRatio is None
+            if t.kind in ("buy-to-open", "buy-to-close"):
+                step = qty
+            elif t.kind in ("sell-to-open", "sell-to-close"):
+                step = -qty
+            elif t.kind == "option-adjust" and t.splitRatio is not None:
+                # The adjusted contract takes over the old one's side (S3.10).
+                step = qty if _adjusted_long(led, t) else -qty
+            else:
+                step = -qty if net[t.instrumentId] > 0 else qty
+            if trade is None:
+                trade = {
+                    "opened": t.date,
+                    "side": "short" if step < 0 else "long",
+                    "in": ZERO,
+                    "out": ZERO,
+                    "most": defaultdict(lambda: ZERO),
+                    "first": t.instrumentId,
+                    "adjustedOn": None,
+                }
+            if t.amount > 0:
+                trade["in"] += t.amount
+            else:
+                trade["out"] -= t.amount
+            net[t.instrumentId] += step
+            trade["most"][t.instrumentId] = max(
+                trade["most"][t.instrumentId], abs(net[t.instrumentId])
+            )
+            if t.kind == "option-adjust" and not moving_out:
+                trade["adjustedOn"] = t.date
+            # The old contract's lots leaving end nothing: the new one takes them next.
+            if not moving_out and not any(net.values()):
+                out.append(_trade_row(a, s, contracts, trade, t, None))
+                trade = None
+        if trade is not None:
+            current = next(i for i, n in reversed(net.items()) if n)
+            p = positions.get(current)
+            out.append(_trade_row(a, s, contracts, trade, None, p.value if p else None, current))
+    return out
+
+
+def _trade_row(
+    a, s, contracts, trade, last: Transaction | None, value, current: str | None = None
+) -> OptionTradeRow:
+    """A trade closed by `last`, or still open (`last` None) on `current` and worth `value`
+    now. A short one requires the most its strike on its shares came to, before or after an
+    adjustment."""
+    iid = last.instrumentId if last is not None else current
+    inst = s.get(Instrument, iid)
     pl = trade["in"] - trade["out"]
     if last is None:
         pl = pl + value if value is not None else None
     if trade["side"] == "long":
         risk = trade["out"]
     else:
-        risk = (oc.strike * oc.multiplier * trade["most"]).quantize(Decimal("0.01"))
+        risk = max(
+            (contracts[i].strike * contracts[i].multiplier * most).quantize(Decimal("0.01"))
+            for i, most in trade["most"].items()
+        )
+    adjusted = trade["first"] != iid
     return OptionTradeRow(
         accountId=a.id,
         accountName=a.name,
         instrumentId=inst.id,
         symbol=inst.symbol,
         side=trade["side"],
-        contracts=trade["most"],
+        contracts=trade["most"][iid],
         opened=trade["opened"],
         closed=last.date if last else None,
         how=_how(last) if last else None,
@@ -493,4 +531,6 @@ def _trade_row(a, inst, oc, trade, last: Transaction | None, value) -> OptionTra
         pl=pl,
         capitalRequired=risk,
         returnPct=(pl / risk * 100).quantize(PCT) if pl is not None and risk else None,
+        adjustedFrom=s.get(Instrument, trade["first"]).symbol if adjusted else None,
+        adjustedOn=trade["adjustedOn"] if adjusted else None,
     )

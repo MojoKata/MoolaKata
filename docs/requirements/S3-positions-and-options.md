@@ -150,11 +150,14 @@
    unrealized now; and **per trade** for options (open date, close date, premium in and out,
    P/L, return on capital required).
    1. An option trade runs from the first contract opened in an account to the moment none
-      is open. Premium in and out are the cash received and paid, fees included; a trade
+      is open, through an adjustment of its contract (S3.10.4), which sells nothing: it goes
+      on under the adjusted contract with its opening day and premium, noted *adjusted* with
+      the day and the contract it came from. Premium in and out are the cash received and paid, fees included; a trade
       still open adds what it is worth at its current mark, as *if closed now*.
    2. **Capital required**: for a long option, the premium paid; for a short one, the strike
       on every share the most contracts open at once cover (the cash to buy them for a put,
-      the shares to deliver for a call). The return is the P/L over it. A leg in a strategy
+      the shares to deliver for a call), the larger of that before and after an adjustment.
+      The return is the P/L over it. A leg in a strategy
       takes its strategy's capital at risk at open instead (S3.5.5), where that is finite.
       Capital at risk (S3.5.5) is what a position can lose; this is what a trade tied up.
 10. **Adjusted contracts**: when the underlying splits, merges, spins off a company or pays a
@@ -191,8 +194,8 @@
        instrument in its deliverable, and its cash goes into the proceeds or the basis. The
        strike paid or received, the premium and the cash are spread over the deliverable's
        parts by their market value that day (by their shares when a price is missing). On
-       Option trades, the old contract's trade ends *adjusted* and the adjusted contract's
-       continues on the same side.
+       Option trades, the trade goes on under the adjusted contract on the same side, its
+       contracts times the ratio (S3.9.1).
     5. **Its mark** is CBOE's, which lists it under its new root in the underlying's chain
        (S4.5); without one, its intrinsic value is its deliverable's value less the strike
        × 100.

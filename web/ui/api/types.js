@@ -2387,6 +2387,8 @@
  * @property {(import('../app/dec.js').Dec | null)} pl
  * @property {import('../app/dec.js').Dec} capitalRequired
  * @property {(import('../app/dec.js').Dec | null)} returnPct
+ * @property {(string | null)} [adjustedFrom]
+ * @property {(string | null)} [adjustedOn]
  */
 
 /**

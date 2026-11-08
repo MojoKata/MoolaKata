@@ -465,10 +465,10 @@ def test_each_option_trade_open_latest_first_then_each_closed_latest_first(alice
     ]  # fmt: skip
 
 
-def test_an_adjusted_contracts_trade_ends_adjusted_and_continues_on_the_side_it_was(alice):
-    """S3.10.4: the old contract's trade ends *adjusted*, and the adjusted contract's continues
-    on the side held when it was adjusted: a put sold, bought back and then bought is long; a
-    call bought, sold and then sold again is short."""
+def test_an_adjusted_contracts_trade_goes_on_under_it_on_the_side_it_was(alice):
+    """S3.10.4, CR3-438: a trade open when its contract is adjusted goes on under the adjusted
+    contract, from the day it opened, on the side held: a put sold, bought back and then bought
+    is long; a call bought, sold and then sold again is short."""
     brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
     for action, day, contracts in (("sell-to-open", "2026-09-01", "2"),
                                    ("buy-to-close", "2026-09-02", "2"),
@@ -495,10 +495,8 @@ def test_an_adjusted_contracts_trade_ends_adjusted_and_continues_on_the_side_it_
     got = sorted((r["symbol"], r["side"], r["contracts"], r["opened"], r["closed"], r["how"])
                  for r in rows)  # fmt: skip
     assert got == [
-        ("MSFT 20NOV26 480 P", "long", "1.0", "2026-09-03", "2026-10-05", "adjusted"),
         ("MSFT 20NOV26 480 P", "short", "2.0", "2026-09-01", "2026-09-02", "bought back"),
         ("MSFT 20NOV26 500 C", "long", "2.0", "2026-09-01", "2026-09-02", "sold"),
-        ("MSFT 20NOV26 500 C", "short", "1.0", "2026-09-03", "2026-10-05", "adjusted"),
-        ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-10-05", None, None),
-        ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-10-05", None, None),
+        ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-09-03", None, None),
+        ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-09-03", None, None),
     ]

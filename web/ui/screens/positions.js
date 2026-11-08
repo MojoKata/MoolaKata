@@ -352,7 +352,12 @@ function Trades() {
                   (r.side === 'short' ? 'warn' : '')}>${r
                     .side === 'short'
                   ? 'Short'
-                  : 'Long'}</span> <span class="small dim">×${quantity(r.contracts)}</span></td>
+                  : 'Long'}</span> <span class="small dim">×${quantity(r.contracts)}</span>${r
+                    .adjustedFrom
+                  ? html`<div class="small dim">adjusted ${
+                    date(r.adjustedOn)
+                  } from ${r.adjustedFrom}</div>`
+                  : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td class="small dim">${date(r.opened)}</td>
                 <td class="small">${r.closed

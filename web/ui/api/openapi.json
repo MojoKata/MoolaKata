@@ -14417,6 +14417,29 @@
             "title": "Accountname",
             "type": "string"
           },
+          "adjustedFrom": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustedfrom"
+          },
+          "adjustedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustedon"
+          },
           "capitalRequired": {
             "examples": [
               1234.5
