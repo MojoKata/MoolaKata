@@ -446,3 +446,21 @@ The fourteen decisions above, walked one at a time on branch `cr3-hardening-rest
 
 10. PMI without an original value typed (asked after the batch, approved): the schedule reads
     the same fallback as the screen, the home's basis when the loan was made (**CR3-439**).
+
+## Walked with the user (Nov 8)
+
+Three questions the taxes survivors raised, walked one at a time and approved together, kept
+on PR #38.
+
+1. A joint book's relation word: one rule for the dependent picker and the book's list, the
+   first filer's unless only the other's is a descendant (**CR3-440**, `8c3bb22`).
+2. This year's nondeductible IRA contributions in the Form 8606 basis: a deductible mark on a
+   traditional IRA contribution and on each part of a split one, a nullable boolean (null:
+   not decided), revision 0058; line 1 is the owner's nondeductible parts, and a conversion
+   waits while one is undecided. Chosen over a typed per-book figure: the figure is traced to
+   the money, a partial deduction is a split, and nothing undecided is read as deductible.
+   Working deductibility out (MAGI, workplace plans, phase-outs) is gap G29 (**CR3-450**,
+   `04d8cd6`).
+3. Form 8606's pro rata rule per filer: each filer's conversions take their own basis over
+   their own traditional IRAs, matched by account id; a joint return carries an 8606 basis
+   for each filer (**CR3-451**, `04d8cd6`).
