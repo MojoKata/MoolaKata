@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import clock, ids
 from ..errors import Problem
+from ..money import grouped
 from ..store import commit_checks, scoping
 from ..store.entities.accounts import Account
 from ..store.entities.taxes import Filing, TaxBook, TaxBookChange
@@ -68,7 +69,7 @@ def book_gains(s: Session, book: TaxBook) -> dict[str, Decimal]:
 
 def _named(moves: dict[int, Decimal]) -> str:
     def amount(v: Decimal) -> str:
-        return f"{'−' if v < 0 else '+'}${abs(v):,.2f}"
+        return f"{'−' if v < 0 else '+'}${grouped(abs(v))}"
 
     return " and ".join(f"{y} by {amount(v)}" for y, v in sorted(moves.items()))
 

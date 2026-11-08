@@ -44,9 +44,21 @@ def from_cents(cents: int | None) -> Decimal | None:
     return None if cents is None else (Decimal(cents) / 100).quantize(CENT)
 
 
+def to_cent(d: Decimal) -> Decimal:
+    """Rounded to the cent, a zero without its sign: a short option worth nothing is worth
+    0.00, never -0.00."""
+    q = d.quantize(CENT, rounding=ROUND_HALF_EVEN, context=CONTEXT)
+    return q.copy_abs() if q.is_zero() else q
+
+
 def money_str(d: Decimal | None) -> str | None:
     """Dollars with two places: "1234.50"."""
-    return None if d is None else str(d.quantize(CENT, rounding=ROUND_HALF_EVEN, context=CONTEXT))
+    return None if d is None else str(to_cent(d))
+
+
+def grouped(d: Decimal) -> str:
+    """Dollars with two places, grouped, for a sentence or a printed form: "1,234.50"."""
+    return f"{to_cent(d):,.2f}"
 
 
 def cents_str(cents: int | None) -> str | None:

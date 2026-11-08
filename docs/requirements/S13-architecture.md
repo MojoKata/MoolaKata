@@ -208,7 +208,8 @@
          a rate, years) are number literals written with their own digits and always a
          decimal point, so `10` shares is `10.0`; a whole number with no decimal point (a
          count, a year, a version, an amount of bitcoin in sats, S1.6.4) is an integer. The
-         server never writes a binary float.
+         server never writes a binary float, nor a zero with a sign (`0.00`, never `-0.00`,
+         here and in its exports and sentences).
       2. **Each is declared** in the OpenAPI document as `"type": "number"` with
          `"format": "money"` or `"decimal"`, and the browser's types (S17.3) mark it as an
          exact decimal.

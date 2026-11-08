@@ -10,6 +10,7 @@ from sqlalchemy import select
 from .. import access, activity, options, washes
 from ..errors import FieldError, Problem, refuse
 from ..ledger import types as atypes
+from ..money import grouped
 from ..store.entities.accounts import CorporateAction, Instrument, Transaction
 from ..store.repos import ledger as repo
 from ..taxes import closed
@@ -70,7 +71,7 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
             )
     amount = options.cash(body.kind, contracts, body.price, fees, contract.multiplier)
     if body.amount != amount:
-        raise refuse("amount", "amount-mismatch", f"The trade comes to {amount:,.2f}.")
+        raise refuse("amount", "amount-mismatch", f"The trade comes to {grouped(amount)}.")
     t = Transaction(
         id=record_id,
         accountId=a.id,

@@ -6,6 +6,8 @@ import datetime as dt
 import io
 from decimal import Decimal
 
+from .. import money
+from ..money import grouped
 from .panels import Row, ScheduleD
 
 COVERS = (
@@ -20,7 +22,7 @@ TXF_CODE = {"A": 321, "B": 711, "C": 712, "D": 323, "E": 713, "F": 714}
 
 
 def _money(d: Decimal | None) -> str:
-    return "" if d is None else f"{d:.2f}"
+    return money.money_str(d) or ""
 
 
 FEES = {
@@ -216,15 +218,15 @@ def schedule_d_lines(d: ScheduleD) -> list[str]:
     out = []
     for box, (proceeds, basis, adj, gain) in d.byBox.items():
         out.append(
-            f"Box {box}: proceeds {proceeds:,.2f}, basis {basis:,.2f}, adjustments {adj:,.2f}, "
-            f"gain or loss {gain:,.2f}"
+            f"Box {box}: proceeds {grouped(proceeds)}, basis {grouped(basis)}, "
+            f"adjustments {grouped(adj)}, gain or loss {grouped(gain)}"
         )
-    out.append(f"Short term: {d.shortTerm:,.2f}. Long term: {d.longTerm:,.2f}.")
+    out.append(f"Short term: {grouped(d.shortTerm)}. Long term: {grouped(d.longTerm)}.")
     if d.collectables:
-        out.append(f"Of the long term, collectables (28% rate): {d.collectables:,.2f}.")
+        out.append(f"Of the long term, collectables (28% rate): {grouped(d.collectables)}.")
     if d.carryoverShort or d.carryoverLong:
         out.append(
-            f"Capital-loss carryover from last year: short {d.carryoverShort:,.2f}, "
-            f"long {d.carryoverLong:,.2f}."
+            f"Capital-loss carryover from last year: short {grouped(d.carryoverShort)}, "
+            f"long {grouped(d.carryoverLong)}."
         )
     return out

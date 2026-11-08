@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from .. import assets, education, gifts, giving, loans, people
 from ..ledger import lots
 from ..ledger import types as atypes
+from ..money import grouped
 from ..projections import taxtables
 from ..store.entities.accounts import (
     Account,
@@ -647,7 +648,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 limit += Decimal(str(figures.get("hsaCatchUp", 1000)))
                 note += "; with the catch-up at 55 and over"
             if employer:
-                note += f"; {employer:,.2f} of it from the employer"
+                note += f"; {grouped(employer)} of it from the employer"
         if counted or limit:
             contributions.append(
                 Contribution(
@@ -1096,7 +1097,7 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
         out.append(
             Issue(
                 "form-8615",
-                f"{f.name}'s unearned income of ${f.unearned:,.2f} is above the "
+                f"{f.name}'s unearned income of ${grouped(f.unearned)} is above the "
                 f"${f.threshold:,.0f} threshold: Form 8615 may apply",
             )
         )
@@ -1141,7 +1142,7 @@ def changed_after_filing(s: Session, book: TaxBook) -> str | None:
     )
     sign = "-" if total < 0 else "+"
     return (
-        f"Realized gains changed by {sign}${abs(total):,.2f} after the federal return was "
+        f"Realized gains changed by {sign}${grouped(abs(total))} after the federal return was "
         f"filed: {where}"
     )
 
@@ -1160,7 +1161,7 @@ def differs_from_filed(s: Session, book: TaxBook, rows: list[Row]) -> str | None
     names = ", ".join(sorted(s.get(Account, a).name for a in off))
     sign = "-" if total < 0 else "+"
     return (
-        f"Realized gains differ by {sign}${abs(total):,.2f} from those when the federal return "
+        f"Realized gains differ by {sign}${grouped(abs(total))} from those when the federal return "
         f"was filed, by no change made here: {names}"
     )
 

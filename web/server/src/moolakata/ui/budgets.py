@@ -14,6 +14,7 @@ from .. import access, activity, budgets, clock, ids
 from ..access import Perms
 from ..budgets import plan, recurring
 from ..errors import FieldError, Problem, refuse
+from ..money import grouped
 from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount, BudgetLine, BudgetMove
@@ -848,7 +849,7 @@ def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
         held = _balance_kept(ctx.s, b, ln.categoryId, month)
         if held:
             label = budgets.tree(ctx.s).label(ln.categoryId)
-            ctx.ask("balance-dropped", f"{label} holds {held:,.2f}: it stops being kept.")
+            ctx.ask("balance-dropped", f"{label} holds {grouped(held)}: it stops being kept.")
     if month == ln.fromMonth:
         for f, v in values.items():
             setattr(ln, f, v)
