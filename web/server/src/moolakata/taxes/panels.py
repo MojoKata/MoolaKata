@@ -603,13 +603,9 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         # Each movement classified once (CR3-37): what counts against a limit is a
         # contribution, never a rollover or a conversion.
         put = employer = taken = ZERO
+        # A trade, a dividend, a fee: no cash moved, which `classify` tells (None).
         for t in s.scalars(
-            select(Transaction).where(
-                Transaction.accountId == a.id,
-                Transaction.deleted == false(),
-                Transaction.instrumentId.is_(None),
-                Transaction.kind.in_(moves.CASH_KINDS),
-            )
+            select(Transaction).where(Transaction.accountId == a.id, Transaction.deleted == false())
         ):
             what = moves.classify(s, t, a)
             year = t.contributionYear or t.date.year

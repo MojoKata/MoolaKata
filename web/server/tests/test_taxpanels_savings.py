@@ -582,6 +582,44 @@ def test_a_conversion_waits_while_a_contribution_is_undecided(db, monkeypatch):
     }
 
 
+def test_a_filers_undecided_contributions_are_counted_and_a_deleted_parts_mark_is_not(
+    db, monkeypatch
+):
+    """S8.6: each contribution, or live part of a split one, still to decide is counted; a part
+    taken away leaves no mark behind."""
+    with db.tx(unscoped="test") as s:
+        u = _user(s, "Ann", YEAR - 40)
+        ira = _acct(s, u, "IRA", "ira")
+        _txn(s, ira, d(2026, 1, 10), "deposit", "1000")
+        _txn(s, ira, d(2026, 2, 10), "deposit", "2000")
+        split = _txn(s, ira, d(2026, 3, 10), "deposit", "3000")
+        s.add(Split(id=ids.new_id("Split"), transactionId=split.id, amount=D(3000),
+                    deductible=False))  # fmt: skip
+        gone = Split(id=ids.new_id("Split"), transactionId=split.id, amount=D(3000))
+        s.add(gone)
+        s.flush()
+        gone.mark_deleted(u)
+        b = _book(s, u)
+    _carried(monkeypatch, _basis(u, "0"))
+    [basis] = _retirement(db, b).bases
+    assert (basis.nondeductible, basis.undecided) == (D("3000"), 2)
+
+
+def test_a_conversion_is_its_iras_whichever_half_is_read_first(db, monkeypatch):
+    """The Roth account read first (made first, named first), its half of the transfer is
+    read before the IRA's: the conversion still leaves the IRA, and takes its owner's basis."""
+    with db.tx(unscoped="test") as s:
+        u = _user(s, "Ann", YEAR - 40)
+        roth = _acct(s, u, "A Roth", "roth-ira")
+        ira = _acct(s, u, "Z IRA", "ira")
+        _txn(s, ira, d(2025, 1, 2), "deposit", "6000")
+        _transfer(s, ira, roth, d(2026, 3, 2), "6000")
+        b = _book(s, u)
+    _carried(monkeypatch, _basis(u, "6500"))
+    [m] = _retirement(db, b).conversions
+    assert (m.fromId, m.taxable) == (ira, 0)
+
+
 # ---------- income (S8.4, S8.5) ----------
 
 

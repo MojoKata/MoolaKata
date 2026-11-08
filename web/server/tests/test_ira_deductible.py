@@ -21,10 +21,18 @@ def ann(server):
     clock.fix(None)
 
 
+SAID = {
+    "deductible-not-a-contribution": (
+        "Only a contribution to a traditional IRA is deductible or not."
+    ),
+    "deductible-on-parts": "Split, each part is marked instead.",
+}
+
+
 def _refused(r, code: str) -> None:
     assert r.status_code == 422, r.text
     (e,) = r.json()["errors"]
-    assert (e["field"], e["code"]) == ("deductible", code)
+    assert (e["field"], e["code"], e["message"]) == ("deductible", code, SAID[code])
 
 
 def test_a_contribution_is_undecided_until_marked_and_keeps_its_mark(ann):
@@ -93,3 +101,13 @@ def test_a_contribution_moved_in_from_the_bank_is_marked(server, ann):
     r = make(ann, "Txn", accountId=ira, date="2026-01-10", kind="transfer", amount="7000.00",
              transferWithId=out["id"], deductible=False)  # fmt: skip
     assert r.status_code == 200, r.text
+
+
+def test_money_moved_in_from_a_401k_is_a_rollover_not_deductible_or_not(ann):
+    """A transfer from another retirement account is a rollover (S8.6), whatever the mark."""
+    plan = new_account(ann, name="401k", type="401k")["id"]
+    ira = new_account(ann, name="IRA", type="ira")["id"]
+    out = add(ann, plan, "-7000.00", "2026-01-10", kind="transfer")
+    r = make(ann, "Txn", accountId=ira, date="2026-01-10", kind="transfer", amount="7000.00",
+             transferWithId=out["id"], deductible=False)  # fmt: skip
+    _refused(r, "deductible-not-a-contribution")
