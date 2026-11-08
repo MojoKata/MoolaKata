@@ -3,17 +3,19 @@ its loans and its history, the account's totals with nothing held, what is kept 
 an item's activity is told to, and the field a refused receipt names."""
 
 import datetime as dt
+from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, drop, edit, make, saved, share, terms
+from edits import change, drop, edit, make, saved, share, tag, terms
 from sqlalchemy import select
 from test_accounts import new_account
 from test_assets import T0, item
 
-from moolakata import clock
+from moolakata import assets, clock
 from moolakata.store.entities.accounts import Account
 from moolakata.store.entities.core import Activity
+from moolakata.store.entities.prices import TypedPrice
 
 
 @pytest.fixture
@@ -121,3 +123,34 @@ def test_a_stale_items_current_has_no_purity_when_not_at_spot(alice):
     assert r.status_code == 412, r.text
     (stale,) = r.json()["current"]
     assert stale["current"]["purity"] is None and stale["current"]["name"] == "Old watch"
+
+
+def test_a_spot_price_on_a_months_last_day_values_that_month(server, alice):
+    """An item at spot is worth, at each month's end, the spot on or before that day
+    (S1.10.5): a price typed on the 31st counts for August."""
+    metals = new_account(alice, name="Metals", type="precious-metals")
+    bar = item(alice, metals["id"], name="Silver bar", valuation="spot", metal="silver",
+               unitWeight="100", weightUnit="ozt", purity=".999", costBasis="2800",
+               acquiredOn="2026-08-15")  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        owner = s.get(Account, metals["id"]).ownerId
+        inst = assets.metal_instrument(s, "silver")
+        for day, close in ((dt.date(2026, 8, 20), "20"), (dt.date(2026, 8, 31), "30")):
+            s.add(TypedPrice(instrumentId=inst.id, userId=owner, date=day, close=D(close)))
+    page = alice.get(f"/ui/api/items/{bar['id']}").json()
+    (day, v), *_ = page["history"]
+    assert (day, str(v)) == ("2026-08-31", "2997.00")
+
+
+def test_an_items_receipt_is_listed_as_its_owner_holds_it_with_their_tags(alice):
+    """An item's documents (S9.6) are its receipts as the reader holds them: its owner may
+    change and delete one, and sees their own tags on it."""
+    coll = new_account(alice, name="Coll", type="collectables")
+    pdf = {"file": ("a.pdf", b"%PDF-1.4 a", "application/pdf")}
+    rid = alice.post("/ui/api/receipts", files=pdf).json()["id"]
+    tid = tag(alice, "Insurance")
+    saved(edit(alice, "Rcpt", f"/ui/api/receipts/{rid}", tagIds=[tid]))
+    watch = item(alice, coll["id"], name="Watch", receiptIds=[rid])
+    (doc,) = alice.get(f"/ui/api/items/{watch['id']}").json()["documents"]
+    assert (doc["id"], doc["tags"], doc["tagIds"]) == (rid, ["insurance"], [tid])
+    assert doc["access"]["writable"] and doc["access"]["deletable"]

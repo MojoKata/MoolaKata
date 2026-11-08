@@ -198,11 +198,14 @@ def _secured(s, item_ids: list[str], day: dt.date) -> dict[str, list[SecuredLoan
     if not item_ids:
         return out
     # A loan's terms are never deleted on their own (`_loan_delete` refuses): only with its
-    # account, which is always there, if deleted.
-    for row in s.scalars(select(Loan).where(Loan.securedById.in_(item_ids))):
-        a = s.get(Account, row.accountId)
-        if a.deleted:
-            continue
+    # account, so a live account's are live. In the order they were made.
+    rows = s.execute(
+        select(Loan, Account)
+        .join(Account, Account.id == Loan.accountId)
+        .where(Loan.securedById.in_(item_ids), Account.deleted == false())
+        .order_by(Loan.id)
+    )
+    for row, a in rows:
         owed = -loans.value(s, a, day)
         out[row.securedById].append(SecuredLoan(accountId=a.id, name=a.name, owed=owed))
     return out
@@ -291,8 +294,9 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     """An item; `held` is the reader's on its account, the item its child."""
     today = clock.today()
     d = assets.details(s, [it])[it.id]
-    # A metal is only an item's at spot, and one at spot always has one (the save's rules).
-    sp = assets.spots(s, [it], today).get(it.metal) if it.metal else None
+    # A metal is only an item's at spot, and one at spot always has one (the save's rules):
+    # without one, no spot.
+    sp = assets.spots(s, [it], today).get(it.metal)
     sec = _secured(s, [it.id], today)[it.id]
     base = _row(a, it, d, sp.price if sp else None, sec, today)
     # Its value at each month's end since it was acquired, for its history: acquired by today
