@@ -388,6 +388,7 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-clip" viewBox="0 0 24 24"><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 1.07-4M4 4v4h4"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
@@ -1898,7 +1899,7 @@ DIALOGS.trade = (d) => ({ title: d.close ? `Close ${d.close}` : 'Record trade', 
   ${field('Account', sel(['Schwab · Options', 'Fidelity · Individual', 'Vanguard · Roth IRA'], 'Schwab · Options'))}
   <div class="row">${field('Underlying', inp(d.close ? d.close.split(' ')[0] : 'AAPL'))}${field('Expiry', inp('2026-12-18', '', 'date'))}${field('Strike', inp('250'))}</div>
   <div class="row">${field('Right', sel(['Call', 'Put'], 'Call'))}${field('Action', sel(['Sell to open', 'Buy to open', 'Buy to close', 'Sell to close', 'Expired', 'Assigned', 'Exercised'], d.close ? 'Buy to close' : 'Sell to open'))}</div>
-  <div class="row">${field('Contracts', inp('1'))}${field('Price per share', inp('4.12'))}${field('Fees', inp('0.66'))}</div>
+  <div class="row">${field('Contracts', inp('1'))}${field('Price per share', inp('4.12'))}${field('Fees', `<span class="pw">${inp('0.66')}<button type="button" class="icon-btn" data-act="fill-in" data-v="0.65" title="Use the default: $0.65" aria-label="Use the default: $0.65">${icon('reset')}</button></span>`, 'Typed, 0 for none: left blank, they’re refused.')}</div>
   ${field('Trade date', inp('2026-10-10', '', 'date'))}
   <div class="notice">${icon('info')}<div>Sell to open 1 × AAPL 18 Dec 26 250 C at 4.12 → credit <b class="amt">$411.34</b>. Covered by 100 AAPL in Fidelity · Individual? <a>Link as covered call</a></div></div>`, ok: 'Record' });
 // A sale's lots picked (S2.3, specific identification): the open lots on the trade date, how
@@ -2543,7 +2544,7 @@ const GUIDES = {
     <h2 id="h-record-trade">Record trade</h2><p>Stocks, options and crypto. For options: <b>Sell to open</b> writes a contract (credit), <b>Buy to close</b> ends it.</p>
     <h2 id="h-lots">Lots</h2><p>A sale of shares or coins lists the lots held on its trade date: when each was bought, how many are held, their cost and whether a sale that day is long or short term. Type how many to take from each to pick them (specific identification): the sale takes those, and what isn't picked goes oldest first. Leave them empty and the account's lot method chooses. A lot a wash sale split is shown whole, and a pick takes from both parts.</p><h2 id="h-take">Take</h2><p>How many shares of that lot the sale takes; no more than the lot holds.</p><h2 id="h-symbol">Symbol</h2><p>The stock, fund or coin traded, such as <i>VTI</i>.</p><h2 id="h-quantity">Quantity</h2><p>How many shares or units.</p><h2 id="h-price">Price</h2><p>Per share or unit.</p>
     <h2 id="h-underlying">Underlying</h2><p>The stock or ETF the option is on.</p><h2 id="h-strike">Strike</h2><p>The contract’s price per share.</p><h2 id="h-action">Action</h2><p><b>Expired</b>, <b>Assigned</b> and <b>Exercised</b> close the option. Assignment and exercise create stock lots at the strike, with the premium folded into their basis.</p>
-    <h2 id="h-contracts">Contracts</h2><p>Each is 100 shares unless the contract says otherwise.</p><h2 id="h-price-per-share">Price per share</h2><p>The premium as quoted: 4.12 means $412 per contract.</p><h2 id="h-fees">Fees</h2><p>Commission and regulatory fees; part of the cost or proceeds.</p>
+    <h2 id="h-contracts">Contracts</h2><p>Each is 100 shares unless the contract says otherwise.</p><h2 id="h-price-per-share">Price per share</h2><p>The premium as quoted: 4.12 means $412 per contract.</p><h2 id="h-fees">Fees</h2><p>Commission and regulatory fees; part of the cost or proceeds. They start at $0.65, and ↺ puts that back; type 0 for none. Left blank, they’re refused.</p>
     <h2 id="h-wash-sale">Wash sale</h2><p>A loss sale with a purchase of the same security within 30 days either side. The loss is disallowed now and added to the new lot’s basis.</p>
     <h2 id="h-account">Account</h2><p>The account the trade was made in.</p>
     <h2 id="h-expiry">Expiry</h2><p>The option’s expiration date.</p>
@@ -3125,6 +3126,7 @@ document.addEventListener('click', (e) => {
     case 'switch': t.classList.toggle('on'); t.setAttribute('aria-checked', t.classList.contains('on')); break;
     case 'seg': $$('button', t.parentElement).forEach((b) => b.classList.toggle('on', b === t)); break;
     case 'fill': t.previousElementSibling.value = t.dataset.v; break; // a count's All button
+    case 'fill-in': t.parentElement.querySelector('input').value = t.dataset.v; break; // a field's ↺
     case 'dlg': e.stopPropagation(); showDialog(v, { ...t.dataset }); break;
     case 'close': leaveDialog(); break;
     case 'keep': t.closest('.scrim.prompt').remove(); break;

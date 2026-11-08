@@ -11,7 +11,7 @@ import { api } from '../api/client.js';
 import { Draft } from '../app/draft.js';
 import { Dialog, openDialog } from './dialog.js';
 import { guardForm } from '../app/guard.js';
-import { Field, FormError, Input, Select, Switch } from './fields.js';
+import { Field, FormError, Input, Select, Switch, ValueInput } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
@@ -326,11 +326,12 @@ const TYPED = new Set(['money', 'quantity', 'percent', 'int']);
  * the record: its value, what was typed, its refusal; hidden while a rule says it doesn't
  * apply. `bare` draws the control alone (a table's cell), named by `label` and `help`.
  * `id` names the control where its label alone wouldn't (`f-` and the id, S12.7.3).
+ * `reset` gives a field with a default its ↺, which puts the default back (R3.11).
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
  *   type?: string, placeholder?: string, disabled?: boolean, onEdit?: () => void,
- *   style?: any, rows?: number }} p
+ *   style?: any, rows?: number, reset?: { value: string, label: string } }} p
  */
 export function RecField(p) {
   const { rec, name } = p;
@@ -384,6 +385,15 @@ export function RecField(p) {
           rec.input(name, e.currentTarget.value);
           edited();
         }}>${rec.shown(name)}</textarea>
+    `;
+  } else if (p.reset) {
+    control = html`
+      <${ValueInput} value=${rec.shown(name)} bad=${!!error} reset=${p.reset}
+        placeholder=${p.placeholder} disabled=${p.disabled} ...${named}
+        onInput=${(/** @type {string} */ v) => {
+          rec.input(name, v);
+          edited();
+        }} />
     `;
   } else {
     control = html`

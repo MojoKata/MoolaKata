@@ -239,13 +239,22 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     assert "Paid:" not in page.locator(".dialog").inner_text()
     page.fill("#f-premium", "1.25")
     wait(page, '.dialog :text("Paid: $250.65.")', problems)
+    # Fees cleared are refused, never read as none; ↺ puts the $0.65 back (R3.11, CR3-437).
+    reset = page.get_by_role("button", name="Use the default: $0.65")
+    assert reset.count() == 0
+    page.fill("#f-fees", "")
+    page.click(".dialog footer button.primary")
+    wait(page, '.dialog :text("Zero or more.")', problems)
+    reset.click()
+    assert page.input_value("#f-fees") == "0.65"
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     items = h.c.get("/ui/api/transactions", params={"account": acct}).json()["items"]
     (t,) = items
     assert (t["kind"], t["amount"]) == ("buy-to-open", -250.65)
     assert t["symbol"].startswith("ZDK ") and t["symbol"].endswith(" 45 C")
-    assert problems == []
+    # The one refusal: the fees cleared.
+    assert [p for p in problems if not p.startswith("422 for")] == []
     page.close()
 
 

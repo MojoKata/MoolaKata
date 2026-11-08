@@ -40,8 +40,9 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
         e.append(FieldError("quantity", "contracts-invalid", "A whole number of contracts."))
     if body.price is None or body.price < 0:
         e.append(FieldError("price", "premium-invalid", "Zero or more, a share."))
-    fees = body.fees or Decimal(0)
-    if fees < 0:
+    # A blank is refused, never read as no fees (R3.11, CR3-437): 0 is typed.
+    fees = body.fees if body.fees is not None else Decimal(0)
+    if body.fees is None or fees < 0:
         e.append(FieldError("fees", "fees-invalid", "Zero or more."))
     if body.expiry is None:
         e.append(FieldError("expiry", "expiry-required", "The day it expires."))
@@ -84,7 +85,7 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
         instrumentId=inst.id,
         quantity=contracts,
         price=body.price,
-        fees=fees or None,
+        fees=fees,
         createdById=c.id,
     )
     s.add(t)

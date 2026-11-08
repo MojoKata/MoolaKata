@@ -721,7 +721,9 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
         instrumentId=inst.id if inst else None,
         quantity=row.quantity,
         price=row.price,
-        fees=row.fees,
+        # A file that gives a trade no fees says it had none (R3.11: a trade's fees are 0, never
+        # blank).
+        fees=row.fees if row.fees is not None or row.kind not in lots.FEE_KINDS else Decimal(0),
         dividendType=row.dividendType,
         splitRatio=row.splitRatio,
         importId=imp.id,
@@ -829,7 +831,8 @@ def _settle(s, account, user_id, imp, row, instruments, leg, result) -> list[Tra
         # The broker's cash, fees included, in place of the strike's: a buy's fees go into
         # the lot's basis; a sale's come off its proceeds through its amount.
         diff = leg.amount - stock.amount
-        stock.amount, stock.fees, stock.fitId = leg.amount, leg.fees, leg.fitId
+        stock.amount, stock.fitId = leg.amount, leg.fitId
+        stock.fees = leg.fees if leg.fees is not None else Decimal(0)
         stock.importId = imp.id
         if stock.kind == "buy" and diff:
             lot = s.scalars(select(Lot).where(Lot.transactionId == stock.id)).first()

@@ -40,4 +40,5 @@ The price per share, as quoted: a contract costs 100 times it.
 
 ## Fees and commission {#fees}
 
-What the broker charged. They come off the cash, and so out of the gain.
+What the broker charged. They come off the cash, and so out of the gain. The dialog starts at
+$0.65, and ↺ puts that back; type 0 for none. Left blank, they're refused.

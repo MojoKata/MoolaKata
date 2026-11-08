@@ -443,7 +443,11 @@ def newer_transactions(
 # ---------- writing ----------
 
 
-def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
+def _check(
+    s: Session, body, kind: str, investing: bool, fees_sent: bool = True
+) -> list[FieldError]:
+    """What's wrong with a transaction made or changed; `fees_sent` when its fees or kind are
+    typed (a change that leaves them keeps a trade imported without fees as it is)."""
     errors = []
     if kind not in TXN_KINDS:
         errors.append(FieldError("kind", "kind-invalid", "Choose a kind of transaction."))
@@ -487,6 +491,10 @@ def _check(s: Session, body, kind: str, investing: bool) -> list[FieldError]:
                     "The parts must add up to the transaction's amount.",
                 )
             )
+    # A trade's fees are typed with it, 0 for none: a blank is refused (R3.11, CR3-437).
+    fees = getattr(body, "fees", None)
+    if (fees_sent and kind in lots.FEE_KINDS and fees is None) or (fees is not None and fees < 0):
+        errors.append(FieldError("fees", "fees-invalid", "Zero or more."))
     errors += _check_reimbursable(body, "", body.amount)
     for i, sp in enumerate(getattr(body, "splits", None) or []):
         errors += _check_reimbursable(sp, f"splits.{i}.", sp.amount)
@@ -767,7 +775,7 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
     """The fields `sent` set on a transaction, its lot following its trade; what changed."""
     kind = body.kind if "kind" in sent and body.kind else t.kind
     checked = body.model_copy(update={"amount": body.amount if "amount" in sent else t.amount})
-    _raise(_check(s, checked, kind, atypes.investing(a.type)))
+    _raise(_check(s, checked, kind, atypes.investing(a.type), bool({"fees", "kind"} & sent)))
     changed = []
     for f in CHANGED:
         if f in sent:

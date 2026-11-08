@@ -798,6 +798,7 @@ def _refused(r):
         ({"price": "-0.01"}, ("price", "premium-invalid", "Zero or more, a share.")),
         ({"price": None}, ("price", "premium-invalid", "Zero or more, a share.")),
         ({"fees": "-0.01"}, ("fees", "fees-invalid", "Zero or more.")),
+        ({"fees": None}, ("fees", "fees-invalid", "Zero or more.")),
         ({"expiry": None}, ("expiry", "expiry-required", "The day it expires.")),
         ({"expiry": "2026-09-01"}, ("expiry", "expired", "It expired before the trade.")),
         ({"multiplier": 0}, ("multiplier", "multiplier-invalid", "Shares a contract: 100.")),
@@ -889,11 +890,12 @@ def test_an_option_trade_is_saved_with_its_contract_payee_and_who_made_it(server
     from moolakata.store.entities.accounts import Transaction
 
     brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
-    t = saved(_trade(alice, brk, fees=None, amount="640.00", memo="Wheel"))
+    # No fees is a 0 typed, kept as typed (CR3-437).
+    t = saved(_trade(alice, brk, fees="0", amount="640.00", memo="Wheel"))
     assert (t["payee"], t["memo"], t["fees"], t["quantity"], t["price"]) == (
-        "Sell to open MSFT 20NOV26 480 P", "Wheel", None, "1.0", "6.4")  # fmt: skip
-    typed = saved(_trade(alice, brk, payee="  Schwab  ", fees="0", amount="640.00"))
-    assert (typed["payee"], typed["fees"]) == ("Schwab", None)
+        "Sell to open MSFT 20NOV26 480 P", "Wheel", "0.00", "1.0", "6.4")  # fmt: skip
+    typed = saved(_trade(alice, brk, payee="  Schwab  ", amount="639.35"))
+    assert (typed["payee"], typed["fees"]) == ("Schwab", "0.65")
     blank = saved(_trade(alice, brk, payee="  ", kind="buy-to-open", amount="-640.65"))
     assert blank["payee"] == "Buy to open MSFT 20NOV26 480 P"
     with server.db.read(unscoped="test") as s:

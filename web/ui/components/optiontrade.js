@@ -27,6 +27,9 @@ const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '')
  * `symbol` the underlying, `quantity` the contracts and `price` the premium a share, with the
  * contract's right, strike and expiry; its amount the cash the trade comes to.
  */
+/** The fees and commission a contract's trade starts with: ↺ puts them back (R3.11). */
+const FEES = '0.65';
+
 class OptionTxn extends Record {
   /** @override */
   static prefix = 'Txn';
@@ -68,7 +71,7 @@ export function OptionTrade({ close, accountId, start }) {
       expiry: start?.expiry || null,
       quantity: start?.contracts || '1',
       price: null,
-      fees: '0.65',
+      fees: FEES,
     });
   }, [accountId]);
   const rec = /** @type {OptionTxn | undefined} */ (f.draft?.records[0]);
@@ -101,7 +104,8 @@ export function OptionTrade({ close, accountId, start }) {
           <div class="row">
             <${RecField} rec=${rec} name="quantity" label="Contracts" hint="100 shares each." />
             <${RecField} rec=${rec} name="price" label="Premium" hint="A share, as quoted." />
-            <${RecField} rec=${rec} name="fees" label="Fees and commission" id="fees" />
+            <${RecField} rec=${rec} name="fees" label="Fees and commission" id="fees"
+              reset=${{ value: FEES, label: '$0.65' }} />
           </div>
           <p class="small dim">${cash !== null && !dec(rec.get('price') || 0).isZero()
             ? `${dec(cash).isNegative() ? 'Paid' : 'Received'}: ${money(String(dec(cash).abs()))}.`

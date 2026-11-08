@@ -37,7 +37,7 @@ The cash effect on the account: − for money out (a buy), + for money in (a sal
 
 ## Fees
 
-Commission and fees.
+Commission and fees, 0 for none: a trade starts at 0, and left blank they're refused.
 
 ## Lots
 

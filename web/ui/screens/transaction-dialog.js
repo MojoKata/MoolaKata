@@ -68,15 +68,25 @@ export class Txn extends Record {
     // A transfer-in's basis is typed with it (S2.6); the one paid back is named (S2.9).
     costBasis: { when: (/** @type {Txn} */ r) => r.get('kind') === 'transfer-in' },
     owedBy: { when: (/** @type {Txn} */ r) => r.get('reimbursable') != null },
+    // A trade's fees are typed, 0 for none; other money has none (R3.11).
+    fees: { when: (/** @type {Txn} */ r) => TRADE.includes(r.get('kind')) },
   };
   /** The kinds an account's type takes. @type {(accountId: string) => string[]} */
   kindsOf = () => [];
 
-  /** A new transaction's account takes a kind its type has: its first, otherwise. @override */
+  /**
+   * A new transaction's account takes a kind its type has: its first, otherwise. A kind that
+   * is a trade starts its fees at 0, filled in as if typed: cleared, they stay blank and are
+   * refused, never read as none (R3.11). @override
+   */
   onSet(/** @type {string} */ name) {
-    if (name !== 'accountId') return;
-    const kinds = this.kindsOf(this.get('accountId'));
-    if (!kinds.includes(this.get('kind'))) this.set('kind', kinds[0], 'accountId');
+    if (name === 'accountId') {
+      const kinds = this.kindsOf(this.get('accountId'));
+      if (!kinds.includes(this.get('kind'))) this.set('kind', kinds[0], 'accountId');
+    }
+    if ((name === 'accountId' || name === 'kind') && TRADE.includes(this.get('kind'))) {
+      if (this.get('fees') == null) this.set('fees', '0', name);
+    }
   }
 }
 
@@ -129,7 +139,13 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
       return;
     }
     const acct = accountId || writable[0]?.id || '';
-    const t = draft.add(Txn, { accountId: acct, date: today(), kind: kindsOf(acct)[0] });
+    const kind = kindsOf(acct)[0];
+    const t = draft.add(Txn, {
+      accountId: acct,
+      date: today(),
+      kind,
+      fees: TRADE.includes(kind) ? '0' : null,
+    });
     // What a statement shows, typed in as a person would type it.
     for (const [k, v] of Object.entries(start || {})) {
       if (k in Txn.fields && v !== '' && v != null) t.input(k, String(v));

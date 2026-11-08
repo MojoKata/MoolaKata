@@ -533,6 +533,8 @@ OPTION_TRADES = (
 # dividend, interest, a distribution) and what only changes the lots there are (a split, a
 # corporate action) aren't.
 TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward", *OPTION_TRADES)
+# The trades whose fees are typed with them, 0 for none (R3.11): a blank is refused.
+FEE_KINDS = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward")
 
 
 def _option(out: Replay, t) -> None:

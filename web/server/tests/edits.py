@@ -204,9 +204,22 @@ def tag(c, name: str) -> str:
     return saved(c.post("/ui/api/save", json={"ops": [op]}))["id"]
 
 
+# A trade's dialog fills its fees in (0, or $0.65 for an option), and a blank is refused
+# (R3.11): a test's trade without them has the 0 typed. One that means a blank sends None.
+TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward", "buy-to-open",
+          "sell-to-open", "buy-to-close", "sell-to-close")  # fmt: skip
+
+
+def _filled(entity: str, fields: dict) -> dict:
+    if entity == "Txn" and fields.get("kind") in TRADES and "fees" not in fields:
+        return {**fields, "fees": "0"}
+    return fields
+
+
 def create(c, entity: str, confirm: bool = False, **fields):
     """A record made as a form's draft makes it: an id made the browser's way, through the
     save; the save's answer."""
+    fields = _filled(entity, fields)
     op = {"op": "create", "entity": entity, "id": new_id(entity), "fields": fields}
     return _save(c, op, confirm)
 
@@ -338,6 +351,7 @@ def make(c, entity: str, confirm: bool = False, **fields) -> Made:
     (`payments`), a gift plan's new person and occasions."""
     first = new_id(entity)
     before, after, read = [], [], None
+    fields = _filled(entity, fields)
     if entity in ("Txn", "Rule") and "tags" in fields:
         fields["tagIds"] = [tag(c, name) for name in fields.pop("tags") or []]
     if entity == "Txn":

@@ -8,7 +8,9 @@
    in without it, or a sale with no lot to match), the day opened and the term are unknown.
 2. **Option transactions:** *buy to open*, *sell to open*, *buy to close*, *sell to close*,
    **expire** (worthless), **assigned** and **exercised**. Each carries contracts, premium per
-   share, fees and commission.
+   share, fees and commission. A trade's fees are typed, 0 for none, and a blank is refused
+   (R3.11): an option trade starts at $0.65, which ↺ puts back; a stock trade at 0. A
+   file's trade without fees had none.
    1. **From a broker's file**: an OFX file's option trades (`BUYOPT`, `SELLOPT`) are the four
       trades by their `OPTBUYTYPE` and `OPTSELLTYPE`, and its `CLOSUREOPT` is the option's
       end by its `OPTACTION`. A contract is named by its OCC ticker, or by the underlying,
