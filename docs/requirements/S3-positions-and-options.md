@@ -10,7 +10,8 @@
    **expire** (worthless), **assigned** and **exercised**. Each carries contracts, premium per
    share, fees and commission. A trade's fees are typed, 0 for none, and a blank is refused
    (R3.11): an option trade starts at $0.65, which ↺ puts back; a stock trade at 0. A
-   file's trade without fees had none.
+   file's trade without fees had none. A trade to close takes at most the contracts the
+   account holds on that side at the end of its day.
    1. **From a broker's file**: an OFX file's option trades (`BUYOPT`, `SELLOPT`) are the four
       trades by their `OPTBUYTYPE` and `OPTSELLTYPE`, and its `CLOSUREOPT` is the option's
       end by its `OPTACTION`. A contract is named by its OCC ticker, or by the underlying,
@@ -197,7 +198,8 @@
        strike paid or received, the premium and the cash are spread over the deliverable's
        parts by their market value that day (by their shares when a price is missing). On
        Option trades, the trade goes on under the adjusted contract on the same side, its
-       contracts times the ratio (S3.9.1).
+       contracts times the ratio (S3.9.1). Contracts adjusted onto one contract, or onto a
+       contract already held, are one trade with it, worth every contract of it still open.
     5. **Its mark** is CBOE's, which lists it under its new root in the underlying's chain
        (S4.5); without one, its intrinsic value is its deliverable's value less the strike
        × 100.

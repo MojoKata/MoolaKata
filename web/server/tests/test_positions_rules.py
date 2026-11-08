@@ -258,3 +258,52 @@ def test_a_trade_ends_at_an_adjustment_onto_a_contract_held_the_other_way(alice)
         ("MSFT1 20NOV26 480 P", "short", "1.0", "2026-09-01", "2026-10-05", "adjusted",
          "639.35", "200.00", "439.35", "48000.00", "MSFT 20NOV26 480 P", "2026-10-05"),
     ]  # fmt: skip
+
+
+def test_two_contracts_adjusted_onto_one_are_one_trade(alice):
+    """S3.10.4: a 480 put sold and a 500 put sold, both adjusted onto the same contract, hold
+    it together: one trade through both, with both premiums."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    _option(alice, brk, "sell-to-open", "2026-09-01", "6.40")
+    _option(alice, brk, "sell-to-open", "2026-09-02", "3.00", strike="500")
+    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+    onto = {"root": "MSFT1", "strike": "480", "deliverable": [{"symbol": "MSFT", "shares": "150"}]}
+    both = [{"instrumentId": cn["instrumentId"], **onto} for cn in g["contracts"]]
+    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": both})
+    assert r.status_code == 200, r.text
+    [got] = _trades(alice)
+    assert got[:8] == ("MSFT1 20NOV26 480 P", "short", "2.0", "2026-09-01", None, None,
+                       "938.70", "0.00")  # fmt: skip
+    _option(alice, brk, "buy-to-close", "2026-10-06", "1.00", contracts="2", under="msft1")
+    [got] = _trades(alice)
+    assert got[4:6] == ("2026-10-06", "bought back")
+
+
+def test_a_close_dated_before_its_open_is_refused(alice):
+    """S3.2: a trade to close takes what the account held at the end of its own day: on the
+    day before the contract was opened it held none."""
+    brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    _option(alice, brk, "sell-to-open", "2026-09-05", "6.40")
+    r = option_trade(alice, brk, "2026-09-04", "buy-to-close", "msft", "put", "480",
+                     "2026-11-20", "1", "1.00", "0")  # fmt: skip
+    assert r.status_code == 422, r.text
+    assert r.json()["errors"][0]["code"] == "nothing-to-close"
+    r = option_trade(alice, brk, "2026-09-05", "buy-to-close", "msft", "put", "480",
+                     "2026-11-20", "1", "1.00", "0")  # fmt: skip
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize(
+    "path, params",
+    [
+        ("/ui/api/positions", {"kind": "bonds"}),
+        ("/ui/api/positions", {"kind": ""}),
+        ("/ui/api/positions/gains", {"by": "week"}),
+        ("/ui/api/positions/gains", {"by": ""}),
+        ("/ui/api/positions/gains", {"year": "0"}),
+    ],
+)
+def test_a_kind_grouping_or_year_not_offered_is_refused(alice, path, params):
+    """R3.11: a kind of position or a grouping the screen doesn't offer, a blank, or a year of
+    0 is refused, not read as all or as the default."""
+    assert alice.get(path, params=params).status_code == 422

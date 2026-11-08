@@ -63,7 +63,9 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
         s, underlying, body.right, body.strike, body.expiry, multiplier
     )
     if body.kind.endswith("to-close"):
-        held = repo.load(s, a).replay().quantity(inst.id)
+        # What the account held of it at the end of the close's day: a close dated before its
+        # open has nothing to close.
+        held = repo.load(s, a).replay(body.date).quantity(inst.id)
         want_long = body.kind == "sell-to-close"
         if (want_long and held < contracts) or (not want_long and -held < contracts):
             raise refuse(

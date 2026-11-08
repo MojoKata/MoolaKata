@@ -6,8 +6,9 @@ account, instrument or term."""
 import datetime as dt
 from collections import defaultdict
 from decimal import Decimal
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from .. import access, clock, options, valuation
 from ..ledger import types as atypes
@@ -251,7 +252,13 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
 
 
 @router.get("/positions", response_model=PositionsView)
-def list_positions(request: Request, kind: str = "all", c: Caller = Depends(caller)):
+def list_positions(
+    request: Request,
+    kind: Literal["all", "stocks", "options", "crypto"] = "all",
+    c: Caller = Depends(caller),
+):
+    """The open and closed positions, of one kind of instrument or all; another kind is
+    refused, not read as all (R3.11)."""
     year = clock.today().year
     with server(request).db.read(user=c.id) as s:
         open_rows, closed_rows, disposals, _ = gather(s, c, KINDS.get(kind))
@@ -289,16 +296,21 @@ class GainsView(Model):
 
 
 @router.get("/positions/gains", response_model=GainsView)
-def gains(request: Request, by: str = "year", year: int | None = None, c: Caller = Depends(caller)):
+def gains(
+    request: Request,
+    by: Literal["year", "month", "account", "instrument", "term"] = "year",
+    year: int | None = Query(None, ge=1),
+    c: Caller = Depends(caller),
+):
     """Realized gains grouped by year, month, account, instrument or term (S3.9), and
-    unrealized gains now, by account or instrument."""
-    by = by if by in ("year", "month", "account", "instrument", "term") else "year"
+    unrealized gains now, by account or instrument; of one year, or every year with none.
+    Another grouping or a year of 0 is refused, not read as the default or as all (R3.11)."""
     with server(request).db.read(user=c.id) as s:
         open_rows, _, disposals, insts = gather(s, c)
         groups: dict[str, list[Decimal]] = {}
         labels: dict[str, str] = {}
         for a, d in disposals:
-            if d.gain is None or (year and d.soldOn.year != year):
+            if d.gain is None or (year is not None and d.soldOn.year != year):
                 continue
             if by == "year":
                 key = label = str(d.soldOn.year)
@@ -438,20 +450,27 @@ def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
     # Each of these names its instrument; a share's moves, with no contract, drop out below.
     txns = [t for t in led.transactions if t.kind in OPTION_KINDS + ENDS + MOVES]
     # In the order the lots take them: an adjustment's pair after the other trades of its day,
-    # one typed later too (S3.10).
-    txns.sort(key=lambda t: (t.date, t.kind == "option-adjust", t.createdAt))
+    # one typed later too (S3.10), the old contract's half before the new one's.
+    txns.sort(
+        key=lambda t: (t.date, t.kind == "option-adjust", t.createdAt, t.splitRatio is not None)
+    )
     by_id = {t.id: t for t in txns}
-    # Each contract's trade is its first contract's: an adjusted one's, the one it came from.
-    chain: dict[str, str] = {}
+    # Contracts an adjustment joins are one trade: an adjusted contract's trade is the one it
+    # came from, and two adjusted onto one contract, or onto one already held, share theirs.
+    joined: dict[str, frozenset[str]] = {}
     for t in txns:
         if t.kind == "option-adjust" and t.splitRatio is not None and t.transferId in by_id:
             old = by_id[t.transferId].instrumentId
-            chain[t.instrumentId] = chain.get(old, old)
+            both = joined.get(old, frozenset({old})) | joined.get(
+                t.instrumentId, frozenset({t.instrumentId})
+            )
+            for iid in both:
+                joined[iid] = both
     contracts = {iid: options.contract_of(s, iid) for iid in {t.instrumentId for t in txns}}
-    by_chain: dict[str, list[Transaction]] = defaultdict(list)
+    by_chain: dict[frozenset[str], list[Transaction]] = defaultdict(list)
     for t in txns:
         if contracts[t.instrumentId] is not None:
-            by_chain[chain.get(t.instrumentId, t.instrumentId)].append(t)
+            by_chain[joined.get(t.instrumentId, frozenset({t.instrumentId}))].append(t)
     out: list[OptionTradeRow] = []
     for rows in by_chain.values():
         trade: dict | None = None
@@ -495,9 +514,15 @@ def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
                 out.append(_trade_row(a, s, contracts, trade, t, None))
                 trade = None
         if trade is not None:
-            current = next(i for i, n in reversed(net.items()) if n)
-            p = positions.get(current)
-            out.append(_trade_row(a, s, contracts, trade, None, p.value if p else None, current))
+            # Open on every contract of it still held, named by the latest: worth them all.
+            held = [i for i, n in net.items() if n]
+            worth = [positions.get(i) for i in held]
+            value = (
+                sum((p.value for p in worth), ZERO)
+                if all(p is not None and p.value is not None for p in worth)
+                else None
+            )
+            out.append(_trade_row(a, s, contracts, trade, None, value, held[-1]))
     return out
 
 
