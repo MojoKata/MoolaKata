@@ -30,7 +30,8 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     e: list[FieldError] = []
     if body.right not in ("call", "put"):
         e.append(FieldError("right", "right-invalid", "A call or a put."))
-    underlying = (body.symbol or "").strip().upper()
+    # The underlying is found or made in capitals (repo.instrument): msft is MSFT.
+    underlying = (body.symbol or "").strip()
     if not underlying or len(underlying) > 12:
         e.append(FieldError("symbol", "symbol-invalid", "The underlying's symbol: MSFT."))
     if body.strike is None or body.strike <= 0:
@@ -41,8 +42,8 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     if body.price is None or body.price < 0:
         e.append(FieldError("price", "premium-invalid", "Zero or more, a share."))
     # A blank is refused, never read as no fees (R3.11, CR3-437): 0 is typed.
-    fees = body.fees if body.fees is not None else Decimal(0)
-    if body.fees is None or fees < 0:
+    fees = body.fees
+    if fees is None or fees < 0:
         e.append(FieldError("fees", "fees-invalid", "Zero or more."))
     if body.expiry is None:
         e.append(FieldError("expiry", "expiry-required", "The day it expires."))
@@ -54,7 +55,8 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     if not 1 <= multiplier <= 10000:
         e.append(FieldError("multiplier", "multiplier-invalid", "Shares a contract: 100."))
     _raise(e)
-    a, _ = access.account(s, c.id, body.accountId, "write")
+    # The save asked for write on the account before this ran (`save.may_create`).
+    a, _ = access.account(s, c.id, body.accountId)
     if not atypes.investing(a.type):
         raise refuse("kind", "kind-not-for-account", "Options belong in an investing account.")
     inst, contract = options.contract(
@@ -397,7 +399,8 @@ def _action_delete(ctx, action: CorporateAction) -> None:
     """Undone: its transactions deleted with it, the lots back as they were."""
     from .transactions import delete_txn
 
-    a, _ = access.account(ctx.s, ctx.caller.id, action.accountId, "write")
+    # Read for its account: write on it was asked by `_action_editable` before this ran.
+    a, _ = access.account(ctx.s, ctx.caller.id, action.accountId)
     action.mark_deleted(ctx.caller.id)
     for t in _made_from(ctx.s, action.id):
         # Deleting one of a pair deletes the other with it.
