@@ -270,7 +270,9 @@ def test_purity_is_a_fraction_however_it_is_written(text, want):
     assert assets.parse_purity(text) == want
 
 
-@pytest.mark.parametrize("text", ["0k", "25k", "24.5k", "0", "0%", "150%", "1001", "", "fine"])
+@pytest.mark.parametrize(
+    "text", ["0k", "25k", "24.5k", "0", "0%", "150%", "1001", "", "fine", None]
+)
 def test_a_purity_outside_nothing_to_whole_is_refused(text):
     with pytest.raises(ValueError):
         assets.parse_purity(text)
