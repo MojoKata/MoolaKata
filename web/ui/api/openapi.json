@@ -34416,6 +34416,7 @@
     },
     "/ui/api/positions": {
       "get": {
+        "description": "The open and closed positions, of one kind of instrument or all; another kind is\nrefused, not read as all (R3.11).",
         "operationId": "list_positions_ui_api_positions_get",
         "parameters": [
           {
@@ -34424,6 +34425,12 @@
             "required": false,
             "schema": {
               "default": "all",
+              "enum": [
+                "all",
+                "stocks",
+                "options",
+                "crypto"
+              ],
               "title": "Kind",
               "type": "string"
             }
@@ -34455,7 +34462,7 @@
     },
     "/ui/api/positions/gains": {
       "get": {
-        "description": "Realized gains grouped by year, month, account, instrument or term (S3.9), and\nunrealized gains now, by account or instrument.",
+        "description": "Realized gains grouped by year, month, account, instrument or term (S3.9), and\nunrealized gains now, by account or instrument; of one year, or every year with none.\nAnother grouping or a year of 0 is refused, not read as the default or as all (R3.11).",
         "operationId": "gains_ui_api_positions_gains_get",
         "parameters": [
           {
@@ -34464,6 +34471,13 @@
             "required": false,
             "schema": {
               "default": "year",
+              "enum": [
+                "year",
+                "month",
+                "account",
+                "instrument",
+                "term"
+              ],
               "title": "By",
               "type": "string"
             }
@@ -34475,6 +34489,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
