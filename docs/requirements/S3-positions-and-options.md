@@ -152,7 +152,9 @@
    1. An option trade runs from the first contract opened in an account to the moment none
       is open, through an adjustment of its contract (S3.10.4), which sells nothing: it goes
       on under the adjusted contract with its opening day and premium, noted *adjusted* with
-      the day and the contract it came from. Premium in and out are the cash received and paid, fees included; a trade
+      the day and the contract it came from. Contracts moved in (S2.2) open or add to a trade
+      long, as a buy does, with no premium paid, and contracts moved out take from it, as its
+      lots are taken. Premium in and out are the cash received and paid, fees included; a trade
       still open adds what it is worth at its current mark, as *if closed now*.
    2. **Capital required**: for a long option, the premium paid; for a short one, the strike
       on every share the most contracts open at once cover (the cash to buy them for a put,

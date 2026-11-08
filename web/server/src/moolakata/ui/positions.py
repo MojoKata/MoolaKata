@@ -70,7 +70,7 @@ class ClosedRow(Model):
     quantity: Quantity
     opened: dt.date | None  # None: a part's day bought is missing (moved in, or no lot)
     closed: dt.date
-    how: str  # sold, expired, assigned, exercised
+    how: str  # sold, moved out, expired, assigned, exercised
     proceeds: Money
     cost: Money | None
     realized: Money | None
@@ -124,21 +124,20 @@ def _how(t: Transaction) -> str:
         "assign": "assigned",
         "exercise": "exercised",
         "option-adjust": "adjusted",
+        "transfer-out": "moved out",
     }.get(t.kind, t.kind)
 
 
-def gather(s, c: Caller, kind: str = "all"):
+def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
     """The open rows, the closing trades, and every disposal, for the user's investing
-    accounts."""
+    accounts; with `classes`, only those of instruments of these classes."""
     today = clock.today()
     accts = [a for a, _ in access.accounts(s, c.id) if atypes.investing(a.type)]
-    classes = KINDS.get(kind)
     open_rows, closed_rows, disposals = [], [], []
     insts: dict[str, Instrument] = {}
     for a in accts:
         led = repo.load(s, a)
         rp = led.replay()
-        positions = {p.instrumentId: p for p in valuation.positions(s, led)}
         realized: dict[str, Decimal] = defaultdict(lambda: ZERO)
         by_sale: dict[tuple, list] = defaultdict(list)
         for d in rp.disposals:
@@ -150,27 +149,34 @@ def gather(s, c: Caller, kind: str = "all"):
         for iid in ids:
             if iid not in insts:
                 insts[iid] = s.get(Instrument, iid)
-        for iid in {lot.instrumentId for lot in rp.open}:
+        # Each instrument with a lot open is a position, valued, in the order its first lot
+        # opened: its quantity and cost are its lots' (no cost when a basis is missing).
+        for p in valuation.positions(s, led):
+            iid, qty, cost, value = p.instrumentId, p.quantity, p.costBasis, p.value
             inst = insts[iid]
             if classes and inst.instrumentClass not in classes:
+                continue
+            if not qty:
                 continue
             lots = sorted(
                 (lot for lot in rp.open if lot.instrumentId == iid), key=lambda x: x.acquiredOn
             )
-            qty = sum((lot.quantity for lot in lots), ZERO)
-            if not qty:
-                continue
-            known = [lot.basis for lot in lots if lot.basis is not None]
-            cost = sum(known, ZERO) if len(known) == len(lots) else None
-            p = positions.get(iid)
-            value = p.value if p is not None else None
             gain = value - cost if value is not None and cost is not None else None
-            flags = [
-                None if lot.acquiredMissing else _long_term(lot.heldFrom or lot.acquiredOn, today)
+            lots_out = [
+                LotOut(
+                    acquiredOn=lot.acquiredOn,
+                    heldFrom=lot.heldFrom,
+                    quantity=lot.quantity,
+                    basis=lot.basis,
+                    days=(today - (lot.heldFrom or lot.acquiredOn)).days,
+                    longTerm=None
+                    if lot.acquiredMissing
+                    else _long_term(lot.heldFrom or lot.acquiredOn, today),
+                )
                 for lot in lots
             ]
             extra = {}
-            oc = options.contract_of(s, iid) if inst.instrumentClass == "option" else None
+            oc = options.contract_of(s, iid)  # none for an instrument that isn't an option
             if oc is not None:
                 under = options.per_share(s, oc, today, led.account.ownerId)
                 extra = {
@@ -191,25 +197,15 @@ def gather(s, c: Caller, kind: str = "all"):
                     cost=cost,
                     averageCost=(cost / qty).quantize(Decimal("0.0001")) if cost and qty else None,
                     value=value,
-                    priceSource=p.price.source if p is not None and p.price else None,
+                    priceSource=p.price.source if p.price else None,
                     unrealized=gain,
                     unrealizedPct=round(float(gain / abs(cost) * 100), 2)
                     if gain is not None and cost
                     else None,
                     realized=realized[iid],
-                    term=_term(flags),
+                    term=_term([x.longTerm for x in lots_out]),
                     days=(today - (lots[0].heldFrom or lots[0].acquiredOn)).days,
-                    lots=[
-                        LotOut(
-                            acquiredOn=lot.acquiredOn,
-                            heldFrom=lot.heldFrom,
-                            quantity=lot.quantity,
-                            basis=lot.basis,
-                            days=(today - (lot.heldFrom or lot.acquiredOn)).days,
-                            longTerm=f,
-                        )
-                        for lot, f in zip(lots, flags, strict=True)
-                    ],
+                    lots=lots_out,
                     **extra,
                 )
             )
@@ -258,7 +254,7 @@ def gather(s, c: Caller, kind: str = "all"):
 def list_positions(request: Request, kind: str = "all", c: Caller = Depends(caller)):
     year = clock.today().year
     with server(request).db.read(user=c.id) as s:
-        open_rows, closed_rows, disposals, _ = gather(s, c, kind)
+        open_rows, closed_rows, disposals, _ = gather(s, c, KINDS.get(kind))
         this_year = [d for _, d in disposals if d.soldOn.year == year and d.gain is not None]
         return PositionsView(
             summary=Summary(
@@ -356,7 +352,7 @@ class OptionTradeRow(Model):
     contracts: Quantity  # the most open at once
     opened: dt.date
     closed: dt.date | None  # None while any of it is open
-    how: str | None  # sold, bought back, expired, assigned, exercised
+    how: str | None  # sold, bought back, moved out, expired, assigned, exercised
     premiumIn: Money  # credits received, after fees
     premiumOut: Money  # debits paid, with fees
     value: Money | None  # what is still open is worth now
@@ -375,6 +371,7 @@ class OptionTradeRow(Model):
 OPTION_KINDS = ("buy-to-open", "sell-to-open", "buy-to-close", "sell-to-close")
 PCT = Decimal("0.01")
 ENDS = ("expire", "assign", "exercise", "option-adjust")
+MOVES = ("transfer-in", "transfer-out")  # contracts moved in or out (S2.2)
 
 
 @router.get("/positions/option-trades", response_model=list[OptionTradeRow])
@@ -417,15 +414,18 @@ def option_trades(request: Request, c: Caller = Depends(caller)):
 
 
 def _adjusted_long(led, t: Transaction) -> bool:
-    """Whether the contract an adjustment came from was held long when it was adjusted."""
-    old = next((y.instrumentId for y in led.transactions if y.id == t.transferId), None)
+    """Whether the contract an adjustment came from was held long when it was adjusted, by its
+    trades and moves up to the adjustment's day: the lots take every other trade of that day
+    before the adjustment, one typed after it too."""
+    # The new half always has its old one: deleting either deletes both.
+    old = next(y.instrumentId for y in led.transactions if y.id == t.transferId)
     held = ZERO
     for x in led.transactions:
-        if x.instrumentId != old or (x.date, x.createdAt) > (t.date, t.createdAt):
+        if x.instrumentId != old or x.date > t.date:
             continue
-        if x.kind in ("buy-to-open", "buy-to-close"):
+        if x.kind in ("buy-to-open", "buy-to-close", "transfer-in"):
             held += abs(x.quantity or ZERO)
-        elif x.kind in ("sell-to-open", "sell-to-close"):
+        elif x.kind in ("sell-to-open", "sell-to-close", "transfer-out"):
             held -= abs(x.quantity or ZERO)
     return held > 0
 
@@ -433,10 +433,13 @@ def _adjusted_long(led, t: Transaction) -> bool:
 def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
     """An account's option trades. An adjustment (S3.10) is a pair of `option-adjust` rows, one
     taking the old contract's lots out and one putting them, times the ratio, in the new: it
-    sells nothing, so the trade goes on under the adjusted contract (S3.10.4)."""
-    txns = [t for t in led.transactions
-            if t.instrumentId and t.kind in OPTION_KINDS + ENDS and not t.deleted]  # fmt: skip
-    txns.sort(key=lambda t: (t.date, t.createdAt))
+    sells nothing, so the trade goes on under the adjusted contract (S3.10.4). Contracts moved
+    in open or add to a trade as a buy does, and moved out take from it (S3.9.1)."""
+    # Each of these names its instrument; a share's moves, with no contract, drop out below.
+    txns = [t for t in led.transactions if t.kind in OPTION_KINDS + ENDS + MOVES]
+    # In the order the lots take them: an adjustment's pair after the other trades of its day,
+    # one typed later too (S3.10).
+    txns.sort(key=lambda t: (t.date, t.kind == "option-adjust", t.createdAt))
     by_id = {t.id: t for t in txns}
     # Each contract's trade is its first contract's: an adjusted one's, the one it came from.
     chain: dict[str, str] = {}
@@ -456,7 +459,8 @@ def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
         for t in rows:
             qty = abs(t.quantity or ZERO)
             moving_out = t.kind == "option-adjust" and t.splitRatio is None
-            if t.kind in ("buy-to-open", "buy-to-close"):
+            # Contracts moved in arrive long, as their lots open (S2.2).
+            if t.kind in ("buy-to-open", "buy-to-close", "transfer-in"):
                 step = qty
             elif t.kind in ("sell-to-open", "sell-to-close"):
                 step = -qty
@@ -464,6 +468,7 @@ def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
                 # The adjusted contract takes over the old one's side (S3.10).
                 step = qty if _adjusted_long(led, t) else -qty
             else:
+                # An end, the old contract's lots leaving, or contracts moved out: toward none.
                 step = -qty if net[t.instrumentId] > 0 else qty
             if trade is None:
                 trade = {
@@ -473,7 +478,6 @@ def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
                     "out": ZERO,
                     "most": defaultdict(lambda: ZERO),
                     "first": t.instrumentId,
-                    "adjustedOn": None,
                 }
             if t.amount > 0:
                 trade["in"] += t.amount
@@ -483,7 +487,8 @@ def _account_trades(s, a, led, positions) -> list[OptionTradeRow]:
             trade["most"][t.instrumentId] = max(
                 trade["most"][t.instrumentId], abs(net[t.instrumentId])
             )
-            if t.kind == "option-adjust" and not moving_out:
+            # Both halves of an adjustment have its day.
+            if t.kind == "option-adjust":
                 trade["adjustedOn"] = t.date
             # The old contract's lots leaving end nothing: the new one takes them next.
             if not moving_out and not any(net.values()):
@@ -532,5 +537,5 @@ def _trade_row(
         capitalRequired=risk,
         returnPct=(pl / risk * 100).quantize(PCT) if pl is not None and risk else None,
         adjustedFrom=s.get(Instrument, trade["first"]).symbol if adjusted else None,
-        adjustedOn=trade["adjustedOn"] if adjusted else None,
+        adjustedOn=trade.get("adjustedOn") if adjusted else None,
     )
