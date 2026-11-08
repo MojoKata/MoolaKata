@@ -50,9 +50,17 @@ produces worksheets and exports. It never files, and says so (R1.16).
    trustee-to-trustee move too), a **conversion** (pre-tax to Roth) or a **distribution**. A
    matched transfer tells it by its other half's account; a source set on the transaction
    says it otherwise. Only contributions count against a limit; rollovers and conversions are
-   listed apart, a conversion with its part taxed by Form 8606's pro rata rule when the basis
-   is known (the basis's share is at most the whole conversion, so none of it is taxed when the
-   basis passes what the IRAs held), and neither is a distribution. An HSA's limit is its
+   listed apart, a conversion with its part taxed by Form 8606's pro rata rule, and neither is
+   a distribution. Form 8606 is each filer's own, so on a joint book each filer's conversions
+   are taxed by their own basis over their own traditional IRAs, told apart by account, never
+   by name. A filer's basis is what their return carried from last year (S8.17) plus this
+   year's **nondeductible contributions**: the parts of their own contributions to a
+   traditional IRA for the year marked not deductible (S1.4). The basis's share is at most the
+   whole conversion, so none of it is taxed when the basis passes what the IRAs held. A
+   conversion's taxed part waits, saying for what, while any of the filer's contributions for
+   the year is not yet marked or last year's basis isn't typed: neither is read as 0 (R3.11).
+   Whether a contribution can be deducted (income, a workplace plan) is the filer's to decide
+   (G29). An HSA's limit is its
    coverage's (self-only or family, set on the account; unset, the family limit, and the panel
    asks), $1,000 more at 55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their
@@ -183,7 +191,8 @@ produces worksheets and exports. It never files, and says so (R1.16).
     was. It also puts the capital-loss carryover in its Summary and the 8606 basis in the
     backdoor-Roth figures (S8.6), and shows last year's total tax beside the estimated
     payments: joint after separate, the two returns' carryovers and total tax are added, and
-    each filer's 8606 basis stays their own. Separate after joint, the joint return's figures
+    each filer's 8606 basis stays their own. A joint return carries an 8606 basis for each of
+    its filers, typed apart, since each files their own Form 8606. Separate after joint, the joint return's figures
     show marked *joint*; splitting its carryover is the filers' to decide (S8.18), so each book
     counts the share its filer types, none until then, and, when the joint return carries a
     loss forward (more than 0), its Issues ask for it. A book has one share: when both its

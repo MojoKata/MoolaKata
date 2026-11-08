@@ -419,34 +419,33 @@ def test_an_rmd_is_due_from_73_on_last_years_closing_value_holdings_and_all(db):
 
 
 def _carried(monkeypatch, *figures):
+    """Last year's federal figures as carried, each a return's (`basis8606` by filer)."""
     monkeypatch.setattr(
         panels.books, "federal_figures", lambda s, book: [(f, None) for f in figures]
     )
 
 
-@pytest.mark.parametrize(
-    "figures, basis",
-    [
-        ([], None),
-        ([{"basis8606": "6500"}], D("6500")),
-        ([{"basis8606": "6500"}, {"capitalLossShort": "10"}], D("6500")),
-        ([{"basis8606": "6500"}, {"basis8606": ""}], D("6500")),
-        ([{"basis8606": "6500"}, {"basis8606": "100"}], None),
-    ],
-)
-def test_the_8606_basis_is_one_books_never_two_summed(db, monkeypatch, figures, basis):
-    _carried(monkeypatch, *figures)
+def _basis(owner, amount) -> dict:
+    return {"basis8606": {owner: amount}}
+
+
+def test_each_filers_8606_basis_is_their_own(db, monkeypatch):
+    """S8.17: a joint return carries each filer's basis apart, and separate returns each
+    theirs: none is summed into another's, and a filer with none typed has none."""
     with db.tx(unscoped="test") as s:
-        u = _user(s, "Ann", YEAR - 40)
-        b = _book(s, u)
-    assert _retirement(db, b).basis8606 == basis
+        ann, bob, cy = (_user(s, n, YEAR - 40) for n in ("Ann", "Bob", "Cy"))
+        for u in (ann, bob, cy):
+            _acct(s, u, "IRA", "ira")
+        b = _book(s, ann, bob, cy)
+    _carried(monkeypatch, {"basis8606": {ann: "6500", bob: "100"}}, {"capitalLossShort": "10"})
+    got = {x.owner: (x.carried, x.nondeductible, x.undecided) for x in _retirement(db, b).bases}
+    assert got == {"Ann": (D("6500"), 0, 0), "Bob": (D("100"), 0, 0), "Cy": (None, 0, 0)}
 
 
 def test_a_conversion_is_taxed_but_for_its_share_of_the_basis(db, monkeypatch):
     """Form 8606 Part I: the basis over the traditional IRAs' year-end value (holdings too)
     plus what left them in the year, distributions and conversions; a plan account's money is
     not in it, and its conversion has no such share."""
-    _carried(monkeypatch, {"basis8606": "6500"})
     with db.tx(unscoped="test") as s:
         u = _user(s, "Ann", YEAR - 40)
         ira = _acct(s, u, "IRA", "ira")
@@ -464,12 +463,15 @@ def test_a_conversion_is_taxed_but_for_its_share_of_the_basis(db, monkeypatch):
         _txn(s, k, d(2026, 4, 1), "withdrawal", "-7000")
         _transfer(s, k, roth, d(2026, 5, 2), "5000")
         b = _book(s, u)
+    _carried(monkeypatch, _basis(u, "6500"))
     by_from = {m.fromAccount: m.taxable for m in _retirement(db, b).conversions}
     # 30,000 − 6,500 × 30,000 / (60,550 + 400 + 30,000 + 10,000)
     assert by_from == {"IRA": D("28068.35"), "401k": None}
 
 
-def test_a_conversion_without_a_known_basis_has_no_taxed_part(db, monkeypatch):
+def test_a_conversion_waits_for_last_years_basis_typed(db, monkeypatch):
+    """R3.11: with none carried for its owner, the basis isn't read as 0: the taxed part waits
+    for it, saying so."""
     _carried(monkeypatch)
     with db.tx(unscoped="test") as s:
         u = _user(s, "Ann", YEAR - 40)
@@ -479,14 +481,13 @@ def test_a_conversion_without_a_known_basis_has_no_taxed_part(db, monkeypatch):
         _transfer(s, ira, roth, d(2026, 3, 2), "1000")
         b = _book(s, u)
     [m] = _retirement(db, b).conversions
-    assert m.taxable is None
+    assert (m.taxable, m.waiting) == (None, "type Ann's Form 8606 basis carried from 2025")
 
 
 def test_a_basis_past_what_the_iras_held_leaves_nothing_of_a_conversion_taxed(db, monkeypatch):
     """Form 8606 line 10: the basis's share is at most the whole (1.000), so a conversion of
     everything the IRAs held is untaxed when the basis is larger, never taxed less than nothing,
     and the rest of the basis carries on."""
-    _carried(monkeypatch, {"basis8606": "6500"})
     with db.tx(unscoped="test") as s:
         u = _user(s, "Ann", YEAR - 40)
         ira = _acct(s, u, "IRA", "ira")
@@ -494,6 +495,7 @@ def test_a_basis_past_what_the_iras_held_leaves_nothing_of_a_conversion_taxed(db
         _txn(s, ira, d(2025, 1, 2), "deposit", "6000")
         _transfer(s, ira, roth, d(2026, 3, 2), "6000")
         b = _book(s, u)
+    _carried(monkeypatch, _basis(u, "6500"))
     [m] = _retirement(db, b).conversions
     assert m.taxable == 0
 
@@ -502,7 +504,6 @@ def test_a_basis_past_what_the_iras_held_leaves_nothing_of_a_conversion_taxed(db
 def test_iras_worth_nothing_in_all_give_the_basis_no_share(db, monkeypatch, deposit, taxable):
     """When the IRAs' year-end value and what left them come to nothing (a fee took what was
     left), there is no share to take; above nothing there is."""
-    _carried(monkeypatch, {"basis8606": "6500"})
     with db.tx(unscoped="test") as s:
         u = _user(s, "Ann", YEAR - 40)
         ira = _acct(s, u, "IRA", "ira")
@@ -511,8 +512,74 @@ def test_iras_worth_nothing_in_all_give_the_basis_no_share(db, monkeypatch, depo
         _txn(s, ira, d(2025, 2, 2), "fee", "-100")
         _transfer(s, ira, roth, d(2026, 3, 2), "50")
         b = _book(s, u)
+    _carried(monkeypatch, _basis(u, "6500"))
     [m] = _retirement(db, b).conversions
     assert m.taxable == taxable
+
+
+def test_a_joint_books_conversion_takes_its_owners_iras_and_basis_alone(db, monkeypatch):
+    """Form 8606 is a person's own (S8.6): Ann's conversion is taxed by her basis over her
+    IRAs, not over Bob's too; Bob's by his. Each IRA is named "IRA": they are told apart by
+    account, never by name."""
+    with db.tx(unscoped="test") as s:
+        ann, bob = _user(s, "Ann", YEAR - 40), _user(s, "Bob", YEAR - 40)
+        hers, his = _acct(s, ann, "IRA", "ira"), _acct(s, bob, "IRA", "ira")
+        roth_a, roth_b = _acct(s, ann, "Roth", "roth-ira"), _acct(s, bob, "Roth", "roth-ira")
+        _txn(s, hers, d(2025, 1, 2), "deposit", "50000")
+        _txn(s, his, d(2025, 1, 2), "deposit", "450000")
+        _transfer(s, hers, roth_a, d(2026, 3, 2), "50000")
+        _transfer(s, his, roth_b, d(2026, 3, 2), "45000")
+        b = _book(s, ann, bob)
+    _carried(monkeypatch, {"basis8606": {ann: "6500", bob: "9000"}})
+    by_to = {m.toAccount + m.fromId: m.taxable for m in _retirement(db, b).conversions}
+    # Ann: 50,000 − 6,500 (all of hers converted); Bob: 45,000 − 9,000 × 45,000 / 450,000.
+    assert by_to == {"Roth" + hers: D("43500.00"), "Roth" + his: D("44100.00")}
+
+
+def test_this_years_nondeductible_contributions_add_to_the_basis(db, monkeypatch):
+    """Form 8606 line 1 (S8.6): a backdoor Roth, 7,000 put in an IRA and not deducted, then
+    converted, is taxed nothing with no basis carried; a split contribution counts its
+    nondeductible part, the year's by its contribution year."""
+    with db.tx(unscoped="test") as s:
+        u = _user(s, "Ann", YEAR - 40)
+        ira = _acct(s, u, "IRA", "ira")
+        roth = _acct(s, u, "Roth", "roth-ira")
+        _txn(s, ira, d(2026, 1, 10), "deposit", "7000", deductible=False)
+        part = _txn(s, ira, d(2027, 3, 1), "deposit", "1000", contributionYear=2026)
+        for amount, mark in (("400", True), ("600", False)):
+            s.add(Split(id=ids.new_id("Split"), transactionId=part.id, amount=D(amount),
+                        deductible=mark))  # fmt: skip
+        _txn(s, ira, d(2025, 6, 1), "deposit", "500", deductible=False)  # last year's
+        _transfer(s, ira, roth, d(2026, 2, 1), "7000")
+        b = _book(s, u)
+    _carried(monkeypatch, _basis(u, "0"))
+    ret = _retirement(db, b)
+    [basis] = ret.bases
+    assert (basis.carried, basis.nondeductible, basis.undecided) == (0, D("7600"), 0)
+    [m] = ret.conversions
+    # 7,600 × 7,000 / (500 at the year's end + 7,000 converted) is past the whole: none taxed.
+    assert (m.taxable, m.waiting) == (0, None)
+
+
+def test_a_conversion_waits_while_a_contribution_is_undecided(db, monkeypatch):
+    """R3.11: a contribution not yet marked is never read as deductible: its owner's
+    conversion waits, saying for what; another owner's goes on."""
+    with db.tx(unscoped="test") as s:
+        ann, bob = _user(s, "Ann", YEAR - 40), _user(s, "Bob", YEAR - 40)
+        hers, his = _acct(s, ann, "IRA", "ira"), _acct(s, bob, "IRA", "ira")
+        roth = _acct(s, ann, "Roth", "roth-ira")
+        roth_b = _acct(s, bob, "Roth", "roth-ira")
+        _txn(s, hers, d(2026, 1, 10), "deposit", "7000")
+        _txn(s, his, d(2025, 1, 10), "deposit", "1000")
+        _transfer(s, hers, roth, d(2026, 2, 1), "7000")
+        _transfer(s, his, roth_b, d(2026, 2, 1), "1000")
+        b = _book(s, ann, bob)
+    _carried(monkeypatch, {"basis8606": {ann: "0", bob: "0"}})
+    got = {m.fromId: (m.taxable, m.waiting) for m in _retirement(db, b).conversions}
+    assert got == {
+        hers: (None, "mark whether each of Ann's IRA contributions was deductible"),
+        his: (D("1000.00"), None),
+    }
 
 
 # ---------- income (S8.4, S8.5) ----------

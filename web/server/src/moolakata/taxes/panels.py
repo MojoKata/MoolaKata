@@ -543,6 +543,20 @@ class Movement:
     toAccount: str
     amount: Decimal
     taxable: Decimal | None = None
+    fromId: str | None = None  # the account it left, when the book counts it
+    waiting: str | None = None  # what the taxed part waits for, said to the user
+
+
+@dataclass
+class Basis8606:
+    """A filer's Form 8606 basis (S8.6): carried from last year (line 2), none until typed, and
+    this year's nondeductible contributions (line 1), which wait while any is undecided."""
+
+    ownerId: str
+    owner: str
+    carried: Decimal | None
+    nondeductible: Decimal
+    undecided: int  # contributions still to mark deductible or not
 
 
 @dataclass
@@ -550,7 +564,7 @@ class Retirement:
     contributions: list[Contribution]
     distributions: list[tuple[str, Decimal]]
     rmds: list[Rmd]
-    basis8606: Decimal | None
+    bases: list[Basis8606]
     conversions: list[Movement]
     rollovers: list[Movement]
 
@@ -577,6 +591,11 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     accounts = [a for a in books.counted(s, book).accounts if atypes.retirement(a.type)]
     contributions, distributions, rmds = [], [], []
     moved: dict[frozenset, Movement] = {}
+    taken_from: dict[str, Decimal] = {}  # distributions by account id
+    # Form 8606 line 1, each owner's: the nondeductible parts of their own contributions to a
+    # traditional IRA for the year, and how many are still to decide (S8.6).
+    nondeductible: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    undecided: dict[str, int] = defaultdict(int)
     for a in accounts:
         owner = s.get(User, a.ownerId)
         born = people.birth_year(s, a.ownerId)
@@ -596,6 +615,12 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
             year = t.contributionYear or t.date.year
             if what == "employee" and year == y:
                 put += t.amount
+                if a.type == "ira":
+                    for amount, mark in _marks(s, t):
+                        if mark is None:
+                            undecided[a.ownerId] += 1
+                        elif not mark:
+                            nondeductible[a.ownerId] += amount
             elif what == "employer" and year == y:
                 employer += t.amount
             elif not first <= t.date <= last:
@@ -608,9 +633,17 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 other = moves.other_account(s, t)
                 there = other.name if other else "another account"
                 ends = (a.name, there) if what.endswith("-out") else (there, a.name)
+                source = a if what.endswith("-out") else other
                 key = frozenset({t.id, t.transferId or t.id})
                 moved.setdefault(
-                    key, Movement(what.removesuffix("-out"), t.date, *ends, abs(t.amount))
+                    key,
+                    Movement(
+                        what.removesuffix("-out"),
+                        t.date,
+                        *ends,
+                        abs(t.amount),
+                        fromId=source.id if source is not None else None,
+                    ),
                 )
         counted = put + employer if a.type == "hsa" else put
         limit, note = None, ""
@@ -657,6 +690,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
             )
         if taken:
             distributions.append((a.name, taken))
+            taken_from[a.id] = taken
         rmd_age = Decimal(str(figures["rmdAge"]))  # 70½ until 2019
         if age and age >= rmd_age and a.type in ("ira", "401k", "403b", "457b") and age in UNIFORM:
             from .. import valuation
@@ -679,46 +713,66 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         totals[(c.ownerId, c.group)] += c.contributed
     for c in contributions:
         c.personTotal = totals[(c.ownerId, c.group)]
-    # The 8606 basis is a person's own (S8.6): one book's, or none summed across two filers'
-    # books; *From last year* shows each.
-    bases = [
-        Decimal(str(figs["basis8606"]))
-        for figs, _ in books.federal_figures(s, book)
-        if figs.get("basis8606")
-    ]
-    basis = bases[0] if len(bases) == 1 else None
+    # The 8606 basis is a person's own (S8.6, S8.17): each filer's as their return carried it,
+    # a joint return's each filer's apart.
+    carried: dict[str, Decimal] = {}
+    for figs, _ in books.federal_figures(s, book):
+        for owner_id, v in (figs.get("basis8606") or {}).items():
+            carried[owner_id] = Decimal(str(v))
+    iras = [a for a in accounts if a.type == "ira"]
+    owners = list(dict.fromkeys(a.ownerId for a in iras))
+    names = books.names(s, owners)
+    bases = [Basis8606(o, names[o], carried.get(o), nondeductible[o], undecided[o]) for o in owners]
     conversions = sorted(
         (m for m in moved.values() if m.kind == "conversion"), key=lambda m: m.date
     )
     rollovers = sorted((m for m in moved.values() if m.kind == "rollover"), key=lambda m: m.date)
-    _pro_rata(s, accounts, conversions, distributions, basis, y)
-    return Retirement(contributions, distributions, rmds, basis, conversions, rollovers)
+    for b in bases:
+        _pro_rata(s, b, [a for a in iras if a.ownerId == b.ownerId], conversions, taken_from, y)
+    return Retirement(contributions, distributions, rmds, bases, conversions, rollovers)
 
 
-def _pro_rata(s, accounts, conversions, distributions, basis, year) -> None:
-    """Form 8606 Part I: a conversion from a traditional IRA is taxed but for its share of
-    the basis, over the year-end value of the traditional IRAs plus what left them in the
-    year (distributions and conversions)."""
-    iras = [a for a in accounts if a.type == "ira"]
-    names = {a.name for a in iras}
-    from_iras = [m for m in conversions if m.fromAccount in names]
-    if basis is None or not from_iras:
+def _marks(s: Session, t: Transaction) -> list[tuple[Decimal, bool | None]]:
+    """A contribution's amounts with whether each is deductible: its parts' when split."""
+    parts = list(
+        s.scalars(select(Split).where(Split.transactionId == t.id, Split.deleted == false()))
+    )
+    return [(x.amount, x.deductible) for x in parts] or [(t.amount, t.deductible)]
+
+
+def _pro_rata(s, basis: Basis8606, iras, conversions, taken_from, year) -> None:
+    """Form 8606 Part I, one filer's: a conversion from their traditional IRAs is taxed but
+    for its share of their basis (last year's and this year's nondeductible contributions),
+    over their IRAs' year-end value plus what left them in the year (distributions and
+    conversions). It waits while a contribution is undecided or last year's basis untyped."""
+    ids_ = {a.id for a in iras}
+    from_iras = [m for m in conversions if m.fromId in ids_]
+    if not from_iras:
+        return
+    if basis.undecided:
+        for m in from_iras:
+            m.waiting = f"mark whether each of {basis.owner}'s IRA contributions was deductible"
+        return
+    if basis.carried is None:
+        for m in from_iras:
+            m.waiting = f"type {basis.owner}'s Form 8606 basis carried from {year - 1}"
         return
     from .. import valuation
 
+    whole_basis = basis.carried + basis.nondeductible
     # Money, each sum: there is an IRA, and a conversion from one.
     year_end = sum(
         valuation.account_value(s, repo.load(s, a), True, dt.date(year, 12, 31)) for a in iras
     )
     out = sum(m.amount for m in from_iras)
-    taken = sum(v for n, v in distributions if n in names)
+    taken = sum(taken_from.get(i, ZERO) for i in ids_)
     whole = year_end + out + taken
     if whole <= 0:
         return  # nothing in the IRAs at all (a fee took more than was there): no share
     for m in from_iras:
         # The basis's share is at most the whole of it (line 10's 1.000): a conversion is
         # never taxed less than nothing, and the basis left over carries on.
-        untaxed = min(basis * m.amount / whole, m.amount)
+        untaxed = min(whole_basis * m.amount / whole, m.amount)
         m.taxable = (m.amount - untaxed).quantize(CENT)
 
 

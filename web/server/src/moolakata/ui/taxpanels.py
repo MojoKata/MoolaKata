@@ -112,13 +112,24 @@ class MovementOut(Model):
     toAccount: str
     amount: Money
     taxable: Money | None
+    waiting: str | None  # what the taxed part waits for
+
+
+class BasisOut(Model):
+    """A filer's Form 8606 basis (S8.6): carried from last year, none until typed, and this
+    year's nondeductible contributions, with how many are still to decide."""
+
+    owner: str
+    carried: Money | None
+    nondeductible: Money
+    undecided: int
 
 
 class RetirementOut(Model):
     contributions: list[ContributionOut]
     distributions: list[Amount]
     rmds: list[RmdOut]
-    basis8606: Money | None
+    bases: list[BasisOut]
     conversions: list[MovementOut]
     rollovers: list[MovementOut]
 
@@ -332,7 +343,15 @@ def _build(s, b) -> Panels:
             ],
             distributions=[Amount(label=k, amount=v) for k, v in ret.distributions],
             rmds=[RmdOut(**r.__dict__) for r in ret.rmds],
-            basis8606=ret.basis8606,
+            bases=[
+                BasisOut(
+                    owner=b.owner,
+                    carried=b.carried,
+                    nondeductible=b.nondeductible,
+                    undecided=b.undecided,
+                )
+                for b in ret.bases
+            ],
             conversions=[_movement(m) for m in ret.conversions],
             rollovers=[_movement(m) for m in ret.rollovers],
         ),
@@ -556,4 +575,4 @@ def _filers(s, b):
 
 def _movement(m) -> MovementOut:
     return MovementOut(date=m.date, fromAccount=m.fromAccount, toAccount=m.toAccount,
-                       amount=m.amount, taxable=m.taxable)  # fmt: skip
+                       amount=m.amount, taxable=m.taxable, waiting=m.waiting)  # fmt: skip

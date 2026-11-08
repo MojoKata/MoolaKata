@@ -131,6 +131,7 @@ class Transaction(Record):
     offChainKeptAt: dt.datetime | None = None
     reimbursable: Decimal | None = None
     owedBy: str | None = None
+    deductible: bool | None = None  # a traditional IRA contribution's (S8.6); null: undecided
     corporateActionId: str | None = None
 
 
@@ -158,6 +159,7 @@ class Split(Record):
     memo: str | None = None
     reimbursable: Decimal | None = None
     owedBy: str | None = None
+    deductible: bool | None = None  # as a transaction's (S8.6)
 
 
 @dataclass(kw_only=True, eq=False)

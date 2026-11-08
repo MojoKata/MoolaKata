@@ -80,6 +80,7 @@ class SplitIn(Model):
     memo: str | None = None
     reimbursable: Money | None = None  # to be paid back (S2.9)
     owedBy: str | None = None
+    deductible: bool | None = None  # a traditional IRA contribution's part (S8.6)
 
 
 class SplitOut(SplitIn):
@@ -124,6 +125,8 @@ class TxnOut(Model):
     offChainAt: dt.datetime | None  # bitcoin no longer on the chain, to keep or delete (S1.6.2.7)
     reimbursable: Money | None  # to be paid back, and by whom (S2.9)
     owedBy: str | None
+    # A traditional IRA contribution's (S8.6): a nullable boolean, null until decided.
+    deductible: bool | None = None
     paidBack: Money  # what paired deposits have paid back of it and its splits
     costBasis: Money | None = None  # a transfer-in's, as typed with it (S2.6)
     transferLots: list[TransferLot] | None = None  # a transfer-in's, lot by lot (S2.2)
@@ -314,6 +317,7 @@ def shape(
                 offChainAt=t.offChainAt,
                 reimbursable=t.reimbursable,
                 owedBy=t.owedBy,
+                deductible=t.deductible,
                 paidBack=paid.get(t.id, Decimal(0)),
                 costBasis=bases.get(t.id),
                 splits=[_split_read(x) for x in splits.get(t.id, [])],
@@ -551,6 +555,7 @@ def _set_splits(s: Session, t: Transaction, splits: list[SplitIn], by: str) -> N
                 memo=sp.memo,
                 reimbursable=sp.reimbursable,
                 owedBy=(sp.owedBy or "").strip() or None,
+                deductible=sp.deductible,
             )
         )
     if splits:
@@ -664,6 +669,7 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
         contributionSource=body.contributionSource,
         reimbursable=body.reimbursable,
         owedBy=(body.owedBy or "").strip() or None,
+        deductible=getattr(body, "deductible", None),
         cleared=bool(getattr(body, "cleared", False)),
         createdById=c.id,
     )
@@ -768,6 +774,7 @@ CHANGED = (
     "cleared",
     "reimbursable",
     "owedBy",
+    "deductible",
 )
 
 
@@ -1154,6 +1161,9 @@ class TxnRecord(Model):
     transferLots: list[TransferLot] | None = None
     reimbursable: Money | None = None
     owedBy: str | None = None
+    # A contribution to a traditional IRA (S8.6): deductible or not, null until decided; with
+    # splits, each part's instead.
+    deductible: bool | None = None
     cleared: bool = False
     tagIds: list[IdOf("Tag")] = _set_of()  # type: ignore[valid-type]  # the saver's own (S2.6)
     leftOutOf: list[IdOf("Bdgt")] = _set_of()  # type: ignore[valid-type]
@@ -1178,6 +1188,7 @@ class SplitRecord(Model):
     memo: str | None = None
     reimbursable: Money | None = None  # to be paid back (S2.9)
     owedBy: str | None = None
+    deductible: bool | None = None  # a traditional IRA contribution's part (S8.6)
 
 
 class LotPickRecord(Model):
@@ -1254,7 +1265,8 @@ def _reconciled(ctx, t: Transaction) -> None:
 
 def _parts_add_up(ctx, t: Transaction) -> None:
     """Once every op is in: a split transaction's parts add up to it, and it has no category
-    of its own (S2.6)."""
+    of its own (S2.6); a deductible mark is on a traditional IRA contribution, on its parts
+    when it has them (S8.6)."""
 
     def check() -> None:
         if t.deleted:
@@ -1264,6 +1276,7 @@ def _parts_add_up(ctx, t: Transaction) -> None:
                 select(Split).where(Split.transactionId == t.id, Split.deleted == false())
             )
         )
+        _deductible_fits(ctx.s, t, parts)
         if not parts:
             return
         if sum((x.amount for x in parts), Decimal(0)) != t.amount:
@@ -1273,6 +1286,25 @@ def _parts_add_up(ctx, t: Transaction) -> None:
         t.categoryId = None
 
     ctx.verify(f"splits:{t.id}", check)
+
+
+def _deductible_fits(s: Session, t: Transaction, parts: list[Split]) -> None:
+    """Only the owner's own contribution to a traditional IRA is deductible or not (S8.6), and
+    a split one is marked part by part."""
+    from ..taxes import retirement as moves
+
+    marked = [t.deductible, *(x.deductible for x in parts)]
+    if all(m is None for m in marked):
+        return
+    a = s.get(Account, t.accountId)
+    if a.type != "ira" or moves.classify(s, t, a) != "employee":
+        raise refuse(
+            "deductible",
+            "deductible-not-a-contribution",
+            "Only a contribution to a traditional IRA is deductible or not.",
+        )
+    if parts and t.deductible is not None:
+        raise refuse("deductible", "deductible-on-parts", "Split, each part is marked instead.")
 
 
 def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
@@ -1414,6 +1446,7 @@ def _split_values(body: SplitRecord) -> dict:
         "memo": body.memo,
         "reimbursable": body.reimbursable,
         "owedBy": (body.owedBy or "").strip() or None,
+        "deductible": body.deductible,
     }
 
 
@@ -1432,7 +1465,7 @@ def _split_editable(ctx, record_id: str) -> Split:
     return sp
 
 
-SPLIT_FIELDS = ("categoryId", "amount", "memo", "reimbursable", "owedBy")
+SPLIT_FIELDS = ("categoryId", "amount", "memo", "reimbursable", "owedBy", "deductible")
 
 
 def _split_current(ctx, sp: Split) -> dict:

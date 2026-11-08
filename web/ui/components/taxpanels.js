@@ -347,10 +347,20 @@ function Retirement({ p }) {
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
         : html`<p class="small dim">None in ${p.year}.</p>`}
-        ${r.basis8606
-          ? html`<p class="small dim">Form 8606 basis carried from last year: <${Amt}
-            v=${r.basis8606} />, for a backdoor Roth's conversion.</p>`
-          : null}</div>
+        ${r.bases.map((/** @type {any} */ b) =>
+          html`
+            <p class="small dim"
+              data-help="basis-8606">${b.owner}'s Form 8606 basis: ${b.carried != null
+                ? html`<${Amt} v=${b.carried} /> carried from last year`
+                : "last year's not typed"}${!Dec.of(b.nondeductible).isZero()
+                ? html`, <${Amt} v=${b.nondeductible} /> not deductible this year`
+                : ''}${b.undecided
+                ? `; ${b.undecided} ${
+                  b.undecided === 1 ? 'contribution' : 'contributions'
+                } still to mark deductible or not`
+                : ''}.</p>
+          `
+        )}</div>
       <div class="card"><h3 data-help="rmds">Required minimum distributions</h3>${r.rmds.length
         ? r.rmds.map((/** @type {any} */ x) =>
           html`
@@ -370,7 +380,11 @@ function Retirement({ p }) {
         ? r.conversions.map((/** @type {any} */ m) =>
           html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
             class="small dim">${date(m.date)}${
-            m.taxable != null ? html`${' '}· taxed <${Amt} v=${m.taxable} /> by Form 8606` : ''
+            m.taxable != null
+              ? html`${' '}· taxed <${Amt} v=${m.taxable} /> by Form 8606`
+              : m.waiting
+              ? ` · its taxed part waits: ${m.waiting}`
+              : ''
           }</div></span><${Amt} v=${m.amount} /></div>`
         )
         : html`<p class="small dim">None in ${p.year}.</p>`}</div>

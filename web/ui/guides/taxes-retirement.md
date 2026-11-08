@@ -19,8 +19,13 @@ MAGI, which is the preparer's to check.
 
 ## Distributions
 
-What came out of each retirement account, but for rollovers and conversions. Form 8606's basis,
-carried from last year, is shown for a backdoor Roth's conversion.
+What came out of each retirement account, but for rollovers and conversions.
+
+## Form 8606 basis {#basis-8606}
+
+Each filer's own: the basis their return carried from last year, plus this year's contributions to
+their traditional IRAs marked **Not deductible** in the transaction form. A contribution still
+**Not decided** is counted, and named, until it is marked.
 
 ## Required minimum distributions {#rmds}
 
@@ -29,9 +34,11 @@ Lifetime Table's factor for their age.
 
 ## Roth conversions {#conversions}
 
-Money moved from a traditional IRA or a 401(k) to a Roth IRA. With last year's Form 8606 basis known,
-the part taxed is shown: the conversion less its share of the basis, over the year-end value of the
-traditional IRAs and what left them in the year.
+Money moved from a traditional IRA or a 401(k) to a Roth IRA. A conversion from a traditional IRA
+shows its taxed part: the conversion less its share of its owner's Form 8606 basis, over the
+year-end value of that owner's traditional IRAs and what left them in the year. Each spouse's is
+their own. The taxed part waits, saying for what, while last year's basis isn't typed or a
+contribution this year isn't marked deductible or not.
 
 ## Rollovers {#rollovers}
 

@@ -76,4 +76,5 @@ paid. Last year's total tax shows beside them.
 
 Figures typed from the return as filed, which next year needs: AGI (to sign next year's e-filed
 return), total tax, the overpayment applied, capital-loss carryovers, the Form 8606 basis, and
-charitable carryovers.
+charitable carryovers. Form 8606 is each person's own: a joint return carries a basis for each
+filer, typed apart.

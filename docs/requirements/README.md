@@ -67,8 +67,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | **G26** | [Seeing and recovering what was deleted](gaps.md#g26-seeing-and-recovering-what-was-deleted--low) | Low |
 | **G27** | [Correcting an instrument's class](gaps.md#g27-correcting-an-instruments-class--low) | Low |
 | **G28** | [Short sales of stock](gaps.md#g28-short-sales-of-stock--low) | Low |
+| **G29** | [Whether an IRA contribution can be deducted](gaps.md#g29-whether-an-ira-contribution-can-be-deducted--low) | Low |
 
-A new gap takes the next id after G28.
+A new gap takes the next id after G29.
 
 ## Open questions
 

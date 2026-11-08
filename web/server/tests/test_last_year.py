@@ -80,7 +80,7 @@ class Couple:
             k = len(self.made) + 1
             figures = {"agi": f"{k * 10000}.00", "totalTax": f"{k * 1000}.00",
                        "capitalLossShort": f"{k * 100}.00", "capitalLossLong": f"{k * 200}.00",
-                       "basis8606": f"{k * 50}.00"}  # fmt: skip
+                       "basis8606": {self.uid[owner]: f"{k * 50}.00"}}  # fmt: skip
             c = self.c[owner]
             _ok(make(c, "Filng", bookId=b["id"], jurisdiction="federal", form="1040",
                      progress="filed", filedOn="2026-04-10", carried=figures))  # fmt: skip
@@ -184,3 +184,25 @@ def test_one_book_a_year_for_each_filer_and_a_waiting_book_declined(couple):
     told = w.c["bob"].get("/ui/api/activity").json()["items"]
     assert any(a["kind"] == "tax-book.declined" for a in told), told
     assert mine
+
+
+def test_a_joint_return_carries_each_filers_8606_basis_and_no_one_elses(server, couple):
+    """S8.17: Form 8606 is a person's own, so a joint return carries a basis for each filer,
+    shown under From last year with their names; a basis for someone not filing is refused."""
+    w = couple
+    b = w.book(2025, "alice", ("bob",))
+    c = w.c["alice"]
+    a_id, b_id = w.uid["alice"], w.uid["bob"]
+    _ok(make(c, "Filng", bookId=b["id"], jurisdiction="federal", form="1040", progress="filed",
+             filedOn="2026-04-10", carried={"basis8606": {a_id: "6500", b_id: "0"}}))  # fmt: skip
+    make_user(server, "carol")
+    carol = sign_in(server, "carol").get("/ui/api/session").json()["user"]["id"]
+    r = make(c, "Filng", bookId=b["id"], jurisdiction="state", place="Utah", form="TC-40",
+             carried={"basis8606": {carol: "10"}})  # fmt: skip
+    assert r.status_code == 422, r.text
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
+        "carried.basis8606", "filer-unknown")  # fmt: skip
+    now = w.book(2026, "alice", ("bob",))
+    [last] = c.get(f"/ui/api/tax-books/{now['id']}").json()["lastYear"]
+    assert last["figures"]["basis8606"] == {a_id: "6500.00", b_id: "0.00"}
+    assert last["names"] == {a_id: "Alice", b_id: "Bob"}
