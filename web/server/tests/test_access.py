@@ -517,7 +517,8 @@ def _candidate(s, n, sql: str) -> tuple[str, str] | None:
 def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
     """For every kind the save takes whose rule names a parent: one the user can't read
     answers 404, one they read without the permission 403, before the kind's own code (the
-    mine walk, decision 2.4)."""
+    mine walk, decision 2.4). The 403 names the key and why (a reader: `share-read-only`),
+    never the session's `write-refused` from the flush."""
     from types import SimpleNamespace
 
     from sqlalchemy import inspect
@@ -551,6 +552,9 @@ def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
                     with pytest.raises(Problem) as e:
                         save.may_create(ctx, kind, {**pick, key: item})
                 assert e.value.status == status, (prefix, key, parent.name, status)
+                if status == 403:
+                    assert e.value.code != "write-refused", (prefix, key)
+                    assert [x.field for x in e.value.errors] == [key], (prefix, key)
                 tried += 1
     assert tried > 60
     assert untried == UNTRIED
