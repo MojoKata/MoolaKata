@@ -5,7 +5,7 @@ A record is effectively deleted when it is deleted itself or when anything it is
 chains its parents' views, so a new cascading key changes the view with it.
 """
 
-from functools import cache
+import threading
 from graphlib import TopologicalSorter
 
 from sqlalchemy import Boolean, Column, MetaData, Table, Text
@@ -35,15 +35,24 @@ def parents(table: Table) -> list[tuple[str, str]]:
 
 
 _views = MetaData()
+_defining = threading.Lock()
 
 
-@cache
+def define_once(metadata: MetaData, name: str, *columns: Column) -> Table:
+    """A view's table, defined in `metadata` by the first request that needs it. Requests
+    asking at once wait on one another: SQLAlchemy refuses a second definition of a name, and
+    two first requests at once answered 500 (issue #34)."""
+    with _defining:
+        have = metadata.tables.get(name)
+        return have if have is not None else Table(name, metadata, *columns)
+
+
 def view_table(table: Table) -> Table:
     """The view as a selectable: the table's keys plus the two effective columns."""
     keys = [Column(c.name, Text, primary_key=True) for c in table.primary_key.columns]
-    return Table(
-        view_name(table.name),
+    return define_once(
         _views,
+        view_name(table.name),
         *keys,
         Column("effectiveDeleted", Boolean),
         Column("effectiveDeletedAt", UtcTimestamp),

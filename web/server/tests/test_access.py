@@ -660,3 +660,39 @@ def test_a_users_session_writes_only_what_their_views_allow(household):
         was, t.memo = t.memo, "allowed"
     with srv.db.tx(user=n["bob"]) as s:
         first(s, "Emergency savings")[1].memo = was
+
+
+def _defined_at_once(name: str, n: int = 16) -> tuple[list, list]:
+    """`n` threads asking at the same moment for a view's table first defined then: what
+    each got, and what any raised."""
+    import threading
+
+    from sqlalchemy import Column, MetaData, Text
+
+    from moolakata.store import views
+
+    metadata, start = MetaData(), threading.Barrier(n)
+    got, failed = [], []
+
+    def ask():
+        start.wait()
+        try:
+            got.append(views.define_once(metadata, name, Column("id", Text)))
+        except Exception as e:
+            failed.append(e)
+
+    threads = [threading.Thread(target=ask) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return got, failed
+
+
+def test_a_views_table_is_defined_once_by_requests_asking_at_once():
+    """Issue #34: two requests that first needed a view's table at once each defined it, and
+    SQLAlchemy refused the second ("already defined"), a 500. They now wait on one another
+    and share the one definition."""
+    for round_ in range(20):
+        got, failed = _defined_at_once(f"Probe{round_}")
+        assert failed == [] and len({id(t) for t in got}) == 1
