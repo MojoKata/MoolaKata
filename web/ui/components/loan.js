@@ -164,7 +164,8 @@ function SecuredBy({ rec, type }) {
       ${type === 'mortgage'
         ? html`
           <${RecField} rec=${rec} name="originalValue" label="Home's original value"
-            id="original-value" hint="The appraisal or price when the loan was made." />
+            id="original-value"
+            hint="The appraisal or price when the loan was made; blank, the home's cost then." />
         `
         : null}
     </div>

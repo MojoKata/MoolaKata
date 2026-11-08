@@ -382,7 +382,8 @@
       schedule, and the **payoff
       planner** (S6.10). A mortgage linked to a `real-estate` item shows the **equity** and the
       **loan-to-value**, and when PMI can be dropped (on request at 80% of the original
-      value; automatically at 78%, when the schedule stops charging it).
+      value; automatically at 78%, when the schedule stops charging it). The original value is
+      the one typed, else the home's basis when the loan was made.
    6. **Taxes**: mortgage interest, points and PMI (Form 1098), and student-loan interest
       (Form 1098-E) appear in Taxes (S8.12).
    7. **In budgets**, a payment counts at the bank account it came from (S7.3.3), as the loan

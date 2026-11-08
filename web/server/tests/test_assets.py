@@ -1047,3 +1047,24 @@ def test_pmi_without_an_original_value_reads_the_homes_basis_when_the_loan_was_m
              amount="200000")  # fmt: skip
     assert r.status_code == 200, r.text
     assert ends() == before
+
+
+def test_a_mortgage_without_an_original_value_stops_pmi_when_its_screen_says(alice):
+    """S1.9.5, CR3-439: the schedule's PMI ends at 78% of the original value, the home's basis
+    when the loan was made unless one is typed, the day the screen names; a value typed
+    stands."""
+    homes = new_account(alice, name="Home", type="real-estate")
+    home = item(alice, homes["id"], name="Home", acquiredOn="2025-01-02", costBasis="500000")
+    loan = new_account(alice, name="Mortgage", type="mortgage")
+
+    def schedule(**more):
+        v = saved(terms(alice, loan["id"], principal="450000", startDate="2025-02-01",
+                        termMonths=360, rate="6", pmi="150", securedById=home["id"],
+                        **more))  # fmt: skip
+        first_free = next(r["date"] for r in v["rows"] if r["pmi"] == "0.00")
+        return v["equity"]["pmiEnds"], first_free
+
+    ends, first_free = schedule()
+    assert ends is not None and first_free == ends
+    typed_ends, typed_free = schedule(originalValue="600000")
+    assert typed_free == typed_ends and typed_free < first_free

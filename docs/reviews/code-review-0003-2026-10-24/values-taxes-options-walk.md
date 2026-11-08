@@ -444,5 +444,5 @@ The fourteen decisions above, walked one at a time on branch `cr3-hardening-rest
    code runs, so asking for write there would only restate it. The per-kind creation test now
    asserts the code and the field, never the flush's `write-refused` (`464e585`).
 
-Left for the user: a loan's schedule stops charging PMI at 78% only with an original value
-typed, while its screen's PMI dates also read the home's basis without one.
+10. PMI without an original value typed (asked after the batch, approved): the schedule reads
+    the same fallback as the screen, the home's basis when the loan was made (**CR3-439**).

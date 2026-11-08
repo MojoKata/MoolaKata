@@ -121,8 +121,8 @@ shows your equity in it and the loan-to-value.
 
 ## Home's original value {#original-value}
 
-The appraisal or price when the loan was made. PMI can be dropped on request once the balance is 80%
-of it, and ends by itself at 78%.
+The appraisal or price when the loan was made. Left blank, the linked home's cost then stands in.
+PMI can be dropped on request once the balance is 80% of it, and ends by itself at 78%.
 
 ## Draw period (months) {#draw-months}
 
