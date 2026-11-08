@@ -51,9 +51,10 @@ produces worksheets and exports. It never files, and says so (R1.16).
    matched transfer tells it by its other half's account; a source set on the transaction
    says it otherwise. Only contributions count against a limit; rollovers and conversions are
    listed apart, a conversion with its part taxed by Form 8606's pro rata rule when the basis
-   is known, and neither is a distribution. An HSA's limit is its coverage's (self-only or
-   family, set on the account; unset, the family limit, and the panel asks), $1,000 more at
-   55, and the employer's money counts against it with the owner's.
+   is known (the basis's share is at most the whole conversion, so none of it is taxed when the
+   basis passes what the IRAs held), and neither is a distribution. An HSA's limit is its
+   coverage's (self-only or family, set on the account; unset, the family limit, and the panel
+   asks), $1,000 more at 55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their
    transactions and **receipts**. Charitable gifts above the substantiation threshold show
    whether a receipt is attached. Medical, childcare, education, HSA, and estimated tax

@@ -578,7 +578,6 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     accounts = [a for a in books.counted(s, book).accounts if atypes.retirement(a.type)]
     contributions, distributions, rmds = [], [], []
     moved: dict[frozenset, Movement] = {}
-    ira_by_owner: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for a in accounts:
         owner = s.get(User, a.ownerId)
         born = people.birth_year(s, a.ownerId)
@@ -605,23 +604,18 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
             elif what == "distribution":
                 taken -= t.amount
             elif what in ("rollover", "conversion", "rollover-out", "conversion-out"):
+                # Money out is a rollover or a conversion only by its other half's account;
+                # money in may be one by the source set on it, from an account not here.
                 other = moves.other_account(s, t)
-                into = t.amount > 0
+                there = other.name if other else "another account"
+                ends = (a.name, there) if what.endswith("-out") else (there, a.name)
                 key = frozenset({t.id, t.transferId or t.id})
                 moved.setdefault(
-                    key,
-                    Movement(
-                        what.removesuffix("-out"),
-                        t.date,
-                        (other.name if other else "another account") if into else a.name,
-                        a.name if into else (other.name if other else "another account"),
-                        abs(t.amount),
-                    ),
+                    key, Movement(what.removesuffix("-out"), t.date, *ends, abs(t.amount))
                 )
         counted = put + employer if a.type == "hsa" else put
         limit, note = None, ""
         if a.type in ("ira", "roth-ira"):
-            ira_by_owner[owner.id] += put
             limit = Decimal(str(figures["iraLimit"]))
             if age and age >= 50:
                 limit += Decimal(str(figures["iraCatchUp"]))
@@ -645,7 +639,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 limit = Decimal(str(figures["hsaFamily"]))
                 note = "family coverage" if a.hsaCoverage else "the family limit: set the coverage"
             if age and age >= 55:
-                limit += Decimal(str(figures.get("hsaCatchUp", 1000)))
+                limit += Decimal(str(figures["hsaCatchUp"]))
                 note += "; with the catch-up at 55 and over"
             if employer:
                 note += f"; {grouped(employer)} of it from the employer"
@@ -658,7 +652,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                     counted,
                     limit,
                     note,
-                    group=LIMIT_GROUPS.get(a.type, a.type),
+                    group=LIMIT_GROUPS[a.type],
                     ownerId=owner.id,
                 )
             )
@@ -706,22 +700,27 @@ def _pro_rata(s, accounts, conversions, distributions, basis, year) -> None:
     """Form 8606 Part I: a conversion from a traditional IRA is taxed but for its share of
     the basis, over the year-end value of the traditional IRAs plus what left them in the
     year (distributions and conversions)."""
-    if basis is None or not conversions:
+    iras = [a for a in accounts if a.type == "ira"]
+    names = {a.name for a in iras}
+    from_iras = [m for m in conversions if m.fromAccount in names]
+    if basis is None or not from_iras:
         return
     from .. import valuation
 
-    iras = [a for a in accounts if a.type == "ira"]
-    names = {a.name for a in iras}
+    # Money, each sum: there is an IRA, and a conversion from one.
     year_end = sum(
-        (valuation.account_value(s, repo.load(s, a), True, dt.date(year, 12, 31)) for a in iras),
-        ZERO,
+        valuation.account_value(s, repo.load(s, a), True, dt.date(year, 12, 31)) for a in iras
     )
-    out = sum((m.amount for m in conversions if m.fromAccount in names), ZERO)
-    taken = sum((v for n, v in distributions if n in names), ZERO)
+    out = sum(m.amount for m in from_iras)
+    taken = sum(v for n, v in distributions if n in names)
     whole = year_end + out + taken
-    for m in conversions:
-        if m.fromAccount in names and whole > 0:
-            m.taxable = (m.amount - basis * m.amount / whole).quantize(CENT)
+    if whole <= 0:
+        return  # nothing in the IRAs at all (a fee took more than was there): no share
+    for m in from_iras:
+        # The basis's share is at most the whole of it (line 10's 1.000): a conversion is
+        # never taxed less than nothing, and the basis left over carries on.
+        untaxed = min(basis * m.amount / whole, m.amount)
+        m.taxable = (m.amount - untaxed).quantize(CENT)
 
 
 # ---------- Deductions and credits (S8.7) ----------
@@ -755,7 +754,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
     ids = [a.id for a in books.counted(s, book).accounts]
     cats = {c.id: c for c in s.scalars(select(Category).where(Category.taxTag.is_not(None)))}
     out: dict[str, TagTotal] = {}
-    if ids and cats:
+    if ids:
         txns = s.scalars(
             select(Transaction).where(
                 Transaction.accountId.in_(ids),
@@ -767,7 +766,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
         by_id = {t.id: t for t in txns}
         loan_accounts = [a for a in books.counted(s, book).accounts if loans.is_loan(a.type)]
         in_loans = {a.id for a in loan_accounts}
-        amounts: list[tuple[str, str, Decimal]] = []
+        amounts: list[tuple[str | None, str, Decimal]] = []
         for t in txns:
             if t.categoryId in cats and t.accountId not in in_loans:
                 amounts.append((t.id, cats[t.categoryId].taxTag, -t.amount))
@@ -793,7 +792,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
                 for part, key in loans.PARTS.items():
                     amount = getattr(pay, part)
                     if amount and key in tagged:
-                        amounts.append((pay.transactionId or "", tagged[key], amount))
+                        amounts.append((pay.transactionId, tagged[key], amount))
         with_receipts = set(
             s.scalars(
                 select(ReceiptLink.itemId).where(
@@ -817,7 +816,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
         ):
             where = "Federal" if f.jurisdiction == "federal" else (f.place or "State")
             quarters.append((where, p.quarter, p.amount))
-    return sorted(out.values(), key=lambda x: -x.total), sorted(quarters, key=lambda q: q[:2])
+    return sorted(out.values(), key=lambda x: -x.total), sorted(quarters)
 
 
 # ---------- Giving, education, gifts, loans (S8.9–S8.12) ----------
@@ -947,8 +946,8 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
         row = loans.loan_of(s, a)
         secured = None
         if row is not None and row.securedById:
-            it = s.get(Item, row.securedById)
-            secured = it.name if it else None
+            # The item a loan names is kept while it does (a deleted one too, by its name).
+            secured = s.get(Item, row.securedById).name
         out.append(
             LoanRow(
                 a.name,
@@ -1170,13 +1169,12 @@ def spouse_accounts(s: Session, book: TaxBook) -> list[Account]:
     """For wash sales: the filers' spouses' accounts, when filing separately (S3.8): whoever
     was married to a filer at any time in the year."""
     who = {f.userId for f in books.filers(s, book)}
+    first, last = _span(book.year)
     out = []
     spouses = set()
     for uid in who:
-        for other in people.spouse_users_ever(s, uid):
-            if other in who or other in spouses:
-                continue
-            first, last = dt.date(book.year, 1, 1), dt.date(book.year, 12, 31)
+        # A spouse who files on this book too is in it already; one found once, once.
+        for other in people.spouse_users_ever(s, uid) - who - spouses:
             if any(
                 people.spouse_user_on(s, uid, day) == other
                 for day in (first, last, *_marriage_days(s, uid, other, first, last))
