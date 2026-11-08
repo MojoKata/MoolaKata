@@ -705,9 +705,7 @@ def sale(description, sold, basis="1", acquired_missing=False, lot_missing=False
 @pytest.fixture
 def quiet(monkeypatch):
     """A book with nothing to look at, each check's answer to be set by the test."""
-    from moolakata.store import mapping
 
-    mapping.map_all()  # the transfers' query is built on the mapped records
     counted = SimpleNamespace(accounts=[], leftOut=[])
     monkeypatch.setattr(panels, "changed_after_filing", lambda s, book: None)
     monkeypatch.setattr(panels, "differs_from_filed", lambda s, book, rows: None)

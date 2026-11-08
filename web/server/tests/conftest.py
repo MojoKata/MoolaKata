@@ -20,9 +20,13 @@ from moolakata.auth import users as accounts
 from moolakata.budgets import cache as month_cache
 from moolakata.config import Config
 from moolakata.keys import master
+from moolakata.store import mapping
 from moolakata.store.maintenance import open_store
 
 measure_the_browser_app()
+# The records are mapped before any test, as the server maps them when it starts: a test that
+# builds a query on a fake session works alone as well as after one that opened a store.
+mapping.map_all()
 # Every kept budget month is worked out again on a hit and compared (S7.3.10): each test that
 # reads a month twice also proves the cache answers what the data says.
 month_cache.CHECK = True
