@@ -10,11 +10,11 @@ DAY = dt.timedelta(days=1)
 
 def _nth(year: int, month: int, weekday: int, n: int) -> dt.date:
     """The n-th weekday (0 Monday) of a month; n = -1 for the last."""
-    if n > 0:
-        first = dt.date(year, month, 1)
-        return first + dt.timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
-    last = dt.date(year + (month == 12), month % 12 + 1, 1) - DAY
-    return last - dt.timedelta(days=(last.weekday() - weekday) % 7)
+    if n == -1:
+        last = dt.date(year + (month == 12), month % 12 + 1, 1) - DAY
+        return last - dt.timedelta(days=(last.weekday() - weekday) % 7)
+    first = dt.date(year, month, 1)
+    return first + dt.timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
 
 
 def _observed(d: dt.date) -> dt.date:

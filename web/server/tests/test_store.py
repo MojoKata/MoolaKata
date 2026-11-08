@@ -1074,6 +1074,43 @@ def test_0056_leaves_no_close_to_the_manual_source_and_refuses_one(tmp_path):
     engine.dispose()
 
 
+def test_0057_clears_a_label_on_any_relation_but_family_and_refuses_one(tmp_path):
+    """Only a family relationship carries a label (S10.10.4): one left on another relation is
+    cleared, a family one stays, and a label on another relation is refused from then on: the
+    shape the dependents' relation words (which read only the word) would have shown."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    stamp = "2026-10-01 00:00:00"
+    a, b = sorted(ids.new_id("Persn") for _ in range(2))
+    friend, family = ids.new_id("Rltn"), ids.new_id("Rltn")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0056")
+        conn.commit()
+        q = conn.exec_driver_sql
+        for pid, name in ((a, "Ann"), (b, "Bea")):
+            q('INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+              "VALUES (?, ?, 'female', ?, ?)", (pid, name, stamp, stamp))  # fmt: skip
+        for rid, relation in ((friend, "friend"), (family, "family")):
+            q('INSERT INTO "Relationship" (id, "person1Id", "person2Id", relation, label, '
+              '"createdAt", "updatedAt") VALUES (?, ?, ?, ?, \'godmother\', ?, ?)',
+              (rid, a, b, relation, stamp, stamp))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        assert dict(q('SELECT relation, label FROM "Relationship"').fetchall()) == {
+            "friend": None,
+            "family": "godmother",
+        }
+        with pytest.raises(Exception, match="ck_Relationship_label"):
+            q("UPDATE \"Relationship\" SET label = 'aunt' WHERE id = ?", (friend,))
+        assert q("PRAGMA foreign_key_check").fetchall() == []
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError
