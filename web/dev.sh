@@ -41,6 +41,8 @@ web/dev.sh <command>
   mockup       rebuild docs/mockups/MoolaKata-app.html from the app
   ci-times [RUN | --pr N]
                a CI run's job times against the budget, and how evenly its parts split
+  ci-durations [RUN | --pr N]
+               what each test took in a CI run, into tests/durations.json (the parts' split)
   mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check, record;
                the CI baseline: testrun, testmap, plan, export, gather)
   help-shots   rebuild the help guides' screenshots from the mockup
@@ -166,6 +168,10 @@ case "$cmd" in
   ci-times)
     # A CI run's times, checked before a hardening step is signed off (REVIEW.md §11.7).
     cd "$SERVER" && exec uv run --frozen python -m moolakata.dev.citimes "$@"
+    ;;
+  ci-durations)
+    # What each test took in a CI run, by which its parts are split (tests/parts.py).
+    cd "$SERVER" && exec uv run --frozen python -m moolakata.dev.citimes durations "$@"
     ;;
   mutate)
     # A mutation run (S17.5.12, docs/mutation-testing.md): run <modules>, summary, check.

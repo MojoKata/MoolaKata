@@ -8,10 +8,12 @@
        checked out and its `status` run unattended (`COWORKER_UNATTENDED=1`), so a need
        missing from `.coworker/deps.json` shows on a runner as it would on a developer's
        machine. It runs `web/check`'s parts as jobs
-       side by side (the server's tests in seven parts, each part every seventh test
-       (`MK_TEST_PART`), the first with the static checks and the last with the connector's
-       tests; the browser tests in four parts the same way, a module whose tests run one after
-       another kept whole; the generated mockup's drift; the hand-written mockup's screens),
+       side by side (the server's tests in seven parts (`MK_TEST_PART`), the first with the
+       static checks and the last with the connector's tests; the browser tests in four parts
+       the same way; the parts split by measured time, each test weighing what it took in a
+       recent run (`web/server/tests/durations.json`, which `web/dev.sh ci-durations` gathers
+       from a run's artifacts), the longest first, each to the part with the least so far, a
+       module whose tests run one after another kept whole; the generated mockup's drift; the hand-written mockup's screens),
        then the coverage of the test jobs together, from their measurements passed on as
        artifacts; the `check` job, the status the rulesets require, passes when every part
        does. Each job fetches the commit before as well, for the coverage of the changed
