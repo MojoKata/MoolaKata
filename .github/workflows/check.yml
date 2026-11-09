@@ -82,17 +82,17 @@ jobs:
         if: failure()
         run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
 
-  # The browser tests in three parts side by side, each on four workers.
+  # The browser tests in four parts side by side, each on four workers.
   browser:
-    name: browser tests ${{ matrix.part }} of 3
+    name: browser tests ${{ matrix.part }} of 4
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        part: [1, 2, 3]
+        part: [1, 2, 3, 4]
     env:
-      MK_TEST_PART: ${{ matrix.part }}/3
+      MK_TEST_PART: ${{ matrix.part }}/4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
