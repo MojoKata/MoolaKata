@@ -20,10 +20,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The server's tests in six parts side by side (MK_TEST_PART: every sixth test), with the
+  # The server's tests in seven parts side by side (MK_TEST_PART: every seventh test), with the
   # static checks in the first and the connector's tests in the last.
   tests:
-    name: server tests ${{ matrix.part }} of 6 (${{ matrix.parts }})
+    name: server tests ${{ matrix.part }} of 7 (${{ matrix.parts }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
@@ -41,9 +41,11 @@ jobs:
           - part: 5
             parts: server
           - part: 6
+            parts: server
+          - part: 7
             parts: server connector
     env:
-      MK_TEST_PART: ${{ matrix.part }}/6
+      MK_TEST_PART: ${{ matrix.part }}/7
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
