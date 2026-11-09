@@ -293,7 +293,8 @@ A claim's **confirmations** count the independent contexts that found it holds:
 - **rejected** sets its status to rejected.
 
 A claim's **status** is one of: **open**; **question** (or **Q<n>** once it is recorded as
-an open question); **decided** (the review's decisions say how); **fixed** `<commit>`;
+an open question); **decided** (the review's decisions say how); **fixed** `<commit>` (#<n>), the commit and
+the pull request it came in (a squash merge keeps the pull request, not the commit, on `main`);
 **later** `L<n>`; **rejected** (found not to hold after it had an id, with the reason in its
 section).
 
@@ -370,7 +371,7 @@ them as ids (`CR3-14`), as the requirements cite theirs.
 3. **Each change updates the tables**, and nothing else in the review: a confirmation, a
    status, a severity changed by a decision (the claim's row and section move to its new
    severity's part, keeping its id). The commit that fixes a claim names its id, and its
-   status becomes fixed with that commit.
+   status becomes fixed with that commit and its pull request.
 4. **A quick review can be checked later**: a checking pass over its claims (§8) raises their
    confirmations, and its header then reads "quick, checked later".
 5. **What a review recommends but no one takes up** goes to the gaps, the questions or later
