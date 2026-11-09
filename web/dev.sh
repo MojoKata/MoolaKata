@@ -41,7 +41,8 @@ web/dev.sh <command>
   mockup       rebuild docs/mockups/MoolaKata-app.html from the app
   ci-times [RUN | --pr N]
                a CI run's job times against the budget, and how evenly its parts split
-  mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check, record)
+  mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check, record;
+               the CI baseline: testrun, testmap, plan, export, gather)
   help-shots   rebuild the help guides' screenshots from the mockup
   deno [args]  run the pinned Deno
   uv [args]    run the pinned uv in web/server

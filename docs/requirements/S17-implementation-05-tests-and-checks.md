@@ -232,8 +232,13 @@
       unmarked, and its equivalents are listed with the area's results. Code that only a mark
       would keep (unreachable, never read) is removed instead. Each area's first run and its
       settling run are recorded in `docs/hardening/mutation/` (outcomes, the pull request,
-      the bugs found, each module's content), for the hardening page (S17.5.8.6). How to run
-      it: `docs/mutation-testing.md`.
+      the bugs found, each module's content), for the hardening page (S17.5.8.6). Every
+      area's first run is made before the sweeps, on CI's runners side by side (the mutate
+      workflow, started by hand): the fast tests run once under coverage to map the test files
+      that reach each module (a route module is reached through HTTP, not imported), the
+      modules are packed by area into jobs of about a thousand code lines, and each job's
+      outcomes and survivors are kept for the area's sweep, which runs again only the modules
+      changed since. How to run it: `docs/mutation-testing.md`.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

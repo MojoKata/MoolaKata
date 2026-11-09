@@ -393,6 +393,12 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    itself quicker (fewer cases or seeds, smaller data, a cheaper fixture, a test reworked or
    dropped) trades some checking for time: it is put to the user first, with what it costs,
    what it saves and a recommendation.
+8. **The sweep starts from the baseline** (`mutation-testing.md`, *The CI baseline*): every
+   server module's first mutation run is made on CI before the sweeps, so an area's sweep
+   begins with its survivors in hand, and only the modules changed since are run again. A
+   test that catches a survivor and changes nothing the code does is written without asking;
+   a survivor that shows a bug, an equivalent to leave unmarked, or a test that would be slow
+   goes to the area's walk, which opens the sweep, so the area's questions are asked once.
 
 ## 12. Parallel agents, when asked
 

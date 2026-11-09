@@ -108,7 +108,7 @@ def test_the_path_names_areas_and_findings_that_exist():
              for p in coverage.SERVER.rglob("*.py")} | {hardening.OTHER, "connector"}  # fmt: skip
     areas |= {f"browser/{d}" for d in coverage.BROWSER_DIRS}
     for n, step in enumerate(plan["step"], 1):
-        assert step["kind"] in ("before", "tracker", "med", "sweep"), n
+        assert step["kind"] in ("before", "tracker", "tooling", "med", "sweep"), n
         assert set(step.get("areas", [])) <= areas, (n, step.get("areas"))
         assert set(step.get("findings", [])) <= found, (n, step.get("findings"))
         assert step["kind"] != "med" or step["findings"], n

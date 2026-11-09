@@ -9,7 +9,8 @@ hid a change by giving the same answer either way.
 ## When
 
 At the end of each area's hardening (a review walk's fix cycle), over the modules the area
-owns, once its other tests are in. Not in `web/check`: every test that reaches a function
+owns, once its other tests are in; its first run is the CI baseline's (below), made before the
+sweeps. Not in `web/check`: every test that reaches a function
 runs once per change to it, so a run takes minutes to hours, not seconds.
 
 ## A run
@@ -56,6 +57,45 @@ Each change ends in one of these:
 
 In the copy, `.venv/bin/mutmut show <name>` prints one change and `.venv/bin/mutmut browse`
 walks them all.
+
+## The CI baseline
+
+Every server module's run, side by side on GitHub's standard runners, started by hand: the
+**mutate** workflow (`.github/workflows/mutate.yml`) in the repository's Actions tab, **Run
+workflow** on `main`. Its inputs: the areas (globs, every one by default), the code lines per
+job (1000), whether to run modules whose settled run is current too (no), and the jobs at once
+(14 of the account's 20, leaving room for pull requests' checks).
+
+1. **The test map** (6 jobs): the fast tests run once under coverage, each test's setup, call
+   and teardown measured in a context named by its file (`moolakata.dev.testmap`, through
+   `web/dev.sh mutate testrun`); `mutate testmap` combines the parts into `map.json`, each
+   module's reaching test files. A route module is reached through HTTP, not imported, so the
+   files importing it are not enough; `run --map` takes both.
+2. **The plan**: `mutate plan` packs each area's modules into jobs of about the size, the
+   largest first (a module larger than the size is a job of its own), as the coverage site
+   draws its areas, leaving out the modules whose settled run is current.
+3. **The jobs**: each runs `mutate run <modules> --map map.json --workers 4 --limit 12` (a
+   runner has 4 CPUs and 16 GB) and stops it at 5½ hours, before the runner's 6; mutmut saves
+   each outcome as it comes, so what it finished is kept, and the rest counts as not run.
+   `mutate export` keeps the outcomes, the survivors and the log as the job's artifact
+   (`mutation-<area>-<n>`, 90 days).
+
+Then, on this machine:
+
+```sh
+web/dev.sh mutate gather <run id>    # gh run download; one record per area
+```
+
+`gather` downloads the run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
+outcomes, records its first run as `docs/hardening/mutation/baseline-<area>.json` (as `record
+--first` does) and writes its survivors to `web/.dev/mutate-results/baseline/<area>/`. The
+records are committed; the area's sweep settles its record with `record baseline-<area> --pr N`
+after a full run of its modules. A job that ran out of time leaves changes not run: its modules
+go again (`--only` on what is left, or a smaller size), on CI or here.
+
+A pull request that changes the workflow or these tools runs a trial on two small modules,
+`duration.py` and `ui/tokens.py` (which no test file imports), so the whole chain is checked
+before it is merged.
 
 ## Checking one change by hand
 
@@ -105,6 +145,9 @@ Each area's runs are kept in `docs/hardening/mutation/<name>.json`, for the hard
 web/dev.sh mutate record taxes --first                           # after the area's first run
 web/dev.sh mutate record taxes --pr 38 --found CR3-441 --equivalent 3   # after the settling run
 ```
+
+`--from <dir>...` reads the run from directories `export` wrote (a CI job's artifacts)
+instead of the last run here.
 
 `--first` keeps the first run's outcomes, in total and by file, and its modules. The second,
 after a full run once every survivor is settled (not an `--only` rerun, which holds only the

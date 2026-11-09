@@ -1,0 +1,164 @@
+# The mutation baseline (requirements S17.5.12, docs/mutation-testing.md): every server module's
+# mutation run on GitHub's standard runners, side by side, started by hand from the Actions tab.
+# First the fast tests run once in six parts under coverage, each test's file its context, and
+# the map of the test files that reach each module is made from them (a route module is reached
+# through HTTP, not imported); then the modules, area by area, are packed into jobs of about
+# `size` code lines, and each job's run is kept as an artifact for `web/dev.sh mutate gather`.
+# A pull request that changes this file or the tools runs a trial on two small modules. The
+# actions are pinned by commit and listed in the register (docs/dependencies.md).
+name: mutate
+
+on:
+  workflow_dispatch:
+    inputs:
+      areas:
+        description: "Areas to run, as globs (server/ledger server/loans); every one by default"
+        default: "server/*"
+      size:
+        description: "Code lines per job"
+        default: "1000"
+      all:
+        description: "Also the modules whose settled run is current"
+        type: boolean
+        default: false
+      parallel:
+        description: "Jobs at once (the account runs 20; the rest are left for pull requests)"
+        default: "14"
+  pull_request:
+    paths:
+      - .github/workflows/mutate.yml
+      - web/server/src/moolakata/dev/mutate.py
+      - web/server/src/moolakata/dev/testmap.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The fast tests under coverage in six parts (MK_TEST_PART: every sixth test).
+  map:
+    name: test map ${{ matrix.part }} of 6
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4, 5, 6]
+    env:
+      MK_TEST_PART: ${{ matrix.part }}/6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status
+      - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: the fast tests, each test's file its context
+        run: web/dev.sh mutate testrun
+      - name: what they reached
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: testmap-data-${{ matrix.part }}
+          path: web/.dev/testmap/
+          include-hidden-files: true
+          retention-days: 1
+
+  # The map, and the jobs: each a group of one area's modules.
+  plan:
+    name: plan
+    needs: map
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      jobs: ${{ steps.plan.outputs.jobs }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status
+      - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: the parts' measurements
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: testmap-data-*
+          path: web/.dev/testmap/
+          merge-multiple: true
+      - name: the test map
+        run: web/dev.sh mutate testmap
+      - name: the jobs
+        id: plan
+        env:
+          AREAS: ${{ inputs.areas || 'server/*' }}
+          SIZE: ${{ inputs.size || '1000' }}
+          ALL: ${{ inputs.all && '--all' || '' }}
+          TRIAL: ${{ github.event_name == 'pull_request' && '--modules moolakata/duration.py moolakata/ui/tokens.py' || '' }}
+        run: |
+          set -f  # the areas are globs for plan, not for the shell
+          # shellcheck disable=SC2086 # the areas, flags and trial are words
+          jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $TRIAL)
+          echo "$jobs" | python3 -c 'import json,sys; [print(j["name"], j["lines"], j["modules"]) for j in json.load(sys.stdin)]'
+          echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
+          echo "count=$(echo "$jobs" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" >> "$GITHUB_OUTPUT"
+      - name: the map, for the jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: testmap
+          path: web/.dev/testmap/map.json
+          retention-days: 7
+
+  # Each job's mutation run, stopped before the runner's six hours so what it found is kept.
+  mutate:
+    name: mutate ${{ matrix.name }} (${{ matrix.lines }} lines)
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel || '14') }}
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.jobs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status
+      - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: the test map
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: testmap
+          path: web/.dev/testmap/
+      - name: mutmut over ${{ matrix.modules }}
+        env:
+          MODULES: ${{ matrix.modules }}
+        run: |
+          # shellcheck disable=SC2086 # the modules are words
+          timeout 330m web/dev.sh mutate run $MODULES --map web/.dev/testmap/map.json \
+            --workers 4 --limit 12 || echo "the run ended with $? (124: out of time)"
+      - name: the run's outcomes, survivors and log
+        if: always()
+        env:
+          NAME: ${{ matrix.name }}
+          AREA: ${{ matrix.area }}
+          MODULES: ${{ matrix.modules }}
+        run: web/dev.sh mutate export "$RUNNER_TEMP/run" --name "$NAME" --area "$AREA" --modules "$MODULES"
+      - name: the run, for gather
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-${{ matrix.name }}
+          path: ${{ runner.temp }}/run/
+          retention-days: 90

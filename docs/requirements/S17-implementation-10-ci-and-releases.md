@@ -52,3 +52,12 @@
        attestation alone, and `contents: write` only to draft the release. The one secret,
        Docker Hub's token, lives in an environment (`docker-hub`) that only runs for `v*`
        tags can read.
+    4. **The mutation baseline**: `.github/workflows/mutate.yml`, started by hand on `main`,
+       runs every server module's mutation run (S17.5.12) on the standard runners side by
+       side: the fast tests once in six parts under coverage, for the map of the test files
+       that reach each module; then one job per group of an area's modules, each stopped
+       before the runner's six hours with what it finished kept, and its outcomes and
+       survivors kept as the run's artifacts for 90 days. It runs at most as many jobs at once
+       as its input says (14 by default), leaving the rest of the account's runners to pull
+       requests' checks. A pull request that changes it or its tools runs it on two small
+       modules.
