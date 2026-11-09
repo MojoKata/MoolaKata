@@ -386,6 +386,9 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    step to the end of the review's sweep, and the hardening page checks each one off as its
    pull request merges. Opening a step's pull request adds its number to the step; its first
    and settling mutation runs are recorded (`web/dev.sh mutate record`) and committed with it.
+   Before a step is signed off, its last CI run's times are checked (`web/dev.sh ci-times`):
+   a job past the budget (6 minutes), or a family of parts more uneven than 1.4 to 1, is
+   split further in that step, so CI stays as quick as the tests allow while they grow.
 
 ## 12. Parallel agents, when asked
 

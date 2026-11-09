@@ -128,3 +128,30 @@ def test_the_page_carries_its_figures(monkeypatch):
     taxes = next(a for a in data["areas"] if a["area"] == "server/taxes")
     assert taxes["hardening"]["statements"] == 100 and taxes["findings"]
     assert len(mutate.COUNTED) == 5
+
+
+def test_a_run_s_times_flag_a_job_past_the_budget_and_uneven_parts():
+    """REVIEW.md §11.7: a job over the budget, or parts more uneven than SPREAD, is split
+    further before a step is signed off; a skipped job doesn't count."""
+    from moolakata.dev import citimes
+
+    def job(name, start, end, conclusion="success"):
+        return {"name": name, "started_at": f"2026-11-09T04:{start}Z",
+                "completed_at": f"2026-11-09T04:{end}Z", "conclusion": conclusion}  # fmt: skip
+
+    jobs = [
+        job("server tests 1 of 3 (static server)", "00:00", "04:00"),
+        job("server tests 2 of 3 (server)", "00:05", "06:30"),
+        job("server tests 3 of 3 (server)", "00:05", "04:30"),
+        job("browser tests 1 of 2", "00:10", "05:00"),
+        job("browser tests 2 of 2", "00:10", "05:30"),
+        job("coverage", "06:40", "07:10"),
+        job("coverage site", "00:00", "59:00", conclusion="skipped"),
+    ]
+    lines, todo = citimes.report(jobs)
+    assert lines[0].startswith("run: 7m10s")
+    assert lines[1].strip() == "6m25s  server tests 2 of 3 (server)  ⚠ over budget"
+    assert todo == [
+        "server tests 2 of 3 (server): 6m25s, past the 6m00s budget",
+        "server tests: parts from 4m00s to 6m25s, uneven",
+    ]

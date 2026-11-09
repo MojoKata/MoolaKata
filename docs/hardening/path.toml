@@ -1,7 +1,8 @@
 # The path to the end of review 3's sweep (requirements S17.5.8.6): every step, in order. A step
 # with a pull request is done once that pull request has merged to main; the hardening page
 # shows it checked, with what changed by area at its merge. A step's pull request is added here
-# when it is opened.
+# when it is opened. Before a step is signed off, its last CI run's times are checked
+# (`web/dev.sh ci-times`, REVIEW.md §11.7), and a job past the budget is split further in it.
 #
 # kind: "med" for a step that fixes named findings, "sweep" for an area's sweep (its findings,
 # coverage and a mutation run over all its modules, every survivor settled), "tracker" for this.
