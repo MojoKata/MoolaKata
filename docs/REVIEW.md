@@ -382,6 +382,10 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    and a mutation run over its modules (S17.5.12, `mutation-testing.md`), until every
    surviving change is caught by a fast test or marked with its reason. What it finds is
    fixed there, with review ids; only what belongs to another area goes to an issue.
+7. **The path keeps the sweep in view** (S17.5.8.6): `docs/hardening/path.toml` lists every
+   step to the end of the review's sweep, and the hardening page checks each one off as its
+   pull request merges. Opening a step's pull request adds its number to the step; its first
+   and settling mutation runs are recorded (`web/dev.sh mutate record`) and committed with it.
 
 ## 12. Parallel agents, when asked
 
