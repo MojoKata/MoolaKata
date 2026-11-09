@@ -1,7 +1,9 @@
 """A CI run's times, checked before a hardening step is signed off (REVIEW.md §11.7): each
 job's wall time, slowest first, the run's own, and how evenly each family of parts (server
-tests 1 of 6, …) splits its work. A job past BUDGET, or parts more uneven than SPREAD, is a
-reason to split the tests further in that step.
+tests 1 of 6, …) splits its work. A job past BUDGET, or parts more uneven than SPREAD whose
+slowest is the run's slowest job (balancing others would save nothing), is a reason to split
+the tests further in that step: by more parts, or by time. A change to what a test does to
+make it quicker is the user's to decide (REVIEW.md §11.7).
 
     web/dev.sh ci-times [RUN | --pr N]
 
@@ -41,7 +43,7 @@ def clock(s: int | None) -> str:
 
 def report(jobs: list[dict]) -> tuple[list[str], list[str]]:
     """The run's lines, and what to do about it: each job past the budget, and each family of
-    parts whose slowest is more than SPREAD times its quickest."""
+    parts whose slowest is more than SPREAD times its quickest and is the run's slowest job."""
     ran = [j for j in jobs if j.get("conclusion") not in ("skipped", None) and j.get("started_at")]
     times = {j["name"]: seconds(j["started_at"], j["completed_at"]) for j in ran}
     starts = [j["started_at"] for j in ran]
@@ -57,8 +59,9 @@ def report(jobs: list[dict]) -> tuple[list[str], list[str]]:
     for name, s in times.items():
         if (m := PART.match(name)) and s:
             families.setdefault(m[1], []).append(s)
+    longest = max((s for s in times.values() if s is not None), default=0)
     for family, ts in sorted(families.items()):
-        if len(ts) > 1 and max(ts) > SPREAD * min(ts):
+        if len(ts) > 1 and max(ts) > SPREAD * min(ts) and max(ts) == longest:
             todo.append(f"{family}: parts from {clock(min(ts))} to {clock(max(ts))}, uneven")
     return lines, todo
 

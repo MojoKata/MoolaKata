@@ -131,8 +131,9 @@ def test_the_page_carries_its_figures(monkeypatch):
 
 
 def test_a_run_s_times_flag_a_job_past_the_budget_and_uneven_parts():
-    """REVIEW.md §11.7: a job over the budget, or parts more uneven than SPREAD, is split
-    further before a step is signed off; a skipped job doesn't count."""
+    """REVIEW.md §11.7: a job over the budget, or parts more uneven than SPREAD that set the
+    run's time, is split further before a step is signed off; uneven parts that don't set it
+    aren't, and a skipped job doesn't count."""
     from moolakata.dev import citimes
 
     def job(name, start, end, conclusion="success"):
@@ -145,6 +146,7 @@ def test_a_run_s_times_flag_a_job_past_the_budget_and_uneven_parts():
         job("server tests 3 of 3 (server)", "00:05", "04:30"),
         job("browser tests 1 of 2", "00:10", "05:00"),
         job("browser tests 2 of 2", "00:10", "05:30"),
+        job("browser tests 3 of 3", "00:10", "02:10"),
         job("coverage", "06:40", "07:10"),
         job("coverage site", "00:00", "59:00", conclusion="skipped"),
     ]
