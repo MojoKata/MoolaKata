@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MoolaKata hardening</title>
+<style>
+/* Layout: the coverage site's page, its banner and by-area table, with the hardening columns beside coverage. */
+:root {
+  --surface: #fcfcfb; --raised: #f3f2ee; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --track: #e9e8e2; --border: rgba(11, 11, 11, 0.10);
+  --lines: #2a78d6; --branches: #eb6834; --bad: #c8312b;
+  --good: #2f9e55; --fair: #d79b0f; --stripe: rgba(255, 255, 255, 0.55);
+  --mut: #7a4fd0; --low: #b9b7ae;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19; --raised: #232321; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
+    --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
+    --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5);
+    --mut: #a283ea; --low: #5c5b55;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19; --raised: #232321; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
+  --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
+  --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5);
+  --mut: #a283ea; --low: #5c5b55;
+}
+* { box-sizing: border-box; }
+body { margin: 0 auto; max-width: 1500px; padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--surface); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: inherit; }
+h1 { font-size: 26px; margin: 0 0 4px; text-wrap: balance; }
+h2 { font-size: 19px; margin: 32px 0 8px; }
+p { margin: 4px 0; color: var(--text-2); max-width: 75ch; }
+code { font-size: 0.92em; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 9px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+th:first-child { text-align: left; }
+thead th { color: var(--text-2); font-weight: 600; font-size: 13px; vertical-align: bottom; }
+thead tr.group th { border-bottom: 0; text-align: center; color: var(--text); font-size: 13px; padding-bottom: 0; }
+thead tr.group th.cov { color: var(--lines); } thead tr.group th.find { color: var(--fair); }
+thead tr.group th.muts { color: var(--mut); }
+th.sep, td.sep { border-left: 1px solid var(--grid); }
+.scroll { overflow-x: auto; }
+
+.banner { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 32px;
+  margin: 20px 0 8px; padding: 18px 22px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--raised); color: var(--text-2); }
+.banner .label { font-weight: 600; font-size: 13px; }
+.banner .big { font-size: 38px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--text); }
+.banner .big small { font-size: 17px; font-weight: 600; color: var(--text-2); }
+.banner .sub { font-size: 13px; }
+.big.find { color: var(--fair); } .big.mut { color: var(--mut); } .big.cov { color: var(--lines); }
+.banner .meter { width: 100%; height: 10px; margin-top: 6px; }
+
+.tools { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 12px 0; color: var(--text-2); }
+.tools input { font: inherit; width: 18em; max-width: 100%; padding: 5px 10px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+.tools input:focus-visible, button:focus-visible, tr.head:focus-visible { outline: 2px solid var(--lines); outline-offset: 1px; }
+#areas thead th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+#areas thead th[aria-sort] button::after { content: " ↑"; }
+#areas thead th[aria-sort="descending"] button::after { content: " ↓"; }
+#areas td.m, #areas th.m { text-align: left; }
+#areas tbody tr.head { cursor: pointer; }
+#areas tbody tr.head:hover { background: var(--raised); }
+#areas tbody tr.head th { font-weight: 600; }
+.caret { display: inline-block; width: 1em; color: var(--muted); }
+.caret::before { content: "▸"; }
+tbody.open .caret::before { content: "▾"; }
+tr.detail { display: none; }
+tbody.open tr.detail { display: table-row; }
+tr.detail > td { text-align: left; white-space: normal; background: var(--raised); padding: 12px 16px 16px 32px; }
+#areas tfoot th, #areas tfoot td { font-weight: 600; border-bottom: 0; border-top: 2px solid var(--grid); }
+
+.meter { position: relative; display: inline-flex; width: 72px; height: 12px; vertical-align: middle;
+  border-radius: 6px; background: var(--track); overflow: hidden; }
+.meter b { display: block; height: 100%; }
+.meter b.good { background: var(--good); } .meter b.fair { background: var(--fair); } .meter b.low { background: var(--bad); }
+.meter b.fixed { background: var(--good); } .meter b.med { background: var(--fair); } .meter b.lowsev { background: var(--low); }
+.meter b.q { background: var(--muted); }
+.meter b.settled { background: var(--mut); }
+.meter b.stale { background: var(--mut); opacity: 0.45;
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--stripe) 3px 6px); }
+.meter.single b { position: absolute; inset: 0 auto 0 0; border-radius: 6px; }
+.pct { display: inline-block; width: 3.6em; text-align: right; }
+.delta { display: inline-block; width: 3.4em; text-align: right; font-size: 12px; color: var(--text-2); }
+.delta.up { color: var(--good); }
+.n { color: var(--text-2); }
+.na { color: var(--muted); font-size: 13px; }
+.chip { display: inline-block; padding: 0 6px; margin: 1px 2px 1px 0; border-radius: 9px; font-size: 12px;
+  border: 1px solid var(--border); background: var(--surface); text-decoration: none; color: var(--text-2); }
+a.chip:hover { color: var(--text); border-color: var(--text-2); }
+.chip.med { border-color: var(--fair); color: var(--text); }
+.chip.mutf { border-color: var(--mut); color: var(--text); }
+.step { display: inline-block; min-width: 1.8em; padding: 0 5px; border-radius: 9px; font-size: 12px; font-weight: 700;
+  text-align: center; background: var(--track); color: var(--text-2); }
+.step.med { background: var(--fair); color: #1a1a19; }
+.step.done { background: var(--good); color: #fff; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--text-2); font-size: 13px; margin: 8px 0 12px; }
+.sw { display: inline-block; width: 18px; height: 10px; vertical-align: middle; margin-right: 5px; border-radius: 5px; }
+.sw.fixed { background: var(--good); } .sw.med { background: var(--fair); } .sw.lowsev { background: var(--low); }
+.sw.q { background: var(--muted); } .sw.settled { background: var(--mut); }
+.sw.stale { background: var(--mut); opacity: 0.45; background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--stripe) 3px 6px); }
+.sw.good { background: var(--good); } .sw.fair { background: var(--fair); } .sw.low { background: var(--bad); }
+
+.detail-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px 32px; }
+@media (max-width: 900px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } }
+.detail-grid h3 { font-size: 14px; margin: 0 0 6px; }
+.flist { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.flist li { display: grid; grid-template-columns: 4.6em 3.2em minmax(0, 1fr) auto; gap: 8px; padding: 3px 0;
+  border-bottom: 1px solid var(--border); align-items: baseline; }
+.flist li .sev { font-weight: 600; font-size: 12px; }
+.flist li .sev.Med { color: var(--fair); } .flist li .sev.High { color: var(--bad); } .flist li .sev.Low { color: var(--muted); }
+.flist li.fixed { color: var(--muted); }
+.flist li.fixed .desc { text-decoration: line-through; text-decoration-color: var(--muted); }
+.files { font-size: 13px; width: 100%; }
+.files th, .files td { padding: 2px 8px; font-size: 13px; }
+.files td.p { text-align: left; }
+details summary { cursor: pointer; font-size: 13px; color: var(--text-2); margin: 8px 0 4px; }
+.runs td:first-child, .runs th:first-child, .runs td.l { text-align: left; }
+.runs td.l { white-space: normal; color: var(--text-2); }
+.ticks { display: inline-flex; gap: 3px; }
+.ticks i { font-style: normal; font-size: 11px; font-weight: 700; width: 17px; height: 17px; line-height: 17px; text-align: center;
+  border-radius: 4px; background: var(--track); color: var(--muted); }
+.ticks i.on { background: var(--good); color: #fff; }
+.ticks i.na { background: none; border: 1px dashed var(--grid); line-height: 15px; }
+.path th, .path td { vertical-align: top; }
+.path td.l, .path th.l { text-align: left; white-space: normal; }
+.path td.l { min-width: 18em; }
+.path tr.done td, .path tr.done th { color: var(--text-2); }
+.path tr.next { background: var(--raised); }
+.path tr.next th.n::after { content: "next"; display: block; font-size: 11px; color: var(--lines); font-weight: 700; }
+.path input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--good); margin: 0; }
+.path .areas code { font-size: 12px; margin-right: 6px; white-space: nowrap; }
+.path .res { font-size: 13px; color: var(--text-2); }
+.path .res b { color: var(--good); }
+ol.plan { padding-left: 1.4em; max-width: 90ch; color: var(--text-2); }
+ol.plan li { margin: 4px 0; }
+ol.plan b { color: var(--text); }
+.note { border-left: 3px solid var(--mut); padding: 6px 12px; background: var(--raised); border-radius: 0 6px 6px 0; margin: 12px 0; }
+</style>
+</head>
+<body>
+<h1>MoolaKata hardening</h1>
+<p id="asof"></p>
+
+<div class="banner" id="banner"></div>
+
+<p>Each row is one of the coverage page's areas. A finding counts in the area of the first code
+it names, or of its section when it names none. A module counts as mutation-tested once a run
+over it is settled, and as changed since when its content on <code>main</code> is no longer
+what the run settled. Click an area for its findings and files.
+<a href="index.html">The coverage page</a>.</p>
+
+<div class="legend">
+  <span><b>Findings:</b></span>
+  <span><i class="sw fixed"></i>fixed</span><span><i class="sw med"></i>Med open</span>
+  <span><i class="sw lowsev"></i>Low open</span><span><i class="sw q"></i>question</span>
+  <span><span class="chip med">25</span>a Med finding still open, by its review number</span>
+  <span><b>Mutation:</b></span>
+  <span><i class="sw settled"></i>tested and settled</span><span><i class="sw stale"></i>changed since its run</span>
+  <span><b>Coverage:</b></span>
+  <span><i class="sw good"></i>good ≥ 80%</span><span><i class="sw fair"></i>fair ≥ 60%</span><span><i class="sw low"></i>low</span>
+</div>
+
+<div class="tools">
+  <input id="filter" type="search" placeholder="Filter areas, files or findings" aria-label="Filter">
+  <span id="count"></span>
+</div>
+
+<div class="scroll">
+<table id="areas">
+  <thead>
+    <tr class="group"><th></th><th></th><th></th>
+      <th colspan="2" class="cov sep" id="covhead">Coverage</th>
+      <th colspan="3" class="find sep">Findings</th>
+      <th colspan="3" class="muts sep">Mutation</th>
+      <th class="sep"></th></tr>
+    <tr>
+      <th data-key="area"><button>Area</button></th>
+      <th data-key="step"><button>Step</button></th>
+      <th data-key="swept" class="m"><button>Swept</button></th>
+      <th data-key="lines" class="m sep"><button>Lines</button></th>
+      <th data-key="branches" class="m"><button>Branches</button></th>
+      <th data-key="findings" class="m sep"><button>Fixed of all</button></th>
+      <th data-key="open"><button>Open</button></th>
+      <th class="m">Med open</th>
+      <th data-key="mutated" class="m sep"><button>Code tested</button></th>
+      <th data-key="first"><button>First catch</button></th>
+      <th data-key="found"><button>Bugs found</button></th>
+      <th class="m sep">PRs</th>
+    </tr>
+  </thead>
+  <tfoot id="foot"></tfoot>
+</table>
+</div>
+
+<h2>The path</h2>
+<p>Every step to the end of the sweep, in order (<code>docs/hardening/path.toml</code>). A row is
+checked when its pull request merges, and shows what changed in its areas at that merge. In the
+table above, <b>Step</b> gives each area's steps, and <b>Swept</b> whether its findings are
+closed (F), its mutation runs are current (M) and its sweep has merged (S).</p>
+<div class="banner" id="pathbanner"></div>
+<div class="scroll"><table class="path" id="path"></table></div>
+
+<h2>Mutation runs</h2>
+<p>Each run as <code>docs/hardening/mutation/</code> records it. <b>First catch</b> is the share of
+changes the tests caught on the area's first run (timeouts count as caught; changes no test
+reached count against). Settling then catches every survivor by a test or lists it as an
+equivalent.</p>
+<div class="scroll"><table class="runs" id="runs"></table></div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+const REPO = D.repo;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pct = (a, b) => b ? 100 * a / b : null;
+const band = p => p == null ? '' : p >= 80 ? 'good' : p >= 60 ? 'fair' : 'low';
+const f1 = p => p == null ? '—' : p.toFixed(1) + '%';
+const prLink = n => `<a class="chip" href="${REPO}/pull/${n}">#${n}</a>`;
+const commit = c => `<a href="${REPO}/commit/${c}"><code>${esc(c.slice(0, 7))}</code></a>`;
+const isOpen = f => f.state === 'open' || f.state === 'question';
+const PATH = D.path;
+
+$('#asof').innerHTML = `As of ${commit(D.head.commit)}${D.head.pr ? ` (${prLink(D.head.pr)})` : ''}, ${esc((D.head.date || '').slice(0, 10))}: ${esc(D.head.subject || '')}. Findings from <code>${esc(D.review)}</code>.`
+  + (D.base ? ` Changes are since ${commit(D.base.commit)}${D.base.pr ? ` (#${D.base.pr})` : ''}, the first merge this page measured.` : '');
+$('#covhead').textContent = D.base ? 'Coverage, with its change' : 'Coverage';
+
+const rows = D.areas.map(a => {
+  const F = a.findings, h = a.hardening || {};
+  const medOpen = F.filter(f => isOpen(f) && f.sev !== 'Low');
+  const now = a.now, was = a.was;
+  const st = h.statements || 0;
+  return { a, name: a.area, F, fixed: F.filter(f => !isOpen(f)).length, open: F.filter(isOpen).length, medOpen,
+    lowOpen: F.filter(f => f.sev === 'Low' && f.state === 'open').length,
+    q: F.filter(f => f.sev === 'Low' && f.state === 'question').length, total: F.length,
+    lines: now ? now.lines : null, branches: now ? now.branches : null,
+    linesB: was ? was.lines : null, branchesB: was ? was.branches : null,
+    st, settled: h.current || 0, stale: h.stale || 0,
+    mutated: st ? 100 * ((h.current || 0) + (h.stale || 0)) / st : null,
+    first: a.first ? pct(a.first[0], a.first[1]) : null, found: F.filter(f => f.mut).length,
+    prs: [...new Set([...F.filter(f => f.pr).map(f => f.pr), ...a.files.filter(f => f.run).map(f => f.run.pr),
+      ...PATH.filter(p => p.done && p.areas.includes(a.area)).map(p => p.pr)])].sort((x, y) => x - y),
+    browser: a.browser, noCode: !now };
+});
+
+function covCell(p, pb, first) {
+  const cls = first ? 'm sep' : 'm';
+  if (p == null) return `<td class="${cls}"><span class="na">—</span></td>`;
+  const d = pb == null ? null : p - pb;
+  const dt = d == null || Math.abs(d) < 0.05 ? '<span class="delta"></span>' : `<span class="delta ${d > 0 ? 'up' : ''}">${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}</span>`;
+  return `<td class="${cls}"><span class="meter single"><b class="${band(p)}" style="width:${p}%"></b></span><span class="pct">${f1(p)}</span>${dt}</td>`;
+}
+function findBar(r) {
+  if (!r.total) return `<span class="na">none</span>`;
+  const w = n => `${100 * n / r.total}%`;
+  return `<span class="meter"><b class="fixed" style="width:${w(r.fixed)}"></b><b class="med" style="width:${w(r.medOpen.length)}"></b><b class="lowsev" style="width:${w(r.lowOpen)}"></b><b class="q" style="width:${w(r.q)}"></b></span> <span class="n">${r.fixed} of ${r.total}</span>`;
+}
+function mutBar(r) {
+  if (r.browser) return `<span class="na">no tool yet</span>`;
+  if (!r.st) return `<span class="na">—</span>`;
+  const w = n => `${100 * n / r.st}%`;
+  return `<span class="meter"><b class="settled" style="width:${w(r.settled)}"></b><b class="stale" style="width:${w(r.stale)}"></b></span> <span class="n">${r.mutated ? r.mutated.toFixed(0) + '%' : 'not run'}</span>`;
+}
+function stepCell(r) {
+  return PATH.filter(p => p.areas.includes(r.name)).map(p =>
+    `<span class="step ${p.done ? 'done' : p.kind === 'med' ? 'med' : ''}" title="Step ${p.n}: ${esc(p.what)}">${p.n}</span>`).join(' ');
+}
+const sweptOf = r => PATH.some(p => p.done && p.kind === 'sweep' && p.areas.includes(r.name));
+const mutOK = r => r.browser || r.noCode ? null : r.st > 0 && r.settled >= r.st;
+function ticks(r) {
+  const m = mutOK(r);
+  return `<span class="ticks"><i class="${r.open === 0 ? 'on' : ''}" title="Findings: ${r.open} open">F</i><i class="${m ? 'on' : m === null ? 'na' : ''}" title="Mutation: ${m === null ? 'none to run' : (r.st ? Math.round(100 * r.settled / r.st) : 0) + '% of statements current'}">M</i><i class="${sweptOf(r) ? 'on' : ''}" title="Sweep: ${sweptOf(r) ? 'merged' : 'to come'}">S</i></span>`;
+}
+function detail(r) {
+  const order = { High: 0, Med: 1, Low: 2 };
+  const fl = [...r.F].sort((x, y) => (!isOpen(x)) - (!isOpen(y)) || order[x.sev] - order[y.sev] || x.id - y.id);
+  const li = f => `<li class="${isOpen(f) ? '' : 'fixed'}"><span>${f.id}</span><span class="sev ${f.sev}">${f.sev}</span><span class="desc">${esc(f.desc)}${f.state === 'question' ? ' <span class="chip">question</span>' : ''}${f.mut ? ' <span class="chip mutf">found by mutation</span>' : ''}</span><span>${f.pr ? prLink(f.pr) : ''}</span></li>`;
+  const openF = fl.filter(isOpen), doneF = fl.filter(f => !isOpen(f));
+  const files = r.a.files.slice().sort((x, y) => (pct(...x.lines) ?? 101) - (pct(...y.lines) ?? 101));
+  const ft = files.length ? `<table class="files"><thead><tr><th>File</th><th>Lines</th><th>Branches</th><th class="m">Mutation</th></tr></thead><tbody>${files.map(f => {
+    const m = f.run ? (f.run.stale ? `<span class="chip" title="${esc(f.run.run)} run">#${f.run.pr}, changed since</span>` : `<span class="chip mutf" title="${esc(f.run.run)} run">settled in #${f.run.pr}</span>`) : (f.python ? '<span class="na">not run</span>' : '');
+    return `<tr><td class="p">${esc(f.path)}</td><td>${f1(pct(...f.lines))}</td><td>${f.branches[1] ? f1(pct(...f.branches)) : '—'}</td><td class="m">${m}</td></tr>`;
+  }).join('')}</tbody></table>` : '<p class="na">No code of its own: requirements, documents and the review process.</p>';
+  return `<div class="detail-grid"><div><h3>Open findings (${openF.length})</h3>${openF.length ? `<ul class="flist">${openF.map(li).join('')}</ul>` : '<p class="na">None.</p>'}
+    ${doneF.length ? `<details><summary>Closed (${doneF.length})</summary><ul class="flist">${doneF.map(li).join('')}</ul></details>` : ''}</div>
+    <div><h3>Files (${files.length}), least covered first</h3>${ft}</div></div>`;
+}
+const table = $('#areas');
+const bodies = rows.map(r => {
+  const tb = document.createElement('tbody');
+  tb.innerHTML = `<tr class="head" tabindex="0"><th><span class="caret"></span>${esc(r.name)}</th><td>${stepCell(r)}</td><td class="m">${ticks(r)}</td>
+    ${covCell(r.lines, r.linesB, true)}${covCell(r.branches, r.branchesB)}
+    <td class="m sep">${findBar(r)}</td><td>${r.open || '<span class="na">0</span>'}</td>
+    <td class="m">${r.medOpen.map(f => `<span class="chip med" title="CR3-${f.id}: ${esc(f.desc)}">${f.id}</span>`).join('')}</td>
+    <td class="m sep">${mutBar(r)}</td><td>${r.first == null ? '<span class="na">—</span>' : r.first.toFixed(0) + '%'}</td>
+    <td>${r.found || '<span class="na">0</span>'}</td><td class="m sep">${r.prs.map(prLink).join('')}</td></tr>
+    <tr class="detail"><td colspan="12">${detail(r)}</td></tr>`;
+  const head = tb.firstElementChild;
+  const toggle = () => tb.classList.toggle('open');
+  head.addEventListener('click', e => { if (!e.target.closest('a')) toggle(); });
+  head.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  tb._r = r; tb._text = (r.name + ' ' + r.a.files.map(f => f.path).join(' ') + ' ' + r.F.map(f => `CR3-${f.id} ${f.id} ${f.desc}`).join(' ')).toLowerCase();
+  table.insertBefore(tb, $('#foot'));
+  return tb;
+});
+
+function sum(sel) {
+  return rows.filter(sel).reduce((t, r) => {
+    const n = r.a.now, w = r.a.was;
+    if (n) { t.a[0] += n.linesReached; t.a[1] += n.lineCount; t.a[2] += n.branchesReached; t.a[3] += n.branchCount; }
+    if (w) { t.b[0] += w.linesReached; t.b[1] += w.lineCount; t.b[2] += w.branchesReached; t.b[3] += w.branchCount; t.hasB = true; }
+    t.fixed += r.fixed; t.total += r.total; t.open += r.open; t.med += r.medOpen.length; t.low += r.lowOpen; t.q += r.q;
+    t.st += r.st; t.settled += r.settled; t.stale += r.stale; t.found += r.found; return t;
+  }, { a: [0, 0, 0, 0], b: [0, 0, 0, 0], hasB: false, fixed: 0, total: 0, open: 0, med: 0, low: 0, q: 0, st: 0, settled: 0, stale: 0, found: 0 });
+}
+const srv = sum(r => r.name.startsWith('server/')), brw = sum(r => r.browser), all = sum(() => true);
+const py = sum(r => r.name.startsWith('server/') || r.name === 'connector');
+function footRow(label, t, mutOn) {
+  const fr = { total: t.total, fixed: t.fixed, medOpen: { length: t.med }, lowOpen: t.low, q: t.q };
+  const mr = { st: t.st, settled: t.settled, stale: t.stale, mutated: t.st ? 100 * (t.settled + t.stale) / t.st : 0, browser: !mutOn };
+  const B = i => t.hasB ? pct(t.b[i], t.b[i + 1]) : null;
+  return `<tr><th>${label}</th><td></td><td></td>${covCell(pct(t.a[0], t.a[1]), B(0), true)}${covCell(pct(t.a[2], t.a[3]), B(2))}
+    <td class="m sep">${findBar(fr)}</td><td>${t.open}</td><td class="m">${t.med ? t.med + ' Med' : ''}</td><td class="m sep">${mutBar(mr)}</td><td></td><td>${t.found}</td><td class="sep"></td></tr>`;
+}
+$('#foot').innerHTML = footRow('Server', srv, true) + footRow('Browser', brw, false) + footRow('Every area', all, true);
+
+const mutPct = py.st ? 100 * py.settled / py.st : 0, stalePct = py.st ? 100 * py.stale / py.st : 0;
+$('#banner').innerHTML = `
+  <div><div class="label">Findings closed</div><div class="big find">${all.fixed} <small>of ${all.total}</small></div>
+    <span class="meter"><b class="fixed" style="width:${pct(all.fixed, all.total)}%"></b><b class="med" style="width:${pct(all.med, all.total)}%"></b><b class="lowsev" style="width:${pct(all.low, all.total)}%"></b><b class="q" style="width:${pct(all.q, all.total)}%"></b></span>
+    <div class="sub">${all.open} open: ${all.med} Med, ${all.low} Low, ${all.q} Low questions</div></div>
+  <div><div class="label">Python code mutation-tested</div><div class="big mut">${mutPct.toFixed(0)}% <small>+ ${stalePct.toFixed(0)}% changed since</small></div>
+    <span class="meter"><b class="settled" style="width:${mutPct}%"></b><b class="stale" style="width:${stalePct}%"></b></span>
+    <div class="sub">${(py.settled + py.stale).toLocaleString()} of ${py.st.toLocaleString()} statements (server and connector), in ${D.runs.filter(r => r.pr).length} runs</div></div>
+  <div><div class="label">Bugs mutation testing found</div><div class="big mut">${all.found}</div>
+    <div class="sub">review ids given to survivors that showed a wrong answer</div></div>
+  <div><div class="label">Server coverage, lines / branches</div><div class="big cov">${f1(pct(srv.a[0], srv.a[1]))} <small>/ ${f1(pct(srv.a[2], srv.a[3]))}</small></div>
+    <div class="sub">${srv.hasB ? `was ${f1(pct(srv.b[0], srv.b[1]))} / ${f1(pct(srv.b[2], srv.b[3]))} at ${esc(D.base.commit.slice(0, 7))}` : 'the first merge this page measured'}</div></div>`;
+
+let sortKey = 'step', dir = 1;
+const nextOf = r => Math.min(99, ...PATH.filter(p => p.areas.includes(r.name) && !p.done).map(p => p.n));
+const keyOf = { area: r => r.name, step: nextOf, lines: r => r.lines ?? 101, branches: r => r.branches ?? 101,
+  findings: r => r.total ? r.fixed / r.total : 2, open: r => -r.open, mutated: r => r.browser ? 999 : (r.mutated ?? 0),
+  first: r => r.first ?? 101, found: r => -r.found, swept: r => -(r.open === 0) - (mutOK(r) === true) - sweptOf(r) };
+function render() {
+  const k = keyOf[sortKey];
+  bodies.sort((x, y) => { const a = k(x._r), b = k(y._r); return (a < b ? -1 : a > b ? 1 : 0) * dir || x._r.name.localeCompare(y._r.name); });
+  bodies.forEach(b => table.insertBefore(b, $('#foot')));
+  table.querySelectorAll('thead th[data-key]').forEach(th => { if (th.dataset.key === sortKey) th.setAttribute('aria-sort', dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort'); });
+}
+table.querySelectorAll('thead th[data-key] button').forEach(b => b.addEventListener('click', () => {
+  const key = b.parentElement.dataset.key; if (key === sortKey) dir = -dir; else { sortKey = key; dir = 1; } render(); }));
+$('#filter').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase(); let n = 0;
+  bodies.forEach(b => { const hit = !q || b._text.includes(q); b.hidden = !hit; n += hit; if (q && hit && !b._r.name.includes(q)) b.classList.add('open'); });
+  $('#count').textContent = q ? `${n} of ${bodies.length} areas` : `${bodies.length} areas`;
+});
+$('#count').textContent = `${bodies.length} areas`;
+render();
+
+// the path
+const rowOf = Object.fromEntries(rows.map(r => [r.name, r]));
+const allF = rows.flatMap(r => r.F);
+const MED_IDS = new Set(PATH.flatMap(p => p.findings));
+const nextStep = PATH.find(p => !p.done);
+const signed = v => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1);
+const pathRows = PATH.map(p => {
+  const sc = p.areas.map(a => rowOf[a]).filter(Boolean);
+  const open = p.kind === 'med' ? p.findings.filter(id => allF.some(f => f.id === id && isOpen(f))).length
+    : p.kind === 'sweep' ? sc.reduce((t, r) => t + r.F.filter(f => isOpen(f) && !MED_IDS.has(f.id)).length, 0) : null;
+  const pyRows = sc.filter(r => !r.browser && r.st);
+  const toMut = p.kind === 'sweep' && pyRows.length ? pyRows.reduce((t, r) => t + r.st - r.settled, 0) : null;
+  const c = sc.reduce((t, r) => { const n = r.a.now; if (n) { t[0] += n.linesReached; t[1] += n.lineCount; t[2] += n.branchesReached; t[3] += n.branchCount; } return t; }, [0, 0, 0, 0]);
+  let res = '';
+  if (p.done && p.result) {
+    const parts = Object.entries(p.result).map(([a, x]) => `${esc(a.replace(/^server\//, ''))}: ${signed(x.lines)} / ${signed(x.branches)}, ${x.fixed} fixed, ${x.mutated.toLocaleString()} statements mutation-tested`);
+    res = `<div class="res">At its merge: ${parts.join('; ')}.</div>`;
+  } else if (p.done && p.gains) {
+    const fx = allF.filter(f => f.pr === p.pr).length, bugs = allF.filter(f => f.pr === p.pr && f.mut).length;
+    const rn = D.runs.filter(r => r.pr === p.pr);
+    res = `<div class="res"><b>${fx}</b> findings fixed, <b>${bugs}</b> bugs found by mutation; ${rn.length} runs settled (first catch ${rn.map(r => pct(...r.catch).toFixed(0) + '%').join(', ')}).<br>Coverage gains, lines / branches: ${esc(p.gains)}.</div>`;
+  }
+  const areas = p.areas.length ? `<div class="areas">${p.areas.map(a => `<code>${esc(a)}</code>`).join('')}</div>` : '';
+  const ids = p.findings.length ? `<div>${p.findings.map(id => `<span class="chip med" title="CR3-${id}">${id}</span>`).join('')}</div>` : '';
+  const cls = p.done ? 'done' : p === nextStep ? 'next' : '';
+  const toMutCell = p.done ? '<span class="na">done</span>' : toMut != null ? toMut.toLocaleString() : (p.kind === 'sweep' && sc.some(r => r.browser) ? '<span class="na">no tool yet</span>' : '<span class="na">—</span>');
+  return `<tr class="${cls}"><td><input type="checkbox" disabled ${p.done ? 'checked' : ''} aria-label="Step ${p.n} ${p.done ? 'done' : 'to do'}"></td>
+    <th class="n">${p.n}</th><td>${p.pr ? prLink(p.pr) : '<span class="na">—</span>'}</td>
+    <td class="l"><div>${esc(p.what)}</div>${areas}${ids}${res}</td>
+    <td>${p.done ? '<span class="na">done</span>' : open == null ? '<span class="na">—</span>' : open}</td>
+    <td>${toMutCell}</td>
+    <td>${c[1] ? `${f1(pct(c[0], c[1]))} / ${f1(pct(c[2], c[3]))}` : '<span class="na">—</span>'}</td></tr>`;
+});
+$('#path').innerHTML = `<thead><tr><th></th><th>Step</th><th>PR</th><th class="l">What</th><th>Findings open</th><th>Statements to mutate</th><th>Coverage now<br>lines / branches</th></tr></thead><tbody>${pathRows.join('')}</tbody>`;
+const doneN = PATH.filter(p => p.done).length;
+const sweptN = rows.filter(sweptOf).length;
+const pyLeft = py.st - py.settled;
+const medLeft = PATH.filter(p => p.kind === 'med' && !p.done);
+$('#pathbanner').innerHTML = `
+  <div><div class="label">Steps done</div><div class="big">${doneN} <small>of ${PATH.length}</small></div>
+    <span class="meter"><b class="fixed" style="width:${pct(doneN, PATH.length)}%"></b></span>
+    <div class="sub">${nextStep ? `next: step ${nextStep.n}, ${esc(nextStep.what.split(':')[0].toLowerCase())}` : 'the sweep is done'}</div></div>
+  <div><div class="label">Areas swept</div><div class="big">${sweptN} <small>of ${rows.length}</small></div>
+    <span class="meter"><b class="fixed" style="width:${pct(sweptN, rows.length)}%"></b></span>
+    <div class="sub">findings closed, mutation current, sweep merged</div></div>
+  <div><div class="label">Findings left</div><div class="big find">${all.open}</div>
+    <div class="sub">${all.med} of them Med${medLeft.length ? `, in steps ${medLeft.map(p => p.n).join(', ')}` : ''}</div></div>
+  <div><div class="label">Python statements left to mutate</div><div class="big mut">${pyLeft.toLocaleString()}</div>
+    <span class="meter"><b class="settled" style="width:${pct(py.settled, py.st)}%"></b></span>
+    <div class="sub">of ${py.st.toLocaleString()}; the browser app's wait on a tool</div></div>`;
+
+$('#runs').innerHTML = `<thead><tr><th>Run</th><th>Settled in</th><th>Modules</th><th>Changes</th><th>First catch</th><th>Changed since</th><th class="m">Note</th></tr></thead><tbody>${D.runs.map(r =>
+  `<tr><td>${esc(r.name)}</td><td>${r.pr ? prLink(r.pr) : '<span class="na">not yet</span>'}</td><td>${r.modules.length}</td><td>${r.changes.toLocaleString()}</td><td>${f1(pct(...r.catch))}</td><td>${r.stale.length ? `${r.stale.length} of ${r.modules.length}` : '<span class="na">none</span>'}</td><td class="l">${esc(r.note)}</td></tr>`).join('')}</tbody>`;
+})();
+</script>
+</body>
+</html>

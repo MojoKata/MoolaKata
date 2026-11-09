@@ -264,7 +264,8 @@ def counts(by_file: dict[str, Counter]) -> dict:
 
 def blob(path: Path) -> str:
     """A file's content as git names it, so a later checkout can tell whether it changed."""
-    r = subprocess.run(["git", "hash-object", str(path)], capture_output=True, text=True, check=True)  # noqa: S603, S607
+    cmd = [shutil.which("git") or "git", "hash-object", str(path)]
+    r = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
     return r.stdout.strip()
 
 
@@ -278,10 +279,14 @@ def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> di
         return out
     out["last"] = counts(by_file)
     out["pr"] = args.pr
-    out["found"] = sorted({*out.get("found", []), *(args.found or [])}, key=lambda i: int(i.split("-")[1]))
+    out["found"] = sorted(
+        {*out.get("found", []), *(args.found or [])}, key=lambda i: int(i.split("-")[1])
+    )
     if args.equivalent is not None:
         out["equivalent"] = args.equivalent
-    out["content"] = {f: blob(SERVER / "src" / f) for f in sorted({*out.get("modules", []), *by_file})}
+    out["content"] = {
+        f: blob(SERVER / "src" / f) for f in sorted({*out.get("modules", []), *by_file})
+    }
     return out
 
 

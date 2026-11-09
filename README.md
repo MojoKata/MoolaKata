@@ -29,6 +29,9 @@ installs it on a Proxmox VE VM or on TrueNAS.
 **Coverage:** [mojokata.github.io/MoolaKata](https://mojokata.github.io/MoolaKata/) shows
 what the tests reach on `main`, by area and by file, and how it has moved over the merges
 (S17.5.8.5). Each `check` run's summary in Actions has the same table for its own commit.
+Its [hardening page](https://mojokata.github.io/MoolaKata/hardening.html) follows review 3's
+sweep by area: findings closed, coverage, mutation runs, and the path's steps done and left
+(S17.5.8.6, [`docs/hardening/path.toml`](docs/hardening/path.toml)).
 
 ## Where to start
 

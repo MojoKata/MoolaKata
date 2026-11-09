@@ -20,7 +20,7 @@ def test_outcomes_are_counted_by_file_and_the_odd_ones_count_as_not_run(tmp_path
     # killed (1), survived (0), no tests (33), timeout (36), not run (None), suspicious (99)
     meta(tmp_path, "moolakata/taxes/dates.py", [1, 1, 0, 33, 36, None, 99])
     meta(tmp_path, "moolakata/money.py", [3])
-    by_file, by_fn, survivors = mutate.outcomes(tmp_path)
+    by_file, _, survivors = mutate.outcomes(tmp_path)
     assert survivors == ["moolakata.taxes.dates.py.x_f__mutmut_3"]
     c = mutate.counts(by_file)
     assert {k: c[k] for k in mutate.COUNTED} == {
@@ -43,7 +43,9 @@ def test_a_record_keeps_the_first_run_then_the_settling_one_with_each_files_cont
     assert record["first"]["survived"] == 2 and "last" not in record
     meta(tmp_path, "moolakata/money.py", [1, 1, 1])
     last, _, _ = mutate.outcomes(tmp_path)
-    done = mutate.recorded(record, last, False, args(pr=40, found=["CR3-460", "CR3-452"], equivalent=0))
+    done = mutate.recorded(
+        record, last, False, args(pr=40, found=["CR3-460", "CR3-452"], equivalent=0)
+    )
     assert done["first"]["survived"] == 2 and done["last"]["killed"] == 3
     assert (done["pr"], done["found"], done["equivalent"]) == (40, ["CR3-452", "CR3-460"], 0)
     # The content as git names it: what the checkout's HEAD would show for the same file.

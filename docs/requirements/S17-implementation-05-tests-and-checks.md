@@ -166,6 +166,28 @@
          6. **Published** by `check.yml` (S17.10.1) after a passing check on `main`. Run
             anywhere else, the build is a preview of what publishing that commit would show,
             and publishes nothing.
+      6. **The hardening page** (`hardening.html` on the coverage site, linked from its
+         page): how far a review's sweep has come, area by area, and the path to its end.
+         1. **By area**, the coverage page's areas and one for the findings that name no
+            code: its line and branch coverage with their change since the first merge the
+            page measured; the review's findings (closed of all, open, and each open Med one
+            by its number), each counted in the area of the first code it names, else its
+            section's; the share of its statements a settled mutation run covers, and the
+            share whose module has changed since (S17.5.12's records), the first run's
+            catch, the bugs its runs found and the pull requests that worked on it; and the
+            path's steps that cover it, and whether it is swept (its findings closed, its
+            mutation current, its sweep merged). Clicking an area opens its findings and its
+            files, each with its coverage and its mutation run.
+         2. **The path** (`docs/hardening/path.toml`): every step to the end of the sweep, in
+            order, each a pull request's work (findings named by number, or an area's sweep).
+            A step is checked once its pull request has merged to `main`, and shows what
+            changed in its areas at that merge (coverage, findings closed, statements
+            mutation-tested); above it, the steps done, the areas swept, the findings left
+            and the statements left to mutate.
+         3. **The mutation runs**, each as recorded: its pull request, modules, changes,
+            first catch and the modules changed since.
+         4. **Each merge's figures** by area join its entry in `history.json`, and a step's
+            result is the difference across its merge.
 
       `web/dev.sh coverage [pytest arguments]` measures the tests named (all by default) and
       the browser modules' unit tests the same way, and reports them, without the floor, with

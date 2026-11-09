@@ -104,6 +104,14 @@ def area_of(rel: str) -> str | None:
     return None
 
 
+def short(rel: str) -> str:
+    """A file's path from its side's root: ledger/post.py, components/share.js."""
+    for root in ROOTS:
+        if rel.startswith(root):
+            return rel.removeprefix(root)
+    return rel
+
+
 def _rel(name: str, base: Path) -> str:
     return (base / name).resolve().relative_to(paths.ROOT).as_posix()
 

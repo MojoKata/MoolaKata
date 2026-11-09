@@ -1,0 +1,123 @@
+# The path to the end of review 3's sweep (requirements S17.5.8.6): every step, in order. A step
+# with a pull request is done once that pull request has merged to main; the hardening page
+# shows it checked, with what changed by area at its merge. A step's pull request is added here
+# when it is opened.
+#
+# kind: "med" for a step that fixes named findings, "sweep" for an area's sweep (its findings,
+# coverage and a mutation run over all its modules, every survivor settled), "tracker" for this.
+# areas: the coverage site's areas the step covers; a "med" step's come from its findings.
+# gains: for the steps done before the page kept its own history, the coverage gains their pull
+# requests reported (lines / branches, in points).
+
+review = "docs/reviews/code-review-0003-2026-10-24.md"
+
+[[step]]
+pr = 32
+kind = "before"
+what = "Values, options, prices and assets: the first mutation runs, every survivor settled"
+areas = ["server/core", "server/loans", "server/ledger", "server/options", "server/prices", "server/assets"]
+gains = "prices +8.5 / +14.0, options +6.4 / +12.3, loans +2.7 / +6.4, ledger +0.6 / +2.4"
+
+[[step]]
+pr = 38
+kind = "before"
+what = "Taxes, trade routes and item routes: mutation runs settled, and the walk's decisions"
+areas = ["server/taxes", "server/options", "server/assets"]
+gains = "taxes +1.3 / +3.5, loans +0.3 / +1.3, people +0.2 / +1.0"
+
+[[step]]
+kind = "tracker"
+what = "The tracker: this page, the mutation records, and this path"
+
+[[step]]
+kind = "med"
+what = "Med bugs in the server: a rule that can freeze it, an invitation left working, Bitcoin's default source, a key taken out, a savings target"
+findings = [25, 49, 20, 62, 31]
+
+[[step]]
+kind = "med"
+what = "Med: when a statement value is stale, the TrueNAS install's mode, the Reconcile tab"
+findings = [8, 12, 17]
+
+[[step]]
+kind = "med"
+what = "Categories: a walk with the user, then who owns, adds and changes them"
+findings = [7, 75]
+
+[[step]]
+kind = "sweep"
+areas = ["server/ledger"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/loans", "server/assets"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/budgets"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/gifts", "server/giving", "server/education", "server/people"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/core"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/links"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/auth", "server/keys"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/projections"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/receipts"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/ui"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/bitcoin"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/prices"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/taxes", "server/options"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/store"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/importers"]
+
+[[step]]
+kind = "sweep"
+areas = ["server/connector", "connector"]
+
+[[step]]
+kind = "sweep"
+what = "Sweep: the requirement and document findings"
+areas = ["process and docs"]
+
+[[step]]
+kind = "sweep"
+what = "Sweep, after deciding on a mutation tool for the browser app"
+areas = ["browser/screens"]
+
+[[step]]
+kind = "sweep"
+areas = ["browser/components", "browser/app", "browser/api", "browser/charts", "browser/store", "browser/account-types"]
