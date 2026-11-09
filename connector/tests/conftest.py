@@ -21,5 +21,14 @@ server_conftest = importlib.util.module_from_spec(_spec)
 sys.modules["server_conftest"] = server_conftest
 _spec.loader.exec_module(server_conftest)
 
-for _name in ("config", "master_key", "keyed_config", "store", "server", "client", "admin_client"):
+for _name in (
+    "config",
+    "migrated",
+    "master_key",
+    "keyed_config",
+    "store",
+    "server",
+    "client",
+    "admin_client",
+):
     globals()[_name] = getattr(server_conftest, _name)
