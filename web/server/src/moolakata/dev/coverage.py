@@ -47,6 +47,28 @@ BAR = 10  # the job summary's bars, in characters
 BANDS = ((80.0, "good", "🟢"), (60.0, "fair", "🟡"), (0.0, "low", "🔴"))
 # Where each side's files sit, for the shorter names the site shows.
 ROOTS = ("web/server/src/moolakata/", "connector/moolakata_connector/", "web/ui/")
+# A route module of ui/ counts in the area it serves: the package of its own name, or the one
+# named here. The routes that serve no package (accounts' lists, settings, sharing, …) stay in
+# server/ui.
+ROUTE_AREAS = {
+    "accounts": "ledger",
+    "connections": "connector",
+    "imports": "importers",
+    "items": "assets",
+    "linked": "links",
+    "positions": "options",
+    "profile": "auth",
+    "rules": "ledger",
+    "session": "auth",
+    "strategies": "options",
+    "taxpanels": "taxes",
+    "tokens": "auth",
+    "transactions": "ledger",
+    "unlock": "keys",
+    "users": "auth",
+    "wallets": "bitcoin",
+    "welcome": "keys",
+}
 
 
 @dataclass
@@ -61,12 +83,20 @@ class File:
 
 
 def area_of(rel: str) -> str | None:
-    """The area a repository path counts in: a server package, the server's top-level modules,
-    a directory of the browser app, or the connector."""
+    """The area a repository path counts in: a server package (with the routes that serve it),
+    the server's top-level modules, a directory of the browser app, or the connector."""
     parts = rel.split("/")
     if rel.startswith("web/server/src/moolakata/"):
         inner = parts[4:]
-        return f"server/{inner[0]}" if len(inner) > 1 else "server/core"
+        if len(inner) == 1:
+            return "server/core"
+        if inner[0] == "ui" and len(inner) == 2:
+            name = inner[1].removesuffix(".py")
+            if name in ROUTE_AREAS:
+                return f"server/{ROUTE_AREAS[name]}"
+            if (SERVER / name / "__init__.py").exists():
+                return f"server/{name}"
+        return f"server/{inner[0]}"
     if rel.startswith("connector/moolakata_connector/"):
         return "connector"
     if rel.startswith("web/ui/") and len(parts) > 3 and parts[2] in BROWSER_DIRS:

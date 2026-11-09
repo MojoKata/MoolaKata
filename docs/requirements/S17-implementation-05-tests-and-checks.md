@@ -106,7 +106,9 @@
       together by `deno coverage`; a file no test loads counts as not reached.
       `python -m moolakata.dev.coverage report` then gives:
       1. **By area**: line and branch coverage of each server package (its top-level modules
-         as one), each directory of the browser app, and the connector. A browser file's
+         as one), each directory of the browser app, and the connector. A route module of
+         `ui/` counts in the package it serves (`ui/budgets.py` with `budgets/`,
+         `ui/positions.py` with `options/`); the routes that serve no package are `server/ui`. A browser file's
          branches count only where its code ran. Each figure falls in a band of how well it
          is tested, whatever its floor: **good** from 80%, **fair** from 60%, **low** under
          60%, shown as 🟢, 🟡 and 🔴 where only text is shown, and as green, amber and red
