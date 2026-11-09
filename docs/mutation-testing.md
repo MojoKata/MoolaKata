@@ -190,8 +190,10 @@ walks them all.
 Every server module's run, side by side on GitHub's standard runners, started by hand: the
 **mutate** workflow (`.github/workflows/mutate.yml`) in the repository's Actions tab, **Run
 workflow** on `main`. Its inputs: the areas (globs, every one by default), the code lines per
-job (1000), whether to run modules whose settled run is current too (no), and the jobs at once
-(14 of the account's 20, leaving room for pull requests' checks).
+job (1000), whether to run modules whose settled run is current too (no), the jobs at once
+(14 of the account's 20, leaving room for pull requests' checks), and the jobs to run, by name
+(every one; a name only runs an earlier run's job again, which the same tree's plan names the
+same).
 
 1. **The test map** (6 jobs): the fast tests run once under coverage, each test's setup, call
    and teardown measured in a context named by its file (`moolakata.dev.testmap`, through
@@ -210,15 +212,20 @@ job (1000), whether to run modules whose settled run is current too (no), and th
 Then, on this machine:
 
 ```sh
-web/dev.sh mutate gather <run id>    # gh run download; one record per area
+web/dev.sh mutate gather <run id>...    # gh run download; one record per area
 ```
 
-`gather` downloads the run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
+`gather` downloads each run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
 outcomes, records its first run as `docs/hardening/mutation/baseline-<area>.json` (as `record
 --first` does) and writes its survivors to `web/.dev/mutate-results/baseline/<area>/`. The
 records are committed; the area's sweep settles its record with `record baseline-<area> --pr N`
 after a full run of its modules. A job that ran out of time leaves changes not run: its modules
-go again (`--only` on what is left, or a smaller size), on CI or here.
+go again (`--only` on what is left, or a smaller size), on CI or here. A job stopped before its
+first change (the memory limit, or a test failing in the copy) is run again by name, with the
+`jobs` input, once the cause is fixed; `gather <first run> <rerun>` takes a later run's job over
+the earlier one's, and records no area with a job that ran nothing. A module no test file
+reaches (one run only as a subprocess, where coverage doesn't follow) has nothing to run: its
+job says so, and `gather` names it for the area's sweep.
 
 A pull request that changes the workflow or these tools runs a trial on two small modules,
 `duration.py` and `ui/tokens.py` (which no test file imports), so the whole chain is checked

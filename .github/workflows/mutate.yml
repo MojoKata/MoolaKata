@@ -4,6 +4,8 @@
 # the map of the test files that reach each module is made from them (a route module is reached
 # through HTTP, not imported); then the modules, area by area, are packed into jobs of about
 # `size` code lines, and each job's run is kept as an artifact for `web/dev.sh mutate gather`.
+# `jobs` runs only the named jobs again (one stopped early, after a fix to the tools); `gather`
+# takes the runs together, a later run's job over the earlier one's.
 # A pull request that changes this file or the tools runs a trial on two small modules. The
 # actions are pinned by commit and listed in the register (docs/dependencies.md).
 name: mutate
@@ -24,6 +26,9 @@ on:
       parallel:
         description: "Jobs at once (the account runs 20; the rest are left for pull requests)"
         default: "14"
+      jobs:
+        description: "Only these jobs, by name (auth-2 core-6), an earlier run's run again; every one by default"
+        default: ""
   pull_request:
     paths:
       - .github/workflows/mutate.yml
@@ -100,11 +105,12 @@ jobs:
           AREAS: ${{ inputs.areas || 'server/*' }}
           SIZE: ${{ inputs.size || '1000' }}
           ALL: ${{ inputs.all && '--all' || '' }}
+          JOBS: ${{ inputs.jobs && format('--jobs {0}', inputs.jobs) || '' }}
           TRIAL: ${{ github.event_name == 'pull_request' && '--modules moolakata/duration.py moolakata/ui/tokens.py' || '' }}
         run: |
           set -f  # the areas are globs for plan, not for the shell
-          # shellcheck disable=SC2086 # the areas, flags and trial are words
-          jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $TRIAL)
+          # shellcheck disable=SC2086 # the areas, flags, jobs and trial are words
+          jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $JOBS $TRIAL)
           echo "$jobs" | python3 -c 'import json,sys; [print(j["name"], j["lines"], j["modules"]) for j in json.load(sys.stdin)]'
           echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
           echo "count=$(echo "$jobs" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" >> "$GITHUB_OUTPUT"

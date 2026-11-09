@@ -62,6 +62,7 @@ COPY = WORK / "web" / "server"
 RECORDS = paths.ROOT / "docs" / "hardening" / "mutation"
 TESTMAP = paths.WEB / ".dev" / "testmap"
 BASELINE = paths.WEB / ".dev" / "mutate-results" / "baseline"
+UNREACHED = WORK / "unreached.txt"  # the last run's modules, when no test file reached them
 REPO = "MojoKata/MoolaKata"
 LIMIT_GB = 15.0  # stops the run; the project's budget is about 20 GB (6 workers: 7 to 11)
 
@@ -135,16 +136,22 @@ def make_copy() -> None:
     # The build reads ../VERSION; the code, from the mutants' side, the copy's own.
     for at in (COPY, COPY.parent):
         shutil.copy2(paths.WEB / "VERSION", at / "VERSION")
+    link_copy()
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    uv = shutil.which("uv") or "uv"
+    sync = [uv, "sync", "--frozen", "--group", "mutation", "--quiet"]
+    subprocess.run(sync, cwd=COPY, env=env, check=True)  # noqa: S603 - our own command
+
+
+def link_copy() -> None:
+    """The copy's links. From mutants/, `paths` takes the copy for web/ and its parent for the
+    root, so the root's web/ is the copy too: a test reading either reads the same file."""
     for name in BESIDE:
         _link(COPY / name, paths.WEB / name)
     _link(COPY / "server", COPY)
     for name in ABOVE:
         _link(COPY.parent / name, paths.ROOT / name)
-    _link(COPY.parent / "web", COPY.parent)
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    uv = shutil.which("uv") or "uv"
-    sync = [uv, "sync", "--frozen", "--group", "mutation", "--quiet"]
-    subprocess.run(sync, cwd=COPY, env=env, check=True)  # noqa: S603 - our own command
+    _link(COPY.parent / "web", COPY)
 
 
 def _link(at: Path, to: Path) -> None:
@@ -211,6 +218,16 @@ def run(args) -> int:
     tests = tests_for(args.modules, args.tests or [], testmap)
     print(f"mutating {', '.join(args.modules)}")
     print(f"with {len(tests)} test files: {', '.join(t.removeprefix('tests/') for t in tests)}")
+    UNREACHED.unlink(missing_ok=True)
+    if not tests:
+        # mutmut can't run without tests; every change is untested. `export` says so.
+        print("no test file reaches these modules (one run as a subprocess, say): nothing run")
+        shutil.rmtree(COPY / "mutants", ignore_errors=True)
+        for name in ("survivors.txt", "mutmut.log"):
+            (WORK / name).unlink(missing_ok=True)
+        UNREACHED.parent.mkdir(parents=True, exist_ok=True)
+        UNREACHED.write_text("\n".join(args.modules) + "\n")
+        return 0
     make_copy()
     configure(args.modules, tests)
     cmd = [str(COPY / ".venv" / "bin" / "mutmut"), "run", "--max-children", str(args.workers),
@@ -441,6 +458,12 @@ def plan(args) -> int:
         modules = {m: n for m, n in modules.items() if m in args.modules}
     skip = set() if args.all or args.modules else current_modules()
     jobs = plan_jobs(modules, args.areas, args.size, skip)
+    if args.jobs:  # an earlier run's jobs again: the same tree's plan names them the same
+        unknown = sorted(set(args.jobs) - {j["name"] for j in jobs})
+        if unknown:
+            print(f"not in the plan: {' '.join(unknown)}", file=sys.stderr)
+            return 1
+        jobs = [j for j in jobs if j["name"] in args.jobs]
     print(json.dumps(jobs))
     total = sum(j["lines"] for j in jobs)
     print(f"{len(jobs)} jobs, {total} code lines", file=sys.stderr)
@@ -504,30 +527,52 @@ def export(args) -> int:
     if (WORK / "mutmut.log").exists():
         shutil.copy2(WORK / "mutmut.log", out / "mutmut.log")
     job = {"name": args.name, "area": args.area, "modules": args.modules}
+    if UNREACHED.exists():
+        job["unreached"] = True
     (out / "job.json").write_text(json.dumps(job) + "\n")
     changes = sum(sum(c.values()) for c in by_file.values())
     print(f"{out}: {changes} changes, {len(survivors)} survivors")
     return 0
 
 
+def ran_nothing(d: Path) -> bool:
+    """Whether a job `export` kept was stopped before its first change had an outcome."""
+    by_file, _ = outcomes_of([d])
+    return not any(c[k] for c in by_file.values() for k in COUNTED[:-1])
+
+
 def gather(args) -> int:
-    """A baseline run's artifacts downloaded, each area's first run recorded as
-    `baseline-<area>`, and its survivors kept for the sweep."""
-    dest = paths.WEB / ".dev" / "mutate-ci" / args.run
-    if not dest.exists():
-        gh = [shutil.which("gh") or "gh", "run", "download", args.run, "-R", REPO,
-              "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
-        subprocess.run(gh, check=True)  # noqa: S603 - our own command
+    """Baseline runs' artifacts downloaded, each area's first run recorded as `baseline-<area>`,
+    and its survivors kept for the sweep. A job run again in a later run replaces the earlier
+    one; an area with a job that ran nothing (stopped before its first change) is not recorded."""
+    jobs: dict[str, Path] = {}
+    for run in args.run:
+        dest = paths.WEB / ".dev" / "mutate-ci" / run
+        if not dest.exists():
+            gh = [shutil.which("gh") or "gh", "run", "download", run, "-R", REPO,
+                  "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
+            subprocess.run(gh, check=True)  # noqa: S603 - our own command
+        for job in sorted(dest.glob("*/job.json")):
+            jobs[json.loads(job.read_text())["name"]] = job.parent
     by_area: dict[str, list[Path]] = defaultdict(list)
-    for job in sorted(dest.glob("*/job.json")):
-        by_area[json.loads(job.read_text())["area"]].append(job.parent)
+    for d in jobs.values():
+        by_area[json.loads((d / "job.json").read_text())["area"]].append(d)
+    unreached = [
+        d for d in jobs.values() if json.loads((d / "job.json").read_text()).get("unreached")
+    ]
     print("area: changes, killed, survived, no tests, not run")
+    unrun: list[str] = []
     for area, dirs in sorted(by_area.items()):
         by_file, _ = outcomes_of(dirs)
         c = counts(by_file)
         total = sum(c[k] for k in COUNTED)
         print(f"  {area:22} {total:6} {c['killed'] + c['timeout']:6} {c['survived']:6} "
               f"{c['no tests']:5} {c['not run']:5}")  # fmt: skip
+        empty = [json.loads((d / "job.json").read_text())["name"] for d in dirs
+                 if d not in unreached and ran_nothing(d)]  # fmt: skip
+        if empty:
+            unrun += empty
+            continue
         keep = BASELINE / slug(area)
         keep.mkdir(parents=True, exist_ok=True)
         with (keep / "survivors.txt").open("w") as out:
@@ -542,6 +587,12 @@ def gather(args) -> int:
             new = recorded(old, by_file, True, args)
             path.write_text(json.dumps(new, indent=2) + "\n")
     print(f"survivors by area in {BASELINE}")
+    for d in unreached:
+        job = json.loads((d / "job.json").read_text())
+        print(f"no test file reaches {job['modules']} ({job['area']}): for its sweep")
+    if unrun:
+        print(f"ran nothing, so their areas are not recorded: {' '.join(sorted(unrun))}")
+        return 1
     return 0
 
 
@@ -588,13 +639,14 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--size", type=int, default=1000, help="code lines per job")
     pl.add_argument("--all", action="store_true", help="also modules whose run is current")
     pl.add_argument("--modules", nargs="*", help="only these modules (a trial)")
+    pl.add_argument("--jobs", nargs="*", help="only these jobs, by name, run again")
     e = sub.add_parser("export", help="the last run's outcomes, kept in a directory")
     e.add_argument("dir")
     e.add_argument("--name", required=True)
     e.add_argument("--area", required=True)
     e.add_argument("--modules", required=True)
     g = sub.add_parser("gather", help="a CI baseline run's artifacts, recorded by area")
-    g.add_argument("run", help="the mutate workflow's run id")
+    g.add_argument("run", nargs="+", help="the mutate workflow's run ids, the earliest first")
     g.add_argument("--no-record", action="store_true", help="survivors only")
     args = p.parse_args(argv)
     commands = {"run": run, "summary": summary, "check": check, "record": record,
