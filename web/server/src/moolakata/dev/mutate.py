@@ -3,6 +3,7 @@
     web/dev.sh mutate run <module>... [--tests FILE...] [--workers N] [--only NAME...]
     web/dev.sh mutate summary
     web/dev.sh mutate check <change> <test file>
+    web/dev.sh mutate record <name> --first | --pr N [--found CR3-n...] [--equivalent N]
 
 `run` makes a scratch copy of the server in web/.dev/mutate (mutmut changes the code it tests,
 so never the checkout), links what the server reads from beside itself, installs the lock's
@@ -17,6 +18,12 @@ file and the survivors by function, and writes each survivor's change to survivo
 
 `check` runs one change against one test file by hand, with the changed code ahead of the
 installed one: what `mutation-testing.md` calls checking one change.
+
+`record` keeps the last run in docs/hardening/mutation/<name>.json, which the hardening page
+(coverage_site) reads: with `--first`, the area's first run (its outcomes, and the modules);
+without, the run that ends the settling, with the pull request it is settled in, the bugs it
+found and the equivalents left, and each file's content (its git blob id), so a file changed
+since shows its run as needing another.
 """
 
 import argparse
@@ -36,6 +43,7 @@ from .. import paths
 SERVER = paths.WEB / "server"
 WORK = paths.WEB / ".dev" / "mutate"
 COPY = WORK / "web" / "server"
+RECORDS = paths.ROOT / "docs" / "hardening" / "mutation"
 LIMIT_GB = 15.0  # stops the run; the project's budget is about 20 GB (6 workers: 7 to 11)
 
 # What the server reads from beside itself, at import and in tests, linked into the copy. The
@@ -196,19 +204,26 @@ def _progress() -> str:
     return lines[-1].strip()[:100] if lines else "starting"
 
 
-def summary(_args) -> int:
-    """The outcomes by file and the survivors by function, and each survivor's change."""
+def outcomes(src: Path) -> tuple[dict[str, Counter], dict[str, Counter], list[str]]:
+    """A run's outcomes from mutmut's .meta files under `src`: by file, by function, and the
+    survivors' names."""
     by_file: dict[str, Counter] = defaultdict(Counter)
     by_fn: dict[str, Counter] = defaultdict(Counter)
     survivors = []
-    for meta in sorted((COPY / "mutants" / "src").rglob("*.meta")):
-        rel = str(meta.relative_to(COPY / "mutants" / "src")).removesuffix(".meta")
+    for meta in sorted(src.rglob("*.meta")):
+        rel = meta.relative_to(src).as_posix().removesuffix(".meta")
         for name, code in json.loads(meta.read_text())["exit_code_by_key"].items():
             outcome = OUTCOME.get(code, "suspicious")
             by_file[rel][outcome] += 1
             by_fn[name.rsplit("__mutmut_", 1)[0]][outcome] += 1
             if outcome == "survived":
                 survivors.append(name)
+    return by_file, by_fn, survivors
+
+
+def summary(_args) -> int:
+    """The outcomes by file and the survivors by function, and each survivor's change."""
+    by_file, by_fn, survivors = outcomes(COPY / "mutants" / "src")
     if not by_file:
         print("no run yet")
         return 1
@@ -228,6 +243,65 @@ def summary(_args) -> int:
             diff = [x for x in shown.stdout.splitlines() if re.match(r"^[-+][^-+]", x)]
             out.write(f"# {name}\n" + "\n".join(diff) + "\n")
     print(f"\n{len(survivors)} survivors; each change in {WORK / 'survivors.txt'}")
+    return 0
+
+
+# A record's outcomes, in this order; "suspicious" and the rest count as not run.
+COUNTED = ("killed", "timeout", "survived", "no tests", "not run")
+
+
+def counts(by_file: dict[str, Counter]) -> dict:
+    """Outcomes as a record keeps them: the totals, and each file's."""
+
+    def row(c: Counter) -> dict:
+        out = {k: c[k] for k in COUNTED[:-1]}
+        out["not run"] = sum(c.values()) - sum(out.values())
+        return out
+
+    whole = sum(by_file.values(), Counter())
+    return {**row(whole), "files": {f: row(c) for f, c in sorted(by_file.items())}}
+
+
+def blob(path: Path) -> str:
+    """A file's content as git names it, so a later checkout can tell whether it changed."""
+    r = subprocess.run(["git", "hash-object", str(path)], capture_output=True, text=True, check=True)  # noqa: S603, S607
+    return r.stdout.strip()
+
+
+def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> dict:
+    """`record` with this run added: the first run's outcomes and modules, or the settling
+    run's outcomes, pull request, bugs found, equivalents and each file's content."""
+    out = dict(record)
+    if first:
+        out["first"] = counts(by_file)
+        out["modules"] = sorted(by_file)
+        return out
+    out["last"] = counts(by_file)
+    out["pr"] = args.pr
+    out["found"] = sorted({*out.get("found", []), *(args.found or [])}, key=lambda i: int(i.split("-")[1]))
+    if args.equivalent is not None:
+        out["equivalent"] = args.equivalent
+    out["content"] = {f: blob(SERVER / "src" / f) for f in sorted({*out.get("modules", []), *by_file})}
+    return out
+
+
+def record(args) -> int:
+    by_file, _, _ = outcomes(COPY / "mutants" / "src")
+    if not by_file:
+        print("no run yet")
+        return 1
+    if not args.first and args.pr is None:
+        print("name the pull request the run is settled in: --pr N")
+        return 1
+    path = RECORDS / f"{args.name}.json"
+    old = json.loads(path.read_text()) if path.exists() else {"name": args.name}
+    if not args.first and "first" not in old:
+        print(f"{path.name} has no first run: record it with --first before settling")
+        return 1
+    new = recorded(old, by_file, args.first, args)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(new, indent=2) + "\n")
+    print(f"{path.relative_to(paths.ROOT)}: the {'first' if args.first else 'settling'} run")
     return 0
 
 
@@ -259,8 +333,14 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("check", help="one change against one test file")
     c.add_argument("change")
     c.add_argument("test")
+    k = sub.add_parser("record", help="keep the last run in docs/hardening/mutation/")
+    k.add_argument("name", help="the run's name, such as taxes or routes-trades")
+    k.add_argument("--first", action="store_true", help="the area's first run")
+    k.add_argument("--pr", type=int, help="the pull request the run is settled in")
+    k.add_argument("--found", nargs="*", help="review ids of the bugs its survivors showed")
+    k.add_argument("--equivalent", type=int, help="survivors left as equivalents")
     args = p.parse_args(argv)
-    return {"run": run, "summary": summary, "check": check}[args.what](args)
+    return {"run": run, "summary": summary, "check": check, "record": record}[args.what](args)
 
 
 if __name__ == "__main__":

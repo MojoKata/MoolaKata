@@ -1,0 +1,92 @@
+{
+  "name": "prices-assets",
+  "modules": [
+    "moolakata/assets/__init__.py",
+    "moolakata/prices/base.py",
+    "moolakata/prices/cboe.py",
+    "moolakata/prices/coinbase.py",
+    "moolakata/prices/massive.py",
+    "moolakata/prices/refresh.py",
+    "moolakata/prices/stub.py",
+    "moolakata/prices/tiingo.py"
+  ],
+  "first": {
+    "killed": 1208,
+    "timeout": 2,
+    "survived": 543,
+    "no tests": 37,
+    "not run": 0,
+    "files": {
+      "moolakata/assets/__init__.py": {
+        "killed": 337,
+        "timeout": 1,
+        "survived": 121,
+        "no tests": 37,
+        "not run": 0
+      },
+      "moolakata/prices/base.py": {
+        "killed": 43,
+        "timeout": 0,
+        "survived": 6,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/prices/cboe.py": {
+        "killed": 169,
+        "timeout": 0,
+        "survived": 37,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/prices/coinbase.py": {
+        "killed": 35,
+        "timeout": 1,
+        "survived": 7,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/prices/massive.py": {
+        "killed": 28,
+        "timeout": 0,
+        "survived": 3,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/prices/refresh.py": {
+        "killed": 499,
+        "timeout": 0,
+        "survived": 304,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/prices/stub.py": {
+        "killed": 55,
+        "timeout": 0,
+        "survived": 48,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/prices/tiingo.py": {
+        "killed": 42,
+        "timeout": 0,
+        "survived": 17,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "pr": 32,
+  "found": [],
+  "equivalent": 7,
+  "content": {
+    "moolakata/assets/__init__.py": "ccf9f5239235ad97873c4d2ceeea8518a7b82d93",
+    "moolakata/prices/base.py": "8f620dde9bb40ccb093d20a83da84cca4acf64ea",
+    "moolakata/prices/cboe.py": "c091fa8a1a5531b9ed6e44ddfa8935173820dce3",
+    "moolakata/prices/coinbase.py": "6e347e5fd1f701299cf0c3dd4e7c6da9bc4eed81",
+    "moolakata/prices/massive.py": "d27139fdc7e6e84fc951b69dc096b6bc7f3da8bc",
+    "moolakata/prices/refresh.py": "1f552a092565a570ad9048785a7dfcba503649d6",
+    "moolakata/prices/stub.py": "86527adf8f99093ff876c651ecedd6e9a1206f19",
+    "moolakata/prices/tiingo.py": "c0f30de50735b4aa4c2af8fb618bdc1f90386c12"
+  },
+  "note": "Backfilled from the runs of Nov 4."
+}

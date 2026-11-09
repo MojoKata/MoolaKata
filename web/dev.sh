@@ -39,7 +39,7 @@ web/dev.sh <command>
   codegen      regenerate the generated code: the OpenAPI document, the browser's
                types and its drafts' fields (web/ui/api/), from the routes
   mockup       rebuild docs/mockups/MoolaKata-app.html from the app
-  mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check)
+  mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check, record)
   help-shots   rebuild the help guides' screenshots from the mockup
   deno [args]  run the pinned Deno
   uv [args]    run the pinned uv in web/server

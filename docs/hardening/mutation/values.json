@@ -1,0 +1,38 @@
+{
+  "name": "values",
+  "modules": [
+    "moolakata/ledger/lots.py",
+    "moolakata/ledger/performance.py",
+    "moolakata/loans/__init__.py",
+    "moolakata/loans/payoff.py",
+    "moolakata/valuation.py"
+  ],
+  "first": {
+    "killed": 2757,
+    "timeout": 5,
+    "survived": 754,
+    "no tests": 67,
+    "not run": 0,
+    "files": {}
+  },
+  "pr": 32,
+  "found": [
+    "CR3-398",
+    "CR3-399",
+    "CR3-400",
+    "CR3-401",
+    "CR3-402",
+    "CR3-403",
+    "CR3-404",
+    "CR3-405"
+  ],
+  "equivalent": 2,
+  "content": {
+    "moolakata/ledger/lots.py": "ac703172940e5a7c1438e6392b5556ea5e7a3a6b",
+    "moolakata/ledger/performance.py": "f1257f455cf7642f0b4dd34f23e7ad2c75b395c6",
+    "moolakata/loans/__init__.py": "cdc96490755e700b637ac6c95212e376ee2462ec",
+    "moolakata/loans/payoff.py": "b4c2012a9c7c9e976100dfac4d9142fb50c97c2f",
+    "moolakata/valuation.py": "9bf30dc83070a5d20f288c71225cd61c9c3f29fd"
+  },
+  "note": "Backfilled: one run over the four modules on ee70d9b; its outcomes by file were not kept."
+}

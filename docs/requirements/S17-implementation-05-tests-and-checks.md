@@ -208,8 +208,10 @@
       mutate` on its statement, with the reason no output can differ on the line above. A mark
       silences every change on its statement, so one whose other changes tests catch stays
       unmarked, and its equivalents are listed with the area's results. Code that only a mark
-      would keep (unreachable, never read) is removed instead. How to run it:
-      `docs/mutation-testing.md`.
+      would keep (unreachable, never read) is removed instead. Each area's first run and its
+      settling run are recorded in `docs/hardening/mutation/` (outcomes, the pull request,
+      the bugs found, each module's content), for the hardening page (S17.5.8.6). How to run
+      it: `docs/mutation-testing.md`.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before
