@@ -36,8 +36,8 @@ def _pre_tax(account_type: str) -> bool:
 def classify(s: Session, t: Transaction, account: Account) -> str | None:
     """`employee`, `employer`, `rollover`, `conversion` for money in; `rollover-out`,
     `conversion-out`, `distribution` for money out; None for what isn't cash moved (a trade, a
-    dividend, a fee)."""
-    if t.instrumentId or t.kind not in CASH_KINDS or not t.amount:
+    dividend, a fee, an amount of nothing)."""
+    if t.instrumentId or t.kind not in CASH_KINDS:
         return None
     other = other_account(s, t)
     between = other is not None and atypes.retirement(other.type)
@@ -47,6 +47,10 @@ def classify(s: Session, t: Transaction, account: Account) -> str | None:
         if between:
             return "conversion" if _pre_tax(other.type) and _roth(account.type) else "rollover"
         return "employee"
-    if between:
-        return "conversion-out" if _pre_tax(account.type) and _roth(other.type) else "rollover-out"
-    return "distribution"
+    if t.amount < 0:
+        if between:
+            return (
+                "conversion-out" if _pre_tax(account.type) and _roth(other.type) else "rollover-out"
+            )
+        return "distribution"
+    return None

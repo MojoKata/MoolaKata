@@ -80,7 +80,7 @@ export const FIELDS = {
     overpaymentApplied: {"type": "money", "nullable": true},
     capitalLossShort: {"type": "money", "nullable": true},
     capitalLossLong: {"type": "money", "nullable": true},
-    basis8606: {"type": "money", "nullable": true},
+    basis8606: {"type": "json", "nullable": true},
     charitableCarryover: {"type": "money", "nullable": true},
   },
   CategoryRecord: {
@@ -498,6 +498,7 @@ export const FIELDS = {
     memo: {"type": "text", "nullable": true},
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
+    deductible: {"type": "bool", "nullable": true},
   },
   StrategyRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
@@ -552,6 +553,7 @@ export const FIELDS = {
     transferLots: {"type": "list", "items": {"type": "json", "schema": "TransferLot"}, "nullable": true},
     reimbursable: {"type": "money", "nullable": true},
     owedBy: {"type": "text", "nullable": true},
+    deductible: {"type": "bool", "nullable": true},
     cleared: {"type": "bool"},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     leftOutOf: {"type": "list", "items": {"type": "ref", "prefix": "Bdgt"}, "set": true},

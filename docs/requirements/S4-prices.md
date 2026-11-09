@@ -61,7 +61,8 @@
    the underlying's latest close past the strike, never below zero. The Open tab labels a
    mark that is typed or intrinsic. Greeks
    are out of scope ([out of scope](out-of-scope.md)).
-6. **Stored prices** are kept: daily closes for ever.
+6. **Stored prices** are kept: daily closes for ever, each from a source that fetches (a
+   price typed is the typer's own, S4.10, never a stored close).
    Charts read stored prices only, never a price source during a request.
 7. **Every price carries its source and `as_of`.** The UI shows *delayed* or *as of 4:00 PM*
    on every value derived from it. A price older than a threshold (2 trading days for a

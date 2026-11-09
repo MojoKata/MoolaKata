@@ -195,7 +195,9 @@
 
    No bank-aggregation service is used: the user brings the files ([rejected ideas](rejected-ideas.md)).
 4. **Retirement accounts** also carry: the **contribution year** of each contribution (a
-   contribution made 2027-03-01 may be for 2026), employer match and vesting for a 401(k), and
+   contribution made 2027-03-01 may be for 2026), whether the owner's own contribution to a
+   traditional IRA is **deductible** (yes, no, or not decided yet; a contribution partly
+   deducted is split, each part marked, S2.6; S8.6), employer match and vesting for a 401(k), and
    the account holder's **birth year** (from the profile) for limits and RMDs. Contribution
    limits per year are a table shipped with the app and updated with it, which an admin can
    correct in Settings (S8.6).
@@ -382,7 +384,8 @@
       schedule, and the **payoff
       planner** (S6.10). A mortgage linked to a `real-estate` item shows the **equity** and the
       **loan-to-value**, and when PMI can be dropped (on request at 80% of the original
-      value; automatically at 78%, when the schedule stops charging it).
+      value; automatically at 78%, when the schedule stops charging it). The original value is
+      the one typed, else the home's basis when the loan was made.
    6. **Taxes**: mortgage interest, points and PMI (Form 1098), and student-loan interest
       (Form 1098-E) appear in Taxes (S8.12).
    7. **In budgets**, a payment counts at the bank account it came from (S7.3.3), as the loan
@@ -402,7 +405,8 @@
        value at death), the quantity, where it is kept, a serial or certificate number, its
        condition or grade, the insured value and policy, **notes** (Markdown), and photos
        and documents (purchase receipt, appraisal, certificate, title), stored as receipts
-       (S9).
+       (S9). Its dates (acquired, each valuation and improvement, the sale) are never after
+       today: a cost or value not yet real isn't counted.
     2. **Valuation**, one of:
        1. **spot**, for precious metals: the item's **fine weight** (weight per unit, in troy
           ounces, grams or kilograms, times purity, such as .9999, .925 or 22k, times

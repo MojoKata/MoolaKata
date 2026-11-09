@@ -63,6 +63,8 @@ Relationship = record(
     CheckConstraint(
         '"toDate" IS NULL OR "fromDate" IS NULL OR "toDate" >= "fromDate"', name="dates"
     ),
+    # Only a family relation is named by a label (S10.10.4).
+    CheckConstraint("label IS NULL OR relation = 'family'", name="label"),
     Index("ix_Relationship_person2Id", "person2Id"),
     seen=Seen.rule(),
 )

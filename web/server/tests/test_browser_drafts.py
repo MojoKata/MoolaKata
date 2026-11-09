@@ -551,6 +551,43 @@ def test_an_edited_split_transaction_keeps_its_parts_and_their_payback(browser, 
     page.close()
 
 
+def test_an_ira_contribution_is_marked_deductible_or_not_whole_or_part_by_part(browser, household):
+    """S8.6: a traditional IRA contribution is Not decided until marked; split, each part is
+    marked instead (a contribution deducted in part)."""
+    from test_accounts import add, new_account
+
+    h = household
+    ira = new_account(h.c, name="Drafts IRA", type="ira")["id"]
+    t = add(h.c, ira, "7000.00", months_back(1) + "-10", kind="deposit", payee="Backdoor")
+    path = f"/ui/accounts/{ira}/transactions"
+    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Backdoor")')
+    page.click('button.linklike:has-text("Backdoor")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    seg = '.dialog [role=radiogroup][aria-label="Deductible"]'
+    assert page.get_attribute(f'{seg} button:has-text("Not decided")', "aria-checked") == "true"
+    page.click(f'{seg} button:has-text("Not deductible")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    assert h.c.get(f"/ui/api/transactions/{t['id']}").json()["deductible"] is False
+    page.click('button.linklike:has-text("Backdoor")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.click('.dialog button:has-text("Split…")')
+    page.fill("#x-split-0-amount", "3000.00")
+    page.click('.dialog button:has-text("Add a part")')
+    page.fill("#x-split-1-amount", "4000.00")
+    assert page.locator(seg).count() == 0
+    page.click('.dialog [aria-label="Part 1 deductible"] button:has-text("Deductible")')
+    page.click('.dialog [aria-label="Part 2 deductible"] button:has-text("Not deductible")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    got = h.c.get(f"/ui/api/transactions/{t['id']}").json()
+    assert got["deductible"] is None
+    assert sorted((Decimal(str(x["amount"])), x["deductible"]) for x in got["splits"]) == [
+        (Decimal(3000), True), (Decimal(4000), False)]  # fmt: skip
+    assert problems == []
+    page.close()
+
+
 def test_an_add_dialog_left_untouched_closes_without_asking(browser, household):
     """S12.15.6: a new transaction's starting values are no change of the person's."""
     h = household
@@ -619,11 +656,15 @@ def test_a_filing_changed_keeps_its_payments_match(browser, household):
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-confirmation", "IRS-456")
     page.fill("#x-carried-agi", "98,100")
+    # Form 8606 is the filer's own: their basis is typed in a field of theirs (S8.17).
+    me = h.c.get("/ui/api/session").json()["user"]["id"]
+    page.fill(f"#x-carried-basis8606-{me}", "6,500")
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     (after,) = filings(h)
     assert after["confirmation"] == "IRS-456"
     assert float(after["carried"]["agi"]) == 98100
+    assert {u: float(v) for u, v in after["carried"]["basis8606"].items()} == {me: 6500}
     assert after["payments"] == before["payments"]
     assert problems == []
     page.close()

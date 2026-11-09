@@ -278,9 +278,16 @@ function Summary({ b, done }) {
         ) =>
           html`<h4 style=${{ margin: '8px 0 4px' }}>${l.filing}<span class="small dim"
             style=${{ fontWeight: 400 }}> · ${l.filers}${l.joint ? ', joint' : ''}</span></h4>${
-            CARRIED.filter(([k]) => l.figures[k] != null).map(([k, label]) =>
-              html`<div class="list-item"><span class="grow dim">${label}</span><${Amt}
-              v=${l.figures[k]} /></div>`
+            CARRIED.filter(([k]) => l.figures[k] != null).flatMap(([k, label]) =>
+              // Form 8606 is each filer's own: a joint return's basis, one for each (S8.17).
+              (k === 'basis8606'
+                ? Object.entries(l.figures[k]).map((
+                  [u, v],
+                ) => [`${label}, ${l.names[u] || '?'}`, v])
+                : [[label, l.figures[k]]]).map(([name, v]) =>
+                  html`<div class="list-item"><span class="grow dim">${name}</span><${Amt}
+                  v=${v} /></div>`
+                )
             )
           }`
         )}${b.lastYear.some((/** @type {any} */ l) => l.joint)
@@ -803,6 +810,32 @@ const carriedAmount = (t) => {
   return 'error' in r ? r : { value: Dec.of(r.value).round(2) };
 };
 
+/**
+ * A filer's Form 8606 basis, carried: each files their own, so a joint return carries one for
+ * each filer (S8.17), kept by their user id.
+ * @param {{ rec: any, who: { id: string, name: string }, label: string }} p
+ */
+function BasisField({ rec, who, label }) {
+  const key = 'carried-basis8606-' + who.id;
+  const bases = rec.get('carried')?.basis8606 || {};
+  return html`
+    <${Field} label=${label} help="carried-forward" id=${key}
+      error=${rec.error(key) || rec.error('carried.basis8606')}>
+      <${Input} value=${rec.typed(key) ?? (bases[who.id] == null ? '' : String(bases[who.id]))}
+        inputmode="decimal" onInput=${(/** @type {string} */ x) =>
+          rec.inputAs(key, x, (/** @type {string} */ t) => {
+            const r = carriedAmount(t);
+            if ('error' in r) return r;
+            const carried = rec.get('carried') || {};
+            const next = { ...(carried.basis8606 || {}), [who.id]: r.value };
+            if (r.value == null) delete next[who.id];
+            const basis8606 = Object.keys(next).length ? next : null;
+            return { value: { carried: { ...carried, basis8606 } } };
+          })} />
+      </${Field}>
+  `;
+}
+
 /** @param {{ close: (v?: any) => void, b: any, f: any }} p */
 function FilingDialog({ close, b, f: filing }) {
   useDialogGuide('dialog-filing');
@@ -953,20 +986,26 @@ function FilingDialog({ close, b, f: filing }) {
             <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
               year's tax book shows them under <b>From last year</b>.</p>
             <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
-              html`
-                <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
-                  error=${rec.error('carried-' + k)}>
-                  <${Input} value=${rec.typed('carried-' + k) ??
-                    (carried[k] == null ? '' : String(carried[k]))} inputmode="decimal"
-                    onInput=${(/** @type {string} */ x) =>
-                      rec.inputAs('carried-' + k, x, (t) => {
-                        const r = carriedAmount(t);
-                        return 'error' in r
-                          ? r
-                          : { value: { carried: { ...rec.get('carried'), [k]: r.value } } };
-                      })} />
-                  </${Field}>
-              `
+              k === 'basis8606'
+                ? b.filers.map((/** @type {any} */ who) =>
+                  html`<${BasisField} rec=${rec} who=${who} label=${
+                    b.filers.length > 1 ? `${label}, ${who.name}` : label
+                  } />`
+                )
+                : html`
+                  <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
+                    error=${rec.error('carried-' + k)}>
+                    <${Input} value=${rec.typed('carried-' + k) ??
+                      (carried[k] == null ? '' : String(carried[k]))} inputmode="decimal"
+                      onInput=${(/** @type {string} */ x) =>
+                        rec.inputAs('carried-' + k, x, (t) => {
+                          const r = carriedAmount(t);
+                          return 'error' in r
+                            ? r
+                            : { value: { carried: { ...rec.get('carried'), [k]: r.value } } };
+                        })} />
+                    </${Field}>
+                `
             )}</div>
           </fieldset>
         `

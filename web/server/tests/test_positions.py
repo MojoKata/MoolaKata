@@ -72,6 +72,10 @@ def test_shares_moved_in_without_their_lots_list_with_their_term_unknown(alice):
     vti = next(x for x in r.json()["open"] if x["symbol"] == "VTI")
     assert [x["longTerm"] for x in vti["lots"]] == [True, None]
     assert vti["term"] == "unknown"
+    # Sold, the shares' row has its day opened unknown, as its term is (CR3-435).
+    trade(alice, brk["id"], "2026-10-01", "sell", "15", "110")
+    sold = alice.get("/ui/api/positions").json()["closed"]
+    assert [(x["symbol"], x["opened"], x["term"]) for x in sold] == [("VTI", None, "unknown")]
 
 
 def test_gains_by_month_account_and_term(alice):
@@ -409,8 +413,8 @@ def test_a_closed_row_is_each_closing_trade_latest_first_with_how_it_closed(alic
          "399.35", "300.65", "98.70", "0.00", "short"),
         ("MSFT 20NOV26 480 P", "option", "short", "2.0", "2026-09-02", "2026-09-10",
          "bought back", "-420.65", "-1279.35", "858.70", "0.00", "short"),
-        ("IBM", "equity", "long", "2.0", "2026-03-03", "2026-03-03", "sold", "100.00", None,
-         None, "0.00", "unknown"),
+        ("IBM", "equity", "long", "2.0", None, "2026-03-03", "sold", "100.00", None, None,
+         "0.00", "unknown"),
         ("VTI", "equity", "long", "15.0", "2025-01-02", "2026-03-02", "sold", "1800.00",
          "1550.00", "250.00", "0.00", "mixed"),
     ]  # fmt: skip
@@ -461,10 +465,10 @@ def test_each_option_trade_open_latest_first_then_each_closed_latest_first(alice
     ]  # fmt: skip
 
 
-def test_an_adjusted_contracts_trade_ends_adjusted_and_continues_on_the_side_it_was(alice):
-    """S3.10.4: the old contract's trade ends *adjusted*, and the adjusted contract's continues
-    on the side held when it was adjusted: a put sold, bought back and then bought is long; a
-    call bought, sold and then sold again is short."""
+def test_an_adjusted_contracts_trade_goes_on_under_it_on_the_side_it_was(alice):
+    """S3.10.4, CR3-438: a trade open when its contract is adjusted goes on under the adjusted
+    contract, from the day it opened, on the side held: a put sold, bought back and then bought
+    is long; a call bought, sold and then sold again is short."""
     brk = new_account(alice, name="Brokerage", type="brokerage")["id"]
     for action, day, contracts in (("sell-to-open", "2026-09-01", "2"),
                                    ("buy-to-close", "2026-09-02", "2"),
@@ -491,10 +495,8 @@ def test_an_adjusted_contracts_trade_ends_adjusted_and_continues_on_the_side_it_
     got = sorted((r["symbol"], r["side"], r["contracts"], r["opened"], r["closed"], r["how"])
                  for r in rows)  # fmt: skip
     assert got == [
-        ("MSFT 20NOV26 480 P", "long", "1.0", "2026-09-03", "2026-10-05", "adjusted"),
         ("MSFT 20NOV26 480 P", "short", "2.0", "2026-09-01", "2026-09-02", "bought back"),
         ("MSFT 20NOV26 500 C", "long", "2.0", "2026-09-01", "2026-09-02", "sold"),
-        ("MSFT 20NOV26 500 C", "short", "1.0", "2026-09-03", "2026-10-05", "adjusted"),
-        ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-10-05", None, None),
-        ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-10-05", None, None),
+        ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-09-03", None, None),
+        ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-09-03", None, None),
     ]

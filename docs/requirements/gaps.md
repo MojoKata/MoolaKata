@@ -89,3 +89,18 @@ dialog's **Sell short**) with fewer shares held than it sells opens a short stoc
 rest, its proceeds the basis, as an assignment's does; a buy closes short lots first (as it
 already does after an assignment), its gain short-term; wash-sale rules for short sales
 (S3.8.1) follow. **Waits on:** a household that sells short.
+
+## G29: Whether an IRA contribution can be deducted — Low
+
+**What is named:** a contribution to a traditional IRA is marked deductible or not by the user
+(S1.4), and its nondeductible parts make the filer's Form 8606 basis (S8.6).
+
+**What is not:** working the mark out. Whether a contribution can be deducted turns on the
+filer's modified AGI, whether they or their spouse are covered by a workplace plan, and the
+year's phase-out ranges; a contribution in the range is partly deductible.
+
+**Settled:** nothing yet. **Proposed:** each filer's workplace-plan coverage on the tax book,
+the phase-out ranges in the tax tables (S16.11), and the MAGI as the user enters it (as Roth
+eligibility reads it, S8.6): the panel suggests each contribution's deductible part, which the
+user accepts into its mark or changes. **Waits on:** the tax tables carrying the IRA
+phase-out ranges.

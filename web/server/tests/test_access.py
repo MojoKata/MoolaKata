@@ -517,7 +517,8 @@ def _candidate(s, n, sql: str) -> tuple[str, str] | None:
 def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
     """For every kind the save takes whose rule names a parent: one the user can't read
     answers 404, one they read without the permission 403, before the kind's own code (the
-    mine walk, decision 2.4)."""
+    mine walk, decision 2.4). The 403 names the key and why (a reader: `share-read-only`),
+    never the session's `write-refused` from the flush."""
     from types import SimpleNamespace
 
     from sqlalchemy import inspect
@@ -551,6 +552,9 @@ def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
                     with pytest.raises(Problem) as e:
                         save.may_create(ctx, kind, {**pick, key: item})
                 assert e.value.status == status, (prefix, key, parent.name, status)
+                if status == 403:
+                    assert e.value.code != "write-refused", (prefix, key)
+                    assert [x.field for x in e.value.errors] == [key], (prefix, key)
                 tried += 1
     assert tried > 60
     assert untried == UNTRIED
@@ -656,3 +660,39 @@ def test_a_users_session_writes_only_what_their_views_allow(household):
         was, t.memo = t.memo, "allowed"
     with srv.db.tx(user=n["bob"]) as s:
         first(s, "Emergency savings")[1].memo = was
+
+
+def _defined_at_once(name: str, n: int = 16) -> tuple[list, list]:
+    """`n` threads asking at the same moment for a view's table first defined then: what
+    each got, and what any raised."""
+    import threading
+
+    from sqlalchemy import Column, MetaData, Text
+
+    from moolakata.store import views
+
+    metadata, start = MetaData(), threading.Barrier(n)
+    got, failed = [], []
+
+    def ask():
+        start.wait()
+        try:
+            got.append(views.define_once(metadata, name, Column("id", Text)))
+        except Exception as e:
+            failed.append(e)
+
+    threads = [threading.Thread(target=ask) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return got, failed
+
+
+def test_a_views_table_is_defined_once_by_requests_asking_at_once():
+    """Issue #34: two requests that first needed a view's table at once each defined it, and
+    SQLAlchemy refused the second ("already defined"), a 500. They now wait on one another
+    and share the one definition."""
+    for round_ in range(20):
+        got, failed = _defined_at_once(f"Probe{round_}")
+        assert failed == [] and len({id(t) for t in got}) == 1

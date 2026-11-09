@@ -27,6 +27,7 @@ from .conventions import (
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
 from .receipts import row as receipt_row
+from .transactions import _raise
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["items"])
 
@@ -196,12 +197,15 @@ def _secured(s, item_ids: list[str], day: dt.date) -> dict[str, list[SecuredLoan
     out: dict[str, list[SecuredLoan]] = {i: [] for i in item_ids}
     if not item_ids:
         return out
-    for row in s.scalars(
-        select(Loan).where(Loan.securedById.in_(item_ids), Loan.deleted == false())
-    ):
-        a = s.get(Account, row.accountId)  # a loan's account is always there, if deleted
-        if a.deleted:
-            continue
+    # A loan's terms are never deleted on their own (`_loan_delete` refuses): only with its
+    # account, so a live account's are live. In the order they were made.
+    rows = s.execute(
+        select(Loan, Account)
+        .join(Account, Account.id == Loan.accountId)
+        .where(Loan.securedById.in_(item_ids), Account.deleted == false())
+        .order_by(Loan.id)
+    )
+    for row, a in rows:
         owed = -loans.value(s, a, day)
         out[row.securedById].append(SecuredLoan(accountId=a.id, name=a.name, owed=owed))
     return out
@@ -235,9 +239,8 @@ def _sale(a: Account, it: Item, d: assets.Detail) -> Sale | None:
 
 def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRow:
     value = assets.value_on(it, d, today, spot)
-    basis = assets.basis(it, d)
+    basis = assets.basis(it, d, today)  # the day the value is taken on (CR3-433)
     latest = assets.latest_valuation(d, today)
-    owed = sum((x.owed for x in secured), Decimal(0))
     end = it.soldOn or today
     sale = _sale(a, it, d)
     return ItemRow(
@@ -261,7 +264,7 @@ def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRo
         stale=assets.is_stale(it, d, today),
         sale=sale,
         loans=secured,
-        equity=(value - owed) if secured and sale is None else None,
+        equity=value - sum(x.owed for x in secured) if secured and sale is None else None,
         version=it.version,
     )
 
@@ -280,9 +283,10 @@ def view(s, a: Account) -> ItemsView:
     return ItemsView(
         items=rows,
         metals=[MetalOut(**m.__dict__) for m in assets.metals(s, items, today)],
-        value=sum((r.value for r in held), Decimal(0)),
-        basis=sum((r.basis for r in held), Decimal(0)),
-        gain=sum((r.gain for r in held), Decimal(0)),
+        # Nothing held, each is 0 (the model's Decimal).
+        value=sum(r.value for r in held),
+        basis=sum(r.basis for r in held),
+        gain=sum(r.gain for r in held),
     )
 
 
@@ -290,29 +294,30 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     """An item; `held` is the reader's on its account, the item its child."""
     today = clock.today()
     d = assets.details(s, [it])[it.id]
-    sp = assets.spots(s, [it], today).get(it.metal or "")
+    # A metal is only an item's at spot, and one at spot always has one (the save's rules):
+    # without one, no spot.
+    sp = assets.spots(s, [it], today).get(it.metal)
     sec = _secured(s, [it.id], today)[it.id]
     base = _row(a, it, d, sp.price if sp else None, sec, today)
     # Its value at each month's end since it was acquired, for its history: acquired by today
     # and sold no earlier (the save's rules), its first month ends on or after the day acquired.
     first = it.acquiredOn
-    history = []
-    month = dt.date(first.year, first.month, 1)
-    pts = []
-    inst = assets.find_metal(s, it.metal) if it.valuation == "spot" and it.metal else None
-    if inst is not None:
-        pts = valuation.price_points(s, [inst.id], first, today, owner=a.ownerId).get(inst.id, [])
     end = it.soldOn or today
+    history = []
+    pts = []
+    inst = assets.find_metal(s, it.metal) if it.metal else None
+    if inst is not None:
+        pts = valuation.price_points(s, [inst.id], first, today, owner=a.ownerId)[inst.id]
     k = 0
     current = None
-    while month <= end:
-        nxt = dt.date(month.year + month.month // 12, month.month % 12 + 1, 1)
-        day = min(nxt - dt.timedelta(days=1), end)
+    # Each month by its count from year 0, so the months walked are known before the walk.
+    for n in range(first.year * 12 + first.month - 1, end.year * 12 + end.month):
+        year, month = divmod(n + 1, 12)  # the next month's, the day before whose first is the end
+        day = min(dt.date(year, month + 1, 1) - dt.timedelta(days=1), end)
         while k < len(pts) and pts[k][0] <= day:
             current = pts[k][1]
             k += 1
         history.append((day, assets.value_on(it, d, day, current)))
-        month = nxt
     return ItemDetail(
         **base.model_dump(),
         description=it.description,
@@ -379,7 +384,7 @@ def _values(body: ItemIn, account_type: str) -> dict:
         if body.weightUnit not in assets.OUNCES:
             e.append(FieldError("weightUnit", "unit-invalid", "Troy ounces, grams or kilograms."))
         try:
-            purity = assets.parse_purity(body.purity or "")
+            purity = assets.parse_purity(body.purity)
         except ValueError:
             e.append(FieldError("purity", "purity-invalid", "Such as .9999, .925 or 22k."))
         if not -50 <= body.sellPremium <= 100:
@@ -388,8 +393,7 @@ def _values(body: ItemIn, account_type: str) -> dict:
         body.depreciationRate is not None and 0 < body.depreciationRate < 100
     ):
         e.append(FieldError("depreciationRate", "rate-invalid", "A yearly percentage."))
-    if e:
-        raise Problem(422, e[0].code, e[0].message, e)
+    _raise(e)
     spot = body.valuation == "spot"
     return {
         "name": name,
@@ -564,7 +568,6 @@ def _item_update(ctx, it: Item, body: ItemRecord) -> None:
         setattr(it, k, v)
     if it.metal:
         assets.metal_instrument(s, it.metal)
-    it.updatedAt = clock.now()
     _documents(s, c, it, _attached(s, it), body.receiptIds)
     _record(s, "item.sold" if it.soldOn and not sold else "item.changed", c, a)
 
@@ -623,11 +626,19 @@ def _valuation_update(ctx, v: ItemValuation, body: ValuationRecord) -> None:
     v.date, v.value, v.source, v.note = body.date, body.value, body.source, _clean(body.note)
 
 
-def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
+def _improvement_checked(body: ImprovementRecord) -> None:
+    """An improvement, made or changed: what was done, for more than nothing, on a day not
+    ahead (a cost not yet paid isn't basis)."""
     if not body.description.strip():
         raise refuse("description", "description-missing", "What was done.")
     if body.amount <= 0:
         raise refuse("amount", "amount-invalid", "More than zero.")
+    if body.date > clock.today():
+        raise refuse("date", "date-ahead", "Not after today.")
+
+
+def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
+    _improvement_checked(body)
     it, _, _ = _item(ctx.s, ctx.caller, body.itemId)
     ctx.s.add(
         Improvement(
@@ -644,10 +655,7 @@ def _improvement_create(ctx, record_id: str, body: ImprovementRecord) -> None:
 def _improvement_update(ctx, m: Improvement, body: ImprovementRecord) -> None:
     if body.itemId != m.itemId:
         raise refuse("itemId", "improvement-fixed", "An improvement stays with its item.")
-    if not body.description.strip():
-        raise refuse("description", "description-missing", "What was done.")
-    if body.amount <= 0:
-        raise refuse("amount", "amount-invalid", "More than zero.")
+    _improvement_checked(body)
     m.date, m.description, m.amount = body.date, body.description.strip(), body.amount
 
 

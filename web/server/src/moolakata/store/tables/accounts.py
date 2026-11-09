@@ -342,6 +342,9 @@ Transaction = record(
     # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
     Column("reimbursable", Cents),
     Column("owedBy", Text),
+    # A contribution to a traditional IRA (S8.6): deductible or not, a nullable boolean, null
+    # until decided; only such a contribution has one, or each of its splits does.
+    Column("deductible", Boolean),
     # The corporate action it was made from (S2.4), deleted with it.
     Column("corporateActionId", Text, ForeignKey("CorporateAction.id")),
     _in("kind", TXN_KINDS, "kind"),
@@ -378,6 +381,7 @@ Split = record(
     Column("memo", Text),
     Column("reimbursable", Cents),  # as a transaction's (S2.9)
     Column("owedBy", Text),
+    Column("deductible", Boolean),  # as a transaction's (S8.6)
     Index("ix_Split_transactionId", "transactionId"),
     seen=Seen.child("transactionId"),
 )

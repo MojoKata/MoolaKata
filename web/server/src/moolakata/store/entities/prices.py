@@ -26,7 +26,6 @@ class Price(Record):
     close: Decimal
     source: str
     fetchedAt: dt.datetime = field(default_factory=_now)
-    enteredById: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

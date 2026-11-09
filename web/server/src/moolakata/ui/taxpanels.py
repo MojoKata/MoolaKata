@@ -7,6 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Request, Response
 
 from .. import clock
+from ..money import grouped
 from ..store import scoping
 from ..taxes import books, closed, dependents, exports, panels
 from .conventions import ExactRoute, Model, Money, Quantity, Ratio
@@ -111,13 +112,24 @@ class MovementOut(Model):
     toAccount: str
     amount: Money
     taxable: Money | None
+    waiting: str | None  # what the taxed part waits for
+
+
+class BasisOut(Model):
+    """A filer's Form 8606 basis (S8.6): carried from last year, none until typed, and this
+    year's nondeductible contributions, with how many are still to decide."""
+
+    owner: str
+    carried: Money | None
+    nondeductible: Money
+    undecided: int
 
 
 class RetirementOut(Model):
     contributions: list[ContributionOut]
     distributions: list[Amount]
     rmds: list[RmdOut]
-    basis8606: Money | None
+    bases: list[BasisOut]
     conversions: list[MovementOut]
     rollovers: list[MovementOut]
 
@@ -331,7 +343,15 @@ def _build(s, b) -> Panels:
             ],
             distributions=[Amount(label=k, amount=v) for k, v in ret.distributions],
             rmds=[RmdOut(**r.__dict__) for r in ret.rmds],
-            basis8606=ret.basis8606,
+            bases=[
+                BasisOut(
+                    owner=b.owner,
+                    carried=b.carried,
+                    nondeductible=b.nondeductible,
+                    undecided=b.undecided,
+                )
+                for b in ret.bases
+            ],
             conversions=[_movement(m) for m in ret.conversions],
             rollovers=[_movement(m) for m in ret.rollovers],
         ),
@@ -461,8 +481,8 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
             (
                 "Wash sales",
                 [
-                    f"{w.symbol} sold {w.sold:%b %-d} in {w.account}: {w.disallowed:,.2f} of a "
-                    f"{w.loss:,.2f} loss disallowed; replaced {w.replacedOn:%b %-d} in "
+                    f"{w.symbol} sold {w.sold:%b %-d} in {w.account}: {grouped(w.disallowed)} of a "
+                    f"{grouped(w.loss)} loss disallowed; replaced {w.replacedOn:%b %-d} in "
                     f"{w.replacementAccount}"
                     for w in p.washes
                 ]
@@ -471,37 +491,37 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
             (
                 "Income",
                 [
-                    *(f"Interest from {x.label}: {x.amount:,.2f}" for x in p.income.interest),
-                    f"Ordinary dividends {p.income.ordinary:,.2f} (qualified "
-                    f"{p.income.qualified:,.2f}); capital-gain distributions "
-                    f"{p.income.capitalGainDistributions:,.2f}",
+                    *(f"Interest from {x.label}: {grouped(x.amount)}" for x in p.income.interest),
+                    f"Ordinary dividends {grouped(p.income.ordinary)} (qualified "
+                    f"{grouped(p.income.qualified)}); capital-gain distributions "
+                    f"{grouped(p.income.capitalGainDistributions)}",
                 ],
             ),
             (
                 "Retirement",
                 [
                     *(
-                        f"{x.account} ({x.kind}, {x.owner}): contributed {x.contributed:,.2f}"
-                        + (f" of {x.limit:,.2f}" if x.limit else "")
+                        f"{x.account} ({x.kind}, {x.owner}): contributed {grouped(x.contributed)}"
+                        + (f" of {grouped(x.limit)}" if x.limit else "")
                         for x in p.retirement.contributions
                     ),
                     *(
-                        f"Distributions from {x.label}: {x.amount:,.2f}"
+                        f"Distributions from {x.label}: {grouped(x.amount)}"
                         for x in p.retirement.distributions
                     ),
-                    *(f"RMD due from {x.account}: {x.due:,.2f}" for x in p.retirement.rmds),
+                    *(f"RMD due from {x.account}: {grouped(x.due)}" for x in p.retirement.rmds),
                 ]
                 or ["Nothing this year."],
             ),
             (
                 "Deductions and credits",
                 [
-                    f"{t.label}: {t.total:,.2f} ({t.count} transactions, {t.withReceipts} with "
+                    f"{t.label}: {grouped(t.total)} ({t.count} transactions, {t.withReceipts} with "
                     "receipts)"
                     for t in p.deductions
                 ]
                 + [
-                    f"Estimated payment, {q.jurisdiction} Q{q.quarter}: {q.amount:,.2f}"
+                    f"Estimated payment, {q.jurisdiction} Q{q.quarter}: {grouped(q.amount)}"
                     for q in p.estimated
                 ]
                 or ["None."],
@@ -509,7 +529,7 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
             (
                 "Charitable giving",
                 [
-                    f"Deductible: {p.giving.deductibleTotal:,.2f}; "
+                    f"Deductible: {grouped(p.giving.deductibleTotal)}; "
                     f"{p.giving.missingAcks} acknowledgements missing.",
                     *p.giving.notes,
                 ],
@@ -517,8 +537,8 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
             (
                 "Loans",
                 [
-                    f"{x.account} ({x.form}): interest {x.interest:,.2f}, PMI {x.pmi:,.2f}, "
-                    f"property tax through escrow {x.propertyTax:,.2f}"
+                    f"{x.account} ({x.form}): interest {grouped(x.interest)}, "
+                    f"PMI {grouped(x.pmi)}, property tax through escrow {grouped(x.propertyTax)}"
                     for x in p.loans
                 ]
                 or ["None."],
@@ -527,13 +547,14 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
                 "Education and gifts",
                 [
                     *(
-                        f"{e.account} for {e.beneficiary}: distributions {e.distributions:,.2f}, "
-                        f"qualified expenses {e.expenses:,.2f}, not covered {e.notCovered:,.2f}"
+                        f"{e.account} for {e.beneficiary}: distributions "
+                        f"{grouped(e.distributions)}, qualified expenses {grouped(e.expenses)}, "
+                        f"not covered {grouped(e.notCovered)}"
                         for e in p.education
                     ),
                     *(
-                        f"Form 709: {g.giver} gave {g.person} {g.given:,.2f}, above the "
-                        f"{g.exclusion:,.2f} exclusion"
+                        f"Form 709: {g.giver} gave {g.person} {grouped(g.given)}, above the "
+                        f"{grouped(g.exclusion)} exclusion"
                         for g in p.giftTax
                     ),
                     *p.elections,
@@ -554,4 +575,4 @@ def _filers(s, b):
 
 def _movement(m) -> MovementOut:
     return MovementOut(date=m.date, fromAccount=m.fromAccount, toAccount=m.toAccount,
-                       amount=m.amount, taxable=m.taxable)  # fmt: skip
+                       amount=m.amount, taxable=m.taxable, waiting=m.waiting)  # fmt: skip

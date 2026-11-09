@@ -413,3 +413,54 @@ through when back. Each is applied and can be undone.
     handle one, now pinned by tests. Recommended: remove those branches (and refuse the shape),
     as CR3-405 did for a lot without its transaction. Applied (`d75d532`): the branches are gone; no
     constraint added, since the source names a fetching source can take aren't a fixed list.
+
+## Walked with the user (Nov 7)
+
+The fourteen decisions above, walked one at a time on branch `cr3-hardening-rest` (from main
+`373856b`), and six questions the mutation survivors raised. Approved as a batch at the end.
+
+1. Decided while away, items 1 to 13: kept as applied.
+2. Item 14, changed: the branches stay removed, and the shape is refused too. Revision 0056
+   adds `ck_Price_source` (a close is never the Manual source's), removes a manual close left
+   from before 0022, and drops `Price.enteredById`, which only such a close carried
+   (`5e813f9`).
+3. Three fixes pushed with the survivors, given their ids: **CR3-430** (a valuation changed
+   to a day ahead), **CR3-431** (a multiplier of 0 read as 100), **CR3-432** (a closed row
+   for a sale without a lot read short term).
+4. An improvement dated after today: refused, made or changed, and the Items row takes its
+   basis on the day its value is (**CR3-433**); found on the way, PMI's fallback original
+   value counted later improvements (**CR3-434**), `86ae3e4`.
+5. A closed position whose day bought is missing: its day opened is unknown, shown as a dash
+   (**CR3-435**, `1e329c2`).
+6. `-0.00`: an amount that rounds to zero is written without a sign everywhere the server
+   writes money (**CR3-436**, `1745f7b`).
+7. Blank fees on a trade: refused, option and stock trades alike; the option dialog starts at
+   $0.65 with ↺, the transaction dialog fills 0; a file's trade without fees is kept as 0
+   (**CR3-437**, `ca58ee4`).
+8. An option trade through its contract's adjustment: one trade, its opening day and premium
+   carried, the change noted, capital the larger of before and after (**CR3-438**, `0d36c12`).
+9. A reader making a strategy or corporate action: the premise didn't hold. The save's
+   creation check refuses a reader with `share-read-only` at `accountId` before the kind's
+   code runs, so asking for write there would only restate it. The per-kind creation test now
+   asserts the code and the field, never the flush's `write-refused` (`464e585`).
+
+10. PMI without an original value typed (asked after the batch, approved): the schedule reads
+    the same fallback as the screen, the home's basis when the loan was made (**CR3-439**).
+
+## Walked with the user (Nov 8)
+
+Three questions the taxes survivors raised, walked one at a time and approved together, kept
+on PR #38.
+
+1. A joint book's relation word: one rule for the dependent picker and the book's list, the
+   first filer's unless only the other's is a descendant (**CR3-440**, `8c3bb22`).
+2. This year's nondeductible IRA contributions in the Form 8606 basis: a deductible mark on a
+   traditional IRA contribution and on each part of a split one, a nullable boolean (null:
+   not decided), revision 0058; line 1 is the owner's nondeductible parts, and a conversion
+   waits while one is undecided. Chosen over a typed per-book figure: the figure is traced to
+   the money, a partial deduction is a split, and nothing undecided is read as deductible.
+   Working deductibility out (MAGI, workplace plans, phase-outs) is gap G29 (**CR3-450**,
+   `04d8cd6`).
+3. Form 8606's pro rata rule per filer: each filer's conversions take their own basis over
+   their own traditional IRAs, matched by account id; a joint return carries an 8606 basis
+   for each filer (**CR3-451**, `04d8cd6`).

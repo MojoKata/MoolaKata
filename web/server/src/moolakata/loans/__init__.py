@@ -139,7 +139,22 @@ class Terms:
         return self.pmi
 
 
-def terms_of(row: Loan) -> Terms:
+def original_value(s: Session, row: Loan) -> Decimal | None:
+    """The home's value the loan started from, for PMI (S1.9.5): the one typed, else the
+    basis, when the loan was made, of the item it is secured by."""
+    if row.originalValue is not None or not row.securedById:
+        return row.originalValue
+    from .. import assets  # assets reads valuation, which reads loans
+    from ..store.entities.assets import Item
+
+    it = s.get(Item, row.securedById)
+    if it is None or it.deleted:
+        return None
+    return assets.basis(it, assets.details(s, [it])[it.id], row.startDate)
+
+
+def terms_of(s: Session, row: Loan) -> Terms:
+    """A loan's terms, its original value the one PMI reads (`original_value`)."""
     return Terms(
         principal=row.principal,
         start=row.startDate,
@@ -159,7 +174,7 @@ def terms_of(row: Loan) -> Terms:
             (dt.date.fromisoformat(x["date"]), Decimal(str(x.get("fee", 0))))
             for x in json.loads(row.recasts)
         ],
-        originalValue=row.originalValue,
+        originalValue=original_value(s, row),
     )
 
 
@@ -237,7 +252,7 @@ def history(
         ):
             splits.setdefault(sp.transactionId, []).append(sp)
     row = loan_of(s, account)
-    terms = terms_of(row) if row is not None else None
+    terms = terms_of(s, row) if row is not None else None
     recorded: list[Payment | tuple[dt.date, Decimal, str]] = []
     draws: list[tuple[dt.date, Decimal]] = []
     for t in txns:
@@ -881,4 +896,4 @@ def value(s: Session, account: Account, day: dt.date | None = None) -> Decimal:
     if row is None:
         return ZERO
     payments, draws = history(s, account)
-    return -balance_on(terms_of(row), payments, draws, day)
+    return -balance_on(terms_of(s, row), payments, draws, day)

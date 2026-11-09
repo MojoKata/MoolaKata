@@ -39,9 +39,11 @@ def is_physical(account_type: str) -> bool:
     return account_type in TYPES
 
 
-def parse_purity(text: str) -> Decimal:
-    """'.9999', '0.925', '99.99%' or '22k' as a fraction; ValueError when it is none, which the
-    form words for itself."""
+def parse_purity(text: str | None) -> Decimal:
+    """'.9999', '0.925', '99.99%' or '22k' as a fraction; ValueError when it is none (not
+    given, blank or not a purity), which the form words for itself."""
+    if text is None:
+        raise ValueError
     try:
         return _purity(text)
     except InvalidOperation as e:

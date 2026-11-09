@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from .. import assets, education, gifts, giving, loans, people
 from ..ledger import lots
 from ..ledger import types as atypes
+from ..money import grouped
 from ..projections import taxtables
 from ..store.entities.accounts import (
     Account,
@@ -159,7 +160,8 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
         for d in led.replay().disposals:
             if not first <= d.soldOn <= last:
                 continue
-            inst = insts.get(d.instrumentId) or s.get(Instrument, d.instrumentId)
+            # The session keeps what it has read: a second get of an instrument reads nothing.
+            inst = s.get(Instrument, d.instrumentId)
             insts[inst.id] = inst
             proceeds, basis = d.proceeds, d.basis
             if d.written and d.basis is not None:
@@ -216,13 +218,13 @@ def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
 def _stored_washes(
     s: Session, book: TaxBook, losses: dict[str, Decimal], counted: set[str]
 ) -> list[Wash]:
-    """The book's wash sales: of the sales in the accounts it counts (CR3-393), read together
-    (one query for each kind of record, however many there are: the walk's decision 3.6)."""
+    """The book's wash sales: of the sales in the accounts it counts (CR3-393), an added
+    account's too, whoever owns it (S8.14.2), read together (one query for each kind of
+    record, however many there are: the walk's decision 3.6)."""
     from .. import washes
 
     first, last = _span(book.year)
-    who = [f.userId for f in books.filers(s, book) if f.acceptedAt is not None]
-    found = washes.for_users(s, who, first, last)
+    found = washes.for_accounts(s, counted, first, last)
     if not found:
         return []
     wanted = {w.saleId for w in found} | {w.replacementId for w in found}
@@ -248,8 +250,6 @@ def _stored_washes(
     out = []
     for w in found:
         sale, repl = txns[w.saleId], txns[w.replacementId]
-        if sale.accountId not in counted:
-            continue
         lot = lots_by.get(repl.id)
         into = accts[repl.accountId]
         basis = None
@@ -281,48 +281,48 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
 
     ids_ = {a.id: a for a in accounts}
     out = []
+
+    def first(near, *where) -> Transaction | None:
+        return s.scalars(select(Transaction).where(*near, *where)).first()
+
+    # The rows are the sales of the accounts given, each of an instrument in `insts`.
     for r in rows:
-        if r.gain is None or r.gain >= 0 or r.instrumentId is None:
+        if r.gain is None or r.gain >= 0:
             continue
-        inst = insts.get(r.instrumentId)
-        if inst is None:
-            continue
-        if inst.instrumentClass == "option":
-            c = opts.contract_of(s, inst.id)
-            targets = [c.underlyingId] if c else []
-            kinds = ("buy", "reinvest")
-        else:
-            targets = [
-                oc.instrumentId
-                for oc in s.scalars(
-                    select(OptionContract).where(OptionContract.underlyingId == inst.id)
-                )
-            ]
-            kinds = ("buy-to-open",)
-        if not ids_:
-            continue
+        inst = insts[r.instrumentId]
         near = (
             Transaction.accountId.in_(list(ids_)),
             Transaction.deleted == false(),
             Transaction.date >= r.sold - dt.timedelta(days=WASH_DAYS),
             Transaction.date <= r.sold + dt.timedelta(days=WASH_DAYS),
         )
-        hit = s.scalars(
-            select(Transaction).where(
-                *near, Transaction.instrumentId.in_(targets), Transaction.kind.in_(kinds)
+        if inst.instrumentClass == "option":
+            # Its stock bought; an option with no contract (a file's, unread) has none.
+            c = opts.contract_of(s, inst.id)
+            targets = [c.underlyingId] if c else []
+            hit = first(
+                near,
+                Transaction.instrumentId.in_(targets),
+                Transaction.kind.in_(("buy", "reinvest")),
             )
-        ).first()
-        if hit is None and inst.instrumentClass != "option":
-            # The stock bought back through an option: a put assigned, a call exercised.
-            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
-            hit = s.scalars(
-                select(Transaction).where(
-                    *near,
-                    Transaction.instrumentId == inst.id,
-                    Transaction.kind == "buy",
-                    Transaction.optionTransactionId.in_(ends),
+        else:
+            on_it = [
+                oc.instrumentId
+                for oc in s.scalars(
+                    select(OptionContract).where(OptionContract.underlyingId == inst.id)
                 )
-            ).first()
+            ]
+            # An option on it bought, or the stock bought back through an option: a put
+            # assigned, a call exercised.
+            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
+            hit = first(
+                near, Transaction.instrumentId.in_(on_it), Transaction.kind == "buy-to-open"
+            ) or first(
+                near,
+                Transaction.instrumentId == inst.id,
+                Transaction.kind == "buy",
+                Transaction.optionTransactionId.in_(ends),
+            )
         if hit is not None:
             out.append(
                 Wash(
@@ -543,6 +543,20 @@ class Movement:
     toAccount: str
     amount: Decimal
     taxable: Decimal | None = None
+    fromId: str | None = None  # the account it left, when the book counts it
+    waiting: str | None = None  # what the taxed part waits for, said to the user
+
+
+@dataclass
+class Basis8606:
+    """A filer's Form 8606 basis (S8.6): carried from last year (line 2), none until typed, and
+    this year's nondeductible contributions (line 1), which wait while any is undecided."""
+
+    ownerId: str
+    owner: str
+    carried: Decimal | None
+    nondeductible: Decimal
+    undecided: int  # contributions still to mark deductible or not
 
 
 @dataclass
@@ -550,7 +564,7 @@ class Retirement:
     contributions: list[Contribution]
     distributions: list[tuple[str, Decimal]]
     rmds: list[Rmd]
-    basis8606: Decimal | None
+    bases: list[Basis8606]
     conversions: list[Movement]
     rollovers: list[Movement]
 
@@ -577,7 +591,11 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     accounts = [a for a in books.counted(s, book).accounts if atypes.retirement(a.type)]
     contributions, distributions, rmds = [], [], []
     moved: dict[frozenset, Movement] = {}
-    ira_by_owner: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    taken_from: dict[str, Decimal] = {}  # distributions by account id
+    # Form 8606 line 1, each owner's: the nondeductible parts of their own contributions to a
+    # traditional IRA for the year, and how many are still to decide (S8.6).
+    nondeductible: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    undecided: dict[str, int] = defaultdict(int)
     for a in accounts:
         owner = s.get(User, a.ownerId)
         born = people.birth_year(s, a.ownerId)
@@ -585,18 +603,20 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         # Each movement classified once (CR3-37): what counts against a limit is a
         # contribution, never a rollover or a conversion.
         put = employer = taken = ZERO
+        # A trade, a dividend, a fee: no cash moved, which `classify` tells (None).
         for t in s.scalars(
-            select(Transaction).where(
-                Transaction.accountId == a.id,
-                Transaction.deleted == false(),
-                Transaction.instrumentId.is_(None),
-                Transaction.kind.in_(moves.CASH_KINDS),
-            )
+            select(Transaction).where(Transaction.accountId == a.id, Transaction.deleted == false())
         ):
             what = moves.classify(s, t, a)
             year = t.contributionYear or t.date.year
             if what == "employee" and year == y:
                 put += t.amount
+                if a.type == "ira":
+                    for amount, mark in _marks(s, t):
+                        if mark is None:
+                            undecided[a.ownerId] += 1
+                        elif not mark:
+                            nondeductible[a.ownerId] += amount
             elif what == "employer" and year == y:
                 employer += t.amount
             elif not first <= t.date <= last:
@@ -604,23 +624,26 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
             elif what == "distribution":
                 taken -= t.amount
             elif what in ("rollover", "conversion", "rollover-out", "conversion-out"):
+                # Money out is a rollover or a conversion only by its other half's account;
+                # money in may be one by the source set on it, from an account not here.
                 other = moves.other_account(s, t)
-                into = t.amount > 0
+                there = other.name if other else "another account"
+                ends = (a.name, there) if what.endswith("-out") else (there, a.name)
+                source = a if what.endswith("-out") else other
                 key = frozenset({t.id, t.transferId or t.id})
                 moved.setdefault(
                     key,
                     Movement(
                         what.removesuffix("-out"),
                         t.date,
-                        (other.name if other else "another account") if into else a.name,
-                        a.name if into else (other.name if other else "another account"),
+                        *ends,
                         abs(t.amount),
+                        fromId=source.id if source is not None else None,
                     ),
                 )
         counted = put + employer if a.type == "hsa" else put
         limit, note = None, ""
         if a.type in ("ira", "roth-ira"):
-            ira_by_owner[owner.id] += put
             limit = Decimal(str(figures["iraLimit"]))
             if age and age >= 50:
                 limit += Decimal(str(figures["iraCatchUp"]))
@@ -644,10 +667,10 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 limit = Decimal(str(figures["hsaFamily"]))
                 note = "family coverage" if a.hsaCoverage else "the family limit: set the coverage"
             if age and age >= 55:
-                limit += Decimal(str(figures.get("hsaCatchUp", 1000)))
+                limit += Decimal(str(figures["hsaCatchUp"]))
                 note += "; with the catch-up at 55 and over"
             if employer:
-                note += f"; {employer:,.2f} of it from the employer"
+                note += f"; {grouped(employer)} of it from the employer"
         if counted or limit:
             contributions.append(
                 Contribution(
@@ -657,12 +680,13 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                     counted,
                     limit,
                     note,
-                    group=LIMIT_GROUPS.get(a.type, a.type),
+                    group=LIMIT_GROUPS[a.type],
                     ownerId=owner.id,
                 )
             )
         if taken:
             distributions.append((a.name, taken))
+            taken_from[a.id] = taken
         rmd_age = Decimal(str(figures["rmdAge"]))  # 70½ until 2019
         if age and age >= rmd_age and a.type in ("ira", "401k", "403b", "457b") and age in UNIFORM:
             from .. import valuation
@@ -685,42 +709,67 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         totals[(c.ownerId, c.group)] += c.contributed
     for c in contributions:
         c.personTotal = totals[(c.ownerId, c.group)]
-    # The 8606 basis is a person's own (S8.6): one book's, or none summed across two filers'
-    # books; *From last year* shows each.
-    bases = [
-        Decimal(str(figs["basis8606"]))
-        for figs, _ in books.federal_figures(s, book)
-        if figs.get("basis8606")
-    ]
-    basis = bases[0] if len(bases) == 1 else None
+    # The 8606 basis is a person's own (S8.6, S8.17): each filer's as their return carried it,
+    # a joint return's each filer's apart.
+    carried: dict[str, Decimal] = {}
+    for figs, _ in books.federal_figures(s, book):
+        for owner_id, v in (figs.get("basis8606") or {}).items():
+            carried[owner_id] = Decimal(str(v))
+    iras = [a for a in accounts if a.type == "ira"]
+    owners = list(dict.fromkeys(a.ownerId for a in iras))
+    names = books.names(s, owners)
+    bases = [Basis8606(o, names[o], carried.get(o), nondeductible[o], undecided[o]) for o in owners]
     conversions = sorted(
         (m for m in moved.values() if m.kind == "conversion"), key=lambda m: m.date
     )
     rollovers = sorted((m for m in moved.values() if m.kind == "rollover"), key=lambda m: m.date)
-    _pro_rata(s, accounts, conversions, distributions, basis, y)
-    return Retirement(contributions, distributions, rmds, basis, conversions, rollovers)
+    for b in bases:
+        _pro_rata(s, b, [a for a in iras if a.ownerId == b.ownerId], conversions, taken_from, y)
+    return Retirement(contributions, distributions, rmds, bases, conversions, rollovers)
 
 
-def _pro_rata(s, accounts, conversions, distributions, basis, year) -> None:
-    """Form 8606 Part I: a conversion from a traditional IRA is taxed but for its share of
-    the basis, over the year-end value of the traditional IRAs plus what left them in the
-    year (distributions and conversions)."""
-    if basis is None or not conversions:
+def _marks(s: Session, t: Transaction) -> list[tuple[Decimal, bool | None]]:
+    """A contribution's amounts with whether each is deductible: its parts' when split."""
+    parts = list(
+        s.scalars(select(Split).where(Split.transactionId == t.id, Split.deleted == false()))
+    )
+    return [(x.amount, x.deductible) for x in parts] or [(t.amount, t.deductible)]
+
+
+def _pro_rata(s, basis: Basis8606, iras, conversions, taken_from, year) -> None:
+    """Form 8606 Part I, one filer's: a conversion from their traditional IRAs is taxed but
+    for its share of their basis (last year's and this year's nondeductible contributions),
+    over their IRAs' year-end value plus what left them in the year (distributions and
+    conversions). It waits while a contribution is undecided or last year's basis untyped."""
+    ids_ = {a.id for a in iras}
+    from_iras = [m for m in conversions if m.fromId in ids_]
+    if not from_iras:
+        return
+    if basis.undecided:
+        for m in from_iras:
+            m.waiting = f"mark whether each of {basis.owner}'s IRA contributions was deductible"
+        return
+    if basis.carried is None:
+        for m in from_iras:
+            m.waiting = f"type {basis.owner}'s Form 8606 basis carried from {year - 1}"
         return
     from .. import valuation
 
-    iras = [a for a in accounts if a.type == "ira"]
-    names = {a.name for a in iras}
+    whole_basis = basis.carried + basis.nondeductible
+    # Money, each sum: there is an IRA, and a conversion from one.
     year_end = sum(
-        (valuation.account_value(s, repo.load(s, a), True, dt.date(year, 12, 31)) for a in iras),
-        ZERO,
+        valuation.account_value(s, repo.load(s, a), True, dt.date(year, 12, 31)) for a in iras
     )
-    out = sum((m.amount for m in conversions if m.fromAccount in names), ZERO)
-    taken = sum((v for n, v in distributions if n in names), ZERO)
+    out = sum(m.amount for m in from_iras)
+    taken = sum(taken_from.get(i, ZERO) for i in ids_)
     whole = year_end + out + taken
-    for m in conversions:
-        if m.fromAccount in names and whole > 0:
-            m.taxable = (m.amount - basis * m.amount / whole).quantize(CENT)
+    if whole <= 0:
+        return  # nothing in the IRAs at all (a fee took more than was there): no share
+    for m in from_iras:
+        # The basis's share is at most the whole of it (line 10's 1.000): a conversion is
+        # never taxed less than nothing, and the basis left over carries on.
+        untaxed = min(whole_basis * m.amount / whole, m.amount)
+        m.taxable = (m.amount - untaxed).quantize(CENT)
 
 
 # ---------- Deductions and credits (S8.7) ----------
@@ -754,7 +803,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
     ids = [a.id for a in books.counted(s, book).accounts]
     cats = {c.id: c for c in s.scalars(select(Category).where(Category.taxTag.is_not(None)))}
     out: dict[str, TagTotal] = {}
-    if ids and cats:
+    if ids:
         txns = s.scalars(
             select(Transaction).where(
                 Transaction.accountId.in_(ids),
@@ -766,7 +815,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
         by_id = {t.id: t for t in txns}
         loan_accounts = [a for a in books.counted(s, book).accounts if loans.is_loan(a.type)]
         in_loans = {a.id for a in loan_accounts}
-        amounts: list[tuple[str, str, Decimal]] = []
+        amounts: list[tuple[str | None, str, Decimal]] = []
         for t in txns:
             if t.categoryId in cats and t.accountId not in in_loans:
                 amounts.append((t.id, cats[t.categoryId].taxTag, -t.amount))
@@ -792,7 +841,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
                 for part, key in loans.PARTS.items():
                     amount = getattr(pay, part)
                     if amount and key in tagged:
-                        amounts.append((pay.transactionId or "", tagged[key], amount))
+                        amounts.append((pay.transactionId, tagged[key], amount))
         with_receipts = set(
             s.scalars(
                 select(ReceiptLink.itemId).where(
@@ -816,7 +865,7 @@ def deductions(s: Session, book: TaxBook) -> tuple[list[TagTotal], list[tuple[st
         ):
             where = "Federal" if f.jurisdiction == "federal" else (f.place or "State")
             quarters.append((where, p.quarter, p.amount))
-    return sorted(out.values(), key=lambda x: -x.total), sorted(quarters, key=lambda q: q[:2])
+    return sorted(out.values(), key=lambda x: -x.total), sorted(quarters)
 
 
 # ---------- Giving, education, gifts, loans (S8.9–S8.12) ----------
@@ -946,8 +995,8 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
         row = loans.loan_of(s, a)
         secured = None
         if row is not None and row.securedById:
-            it = s.get(Item, row.securedById)
-            secured = it.name if it else None
+            # The item a loan names is kept while it does (a deleted one too, by its name).
+            secured = s.get(Item, row.securedById).name
         out.append(
             LoanRow(
                 a.name,
@@ -1096,7 +1145,7 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
         out.append(
             Issue(
                 "form-8615",
-                f"{f.name}'s unearned income of ${f.unearned:,.2f} is above the "
+                f"{f.name}'s unearned income of ${grouped(f.unearned)} is above the "
                 f"${f.threshold:,.0f} threshold: Form 8615 may apply",
             )
         )
@@ -1141,7 +1190,7 @@ def changed_after_filing(s: Session, book: TaxBook) -> str | None:
     )
     sign = "-" if total < 0 else "+"
     return (
-        f"Realized gains changed by {sign}${abs(total):,.2f} after the federal return was "
+        f"Realized gains changed by {sign}${grouped(abs(total))} after the federal return was "
         f"filed: {where}"
     )
 
@@ -1160,7 +1209,7 @@ def differs_from_filed(s: Session, book: TaxBook, rows: list[Row]) -> str | None
     names = ", ".join(sorted(s.get(Account, a).name for a in off))
     sign = "-" if total < 0 else "+"
     return (
-        f"Realized gains differ by {sign}${abs(total):,.2f} from those when the federal return "
+        f"Realized gains differ by {sign}${grouped(abs(total))} from those when the federal return "
         f"was filed, by no change made here: {names}"
     )
 
@@ -1169,13 +1218,12 @@ def spouse_accounts(s: Session, book: TaxBook) -> list[Account]:
     """For wash sales: the filers' spouses' accounts, when filing separately (S3.8): whoever
     was married to a filer at any time in the year."""
     who = {f.userId for f in books.filers(s, book)}
+    first, last = _span(book.year)
     out = []
     spouses = set()
     for uid in who:
-        for other in people.spouse_users_ever(s, uid):
-            if other in who or other in spouses:
-                continue
-            first, last = dt.date(book.year, 1, 1), dt.date(book.year, 12, 31)
+        # A spouse who files on this book too is in it already; one found once, once.
+        for other in people.spouse_users_ever(s, uid) - who - spouses:
             if any(
                 people.spouse_user_on(s, uid, day) == other
                 for day in (first, last, *_marriage_days(s, uid, other, first, last))

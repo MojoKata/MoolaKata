@@ -2,6 +2,7 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from conftest import make_user, sign_in
 from edits import asked, change, create, edit, make, new_id, reconcile, remove, saved
 
@@ -173,6 +174,32 @@ def test_idempotency_key_returns_the_first_answer(server):
     r2 = c.post("/ui/api/save", json={"ops": ops}, headers={"Idempotency-Key": "k1"})
     assert r1.status_code == r2.status_code == 200 and r1.json() == r2.json()
     assert len(c.get("/ui/api/transactions").json()["items"]) == 1
+
+
+@pytest.mark.parametrize("kind", ["buy", "sell", "reinvest", "transfer-in", "transfer-out",
+                                  "reward"])  # fmt: skip
+def test_a_trades_fees_are_typed_a_blank_or_less_than_none_refused(server, kind):
+    """R3.11, CR3-437: a trade's fees are zero or more, typed; a blank is refused, never read as
+    none, made or changed. Money that isn't a trade has no fees to type."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    add(c, a, "1000.00", "2025-01-02", kind="deposit")
+    add(c, a, "-100.00", "2025-01-03", kind="buy", symbol="VTI", quantity="2", price="50")
+    trade = {"accountId": a, "date": "2025-01-05", "kind": kind, "symbol": "VTI",
+             "quantity": "1", "price": "50",
+             "amount": "50.00" if kind in ("sell", "transfer-out") else "-50.00"}  # fmt: skip
+    if kind == "transfer-in":
+        trade["amount"] = "0.00"
+    refusal = [("fees", "fees-invalid", "Zero or more.")]
+    for fees in (None, "-0.01"):
+        r = create(c, "Txn", **trade, fees=fees)
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == refusal
+    t = saved(create(c, "Txn", **trade, fees="0"))
+    assert t["fees"] == "0.00"
+    r = change(c, "Txn", t, fees=None)
+    assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [("fees", "fees-invalid")]
 
 
 def test_trades_make_lots_holdings_and_gains(server):

@@ -71,7 +71,8 @@ def seed_taxes(s, people: dict) -> None:
                 "totalTax": "31920",
                 "overpaymentApplied": "0",
                 "capitalLossLong": "2100",
-                "basis8606": "6500",
+                # Bob's: his rollover IRA's nondeductible contributions (S8.17).
+                "basis8606": {bob.id: "6500"},
             }
         ),
     )

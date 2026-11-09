@@ -12,7 +12,7 @@ import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { openRules } from '../components/rules.js';
-import { Field, Input, Switch, SwitchRow } from '../components/fields.js';
+import { Field, Input, Seg, Switch, SwitchRow } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
 import { useCategories } from '../components/txtable.js';
@@ -45,6 +45,41 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
 const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out', 'reward'];
 
 /**
+ * The owner's own contribution to a traditional IRA, which is deductible or not (S8.6): money
+ * in, not an employer's, a rollover's or a conversion's.
+ * @param {Txn} r
+ */
+const contributes = (r) => {
+  const amount = r.get('amount');
+  return r.typeOf(r.get('accountId')) === 'ira' &&
+    ['deposit', 'transfer'].includes(r.get('kind')) &&
+    amount != null && !Dec.of(amount).isNegative() && !Dec.of(amount).isZero() &&
+    [null, '', 'employee'].includes(r.get('contributionSource') ?? null);
+};
+
+const DEDUCTIBLE = /** @type {[string, string][]} */ ([
+  ['', 'Not decided'],
+  ['yes', 'Deductible'],
+  ['no', 'Not deductible'],
+]);
+
+/**
+ * Whether a contribution, or a part of it, is deductible (S8.6): a nullable boolean, not
+ * decided until chosen, and never read as deductible.
+ * @param {{ rec: import('../app/draft.js').Record, label: string, id: string }} p
+ */
+function Deductible({ rec, label, id }) {
+  const v = rec.get('deductible');
+  return html`
+    <${Field} label=${label} help="deductible" id=${id} error=${rec.error('deductible')}>
+      <${Seg} label=${label} value=${v == null ? '' : v ? 'yes' : 'no'} options=${DEDUCTIBLE}
+        onChange=${(/** @type {string} */ x) =>
+          rec.set('deductible', x === '' ? null : x === 'yes')} />
+      </${Field}>
+  `;
+}
+
+/**
  * A transaction as its dialog's draft edits it (S2.6, S12.15). Its parts are records of their
  * own (`Part`), so each keeps its id, and what pays it back with it (S2.9).
  */
@@ -68,15 +103,29 @@ export class Txn extends Record {
     // A transfer-in's basis is typed with it (S2.6); the one paid back is named (S2.9).
     costBasis: { when: (/** @type {Txn} */ r) => r.get('kind') === 'transfer-in' },
     owedBy: { when: (/** @type {Txn} */ r) => r.get('reimbursable') != null },
+    // A trade's fees are typed, 0 for none; other money has none (R3.11).
+    fees: { when: (/** @type {Txn} */ r) => TRADE.includes(r.get('kind')) },
+    // Only a contribution to a traditional IRA is deductible or not (S8.6).
+    deductible: { when: contributes },
   };
   /** The kinds an account's type takes. @type {(accountId: string) => string[]} */
   kindsOf = () => [];
+  /** An account's type. @type {(accountId: string) => string | undefined} */
+  typeOf = () => undefined;
 
-  /** A new transaction's account takes a kind its type has: its first, otherwise. @override */
+  /**
+   * A new transaction's account takes a kind its type has: its first, otherwise. A kind that
+   * is a trade starts its fees at 0, filled in as if typed: cleared, they stay blank and are
+   * refused, never read as none (R3.11). @override
+   */
   onSet(/** @type {string} */ name) {
-    if (name !== 'accountId') return;
-    const kinds = this.kindsOf(this.get('accountId'));
-    if (!kinds.includes(this.get('kind'))) this.set('kind', kinds[0], 'accountId');
+    if (name === 'accountId') {
+      const kinds = this.kindsOf(this.get('accountId'));
+      if (!kinds.includes(this.get('kind'))) this.set('kind', kinds[0], 'accountId');
+    }
+    if ((name === 'accountId' || name === 'kind') && TRADE.includes(this.get('kind'))) {
+      if (this.get('fees') == null) this.set('fees', '0', name);
+    }
   }
 }
 
@@ -87,7 +136,13 @@ class Part extends Record {
   /** @override */
   static fields = FIELDS.SplitRecord;
   /** @override */
-  static defaults = { categoryId: null, memo: null, reimbursable: null, owedBy: null };
+  static defaults = {
+    categoryId: null,
+    memo: null,
+    reimbursable: null,
+    owedBy: null,
+    deductible: null,
+  };
   /** @override */
   static ownedBy = ['transactionId'];
 }
@@ -129,7 +184,13 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
       return;
     }
     const acct = accountId || writable[0]?.id || '';
-    const t = draft.add(Txn, { accountId: acct, date: today(), kind: kindsOf(acct)[0] });
+    const kind = kindsOf(acct)[0];
+    const t = draft.add(Txn, {
+      accountId: acct,
+      date: today(),
+      kind,
+      fees: TRADE.includes(kind) ? '0' : null,
+    });
     // What a statement shows, typed in as a person would type it.
     for (const [k, v] of Object.entries(start || {})) {
       if (k in Txn.fields && v !== '' && v != null) t.input(k, String(v));
@@ -137,7 +198,10 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   }, [txn?.id]);
   const draft = f.draft;
   const t = /** @type {Txn | undefined} */ (draft?.records.find((r) => r instanceof Txn));
-  if (t) t.kindsOf = kindsOf;
+  if (t) {
+    t.kindsOf = kindsOf;
+    t.typeOf = (id) => accounts.find((a) => a.id === id)?.type;
+  }
   const parts = /** @type {Part[]} */ (
     (draft?.records || []).filter((r) => r instanceof Part && !r.removed)
   );
@@ -150,12 +214,13 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
   const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
   const deleting = !!t?.removed;
-  /** Split…: a part, the category moving to the parts and the mark to be paid back with it. */
+  /** Split…: a part, the category moving to the parts, and the marks with them. */
   const addPart = () => {
     if (!t || !draft) return;
     if (!parts.length) {
       t.set('categoryId', null);
       t.set('reimbursable', null);
+      if (t.applies('deductible')) t.set('deductible', null);
     }
     draft.add(Part, { transactionId: t.id, amount: null });
   };
@@ -282,6 +347,12 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                             <${RecField} rec=${r} name="amount" bare label=${'Part ' + (i + 1) +
                               ' amount'} />
                             </${Field}>
+                            ${t.applies('deductible')
+                              ? html`
+                                <${Deductible} rec=${r} label=${'Part ' + (i + 1) + ' deductible'}
+                                  id=${'split-' + i + '-deductible'} />
+                              `
+                              : null}
                             <button type="button" class="icon-btn" aria-label=${'Remove part ' +
                               (i + 1)} onClick=${() => draft?.remove(r)}
                               style=${{ marginBottom: '14px' }}>×</button>
@@ -314,6 +385,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                     </${Field}>
                     </div>
               `
+              : null}
+            ${t.applies('deductible') && !parts.length
+              ? html`<${Deductible} rec=${t} label="Deductible" id="deductible" />`
               : null}
             <${RecField} rec=${t} name="memo" label="Memo" />
             ${draft

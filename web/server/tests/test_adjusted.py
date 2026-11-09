@@ -545,3 +545,42 @@ def test_deleting_one_half_of_a_pair_deletes_the_other_once(server, alice):
         kept = (into.deletedAt, came.deletedAt)
         s.rollback()
     assert kept == (T1, None)
+
+
+def _split_msft(c, a, day="2026-10-01"):
+    r = make(c, "Txn", accountId=a, date=day, kind="split", symbol="MSFT", amount="0",
+             splitRatio="2")  # fmt: skip
+    assert r.status_code == 200, r.text
+
+
+def test_an_option_trade_runs_through_its_contracts_adjustment(alice):
+    """S3.9.1, S3.10.4, CR3-438: an adjustment sells nothing, so the trade goes on under the
+    adjusted contract with its opening day and premium, its contracts times the ratio, noting
+    the change; a short one requires the larger of its capital before and after."""
+    a = new_account(alice, type="brokerage")["id"]
+    saved(opt(alice, a, "buy-to-open", "2026-09-01", "3.00", right="call", fees="0"))
+    saved(opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
+    _split_msft(alice, a)
+    saved(opt(alice, a, "sell-to-close", "2026-10-10", "2.00", contracts="2", right="call",
+              strike="240", fees="0"))  # fmt: skip
+    saved(opt(alice, a, "buy-to-close", "2026-10-12", "1.00", contracts="4", strike="240",
+              fees="0"))  # fmt: skip
+    rows = alice.get("/ui/api/positions/option-trades").json()["items"]
+    keys = ("symbol", "side", "contracts", "opened", "closed", "how", "premiumIn", "premiumOut",
+            "pl", "capitalRequired", "adjustedFrom", "adjustedOn")  # fmt: skip
+    assert [tuple(r[k] for k in keys) for r in rows] == [
+        ("MSFT 20NOV26 240 P", "short", "4.0", "2026-09-01", "2026-10-12", "bought back",
+         "1280.00", "400.00", "880.00", "96000.00", "MSFT 20NOV26 480 P", "2026-10-01"),
+        ("MSFT 20NOV26 240 C", "long", "2.0", "2026-09-01", "2026-10-10", "sold", "400.00",
+         "300.00", "100.00", "300.00", "MSFT 20NOV26 480 C", "2026-10-01"),
+    ]  # fmt: skip
+
+
+def test_an_option_trade_open_through_its_adjustment_is_worth_its_adjusted_contract(alice):
+    a = new_account(alice, type="brokerage")["id"]
+    saved(opt(alice, a, "buy-to-open", "2026-09-01", "3.00", right="call", fees="0"))
+    _split_msft(alice, a)
+    (row,) = alice.get("/ui/api/positions/option-trades").json()["items"]
+    assert (row["symbol"], row["contracts"], row["closed"], row["premiumOut"]) == (
+        "MSFT 20NOV26 240 C", "2.0", None, "300.00")  # fmt: skip
+    assert (row["adjustedFrom"], row["adjustedOn"]) == ("MSFT 20NOV26 480 C", "2026-10-01")

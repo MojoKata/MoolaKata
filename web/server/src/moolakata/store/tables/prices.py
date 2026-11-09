@@ -1,6 +1,6 @@
 """Price sources and stored daily closes (requirements S4)."""
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Text, text
 
 from ..types import Day, Dec, UtcTimestamp
 from ._base import Seen, record, unique_live
@@ -21,8 +21,9 @@ PriceSource = record(
 )
 unique_live(PriceSource, "name")
 
-# One close per instrument and market day, kept for ever (S4.6). Typed prices are kept apart,
-# each its typer's (TypedPrice).
+# One close per instrument and market day, kept for ever (S4.6), from a source that fetches.
+# Typed prices are kept apart, each its typer's (TypedPrice): the Manual source fetches
+# nothing, so no close is its.
 Price = record(
     "Price",
     "Price",
@@ -31,7 +32,7 @@ Price = record(
     Column("close", Dec, nullable=False),
     Column("source", Text, nullable=False),
     Column("fetchedAt", UtcTimestamp, nullable=False),
-    Column("enteredById", Text, ForeignKey("User.id")),
+    CheckConstraint("source <> 'manual'", name="source"),
     Index("ix_Price_date", "date"),
     seen=Seen.household(creates="never"),  # the price sources' closes
 )

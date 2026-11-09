@@ -17,13 +17,12 @@ permissions are its access class's (`AccessClass`), read through `_grants`.
 
 import re
 from collections.abc import Callable
-from functools import cache
 from graphlib import TopologicalSorter
 
 from sqlalchemy import Boolean, Column, MetaData, Table, Text
 
 from .tables._base import Seen
-from .views import view_name
+from .views import define_once, view_name
 
 PERMISSIONS = ("writable", "deletable", "shareable", "configurable")
 # What a view holds of each record and user: the permissions, and whether it is theirs.
@@ -40,12 +39,11 @@ def seen(table: Table) -> Seen:
     return table.info["seen"]
 
 
-@cache
 def access_table(table: Table) -> Table:
     """The view as a selectable, for Core and ORM joins."""
-    return Table(
-        access_name(table.name),
+    return define_once(
         _views,
+        access_name(table.name),
         Column("targetId", Text, primary_key=True),
         Column("userId", Text, primary_key=True),
         *(Column(p, Boolean) for p in COLUMNS),

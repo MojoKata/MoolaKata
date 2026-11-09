@@ -347,7 +347,7 @@ class CarriedView(Model):
     overpaymentApplied: Money | None = None
     capitalLossShort: Money | None = None
     capitalLossLong: Money | None = None
-    basis8606: Money | None = None
+    basis8606: dict[str, Money] | None = None  # each filer's, by user id (S8.17)
     charitableCarryover: Money | None = None
 
 
@@ -357,8 +357,20 @@ class Carried(Model):
     overpaymentApplied: Money | None = None
     capitalLossShort: Money | None = None
     capitalLossLong: Money | None = None
-    basis8606: Money | None = None
+    # Form 8606 is a person's own: a joint return carries each filer's basis (S8.17).
+    basis8606: dict[IdOf("User"), Money] | None = None  # type: ignore[valid-type]
     charitableCarryover: Money | None = None
+
+
+def _carried_json(carried: Carried) -> str:
+    """The figures as stored: amounts as text, each filer's 8606 basis by user id."""
+    out: dict = {}
+    for k, v in carried.model_dump().items():
+        if isinstance(v, dict):
+            out[k] = {u: str(x) for u, x in v.items()}
+        elif v is not None:
+            out[k] = str(v)
+    return exactjson.dumps(out)
 
 
 class DocumentOut(Model):
@@ -415,6 +427,7 @@ class LastYear(Model):
     figures: CarriedView
     filers: str  # whose book it was, of this book's filers (S8.17)
     joint: bool  # a joint return's, split between its filers (S8.18)
+    names: dict[str, str]  # the names of those whose 8606 basis it carries
 
 
 class DependentOut(Model):
@@ -632,6 +645,7 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
                 ),
                 filers=" and ".join(books.names(s, ly.filers)[u] for u in ly.filers),
                 joint=ly.joint,
+                names=books.names(s, list(figures.get("basis8606") or {})),
             )
             for f, figures, ly in books.carried_from_last_year(s, b)
         ],
@@ -848,6 +862,14 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         e.append(FieldError("resultKind", "result-invalid", "A refund, an amount owed, nothing."))
     if body.progress in ("filed", "accepted") and not body.filedOn:
         e.append(FieldError("filedOn", "filed-on-missing", "The day it was filed."))
+    carried = getattr(body, "carried", None)
+    bases = (carried.basis8606 if carried is not None else None) or {}
+    on = {f.userId for f in books.filers(s, b)}
+    for u, v in bases.items():
+        if u not in on:
+            e.append(FieldError("carried.basis8606", "filer-unknown", "One of the book's filers."))
+        elif v < 0:
+            e.append(FieldError("carried.basis8606", "amount-invalid", "Zero or more."))
     for i, p in enumerate(getattr(body, "payments", [])):
         if not 1 <= p.quarter <= 4:
             e.append(FieldError(f"payments.{i}.quarter", "quarter-invalid", "1 to 4."))
@@ -888,9 +910,7 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         "resultKind": body.resultKind or None,
         "resultAmount": body.resultAmount,
         "resultTransactionId": body.resultTransactionId or None,
-        "carried": exactjson.dumps(
-            {k: str(v) for k, v in body.carried.model_dump().items() if v is not None}
-        ),
+        "carried": _carried_json(body.carried),
     }
 
 

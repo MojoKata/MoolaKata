@@ -54,7 +54,7 @@ def seed_loans(s, people: dict) -> None:
     )
     s.add(terms)
     s.flush()
-    t = loans.terms_of(terms)
+    t = loans.terms_of(s, terms)
     cats = {c.builtIn: c.id for c in s.scalars(select(Category))}
     regular = loans.scheduled_payment(t) + D("430.00")
     paid: list[loans.Payment] = []

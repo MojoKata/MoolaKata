@@ -148,7 +148,8 @@ def build(h) -> World:
     hsa = w.acct("hsa", "TP HSA", "hsa")
     w.txn(ira, f"{EMPTY}-06-01", "100000.00", kind="deposit", contributionYear=EMPTY - 1)
     w.txn(plan, f"{EMPTY}-06-01", "30000.00", kind="deposit", contributionYear=EMPTY - 1)
-    w.txn(ira, f"{y}-02-01", "7000.00", kind="deposit")
+    # A backdoor Roth's contribution, not deducted: it adds to the 8606 basis (S8.6).
+    w.txn(ira, f"{y}-02-01", "7000.00", kind="deposit", deductible=False)
     w.txn(roth, f"{y}-02-02", "1000.00", kind="deposit")
     w.txn(ira, f"{y}-03-02", "-10000.00", kind="transfer", payee="Conversion")
     w.txn(roth, f"{y}-03-02", "10000.00", kind="transfer", payee="Conversion")
@@ -206,7 +207,7 @@ def build(h) -> World:
     made(make(c, "Filng", bookId=w.books[EMPTY]["id"], jurisdiction="federal", form="Form 1040",
               progress="accepted", filedOn=f"{y}-04-01", sentBy="e-file",
               carried={"agi": "90000", "totalTax": "8400", "capitalLossShort": "500",
-                       "capitalLossLong": "1200", "basis8606": "2000"}))  # fmt: skip
+                       "capitalLossLong": "1200", "basis8606": {w.me: "2000"}}))  # fmt: skip
     # This year's book: Emma a dependent student with her custodial account, a relative of
     # unknown age, a son; three filings, with estimated payments; documents received and filed.
     b = w.books[y] = made(make(c, "TaxBk", year=y, filers=[w.me], fromLastYear=False))
@@ -391,7 +392,10 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
     )
     dist = _text(page, _card("Distributions"))
     assert dist.startswith("Distributions TP IRA $4,000.00")
-    assert "Form 8606 basis carried from last year: $2,000.00, for a backdoor Roth's" in dist
+    assert (
+        "Admin's Form 8606 basis: $2,000.00 carried from last year, $7,000.00 not deductible "
+        "this year."
+    ) in dist
     rmds = _text(page, _card("Required minimum distributions"))
     for line in (
         "TP IRA Admin, 74: $100,000 at the end of last year ÷",
@@ -402,7 +406,8 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
         assert line in rmds, (line, rmds)
     conv = _text(page, _card("Roth conversions"))
     assert "TP IRA → TP Roth Mar 2, 2021" in conv
-    assert "· taxed $9,842.52 by Form 8606 $10,000.00" in conv
+    # 10,000 − (2,000 + 7,000) × 10,000 / (113,000 at the year's end + 10,000 + 4,000 out).
+    assert "· taxed $9,291.34 by Form 8606 $10,000.00" in conv
     roll = _text(page, _card("Rollovers"))
     assert "TP 401(k) → TP IRA May 4, 2021 $20,000.00" in roll
     assert problems == []
@@ -578,7 +583,7 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     assert (
         "Federal · Form 1040 · Admin Adjusted gross income $90,000.00 Total tax $8,400.00 "
         "Capital-loss carryover, short term $500.00 Capital-loss carryover, long term "
-        "$1,200.00 Form 8606 basis $2,000.00"
+        "$1,200.00 Form 8606 basis, Admin $2,000.00"
     ) in last
     deps = _text(page, '.card:has(h3:has-text("Dependents"))')
     assert (

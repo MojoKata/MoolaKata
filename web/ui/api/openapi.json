@@ -1810,6 +1810,51 @@
         "title": "Backups",
         "type": "object"
       },
+      "BasisOut": {
+        "additionalProperties": false,
+        "description": "A filer's Form 8606 basis (S8.6): carried from last year, none until typed, and this\nyear's nondeductible contributions, with how many are still to decide.",
+        "properties": {
+          "carried": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carried"
+          },
+          "nondeductible": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Nondeductible",
+            "type": "number"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "undecided": {
+            "title": "Undecided",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "owner",
+          "carried",
+          "nondeductible",
+          "undecided"
+        ],
+        "title": "BasisOut",
+        "type": "object"
+      },
       "BeneficiaryOut": {
         "additionalProperties": false,
         "properties": {
@@ -3167,11 +3212,19 @@
           "basis8606": {
             "anyOf": [
               {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
+                "patternProperties": {
+                  "^User_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$": {
+                    "examples": [
+                      1234.5
+                    ],
+                    "format": "money",
+                    "type": "number"
+                  }
+                },
+                "propertyNames": {
+                  "x-prefix": "User"
+                },
+                "type": "object"
               },
               {
                 "type": "null"
@@ -3285,11 +3338,14 @@
           "basis8606": {
             "anyOf": [
               {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
+                "additionalProperties": {
+                  "examples": [
+                    1234.5
+                  ],
+                  "format": "money",
+                  "type": "number"
+                },
+                "type": "object"
               },
               {
                 "type": "null"
@@ -3896,9 +3952,16 @@
             "type": "string"
           },
           "opened": {
-            "format": "date",
-            "title": "Opened",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened"
           },
           "proceeds": {
             "examples": [
@@ -11249,13 +11312,21 @@
           "joint": {
             "title": "Joint",
             "type": "boolean"
+          },
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
           }
         },
         "required": [
           "filing",
           "figures",
           "filers",
-          "joint"
+          "joint",
+          "names"
         ],
         "title": "LastYear",
         "type": "object"
@@ -13653,6 +13724,17 @@
           "toAccount": {
             "title": "Toaccount",
             "type": "string"
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting"
           }
         },
         "required": [
@@ -13660,7 +13742,8 @@
           "fromAccount",
           "toAccount",
           "amount",
-          "taxable"
+          "taxable",
+          "waiting"
         ],
         "title": "MovementOut",
         "type": "object"
@@ -14409,6 +14492,29 @@
           "accountName": {
             "title": "Accountname",
             "type": "string"
+          },
+          "adjustedFrom": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustedfrom"
+          },
+          "adjustedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustedon"
           },
           "capitalRequired": {
             "examples": [
@@ -18479,6 +18585,8 @@
               "dates-invalid",
               "day-invalid",
               "days-invalid",
+              "deductible-not-a-contribution",
+              "deductible-on-parts",
               "deliverable-invalid",
               "deliverable-missing",
               "dependent-filer",
@@ -18513,6 +18621,7 @@
               "file-pruned",
               "filed-on-missing",
               "filer-has-a-book",
+              "filer-unknown",
               "filers-invalid",
               "filers-only",
               "filing-fixed",
@@ -18941,6 +19050,8 @@
                   "dates-invalid",
                   "day-invalid",
                   "days-invalid",
+                  "deductible-not-a-contribution",
+                  "deductible-on-parts",
                   "deliverable-invalid",
                   "deliverable-missing",
                   "dependent-filer",
@@ -18975,6 +19086,7 @@
                   "file-pruned",
                   "filed-on-missing",
                   "filer-has-a-book",
+                  "filer-unknown",
                   "filers-invalid",
                   "filers-only",
                   "filing-fixed",
@@ -21688,20 +21800,12 @@
       "RetirementOut": {
         "additionalProperties": false,
         "properties": {
-          "basis8606": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Basis8606"
+          "bases": {
+            "items": {
+              "$ref": "#/components/schemas/BasisOut"
+            },
+            "title": "Bases",
+            "type": "array"
           },
           "contributions": {
             "items": {
@@ -21743,7 +21847,7 @@
           "contributions",
           "distributions",
           "rmds",
-          "basis8606",
+          "bases",
           "conversions",
           "rollovers"
         ],
@@ -23696,6 +23800,18 @@
             "default": null,
             "title": "Categoryid"
           },
+          "deductible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Deductible"
+          },
           "memo": {
             "anyOf": [
               {
@@ -25643,6 +25759,17 @@
             "title": "Date",
             "type": "string"
           },
+          "deductible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible"
+          },
           "dividendType": {
             "anyOf": [
               {
@@ -26023,6 +26150,18 @@
             "format": "date",
             "title": "Date",
             "type": "string"
+          },
+          "deductible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Deductible"
           },
           "dividendType": {
             "anyOf": [
@@ -29192,6 +29331,17 @@
               }
             ],
             "title": "Categoryid"
+          },
+          "deductible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible"
           },
           "id": {
             "title": "Id",
@@ -34386,6 +34536,7 @@
     },
     "/ui/api/positions": {
       "get": {
+        "description": "The open and closed positions, of one kind of instrument or all; another kind is\nrefused, not read as all (R3.11).",
         "operationId": "list_positions_ui_api_positions_get",
         "parameters": [
           {
@@ -34394,6 +34545,12 @@
             "required": false,
             "schema": {
               "default": "all",
+              "enum": [
+                "all",
+                "stocks",
+                "options",
+                "crypto"
+              ],
               "title": "Kind",
               "type": "string"
             }
@@ -34425,7 +34582,7 @@
     },
     "/ui/api/positions/gains": {
       "get": {
-        "description": "Realized gains grouped by year, month, account, instrument or term (S3.9), and\nunrealized gains now, by account or instrument.",
+        "description": "Realized gains grouped by year, month, account, instrument or term (S3.9), and\nunrealized gains now, by account or instrument; of one year, or every year with none.\nAnother grouping or a year of 0 is refused, not read as the default or as all (R3.11).",
         "operationId": "gains_ui_api_positions_gains_get",
         "parameters": [
           {
@@ -34434,6 +34591,13 @@
             "required": false,
             "schema": {
               "default": "year",
+              "enum": [
+                "year",
+                "month",
+                "account",
+                "instrument",
+                "term"
+              ],
               "title": "By",
               "type": "string"
             }
@@ -34445,6 +34609,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {

@@ -108,15 +108,16 @@ def filer_people(s: Session, book: TaxBook) -> list[str]:
 @dataclass
 class Candidate:
     person: Person
-    relation: str | None  # to the filers: daughter, mother-in-law
+    # To the filers: daughter, mother-in-law; a family relation's word is its label.
+    relation: str | None
     descendant: bool
     age: int | None
 
 
-def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
-    """The household's people the caller can see, but the filers, each with their relation to
-    a filer on Dec 31 and their age then; relatives first."""
-    filers = filer_people(s, book)
+def relations(s: Session, book: TaxBook, filers: list[str]) -> dict[str, tree.Relation]:
+    """Each person's relation to the book's filers on Dec 31, one for both lists (S8.14.5.5):
+    the first filer's, unless only the other's is a descendant (a stepdaughter of one and a
+    daughter of the other is a daughter)."""
     g = tree.graph(s, year_end(book))
     rel: dict[str, tree.Relation] = {}
     for f in filers:
@@ -125,6 +126,14 @@ def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
                 r.key in DESCENDANTS and rel[r.personId].key not in DESCENDANTS
             ):
                 rel[r.personId] = r
+    return rel
+
+
+def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
+    """The household's people the caller can see, but the filers, each with their relation to
+    a filer on Dec 31 and their age then; relatives first."""
+    filers = filer_people(s, book)
+    rel = relations(s, book, filers)
     out = []
     for p, _ in people.visible(s, user_id):
         if p.id in filers or (p.diedOn is not None and p.diedOn.year < book.year):
@@ -133,7 +142,7 @@ def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
         out.append(
             Candidate(
                 p,
-                r.label or r.word if r is not None else None,
+                r.word if r is not None else None,
                 r is not None and r.key in DESCENDANTS,
                 age_on_dec_31(p, book.year),
             )
@@ -213,20 +222,17 @@ def listed(s: Session, book: TaxBook) -> list[Dependent]:
     rows = of_book(s, book)
     if not rows:
         return []
-    g = tree.graph(s, year_end(book))
-    rel: dict[str, str] = {}
-    for f in filer_people(s, book):
-        for r in g.relations(f):
-            rel.setdefault(r.personId, r.label or r.word)
+    rel = relations(s, book, filer_people(s, book))
     out = []
     for d in rows:
         p = s.get(Person, d.personId)
         age = age_on_dec_31(p, book.year)
+        r = rel.get(p.id)
         out.append(
             Dependent(
                 row=d,
                 person=p,
-                relation=rel.get(p.id),
+                relation=r.word if r is not None else None,
                 age=age,
                 under17=age is not None and age < CREDIT_AGE,
                 under13=age is not None and age < CARE_AGE,
@@ -302,7 +308,9 @@ def form_8615(s: Session, book: TaxBook, deps: list[Dependent], counted) -> list
             for x in repo.load(s, a).replay().disposals:
                 if first <= x.soldOn <= last and x.basis is not None:
                     gains += x.proceeds - x.basis + x.adjustment
-        gains += sum((r.gain for r in _items(s, accts, first, last) if r.gain is not None), ZERO)
+        for r in _items(s, accts, first, last):
+            if r.gain is not None:
+                gains += r.gain
         amount = unearned(s, accts, book.year, gains)
         if amount > threshold:
             out.append(Form8615(d.person.name, amount, threshold, [a.name for a in accts]))
@@ -313,9 +321,7 @@ def childcare_paid(s: Session, book: TaxBook, account_ids: list[str]) -> bool:
     """Whether the counted accounts paid anything categorised as childcare in the year."""
     from ..store.entities.accounts import Category, Split
 
-    cats = list(s.scalars(select(Category.id).where(Category.taxTag == "childcare")))
-    if not cats or not account_ids:
-        return False
+    cats = select(Category.id).where(Category.taxTag == "childcare")
     first, last = dt.date(book.year, 1, 1), year_end(book)
     in_year = (
         Transaction.accountId.in_(account_ids),
@@ -325,14 +331,14 @@ def childcare_paid(s: Session, book: TaxBook, account_ids: list[str]) -> bool:
     )
     if s.scalar(select(Transaction.id).where(*in_year, Transaction.categoryId.in_(cats))):
         return True
-    return (
-        s.scalar(
-            select(Split.id)
-            .join(Transaction, Transaction.id == Split.transactionId)
-            .where(*in_year, Split.deleted == false(), Split.categoryId.in_(cats))
-        )
-        is not None
+    # Or a part of a payment in the year.
+    parts = select(Split.id).where(
+        Split.transactionId == Transaction.id,
+        *in_year,
+        Split.deleted == false(),
+        Split.categoryId.in_(cats),
     )
+    return s.scalar(parts) is not None
 
 
 def past_child_age(age: int | None, student: bool) -> bool:
@@ -344,7 +350,8 @@ def carry_over(s: Session, prev: TaxBook, book: TaxBook, now: dt.datetime) -> li
     qualifying child's age who isn't claimed as a relative is left out, and named."""
     left = []
     # From each of last year's books in turn (two after filing separately): a person both
-    # claimed is copied once (S8.14.4).
+    # claimed is copied once (S8.14.4). A book claims a person once, so what this book has
+    # before the copy is all there is to look up.
     have = {d.personId for d in of_book(s, book)}
     for d in of_book(s, prev):
         p = s.get(Person, d.personId)
@@ -352,7 +359,6 @@ def carry_over(s: Session, prev: TaxBook, book: TaxBook, now: dt.datetime) -> li
             continue
         if d.personId in have:
             continue
-        have.add(d.personId)
         if d.claimedAs == "qualifying child" and past_child_age(
             age_on_dec_31(p, book.year), d.student
         ):

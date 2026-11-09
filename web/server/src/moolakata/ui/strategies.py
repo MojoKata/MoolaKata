@@ -194,8 +194,8 @@ def _check_legs(
     book = book or strat.Book(s, repo.load(s, account))
     under = None
     for x in legs:
-        qty, _ = book.open.get(x.instrumentId, (Decimal(0), Decimal(0)))
-        if not qty:
+        # Its open quantity: 0 when none is open.
+        if not book.open.get(x.instrumentId, (Decimal(0),))[0]:
             raise refuse("legs", "leg-not-held", "Legs held in this account.")
         oc = contract_of(s, x.instrumentId)
         u = book.became(oc.underlyingId if oc is not None else x.instrumentId)[-1]
@@ -254,7 +254,6 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
                     strategyId=st.id,
                     instrumentId=x.instrumentId,
                     addedOn=opened,
-                    createdAt=clock.now(),
                 )
             )
         for iid in body.declineRoll:
@@ -268,11 +267,7 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
             )
             s.add(declined)
             s.flush()
-            s.add(
-                StrategyLeg(
-                    strategyId=declined.id, instrumentId=iid, addedOn=today, createdAt=clock.now()
-                )
-            )
+            s.add(StrategyLeg(strategyId=declined.id, instrumentId=iid, addedOn=today))
         st.updatedAt = clock.now()
         s.flush()
         book = strat.Book(s, repo.load(s, a))
@@ -323,7 +318,6 @@ def _strategy_create(ctx, record_id: str, body: StrategyRecord) -> None:
                 instrumentId=x.instrumentId,
                 quantity=x.quantity,
                 addedOn=opened,
-                createdAt=clock.now(),
             )
         )
     s.flush()

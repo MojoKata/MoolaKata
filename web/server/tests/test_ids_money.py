@@ -55,3 +55,23 @@ def test_cents_round_half_even():
     assert money.cents_str(-5) == "-0.05"
     assert money.quantity_str(Decimal("12.500000000000000000")) == "12.5"
     assert money.quantity_str(Decimal("1E+2")) == "100"
+
+
+@pytest.mark.parametrize("d", ["-0", "-0.00", "-0.004", "-0.005", "0", "0.004"])
+def test_an_amount_that_rounds_to_zero_is_written_without_a_sign(d):
+    """A short option worth nothing is worth 0.00, never -0.00: in the API, the exports and
+    every sentence or printed form (CR3-436)."""
+    from moolakata import exactjson
+    from moolakata.taxes import exports
+    from moolakata.ui import conventions
+
+    assert money.money_str(Decimal(d)) == "0.00"
+    assert money.grouped(Decimal(d)) == "0.00"
+    assert exactjson.dumps([conventions._money_out(Decimal(d))]) == "[0.00]"
+    assert exports._money(Decimal(d)) == "0.00"
+
+
+def test_a_written_amount_keeps_its_sign_and_groups_its_thousands():
+    assert money.money_str(Decimal("-0.006")) == "-0.01"
+    assert money.grouped(Decimal("-1234.5")) == "-1,234.50"
+    assert money.grouped(Decimal("1234567.891")) == "1,234,567.89"

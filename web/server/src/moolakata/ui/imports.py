@@ -28,6 +28,7 @@ from ..importers.parsed import ParsedFile, ReadError, Row, Security
 from ..jobs import Job
 from ..ledger import holdingcheck, lots
 from ..ledger import types as atypes
+from ..money import grouped
 from ..store.entities.accounts import (
     Account,
     HoldingCheck,
@@ -920,7 +921,7 @@ def _checked(body: StatementIn, present: list[bool]) -> list[StatementRowIn]:
         raise refuse(
             "acceptDifference",
             "statement-does-not-add-up",
-            f"The transactions are {abs(difference):,.2f} short of the closing balance. "
+            f"The transactions are {grouped(abs(difference))} short of the closing balance. "
             "Correct them, or accept the difference.",
         )
     if body.periodEnd < body.periodStart:

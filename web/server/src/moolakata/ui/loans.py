@@ -217,8 +217,8 @@ def _account(s, c: Caller, account_id: str, need: str = "read") -> tuple[Account
     return a, held
 
 
-def _terms_out(row: Loan) -> TermsOut:
-    t = loans.terms_of(row)
+def _terms_out(s, row: Loan) -> TermsOut:
+    t = loans.terms_of(s, row)
     return TermsOut(
         principal=row.principal,
         startDate=row.startDate,
@@ -265,7 +265,7 @@ def view(s, a: Account) -> LoanView:
             rows=[],
             servicer=None,
         )
-    terms = loans.terms_of(row)
+    terms = loans.terms_of(s, row)
     mode, automatic = loans.modes(s, a, row)
     payments, draws = loans.history(s, a, today)
     sm, rows = loans.summary(terms, payments, draws, today, mode)
@@ -285,7 +285,7 @@ def view(s, a: Account) -> LoanView:
         )
     return LoanView(
         version=row.version,
-        terms=_terms_out(row),
+        terms=_terms_out(s, row),
         balance=sm.balance,
         rate=sm.rate,
         payment=sm.payment,
@@ -324,7 +324,9 @@ def _equity(s, row: Loan, terms, owed, rows, today) -> Equity | None:
     owed_all = owed + sum(
         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
     )
-    original = row.originalValue or assets.basis(it, d)
+    # The one the schedule's PMI reads: typed, else the home's basis when the loan was made
+    # (CR3-434, CR3-439).
+    original = terms.originalValue
     request = ends = None
     if terms.pmi and original:
         for r in rows:
@@ -459,7 +461,7 @@ def suggest_split(
         # Recording it makes Automatic read as recorded here: a late one pays the oldest day
         # missed (S1.9.3).
         catch_up = (row.paymentsMode or loans.RECORDED) == loans.RECORDED
-        p = loans.split_new(loans.terms_of(row), payments, draws, date, amount, catch_up)
+        p = loans.split_new(loans.terms_of(s, row), payments, draws, date, amount, catch_up)
         cats = _categories(s)
         return SplitOut(
             principal=p.principal,
@@ -485,7 +487,7 @@ def candidates(account_id: str, request: Request, c: Caller = Depends(caller)):
             return []
         payments, draws = loans.history(s, a)
         mode, _ = loans.modes(s, a, row)
-        sm, _ = loans.summary(loans.terms_of(row), payments, draws, clock.today(), mode)
+        sm, _ = loans.summary(loans.terms_of(s, row), payments, draws, clock.today(), mode)
         want = sm.total
         if not want:
             return []
@@ -748,7 +750,7 @@ def _compute(s, c: Caller, a: Account, plan: payoff.Plan) -> payoff.Result:
     payments, draws = loans.history(s, a)
     mode, _ = loans.modes(s, a, row)
     return payoff.plan_outcomes(
-        loans.terms_of(row), payments, draws, clock.today(), plan, rate, mode
+        loans.terms_of(s, row), payments, draws, clock.today(), plan, rate, mode
     )
 
 
@@ -781,7 +783,7 @@ def plan_payoff(account_id: str, body: PlanIn, request: Request, c: Caller = Dep
             planRows=_rows(r.plan.rows),
             recastRows=_rows(r.recast.rows) if r.recast else [],
             assumedRates=[
-                ResetView(date=d, rate=x) for d, x in loans.terms_of(row).resets if d > today
+                ResetView(date=d, rate=x) for d, x in loans.terms_of(s, row).resets if d > today
             ],
         )
 

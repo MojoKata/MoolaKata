@@ -416,7 +416,7 @@ def series(
         row = loans.loan_of(s, ledger.account)
         if row is None:
             return []
-        terms = loans.terms_of(row)
+        terms = loans.terms_of(s, row)
         payments, draws = loans.history(s, ledger.account)
         out, day = [], first
         while day <= last:
@@ -489,7 +489,7 @@ def flows(
         row = loans.loan_of(s, a)
         if row is None:
             return out
-        terms = loans.terms_of(row)
+        terms = loans.terms_of(s, row)
         add(terms.start, -terms.principal)
         for t in ledger.transactions:
             add(t.date, t.amount)  # a payment in, a draw out

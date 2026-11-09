@@ -37,7 +37,7 @@ The cash effect on the account: − for money out (a buy), + for money in (a sal
 
 ## Fees
 
-Commission and fees.
+Commission and fees, 0 for none: a trade starts at 0, and left blank they're refused.
 
 ## Lots
 
@@ -85,6 +85,14 @@ may be for the year before.
 
 You, your employer (a match), a rollover, or a Roth conversion. A transfer matched from another
 retirement account says it by itself.
+
+## Deductible {#deductible}
+
+For your own contribution to a traditional IRA: whether you deduct it on your return. **Not
+deductible** contributions make your Form 8606 basis, so a later Roth conversion is taxed only on
+the rest (the tax book's Retirement panel works it out). Until you choose, it is **Not decided**,
+and a conversion that year waits for it. Deducted only in part? Split it: each part is marked.
+Whether you can deduct it depends on your income and a workplace plan; your preparer decides.
 
 ## Memo
 

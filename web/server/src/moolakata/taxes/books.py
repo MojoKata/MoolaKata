@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy import false, func, select
 from sqlalchemy.orm import Session
 
-from .. import access, clock
+from .. import access
 from ..projections import taxtables
 from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
@@ -22,18 +22,6 @@ from ..store.entities.taxes import (
     TaxDocument,
 )
 from ..store.entities.users import User
-
-CARRIED = (
-    "agi",
-    "totalTax",
-    "refund",
-    "owed",
-    "overpaymentApplied",
-    "capitalLossShort",
-    "capitalLossLong",
-    "basis8606",
-    "charitableCarryover",
-)
 
 
 def filers(s: Session, book: TaxBook) -> list[TaxBookFiler]:
@@ -66,15 +54,16 @@ def get(s: Session, user_id: str, book_id: str, need: str = "read") -> tuple[Tax
     return b, p
 
 
-def overrides(s: Session, book: TaxBook) -> dict[str, bool]:
-    return {
-        o.accountId: o.counted
-        for o in s.scalars(
+def overrides(s: Session, book: TaxBook) -> list[TaxBookAccount]:
+    """The book's choices of what it counts (S8.14.2): each account left out, or added and by
+    whom."""
+    return list(
+        s.scalars(
             select(TaxBookAccount).where(
                 TaxBookAccount.bookId == book.id, TaxBookAccount.deleted == false()
             )
         )
-    }
+    )
 
 
 @dataclass
@@ -95,28 +84,18 @@ def counted(s: Session, book: TaxBook) -> Counted:
             .order_by(Account.name)
         )
     )
-    over = overrides(s, book)
+    rows = overrides(s, book)
+    over = {o.accountId: o.counted for o in rows}
+    adders = {o.accountId: o.addedById for o in rows}
     kept = [a for a in own if over.get(a.id, True)]
     left = [a for a in own if not over.get(a.id, True)]
     added = [i for i, on in over.items() if on and i not in {a.id for a in own}]
-    adders = _adders(s, book)
     extra = [
         a
         for a in (s.get(Account, i) for i in added)
         if a is not None and not a.deleted and _still_seen(s, a, adders.get(a.id), who)
     ]
     return Counted(kept + extra, left, [a.id for a in extra])
-
-
-def _adders(s: Session, book: TaxBook) -> dict[str, str | None]:
-    return {
-        o.accountId: o.addedById
-        for o in s.scalars(
-            select(TaxBookAccount).where(
-                TaxBookAccount.bookId == book.id, TaxBookAccount.deleted == false()
-            )
-        )
-    }
 
 
 def _still_seen(s: Session, a: Account, adder: str | None, who: list[str]) -> bool:
@@ -180,8 +159,18 @@ class Expected:
     document: TaxDocument | None = None  # received, when it is
 
 
-def _moved(s: Session, a: Account, year: int, out: bool) -> bool:
-    """Whether money left (or came into) the account in the year, beyond trades."""
+def _paid_in(s: Session, a: Account, year: int) -> bool:
+    """Whether money came into the account in the year, beyond trades."""
+    return _moved(s, a, year, Transaction.amount > 0)
+
+
+def _paid_out(s: Session, a: Account, year: int) -> bool:
+    """Whether money left the account in the year, beyond trades."""
+    return _moved(s, a, year, Transaction.amount < 0)
+
+
+def _moved(s: Session, a: Account, year: int, which) -> bool:
+    """Whether the account has a cash transaction in the year for which `which` holds."""
     q = (
         select(func.count())
         .select_from(Transaction)
@@ -191,7 +180,7 @@ def _moved(s: Session, a: Account, year: int, out: bool) -> bool:
             Transaction.date >= dt.date(year, 1, 1),
             Transaction.date <= dt.date(year, 12, 31),
             Transaction.instrumentId.is_(None),
-            Transaction.amount < 0 if out else Transaction.amount > 0,
+            which,
         )
     )
     return bool(s.scalar(q))
@@ -199,7 +188,7 @@ def _moved(s: Session, a: Account, year: int, out: bool) -> bool:
 
 def _interest(s: Session, a: Account, year: int) -> Decimal:
     return s.scalar(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+        select(func.sum(Transaction.amount)).where(
             Transaction.accountId == a.id,
             Transaction.deleted == false(),
             Transaction.kind == "interest",
@@ -223,19 +212,19 @@ def expected(s: Session, book: TaxBook) -> list[Expected]:
             if _interest(s, a, y) >= 10:
                 forms.append(("1099-INT", "$10 or more of interest"))
         elif a.type in ("ira", "roth-ira"):
-            if _moved(s, a, y, out=False):
+            if _paid_in(s, a, y):
                 forms.append(("5498", "contributions"))
-            if _moved(s, a, y, out=True):
+            if _paid_out(s, a, y):
                 forms.append(("1099-R", "distributions"))
         elif a.type in ("401k", "403b", "457b"):
-            if _moved(s, a, y, out=True):
+            if _paid_out(s, a, y):
                 forms.append(("1099-R", "distributions"))
         elif a.type == "hsa":
             forms.append(("5498-SA", "an HSA"))
-            if _moved(s, a, y, out=True):
+            if _paid_out(s, a, y):
                 forms.append(("1099-SA", "distributions"))
         elif a.type == "529":
-            if _moved(s, a, y, out=True):
+            if _paid_out(s, a, y):
                 forms.append(("1099-Q", "withdrawals"))
         elif a.type in ("mortgage", "heloc"):
             forms.append(("1098", "mortgage interest"))
@@ -291,7 +280,7 @@ def expected(s: Session, book: TaxBook) -> list[Expected]:
                 continue
             if (
                 (e.accountId and d.accountId == e.accountId)
-                or (e.issuer and (d.issuer or "").lower() == e.issuer.lower())
+                or (e.issuer and d.issuer and d.issuer.lower() == e.issuer.lower())
                 or (e.accountId is None and e.issuer is None)
             ):
                 e.document = d
@@ -310,7 +299,7 @@ def accepted_on(s: Session, user_id: str, year: int, but: str | None = None) -> 
     a year (S8.14.1)."""
     for b in s.scalars(
         select(TaxBook)
-        .join(TaxBookFiler, TaxBookFiler.bookId == TaxBook.id)
+        .join(TaxBookFiler)  # on its one foreign key, bookId
         .where(
             TaxBook.year == year,
             TaxBook.deleted == false(),
@@ -346,22 +335,18 @@ def last_years(s: Session, book: TaxBook) -> list[LastYear]:
 
 
 def _last_years(s: Session, book: TaxBook) -> list[LastYear]:
-    out: dict[str, LastYear] = {}
+    by: dict[str, tuple[TaxBook, list[str]]] = {}
     for f in filers(s, book):
         b = accepted_on(s, f.userId, book.year - 1)
-        if b is None:
-            continue
-        if b.id not in out:
-            on = [x.userId for x in filers(s, b) if x.acceptedAt is not None]
-            out[b.id] = LastYear(b, [], joint=False)
-            out[b.id].joint = len(on) > 1
-        out[b.id].filers.append(f.userId)
-    for ly in out.values():
-        # Joint last year, but not all its filers on this book: a joint carryover to split.
-        ly.joint = ly.joint and len(ly.filers) < len(
-            [x for x in filers(s, ly.book) if x.acceptedAt is not None]
-        )
-    return sorted(out.values(), key=lambda ly: ly.book.createdAt)
+        if b is not None:
+            by.setdefault(b.id, (b, []))[1].append(f.userId)
+    out = []
+    for b, who in by.values():
+        # Filed by more filers than this book's who were on it (so jointly): a carryover to
+        # split.
+        on = [x for x in filers(s, b) if x.acceptedAt is not None]
+        out.append(LastYear(b, who, joint=len(who) < len(on)))
+    return sorted(out, key=lambda ly: ly.book.createdAt)
 
 
 def carried_from_last_year(s: Session, book: TaxBook) -> list[tuple[Filing, dict, LastYear]]:
@@ -371,8 +356,9 @@ def carried_from_last_year(s: Session, book: TaxBook) -> list[tuple[Filing, dict
     with scoping.as_server(s, "last year's carried figures, by filer", expire=False) as srv:
         found = [(f, ly) for ly in lys for f in filings(srv, ly.book)]
     for f, ly in found:
-        figures = json.loads(f.carried or "{}")
-        if any(figures.get(k) not in (None, "") for k in CARRIED):
+        # A filing's carried figures hold only those typed (S8.17): none typed, none carried.
+        figures = json.loads(f.carried)
+        if figures:
             out.append((f, figures, ly))
     return out
 
@@ -388,34 +374,33 @@ def federal_figures(s: Session, book: TaxBook) -> list[tuple[dict, LastYear]]:
         federal = [f for f in by_book[ly.book.id] if f.jurisdiction == "federal"]
         pick = [f for f in federal if f.amendsId] or federal
         for f in pick[-1:]:
-            out.append((json.loads(f.carried or "{}"), ly))
+            out.append((json.loads(f.carried), ly))
     return out
 
 
 def carryover(s: Session, book: TaxBook) -> tuple[Decimal, Decimal, bool]:
     """The capital-loss carryover into the book (S8.17), short and long: last year's federal
     returns' summed (joint after separate). A joint return's, filing separately after it, is
-    the filer's to split (S8.18): their share once typed, none until then, and whether it is
-    still to type."""
+    the filers' to split (S8.18): the book's share once typed, none until then, and whether it
+    is still to type. The book has one share, of every joint return it splits, counted once."""
     short = long_ = Decimal(0)
-    to_type = False
+    split = carried = False
     for figures, ly in federal_figures(s, book):
         if ly.joint:
-            if book.carryoverShareShort is None and book.carryoverShareLong is None:
-                to_type = to_type or bool(
-                    figures.get("capitalLossShort") or figures.get("capitalLossLong")
-                )
-            short += book.carryoverShareShort or Decimal(0)
-            long_ += book.carryoverShareLong or Decimal(0)
+            split = True
+            # Figures are saved as typed, "0.00" too: only a carryover above 0 is one to split.
+            carried = carried or any(
+                Decimal(str(figures.get(k) or 0)) for k in ("capitalLossShort", "capitalLossLong")
+            )
             continue
         short += Decimal(str(figures.get("capitalLossShort") or 0))
         long_ += Decimal(str(figures.get("capitalLossLong") or 0))
-    return short, long_, to_type
+    if split:
+        short += book.carryoverShareShort or Decimal(0)
+        long_ += book.carryoverShareLong or Decimal(0)
+    typed = book.carryoverShareShort is not None or book.carryoverShareLong is not None
+    return short, long_, carried and not typed
 
 
 def names(s: Session, ids: list[str]) -> dict[str, str]:
     return {u.id: u.displayName for u in s.scalars(select(User).where(User.id.in_(ids)))}
-
-
-def today() -> dt.date:
-    return clock.today()
