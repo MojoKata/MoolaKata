@@ -222,7 +222,9 @@ def test_gather_takes_a_later_runs_job_over_the_earlier_and_records_no_area_that
     job("1", "ledger-1", "server/ledger", "moolakata/ledger/post.py", [1, 0])
     # Run 2: auth-1 again, run.
     job("2", "auth-1", "server/auth", "moolakata/auth/users.py", [1, 1])
-    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 1  # keys-1
+    # Run 2 from a fork, by owner/repo:id; both already downloaded.
+    given = ["1", "someone/MoolaKata:2"]
+    assert mutate.gather(argparse.Namespace(run=given, no_record=False)) == 1  # keys-1
     records = tmp_path / "records"
     auth = json.loads((records / "baseline-auth.json").read_text())
     assert (auth["first"]["killed"], auth["first"]["not run"]) == (2, 0)

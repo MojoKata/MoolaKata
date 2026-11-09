@@ -546,10 +546,11 @@ def gather(args) -> int:
     and its survivors kept for the sweep. A job run again in a later run replaces the earlier
     one; an area with a job that ran nothing (stopped before its first change) is not recorded."""
     jobs: dict[str, Path] = {}
-    for run in args.run:
+    for given in args.run:
+        repo, _, run = given.rpartition(":")  # owner/repo:run for a fork's run
         dest = paths.WEB / ".dev" / "mutate-ci" / run
         if not dest.exists():
-            gh = [shutil.which("gh") or "gh", "run", "download", run, "-R", REPO,
+            gh = [shutil.which("gh") or "gh", "run", "download", run, "-R", repo or REPO,
                   "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
             subprocess.run(gh, check=True)  # noqa: S603 - our own command
         for job in sorted(dest.glob("*/job.json")):
@@ -646,7 +647,9 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--area", required=True)
     e.add_argument("--modules", required=True)
     g = sub.add_parser("gather", help="a CI baseline run's artifacts, recorded by area")
-    g.add_argument("run", nargs="+", help="the mutate workflow's run ids, the earliest first")
+    g.add_argument("run", nargs="+",
+                   help="the mutate workflow's run ids, the earliest first (owner/repo:id for "
+                        "a fork's)")  # fmt: skip
     g.add_argument("--no-record", action="store_true", help="survivors only")
     args = p.parse_args(argv)
     commands = {"run": run, "summary": summary, "check": check, "record": record,

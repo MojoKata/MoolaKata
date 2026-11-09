@@ -212,7 +212,7 @@ same).
 Then, on this machine:
 
 ```sh
-web/dev.sh mutate gather <run id>...    # gh run download; one record per area
+web/dev.sh mutate gather <run id>...    # gh run download; one record per area (owner/repo:id for a fork's run)
 ```
 
 `gather` downloads each run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
