@@ -145,9 +145,13 @@ jobs:
         env:
           MODULES: ${{ matrix.modules }}
         run: |
+          # Out of time (124) keeps what finished, for gather; any other failure fails the job,
+          # its artifact still kept. The map's path is whole: dev.sh runs from web/server.
           # shellcheck disable=SC2086 # the modules are words
-          timeout 330m web/dev.sh mutate run $MODULES --map web/.dev/testmap/map.json \
-            --workers 4 --limit 12 || echo "the run ended with $? (124: out of time)"
+          rc=0
+          timeout 330m web/dev.sh mutate run $MODULES --map "$GITHUB_WORKSPACE/web/.dev/testmap/map.json" \
+            --workers 4 --limit 12 || rc=$?
+          if [ "$rc" = 124 ]; then echo "out of time: what finished is kept"; else exit "$rc"; fi
       - name: the run's outcomes, survivors and log
         if: always()
         env:
