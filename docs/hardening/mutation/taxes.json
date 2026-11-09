@@ -1,0 +1,89 @@
+{
+  "name": "taxes",
+  "modules": [
+    "moolakata/taxes/books.py",
+    "moolakata/taxes/closed.py",
+    "moolakata/taxes/dates.py",
+    "moolakata/taxes/dependents.py",
+    "moolakata/taxes/exports.py",
+    "moolakata/taxes/panels.py",
+    "moolakata/taxes/retirement.py"
+  ],
+  "first": {
+    "killed": 2227,
+    "timeout": 1,
+    "survived": 1422,
+    "no tests": 262,
+    "not run": 814,
+    "files": {
+      "moolakata/taxes/panels.py": {
+        "killed": 1182,
+        "timeout": 0,
+        "survived": 946,
+        "no tests": 54,
+        "not run": 0
+      },
+      "moolakata/taxes/closed.py": {
+        "killed": 513,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 1,
+        "not run": 0
+      },
+      "moolakata/taxes/dates.py": {
+        "killed": 107,
+        "timeout": 0,
+        "survived": 58,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/taxes/retirement.py": {
+        "killed": 0,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 68,
+        "not run": 0
+      },
+      "moolakata/taxes/dependents.py": {
+        "killed": 196,
+        "timeout": 0,
+        "survived": 235,
+        "no tests": 139,
+        "not run": 0
+      },
+      "moolakata/taxes/exports.py": {
+        "killed": 229,
+        "timeout": 1,
+        "survived": 183,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/taxes/books.py": {
+        "killed": 0,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 814
+      }
+    }
+  },
+  "pr": 38,
+  "found": [
+    "CR3-441",
+    "CR3-442",
+    "CR3-443",
+    "CR3-444",
+    "CR3-450",
+    "CR3-451"
+  ],
+  "content": {
+    "moolakata/taxes/books.py": "5756b6db93503e3624ad08e3ab27e4f8490e0d13",
+    "moolakata/taxes/closed.py": "fd424800b69047f7db13536d25044af41481c8ad",
+    "moolakata/taxes/dates.py": "e5701d0a46401695f14f965307a4d1b4f9809d4c",
+    "moolakata/taxes/dependents.py": "73763f9d0056daf8bf65d27614352358a1fe471c",
+    "moolakata/taxes/exports.py": "0274c5e2771c0769e1fb8dcd31cfdd6f739c034a",
+    "moolakata/taxes/panels.py": "0cd9cc0a3f1a4e7d3a3b93c278b8f3a7c3cc6391",
+    "moolakata/taxes/retirement.py": "d7a891e8419247b3bc27e5dcec78bc060275430e"
+  },
+  "note": "Backfilled from the runs of Nov 4 (books.py first ran with no test reaching it, then again with the files that do); a later pass over the new Form 8606 code (567 changes) was settled too."
+}

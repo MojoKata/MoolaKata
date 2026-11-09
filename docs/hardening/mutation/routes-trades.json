@@ -1,0 +1,52 @@
+{
+  "name": "routes-trades",
+  "modules": [
+    "moolakata/ui/options.py",
+    "moolakata/ui/positions.py",
+    "moolakata/ui/strategies.py"
+  ],
+  "first": {
+    "killed": 1009,
+    "timeout": 0,
+    "survived": 574,
+    "no tests": 50,
+    "not run": 0,
+    "files": {
+      "moolakata/ui/options.py": {
+        "killed": 306,
+        "timeout": 0,
+        "survived": 281,
+        "no tests": 20,
+        "not run": 0
+      },
+      "moolakata/ui/positions.py": {
+        "killed": 352,
+        "timeout": 0,
+        "survived": 113,
+        "no tests": 30,
+        "not run": 0
+      },
+      "moolakata/ui/strategies.py": {
+        "killed": 351,
+        "timeout": 0,
+        "survived": 180,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "pr": 38,
+  "found": [
+    "CR3-445",
+    "CR3-446",
+    "CR3-447",
+    "CR3-448",
+    "CR3-449"
+  ],
+  "content": {
+    "moolakata/ui/options.py": "32ab63572bbf7c0c3fc475c5a4a482077997281a",
+    "moolakata/ui/positions.py": "12d6ecabf7f1d2001b3c3e38115b458baae485f5",
+    "moolakata/ui/strategies.py": "416e70951eaa7a1cb0076f9521b1d579cd8340a6"
+  },
+  "note": "Backfilled from the run of Nov 4."
+}

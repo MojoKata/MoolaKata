@@ -31,91 +31,91 @@
     "lines": 86.7
   },
   "server/assets": {
-    "branches": 90,
-    "lines": 96
+    "branches": 97.0,
+    "lines": 99.0
   },
   "server/auth": {
-    "branches": 76,
-    "lines": 91.4
+    "branches": 76.9,
+    "lines": 92.9
   },
   "server/bitcoin": {
-    "branches": 80.5,
-    "lines": 89.2
+    "branches": 80.9,
+    "lines": 90.0
   },
   "server/budgets": {
-    "branches": 90.3,
-    "lines": 97.2
+    "branches": 85.8,
+    "lines": 95.5
   },
   "server/connector": {
-    "branches": 84.8,
-    "lines": 94.2
+    "branches": 84.2,
+    "lines": 94.6
   },
   "server/core": {
     "branches": 77.7,
     "lines": 88.9
   },
   "server/education": {
-    "branches": 84,
-    "lines": 92
+    "branches": 60.2,
+    "lines": 86.0
   },
   "server/gifts": {
-    "branches": 87,
-    "lines": 93
+    "branches": 74.4,
+    "lines": 89.7
   },
   "server/giving": {
-    "branches": 90,
-    "lines": 96
+    "branches": 69.6,
+    "lines": 86.8
   },
   "server/importers": {
-    "branches": 79.3,
-    "lines": 89.1
+    "branches": 78.8,
+    "lines": 90.2
   },
   "server/keys": {
-    "branches": 62,
-    "lines": 83.1
+    "branches": 63.4,
+    "lines": 85.5
   },
   "server/ledger": {
-    "branches": 91.8,
-    "lines": 97.1
+    "branches": 82.8,
+    "lines": 92.3
   },
   "server/links": {
-    "branches": 79.8,
-    "lines": 92.1
+    "branches": 79.1,
+    "lines": 91.9
   },
   "server/loans": {
-    "branches": 89.7,
-    "lines": 97.6
+    "branches": 88.8,
+    "lines": 96.6
   },
   "server/options": {
-    "branches": 92.5,
-    "lines": 98.1
+    "branches": 98.0,
+    "lines": 99.5
   },
   "server/people": {
-    "branches": 88.0,
-    "lines": 95.3
+    "branches": 87.2,
+    "lines": 95.5
   },
   "server/prices": {
-    "branches": 88.0,
-    "lines": 97.2
+    "branches": 88.6,
+    "lines": 96.5
   },
   "server/projections": {
-    "branches": 80.1,
-    "lines": 93.5
+    "branches": 79.4,
+    "lines": 92.3
   },
   "server/receipts": {
-    "branches": 71.2,
-    "lines": 76.9
+    "branches": 72.6,
+    "lines": 80.0
   },
   "server/store": {
     "branches": 76.9,
     "lines": 90.8
   },
   "server/taxes": {
-    "branches": 91.8,
-    "lines": 97.1
+    "branches": 93.9,
+    "lines": 97.7
   },
   "server/ui": {
-    "branches": 74.9,
-    "lines": 91.1
+    "branches": 80.1,
+    "lines": 92.8
   }
 }

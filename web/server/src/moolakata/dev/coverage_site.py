@@ -20,7 +20,7 @@ import shutil
 import urllib.error
 import urllib.request
 
-from . import coverage
+from . import coverage, hardening
 
 SITE = coverage.OUT / "site"
 PUBLISHED = "https://mojokata.github.io/MoolaKata/"
@@ -172,14 +172,6 @@ def keyed(kind: str, text: str) -> str:
     return f'<span class="key {kind}"></span>{text}'
 
 
-def short(rel: str) -> str:
-    """A file's path from its side's root: ledger/post.py, components/share.js."""
-    for root in coverage.ROOTS:
-        if rel.startswith(root):
-            return rel.removeprefix(root)
-    return rel
-
-
 def meter(kind: str, v: float | None, floor: float | None = None, was: float | None = None) -> str:
     """A bar for a percentage in its band's colour (S17.5.8), a tick at the floor (striped below
     it), the figure and its change."""
@@ -233,10 +225,10 @@ def area_group(area: str, t: dict, floor: dict | None, was: dict | None, files: 
         f"<td class='floor'>{floor_text}</td></tr>"
     ]
     for f in files:
-        name = html.escape(short(f["path"]))
+        name = html.escape(coverage.short(f["path"]))
         link = f"<a href='{html.escape(f['report'])}'>{name}</a>" if f.get("report") else name
         rows.append(
-            f"<tr class='file'{sort_keys(short(f['path']), f, f['path'])}><th>{link}</th>"
+            f"<tr class='file'{sort_keys(coverage.short(f['path']), f, f['path'])}><th>{link}</th>"
             f"{cells(f)}<td></td><td></td></tr>"
         )
     return f"<tbody class='area'>{''.join(rows)}</tbody>"
@@ -465,7 +457,8 @@ details summary {{ cursor: pointer; font-weight: 600; margin: 32px 0 8px; }}
 Line by line: <a href="server/index.html">the server and the connector</a>,
 <a href="browser/index.html">the browser app</a>. The history:
 <a href="history.json">history.json</a> ({merges_count} merges); each file's counts:
-<a href="files.json">files.json</a>.</p>
+<a href="files.json">files.json</a>. Each area's findings, mutation runs and the path to the end
+of the sweep: <a href="hardening.html">hardening</a>.</p>
 
 <h2>By area</h2>
 <div class="tools"><input id="filter" type="search"
@@ -637,7 +630,11 @@ def build() -> int:
             raise
         print(f"{base}history.json couldn't be read ({e}); the preview starts without it")
         history = []
-    history = add(history, entry(areas))
+    files_file = coverage.OUT / "files.json"
+    files = json.loads(files_file.read_text()) if files_file.exists() else []
+    this = entry(areas)
+    this["hardening"] = hardening.entry_figures(areas, files)
+    history = add(history, this)
     shutil.rmtree(SITE, ignore_errors=True)
     SITE.mkdir(parents=True)
     for part in ("server", "browser"):
@@ -646,10 +643,9 @@ def build() -> int:
     (SITE / "history.json").write_text(
         "[\n" + ",\n".join(json.dumps(h, sort_keys=True) for h in history) + "\n]\n"
     )
-    files_file = coverage.OUT / "files.json"
-    files = json.loads(files_file.read_text()) if files_file.exists() else []
     if files_file.exists():
         shutil.copy(files_file, SITE / "files.json")
     (SITE / "index.html").write_text(page(history, coverage.floors(), files, base, repo_url()))
+    (SITE / "hardening.html").write_text(hardening.page(history, files, repo_url()))
     print(f"{SITE / 'index.html'}: {len(history)} merges" + ("" if in_ci() else ", a preview"))
     return 0

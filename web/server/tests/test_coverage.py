@@ -79,3 +79,20 @@ def test_a_figure_s_band_is_green_from_80_and_red_under_60():
     """S17.5.8: the bands, at their edges."""
     got = [coverage.band(v)[0] for v in (0.0, 59.9, 60.0, 79.9, 80.0, 100.0)]
     assert got == ["low", "low", "fair", "fair", "good", "good"]
+
+
+def test_a_route_module_counts_in_the_area_it_serves():
+    """S17.5.8.1: ui/budgets.py counts with budgets/, ui/positions.py with options/; a route that
+    serves no package stays in server/ui."""
+    at = "web/server/src/moolakata/"
+    assert coverage.area_of(at + "ui/budgets.py") == "server/budgets"
+    assert coverage.area_of(at + "ui/positions.py") == "server/options"
+    assert coverage.area_of(at + "ui/settings.py") == "server/ui"
+    assert coverage.area_of(at + "ui/__init__.py") == "server/ui"
+    assert coverage.area_of(at + "valuation.py") == "server/core"
+    assert coverage.area_of(at + "store/entities/taxes.py") == "server/store"
+    # The map names route modules that exist, each to a package that exists.
+    for route, package in coverage.ROUTE_AREAS.items():
+        assert (coverage.SERVER / "ui" / f"{route}.py").exists(), route
+        assert (coverage.SERVER / package / "__init__.py").exists(), package
+        assert not (coverage.SERVER / route / "__init__.py").exists(), f"{route} is a package"

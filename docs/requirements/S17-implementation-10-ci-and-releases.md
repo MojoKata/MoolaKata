@@ -8,9 +8,9 @@
        checked out and its `status` run unattended (`COWORKER_UNATTENDED=1`), so a need
        missing from `.coworker/deps.json` shows on a runner as it would on a developer's
        machine. It runs `web/check`'s parts as jobs
-       side by side (the server's tests in four parts, each part every fourth test
+       side by side (the server's tests in six parts, each part every sixth test
        (`MK_TEST_PART`), the first with the static checks and the last with the connector's
-       tests; the browser tests in two parts the same way, a module whose tests run one after
+       tests; the browser tests in three parts the same way, a module whose tests run one after
        another kept whole; the generated mockup's drift; the hand-written mockup's screens),
        then the coverage of the test jobs together, from their measurements passed on as
        artifacts; the `check` job, the status the rulesets require, passes when every part

@@ -98,6 +98,21 @@ the code as it was.
 
 ## The record
 
-The area's pull request carries the run: the outcomes by file, the survivors by function
+Each area's runs are kept in `docs/hardening/mutation/<name>.json`, for the hardening page
+(requirements S17.5.8.6):
+
+```sh
+web/dev.sh mutate record taxes --first                           # after the area's first run
+web/dev.sh mutate record taxes --pr 38 --found CR3-441 --equivalent 3   # after the settling run
+```
+
+`--first` keeps the first run's outcomes, in total and by file, and its modules. The second,
+after a full run once every survivor is settled (not an `--only` rerun, which holds only the
+changes it reran), keeps that run's outcomes, the pull request it is settled in, the review ids
+of the bugs it found, the equivalents left, and each module's content as git names it. A
+module whose content on `main` differs from it has changed since its run, and its area's
+mutation counts as needing another. The records are committed with the area's work.
+
+The area's pull request also carries the run: the outcomes by file, the survivors by function
 with what was done about each, a table of what is done and what is left (nothing, at the end),
 and the equivalents left unmarked. The walk's Applied section names the commits.

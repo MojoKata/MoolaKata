@@ -1,0 +1,53 @@
+{
+  "name": "options",
+  "modules": [
+    "moolakata/options/__init__.py",
+    "moolakata/options/adjust.py",
+    "moolakata/options/strategies.py"
+  ],
+  "first": {
+    "killed": 1794,
+    "timeout": 0,
+    "survived": 543,
+    "no tests": 14,
+    "not run": 0,
+    "files": {
+      "moolakata/options/__init__.py": {
+        "killed": 459,
+        "timeout": 0,
+        "survived": 211,
+        "no tests": 14,
+        "not run": 0
+      },
+      "moolakata/options/adjust.py": {
+        "killed": 296,
+        "timeout": 0,
+        "survived": 55,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/options/strategies.py": {
+        "killed": 1039,
+        "timeout": 0,
+        "survived": 277,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "pr": 32,
+  "found": [
+    "CR3-422",
+    "CR3-423",
+    "CR3-424",
+    "CR3-425",
+    "CR3-427"
+  ],
+  "equivalent": 27,
+  "content": {
+    "moolakata/options/__init__.py": "de03ec44d3ca58e49f6ab1206221cb129dbe0877",
+    "moolakata/options/adjust.py": "8045a7de8964994c6d356036c0e62964d3832a92",
+    "moolakata/options/strategies.py": "92cf7609264f44e31365465613e67244892fc50c"
+  },
+  "note": "Backfilled from the run on 33aa091."
+}

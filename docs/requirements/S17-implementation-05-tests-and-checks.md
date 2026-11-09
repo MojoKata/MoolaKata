@@ -106,7 +106,9 @@
       together by `deno coverage`; a file no test loads counts as not reached.
       `python -m moolakata.dev.coverage report` then gives:
       1. **By area**: line and branch coverage of each server package (its top-level modules
-         as one), each directory of the browser app, and the connector. A browser file's
+         as one), each directory of the browser app, and the connector. A route module of
+         `ui/` counts in the package it serves (`ui/budgets.py` with `budgets/`,
+         `ui/positions.py` with `options/`); the routes that serve no package are `server/ui`. A browser file's
          branches count only where its code ran. Each figure falls in a band of how well it
          is tested, whatever its floor: **good** from 80%, **fair** from 60%, **low** under
          60%, shown as 🟢, 🟡 and 🔴 where only text is shown, and as green, amber and red
@@ -164,6 +166,28 @@
          6. **Published** by `check.yml` (S17.10.1) after a passing check on `main`. Run
             anywhere else, the build is a preview of what publishing that commit would show,
             and publishes nothing.
+      6. **The hardening page** (`hardening.html` on the coverage site, linked from its
+         page): how far a review's sweep has come, area by area, and the path to its end.
+         1. **By area**, the coverage page's areas and one for the findings that name no
+            code: its line and branch coverage with their change since the first merge the
+            page measured; the review's findings (closed of all, open, and each open Med one
+            by its number), each counted in the area of the first code it names, else its
+            section's; the share of its statements a settled mutation run covers, and the
+            share whose module has changed since (S17.5.12's records), the first run's
+            catch, the bugs its runs found and the pull requests that worked on it; and the
+            path's steps that cover it, and whether it is swept (its findings closed, its
+            mutation current, its sweep merged). Clicking an area opens its findings and its
+            files, each with its coverage and its mutation run.
+         2. **The path** (`docs/hardening/path.toml`): every step to the end of the sweep, in
+            order, each a pull request's work (findings named by number, or an area's sweep).
+            A step is checked once its pull request has merged to `main`, and shows what
+            changed in its areas at that merge (coverage, findings closed, statements
+            mutation-tested); above it, the steps done, the areas swept, the findings left
+            and the statements left to mutate.
+         3. **The mutation runs**, each as recorded: its pull request, modules, changes,
+            first catch and the modules changed since.
+         4. **Each merge's figures** by area join its entry in `history.json`, and a step's
+            result is the difference across its merge.
 
       `web/dev.sh coverage [pytest arguments]` measures the tests named (all by default) and
       the browser modules' unit tests the same way, and reports them, without the floor, with
@@ -206,8 +230,10 @@
       mutate` on its statement, with the reason no output can differ on the line above. A mark
       silences every change on its statement, so one whose other changes tests catch stays
       unmarked, and its equivalents are listed with the area's results. Code that only a mark
-      would keep (unreachable, never read) is removed instead. How to run it:
-      `docs/mutation-testing.md`.
+      would keep (unreachable, never read) is removed instead. Each area's first run and its
+      settling run are recorded in `docs/hardening/mutation/` (outcomes, the pull request,
+      the bugs found, each module's content), for the hardening page (S17.5.8.6). How to run
+      it: `docs/mutation-testing.md`.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

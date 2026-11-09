@@ -1,7 +1,9 @@
 import json
 import os
 import re
+import shutil
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -151,11 +153,26 @@ def config(tmp_path) -> Config:
     )
 
 
+@pytest.fixture(scope="session")
+def migrated(tmp_path_factory) -> tuple[Path, bytes]:
+    """A keyring and a database brought to head, made once per worker: each test's keyring and
+    store start from copies of them, so the migrations run once per worker rather than once
+    per test (they were most of a test's setup). open_store still opens each copy as the
+    server does; the migration tests build their databases from nothing."""
+    at = tmp_path_factory.mktemp("migrated")
+    config = Config(name="test", mode="proxy", data_dir=at / "data", backup_dir=at / "backups",
+                    socket_path=at / "run" / "sock")  # fmt: skip
+    key = os.urandom(16)
+    master.create_keyring(config, key)
+    open_store(config, key).db.dispose()
+    return config.data_dir, key
+
+
 @pytest.fixture
-def master_key() -> bytes:
+def master_key(migrated) -> bytes:
     """The recovery phrase's key, which a test holds as the admin holds the phrase: it is
-    never on disk (S15.4)."""
-    return os.urandom(16)
+    never on disk (S15.4). The worker's own, which wraps the keyring each test copies."""
+    return migrated[1]
 
 
 @pytest.fixture
@@ -167,15 +184,18 @@ def bare_client(config):
 
 
 @pytest.fixture
-def keyed_config(config, master_key) -> Config:
+def keyed_config(config, migrated) -> Config:
     """A config whose keyring exists, wrapped under `master_key` (made without the phrase's
-    three-word confirmation)."""
-    master.create_keyring(config, master_key)
+    three-word confirmation): the worker's keyring, copied."""
+    config.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    shutil.copy2(migrated[0] / config.keyring_path.name, config.keyring_path)
     return config
 
 
 @pytest.fixture
-def store(keyed_config, master_key):
+def store(keyed_config, master_key, migrated):
+    """The store, opened on a copy of the worker's database at head."""
+    shutil.copy2(migrated[0] / keyed_config.db_path.name, keyed_config.db_path)
     st = open_store(keyed_config, master_key)
     yield st
     st.db.dispose()
