@@ -382,17 +382,23 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    and a mutation run over its modules (S17.5.12, `mutation-testing.md`), until every
    surviving change is caught by a fast test or marked with its reason. What it finds is
    fixed there, with review ids; only what belongs to another area goes to an issue.
-7. **The path keeps the sweep in view** (S17.5.8.6): `docs/hardening/path.toml` lists every
-   step to the end of the review's sweep, and the hardening page checks each one off as its
-   pull request merges. Opening a step's pull request adds its number to the step; its first
-   and settling mutation runs are recorded (`web/dev.sh mutate record`) and committed with it.
-   Before a step is signed off, its last CI run's times are checked (`web/dev.sh ci-times`):
-   a job past the budget (6 minutes), or a family of parts more uneven than 1.4 to 1 whose
-   slowest part is the run's slowest job, is split further in that step (more parts, or parts
-   split by time), so CI stays as quick as the tests allow while they grow. Making a test
-   itself quicker (fewer cases or seeds, smaller data, a cheaper fixture, a test reworked or
-   dropped) trades some checking for time: it is put to the user first, with what it costs,
-   what it saves and a recommendation.
+7. **The path keeps the sweep in view** (S17.5.8.6): `docs/hardening/path.toml` lists every step
+   to the end of the review's sweep, and the hardening page checks each one off as its pull
+   request merges. Opening a step's pull request adds its number to the step; its first and
+   settling mutation runs are recorded (`web/dev.sh mutate record`) and committed with it.
+   Before a step is signed off, its last CI run's times are checked (`web/dev.sh ci-times`): a
+   job past the budget (6 minutes), or a family of parts more uneven than 1.4 to 1 whose slowest
+   part is the run's slowest job, is split further in that step (more parts, or the parts' times
+   refreshed with `web/dev.sh ci-durations`, by which they are split), so CI stays as quick as
+   the tests allow while they grow. Making a test itself quicker (fewer cases or seeds, smaller
+   data, a cheaper fixture, a test reworked or dropped) trades some checking for time: it is put
+   to the user first, with what it costs, what it saves and a recommendation.
+8. **The sweep starts from the baseline** (`mutation-testing.md`, *The CI baseline*): every
+   server module's first mutation run is made on CI before the sweeps, so an area's sweep
+   begins with its survivors in hand, and only the modules changed since are run again. A
+   test that catches a survivor and changes nothing the code does is written without asking;
+   a survivor that shows a bug, an equivalent to leave unmarked, or a test that would be slow
+   goes to the area's walk, which opens the sweep, so the area's questions are asked once.
 
 ## 12. Parallel agents, when asked
 

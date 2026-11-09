@@ -8,10 +8,12 @@
        checked out and its `status` run unattended (`COWORKER_UNATTENDED=1`), so a need
        missing from `.coworker/deps.json` shows on a runner as it would on a developer's
        machine. It runs `web/check`'s parts as jobs
-       side by side (the server's tests in six parts, each part every sixth test
-       (`MK_TEST_PART`), the first with the static checks and the last with the connector's
-       tests; the browser tests in three parts the same way, a module whose tests run one after
-       another kept whole; the generated mockup's drift; the hand-written mockup's screens),
+       side by side (the server's tests in seven parts (`MK_TEST_PART`), the first with the
+       static checks and the last with the connector's tests; the browser tests in four parts
+       the same way; the parts split by measured time, each test weighing what it took in a
+       recent run (`web/server/tests/durations.json`, which `web/dev.sh ci-durations` gathers
+       from a run's artifacts), the longest first, each to the part with the least so far, a
+       module whose tests run one after another kept whole; the generated mockup's drift; the hand-written mockup's screens),
        then the coverage of the test jobs together, from their measurements passed on as
        artifacts; the `check` job, the status the rulesets require, passes when every part
        does. Each job fetches the commit before as well, for the coverage of the changed
@@ -52,3 +54,12 @@
        attestation alone, and `contents: write` only to draft the release. The one secret,
        Docker Hub's token, lives in an environment (`docker-hub`) that only runs for `v*`
        tags can read.
+    4. **The mutation baseline**: `.github/workflows/mutate.yml`, started by hand on `main`,
+       runs every server module's mutation run (S17.5.12) on the standard runners side by
+       side: the fast tests once in six parts under coverage, for the map of the test files
+       that reach each module; then one job per group of an area's modules, each stopped
+       before the runner's six hours with what it finished kept, and its outcomes and
+       survivors kept as the run's artifacts for 90 days. It runs at most as many jobs at once
+       as its input says (14 by default), leaving the rest of the account's runners to pull
+       requests' checks. A pull request that changes it or its tools runs it on two small
+       modules.

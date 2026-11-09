@@ -8,7 +8,13 @@ make it quicker is the user's to decide (REVIEW.md §11.7).
     web/dev.sh ci-times [RUN | --pr N]
 
 With no argument, the run on the current branch's last pushed commit. It reads GitHub's API
-through the gh CLI."""
+through the gh CLI.
+
+    web/dev.sh ci-durations [RUN | --pr N]
+
+gathers what each test took in a run (its `durations-*` artifacts) into
+web/server/tests/durations.json, by which CI's parts are split (tests/parts.py): refreshed
+when ci-times finds the parts uneven."""
 
 import argparse
 import datetime as dt
@@ -17,12 +23,17 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
+
+from .. import paths
 
 REPO = "MojoKata/MoolaKata"
 WORKFLOW = "check"
 BUDGET = 6 * 60  # seconds: a job past it is split further
 SPREAD = 1.4  # the slowest part over the quickest: past it, the parts are split by time
 PART = re.compile(r"^(.*?) (\d+) of (\d+)\b")
+DURATIONS = paths.WEB / "server" / "tests" / "durations.json"
 
 
 def gh(*args: str) -> str:
@@ -79,6 +90,37 @@ def find_run(pr: int | None) -> str:
     return str(found[0]["id"])
 
 
+def gathered(parts: list[dict]) -> dict:
+    """The parts' times as durations.json keeps them: each long test by name, and what a short
+    one takes on average."""
+    tests: dict[str, float] = {}
+    total, count = 0.0, 0
+    for p in parts:
+        tests.update(p["tests"])
+        total += p["shortTotal"]
+        count += p["shortCount"]
+    short = round(total / count, 3) if count else 1.0
+    return {"short": short, "tests": dict(sorted(tests.items()))}
+
+
+def durations(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="web/dev.sh ci-durations", description="what each test took")
+    p.add_argument("run", nargs="?", help="a run id; by default the current branch's last run")
+    p.add_argument("--pr", type=int, help="the run on a pull request's head")
+    args = p.parse_args(argv)
+    run = args.run or find_run(args.pr)
+    with tempfile.TemporaryDirectory() as tmp:
+        gh("run", "download", run, "-R", REPO, "-p", "durations-*", "-D", tmp)
+        files = sorted(Path(tmp).rglob("*.json"))
+        if not files:
+            raise SystemExit(f"run {run} kept no durations")
+        new = gathered([json.loads(f.read_text()) for f in files])
+    DURATIONS.write_text(json.dumps(new, indent=1) + "\n")
+    print(f"{DURATIONS.relative_to(paths.ROOT)}: {len(new['tests'])} tests named, from "
+          f"{len(files)} parts of run {run}; a short test {new['short']} s")  # fmt: skip
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="web/dev.sh ci-times", description=__doc__.split("\n\n")[0])
     p.add_argument("run", nargs="?", help="a run id; by default the current branch's last run")
@@ -95,4 +137,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["durations"]:
+        sys.exit(durations(sys.argv[2:]))
     sys.exit(main())

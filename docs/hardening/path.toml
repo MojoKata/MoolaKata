@@ -5,7 +5,8 @@
 # (`web/dev.sh ci-times`, REVIEW.md §11.7), and a job past the budget is split further in it.
 #
 # kind: "med" for a step that fixes named findings, "sweep" for an area's sweep (its findings,
-# coverage and a mutation run over all its modules, every survivor settled), "tracker" for this.
+# coverage and a mutation run over all its modules, every survivor settled), "tracker" for this,
+# "tooling" for the tools the sweep runs on.
 # areas: the coverage site's areas the step covers; a "med" step's come from its findings.
 # gains: for the steps done before the page kept its own history, the coverage gains their pull
 # requests reported (lines / branches, in points).
@@ -30,6 +31,11 @@ gains = "taxes +1.3 / +3.5, loans +0.3 / +1.3, people +0.2 / +1.0"
 pr = 39
 kind = "tracker"
 what = "The tracker: this page, the mutation records, and this path"
+
+[[step]]
+pr = 40
+kind = "tooling"
+what = "The mutation baseline: every server module's first run on CI, side by side, before the sweeps"
 
 [[step]]
 kind = "med"
