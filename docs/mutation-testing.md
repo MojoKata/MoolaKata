@@ -161,6 +161,9 @@ Modules are paths under `web/server/src`; a folder means every module in it. The
 4. **Writes mutmut's settings** in the copy and **runs it** with `--workers` (6 by default)
    from a fresh `mutants/` folder, so the map of which tests reach which function is built
    from the tests as they are (a rerun reusing the last map never tries tests added since).
+   Each change's tests run in one process, and a test's temporary folder goes when it passes
+   (pytest keeps them otherwise, and a session over a well-tested module, a copy of the store
+   each test, reaches a gigabyte: enough sessions filled a CI runner's disk).
 5. **Watches its memory** as PSS (its workers rename themselves `mutmut: <change>`, and share
    pages) and stops the run past `--limit` (15 GB by default, inside the project's budget of
    about 20 GB; six workers peaked at 7 to 11 GB).

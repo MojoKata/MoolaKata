@@ -5,6 +5,7 @@ first run, the settling run and each file's content."""
 import argparse
 import json
 import subprocess
+import tomllib
 
 import pytest
 
@@ -273,3 +274,16 @@ def test_modules_no_test_reaches_are_run_as_nothing_exported_as_unreached_and_na
     assert mutate.main(["gather", "7"]) == 0  # recorded, the unreached named
     assert f"no test file reaches {worker}" in capsys.readouterr().out
     assert (tmp_path / "records" / "baseline-receipts.json").exists()
+
+
+def test_mutmuts_tests_run_in_one_process_and_drop_a_passing_tests_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(mutate, "COPY", tmp_path)
+    monkeypatch.setattr(mutate, "SERVER", tmp_path)
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n\n[tool.mutmut]\nold = 1\n')
+    mutate.configure(["moolakata/money.py"], ["tests/test_money.py"])
+    got = tomllib.loads((tmp_path / "pyproject.toml").read_text())
+    assert "old" not in got["tool"]["mutmut"]
+    assert got["tool"]["mutmut"]["only_mutate"] == ["src/moolakata/money.py"]
+    assert got["tool"]["mutmut"]["pytest_add_cli_args"] == [
+        "-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed",
+    ]  # fmt: skip

@@ -163,8 +163,15 @@ def _link(at: Path, to: Path) -> None:
     at.symlink_to(to)
 
 
+# Each change's tests run in one process, and a test's temporary folder goes when it passes:
+# pytest keeps every test's folder of its last three sessions, and all of a session a timeout
+# stopped, and a change runs a session of its own (a copy of the store each test, a gigabyte
+# a session for a well-tested module), which filled a CI runner's disk.
+PYTEST_ARGS = ["-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed"]
+
+
 def configure(modules: list[str], tests: list[str]) -> None:
-    """mutmut's settings in the copy's pyproject.toml: the modules, the tests, one process."""
+    """mutmut's settings in the copy's pyproject.toml: the modules, the tests, `PYTEST_ARGS`."""
     only = []
     for m in modules:
         path = f"src/{m}"
@@ -176,7 +183,7 @@ def configure(modules: list[str], tests: list[str]) -> None:
         'source_paths = ["src"]\n'
         f"only_mutate = {json.dumps(only)}\n"
         f"pytest_add_cli_args_test_selection = {json.dumps(tests)}\n"
-        'pytest_add_cli_args = ["-p", "no:xdist", "-p", "no:cacheprovider"]\n'
+        f"pytest_add_cli_args = {json.dumps(PYTEST_ARGS)}\n"
         'also_copy = ["tests"]\n'
     )
     (COPY / "pyproject.toml").write_text(text)
