@@ -3,6 +3,7 @@ mutmut leaves in its .meta files, counted by file, and kept for the hardening pa
 first run, the settling run and each file's content."""
 
 import argparse
+import importlib.util
 import json
 import subprocess
 import tomllib
@@ -290,3 +291,16 @@ def test_mutmuts_tests_run_in_one_process_and_drop_a_passing_tests_folder(tmp_pa
     assert got["tool"]["mutmut"]["pytest_add_cli_args"] == [
         "-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed",
     ]  # fmt: skip
+
+
+def test_conftest_imported_again_closes_the_clients_an_earlier_import_opened():
+    """mutmut runs several pytest sessions in one process: each imports conftest again, while
+    a test module keeps the sign_in it first imported. One list, opened.py's, for all of them."""
+    import conftest
+    import opened
+
+    spec = importlib.util.spec_from_file_location("conftest_again", conftest.__file__)
+    again = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(again)
+    assert again.opened.clients is conftest.opened.clients is opened.clients
+    assert not hasattr(conftest, "_signed_in")

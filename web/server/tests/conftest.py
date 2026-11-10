@@ -5,6 +5,7 @@ import shutil
 from decimal import Decimal
 from pathlib import Path
 
+import opened
 import parts  # CI's parts, split by measured time (S17.10.1)
 import pytest
 
@@ -344,21 +345,19 @@ def make_user(
 
 
 # The clients sign_in opened, closed after their test: an open one keeps its event loop's
-# thread, and with it the app, the server and the store, until the run ends.
-_signed_in: list[TestClient] = []
-
-
+# thread, and with it the app, the server and the store, until the run ends. The list is
+# opened.py's, the one every import of this file shares.
 @pytest.fixture(autouse=True)
 def _signed_in_closed():
     yield
-    while _signed_in:
-        _signed_in.pop().__exit__(None, None, None)
+    while opened.clients:
+        opened.clients.pop().__exit__(None, None, None)
 
 
 def sign_in(srv, username: str, password: str = "a long user passphrase") -> TestClient:
     c = new_client(srv)
     c.__enter__()
-    _signed_in.append(c)
+    opened.clients.append(c)
     r = c.post("/ui/api/session", json={"login": username, "password": password})
     assert r.status_code == 200, r.text
     return c
