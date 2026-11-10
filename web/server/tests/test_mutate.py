@@ -176,23 +176,24 @@ def test_record_reads_runs_export_kept(tmp_path, monkeypatch):
     assert got["modules"] == ["moolakata/a.py", "moolakata/b.py"] and got["first"]["killed"] == 2
 
 
-def test_the_copys_root_web_is_the_copy_so_a_test_reads_the_same_file_by_either(
+def test_the_copy_is_laid_out_as_the_repository_so_a_test_reads_by_either_path(
     tmp_path, monkeypatch
 ):  # fmt: skip
-    """From mutants/, paths takes the copy for web/ and its parent for the root: a test that
-    reads root/web/install/Dockerfile found nothing while root/web was the root itself."""
+    """From mutants/, paths takes the copy for web/ and its parent for the root: a test that read
+    root/web/install/Dockerfile found nothing while the copy was web/server, and a server path
+    taken relative to the root read server/src/... (no area)."""
+    assert mutate.COPY == mutate.WORK / "web"
     root, web = tmp_path / "repo", tmp_path / "repo" / "web"
     for name in mutate.BESIDE:
         (web / name).mkdir(parents=True)
     (web / "install" / "Dockerfile").write_text("FROM x\n")
     for name in mutate.ABOVE:
         (root / name).mkdir(parents=True)
-    copy = web / ".dev" / "mutate" / "web" / "server"
+    copy = web / ".dev" / "mutate" / "web"
     copy.mkdir(parents=True)
     monkeypatch.setattr(mutate.paths, "ROOT", root)
     monkeypatch.setattr(mutate.paths, "WEB", web)
     monkeypatch.setattr(mutate, "COPY", copy)
-    (copy.parent / "web").symlink_to(copy.parent)  # an older copy's link, put right
     for _ in range(2):  # and again, as each run makes the copy
         mutate.link_copy()
         seen_web, seen_root = copy, copy.parent
@@ -203,6 +204,8 @@ def test_the_copys_root_web_is_the_copy_so_a_test_reads_the_same_file_by_either(
             assert (seen_root / name).resolve() == (root / name).resolve()
         assert (seen_root / "web" / "server").resolve() == copy.resolve()
         assert (seen_root / "web" / "install" / "Dockerfile").read_text() == "FROM x\n"
+        server = seen_web / "server" / "src"
+        assert server.relative_to(seen_root).as_posix() == "web/server/src"
 
 
 def test_gather_takes_a_later_runs_job_over_the_earlier_and_records_no_area_that_ran_nothing(

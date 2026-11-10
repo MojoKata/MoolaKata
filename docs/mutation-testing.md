@@ -148,10 +148,13 @@ web/dev.sh mutate run moolakata/valuation.py moolakata/ledger/lots.py moolakata/
 
 Modules are paths under `web/server/src`; a folder means every module in it. The command:
 
-1. **Copies the server** to `web/.dev/mutate` (mutmut changes the code it tests, so never the
-   checkout), with what the server reads from beside itself linked in (`ui`, `audit.json`,
-   `coverage-floor.json`, `dev.sh`, `install`; `connector`, `docs`, `.github`, `publish` a
-   level up; `VERSION` copied where the build and the code look for it).
+1. **Copies the server** to `web/.dev/mutate/web` (mutmut changes the code it tests, so never
+   the checkout), laid out as the repository: mutmut runs the tests from the copy's
+   `mutants/`, where the code takes the copy for `web/` and its parent for the root, so a path
+   a test takes relative to the root reads as in the checkout. What the server reads from
+   beside itself is linked in (`ui`, `audit.json`, `coverage-floor.json`, `dev.sh`, `install`,
+   and `server` to the copy itself; `connector`, `docs`, `.github`, `publish`, `.dockerignore`
+   a level up; `VERSION` copied where the build and the code look for it).
 2. **Installs the lock's `mutation` group** in the copy (mutmut, pinned and audited like any
    tool in `uv.lock`; `setup` never installs it).
 3. **Chooses the tests**: every fast test file that imports one of the modules, plus any named

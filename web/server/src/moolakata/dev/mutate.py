@@ -58,7 +58,11 @@ from .. import paths
 
 SERVER = paths.WEB / "server"
 WORK = paths.WEB / ".dev" / "mutate"
-COPY = WORK / "web" / "server"
+# The copy is laid out as the repository: mutmut runs its tests from the copy's mutants/, where
+# `paths` takes the copy for web/ and its parent for the root, so the copy is named web and
+# its parent holds what the root does. A path a test takes relative to the root reads as it
+# does in the checkout (web/server/src/...).
+COPY = WORK / "web"
 RECORDS = paths.ROOT / "docs" / "hardening" / "mutation"
 TESTMAP = paths.WEB / ".dev" / "testmap"
 BASELINE = paths.WEB / ".dev" / "mutate-results" / "baseline"
@@ -66,11 +70,10 @@ UNREACHED = WORK / "unreached.txt"  # the last run's modules, when no test file 
 REPO = "MojoKata/MoolaKata"
 LIMIT_GB = 15.0  # stops the run; the project's budget is about 20 GB (6 workers: 7 to 11)
 
-# What the server reads from beside itself, at import and in tests, linked into the copy. The
-# tests run from the copy's mutants/, where `paths` takes the copy for web/ and its parent for
-# the repository's root.
+# What the server reads from beside itself (BESIDE) and from the root (ABOVE), at import and in
+# tests, linked into the copy and its parent.
 BESIDE = ["ui", "audit.json", "coverage-floor.json", "dev.sh", "install"]
-ABOVE = ["connector", "docs", ".github", "publish"]
+ABOVE = ["connector", "docs", ".github", "publish", ".dockerignore"]
 # Tests never run once per change: the generated worlds (hours each), the browser's, the audit's.
 SLOW = re.compile(r"(_world|_worlds|^test_browser|^test_app|^test_mockup|^test_no_network)")
 OUTCOME = {1: "killed", 3: "killed", 0: "survived", 5: "no tests", 33: "no tests", 34: "skipped",
@@ -144,14 +147,13 @@ def make_copy() -> None:
 
 
 def link_copy() -> None:
-    """The copy's links. From mutants/, `paths` takes the copy for web/ and its parent for the
-    root, so the root's web/ is the copy too: a test reading either reads the same file."""
+    """The copy's links: what web/ holds beside the server, the server's own folder (the copy
+    itself, so web/server/src is its code), and what the root holds, a level up."""
     for name in BESIDE:
         _link(COPY / name, paths.WEB / name)
     _link(COPY / "server", COPY)
     for name in ABOVE:
         _link(COPY.parent / name, paths.ROOT / name)
-    _link(COPY.parent / "web", COPY)
 
 
 def _link(at: Path, to: Path) -> None:
