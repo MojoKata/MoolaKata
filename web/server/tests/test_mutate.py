@@ -311,6 +311,22 @@ def test_conftest_imported_again_closes_the_clients_an_earlier_import_opened():
     assert not hasattr(conftest, "_signed_in")
 
 
+def test_conftest_loads_while_the_mapping_raises_as_under_mutmuts_forced_failure(monkeypatch):
+    """mutmut checks that a change can fail the tests by making every changed function raise:
+    called as conftest loads, a raising map_all was pytest's usage error (exit 4), which mutmut
+    takes for a broken command, so a job changing mapping.py never ran."""
+    import conftest
+
+    from moolakata.store import mapping
+
+    def raising():
+        raise RuntimeError("forced failure")
+
+    monkeypatch.setattr(mapping, "map_all", raising)
+    spec = importlib.util.spec_from_file_location("conftest_failing", conftest.__file__)
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+
+
 def test_a_worker_past_its_memory_is_named_and_its_change_counted_killed(tmp_path):
     workers = {
         11: ("m.x_f__mutmut_1", 0.8),

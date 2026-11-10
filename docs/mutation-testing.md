@@ -169,6 +169,10 @@ Modules are paths under `web/server/src`; a folder means every module in it. The
    mode the stats ran in the process every worker is forked from, and the workers inherited
    what the tests left there: the imports' thread pool, its thread gone in the fork, so an
    upload's job never ran.
+   Before the changes, mutmut checks that one can fail the tests by making every changed
+   function raise, so the tests call none as conftest loads (the records' mapping is a
+   session fixture): pytest takes an error while conftest loads for a usage error, which
+   mutmut takes for a broken command, and a job changing `store/mapping.py` never ran.
    Each change's tests run in one process, and a test's temporary folder goes when it passes
    (pytest keeps them otherwise, and a session over a well-tested module, a copy of the store
    each test, reaches a gigabyte: enough sessions filled a CI runner's disk).
