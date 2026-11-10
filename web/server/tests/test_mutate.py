@@ -240,6 +240,89 @@ def test_gather_takes_a_later_runs_job_over_the_earlier_and_records_no_area_that
     assert not (records / "baseline-keys.json").exists()
 
 
+def _job(root, run, name, area, rel, codes, estimates=None):
+    d = root / ".dev" / "mutate-ci" / run / f"mutation-{name}"
+    meta(d / "src", rel, codes)
+    if estimates is not None:
+        path = d / "src" / f"{rel}.meta"
+        data = json.loads(path.read_text())
+        data["estimated_durations_by_key"] = estimates
+        path.write_text(json.dumps(data))
+    (d / "job.json").write_text(json.dumps({"name": name, "area": area, "modules": rel}))
+    return d
+
+
+def test_gather_takes_each_changes_outcome_from_whichever_job_finished_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    users = "moolakata/auth/users.py"
+    _job(tmp_path, "1", "auth-1", "server/auth", users, [1, None, None, None])
+    _job(tmp_path, "2", "auth-1.r1-1", "server/auth", users, [None, 0, 1, None])
+    # keys-1 ran nothing, then a job finishing its changes ran one: its area is recorded.
+    _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None, None])
+    _job(tmp_path, "2", "keys-1.r1-1", "server/keys", "moolakata/keys/files.py", [None, 1])
+    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 0
+    first = json.loads((tmp_path / "records" / "baseline-auth.json").read_text())["first"]
+    assert (first["killed"], first["survived"], first["not run"]) == (2, 1, 1)
+    assert sum(first[k] for k in mutate.COUNTED) == 4  # each change once, not once a job
+    assert (tmp_path / "records" / "baseline-keys.json").exists()
+
+
+def test_the_changes_left_unrun_are_split_by_the_slowest_estimate_and_dealt_out(tmp_path):
+    users = "moolakata/auth/users.py"
+    # A job may take 2 * 240 min * 4 workers of worst cases: 3 of 38,400 s each.
+    worst = 2 * mutate.REST_MINUTES * 60 * mutate.REST_WORKERS / 3
+    estimates = {"moolakata.auth.users.py.x_f__mutmut_1": worst}
+    jobs = {
+        "auth-1": _job(tmp_path, "1", "auth-1", "server/auth", users, [1] + [None] * 7, estimates),
+        "core-1": _job(tmp_path, "1", "core-1", "server/core", "moolakata/money.py", [1, 0]),
+        # Stopped before its first change: run again by name, not here.
+        "keys-1": _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None]),
+    }
+    got, names = mutate.rest_jobs(jobs)
+    assert [j["name"] for j in got] == ["auth-1.r1-1", "auth-1.r1-2", "auth-1.r1-3"]
+    unrun = sorted(f"moolakata.auth.users.py.x_f__mutmut_{i}" for i in range(2, 9))
+    assert names["auth-1.r1-1"] == unrun[0::3]
+    assert sorted(n for these in names.values() for n in these) == unrun
+    assert got[0] == {
+        "name": "auth-1.r1-1",
+        "area": "server/auth",
+        "lines": 0,
+        "size": "3 changes",
+        "modules": users,
+        "only": "auth-1.r1-1.txt",
+    }
+    # A round left changes unrun again: the next round's jobs are numbered after it.
+    jobs["auth-1.r1-2"] = _job(
+        tmp_path, "2", "auth-1.r1-2", "server/auth", users, [None, 1, 1] + [None] * 5
+    )
+    again, names = mutate.rest_jobs(jobs)
+    assert {j["name"].rsplit("-", 1)[0] for j in again} == {"auth-1.r2"}
+    assert sorted(n for these in names.values() for n in these) == unrun[2:]
+
+
+def test_the_plan_for_the_rest_writes_each_jobs_changes_for_run_to_read(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    _job(tmp_path, "7", "auth-1", "server/auth", "moolakata/auth/users.py", [1, None], {})
+    out = tmp_path / "rest"
+    assert mutate.main(["plan", "--rest", "someone/MoolaKata:7", "--rest-dir", str(out)]) == 0
+    jobs = json.loads(capsys.readouterr().out)
+    assert [j["name"] for j in jobs] == ["auth-1.r1-1"]
+    listed = out / jobs[0]["only"]
+    assert listed.read_text().split() == ["moolakata.auth.users.py.x_f__mutmut_2"]
+    a = argparse.Namespace(only=["x.y__mutmut_1"], only_file=str(listed), workers=4)
+    assert mutate.mutmut_command(a)[-2:] == [
+        "x.y__mutmut_1",
+        "moolakata.auth.users.py.x_f__mutmut_2",
+    ]
+    assert (
+        mutate.mutmut_command(argparse.Namespace(only=None, only_file=None, workers=4))[-1] == "4"
+    )
+
+
 def test_the_plan_keeps_only_the_jobs_named_and_refuses_a_name_it_does_not_have(capsys):
     every = json.loads(_plan(capsys, []))
     names = [every[0]["name"], every[-1]["name"]]

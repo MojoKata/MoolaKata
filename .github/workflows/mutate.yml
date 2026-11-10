@@ -4,8 +4,10 @@
 # the map of the test files that reach each module is made from them (a route module is reached
 # through HTTP, not imported); then the modules, area by area, are packed into jobs of about
 # `size` code lines, and each job's run is kept as an artifact for `web/dev.sh mutate gather`.
-# `jobs` runs only the named jobs again (one stopped early, after a fix to the tools); `gather`
-# takes the runs together, a later run's job over the earlier one's.
+# `jobs` runs only the named jobs again (one stopped early, after a fix to the tools); `rest`
+# runs the changes earlier runs left unrun (a job out of time), split by mutmut's estimates, in
+# jobs that run only those; `gather` takes the runs together, a later run's job over the earlier
+# one's, and each change's outcome from whichever job finished it.
 # A pull request that changes this file or the tools runs a trial on two small modules. The
 # actions are pinned by commit and listed in the register (docs/dependencies.md).
 name: mutate
@@ -28,6 +30,9 @@ on:
         default: "14"
       jobs:
         description: "Only these jobs, by name (auth-2 core-6), an earlier run's run again; every one by default"
+        default: ""
+      rest:
+        description: "Instead, the changes these runs left unrun (run ids, owner/repo:id for a fork's), as gather takes them"
         default: ""
   pull_request:
     paths:
@@ -79,6 +84,9 @@ jobs:
     needs: map
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read # the earlier runs' artifacts, for rest
     outputs:
       jobs: ${{ steps.plan.outputs.jobs }}
       count: ${{ steps.plan.outputs.count }}
@@ -107,11 +115,17 @@ jobs:
           ALL: ${{ inputs.all && '--all' || '' }}
           JOBS: ${{ inputs.jobs && format('--jobs {0}', inputs.jobs) || '' }}
           TRIAL: ${{ github.event_name == 'pull_request' && '--modules moolakata/duration.py moolakata/ui/tokens.py' || '' }}
+          REST: ${{ inputs.rest }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -f  # the areas are globs for plan, not for the shell
-          # shellcheck disable=SC2086 # the areas, flags, jobs and trial are words
-          jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $JOBS $TRIAL)
-          echo "$jobs" | python3 -c 'import json,sys; [print(j["name"], j["lines"], j["modules"]) for j in json.load(sys.stdin)]'
+          # shellcheck disable=SC2086 # the areas, flags, jobs, trial and runs are words
+          if [ -n "$REST" ]; then
+            jobs=$(web/dev.sh mutate plan --rest $REST --rest-dir "$GITHUB_WORKSPACE/web/.dev/rest")
+          else
+            jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $JOBS $TRIAL)
+          fi
+          echo "$jobs" | python3 -c 'import json,sys; [print(j["name"], j["size"], j["modules"]) for j in json.load(sys.stdin)]'
           echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
           echo "count=$(echo "$jobs" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" >> "$GITHUB_OUTPUT"
       - name: the map, for the jobs
@@ -120,10 +134,17 @@ jobs:
           name: testmap
           path: web/.dev/testmap/map.json
           retention-days: 7
+      - name: each job's changes, for rest
+        if: inputs.rest != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rest
+          path: web/.dev/rest/
+          retention-days: 7
 
   # Each job's mutation run, stopped before the runner's six hours so what it found is kept.
   mutate:
-    name: mutate ${{ matrix.name }} (${{ matrix.lines }} lines)
+    name: mutate ${{ matrix.name }} (${{ matrix.size }})
     needs: plan
     if: needs.plan.outputs.count != '0'
     runs-on: ubuntu-24.04
@@ -147,16 +168,23 @@ jobs:
         with:
           name: testmap
           path: web/.dev/testmap/
+      - name: the changes left unrun, this job's among them
+        if: matrix.only
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: rest
+          path: web/.dev/rest/
       - name: mutmut over ${{ matrix.modules }}
         env:
           MODULES: ${{ matrix.modules }}
+          ONLY: ${{ matrix.only && format('--only-file {0}/web/.dev/rest/{1}', github.workspace, matrix.only) || '' }}
         run: |
           # Out of time (124) keeps what finished, for gather; any other failure fails the job,
           # its artifact still kept. The map's path is whole: dev.sh runs from web/server.
-          # shellcheck disable=SC2086 # the modules are words
+          # shellcheck disable=SC2086 # the modules and the changes' file are words
           rc=0
           timeout 330m web/dev.sh mutate run $MODULES --map "$GITHUB_WORKSPACE/web/.dev/testmap/map.json" \
-            --workers 4 --limit 12 || rc=$?
+            --workers 4 --limit 12 $ONLY || rc=$?
           if [ "$rc" = 124 ]; then echo "out of time: what finished is kept"; else exit "$rc"; fi
       - name: the run's outcomes, survivors and log
         if: always()

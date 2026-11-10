@@ -211,7 +211,7 @@ workflow** on `main`. Its inputs: the areas (globs, every one by default), the c
 job (1000), whether to run modules whose settled run is current too (no), the jobs at once
 (14 of the account's 20, leaving room for pull requests' checks), and the jobs to run, by name
 (every one; a name only runs an earlier run's job again, which the same tree's plan names the
-same).
+same), or instead the earlier runs whose unrun changes to run (`rest`).
 
 1. **The test map** (6 jobs): the fast tests run once under coverage, each test's setup, call
    and teardown measured in a context named by its file (`moolakata.dev.testmap`, through
@@ -237,8 +237,16 @@ web/dev.sh mutate gather <run id>...    # gh run download; one record per area (
 outcomes, records its first run as `docs/hardening/mutation/baseline-<area>.json` (as `record
 --first` does) and writes its survivors to `web/.dev/mutate-results/baseline/<area>/`. The
 records are committed; the area's sweep settles its record with `record baseline-<area> --pr N`
-after a full run of its modules. A job that ran out of time leaves changes not run: its modules
-go again (`--only` on what is left, or a smaller size), on CI or here. A job stopped before its
+after a full run of its modules. A job that ran out of time leaves changes not run, and the
+`rest` input runs them: given the runs (as `gather` takes them), `mutate plan --rest` splits
+each job's unrun changes into jobs (`auth-1.r1-1`, …, round 1) that run only those (`run
+--only-file`). mutmut runs the quickest changes first, so those left are the slowest, each at
+least the slowest one reached; its estimate is a change's worst case (every test run, as for a
+survivor), and a job is given twice what 240 minutes of 4 workers allows at that, since a killed
+change stops at its first failing test. More time per job isn't to be had (a runner stops at
+6 hours), and a smaller size can't split a module larger than one job. `gather` with every run
+takes each change's outcome from whichever job finished it; a round that leaves some unrun again
+is followed by another, numbered after it. A job stopped before its
 first change (the memory limit, or a test failing in the copy) is run again by name, with the
 `jobs` input, once the cause is fixed; `gather <first run> <rerun>` takes a later run's job over
 the earlier one's, and records no area with a job that ran nothing. A module no test file
