@@ -548,7 +548,10 @@ def plan_jobs(modules: dict[str, int], areas: list[str], size: int, skip: set[st
 
 def plan(args) -> int:
     if args.rest:
-        jobs, names = rest_jobs(downloaded(args.rest))
+        given = downloaded(args.rest)
+        if args.jobs:  # only these baseline jobs' unrun changes: another's are under way
+            given = {n: d for n, d in given.items() if source_of(n) in args.jobs}
+        jobs, names = rest_jobs(given)
         out = Path(args.rest_dir)
         out.mkdir(parents=True, exist_ok=True)
         for name, these in names.items():

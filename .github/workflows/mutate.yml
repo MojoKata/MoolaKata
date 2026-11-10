@@ -32,7 +32,7 @@ on:
         description: "Only these jobs, by name (auth-2 core-6), an earlier run's run again; every one by default"
         default: ""
       rest:
-        description: "Instead, the changes these runs left unrun (run ids, owner/repo:id for a fork's), as gather takes them"
+        description: "Instead, the changes these runs left unrun (run ids, owner/repo:id for a fork's), as gather takes them; with jobs, only theirs"
         default: ""
   pull_request:
     paths:
@@ -121,7 +121,7 @@ jobs:
           set -f  # the areas are globs for plan, not for the shell
           # shellcheck disable=SC2086 # the areas, flags, jobs, trial and runs are words
           if [ -n "$REST" ]; then
-            jobs=$(web/dev.sh mutate plan --rest $REST --rest-dir "$GITHUB_WORKSPACE/web/.dev/rest")
+            jobs=$(web/dev.sh mutate plan --rest $REST $JOBS --rest-dir "$GITHUB_WORKSPACE/web/.dev/rest")
           else
             jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $JOBS $TRIAL)
           fi

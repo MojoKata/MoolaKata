@@ -319,6 +319,11 @@ def test_the_plan_for_the_rest_writes_each_jobs_changes_for_run_to_read(
     assert [j["name"] for j in jobs] == ["auth-1.r1-1"]
     listed = out / jobs[0]["only"]
     assert listed.read_text().split() == ["moolakata.auth.users.py.x_f__mutmut_2"]
+    # With --jobs, only those baseline jobs' unrun changes.
+    _job(tmp_path, "7", "keys-1", "server/keys", "moolakata/keys/files.py", [1, None], {})
+    named = ["plan", "--rest", "7", "--jobs", "keys-1", "--rest-dir", str(tmp_path / "r2")]
+    assert mutate.main(named) == 0
+    assert [j["name"] for j in json.loads(capsys.readouterr().out)] == ["keys-1.r1-1"]
     a = argparse.Namespace(only=["x.y__mutmut_1"], only_file=str(listed), workers=4)
     assert mutate.mutmut_command(a)[-2:] == [
         "x.y__mutmut_1",

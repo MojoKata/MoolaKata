@@ -240,7 +240,7 @@ records are committed; the area's sweep settles its record with `record baseline
 after a full run of its modules. A job that ran out of time leaves changes not run, and the
 `rest` input runs them: given the runs (as `gather` takes them), `mutate plan --rest` splits
 each job's unrun changes into jobs (`auth-1.r1-1`, …, round 1) that run only those (`run
---only-file`). mutmut runs the quickest changes first, so those left are the slowest, each at
+--only-file`); with the `jobs` input too, only those jobs' (another's may be under way). mutmut runs the quickest changes first, so those left are the slowest, each at
 least the slowest one reached; its estimate is a change's worst case (every test run, as for a
 survivor), and a job is given twice what 240 minutes of 4 workers allows at that, since a killed
 change stops at its first failing test. More time per job isn't to be had (a runner stops at
