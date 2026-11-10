@@ -69,6 +69,12 @@ BASELINE = paths.WEB / ".dev" / "mutate-results" / "baseline"
 UNREACHED = WORK / "unreached.txt"  # the last run's modules, when no test file reached them
 REPO = "MojoKata/MoolaKata"
 LIMIT_GB = 15.0  # stops the run; the project's budget is about 20 GB (6 workers: 7 to 11)
+# One change's worker may write this much of its own (beyond the pages it shares with the run
+# it was forked from): past it, the change keeps allocating (one of assets' grew a worker to
+# 9.3 GB before mutmut's time limit) and the worker is stopped, the change counted killed,
+# rather than the whole run stopped at --limit. The others' PSS stayed under 2.3 GB.
+WORKER_GB = 3.0
+OUT_OF_MEMORY = -signal.SIGUSR1  # mutmut records a worker stopped so with this exit code
 
 # What the server reads from beside itself (BESIDE) and from the root (ABOVE), at import and in
 # tests, linked into the copy and its parent.
@@ -76,7 +82,8 @@ BESIDE = ["ui", "audit.json", "coverage-floor.json", "dev.sh", "install"]
 ABOVE = ["connector", "docs", ".github", "publish", ".dockerignore"]
 # Tests never run once per change: the generated worlds (hours each), the browser's, the audit's.
 SLOW = re.compile(r"(_world|_worlds|^test_browser|^test_app|^test_mockup|^test_no_network)")
-OUTCOME = {1: "killed", 3: "killed", 0: "survived", 5: "no tests", 33: "no tests", 34: "skipped",
+OUTCOME = {1: "killed", 3: "killed", OUT_OF_MEMORY: "killed", 0: "survived", 5: "no tests",
+           33: "no tests", 34: "skipped",
            36: "timeout", 24: "timeout", -24: "timeout", 152: "timeout", 255: "timeout",
            37: "type check", None: "not run"}  # fmt: skip
 
@@ -222,6 +229,33 @@ def _pss_gb() -> float:
     return total / 1024 / 1024
 
 
+def _own_gb(pid: int) -> float:
+    """What a worker has written of its own: its private pages, not those it shares."""
+    total = 0
+    for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+        if line.startswith(("Private_Clean:", "Private_Dirty:")):
+            total += int(line.split()[1])
+    return total / 1024 / 1024
+
+
+def _workers() -> dict[int, tuple[str, float]]:
+    """This run's workers still running: each one's change and its own memory."""
+    out = {}
+    for pid in _mutmut_pids():
+        try:
+            cmd = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
+            if cmd.startswith("mutmut: "):
+                out[pid] = (cmd.removeprefix("mutmut: ").strip(), _own_gb(pid))
+        except OSError:
+            continue
+    return out
+
+
+def runaways(workers: dict[int, tuple[str, float]], cap: float) -> list[int]:
+    """The workers past the memory one change may use."""
+    return [pid for pid, (_, gb) in workers.items() if gb > cap]
+
+
 def run(args) -> int:
     testmap = json.loads(Path(args.map).read_text()) if args.map else None
     tests = tests_for(args.modules, args.tests or [], testmap)
@@ -244,11 +278,18 @@ def run(args) -> int:
     log = (WORK / "mutmut.log").open("w")
     # The copy's own mutmut, with arguments from the command line it was run with.
     proc = subprocess.Popen(cmd, cwd=COPY, stdout=log, stderr=subprocess.STDOUT)  # noqa: S603
-    peak, stopped = 0.0, threading.Event()
+    peak, largest, stopped = 0.0, 0.0, threading.Event()
 
     def watch() -> None:
-        nonlocal peak
+        nonlocal peak, largest
         while proc.poll() is None:
+            workers = _workers()
+            largest = max([largest, *(gb for _, gb in workers.values())])
+            for pid in runaways(workers, args.worker_limit):
+                name, gb = workers[pid]
+                print(f"stopped {name}: {gb:.1f} GB of its own, past {args.worker_limit:.1f} GB")
+                with contextlib.suppress(OSError):
+                    os.kill(pid, -OUT_OF_MEMORY)
             gb = _pss_gb()
             peak = max(peak, gb)
             if gb > args.limit:
@@ -256,14 +297,17 @@ def run(args) -> int:
                 stopped.set()
                 proc.terminate()
                 return
-            time.sleep(10)
+            time.sleep(5)
 
     threading.Thread(target=watch, daemon=True).start()
     while proc.poll() is None:
         time.sleep(30)
         print(f"  {_progress()}", flush=True)
     log.close()
-    print(f"peak memory {peak:.1f} GB (PSS); log: {WORK / 'mutmut.log'}")
+    print(
+        f"peak memory {peak:.1f} GB (PSS), a worker's own at most {largest:.1f} GB; "
+        f"log: {WORK / 'mutmut.log'}"
+    )
     summary(None)
     return 1 if stopped.is_set() else proc.returncode
 
@@ -630,6 +674,12 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--workers", type=int, default=6)
     r.add_argument("--only", nargs="*", help="rerun only these changes (names or globs)")
     r.add_argument("--limit", type=float, default=LIMIT_GB, help="stop past this many GB")
+    r.add_argument(
+        "--worker-limit",
+        type=float,
+        default=WORKER_GB,
+        help="stop a change's worker past this many GB of its own; the change is killed",
+    )
     r.add_argument("--map", help="a test map (testmap's map.json): its tests are added")
     sub.add_parser("summary", help="the last run's outcomes and survivors")
     c = sub.add_parser("check", help="one change against one test file")

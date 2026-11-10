@@ -5,7 +5,10 @@ first run, the settling run and each file's content."""
 import argparse
 import importlib.util
 import json
+import os
 import subprocess
+import sys
+import time
 import tomllib
 
 import pytest
@@ -304,3 +307,22 @@ def test_conftest_imported_again_closes_the_clients_an_earlier_import_opened():
     spec.loader.exec_module(again)
     assert again.opened.clients is conftest.opened.clients is opened.clients
     assert not hasattr(conftest, "_signed_in")
+
+
+def test_a_worker_past_its_memory_is_named_and_its_change_counted_killed(tmp_path):
+    workers = {
+        11: ("m.x_f__mutmut_1", 0.8),
+        12: ("m.x_f__mutmut_2", 3.1),
+        13: ("m.x_g__mutmut_1", 3.0),
+    }
+    assert mutate.runaways(workers, 3.0) == [12]
+    meta(tmp_path, "moolakata/money.py", [mutate.OUT_OF_MEMORY, 0])
+    by_file, _, survivors = mutate.outcomes(tmp_path)
+    assert by_file["moolakata/money.py"]["killed"] == 1 and len(survivors) == 1
+
+
+def test_the_signal_that_stops_a_worker_ends_python_with_the_code_counted_killed():
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    time.sleep(0.5)
+    os.kill(child.pid, -mutate.OUT_OF_MEMORY)
+    assert child.wait(timeout=10) == mutate.OUT_OF_MEMORY

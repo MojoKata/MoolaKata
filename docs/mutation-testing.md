@@ -169,7 +169,10 @@ Modules are paths under `web/server/src`; a folder means every module in it. The
    each test, reaches a gigabyte: enough sessions filled a CI runner's disk).
 5. **Watches its memory** as PSS (its workers rename themselves `mutmut: <change>`, and share
    pages) and stops the run past `--limit` (15 GB by default, inside the project's budget of
-   about 20 GB; six workers peaked at 7 to 11 GB).
+   about 20 GB; six workers peaked at 7 to 11 GB). A change's worker that writes more than `--worker-limit`
+   of its own (3 GB by default, beyond the pages it shares with the process it was forked
+   from) is stopped and the change counted killed: such a change keeps allocating, and before
+   mutmut's time limit ended it, one grew a worker to 9.3 GB and stopped a whole run.
 6. **Prints** the outcomes by file and the survivors by function, and writes each survivor's
    change to `web/.dev/mutate/survivors.txt`. `web/dev.sh mutate summary` prints them again.
 
