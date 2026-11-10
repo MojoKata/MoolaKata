@@ -293,7 +293,9 @@ def test_mutmuts_tests_run_in_one_process_and_drop_a_passing_tests_folder(tmp_pa
     assert got["tool"]["mutmut"]["only_mutate"] == ["src/moolakata/money.py"]
     assert got["tool"]["mutmut"]["pytest_add_cli_args"] == [
         "-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed",
+        "-p", "moolakata.dev.mutant_name",
     ]  # fmt: skip
+    assert got["tool"]["mutmut"]["process_isolation"] == "forkserver"
 
 
 def test_conftest_imported_again_closes_the_clients_an_earlier_import_opened():
@@ -326,3 +328,14 @@ def test_the_signal_that_stops_a_worker_ends_python_with_the_code_counted_killed
     time.sleep(0.5)
     os.kill(child.pid, -mutate.OUT_OF_MEMORY)
     assert child.wait(timeout=10) == mutate.OUT_OF_MEMORY
+
+
+def test_a_changes_worker_takes_the_name_the_watcher_finds(monkeypatch):
+    from moolakata.dev import mutant_name
+
+    named = []
+    monkeypatch.setattr(mutant_name, "title", named.append)
+    for under_test in ("stats", "fail", "", "moolakata.money.x_parse__mutmut_3"):
+        monkeypatch.setenv("MUTANT_UNDER_TEST", under_test)
+        mutant_name.pytest_configure(None)
+    assert named == ["mutmut: moolakata.money.x_parse__mutmut_3"]

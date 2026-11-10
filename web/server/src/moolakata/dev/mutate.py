@@ -175,8 +175,10 @@ def _link(at: Path, to: Path) -> None:
 # Each change's tests run in one process, and a test's temporary folder goes when it passes:
 # pytest keeps every test's folder of its last three sessions, and all of a session a timeout
 # stopped, and a change runs a session of its own (a copy of the store each test, a gigabyte
-# a session for a well-tested module), which filled a CI runner's disk.
-PYTEST_ARGS = ["-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed"]
+# a session for a well-tested module), which filled a CI runner's disk. Each change's worker
+# names itself for the watcher (`mutant_name.py`).
+PYTEST_ARGS = ["-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed",
+               "-p", "moolakata.dev.mutant_name"]  # fmt: skip
 
 
 def configure(modules: list[str], tests: list[str]) -> None:
@@ -193,6 +195,11 @@ def configure(modules: list[str], tests: list[str]) -> None:
         f"only_mutate = {json.dumps(only)}\n"
         f"pytest_add_cli_args_test_selection = {json.dumps(tests)}\n"
         f"pytest_add_cli_args = {json.dumps(PYTEST_ARGS)}\n"
+        # Every session in a fork of a process that only imported the tests: in mutmut's fork
+        # mode the stats ran in the process the workers fork from, and they inherited what the
+        # tests left there (the imports' thread pool, its thread gone in the fork: an upload's
+        # job never ran, and auth-1's clean tests failed).
+        'process_isolation = "forkserver"\n'
         'also_copy = ["tests"]\n'
     )
     (COPY / "pyproject.toml").write_text(text)

@@ -164,6 +164,11 @@ Modules are paths under `web/server/src`; a folder means every module in it. The
 4. **Writes mutmut's settings** in the copy and **runs it** with `--workers` (6 by default)
    from a fresh `mutants/` folder, so the map of which tests reach which function is built
    from the tests as they are (a rerun reusing the last map never tries tests added since).
+   mutmut runs in its forkserver mode: its main process only imports and collects the tests,
+   and every session (the stats, the clean run, each change) runs in a fork of it. In its fork
+   mode the stats ran in the process every worker is forked from, and the workers inherited
+   what the tests left there: the imports' thread pool, its thread gone in the fork, so an
+   upload's job never ran.
    Each change's tests run in one process, and a test's temporary folder goes when it passes
    (pytest keeps them otherwise, and a session over a well-tested module, a copy of the store
    each test, reaches a gigabyte: enough sessions filled a CI runner's disk).
