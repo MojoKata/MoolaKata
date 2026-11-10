@@ -274,15 +274,18 @@ def test_the_changes_left_unrun_are_split_by_the_slowest_estimate_and_dealt_out(
     # A job may take 2 * 240 min * 4 workers of worst cases: 3 of 38,400 s each.
     worst = 2 * mutate.REST_MINUTES * 60 * mutate.REST_WORKERS / 3
     estimates = {"moolakata.auth.users.py.x_f__mutmut_1": worst}
+    # And no more than half what the first run finished in its 330 minutes, scaled to 240: of
+    # 9 reached, 3 (at 8 reached, 2).
+    codes = [1] * 9 + [None] * 7
     jobs = {
-        "auth-1": _job(tmp_path, "1", "auth-1", "server/auth", users, [1] + [None] * 7, estimates),
+        "auth-1": _job(tmp_path, "1", "auth-1", "server/auth", users, codes, estimates),
         "core-1": _job(tmp_path, "1", "core-1", "server/core", "moolakata/money.py", [1, 0]),
         # Stopped before its first change: run again by name, not here.
         "keys-1": _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None]),
     }
     got, names = mutate.rest_jobs(jobs)
     assert [j["name"] for j in got] == ["auth-1.r1-1", "auth-1.r1-2", "auth-1.r1-3"]
-    unrun = sorted(f"moolakata.auth.users.py.x_f__mutmut_{i}" for i in range(2, 9))
+    unrun = sorted(f"moolakata.auth.users.py.x_f__mutmut_{i}" for i in range(10, 17))
     assert names["auth-1.r1-1"] == unrun[0::3]
     assert sorted(n for these in names.values() for n in these) == unrun
     assert got[0] == {
@@ -295,11 +298,14 @@ def test_the_changes_left_unrun_are_split_by_the_slowest_estimate_and_dealt_out(
     }
     # A round left changes unrun again: the next round's jobs are numbered after it.
     jobs["auth-1.r1-2"] = _job(
-        tmp_path, "2", "auth-1.r1-2", "server/auth", users, [None, 1, 1] + [None] * 5
+        tmp_path, "2", "auth-1.r1-2", "server/auth", users, [None] * 9 + [1, 1] + [None] * 5
     )
     again, names = mutate.rest_jobs(jobs)
     assert {j["name"].rsplit("-", 1)[0] for j in again} == {"auth-1.r2"}
     assert sorted(n for these in names.values() for n in these) == unrun[2:]
+    # The first run reached fewer: the jobs are smaller than the estimates allow.
+    fewer = _job(tmp_path, "3", "auth-1", "server/auth", users, [1] * 8 + [None] * 8, estimates)
+    assert [len(x) for x in mutate.rest_jobs({"auth-1": fewer})[1].values()] == [2, 2, 2, 2]
 
 
 def test_the_plan_for_the_rest_writes_each_jobs_changes_for_run_to_read(

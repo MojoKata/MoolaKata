@@ -642,9 +642,12 @@ def export(args) -> int:
 # mutmut's estimates. mutmut runs a job's changes the quickest first, so those left are the
 # slowest: each at least the slowest it reached (its estimate is a change's worst case, every
 # one of its tests run, as for a survivor). A killed change stops at its first failing test, and
-# fewer than half survive, so a job is given twice what its worst case allows; one that runs out
-# of time again leaves the rest to the next round.
+# fewer than half survive, so a job is given twice what its worst case allows. An estimate is
+# its tests' time alone, not a change's session around them, so no more than half what the
+# job's first run finished in the same time either (those left are slower than those it
+# reached). A job that runs out of time again leaves the rest to the next round.
 REST_MINUTES = 240  # of the job's 330, the rest for the stats and the clean run
+JOB_MINUTES = 330
 REST_WORKERS = 4
 MATRIX = 256  # GitHub's most jobs in one run; more wait for the next round
 
@@ -684,6 +687,8 @@ def rest_jobs(jobs: dict[str, Path]) -> tuple[list[dict], dict[str, list[str]]]:
             continue
         worst = slowest(dirs)
         each = int(2 * REST_MINUTES * 60 * REST_WORKERS / worst) if worst else len(unrun)
+        reached = sum(c is not None for keys in merged(dirs[:1]).values() for c in keys.values())
+        each = min(each, int(reached * REST_MINUTES / JOB_MINUTES / 2))
         parts = max(1, -(-len(unrun) // max(1, each)))
         rounds = [int(m.group(1)) for n in jobs if source_of(n) == source
                   if (m := re.search(r"\.r(\d+)-\d+$", n))]  # fmt: skip
