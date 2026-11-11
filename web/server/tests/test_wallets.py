@@ -834,3 +834,30 @@ def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, mon
         rows = s.scalars(select(Transaction).where(Transaction.fitId.like("btc:%")))
         got = {r.fitId[4:5]: (r.offChainMissedAt, r.offChainAt) for r in rows}
     assert got == {"7": (None, None), "8": (None, None)}
+
+
+def test_a_kept_transaction_leaves_the_others_judged(server, alice, monkeypatch):
+    """One the owner kept stays kept, and the read goes on to judge those after it."""
+    from sqlalchemy import update
+
+    from moolakata import clock
+    from moolakata.store.entities.accounts import Transaction
+
+    r0 = keys.extended(ZPUB).address(0, 0)
+    chain = Chain([sources.Tx("1" * 64, T1, 1_000, 0, {r0}),
+                   sources.Tx("2" * 64, T2, 2_000, 0, {r0})])  # fmt: skip
+    monkeypatch.setattr(sync, "source", lambda srv, s: chain)
+    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+    saved(wallet(alice, w["id"], ZPUB))
+    sync.sync_account(server, w["id"])
+    with server.db.tx(unscoped="test") as s:
+        s.execute(
+            update(Transaction)
+            .where(Transaction.fitId == "btc:" + "1" * 64)
+            .values(offChainKeptAt=clock.now())
+        )
+    chain.on.clear()
+    sync.sync_account(server, w["id"])
+    sync.sync_account(server, w["id"])
+    got = _off_chain(server, w["id"])
+    assert (got["1" * 64][0], got["2" * 64][0]) == (False, True)
