@@ -218,7 +218,10 @@
          derived, at most ten rounds in one check, so a long-used wallet fills in over a few
          hourly checks. The account's Settings lists the addresses watched, by chain and
          index.
-      3. Taking a key or address out of the list stops watching its addresses.
+      3. Taking a key or address out of the list stops watching its addresses. Its recorded
+         transactions stay as they are; they are no longer checked against the chain (S1.6.2.7)
+         unless a key still in the list brought them too, and are checked again when it is
+         typed in again.
       4. **Descriptors**, as Sparrow, Nunchuk and Bitcoin Core export them: single-key
          `pkh()`, `sh(wpkh())`, `wpkh()` and `tr()` (taproot, BIP 86), and multisig
          `wsh(sortedmulti(k, …))` and `wsh(multi(k, …))` of at most 15 keys, each key with

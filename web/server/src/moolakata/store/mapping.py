@@ -159,6 +159,7 @@ def map_all() -> None:
     _map(acc.WashSale, options.WashSale)
     _versioned(acc.StrategyLeg, options.StrategyLeg)
     _map(acc.WalletAddress, wallets.WalletAddress)
+    _map(acc.TransactionWalletKey, wallets.TransactionWalletKeys)
     _versioned(tx.TaxBookFiler, taxes.TaxBookFiler)
     _versioned(tx.TaxBookAccount, taxes.TaxBookAccount)
     _map(tx.TaxDependentAccount, taxes.TaxDependentAccounts)

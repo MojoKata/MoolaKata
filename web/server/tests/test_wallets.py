@@ -596,3 +596,134 @@ def test_a_wallets_keys_are_bounded(alice):
     lines = "\n".join(z.address(0, i) for i in range(wallets.MAX_ENTRIES + 1))
     r = wallet(alice, w["id"], lines)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-many", r.text
+
+
+# ---------- a key taken out (S1.6.1.3, CR3-20)
+
+TYPED = "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
+
+
+def _off_chain(server, account_id) -> dict[str, tuple[bool, bool]]:
+    """Each recorded transaction by txid: (marked no longer on the chain, has a key link)."""
+    from sqlalchemy import select
+
+    from moolakata.store.entities.accounts import Transaction, TransactionWalletKey
+
+    with server.db.read(unscoped="test") as s:
+        linked = set(s.scalars(select(TransactionWalletKey.transactionId)))
+        return {
+            r.fitId[4:]: (r.offChainAt is not None, r.id in linked)
+            for r in s.scalars(
+                select(Transaction).where(
+                    Transaction.accountId == account_id, Transaction.fitId.like("btc:%")
+                )
+            )
+        }
+
+
+def test_taking_a_key_out_never_marks_its_transactions_off_the_chain(server, alice, monkeypatch):
+    """The review's case: a zpub's three transactions recorded, the zpub replaced by another
+    key, two reads: none is marked, so no alert invites deleting coins still there. Typed in
+    again, it is read again, and a transaction the chain dropped meanwhile is marked."""
+    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+    saved(wallet(alice, w["id"], ZPUB))
+    fake = Fake(keys.extended(ZPUB).address(0, 19))
+    monkeypatch.setattr(sync, "source", lambda srv, s: fake)
+    assert sync.sync_account(server, w["id"]) == 3
+    saved(wallet(alice, w["id"], YPUB))
+    sync.sync_account(server, w["id"])
+    sync.sync_account(server, w["id"])
+    assert _off_chain(server, w["id"]) == dict.fromkeys(
+        ["a" * 64, "b" * 64, "c" * 64], (False, True)
+    )
+
+    class Reorged(Fake):
+        def history(self, addresses):
+            return [t for t in super().history(addresses) if t.txid != "a" * 64]
+
+    monkeypatch.setattr(sync, "source", lambda srv, s: Reorged(fake.far))
+    sync.sync_account(server, w["id"])  # a miss while unread is no miss
+    saved(wallet(alice, w["id"], ZPUB))
+    sync.sync_account(server, w["id"])
+    assert not _off_chain(server, w["id"])["a" * 64][0], "one read that misses it isn't enough"
+    sync.sync_account(server, w["id"])
+    assert _off_chain(server, w["id"])["a" * 64] == (True, True)
+
+
+class Chain:
+    """A chain the test changes, read as an explorer reads it: each transaction touching
+    `addresses` that is still on it."""
+
+    def __init__(self, txs: list[sources.Tx]):
+        self.all = {t.txid: t for t in txs}
+        self.on = set(self.all)
+
+    def test(self):
+        return "Chain answered"
+
+    def history(self, addresses):
+        asked = set(addresses)
+        return [dataclasses.replace(self.all[t]) for t in sorted(self.on)
+                if self.all[t].addresses & asked]  # fmt: skip
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_no_transaction_still_on_the_chain_is_ever_marked_whatever_keys_come_and_go(
+    server, alice, monkeypatch, seed
+):
+    """CR3-20's category, generated: keys taken out and typed in again, transactions leaving
+    the chain and coming back, reads between. A model says what each read must leave marked:
+    a transaction is judged only while a key that read it is in the wallet, and marked after
+    two judged reads in a row miss it; one back on the chain is unmarked. Every recorded
+    transaction is linked to a key."""
+    import random
+
+    rnd = random.Random(seed)
+    z = keys.extended(ZPUB)
+    r0, r1 = z.address(0, 0), z.address(0, 1)
+    of_key = {ZPUB: {r0, r1}, TYPED: {TYPED}}
+    chain = Chain([
+        sources.Tx("1" * 64, T1, 1_000, 0, {r0}),
+        sources.Tx("2" * 64, T1, 2_000, 0, {r1}),
+        sources.Tx("3" * 64, T1, 3_000, 0, {TYPED}),
+        sources.Tx("4" * 64, T2, 4_000, 0, {r0, TYPED}),
+    ])  # fmt: skip
+    monkeypatch.setattr(sync, "source", lambda srv, s: chain)
+    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+    live = [ZPUB, TYPED]
+    saved(wallet(alice, w["id"], "\n".join(live)))
+    read_by: dict[str, set[str]] = {}  # txid: the keys that have read it
+    missed: dict[str, int] = {}
+    marked: set[str] = set()
+    for step in range(12):
+        op = rnd.choice(["keys", "drop", "back", "read", "read"])
+        if op == "keys":
+            live = rnd.choice([[ZPUB], [TYPED], [ZPUB, TYPED]])
+            saved(wallet(alice, w["id"], "\n".join(live)))
+        elif op == "drop" and chain.on:
+            chain.on.discard(rnd.choice(sorted(chain.on)))
+        elif op == "back":
+            chain.on = set(chain.all)
+        else:
+            sync.sync_account(server, w["id"])
+            watched = set().union(*(of_key[k] for k in live))
+            for txid, t in chain.all.items():
+                if txid in chain.on and t.addresses & watched:
+                    read_by.setdefault(txid, set()).update(
+                        k for k in live if of_key[k] & t.addresses
+                    )
+                    missed[txid] = 0
+                    marked.discard(txid)
+                elif txid not in read_by or txid in marked:
+                    continue
+                elif read_by[txid] & set(live):
+                    missed[txid] = missed.get(txid, 0) + 1
+                    if missed[txid] >= 2:
+                        marked.add(txid)
+                else:
+                    missed[txid] = 0
+            got = _off_chain(server, w["id"])
+            assert set(got) == set(read_by), f"step {step}"
+            assert {t for t, (m, _) in got.items() if m} == marked, f"step {step}: {op}"
+            assert all(linked for _, linked in got.values()), "every one linked to a key"
+            assert not marked & chain.on, "nothing still on the chain is marked"
