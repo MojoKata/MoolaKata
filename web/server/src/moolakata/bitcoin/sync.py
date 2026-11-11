@@ -271,7 +271,7 @@ def link_keys(s, account_id: str, txs: list[sources.Tx]) -> None:
     s.flush()
 
 
-def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
+def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> None:
     """A recorded transaction the explorer or node no longer has, after a whole history was
     read, is marked *no longer on the chain* once two reads in a row miss it, never deleted
     (S1.6.2.7); one back on it is unmarked, and one its owner kept stays kept. Only one that
@@ -301,7 +301,6 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
     ):
         keys.setdefault(txn_id, set()).add(value)
     now = clock.now()
-    marked = 0
     for r in recorded:
         if r.fitId in seen:
             r.offChainAt = r.offChainMissedAt = None
@@ -314,8 +313,6 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
             r.offChainMissedAt = now  # one miss: a node catching up, or a reorganisation
         else:
             r.offChainAt = now
-            marked += 1
-    return marked
 
 
 def sync_all(server, ctx=None) -> str | None:

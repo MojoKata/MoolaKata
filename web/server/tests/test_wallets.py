@@ -799,3 +799,36 @@ def test_a_deleted_link_brings_a_transaction_no_key(server, alice, monkeypatch):
     sync.sync_account(server, w["id"])
     sync.sync_account(server, w["id"])
     assert _off_chain(server, w["id"])["6" * 64][0], "judged, and marked"
+
+
+def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, monkeypatch):
+    """Another wallet's transactions are not in this one's read, nor is a deleted one: neither
+    is ever counted as missed by it."""
+    from sqlalchemy import select, update
+
+    from moolakata import clock
+    from moolakata.store.entities.accounts import Transaction
+
+    r0 = keys.extended(ZPUB).address(0, 0)
+    chain = Chain([sources.Tx("7" * 64, T1, 1_000, 0, {TYPED}),
+                   sources.Tx("8" * 64, T1, 2_000, 0, {r0})])  # fmt: skip
+    monkeypatch.setattr(sync, "source", lambda srv, s: chain)
+    hot = new_account(alice, name="Hot wallet", type="crypto-wallet")
+    cold = new_account(alice, name="Cold storage", type="crypto-wallet")
+    saved(wallet(alice, hot["id"], ZPUB))
+    saved(wallet(alice, cold["id"], TYPED))
+    sync.sync_account(server, hot["id"])
+    sync.sync_account(server, cold["id"])
+    with server.db.tx(unscoped="test") as s:
+        s.execute(
+            update(Transaction)
+            .where(Transaction.fitId == "btc:" + "8" * 64)
+            .values(deletedAt=clock.now())
+        )
+    chain.on.discard("8" * 64)
+    for _ in range(3):
+        sync.sync_account(server, hot["id"])
+    with server.db.read(unscoped="test") as s:
+        rows = s.scalars(select(Transaction).where(Transaction.fitId.like("btc:%")))
+        got = {r.fitId[4:5]: (r.offChainMissedAt, r.offChainAt) for r in rows}
+    assert got == {"7": (None, None), "8": (None, None)}

@@ -469,3 +469,19 @@ def test_a_target_met_exactly_needs_nothing_and_a_quarter_short_needs_a_quarter(
     monkeypatch.setattr(engine, "PRECISION", 0.01)
     plan, idx = _flat(999.75)
     assert engine.needed_saving(plan, 1_000.0, idx) == pytest.approx(0.25, abs=0.01)
+
+
+def test_a_target_under_a_year_away_is_one_part_year(server, alice):
+    """A savings date months away is the projection's first year, counting its part (S6.4.2.1)."""
+    from moolakata import projections
+    from moolakata.store.entities.projections import Projection
+
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
+    built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
+    p = make(alice, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs).json()
+    with server.db.read(unscoped="test") as s:
+        row = s.get(Projection, p["id"])
+        prep = projections.prepare(s, row, row.ownerId)
+    days = (dt.date(2027, 4, 13) - T0.date()).days
+    assert prep.target_index == 1 and prep.plan.years == 2
+    assert prep.plan.last_part == pytest.approx(days / 365.25)
