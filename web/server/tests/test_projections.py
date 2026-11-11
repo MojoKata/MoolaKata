@@ -364,3 +364,80 @@ def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server,
     me = alice.get("/ui/api/profile").json()
     r = change(alice, "User", me, shownProjectionIds=[p["id"]])
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "owner-sees-it"
+
+
+# ---------- the saving that reaches a target (S6.4.2.4, CR3-31)
+
+
+def _plan(start: float, days: int) -> tuple[engine.Plan, int]:
+    """A savings plan to a date `days` away, as `prepare` makes one: the last year counts
+    its part."""
+    import math
+
+    span = days / 365.25
+    idx = max(1, math.ceil(span))
+    plan = engine.Plan(start=start, weights={"usStocks": 0.6, "cash": 0.4},
+                       returns={"usStocks": 0.07, "cash": 0.03},
+                       vols={"usStocks": 0.16, "cash": 0.01}, inflation=0.025, fees=0.001,
+                       first_year=2026, years=idx + 1, contribute_years=idx,
+                       last_part=span - (idx - 1), seed=7)  # fmt: skip
+    return plan, idx
+
+
+def _reaches(plan: engine.Plan, target: float, idx: int, chance: float, saving: float) -> bool:
+    """Whether a yearly saving reaches the target, on the runs `needed_saving` draws."""
+    import numpy as np
+
+    trial = engine.Plan(**{**plan.__dict__, "runs": 400})
+    rets = engine._returns(trial, np.random.default_rng(plan.seed), trial.runs)
+    path, _ = engine._simulate(engine.Plan(**{**trial.__dict__, "contribution": saving}), rets)
+    return bool((path[:, idx] >= target).mean() >= chance)
+
+
+@pytest.mark.parametrize("days", [10, 91, 182, 365, 366, 913, 2190])
+@pytest.mark.parametrize("start", [0.0, 4_000.0, 13_000.0])
+@pytest.mark.parametrize("chance", [0.9, 0.5])
+def test_the_saving_named_reaches_the_target_and_a_dollar_less_doesnt(days, start, chance):
+    """CR3-31's category: a search that assumed its bound was enough. Across dates (days,
+    months, a year either side of one, years), starts (nothing, part, past the target) and
+    both chances asked (savings 90%, education 50%), the saving named is the least that
+    reaches the target, to the dollar a year."""
+    plan, idx = _plan(start, days)
+    target = 12_000.0
+    got = engine.needed_saving(plan, target, idx, chance)
+    assert got is not None
+    if _reaches(plan, target, idx, chance, 0.0):
+        assert got == 0.0
+    else:
+        assert _reaches(plan, target, idx, chance, got)
+        assert not _reaches(plan, target, idx, chance, got - engine.PRECISION)
+
+
+def test_no_saving_changes_todays_balance_and_the_search_has_an_end(monkeypatch):
+    plan, idx = _plan(0.0, 91)
+    assert engine.needed_saving(plan, 12_000.0, 0) is None, "a date of today"
+    monkeypatch.setattr(engine, "DOUBLINGS", 3)
+    assert engine.needed_saving(plan, 12_000.0, idx) is None, "past what the search goes to"
+
+
+def test_a_target_months_away_names_a_saving_that_reaches_it(alice):
+    """The review's case: $12,000 by Apr 13, 2027 from nothing, in cash. The answer said
+    $1,000 a month, which reaches half of it; saving what it says now reaches it."""
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
+    built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
+    r = make(alice, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
+    assert r.status_code == 200, r.text
+    a = r.json()["result"]["answer"]
+    assert a["chance"] == 0 and 1_950 < a["neededMonthly"] < 2_100
+    inputs["monthly"] = a["neededMonthly"]
+    again = saved(change(alice, "Prjct", r.json(), inputs=inputs))
+    assert again["result"]["answer"]["chance"] >= 0.9
+
+
+def test_an_answer_no_saving_reaches_says_so(alice, monkeypatch):
+    monkeypatch.setattr(engine, "DOUBLINGS", 0)
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 0}
+    built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
+    r = make(alice, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
+    assert r.status_code == 200, r.text
+    assert r.json()["result"]["answer"]["neededMonthly"] is None

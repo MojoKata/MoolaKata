@@ -90,7 +90,8 @@ first year of school.
 
 ## Age school starts {#start-age}
 
-18 for college; younger for a private school.
+18 for college; younger for a private school. School starts on Sep 1 of that year, and saving
+counts until then.
 
 ## Years of school {#school-years}
 
@@ -116,7 +117,8 @@ By when.
 
 ## Saving per month {#monthly}
 
-What goes in each month until then. The answer says what a month would reach it with a 90% chance.
+What goes in each month until then. The answer says what a month would reach it with a 90% chance,
+or that no monthly saving reaches it by then.
 
 ## Fees a year (%) {#fees}
 

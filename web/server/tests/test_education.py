@@ -191,3 +191,33 @@ def test_the_goal_tab_starts_an_education_projection(alice):
         inputs={"beneficiary": {"kind": "person", "id": "Persn_nope"}},
     )
     assert bad.json()["errors"][0]["field"] == "inputs.beneficiary"
+
+
+@pytest.mark.parametrize(
+    ("first_year", "low", "high"),
+    [
+        # Today is Oct 13, 2026. School this year has started: nothing saved now reaches it.
+        (2026, 0, 0),
+        # Next year: the 10.6 months to Sep 1, 2027, saved at $1,000 a month.
+        (2027, 10_400, 10_800),
+        # Three years on: two whole years and the same part, grown.
+        (2029, 34_000, 37_500),
+    ],
+)
+def test_saving_counts_until_school_starts_on_sep_1(alice, first_year, low, high):
+    """S6.2.2: the balance when school starts counts every month saved before Sep 1 of its
+    first year; it counted whole years ending a year before school, so a school next year saw
+    no saving at all."""
+    acct, _, _ = plan(alice)
+    p = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]
+    p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "firstYear": first_year,
+                                                "monthly": 1000}))  # fmt: skip
+    a = p["result"]["answer"]
+    assert low <= a["atStart"] <= high, a["atStart"]
+    if first_year == 2026:
+        assert a["neededMonthly"] is None, "no monthly saving reaches it by then"
+    else:
+        # Saving what it names funds it: the median at the start meets what is needed.
+        p = saved(change(alice, "Prjct", p, inputs={**p["inputs"],
+                                                    "monthly": a["neededMonthly"]}))  # fmt: skip
+        assert p["result"]["answer"]["funded"] >= 97

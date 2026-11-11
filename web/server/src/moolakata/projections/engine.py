@@ -39,6 +39,9 @@ class Plan:
     contribution: float = 0.0  # a year, in the first year
     contribution_growth: float = 0.0
     contribute_years: int = 0  # years contributions are made
+    # The share of the last of those years that is saved, when saving stops mid-year (school
+    # starts on Sep 1): its contribution is that share of a year's.
+    contribute_part: float = 1.0
     last_part: float = 1.0  # the share of the last year that counts, for a date mid-year
     withdraw_from: int | None = None  # the year index withdrawals start, if any
     withdrawal: dict = field(default_factory=dict)  # method, amount (a year) or percent
@@ -127,7 +130,8 @@ def _simulate(plan: Plan, rets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         part = plan.last_part if t == plan.years - 1 else 1.0
         bal = bal * (1 + rets[:, t] * part) * (1 - plan.fees * part)
         if t <= plan.contribute_years:
-            bal = bal + plan.contribution * (1 + plan.contribution_growth) ** (t - 1) * part
+            share = part * (plan.contribute_part if t == plan.contribute_years else 1.0)
+            bal = bal + plan.contribution * (1 + plan.contribution_growth) ** (t - 1) * share
         if plan.withdraw_from is not None and t >= plan.withdraw_from:
             method = plan.withdrawal.get("method", "fourPercent")
             if method == "costs":
@@ -204,18 +208,38 @@ def scenario_paths(plan: Plan, model: str, figures: dict, btc_now: float) -> dic
     return out
 
 
-def needed_saving(plan: Plan, target: float, at_index: int, chance: float = 0.9) -> float:
-    """The yearly saving that reaches the target by its date with this chance (bisection on
-    a smaller number of runs, from the same seed)."""
-    lo, hi = 0.0, max(target, 1.0)
+DOUBLINGS = 40  # how far the search for a saving that is enough goes: 2**40 times the target
+PRECISION = 1.0  # a year's saving, to the dollar
+
+
+def needed_saving(plan: Plan, target: float, at_index: int, chance: float = 0.9) -> float | None:
+    """The yearly saving that reaches the target by its date with this chance, to the dollar,
+    on a smaller number of runs from the same seed; None when no saving does: a date of today,
+    or more than the search goes to (CR3-31). The bound is doubled until it is enough, then
+    halved toward the least that is: a bound assumed enough was wrong for a date under a
+    year away, where a year's saving counts only its part."""
+    if at_index < 1:
+        return None  # today's balance: no saving changes it
     trial = Plan(**{**plan.__dict__, "runs": 400})
     rng = np.random.default_rng(plan.seed)
     rets = _returns(trial, rng, trial.runs)
-    for _ in range(40):
+
+    def reaches(saving: float) -> bool:
+        path, _ = _simulate(Plan(**{**trial.__dict__, "contribution": saving}), rets)
+        return bool((path[:, at_index] >= target).mean() >= chance)
+
+    if reaches(0.0):
+        return 0.0
+    lo, hi = 0.0, max(target, 1.0)
+    for _ in range(DOUBLINGS):
+        if reaches(hi):
+            break
+        lo, hi = hi, hi * 2
+    else:
+        return None
+    while hi - lo > PRECISION:
         mid = (lo + hi) / 2
-        p = Plan(**{**trial.__dict__, "contribution": mid})
-        path, _ = _simulate(p, rets)
-        if (path[:, at_index] >= target).mean() >= chance:
+        if reaches(mid):
             hi = mid
         else:
             lo = mid

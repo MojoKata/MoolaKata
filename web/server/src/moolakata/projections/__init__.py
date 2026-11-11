@@ -215,6 +215,8 @@ class Prepared:
     target_index: int | None
     people: list[dict]
     model: str
+    # Education: the share of the year school starts in that comes before Sep 1, saved too.
+    start_part: float = 1.0
 
 
 def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
@@ -234,6 +236,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
     today = clock.today()
     year = today.year
     retire_index = target_index = None
+    start_part = contribute_part = 1.0
     people = []
     contribution = float(inputs.get("contribution", {}).get("amount", 0) or 0)
     growth = float(inputs.get("contribution", {}).get("growth", 0) or 0) / 100
@@ -257,10 +260,19 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         withdrawal = inputs.get("withdrawal") or {"method": "fourPercent"}
     elif p.goal == "education":
         school = education_school(s, inputs, year)
-        target_index = min(school["startIndex"], MAX_YEARS - school["years"])
+        # Saving goes on until school starts, on Sep 1 of its first year (S6.2.2): its last
+        # year counts the part before then, and the first year's costs are paid at its end.
+        days = (dt.date(school["firstYear"], 9, 1) - today).days
+        span = max(days, 1) / 365.25
+        target_index = max(1, math.ceil(span))
+        # School under way: nothing saved from now reaches its start.
+        start_part = span - (target_index - 1) if days > 0 else 0.0
+        if target_index > MAX_YEARS - school["years"]:
+            target_index, start_part = MAX_YEARS - school["years"], 1.0
         years = target_index + school["years"]
         contribution = float(inputs.get("monthly", 0) or 0) * 12
-        contribute_years = target_index - 1
+        contribute_years = target_index
+        contribute_part = start_part
         income = []
         withdrawal = {
             "method": "costs",
@@ -303,6 +315,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         contribution=contribution,
         contribution_growth=growth,
         contribute_years=contribute_years,
+        contribute_part=contribute_part,
         last_part=last_part,
         withdraw_from=retire_index,
         withdrawal=withdrawal,
@@ -312,7 +325,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         runs=int(inputs.get("runs", engine.RUNS)),
         seed=engine.seed_of(p.id, inputs, str(base.value)),
     )
-    return Prepared(plan, base, figures, retire_index, target_index, people, model)
+    return Prepared(plan, base, figures, retire_index, target_index, people, model, start_part)
 
 
 def compute(s: Session, p: Projection, viewer: str) -> dict:
@@ -362,7 +375,8 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         target = float(inputs.get("target", 0) or 0)
         idx = prep.target_index
         chance = float((result.at[:, idx] >= target).mean()) if target else 1.0
-        needed = engine.needed_saving(plan, target, idx) / 12 if target else 0.0
+        yearly = engine.needed_saving(plan, target, idx) if target else 0.0
+        needed = None if yearly is None else yearly / 12
         out["answer"] = {
             "kind": "savings",
             "chance": chance,
@@ -401,7 +415,6 @@ def education_school(s: Session, inputs: dict, year: int) -> dict:
         "name": name,
         "birthYear": birth,
         "firstYear": first,
-        "startIndex": max(1, first - year),
         "years": max(1, int(inputs.get("schoolYears") or 4)),
         "cost": cost,
         "basis": basis,
@@ -419,12 +432,18 @@ def _education_answer(s: Session, p: Projection, prep: Prepared, result, inputs:
     costs = [school["cost"] * (1 + growth) ** t for t in range(start, start + school["years"])]
     # What the years of school are worth at the start, the balance going on growing.
     needed = sum(c / (1 + rate) ** (k + 1) for k, c in enumerate(costs))
-    at_start = result.percentiles[50][start - 1]
+    # The balance on the day school starts: the years before, and the part of its first year
+    # before Sep 1, saved and grown; no cost paid yet.
+    before = engine.Plan(**{**plan.__dict__, "withdraw_from": None, "years": start + 1,
+                            "last_part": prep.start_part, "contribute_part": 1.0})  # fmt: skip
+    at_start = engine.run(before).percentiles[50][start]
     funded = min(100.0, at_start / needed * 100) if needed else 100.0
-    monthly = 0.0
-    if needed and at_start < needed:
-        trial = engine.Plan(**{**plan.__dict__, "withdraw_from": None})
-        monthly = engine.needed_saving(trial, needed, start - 1, chance=0.5) / 12
+    monthly: float | None = 0.0
+    if needed and at_start < needed and not prep.start_part:
+        monthly = None
+    elif needed and at_start < needed:
+        yearly = engine.needed_saving(before, needed, start, chance=0.5)
+        monthly = None if yearly is None else yearly / 12
     return {
         "kind": "education",
         "name": school["name"],
