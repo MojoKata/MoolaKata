@@ -803,11 +803,11 @@ def test_a_deleted_link_brings_a_transaction_no_key(server, alice, monkeypatch):
 
 def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, monkeypatch):
     """Another wallet's transactions are not in this one's read, nor is a deleted one: neither
-    is ever counted as missed by it."""
+    is ever counted as missed by it, even one with no key link, which a read judges."""
     from sqlalchemy import select, update
 
     from moolakata import clock
-    from moolakata.store.entities.accounts import Transaction
+    from moolakata.store.entities.accounts import Transaction, TransactionWalletKey
 
     r0 = keys.extended(ZPUB).address(0, 0)
     chain = Chain([sources.Tx("7" * 64, T1, 1_000, 0, {TYPED}),
@@ -826,6 +826,8 @@ def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, mon
             .values(deletedAt=clock.now())
         )
     chain.on.discard("8" * 64)
+    with server.db.tx(unscoped="test") as s:
+        s.execute(update(TransactionWalletKey).values(deletedAt=clock.now()))
     for _ in range(3):
         sync.sync_account(server, hot["id"])
     with server.db.read(unscoped="test") as s:
