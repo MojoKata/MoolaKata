@@ -33,8 +33,10 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    (mempool.space suggested, or Blockstream) or the household's own node (its own mempool or
    Esplora by its address; an Electrum server by host, port and TLS; Bitcoin Core by host,
    port, RPC user and password), with when the wallets were last read and a **Test** button. No
-   wallet is read until an admin saves this section (R3.5). Changing the node's host clears its
-   stored password, which is entered again for the new host.
+   wallet is read until an admin saves this section (R3.5), the suggested choice untouched
+   included; until then it says *Not saved yet* in place of when the wallets were last read.
+   Changing the node's host clears its stored password, which is entered again for the new
+   host.
 8. **Imports** (S1.3): the file types and size accepted for statement import (25 MB by
    default, 1 to 200), and whether statements are read on the server (in the receipt
    reader's worker, S9.8).

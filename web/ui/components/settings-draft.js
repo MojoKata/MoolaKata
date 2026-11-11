@@ -39,11 +39,16 @@ function byKey(recs) {
 
 /**
  * A section's draft of its keys, read from the settings as `GET /settings` gave them; a
- * password among them starts empty.
+ * password among them starts empty. A key not saved yet is written only if it is changed,
+ * except a `required` one, which the first Save writes even at its default: a choice whose
+ * saving is what turns something on (S16.7: no wallet is read until Settings › Bitcoin is
+ * saved, CR3-62).
  * @param {any} v  the settings as read
  * @param {string[]} keys
+ * @param {{ required?: string[] }} [o]
  */
-export function useSettingsDraft(v, keys) {
+export function useSettingsDraft(v, keys, o = {}) {
+  const required = o.required || [];
   const read = v
     ? JSON.stringify(keys.map((k) => [k, v.records[k] || null, v.values[k] ?? null]))
     : '';
@@ -54,7 +59,7 @@ export function useSettingsDraft(v, keys) {
         const ref = v.records[key];
         const value = v.values[key] ?? null;
         if (ref) draft.load(SettingRec, { id: ref.id, version: ref.version, key, value });
-        else draft.add(SettingRec, { key, value }, { optional: true });
+        else draft.add(SettingRec, { key, value }, { optional: !required.includes(key) });
       }
     },
     [read],

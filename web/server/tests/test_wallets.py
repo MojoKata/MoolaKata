@@ -584,6 +584,21 @@ def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, alice):
         assert sync.chosen(server, s)
 
 
+def test_saving_the_suggested_source_turns_reading_on(server, admin_client):
+    """CR3-62: the section's first save writes the source at its default, mempool.space, and
+    that is what turns wallet reading on (S16.7)."""
+    from edits import save_settings
+
+    from moolakata import settings
+
+    with server.db.tx(unscoped="test") as s:
+        s.delete(settings.row_of(s, "bitcoinSource"))
+    assert settings.DEFINITIONS["bitcoinSource"].default == "esplora"
+    assert save_settings(admin_client, {"bitcoinSource": "esplora"}).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert sync.chosen(server, s)
+
+
 def test_a_wallets_keys_are_bounded(alice):
     # B37: the text and the number of keys and addresses are capped, so no wallet stalls the
     # server (S1.6.1).

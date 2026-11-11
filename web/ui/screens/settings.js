@@ -925,7 +925,11 @@ function BitcoinSection() {
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
   // The password is a key of the draft too, written and never read back (S14.4).
-  const fd = useSettingsDraft(s.data, [...BITCOIN_KEYS, 'bitcoinPassword']);
+  // The source is written by the first Save even at the suggested default: saving the section
+  // is what turns wallet reading on (S16.7, CR3-62).
+  const fd = useSettingsDraft(s.data, [...BITCOIN_KEYS, 'bitcoinPassword'], {
+    required: ['bitcoinSource'],
+  });
   const rec = fd.rec;
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
   const test = useSubmit(async () => {
@@ -1083,13 +1087,26 @@ function BitcoinSection() {
             : null
         }`
         : null}
-      <div class=${'notice small' + (v.lastError ? ' bad' : '')} role="status" data-help="checked">
-        <${Icon} name=${v.lastError ? 'alert' : 'sync'} /><div>${v.wallets} wallet${v.wallets ===
-            1
-          ? ''
-          : 's'} · ${v.lastRun
-          ? html`last checked ${ago(v.lastRun)}${v.lastError ? html`: ${v.lastError}` : ''}`
-          : 'not checked yet'}. Checked every hour.</div></div>
+      ${s.data.records.bitcoinSource
+        ? html`
+          <div class=${'notice small' + (v.lastError ? ' bad' : '')} role="status"
+            data-help="checked">
+            <${Icon} name=${v.lastError ? 'alert' : 'sync'} />
+            <div>${v.wallets} wallet${v
+                .wallets === 1
+              ? ''
+              : 's'} · ${v.lastRun
+              ? html`last checked ${ago(v.lastRun)}${v.lastError ? html`: ${v.lastError}` : ''}`
+              : 'not checked yet'}. Checked every hour.</div>
+          </div>
+        `
+        : html`
+          <div class="notice small warn" role="status" data-help="checked">
+            <${Icon} name="alert" />
+            <div>Not saved yet: no wallet is read until you save this
+              section.</div>
+          </div>
+        `}
       <${FormError} error=${test.error} />
       <p class="small dim">Test asks the saved explorer or node for the chain's height: save
         first. Other coins and chains come later.</p>
