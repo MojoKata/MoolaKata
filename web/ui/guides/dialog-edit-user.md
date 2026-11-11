@@ -6,7 +6,8 @@ As others see it.
 
 ## Email address {#email}
 
-Fixed here only before they join; afterwards they change it themselves.
+Fixed here only before they join: the invitation then goes to the new address, and the link
+sent to the old one stops working. Afterwards they change it themselves.
 
 ## Groups
 

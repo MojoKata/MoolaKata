@@ -191,3 +191,112 @@ def test_the_goal_tab_starts_an_education_projection(alice):
         inputs={"beneficiary": {"kind": "person", "id": "Persn_nope"}},
     )
     assert bad.json()["errors"][0]["field"] == "inputs.beneficiary"
+
+
+@pytest.mark.parametrize(
+    ("first_year", "low", "high"),
+    [
+        # Today is Oct 13, 2026. School this year has started: nothing saved now reaches it.
+        (2026, 0, 0),
+        # Next year: the 10.6 months to Sep 1, 2027, saved at $1,000 a month.
+        (2027, 10_400, 10_800),
+        # Three years on: two whole years and the same part, grown.
+        (2029, 34_000, 37_500),
+    ],
+)
+def test_saving_counts_until_school_starts_on_sep_1(alice, first_year, low, high):
+    """S6.2.2: the balance when school starts counts every month saved before Sep 1 of its
+    first year; it counted whole years ending a year before school, so a school next year saw
+    no saving at all."""
+    acct, _, _ = plan(alice)
+    p = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]
+    p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "firstYear": first_year,
+                                                "monthly": 1000}))  # fmt: skip
+    a = p["result"]["answer"]
+    assert low <= a["atStart"] <= high, a["atStart"]
+    if first_year == 2026:
+        assert a["neededMonthly"] is None, "no monthly saving reaches it by then"
+    else:
+        # Saving what it names funds it: the median at the start meets what is needed.
+        p = saved(change(alice, "Prjct", p, inputs={**p["inputs"],
+                                                    "monthly": a["neededMonthly"]}))  # fmt: skip
+        assert p["result"]["answer"]["funded"] >= 97
+
+
+def _prepared(server, alice, today: dt.date, first_year: int):
+    """The education plan `prepare` makes for school starting `first_year`, on `today`."""
+    from moolakata import projections
+    from moolakata.store.entities.projections import Projection
+
+    acct, _, _ = plan(alice)
+    p = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]
+    p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "firstYear": first_year,
+                                                "schoolYears": 4}))  # fmt: skip
+    clock.fix(dt.datetime.combine(today, dt.time(12), tzinfo=dt.UTC))
+    with server.db.read(unscoped="test") as s:
+        row = s.get(Projection, p["id"])
+        return projections.prepare(s, row, row.ownerId)
+
+
+@pytest.mark.parametrize(
+    ("today", "first_year", "index", "part"),
+    [
+        (dt.date(2026, 10, 13), 2027, 1, "span"),  # next year: the months to Sep 1
+        (dt.date(2027, 8, 31), 2027, 1, "span"),  # the day before: one day's saving
+        (dt.date(2027, 9, 1), 2027, 1, 0.0),  # the day it starts: under way, nothing
+        (dt.date(2026, 10, 13), 2029, 3, "span"),  # two whole years and the part
+        (dt.date(2026, 10, 13), 2123, 97, "span"),  # the last year a projection runs to
+        (dt.date(2026, 10, 13), 2124, 97, 1.0),  # past it: the projection's last 100 years
+    ],
+)
+def test_school_starts_on_sep_1_and_saving_counts_until_then(
+    server, alice, today, first_year, index, part
+):
+    """S6.2.2, CR3-31: saving goes on until Sep 1 of school's first year, its last year counting
+    the part before then; a projection runs at most 100 years on, school's 4 among them."""
+    if part == "span":  # the days to Sep 1, in years, less the whole years before
+        part = (dt.date(first_year, 9, 1) - today).days / 365.25 - (index - 1)
+    prep = _prepared(server, alice, today, first_year)
+    assert prep.target_index == index and prep.start_part == pytest.approx(part, abs=1e-9)
+    plan = prep.plan
+    assert (plan.contribute_years, plan.years) == (index, index + 4)
+    assert plan.contribute_part == pytest.approx(part, abs=1e-9)
+
+
+def test_a_fully_funded_school_needs_no_more_saving(alice):
+    acct, _, _ = plan(alice)
+    add(alice, acct["id"], "900000.00", "2023-06-01")
+    a = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]["result"]["answer"]
+    assert a["funded"] == 100 and a["neededMonthly"] == 0.0
+
+
+def test_the_saving_named_funds_school_at_the_median(alice, monkeypatch):
+    """Funds it fully means the median balance meets the cost (S6.2.2): the search asks for a
+    50% chance; and when no saving reaches it, the answer says so."""
+    from moolakata.projections import engine
+
+    asked = []
+    real = engine.needed_saving
+
+    def spy(*args, **kw):
+        asked.append(kw.get("chance", 0.9))
+        return real(*args, **kw)
+
+    monkeypatch.setattr(engine, "needed_saving", spy)
+    acct, _, _ = plan(alice)
+    p = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]
+    assert asked == [0.5] and p["result"]["answer"]["neededMonthly"] > 0
+    monkeypatch.setattr(engine, "DOUBLINGS", 0)
+    p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "monthly": 10}))
+    assert p["result"]["answer"]["neededMonthly"] is None
+
+
+def test_a_school_under_way_and_funded_needs_no_more_saving(server, alice):
+    """Funded is funded: a school already started that the balance covers names no saving,
+    rather than saying none reaches it."""
+    acct, _, _ = plan(alice)
+    add(alice, acct["id"], "900000.00", "2023-06-01")
+    p = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]
+    p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "firstYear": 2026}))
+    a = p["result"]["answer"]
+    assert a["funded"] == 100 and a["neededMonthly"] == 0.0

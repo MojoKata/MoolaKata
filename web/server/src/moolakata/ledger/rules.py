@@ -5,12 +5,19 @@ transactions come in as plain objects."""
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Any
+
+import re2
 
 MAX_PATTERN = 200
 MAX_TAGS = 10
-# A repeat inside a repeated group, such as (a+)+ or (\w*)*: on a payee that nearly matches it
-# backtracks for ever.
-NESTED = re.compile(r"\((?:[^()\\]|\\.)*[+*}](?:[^()\\]|\\.)*\)\s*[+*{]")
+# RE2 matches in time linear in the payee, whatever the pattern: no pattern a user saves can
+# hold the server (CR3-25). It has no back-references or look-arounds, which need backtracking.
+_OPTIONS = re2.Options()
+_OPTIONS.case_sensitive = False
+_OPTIONS.log_errors = False
+# RE2's refusals of what Python's syntax has and RE2's hasn't: a look-around, a back-reference.
+_BACKTRACKING = re.compile(r"invalid perl operator: \(\?<?[=!]|invalid escape sequence: \\[1-9]")
 
 
 class Invalid(ValueError):
@@ -24,12 +31,12 @@ class Matcher:
     amountMax: Decimal | None = None
     direction: str = "any"  # any, in, out
     accountId: str | None = None
-    _regex: re.Pattern | None = field(default=None, compare=False)
+    _regex: Any = field(default=None, compare=False)  # an RE2 pattern
 
 
-def compile_pattern(text: str) -> re.Pattern | None:
-    """A rule's payee pattern: None for plain text, else its regular expression. Refused when
-    it is empty, too long, doesn't compile or nests a repeat."""
+def compile_pattern(text: str) -> Any:
+    """A rule's payee pattern: None for plain text, else its regular expression in RE2's
+    syntax. Refused when it is empty, too long or doesn't compile."""
     t = text.strip()
     if not t or len(t) > MAX_PATTERN:
         raise Invalid(f"Some text of the payee, at most {MAX_PATTERN} characters.")
@@ -38,12 +45,18 @@ def compile_pattern(text: str) -> re.Pattern | None:
     body = t[3:].strip()
     if not body:
         raise Invalid("A regular expression after re:, such as re:^AMZN.")
-    if NESTED.search(body):
-        raise Invalid("A repeat inside a repeated group, such as (a+)+, is refused.")
     try:
-        return re.compile(body, re.IGNORECASE)
-    except re.error as e:
-        raise Invalid(f"Not a regular expression: {e.msg}.") from None
+        return re2.compile(body, _OPTIONS)
+    except re2.error as e:
+        raise Invalid(_refusal(e)) from None
+
+
+def _refusal(e: Exception) -> str:
+    why = e.args[0] if e.args else ""
+    why = why.decode(errors="replace") if isinstance(why, bytes) else str(why)
+    if _BACKTRACKING.search(why):
+        return "RE2 has no look-arounds or back-references."
+    return f"Not a regular expression: {why}."
 
 
 def matcher(rule) -> Matcher:

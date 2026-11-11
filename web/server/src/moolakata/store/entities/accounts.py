@@ -368,6 +368,17 @@ class WalletKey(Record):
 
 
 @dataclass(kw_only=True, eq=False)
+class TransactionWalletKey(SoftDeleted):
+    """A wallet key whose addresses a recorded bitcoin transaction touched (CR3-20)."""
+
+    transactionId: str
+    walletKeyId: str
+    createdAt: dt.datetime = field(default_factory=_now)
+    deletedAt: dt.datetime | None = None
+    deletedById: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
 class WalletAddress:
     id: str
     accountId: str

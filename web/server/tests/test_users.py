@@ -94,7 +94,7 @@ def test_an_admin_from_before_the_welcome_only_reaches_setup(client, server):
     )
     assert r.status_code == 200 and r.json()["user"]["needsSetup"] is False
     assert client.cookies.get("mk_session") != first
-    assert client.get("/ui/api/profile").status_code == 200
+    assert client.get("/ui/api/profile").json()["email"] == "legacy@home.lan"
     with new_client(server) as old:
         old.cookies.set("mk_session", first, domain="mk.test", path="/ui")
         assert old.get("/ui/api/session").status_code == 401
@@ -250,6 +250,128 @@ def test_new_users_are_checked_field_by_field(admin_client, server):
     )
     fields = {e["field"] for e in r.json()["errors"]}
     assert fields == {"displayName", "username", "email", "sex", "groupIds"}
+
+
+def _invite_eve(admin_client, server, address="eve@hme.lan") -> tuple[dict, str]:
+    """Eve invited at a mistyped address: her row, and the link mailed there."""
+    set_public_url(server)
+    r = make(admin_client, "User", displayName="Eve", username="eve", email=address, sex="female")
+    assert r.status_code == 200, r.text
+    return r.json(), last_link(server)[1]
+
+
+def _link_works(server, token: str) -> bool:
+    with new_client(server) as c:
+        return c.post("/ui/api/invitations/lookup", json={"token": token}).status_code == 200
+
+
+def test_correcting_an_invited_address_ends_the_old_link_and_sends_one_to_the_new(
+    admin_client, server
+):
+    """CR3-49: the link mailed to the mistyped address stops working, and one invitation goes
+    to the corrected one, recorded as a correction and a resend (S10.1.3)."""
+    eve, old = _invite_eve(admin_client, server)
+    sent = len(mails(server))
+    eve = saved(change(admin_client, "User", eve, email="eve@home.lan"))
+    assert eve["email"] == "eve@home.lan" and eve["invitationLive"] is True
+    assert [m["To"] for m in mails(server)[sent:]] == ["eve@home.lan"]
+    assert not _link_works(server, old)
+    _, new = last_link(server)
+    with new_client(server) as c:
+        r = c.post("/ui/api/invitations/accept", json={"token": new, "password": PW})
+        assert r.status_code == 200 and r.json()["user"]["username"] == "eve"
+    assert kinds(server)[-3:-1] == ["user.updated", "user.invitation-resent"]
+
+
+def test_an_unchanged_address_sends_nothing_and_keeps_the_link(admin_client, server):
+    """The same address, in other case or with spaces, is no correction: no mail, and the
+    link sent stays the one that works."""
+    eve, link = _invite_eve(admin_client, server, "eve@home.lan")
+    sent = len(mails(server))
+    eve = saved(change(admin_client, "User", eve, email=" EVE@Home.LAN "))
+    eve = saved(change(admin_client, "User", eve, displayName="Eve Shaw"))
+    assert eve["email"] == "eve@home.lan" and eve["invitationLive"] is True
+    assert len(mails(server)) == sent and _link_works(server, link)
+    assert "user.invitation-resent" not in kinds(server)
+
+
+def test_a_correction_with_no_public_url_ends_the_old_link_and_sends_none(admin_client, server):
+    """With no public URL there is no link to build: the address is still corrected and the
+    old link ended, so the wrong mailbox can't use it; Resend invitation sends it later."""
+    from moolakata.store.entities.core import Setting
+
+    eve, old = _invite_eve(admin_client, server)
+    with server.db.tx(unscoped="test") as s:
+        s.delete(s.scalars(select(Setting).where(Setting.key == "publicUrl")).one())
+    sent = len(mails(server))
+    eve = saved(change(admin_client, "User", eve, email="eve@home.lan"))
+    assert eve["email"] == "eve@home.lan" and eve["invitationLive"] is False
+    assert len(mails(server)) == sent and not _link_works(server, old)
+    assert kinds(server)[-1] == "user.updated"
+    set_public_url(server)
+    assert admin_client.post(f"/ui/api/users/{eve['id']}/invitation").status_code == 204
+    assert mails(server)[-1]["To"] == "eve@home.lan"
+    assert _link_works(server, last_link(server)[1])
+
+
+def test_a_confirmed_new_address_ends_a_reset_link_sent_to_the_old_one(client, server):
+    """CR3-452: whoever holds the old mailbox can't reset the password from a link mailed
+    there before the change (S10.1.5)."""
+    set_public_url(server)
+    make_user(server, "hal")
+    c = sign_in(server, "hal")
+    assert client.post("/ui/api/password-reset", json={"login": "hal"}).status_code == 204
+    _, reset = last_link(server)
+    assert c.post("/ui/api/profile/email", json={"email": "hal@new.lan"}).status_code == 204
+    _, confirm = last_link(server)
+    assert c.post("/ui/api/email-change/confirm", json={"token": confirm}).status_code == 204
+    r = client.post(
+        "/ui/api/password-reset/confirm", json={"token": reset, "password": "a new long passphrase"}
+    )
+    assert r.status_code == 404
+    assert sign_in(server, "hal")  # the password stands
+
+
+def test_a_new_address_ends_only_its_own_users_links(client, server):
+    """Another user's reset link, mailed to them, works on after this user's address changes."""
+    set_public_url(server)
+    make_user(server, "hal")
+    make_user(server, "ivy")
+    assert client.post("/ui/api/password-reset", json={"login": "ivy"}).status_code == 204
+    _, ivys = last_link(server)
+    c = sign_in(server, "hal")
+    assert c.post("/ui/api/profile/email", json={"email": "hal@new.lan"}).status_code == 204
+    _, confirm = last_link(server)
+    assert c.post("/ui/api/email-change/confirm", json={"token": confirm}).status_code == 204
+    r = client.post(
+        "/ui/api/password-reset/confirm", json={"token": ivys, "password": "a new long passphrase"}
+    )
+    assert r.status_code == 204
+
+
+def test_an_address_is_set_only_where_the_links_mailed_to_the_old_one_end():
+    """CR3-452's category: a link outliving the address it was mailed to. A user's address is
+    assigned in one place, `_set_email`, which ends them; a linked server's users, mirrored,
+    have no password and so no link."""
+    import ast
+    from pathlib import Path
+
+    import moolakata
+
+    root = Path(moolakata.__file__).parent
+    found = set()
+    for path in root.rglob("*.py"):
+        tree = ast.parse(path.read_text())
+        for fn in ast.walk(tree):
+            if not isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            for node in ast.walk(fn):
+                targets = node.targets if isinstance(node, ast.Assign) else []
+                if any(isinstance(t, ast.Attribute) and t.attr == "email" for t in targets):
+                    # Under a mutation run a function's changed copies are x_<name>__mutmut_<n>.
+                    name = re.sub(r"^x_(.+)__mutmut_\w+$", r"\1", fn.name)
+                    found.add(f"{path.relative_to(root).as_posix()}:{name}")
+    assert found == {"auth/users.py:_set_email", "links/manage.py:apply_directory"}
 
 
 def test_only_admins_manage_users(server):

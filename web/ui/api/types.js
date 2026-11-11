@@ -4590,6 +4590,7 @@
  * @property {boolean} active
  * @property {boolean} admin
  * @property {boolean} invited
+ * @property {boolean} invitationLive
  * @property {boolean} twoStep
  * @property {Array<string>} groupIds
  * @property {(string | null)} lastSignInAt

@@ -15,7 +15,8 @@ An **xpub** (legacy addresses, 1…), **ypub** (nested segwit, 3…) or **zpub**
 bc1q…), an **output descriptor** as Sparrow, Nunchuk or Bitcoin Core export it (`pkh`,
 `sh(wpkh)`, `wpkh`, `tr` for taproot, or a `wsh` multisig, each key with its origin and a `/0/*`,
 `/1/*` or `/<0;1>/*` ending, its checksum checked), or addresses, one a line. A multisig wallet's
-addresses come from all its keys. Taking a key out stops watching its addresses.
+addresses come from all its keys. Taking a key out stops watching its addresses; its recorded
+transactions stay as they are.
 
 > Never enter a seed phrase or a private key: the form clears anything that looks like one at
 > once, and MoolaKata never stores or logs it.

@@ -335,9 +335,8 @@ FORMS = [
         'form.card:has-text("From address")',
         "/settings/email",
     ),
-    settings_form(
-        "Settings › Bitcoin", "bitcoin", 'form.card:has-text("Test asks")', "/settings/bitcoin"
-    ),
+    # Settings › Bitcoin's untouched save writes its source the first time (CR3-62): its own
+    # test below, on a server of its own, so no wallet of the household is ever read.
     settings_form("Settings › Prices' refresh time", "prices", 'form:has-text("Daily refresh")'),
     settings_form(
         "Settings › Tax tables",

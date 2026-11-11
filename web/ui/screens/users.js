@@ -337,7 +337,19 @@ function EditUser({ close, user, groups }) {
   }
   return html`
     <${DraftDialog} f=${f} title=${user.displayName} close=${close} what="This user"
-      done="Saved" extra=${() =>
+      saved=${(/** @type {any} */ o) => {
+        const u = o.saved.find((/** @type {any} */ x) => x.id === user.id)?.record;
+        // A corrected address sends the invitation again, unless there is no public URL to
+        // build its link from (S10.1.3).
+        toast(
+          !u || u.email === user.email || !u.invited
+            ? 'Saved'
+            : u.invitationLive
+            ? `Saved. Invitation sent to ${u.email}`
+            : 'Saved. No invitation was sent: set the public URL, then Resend invitation.',
+        );
+        close(o.saved);
+      }} extra=${() =>
         user.twoStep
           ? html`
             <button type="button" class="btn" style=${{ marginRight: 'auto' }}

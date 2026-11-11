@@ -220,9 +220,11 @@ function Detail({ id, reloadList }) {
               <div class="label">Chance of ${dollars(a.target)} by ${date(a.date)}</div>
               <div class=${'value ' + (num(a.chance) >= 0.9 ? 'up' : '')}>${pct(a.chance)}</div>
               <div
-                class="delta dim">saving ${dollars(a.monthly)} a month; ${dollars(
-                  a.neededMonthly,
-                )} a month would reach it with a 90% chance</div>
+                class="delta dim">saving ${dollars(a.monthly)} a month; ${a.neededMonthly === null
+                  ? 'no monthly saving reaches it by then'
+                  : html`${
+                    dollars(a.neededMonthly)
+                  } a month would reach it with a 90% chance`}</div>
             </div>
           `}
         ${x.access.writable ? html`<${Inputs} x=${x} reload=${reload} />` : html`
@@ -246,7 +248,9 @@ export function EducationAnswer({ a }) {
       <div class=${'value ' + (funded >= 100 ? 'up' : '')}>${funded}%</div>
       <div
         class="delta dim">median ${dollars(a.atStart)} when school starts in ${a
-          .firstYear}, against ${dollars(a.needed)} needed then${a.neededMonthly
+          .firstYear}, against ${dollars(a.needed)} needed then${a.neededMonthly === null
+          ? '; no monthly saving reaches it by then'
+          : a.neededMonthly
           ? html`; ${dollars(a.neededMonthly)} a month would fund it fully`
           : ''}</div>
     </div>

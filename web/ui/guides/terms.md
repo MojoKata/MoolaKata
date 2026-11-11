@@ -230,6 +230,13 @@ year's RMD and is left out of your income.
 
 Quicken's version of OFX, with a few fields of its own. MoolaKata reads it as OFX.
 
+## RE2: Regular Expression 2
+
+Google's library for regular expressions, which MoolaKata uses for a rule's `re:` pattern. Its
+syntax is much like Python's and Perl's, without back-references or look-arounds.
+
+[RE2: Syntax](https://github.com/google/re2/wiki/Syntax)
+
 ## RMD: Required Minimum Distribution
 
 The least you must withdraw each year from traditional IRAs and most workplace plans, from age

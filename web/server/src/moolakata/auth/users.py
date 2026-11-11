@@ -214,7 +214,7 @@ def finish_setup(
         raise Problem(422, errors[0].code, errors[0].message, errors)
     user.passwordHash = passwords.hash_password(password)
     user.passwordChangedAt = now()
-    user.email = email.strip().lower()
+    _set_email(s, user, email.strip().lower())
     me = people.of_user(s, user.id)
     if display_name and display_name.strip():
         user.displayName = display_name.strip()
@@ -304,6 +304,21 @@ def _issue(s: Db, user: User, purpose: str, lifetime: dt.timedelta, data: str | 
     )
     s.flush()
     return token
+
+
+# The links mailed to a user's address. A new address ends them: whoever holds the old mailbox
+# can no longer use one (CR3-49, CR3-452). An email change's own link went to the new address.
+MAILED = ("invitation", "reset")
+
+
+def _set_email(s: Db, user: User, email: str | None) -> None:
+    """The user's address made this one; every link mailed to the old one ends with it."""
+    if email == user.email:
+        return
+    user.email = email
+    s.execute(
+        delete(OneTimeToken).where(OneTimeToken.userId == user.id, OneTimeToken.purpose.in_(MAILED))
+    )
 
 
 def token_by_hash(s: Db, token_hash: str) -> OneTimeToken | None:
@@ -405,6 +420,10 @@ def resend_invitation(s: Db, svc: Services, by: User, user: User) -> None:
     if user.passwordHash is not None:
         raise refuse(None, "already-joined", f"{user.displayName} has already joined.", 409)
     _send_invitation(s, svc, by, user)
+    _resent(s, by, user)
+
+
+def _resent(s: Db, by: User, user: User) -> None:
     activity.record(
         s,
         "user.invitation-resent",
@@ -558,7 +577,7 @@ def confirm_email_change(s: Db, token: str, svc: Services | None = None) -> User
     _raise(_email_problems(s, row.data or "", user.id))
     s.delete(row)
     old = user.email
-    user.email = row.data
+    _set_email(s, user, row.data)
     if svc is not None and old and old != user.email:
         # The old address is told (S10.1.9), so a change the person didn't make is noticed.
         svc.mailer.send(
@@ -670,10 +689,12 @@ def ask_reactivation(s: Db, login: str, password: str) -> bool:
 
 
 def update_user(
-    s: Db, by: User, user: User, display_name: str | None, email: str | None
+    s: Db, svc: Services, by: User, user: User, display_name: str | None, email: str | None
 ) -> list[str]:
     """An admin's edit. An email is fixed directly only while the invitation is pending;
-    afterwards it changes by the user's own confirmed request."""
+    afterwards it changes by the user's own confirmed request. A fixed address ends the
+    invitation sent to the old one and sends one to the new (S10.1.3, CR3-49); with no public
+    URL to build it from, none is sent, and the admin resends it once there is."""
     fields = []
     if display_name is not None and display_name.strip() != user.displayName:
         _raise(_name_problems(display_name))
@@ -688,7 +709,7 @@ def update_user(
                 409,
             )
         _raise(_email_problems(s, email, user.id))
-        user.email = email.strip().lower()
+        _set_email(s, user, email.strip().lower())
         fields.append("email")
     if fields:
         activity.record(
@@ -701,6 +722,14 @@ def update_user(
             for_admins=True,
             detail={"fields": fields},
         )
+    if "email" in fields:
+        try:
+            _send_invitation(s, svc, by, user)
+        except Problem as e:
+            if e.code != "public-url-needed":
+                raise
+        else:
+            _resent(s, by, user)
     return fields
 
 

@@ -13,7 +13,14 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import false, select
 
 from .. import clock, ids, settings, timezones
-from ..store.entities.accounts import Account, Instrument, Transaction, WalletAddress
+from ..store.entities.accounts import (
+    Account,
+    Instrument,
+    Transaction,
+    TransactionWalletKey,
+    WalletAddress,
+    WalletKey,
+)
 from ..store.entities.prices import Price
 from ..store.repos import ledger as repo
 from ..store.repos import secrets as secret_repo
@@ -109,6 +116,7 @@ def sync_account(server, account_id: str) -> int:
             break
     with server.db.tx(unscoped="bitcoin.sync: sync account") as s:
         made = record(s, account_id, list(txs.values()))
+        link_keys(s, account_id, list(txs.values()))
         mark_gone(s, account_id, list(txs.values()))
         a = s.get(Account, account_id)
         from ..bitcoin import transfers as btcmatch
@@ -239,30 +247,71 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
     return made
 
 
-def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
+def link_keys(s, account_id: str, txs: list[sources.Tx]) -> None:
+    """Each recorded transaction of the read linked to the keys whose addresses it touched:
+    when it is recorded, and when a key added since sees it too (CR3-20)."""
+    key_of = {r.address: r.keyId for r in wallet.addresses_of(s, account_id)}
+    by_fit = {f"btc:{t.txid}": t for t in txs}
+    rows = s.execute(
+        select(Transaction.id, Transaction.fitId).where(
+            Transaction.accountId == account_id, Transaction.fitId.in_(by_fit)
+        )
+    ).all()
+    have = set(
+        s.execute(
+            select(TransactionWalletKey.transactionId, TransactionWalletKey.walletKeyId).where(
+                TransactionWalletKey.transactionId.in_([r.id for r in rows])
+            )
+        ).all()
+    )
+    for txn_id, fit in rows:
+        for key_id in sorted({key_of[a] for a in by_fit[fit].addresses if a in key_of}):
+            if (txn_id, key_id) not in have:
+                s.add(TransactionWalletKey(transactionId=txn_id, walletKeyId=key_id))
+    s.flush()
+
+
+def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> None:
     """A recorded transaction the explorer or node no longer has, after a whole history was
     read, is marked *no longer on the chain* once two reads in a row miss it, never deleted
-    (S1.6.2.7); one back on it is unmarked, and one its owner kept stays kept."""
+    (S1.6.2.7); one back on it is unmarked, and one its owner kept stays kept. Only one that
+    a key still in the wallet brought is judged: a key taken out stops its addresses being
+    read, which is no sign of the chain (S1.6.1.3, CR3-20); one typed in again is read again.
+    One with no key at all is judged, so a link missed never hides one the chain dropped."""
     seen = {f"btc:{t.txid}" for t in txs}
-    now = clock.now()
-    marked = 0
-    for r in s.scalars(
-        select(Transaction).where(
-            Transaction.accountId == account_id,
-            Transaction.fitId.like("btc:%"),
-            Transaction.deleted == false(),
+    # By the key as entered: one taken out and typed in again is read again.
+    live = {k.value for k in wallet.keys_of(s, account_id)}
+    # No mutant differs: SQLite's LIKE ignores case, and every fitId is lower case.
+    read = Transaction.fitId.like("btc:%")  # pragma: no mutate
+    recorded = list(
+        s.scalars(
+            select(Transaction).where(
+                Transaction.accountId == account_id, read, Transaction.deleted == false()
+            )
         )
+    )
+    # No mutant differs: limiting the links to these only spares reading other accounts'.
+    these = TransactionWalletKey.transactionId.in_([r.id for r in recorded])  # pragma: no mutate
+    keys: dict[str, set[str]] = {}
+    for txn_id, value in s.execute(
+        select(TransactionWalletKey.transactionId, WalletKey.value)
+        .join(WalletKey)
+        .where(these & (TransactionWalletKey.deleted == false()))
     ):
+        keys.setdefault(txn_id, set()).add(value)
+    now = clock.now()
+    for r in recorded:
         if r.fitId in seen:
             r.offChainAt = r.offChainMissedAt = None
         elif r.offChainKeptAt is not None or r.offChainAt is not None:
             continue
+        elif r.id in keys and not keys[r.id] & live:
+            # No longer read: a miss counted before its key went is no miss of the chain's.
+            r.offChainMissedAt = None
         elif r.offChainMissedAt is None:
             r.offChainMissedAt = now  # one miss: a node catching up, or a reorganisation
         else:
             r.offChainAt = now
-            marked += 1
-    return marked
 
 
 def sync_all(server, ctx=None) -> str | None:

@@ -9,12 +9,13 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     Text,
     text,
 )
 
 from ..types import UtcTimestamp
-from ._base import Seen, exception, record, unique_live
+from ._base import Seen, exception, pairs, record, unique_live
 
 # An extended public key (xpub, ypub, zpub) or one address, as entered (S1.6.1).
 WalletKey = record(
@@ -58,3 +59,15 @@ Index(
     unique=True,
 )
 Index("ix_WalletAddress_key", WalletAddress.c.keyId, WalletAddress.c.chain, WalletAddress.c.idx)
+
+# The keys whose addresses a recorded bitcoin transaction touched, kept when a key is taken out
+# of the wallet (a key is only marked deleted): a transaction none of whose keys is still in the
+# wallet is no longer checked against the chain (S1.6.1.3, S1.6.2.7, CR3-20). Filled when the
+# transaction is recorded, and when a read sees it through a key added since.
+TransactionWalletKeys = pairs(
+    "TransactionWalletKeys",
+    Column("transactionId", Text, ForeignKey("Transaction.id", ondelete="CASCADE"), nullable=False),
+    Column("walletKeyId", Text, ForeignKey("WalletKey.id", ondelete="CASCADE"), nullable=False),
+    PrimaryKeyConstraint("transactionId", "walletKeyId"),
+    Index("ix_TransactionWalletKeys_walletKeyId", "walletKeyId"),
+)

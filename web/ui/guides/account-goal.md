@@ -7,8 +7,8 @@ years of school will cost.
 
 ## Funded
 
-The median balance when school starts against what its years will cost then, as a percentage, and
-the monthly saving that would fund it fully.
+The median balance when school starts (Sep 1) against what its years will cost then, as a
+percentage, and the monthly saving that would fund it fully, or that none reaches it by then.
 
 ## The chart
 

@@ -49,6 +49,7 @@ for amd64 and arm64 (S17.8.1). *Direct* means named in `pyproject.toml`.
 | ofxtools | 1.1.1 | reading OFX and QFX (S1.3.2) | the only maintained parser; pure Python; GPL-3.0-only, compatible | slow releases | if an institution's file it refuses can't be worked around |
 | pillow | 12.3.0 | thumbnails, EXIF orientation, preparing images for OCR (S9.5, S9.8.2) | the standard | a decoder bug is reachable from an upload: the decompression-bomb limit and the pixel cap (S9.8.4.3) guard it; the worker is separate | on every Pillow security advisory |
 | numpy | 2.5.4 | projections (S6.9) and RapidOCR's arrays | required by the OCR stack anyway | none known | — |
+| google-re2 | 1.1.20251105 | a rule's `re:` pattern (S2.7.1) | Google's RE2 matches in time linear in the payee, so no pattern a user saves can hold the server; Python's `re` backtracks; wheels for cp314 on both architectures, no dependencies | parses each user's pattern: the 200-character limit and RE2's own memory budget bound it | if a release stops shipping cp314 wheels for arm64 |
 | python-multipart | 0.0.32 | multipart uploads | FastAPI's parser for files | parsing untrusted input: the request limits (S13.7.6) bound it | on its advisories |
 | segno | 1.6.6 | the two-step QR code (S10.1.6) | pure Python, no image dependency | none known | — |
 | pypdfium2 | 5.14.0 | a PDF's text layer and first-page render (S9.5, S9.8.2) | PDFium is the engine browsers ship; wheels for both architectures | parses untrusted PDFs: only in the worker, with its limits | on PDFium advisories |

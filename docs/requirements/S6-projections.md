@@ -17,19 +17,20 @@
       of the balance) set against **other income**: Social Security from an age, a pension,
       each with its amount. The answer: the **chance the money lasts** to the horizon (age
       95 by default), and the balance by age.
-   2. **Education**, for one beneficiary, built on their 529 accounts (S1.8). The
-      beneficiary's birth year gives the first year of school. The user sets the years of
-      school and the yearly cost in today's dollars: typed, or a shipped average of tuition,
-      fees, room and board for public four-year (in-state) and private nonprofit four-year
-      colleges, from the National Center for Education Statistics' *Digest of Education
-      Statistics* (table 330.10, public domain, updated yearly and shipped with the tax
-      tables), and the contributions,
-      flagged where one person's gifts pass the annual exclusion (S1.8.2). The answer: the
-      projected balance against the cost, the **percentage funded**, and the monthly
-      contribution that would fund it fully. A 529's **Goal** tab shows this projection.
+   2. **Education**, for one beneficiary, built on their 529 accounts (S1.8). The beneficiary's
+      birth year gives the first year of school, which starts on Sep 1; contributions go on
+      until then. The user sets the years of school and the yearly cost in today's dollars:
+      typed, or a shipped average of tuition, fees, room and board for public four-year
+      (in-state) and private nonprofit four-year colleges, from the National Center for
+      Education Statistics' *Digest of Education Statistics* (table 330.10, public domain,
+      updated yearly and shipped with the tax tables), and the contributions, flagged where one
+      person's gifts pass the annual exclusion (S1.8.2). The answer: the projected balance when
+      school starts against the cost, the **percentage funded**, and the monthly contribution
+      that would fund it fully, or *no monthly saving reaches it by then*. A 529's **Goal** tab
+      shows this projection.
    3. **Savings target**: an amount by a date (a house deposit, a car), built on any
       accounts. The answer: the **chance of reaching it** by the date, and the monthly
-      saving that would.
+      saving that would, or *no monthly saving reaches it by then*.
 3. **Assumptions**, kept once per user in **Profile › Assumptions**: expected return and
    volatility for each asset class (US stocks, international stocks, bonds, cash, crypto,
    real estate, metals), general inflation (2.5% by default) and education inflation (5% by
@@ -85,7 +86,8 @@
       3. **A bitcoin model** sets the median growth of the bitcoin each year, and the
          crypto volatility spreads it.
       4. **The savings answer** names the monthly saving that reaches the target with a 90%
-         chance.
+         chance, to the dollar a year, a date part-way through a year counting only that
+         part of a year's saving.
    3. **Glide path** *(later)*: the allocation shifting toward bonds as the goal nears, as
       age-based 529 portfolios and target-date funds do.
 5. **Tax-aware buckets** (later): taxable, deferred and free balances projected apart, with
