@@ -308,6 +308,25 @@ def test_the_changes_left_unrun_are_split_by_the_slowest_estimate_and_dealt_out(
     assert [len(x) for x in mutate.rest_jobs({"auth-1": fewer})[1].values()] == [2, 2, 2, 2]
 
 
+def test_a_later_round_is_sized_by_the_slowest_job_of_the_round_that_left_its_changes(tmp_path):
+    money = "moolakata/money.py"
+    # The first run reached 30 of 50: jobs of 30 * 240 / 330 / 2, 10 each, for the 20 left.
+    first = _job(tmp_path, "1", "core-1", "server/core", money, [1] * 30 + [None] * 20)
+    assert [len(x) for x in mutate.rest_jobs({"core-1": first})[1].values()] == [10, 10]
+    jobs = {"core-1": first}
+    for name, codes in [
+        ("core-1.r1-1", [None] * 30 + [1] * 10 + [None] * 10),
+        # Out of time at 4 of its 10: the 6 left are slower still, a job of 4 * 240 / 330 / 2.
+        ("core-1.r1-2", [None] * 40 + [0] * 4 + [None] * 6),
+        # Stopped before its first change: it says nothing of the pace.
+        ("core-1.r1-3", [None] * 50),
+    ]:
+        jobs[name] = _job(tmp_path, "2", name, "server/core", money, codes)
+    got, names = mutate.rest_jobs(jobs)
+    assert [j["name"] for j in got] == [f"core-1.r2-{k}" for k in range(1, 7)]
+    assert [len(x) for x in names.values()] == [1] * 6
+
+
 def test_the_plan_for_the_rest_writes_each_jobs_changes_for_run_to_read(
     tmp_path, monkeypatch, capsys
 ):

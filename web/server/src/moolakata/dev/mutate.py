@@ -647,8 +647,9 @@ def export(args) -> int:
 # one of its tests run, as for a survivor). A killed change stops at its first failing test, and
 # fewer than half survive, so a job is given twice what its worst case allows. An estimate is
 # its tests' time alone, not a change's session around them, so no more than half what the
-# job's first run finished in the same time either (those left are slower than those it
-# reached). A job that runs out of time again leaves the rest to the next round.
+# slowest job of its latest round finished in the same time either (those left are slower than
+# those it reached): the first run, then the round that left them. A job that runs out of time
+# again leaves the rest to the next round.
 REST_MINUTES = 240  # of the job's 330, the rest for the stats and the clean run
 JOB_MINUTES = 330
 REST_WORKERS = 4
@@ -658,6 +659,21 @@ MATRIX = 256  # GitHub's most jobs in one run; more wait for the next round
 def source_of(name: str) -> str:
     """The baseline job a job finishing its changes belongs to (`auth-1.r2-3`: auth-1's)."""
     return name.split(".r", 1)[0]
+
+
+def round_of(name: str) -> int:
+    """The round of a job finishing its changes (`auth-1.r2-3`: 2), 0 for the baseline job's."""
+    m = re.search(r"\.r(\d+)-\d+$", name)
+    return int(m.group(1)) if m else 0
+
+
+def pace(named: list[tuple[str, Path]]) -> int:
+    """The fewest changes a job of the latest round that finished any finished in its time."""
+    by_round: dict[int, list[int]] = defaultdict(list)
+    for name, d in named:
+        if n := sum(c is not None for keys in merged([d]).values() for c in keys.values()):
+            by_round[round_of(name)].append(n)
+    return min(by_round[max(by_round)]) if by_round else 0
 
 
 def slowest(dirs: list[Path]) -> float:
@@ -673,12 +689,13 @@ def slowest(dirs: list[Path]) -> float:
 def rest_jobs(jobs: dict[str, Path]) -> tuple[list[dict], dict[str, list[str]]]:
     """Jobs for the changes the runs left unrun, each baseline job's split by its estimates,
     and each new job's changes."""
-    by_source: dict[str, list[Path]] = defaultdict(list)
+    by_source: dict[str, list[tuple[str, Path]]] = defaultdict(list)
     for name, d in jobs.items():
-        by_source[source_of(name)].append(d)
+        by_source[source_of(name)].append((name, d))
     out: list[dict] = []
     names: dict[str, list[str]] = {}
-    for source, dirs in sorted(by_source.items()):
+    for source, named in sorted(by_source.items()):
+        dirs = [d for _, d in named]
         first = json.loads((dirs[0] / "job.json").read_text())
         if first.get("unreached"):
             continue
@@ -690,12 +707,9 @@ def rest_jobs(jobs: dict[str, Path]) -> tuple[list[dict], dict[str, list[str]]]:
             continue
         worst = slowest(dirs)
         each = int(2 * REST_MINUTES * 60 * REST_WORKERS / worst) if worst else len(unrun)
-        reached = sum(c is not None for keys in merged(dirs[:1]).values() for c in keys.values())
-        each = min(each, int(reached * REST_MINUTES / JOB_MINUTES / 2))
+        each = min(each, int(pace(named) * REST_MINUTES / JOB_MINUTES / 2))
         parts = max(1, -(-len(unrun) // max(1, each)))
-        rounds = [int(m.group(1)) for n in jobs if source_of(n) == source
-                  if (m := re.search(r"\.r(\d+)-\d+$", n))]  # fmt: skip
-        r = max(rounds, default=0) + 1
+        r = max(round_of(n) for n, _ in named) + 1
         for k in range(parts):
             these = unrun[k::parts]  # dealt out, so one function's changes are spread
             name = f"{source}.r{r}-{k + 1}"
