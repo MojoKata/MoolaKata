@@ -48,10 +48,59 @@ def test_amount_direction_and_account_narrow_a_rule():
     assert not match.matches(r, "SQ *BLUE BOTTLE", D("-5.75"), "B")  # another account
 
 
-@pytest.mark.parametrize("bad", ["", "re:", "re:(unclosed", "re:(a+)+$", "x" * 201])
+@pytest.mark.parametrize("bad", ["", "re:", "re:(unclosed", "re:a{2,1}", "re:a++", "x" * 201])
 def test_patterns_that_cant_be_kept_are_refused(bad):
     with pytest.raises(match.Invalid):
         match.compile_pattern(bad)
+
+
+@pytest.mark.parametrize(
+    "pattern", [r"re:(?=AMZN)", r"re:(?!AMZN)", r"re:(?<=SQ )x", r"re:(?<!SQ )x", r"re:(a)\1"]
+)
+def test_what_needs_backtracking_is_refused_in_plain_words(pattern):
+    """RE2's syntax (S2.7.1): what Python's has and RE2's hasn't is named, not RE2's text."""
+    with pytest.raises(match.Invalid) as e:
+        match.compile_pattern(pattern)
+    assert str(e.value) == "RE2 has no look-arounds or back-references."
+
+
+def test_any_other_refusal_gives_re2s_reason():
+    with pytest.raises(match.Invalid) as e:
+        match.compile_pattern("re:(")
+    assert str(e.value) == "Not a regular expression: missing ): (."
+
+
+@pytest.mark.parametrize(
+    ("pattern", "payee", "hit"),
+    [
+        (r"re:^whole ?foods", "WHOLE FOODS #12", True),
+        (r"re:[[:digit:]]{4}$", "CHECK 1042", True),
+        (r"re:\bfuel\b", "KROGER FUEL #3", True),
+        (r"re:\bfuel\b", "KROGERFUELS", False),
+        (r"re:(?P<store>kroger|aldi) #\d+", "ALDI #77", True),
+        (r"re:^(sq|tst)\s*\*", "TST* BLUE BOTTLE", True),
+        (r"re:café$", "CAFÉ", True),  # case aside beyond ASCII too
+        (r"re:\z", "anything", True),
+    ],
+)
+def test_re2_patterns_match_as_written(pattern, payee, hit):
+    assert match.matches(m(payeeMatch=pattern), payee, D("-1"), "A") is hit
+
+
+@pytest.mark.parametrize(
+    "pattern", [r"re:((a+))+$", r"re:(?:(a+))+$", r"re:((ab)+)+$", r"re:(a|aa)+$", "re:a.*a.*a.*b"]
+)
+def test_no_pattern_holds_the_server(pattern):
+    """CR3-25: each of these backtracked for ever in Python's re on a payee that nearly
+    matches; RE2 reads the 500 characters once. The bound is generous: a backtracking engine
+    takes days here, RE2 microseconds."""
+    import time
+
+    r = m(payeeMatch=pattern)
+    t = time.perf_counter()
+    for payee in ("a" * 600 + "!", "ab" * 300 + "!", "a" * 499 + "c"):
+        match.matches(r, payee, D("-1"), "A")
+    assert time.perf_counter() - t < 2.0
 
 
 # ---- through the API ----
@@ -59,8 +108,9 @@ def test_patterns_that_cant_be_kept_are_refused(bad):
 
 def test_rules_are_kept_in_order_and_first_match_wins(alice):
     c = cats(alice)
-    r = make(alice, "Rule", payeeMatch="re:(a+)+", categoryId=c["Food › Groceries"])
+    r = make(alice, "Rule", payeeMatch="re:(?=a)", categoryId=c["Food › Groceries"])
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "payeeMatch"
+    assert r.json()["errors"][0]["message"] == "RE2 has no look-arounds or back-references."
     r = make(alice, "Rule", payeeMatch="kroger")
     assert r.json()["errors"][0]["code"] == "rule-sets-nothing"
     make(alice, "Rule", payeeMatch="kroger", categoryId=c["Food › Groceries"])
@@ -152,3 +202,39 @@ def test_a_receipts_merchant_is_renamed_by_the_rules(server, alice):
     with server.db.tx(unscoped="test") as s:
         save_reading(s, s.get(Receipt, rid), ["BLUEBOTTLE CAFE", "TOTAL 5.75"], "text", "test")
     assert alice.get(f"/ui/api/receipts/{rid}").json()["payee"] == "Blue Bottle"
+
+
+def test_user_text_reaches_a_regular_expression_only_through_a_rule():
+    """CR3-25's category: a pattern a user typed, run by a backtracking engine. Python's `re`
+    is called only with patterns written in the code; the rest are named here with what they
+    are built from, never a user's text. A user's pattern goes through `compile_pattern`."""
+    import ast
+    from pathlib import Path
+
+    import moolakata
+
+    built = {
+        "exactjson.py": "its own marker pattern, as bytes",
+        "mcp.py": "the patterns its tools declare for their arguments",
+        "middleware.py": "the API's route paths",
+        "dev/mutate.py": "the module names a developer passes",
+    }
+    calls = {"compile", "search", "match", "fullmatch", "sub", "subn", "split", "findall"}
+    calls.add("finditer")
+    root = Path(moolakata.__file__).parent
+    found = set()
+    for path in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "re"
+                and node.func.attr in calls
+            ):
+                continue
+            given = (k.value for k in node.keywords if k.arg == "pattern")
+            arg = node.args[0] if node.args else next(given, None)
+            if not isinstance(arg, ast.Constant):
+                found.add(path.relative_to(root).as_posix())
+    assert found == set(built)

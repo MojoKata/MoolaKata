@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-11-04",
+  "auditedAt": "2026-11-11",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -1224,6 +1224,6 @@
   },
   "hashes": {
     "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
-    "uv.lock": "sha256:7fce26198aedacd651732fc2e8dec50b622fc878d031de5ad19800963e0ba1cd"
+    "uv.lock": "sha256:c66d376fc2438192516a14c695de97858487fbbc5737bfccf7a5d891be0af9ab"
   }
 }

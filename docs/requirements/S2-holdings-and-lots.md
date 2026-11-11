@@ -56,10 +56,10 @@
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per
    user, in **Transactions › Rules**, first match wins.
    1. **What a rule matches**: the payee as the institution wrote it, by text it contains (case
-      aside) or, after `re:`, a regular expression (Python's, case aside, at most 200
-      characters; a nested repeat such as `(a+)+` is refused, as it can take a payee
-      forever); and, when given, an amount range (from and to, of the amount without its
-      sign), a direction (money in, money out, or either) and one account.
+      aside) or, after `re:`, a regular expression (RE2's syntax, with no back-references or
+      look-arounds; case aside; at most 200 characters); and, when given, an amount range
+      (from and to, of the amount without its sign), a direction (money in, money out, or
+      either) and one account.
    2. **What it sets**, one or more of: the **category**; the **payee** shown (*Rename to*),
       the institution's text kept beside it; and **tags**, the user's own (S2.6).
    3. **On import** (a file, a statement or a connector's fetch), the rules of the user who
