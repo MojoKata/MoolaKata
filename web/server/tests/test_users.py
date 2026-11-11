@@ -351,7 +351,9 @@ def test_an_address_is_set_only_where_the_links_mailed_to_the_old_one_end():
             for node in ast.walk(fn):
                 targets = node.targets if isinstance(node, ast.Assign) else []
                 if any(isinstance(t, ast.Attribute) and t.attr == "email" for t in targets):
-                    found.add(f"{path.relative_to(root).as_posix()}:{fn.name}")
+                    # Under a mutation run a function's changed copies are x_<name>__mutmut_<n>.
+                    name = re.sub(r"^x_(.+)__mutmut_\w+$", r"\1", fn.name)
+                    found.add(f"{path.relative_to(root).as_posix()}:{name}")
     assert found == {"auth/users.py:_set_email", "links/manage.py:apply_directory"}
 
 
