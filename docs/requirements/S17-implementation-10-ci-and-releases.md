@@ -65,6 +65,7 @@
        over the earlier run's; the changes earlier runs left unrun can be run on their own,
        in jobs sized by mutmut's estimates, each change's outcome taken from whichever job
        finished it. Each area's record keeps every module's content as the runs mutated it,
+       its survivors are committed beside it (each with its module, function, line and diff),
        and an area whose modules two runs saw differently is not recorded. `web/dev.sh mutate
        baseline` runs the loop to its end (the run, the rounds for what it left, the records)
        and `mutate stale` names the modules changed since their latest run. A pull request that

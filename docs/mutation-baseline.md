@@ -11,10 +11,10 @@ What it leaves:
 
 - `docs/hardening/mutation/baseline-<area>.json`, committed: each area's outcomes, by file, and
   every module's content as the runs mutated it (`first_content`, git blob ids).
-- `web/.dev/mutate-results/baseline/<area>/survivors.txt`, on the machine that gathered it (not
-  committed; about 2.7 MB for the first baseline): each surviving change, for the area's sweep.
-- The runs' artifacts on GitHub, kept 90 days, from which `gather` can write the survivors
-  again on any machine.
+- `docs/hardening/mutation/survivors/<area>.json`, committed (about 5 MB for the first
+  baseline): each surviving change, one a line, with its module, function, line and the lines
+  it removed and added, in the module's order, for the area's sweep.
+- The runs' artifacts on GitHub, kept 90 days, from which `gather` can write both again.
 
 ## Making it
 
@@ -124,6 +124,8 @@ timeouts among them), 20,088 survived, 3,508 reached by no test.
 | 13 | A second run on the same branch cancels the first | planning parallel runs | The workflow's concurrency group is its ref | A branch on the fork for each run under way at once (`baseline-rest`, `baseline-rest-store5`, ...), deleted after |
 | 14 | One rest job's stats run failed: a test failed before any change ran | store-2.r1-12 | Unknown: in forkserver mode mutmut discards that run's output, so the failing test can't be named. The other 37 store-2 jobs passed it | Its 95 changes ran in round 2. Still open: see below |
 | 15 | The records kept outcomes but not the code they were measured on, so nothing showed which modules a later change made stale | after the baseline | `record --first` kept no content; only a settled run did | Each record keeps `first_content`; `gather` refuses an area whose modules two runs saw differently; `mutate stale` and the hardening page name the modules changed since |
+| 16 | 6,603 of the 20,088 survivors had a name and no diff | every job stopped by its time limit | A job's survivors' diffs were written by its summary, which a job stopped at 330 minutes never reaches; export kept the names alone | `export` writes them from the job's mutants; for the first baseline, `gather` made them again from mutmut's mutants of the checkout, the same code (300 of 300 sampled matched what the jobs kept). Each survivor's line is found in its function: all but 476 |
+| 17 | The survivors lived on one machine, as text, until the artifacts expired | after the baseline | `gather` wrote them under `web/.dev/` | Committed as JSON, a file an area (`docs/hardening/mutation/survivors/`) |
 
 ## Checking it, and making it again
 
@@ -162,8 +164,11 @@ accounts' 40 jobs halve it.
    how to test it.
 3. **A route module's *no tests*** may be the test map missing a test that reaches it through
    HTTP rather than a real gap; each sweep checks those first.
-4. **The survivors live on one machine** and in the artifacts, which expire 90 days after each
-   run (from February 7, 2027). A sweep after that, on another machine, runs its area again.
+4. **476 survivors have no line**: their unchanged and removed lines are found more than once
+   in their function, or not at all. The sweep finds them by name: `mutmut show <name>` in a
+   copy of the same code. The artifacts, from which `gather` can write the records and the
+   survivors again, expire 90 days after each run (from February 7, 2027); the committed files
+   don't.
 5. **The rest sizing's constants** (240 of a job's 330 minutes, half the measured pace) are
    rules of thumb from one baseline: round 2 finished every job well within its time, so they
    may be loosened if a later baseline shows the same.
