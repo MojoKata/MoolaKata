@@ -26883,6 +26883,10 @@
             "title": "Id",
             "type": "string"
           },
+          "invitationLive": {
+            "title": "Invitationlive",
+            "type": "boolean"
+          },
           "invited": {
             "title": "Invited",
             "type": "boolean"
@@ -26933,6 +26937,7 @@
           "active",
           "admin",
           "invited",
+          "invitationLive",
           "twoStep",
           "groupIds",
           "lastSignInAt",

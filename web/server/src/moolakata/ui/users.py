@@ -28,6 +28,9 @@ class UserRow(Model):
     active: bool
     admin: bool
     invited: bool
+    # An invitation link that still works: none once it expired, or when a corrected address
+    # had no public URL to build one from (CR3-49).
+    invitationLive: bool
     twoStep: bool
     groupIds: list[str]
     lastSignInAt: dt.datetime | None
@@ -56,6 +59,7 @@ def user_row(s, u: User) -> UserRow:
         active=u.active,
         admin=accounts.is_admin(s, u.id),
         invited=u.passwordHash is None and not u.needsSetup,
+        invitationLive=accounts.invited(s, u.id),
         twoStep=twostep.is_on(u),
         groupIds=accounts.group_ids(s, u.id),
         lastSignInAt=u.lastSignInAt,
@@ -282,7 +286,7 @@ def _user_update(ctx, u: User, body: UserRecord) -> None:
     _admin_change(s, c, groups, u.id)
     email = body.email if body.email != current["email"] else None
     name = body.displayName if body.displayName != current["displayName"] else None
-    accounts.update_user(s, c.user, u, name, email)
+    accounts.update_user(s, srv.services, c.user, u, name, email)
     if groups is not None:
         accounts.set_user_groups(s, c.user, u, groups)
     ended = body.active != current["active"] and accounts.set_active(

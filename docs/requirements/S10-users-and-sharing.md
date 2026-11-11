@@ -15,7 +15,10 @@
       step at its first unlock, for as long as it has no users.
    3. **Invitations.** Admins never set passwords. Creating a user (name, sex, username,
       email, groups) emails an invitation link, and the user chooses their password from it.
-      The link works once, for 7 days; sending a new one ends the one before.
+      The link works once, for 7 days; sending a new one ends the one before. An admin's
+      correction of an invited user's address sends a new one to it; with no public URL to
+      build the link from, none is sent, the admin is told, and **Resend invitation** sends it
+      once there is one.
    4. **Sign-up**, when an admin turns it on (it needs SMTP and the public URL, and can be
       limited to email domains): a person gives their name, sex and email, confirms the email,
       and waits on a *waiting for approval* screen until an admin approves or rejects the
@@ -32,7 +35,8 @@
       takes effect only when a link sent to the new address is opened. A reset link works
       once, for an hour, and a new request ends the one before; an email-change link works
       once, for 24 hours. An admin corrects a user's email address only until the user has
-      joined; after that the user changes it in Profile.
+      joined; after that the user changes it in Profile. Either way, a new address ends every
+      invitation and reset link sent to the old one.
    6. **Two-step sign-in**, optional for everyone: a TOTP code from an authenticator app after
       the password, set up with a QR code; ten recovery codes shown once; and an admin's
       reset as the last resort.
