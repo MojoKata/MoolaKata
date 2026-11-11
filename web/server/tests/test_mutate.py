@@ -16,6 +16,13 @@ import pytest
 from moolakata.dev import mutate
 
 
+@pytest.fixture(autouse=True)
+def _one_commit(monkeypatch):
+    """The runs gathered here all ran one commit, where each module reads the same."""
+    monkeypatch.setattr(mutate, "head_of", lambda repo, run: f"commit-{run}")
+    monkeypatch.setattr(mutate, "blob_at", lambda repo, commit, rel: f"blob-{rel}")
+
+
 def meta(src, rel, codes):
     path = src / f"{rel}.meta"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -468,3 +475,126 @@ def test_a_changes_worker_takes_the_name_the_watcher_finds(monkeypatch):
         monkeypatch.setenv("MUTANT_UNDER_TEST", under_test)
         mutant_name.pytest_configure(None)
     assert named == ["mutmut: moolakata.money.x_parse__mutmut_3"]
+
+
+def test_gather_keeps_each_modules_content_as_its_runs_ran_it_and_refuses_code_that_differs(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    users, roles = "moolakata/auth/users.py", "moolakata/auth/roles.py"
+    d = _job(tmp_path, "1", "auth-1", "server/auth", users, [1, None])
+    # roles.py has nothing mutmut changes: its content is kept all the same.
+    (d / "job.json").write_text(json.dumps(
+        {"name": "auth-1", "area": "server/auth", "modules": f"{users} {roles}"}))  # fmt: skip
+    _job(tmp_path, "2", "auth-1.r1-1", "server/auth", users, [None, 0])
+    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 0
+    got = json.loads((tmp_path / "records" / "baseline-auth.json").read_text())
+    assert got["first_content"] == {roles: f"blob-{roles}", users: f"blob-{users}"}
+    assert json.loads((tmp_path / ".dev/mutate-ci/2/run.json").read_text())["commit"] == "commit-2"
+    # Run 2 saw another users.py: the outcomes don't add up, so the area isn't recorded.
+    (tmp_path / "records" / "baseline-auth.json").unlink()
+    monkeypatch.setattr(mutate, "blob_at", lambda repo, commit, rel: f"{commit}-{rel}")
+    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 1
+    assert f"changed between the runs, so their areas are not recorded (run them again on one " \
+           f"commit): {users}" in capsys.readouterr().out  # fmt: skip
+    assert not (tmp_path / "records" / "baseline-auth.json").exists()
+
+
+def test_stale_names_modules_changed_since_their_latest_run_and_those_in_none(
+    tmp_path, monkeypatch, capsys
+):
+    from moolakata.dev import baseline, hardening
+
+    a, b, c, d = (f"moolakata/{x}.py" for x in "abcd")
+    recs = [
+        {"name": "baseline-core", "modules": [a], "first_content": {a: "a1", b: "b1"}},
+        # Settled, then changed, then run again by the baseline: the baseline's is the latest.
+        {"name": "values", "pr": 32, "modules": [a, c], "content": {a: "a0", c: "c1"}},
+    ]
+    monkeypatch.setattr(hardening, "records", lambda: recs)
+    monkeypatch.setattr(mutate, "server_modules", lambda: {a: 1, b: 1, c: 1, d: 1})
+    monkeypatch.setattr(
+        baseline, "current", lambda ms: [{b: "b2", c: "c2"}.get(m, "a1") for m in ms]
+    )
+    assert mutate.main(["stale"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        f"baseline-core: changed since its first run: {b}",
+        f"values: changed since settled in #32: {c}",
+        f"in no run: {d}",
+    ]
+    monkeypatch.setattr(
+        baseline, "current", lambda ms: [{b: "b1", c: "c1"}.get(m, "a1") for m in ms]
+    )
+    monkeypatch.setattr(mutate, "server_modules", lambda: {a: 1, b: 1, c: 1})
+    assert mutate.main(["stale"]) == 0
+    assert capsys.readouterr().out == "every module is as its run mutated it\n"
+
+
+def test_the_baseline_runs_rest_rounds_until_nothing_is_unrun_then_records(tmp_path, monkeypatch):
+    from moolakata.dev import baseline
+
+    monkeypatch.setattr(baseline, "STATE", tmp_path / "state.json")
+    started, left = [], iter([([], 30), ([], 4), ([], 0)])
+
+    def dispatch(repo, ref, inputs):
+        started.append(inputs)
+        return str(100 + len(started))
+
+    monkeypatch.setattr(baseline, "dispatch", dispatch)
+    monkeypatch.setattr(baseline, "wait", lambda repo, run: [])
+    monkeypatch.setattr(baseline, "unrun_after", lambda runs: next(left))
+    gathered = []
+    monkeypatch.setattr(mutate, "gather", lambda a: gathered.append(a.run) or 0)
+    assert mutate.main(["baseline", "--repo", "someone/MoolaKata", "--ref", "base"]) == 0
+    runs = ["someone/MoolaKata:101", "someone/MoolaKata:102", "someone/MoolaKata:103"]
+    assert started[0] == {"areas": "server/*", "jobs": "", "parallel": "20"}
+    assert started[1] == {"rest": " ".join(runs[:1]), "parallel": "20"}
+    assert started[2] == {"rest": " ".join(runs[:2]), "parallel": "20"}
+    assert gathered == [runs]
+    assert json.loads((tmp_path / "state.json").read_text())["runs"] == runs
+
+
+def test_the_baseline_stops_on_a_job_that_ran_nothing_or_a_round_that_gains_nothing(
+    tmp_path, monkeypatch, capsys
+):
+    from moolakata.dev import baseline
+
+    monkeypatch.setattr(baseline, "STATE", tmp_path / "state.json")
+    started = []
+    monkeypatch.setattr(baseline, "dispatch", lambda repo, ref, i: started.append(i) or "7")
+    monkeypatch.setattr(baseline, "wait", lambda repo, run: [])
+    monkeypatch.setattr(mutate, "gather", lambda a: pytest.fail("nothing to record"))
+    monkeypatch.setattr(baseline, "unrun_after", lambda runs: (["store-5"], 10))
+    assert mutate.main(["baseline"]) == 1
+    assert "then: web/dev.sh mutate baseline --jobs store-5" in capsys.readouterr().out
+    # Fixed, it's run again by name, and the loop goes on where it stopped.
+    left = iter([([], 12), ([], 12)])
+    monkeypatch.setattr(baseline, "unrun_after", lambda runs: next(left))
+    assert mutate.main(["baseline", "--jobs", "store-5"]) == 1
+    assert started[1]["jobs"] == "store-5" and started[2]["rest"]
+    assert "as many as the round before: stopped" in capsys.readouterr().out
+    assert len(json.loads((tmp_path / "state.json").read_text())["runs"]) == 3
+
+
+def test_a_dispatch_reads_its_runs_id_from_the_link_gh_prints(monkeypatch):
+    from moolakata.dev import baseline
+
+    calls = []
+    link = "https://github.com/someone/MoolaKata/actions/runs/42998791763\n"
+    monkeypatch.setattr(baseline, "gh", lambda *a: calls.append(a) or link)
+    got = baseline.dispatch("someone/MoolaKata", "base", {"rest": "1 2", "jobs": ""})
+    assert got == "42998791763"
+    assert calls == [("workflow", "run", "mutate.yml", "-R", "someone/MoolaKata", "--ref", "base",
+                      "-f", "rest=1 2")]  # fmt: skip
+
+
+def test_the_changes_left_after_the_runs_leave_out_jobs_that_ran_nothing(tmp_path, monkeypatch):
+    from moolakata.dev import baseline
+
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    _job(tmp_path, "1", "auth-1", "server/auth", "moolakata/auth/users.py", [1, None, None])
+    _job(tmp_path, "2", "auth-1.r1-1", "server/auth", "moolakata/auth/users.py", [None, 1, None])
+    _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None, None])
+    assert baseline.unrun_after(["1", "someone/MoolaKata:2"]) == (["keys-1"], 1)

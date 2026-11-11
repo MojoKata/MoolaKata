@@ -34,5 +34,10 @@
     "moolakata/people/__init__.py",
     "moolakata/people/tree.py",
     "moolakata/ui/people.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/people/__init__.py": "3d5104d627e07fe3d0c9d6633c2f29a8d0457992",
+    "moolakata/people/tree.py": "24aa66ea77274208166e43512b0d2e9373f1c715",
+    "moolakata/ui/people.py": "5f00b0d9f9380f6fd3436661065e3ba0090f99e2"
+  }
 }

@@ -58,5 +58,13 @@
     "moolakata/receipts/reading.py",
     "moolakata/receipts/retention.py",
     "moolakata/ui/receipts.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/receipts/__init__.py": "eab932ce107892fd1ecdfb405d729f70ea647fe9",
+    "moolakata/receipts/ocr.py": "b305f932a0afcba4275b80bcc119a5d1bdd382b6",
+    "moolakata/receipts/parser.py": "8f4683cf5df45cd1c3567ce6ef3d73ffc96310f7",
+    "moolakata/receipts/reading.py": "bd2818edb886af6b9207ef4560251cf15df24697",
+    "moolakata/receipts/retention.py": "de21471820808b05f836237c11a09f2d3a56463c",
+    "moolakata/ui/receipts.py": "6c1cd7ea874d0f7de401725e5b5fc4c2b5ba116a"
+  }
 }

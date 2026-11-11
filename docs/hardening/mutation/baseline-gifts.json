@@ -34,5 +34,10 @@
     "moolakata/gifts/__init__.py",
     "moolakata/gifts/holidays.py",
     "moolakata/ui/gifts.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/gifts/__init__.py": "1aa70bd3cb025e309e886d6b011afdf116cea85f",
+    "moolakata/gifts/holidays.py": "cefea3fe76855d6958fb8bfa6db1cea3ac34eebd",
+    "moolakata/ui/gifts.py": "49dce672a3690268a5a986608bab0af6c6413a4e"
+  }
 }

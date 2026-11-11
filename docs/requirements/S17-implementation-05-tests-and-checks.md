@@ -177,7 +177,9 @@
             catch, the bugs its runs found and the pull requests that worked on it; and the
             path's steps that cover it, and whether it is swept (its findings closed, its
             mutation current, its sweep merged). Clicking an area opens its findings and its
-            files, each with its coverage and its mutation run.
+            files, each with its coverage and its mutation run: settled, or the baseline's
+            alone (S17.10.4), marked as changed since when its content is no longer what that
+            run mutated.
          2. **The path** (`docs/hardening/path.toml`): every step to the end of the sweep, in
             order, each a pull request's work (findings named by number, or an area's sweep).
             A step is checked once its pull request has merged to `main`, and shows what

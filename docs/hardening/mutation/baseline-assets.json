@@ -18,5 +18,8 @@
   },
   "modules": [
     "moolakata/assets/__init__.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/assets/__init__.py": "c80ae720ac0700e9f59facc724f0806a1d8d1681"
+  }
 }

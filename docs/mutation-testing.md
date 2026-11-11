@@ -255,6 +255,17 @@ the earlier one's, and records no area with a job that ran nothing. A module no 
 reaches (one run only as a subprocess, where coverage doesn't follow) has nothing to run: its
 job says so, and `gather` names it for the area's sweep.
 
+Each record keeps every module's content as the runs mutated it (`first_content`, git blob
+ids from each run's commit); `gather` records no area whose modules two runs saw differently,
+since their outcomes don't add up. `web/dev.sh mutate stale` names the modules changed since
+their latest run, which a step's pull request lists (REVIEW.md §11.8), and the hardening page
+marks them *baseline, changed since*.
+
+`web/dev.sh mutate baseline` runs the whole loop (start the workflow, wait, `rest` rounds until
+nothing is left unrun, then `gather`), and picks up where it stopped. `mutation-baseline.md` is
+the procedure step by step, what the first baseline ran into and how each was settled, and how
+to make it again, whole or in part.
+
 A pull request that changes the workflow or these tools runs a trial on two small modules,
 `duration.py` and `ui/tokens.py` (which no test file imports), so the whole chain is checked
 before it is merged.

@@ -157,7 +157,10 @@ ol.plan b { color: var(--text); }
 <p>Each row is one of the coverage page's areas. A finding counts in the area of the first code
 it names, or of its section when it names none. A module counts as mutation-tested once a run
 over it is settled, and as changed since when its content on <code>main</code> is no longer
-what the run settled. Click an area for its findings and files.
+what the run settled. A module the CI baseline ran, not yet settled, reads <em>baseline
+only</em>, and <em>baseline, changed since</em> once its content is no longer what the baseline
+mutated: its survivors are stale, and its sweep runs it again. Click an area for its findings
+and files.
 <a href="index.html">The coverage page</a>.</p>
 
 <div class="legend">
@@ -290,7 +293,7 @@ function detail(r) {
   const openF = fl.filter(isOpen), doneF = fl.filter(f => !isOpen(f));
   const files = r.a.files.slice().sort((x, y) => (pct(...x.lines) ?? 101) - (pct(...y.lines) ?? 101));
   const ft = files.length ? `<table class="files"><thead><tr><th>File</th><th>Lines</th><th>Branches</th><th class="m">Mutation</th></tr></thead><tbody>${files.map(f => {
-    const m = f.run ? (f.run.stale ? `<span class="chip" title="${esc(f.run.run)} run">#${f.run.pr}, changed since</span>` : `<span class="chip mutf" title="${esc(f.run.run)} run">settled in #${f.run.pr}</span>`) : (f.python ? '<span class="na">not run</span>' : '');
+    const m = f.run && !(f.run.stale && f.baseline) ? (f.run.stale ? `<span class="chip" title="${esc(f.run.run)} run">#${f.run.pr}, changed since</span>` : `<span class="chip mutf" title="${esc(f.run.run)} run">settled in #${f.run.pr}</span>`) : f.baseline === 'changed' ? '<span class="chip" title="the CI baseline ran it, as it was">baseline, changed since</span>' : f.baseline ? '<span class="na">baseline only</span>' : (f.python ? '<span class="na">not run</span>' : '');
     return `<tr><td class="p">${esc(f.path)}</td><td>${f1(pct(...f.lines))}</td><td>${f.branches[1] ? f1(pct(...f.branches)) : '—'}</td><td class="m">${m}</td></tr>`;
   }).join('')}</tbody></table>` : '<p class="na">No code of its own: requirements, documents and the review process.</p>';
   return `<div class="detail-grid"><div><h3>Open findings (${openF.length})</h3>${openF.length ? `<ul class="flist">${openF.map(li).join('')}</ul>` : '<p class="na">None.</p>'}

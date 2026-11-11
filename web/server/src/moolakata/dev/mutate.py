@@ -8,6 +8,7 @@
                                     [--from DIR...]
     web/dev.sh mutate testrun | testmap | plan [--rest <run>...] | export <dir> | gather <run>
                                                                          (the CI baseline)
+    web/dev.sh mutate baseline [--repo R] [--ref REF] [--jobs NAME...] | stale   (baseline.py)
 
 `run` makes a scratch copy of the server in web/.dev/mutate (mutmut changes the code it tests,
 so never the checkout), links what the server reads from beside itself, installs the lock's
@@ -41,12 +42,14 @@ for the changes those runs left unrun (a job out of time), split by mutmut's est
 with `run --only-file`; `export` keeps a job's outcomes, survivors and log in a directory for
 its artifact; `gather` downloads a run's artifacts and records each area's first run as
 `baseline-<area>`, with its survivors in web/.dev/mutate-results/baseline/, a change's outcome
-from whichever job finished it.
+from whichever job finished it, and each module's content in the commit its jobs ran
+(`first_content`); a module two runs saw differently is not recorded.
 """
 
 import argparse
 import contextlib
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -420,13 +423,18 @@ def blob(path: Path) -> str:
     return r.stdout.strip()
 
 
-def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> dict:
-    """`record` with this run added: the first run's outcomes and modules, or the settling
-    run's outcomes, pull request, bugs found, equivalents and each file's content."""
+def recorded(
+    record: dict, by_file: dict[str, Counter], first: bool, args, content: dict | None = None
+) -> dict:
+    """`record` with this run added: the first run's outcomes, modules and each one's content
+    as it ran (`first_content`, the checkout's unless given), or the settling run's outcomes,
+    pull request, bugs found, equivalents and each file's content."""
     out = dict(record)
     if first:
         out["first"] = counts(by_file)
         out["modules"] = sorted(by_file)
+        here = [f for f in sorted(by_file) if (SERVER / "src" / f).exists()]
+        out["first_content"] = content or {f: blob(SERVER / "src" / f) for f in here}
         return out
     out["last"] = counts(by_file)
     out["pr"] = args.pr
@@ -439,6 +447,34 @@ def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> di
         f: blob(SERVER / "src" / f) for f in sorted({*out.get("modules", []), *by_file})
     }
     return out
+
+
+@functools.cache
+def blob_at(repo: str, commit: str, rel: str) -> str:
+    """A server file's content (its git blob id) at a run's commit, fetched from the run's
+    repository when the checkout lacks it."""
+    git = shutil.which("git") or "git"
+    spec = [git, "rev-parse", f"{commit}:web/server/src/{rel}"]
+    r = subprocess.run(spec, cwd=paths.ROOT, capture_output=True, text=True)  # noqa: S603
+    if r.returncode:
+        fetch = [git, "fetch", "--no-tags", "-q", f"https://github.com/{repo}", commit]
+        subprocess.run(fetch, cwd=paths.ROOT, check=True)  # noqa: S603 - our own command
+        r = subprocess.run(spec, cwd=paths.ROOT, capture_output=True, text=True, check=True)  # noqa: S603
+    return r.stdout.strip()
+
+
+def contents(dirs: list[Path]) -> tuple[dict[str, str], list[str]]:
+    """Each module's content in the commits its jobs ran on (`downloaded` keeps each run's),
+    those with nothing to change included, and the modules two of them saw differently: their
+    outcomes don't add up."""
+    seen: dict[str, set[str]] = defaultdict(set)
+    for d in dirs:
+        ran = json.loads((d.parent / "run.json").read_text())
+        named = json.loads((d / "job.json").read_text())["modules"].split()
+        for rel in {*codes(d / "src"), *named}:  # with those mutmut found nothing to change in
+            seen[rel].add(blob_at(ran["repo"], ran["commit"], rel))
+    one = {m: next(iter(b)) for m, b in sorted(seen.items()) if len(b) == 1}
+    return one, sorted(m for m, b in seen.items() if len(b) > 1)
 
 
 def merged(dirs: list[Path]) -> dict[str, dict[str, int | None]]:
@@ -724,6 +760,13 @@ def rest_jobs(jobs: dict[str, Path]) -> tuple[list[dict], dict[str, list[str]]]:
     return out, names
 
 
+def head_of(repo: str, run: str) -> str:
+    """The commit a workflow run ran."""
+    view = [shutil.which("gh") or "gh", "run", "view", run, "-R", repo,
+            "--json", "headSha", "-q", ".headSha"]  # fmt: skip
+    return subprocess.run(view, capture_output=True, text=True, check=True).stdout.strip()  # noqa: S603
+
+
 def downloaded(runs: list[str]) -> dict[str, Path]:
     """The mutate workflow's runs' artifacts, downloaded once, by job name: a job run again in
     a later run replaces the earlier one."""
@@ -735,6 +778,9 @@ def downloaded(runs: list[str]) -> dict[str, Path]:
             gh = [shutil.which("gh") or "gh", "run", "download", run, "-R", repo or REPO,
                   "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
             subprocess.run(gh, check=True)  # noqa: S603 - our own command
+        if not (dest / "run.json").exists():  # the commit it ran, for each module's content
+            ran = {"repo": repo or REPO, "run": run, "commit": head_of(repo or REPO, run)}
+            (dest / "run.json").write_text(json.dumps(ran) + "\n")
         for job in sorted(dest.glob("*/job.json")):
             jobs[json.loads(job.read_text())["name"]] = job.parent
     return jobs
@@ -762,6 +808,7 @@ def gather(args) -> int:
     ]
     print("area: changes, killed, survived, no tests, not run")
     unrun: list[str] = []
+    differ: list[str] = []
     for area, dirs in sorted(by_area.items()):
         by_file, _ = outcomes_of(dirs)
         c = counts(by_file)
@@ -776,6 +823,10 @@ def gather(args) -> int:
         if empty:
             unrun += empty
             continue
+        content, mixed = contents([d for d in dirs if d not in unreached])
+        if mixed:  # the runs saw different code: its outcomes don't add up
+            differ += mixed
+            continue
         keep = BASELINE / slug(area)
         keep.mkdir(parents=True, exist_ok=True)
         with (keep / "survivors.txt").open("w") as out:
@@ -787,7 +838,7 @@ def gather(args) -> int:
             path = RECORDS / f"{name}.json"
             old = json.loads(path.read_text()) if path.exists() else {"name": name}
             path.parent.mkdir(parents=True, exist_ok=True)
-            new = recorded(old, by_file, True, args)
+            new = recorded(old, by_file, True, args, content)
             path.write_text(json.dumps(new, indent=2) + "\n")
     print(f"survivors by area in {BASELINE}")
     for d in unreached:
@@ -795,8 +846,10 @@ def gather(args) -> int:
         print(f"no test file reaches {job['modules']} ({job['area']}): for its sweep")
     if unrun:
         print(f"ran nothing, so their areas are not recorded: {' '.join(sorted(unrun))}")
-        return 1
-    return 0
+    if differ:
+        print("changed between the runs, so their areas are not recorded (run them again on "
+              f"one commit): {' '.join(differ)}")  # fmt: skip
+    return 1 if unrun or differ else 0
 
 
 def check(args) -> int:
@@ -867,10 +920,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="the mutate workflow's run ids, the earliest first (owner/repo:id for "
                         "a fork's)")  # fmt: skip
     g.add_argument("--no-record", action="store_true", help="survivors only")
+    from . import baseline  # it drives this module's commands
+
+    baseline.add_parsers(sub)
     args = p.parse_args(argv)
     commands = {"run": run, "summary": summary, "check": check, "record": record,
                 "testrun": testrun, "testmap": testmap, "plan": plan, "export": export,
-                "gather": gather}  # fmt: skip
+                "gather": gather, **baseline.COMMANDS}  # fmt: skip
     return commands[args.what](args)
 
 

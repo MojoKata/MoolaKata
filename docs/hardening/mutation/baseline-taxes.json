@@ -26,5 +26,10 @@
   "modules": [
     "moolakata/ui/taxes.py",
     "moolakata/ui/taxpanels.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/taxes/__init__.py": "b8ae7b46c3110f2895f4d70e0d3e0c5bea30266a",
+    "moolakata/ui/taxes.py": "01feba35e5840d401f3ae1ed54706c60d4f8b19f",
+    "moolakata/ui/taxpanels.py": "9ed79c41ad784b15601fe39e808f375eb9eca0d7"
+  }
 }

@@ -66,5 +66,14 @@
     "moolakata/budgets/recurring.py",
     "moolakata/budgets/reserves.py",
     "moolakata/ui/budgets.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/budgets/__init__.py": "38377d23b0d2d8cbd623c4920e50cadba2b65856",
+    "moolakata/budgets/cache.py": "bf9116fca9e6e3d9dda1c48b087c32cadae034f0",
+    "moolakata/budgets/envelope.py": "328d43c3e1d8a2c4c27feadd2cc5b04d97022ca1",
+    "moolakata/budgets/plan.py": "86ca9d898304290d67bd46df5178ad496f475f5a",
+    "moolakata/budgets/recurring.py": "26b2e2aeef17de22bc67091190cec1f08ce2a029",
+    "moolakata/budgets/reserves.py": "bb9fc587fda553edac52a53b7cbc0df0f7da8b06",
+    "moolakata/ui/budgets.py": "f34ec3260499deaf2aca29a969deace4bcab9046"
+  }
 }

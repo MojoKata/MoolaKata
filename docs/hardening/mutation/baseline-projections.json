@@ -58,5 +58,13 @@
     "moolakata/projections/engine.py",
     "moolakata/projections/taxtables.py",
     "moolakata/ui/projections.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/projections/__init__.py": "e92197cc3b4c252d99cd47891e5a5e29f0736deb",
+    "moolakata/projections/assumptions.py": "cdf4ea2907ab1d9ea6ca3a9cbfa862214ded85a3",
+    "moolakata/projections/bitcoin.py": "27adea3da05fceac9ddb1f8f4ee4e96df3ff1c0c",
+    "moolakata/projections/engine.py": "b9be70dfce738defd55937c1325b2e16dfa5948f",
+    "moolakata/projections/taxtables.py": "12c433dc4792cf172b0ea08ae3744f49b0d9bc9b",
+    "moolakata/ui/projections.py": "cef67b06e5a8e1d0112ab95c45be4a11cbf77135"
+  }
 }

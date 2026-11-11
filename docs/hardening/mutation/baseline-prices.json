@@ -18,5 +18,10 @@
   },
   "modules": [
     "moolakata/ui/prices.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/prices/__init__.py": "5a6afd032567714f25f3f082d948f5160ebc024e",
+    "moolakata/prices/manual.py": "0ae2482879dcc637072348c964f6efbe2902b882",
+    "moolakata/ui/prices.py": "32f148c616bb05f9838004158f6cff1ea92a6931"
+  }
 }

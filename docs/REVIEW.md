@@ -399,6 +399,11 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    test that catches a survivor and changes nothing the code does is written without asking;
    a survivor that shows a bug, an equivalent to leave unmarked, or a test that would be slow
    goes to the area's walk, which opens the sweep, so the area's questions are asked once.
+   Every step's pull request says whether it changes code the baseline ran: `web/dev.sh mutate
+   stale` names each module changed since its latest run (the baseline's, until its area's
+   sweep settles it), and the pull request lists them, or says none changed. A changed module's
+   baseline survivors are stale: its area's sweep runs it again instead of starting from them.
+   How the baseline is made again, whole or in part, is in `mutation-baseline.md`.
 
 ## 12. Parallel agents, when asked
 
