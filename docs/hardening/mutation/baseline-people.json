@@ -1,0 +1,38 @@
+{
+  "name": "baseline-people",
+  "first": {
+    "killed": 1568,
+    "timeout": 3,
+    "survived": 362,
+    "no tests": 0,
+    "not run": 0,
+    "files": {
+      "moolakata/people/__init__.py": {
+        "killed": 682,
+        "timeout": 1,
+        "survived": 137,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/people/tree.py": {
+        "killed": 396,
+        "timeout": 2,
+        "survived": 132,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/people.py": {
+        "killed": 490,
+        "timeout": 0,
+        "survived": 93,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/people/__init__.py",
+    "moolakata/people/tree.py",
+    "moolakata/ui/people.py"
+  ]
+}

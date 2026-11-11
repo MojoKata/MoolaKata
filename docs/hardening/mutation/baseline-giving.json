@@ -1,0 +1,30 @@
+{
+  "name": "baseline-giving",
+  "first": {
+    "killed": 1127,
+    "timeout": 0,
+    "survived": 780,
+    "no tests": 74,
+    "not run": 0,
+    "files": {
+      "moolakata/giving/__init__.py": {
+        "killed": 379,
+        "timeout": 0,
+        "survived": 69,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/giving.py": {
+        "killed": 748,
+        "timeout": 0,
+        "survived": 711,
+        "no tests": 74,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/giving/__init__.py",
+    "moolakata/ui/giving.py"
+  ]
+}

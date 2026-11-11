@@ -1,0 +1,30 @@
+{
+  "name": "baseline-education",
+  "first": {
+    "killed": 833,
+    "timeout": 0,
+    "survived": 443,
+    "no tests": 133,
+    "not run": 0,
+    "files": {
+      "moolakata/education/__init__.py": {
+        "killed": 247,
+        "timeout": 0,
+        "survived": 94,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/education.py": {
+        "killed": 586,
+        "timeout": 0,
+        "survived": 349,
+        "no tests": 133,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/education/__init__.py",
+    "moolakata/ui/education.py"
+  ]
+}

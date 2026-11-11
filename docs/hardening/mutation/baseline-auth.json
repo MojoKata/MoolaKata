@@ -1,0 +1,94 @@
+{
+  "name": "baseline-auth",
+  "first": {
+    "killed": 2935,
+    "timeout": 6,
+    "survived": 1664,
+    "no tests": 117,
+    "not run": 0,
+    "files": {
+      "moolakata/auth/passwords.py": {
+        "killed": 23,
+        "timeout": 4,
+        "survived": 20,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/auth/sessions.py": {
+        "killed": 87,
+        "timeout": 0,
+        "survived": 10,
+        "no tests": 20,
+        "not run": 0
+      },
+      "moolakata/auth/signup.py": {
+        "killed": 349,
+        "timeout": 0,
+        "survived": 204,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/auth/tokens.py": {
+        "killed": 3,
+        "timeout": 0,
+        "survived": 2,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/auth/twostep.py": {
+        "killed": 388,
+        "timeout": 2,
+        "survived": 174,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/auth/users.py": {
+        "killed": 1002,
+        "timeout": 0,
+        "survived": 743,
+        "no tests": 67,
+        "not run": 0
+      },
+      "moolakata/ui/profile.py": {
+        "killed": 329,
+        "timeout": 0,
+        "survived": 280,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/session.py": {
+        "killed": 231,
+        "timeout": 0,
+        "survived": 23,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/tokens.py": {
+        "killed": 216,
+        "timeout": 0,
+        "survived": 85,
+        "no tests": 10,
+        "not run": 0
+      },
+      "moolakata/ui/users.py": {
+        "killed": 307,
+        "timeout": 0,
+        "survived": 123,
+        "no tests": 20,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/auth/passwords.py",
+    "moolakata/auth/sessions.py",
+    "moolakata/auth/signup.py",
+    "moolakata/auth/tokens.py",
+    "moolakata/auth/twostep.py",
+    "moolakata/auth/users.py",
+    "moolakata/ui/profile.py",
+    "moolakata/ui/session.py",
+    "moolakata/ui/tokens.py",
+    "moolakata/ui/users.py"
+  ]
+}

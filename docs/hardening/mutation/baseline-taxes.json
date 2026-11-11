@@ -1,0 +1,30 @@
+{
+  "name": "baseline-taxes",
+  "first": {
+    "killed": 2265,
+    "timeout": 0,
+    "survived": 360,
+    "no tests": 90,
+    "not run": 0,
+    "files": {
+      "moolakata/ui/taxes.py": {
+        "killed": 1868,
+        "timeout": 0,
+        "survived": 350,
+        "no tests": 90,
+        "not run": 0
+      },
+      "moolakata/ui/taxpanels.py": {
+        "killed": 397,
+        "timeout": 0,
+        "survived": 10,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/ui/taxes.py",
+    "moolakata/ui/taxpanels.py"
+  ]
+}

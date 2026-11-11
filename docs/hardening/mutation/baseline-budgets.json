@@ -1,0 +1,70 @@
+{
+  "name": "baseline-budgets",
+  "first": {
+    "killed": 3913,
+    "timeout": 3,
+    "survived": 1387,
+    "no tests": 11,
+    "not run": 0,
+    "files": {
+      "moolakata/budgets/__init__.py": {
+        "killed": 1248,
+        "timeout": 2,
+        "survived": 229,
+        "no tests": 1,
+        "not run": 0
+      },
+      "moolakata/budgets/cache.py": {
+        "killed": 17,
+        "timeout": 0,
+        "survived": 8,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/budgets/envelope.py": {
+        "killed": 275,
+        "timeout": 0,
+        "survived": 59,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/budgets/plan.py": {
+        "killed": 316,
+        "timeout": 0,
+        "survived": 128,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/budgets/recurring.py": {
+        "killed": 304,
+        "timeout": 1,
+        "survived": 84,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/budgets/reserves.py": {
+        "killed": 426,
+        "timeout": 0,
+        "survived": 93,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/budgets.py": {
+        "killed": 1327,
+        "timeout": 0,
+        "survived": 786,
+        "no tests": 10,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/budgets/__init__.py",
+    "moolakata/budgets/cache.py",
+    "moolakata/budgets/envelope.py",
+    "moolakata/budgets/plan.py",
+    "moolakata/budgets/recurring.py",
+    "moolakata/budgets/reserves.py",
+    "moolakata/ui/budgets.py"
+  ]
+}

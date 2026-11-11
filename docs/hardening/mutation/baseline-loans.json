@@ -1,0 +1,30 @@
+{
+  "name": "baseline-loans",
+  "first": {
+    "killed": 2815,
+    "timeout": 10,
+    "survived": 233,
+    "no tests": 31,
+    "not run": 0,
+    "files": {
+      "moolakata/loans/__init__.py": {
+        "killed": 1694,
+        "timeout": 10,
+        "survived": 9,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/loans.py": {
+        "killed": 1121,
+        "timeout": 0,
+        "survived": 224,
+        "no tests": 31,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/loans/__init__.py",
+    "moolakata/ui/loans.py"
+  ]
+}

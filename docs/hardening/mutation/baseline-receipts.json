@@ -1,0 +1,62 @@
+{
+  "name": "baseline-receipts",
+  "first": {
+    "killed": 2655,
+    "timeout": 0,
+    "survived": 567,
+    "no tests": 169,
+    "not run": 0,
+    "files": {
+      "moolakata/receipts/__init__.py": {
+        "killed": 771,
+        "timeout": 0,
+        "survived": 127,
+        "no tests": 158,
+        "not run": 0
+      },
+      "moolakata/receipts/ocr.py": {
+        "killed": 156,
+        "timeout": 0,
+        "survived": 78,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/receipts/parser.py": {
+        "killed": 176,
+        "timeout": 0,
+        "survived": 66,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/receipts/reading.py": {
+        "killed": 433,
+        "timeout": 0,
+        "survived": 118,
+        "no tests": 1,
+        "not run": 0
+      },
+      "moolakata/receipts/retention.py": {
+        "killed": 420,
+        "timeout": 0,
+        "survived": 111,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/receipts.py": {
+        "killed": 699,
+        "timeout": 0,
+        "survived": 67,
+        "no tests": 10,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/receipts/__init__.py",
+    "moolakata/receipts/ocr.py",
+    "moolakata/receipts/parser.py",
+    "moolakata/receipts/reading.py",
+    "moolakata/receipts/retention.py",
+    "moolakata/ui/receipts.py"
+  ]
+}

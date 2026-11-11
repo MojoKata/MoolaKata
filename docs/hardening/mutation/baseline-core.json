@@ -1,0 +1,334 @@
+{
+  "name": "baseline-core",
+  "first": {
+    "killed": 7292,
+    "timeout": 5,
+    "survived": 3068,
+    "no tests": 1226,
+    "not run": 0,
+    "files": {
+      "moolakata/access.py": {
+        "killed": 206,
+        "timeout": 0,
+        "survived": 12,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/activity.py": {
+        "killed": 31,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/alerts.py": {
+        "killed": 385,
+        "timeout": 0,
+        "survived": 181,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/app.py": {
+        "killed": 216,
+        "timeout": 0,
+        "survived": 28,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/certs.py": {
+        "killed": 75,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 44,
+        "not run": 0
+      },
+      "moolakata/checkpoints.py": {
+        "killed": 3,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/clock.py": {
+        "killed": 6,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/config.py": {
+        "killed": 181,
+        "timeout": 0,
+        "survived": 70,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/contract.py": {
+        "killed": 146,
+        "timeout": 0,
+        "survived": 249,
+        "no tests": 633,
+        "not run": 0
+      },
+      "moolakata/corporate.py": {
+        "killed": 188,
+        "timeout": 0,
+        "survived": 163,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/duration.py": {
+        "killed": 76,
+        "timeout": 0,
+        "survived": 12,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/errors.py": {
+        "killed": 86,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/events.py": {
+        "killed": 59,
+        "timeout": 0,
+        "survived": 25,
+        "no tests": 10,
+        "not run": 0
+      },
+      "moolakata/exactjson.py": {
+        "killed": 65,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/figures.py": {
+        "killed": 209,
+        "timeout": 0,
+        "survived": 131,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/filestore.py": {
+        "killed": 66,
+        "timeout": 0,
+        "survived": 6,
+        "no tests": 2,
+        "not run": 0
+      },
+      "moolakata/host.py": {
+        "killed": 14,
+        "timeout": 0,
+        "survived": 34,
+        "no tests": 4,
+        "not run": 0
+      },
+      "moolakata/ids.py": {
+        "killed": 111,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 53,
+        "not run": 0
+      },
+      "moolakata/jobs.py": {
+        "killed": 56,
+        "timeout": 0,
+        "survived": 60,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/listener.py": {
+        "killed": 116,
+        "timeout": 0,
+        "survived": 41,
+        "no tests": 60,
+        "not run": 0
+      },
+      "moolakata/mail.py": {
+        "killed": 378,
+        "timeout": 0,
+        "survived": 250,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/main.py": {
+        "killed": 131,
+        "timeout": 0,
+        "survived": 223,
+        "no tests": 34,
+        "not run": 0
+      },
+      "moolakata/mcp.py": {
+        "killed": 220,
+        "timeout": 0,
+        "survived": 156,
+        "no tests": 17,
+        "not run": 0
+      },
+      "moolakata/middleware.py": {
+        "killed": 957,
+        "timeout": 0,
+        "survived": 134,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/money.py": {
+        "killed": 78,
+        "timeout": 0,
+        "survived": 1,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/net.py": {
+        "killed": 305,
+        "timeout": 0,
+        "survived": 43,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/parsing.py": {
+        "killed": 203,
+        "timeout": 0,
+        "survived": 64,
+        "no tests": 21,
+        "not run": 0
+      },
+      "moolakata/ratelimit.py": {
+        "killed": 178,
+        "timeout": 0,
+        "survived": 12,
+        "no tests": 3,
+        "not run": 0
+      },
+      "moolakata/reimbursements.py": {
+        "killed": 138,
+        "timeout": 0,
+        "survived": 46,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/runtime.py": {
+        "killed": 229,
+        "timeout": 0,
+        "survived": 551,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/sandbox.py": {
+        "killed": 23,
+        "timeout": 0,
+        "survived": 15,
+        "no tests": 323,
+        "not run": 0
+      },
+      "moolakata/settings.py": {
+        "killed": 222,
+        "timeout": 0,
+        "survived": 189,
+        "no tests": 5,
+        "not run": 0
+      },
+      "moolakata/sharing.py": {
+        "killed": 178,
+        "timeout": 0,
+        "survived": 25,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/static.py": {
+        "killed": 102,
+        "timeout": 0,
+        "survived": 101,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/tags.py": {
+        "killed": 166,
+        "timeout": 0,
+        "survived": 40,
+        "no tests": 17,
+        "not run": 0
+      },
+      "moolakata/tasks.py": {
+        "killed": 124,
+        "timeout": 1,
+        "survived": 106,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/timezones.py": {
+        "killed": 111,
+        "timeout": 0,
+        "survived": 19,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/tokens.py": {
+        "killed": 109,
+        "timeout": 0,
+        "survived": 18,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/valuation.py": {
+        "killed": 865,
+        "timeout": 3,
+        "survived": 15,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/washes.py": {
+        "killed": 280,
+        "timeout": 1,
+        "survived": 48,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/access.py",
+    "moolakata/activity.py",
+    "moolakata/alerts.py",
+    "moolakata/app.py",
+    "moolakata/certs.py",
+    "moolakata/checkpoints.py",
+    "moolakata/clock.py",
+    "moolakata/config.py",
+    "moolakata/contract.py",
+    "moolakata/corporate.py",
+    "moolakata/duration.py",
+    "moolakata/errors.py",
+    "moolakata/events.py",
+    "moolakata/exactjson.py",
+    "moolakata/figures.py",
+    "moolakata/filestore.py",
+    "moolakata/host.py",
+    "moolakata/ids.py",
+    "moolakata/jobs.py",
+    "moolakata/listener.py",
+    "moolakata/mail.py",
+    "moolakata/main.py",
+    "moolakata/mcp.py",
+    "moolakata/middleware.py",
+    "moolakata/money.py",
+    "moolakata/net.py",
+    "moolakata/parsing.py",
+    "moolakata/ratelimit.py",
+    "moolakata/reimbursements.py",
+    "moolakata/runtime.py",
+    "moolakata/sandbox.py",
+    "moolakata/settings.py",
+    "moolakata/sharing.py",
+    "moolakata/static.py",
+    "moolakata/tags.py",
+    "moolakata/tasks.py",
+    "moolakata/timezones.py",
+    "moolakata/tokens.py",
+    "moolakata/valuation.py",
+    "moolakata/washes.py"
+  ]
+}

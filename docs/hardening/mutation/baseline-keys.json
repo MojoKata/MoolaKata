@@ -1,0 +1,86 @@
+{
+  "name": "baseline-keys",
+  "first": {
+    "killed": 996,
+    "timeout": 0,
+    "survived": 367,
+    "no tests": 166,
+    "not run": 0,
+    "files": {
+      "moolakata/keys/breakglass.py": {
+        "killed": 32,
+        "timeout": 0,
+        "survived": 9,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/keys/cli.py": {
+        "killed": 120,
+        "timeout": 0,
+        "survived": 218,
+        "no tests": 166,
+        "not run": 0
+      },
+      "moolakata/keys/files.py": {
+        "killed": 208,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/keys/master.py": {
+        "killed": 323,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/keys/phrase.py": {
+        "killed": 65,
+        "timeout": 0,
+        "survived": 3,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/keys/secrets.py": {
+        "killed": 89,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/keys/welcome.py": {
+        "killed": 22,
+        "timeout": 0,
+        "survived": 7,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/unlock.py": {
+        "killed": 88,
+        "timeout": 0,
+        "survived": 114,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/welcome.py": {
+        "killed": 49,
+        "timeout": 0,
+        "survived": 16,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/keys/breakglass.py",
+    "moolakata/keys/cli.py",
+    "moolakata/keys/files.py",
+    "moolakata/keys/master.py",
+    "moolakata/keys/phrase.py",
+    "moolakata/keys/secrets.py",
+    "moolakata/keys/welcome.py",
+    "moolakata/ui/unlock.py",
+    "moolakata/ui/welcome.py"
+  ]
+}

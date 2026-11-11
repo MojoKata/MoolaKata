@@ -1,0 +1,78 @@
+{
+  "name": "baseline-bitcoin",
+  "first": {
+    "killed": 2567,
+    "timeout": 14,
+    "survived": 1268,
+    "no tests": 27,
+    "not run": 0,
+    "files": {
+      "moolakata/bitcoin/descriptor.py": {
+        "killed": 341,
+        "timeout": 0,
+        "survived": 161,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/bitcoin/keys.py": {
+        "killed": 628,
+        "timeout": 8,
+        "survived": 295,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/bitcoin/sources.py": {
+        "killed": 561,
+        "timeout": 6,
+        "survived": 352,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/bitcoin/stub.py": {
+        "killed": 32,
+        "timeout": 0,
+        "survived": 57,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/bitcoin/sync.py": {
+        "killed": 415,
+        "timeout": 0,
+        "survived": 240,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/bitcoin/transfers.py": {
+        "killed": 235,
+        "timeout": 0,
+        "survived": 21,
+        "no tests": 27,
+        "not run": 0
+      },
+      "moolakata/bitcoin/wallet.py": {
+        "killed": 153,
+        "timeout": 0,
+        "survived": 38,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/wallets.py": {
+        "killed": 202,
+        "timeout": 0,
+        "survived": 104,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/bitcoin/descriptor.py",
+    "moolakata/bitcoin/keys.py",
+    "moolakata/bitcoin/sources.py",
+    "moolakata/bitcoin/stub.py",
+    "moolakata/bitcoin/sync.py",
+    "moolakata/bitcoin/transfers.py",
+    "moolakata/bitcoin/wallet.py",
+    "moolakata/ui/wallets.py"
+  ]
+}

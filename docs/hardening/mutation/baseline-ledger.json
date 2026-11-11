@@ -1,0 +1,102 @@
+{
+  "name": "baseline-ledger",
+  "first": {
+    "killed": 6318,
+    "timeout": 19,
+    "survived": 653,
+    "no tests": 234,
+    "not run": 0,
+    "files": {
+      "moolakata/ledger/balances.py": {
+        "killed": 108,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/expected.py": {
+        "killed": 147,
+        "timeout": 0,
+        "survived": 1,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/holdingcheck.py": {
+        "killed": 117,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/lots.py": {
+        "killed": 1310,
+        "timeout": 0,
+        "survived": 2,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/reconcile.py": {
+        "killed": 206,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/rules.py": {
+        "killed": 92,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/transfers.py": {
+        "killed": 43,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/types.py": {
+        "killed": 25,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/accounts.py": {
+        "killed": 1325,
+        "timeout": 0,
+        "survived": 125,
+        "no tests": 63,
+        "not run": 0
+      },
+      "moolakata/ui/rules.py": {
+        "killed": 548,
+        "timeout": 19,
+        "survived": 5,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/transactions.py": {
+        "killed": 2397,
+        "timeout": 0,
+        "survived": 520,
+        "no tests": 171,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/ledger/balances.py",
+    "moolakata/ledger/expected.py",
+    "moolakata/ledger/holdingcheck.py",
+    "moolakata/ledger/lots.py",
+    "moolakata/ledger/reconcile.py",
+    "moolakata/ledger/rules.py",
+    "moolakata/ledger/transfers.py",
+    "moolakata/ledger/types.py",
+    "moolakata/ui/accounts.py",
+    "moolakata/ui/rules.py",
+    "moolakata/ui/transactions.py"
+  ]
+}
