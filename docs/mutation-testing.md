@@ -243,7 +243,9 @@ each job's unrun changes into jobs (`auth-1.r1-1`, …, round 1) that run only t
 --only-file`); with the `jobs` input too, only those jobs' (another's may be under way). mutmut runs the quickest changes first, so those left are the slowest, each at
 least the slowest one reached; its estimate is a change's worst case (every test run, as for a
 survivor), and a job is given twice what 240 minutes of 4 workers allows at that, since a killed
-change stops at its first failing test. More time per job isn't to be had (a runner stops at
+change stops at its first failing test; and, since an estimate is the tests' time alone, no
+more than half what the slowest job of the round that left them finished in its time (the first
+run's job, then each round's). More time per job isn't to be had (a runner stops at
 6 hours), and a smaller size can't split a module larger than one job. `gather` with every run
 takes each change's outcome from whichever job finished it; a round that leaves some unrun again
 is followed by another, numbered after it. A job stopped before its

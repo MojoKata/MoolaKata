@@ -1,0 +1,62 @@
+{
+  "name": "baseline-connector",
+  "first": {
+    "killed": 1385,
+    "timeout": 0,
+    "survived": 766,
+    "no tests": 0,
+    "not run": 0,
+    "files": {
+      "moolakata/connector/files.py": {
+        "killed": 254,
+        "timeout": 0,
+        "survived": 174,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/connector/manage.py": {
+        "killed": 704,
+        "timeout": 0,
+        "survived": 261,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/connector/routes.py": {
+        "killed": 0,
+        "timeout": 0,
+        "survived": 35,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/connector/sealed.py": {
+        "killed": 50,
+        "timeout": 0,
+        "survived": 18,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/connections.py": {
+        "killed": 200,
+        "timeout": 0,
+        "survived": 217,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/connector.py": {
+        "killed": 177,
+        "timeout": 0,
+        "survived": 61,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/connector/files.py",
+    "moolakata/connector/manage.py",
+    "moolakata/connector/routes.py",
+    "moolakata/connector/sealed.py",
+    "moolakata/ui/connections.py",
+    "moolakata/ui/connector.py"
+  ]
+}

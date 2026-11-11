@@ -1,0 +1,214 @@
+{
+  "name": "baseline-store",
+  "first": {
+    "killed": 6062,
+    "timeout": 67,
+    "survived": 1583,
+    "no tests": 508,
+    "not run": 0,
+    "files": {
+      "moolakata/store/access_views.py": {
+        "killed": 1538,
+        "timeout": 0,
+        "survived": 482,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/cli.py": {
+        "killed": 19,
+        "timeout": 0,
+        "survived": 87,
+        "no tests": 143,
+        "not run": 0
+      },
+      "moolakata/store/commit_checks.py": {
+        "killed": 12,
+        "timeout": 0,
+        "survived": 1,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/copies.py": {
+        "killed": 241,
+        "timeout": 2,
+        "survived": 113,
+        "no tests": 199,
+        "not run": 0
+      },
+      "moolakata/store/copy.py": {
+        "killed": 76,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/data_version.py": {
+        "killed": 41,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/db.py": {
+        "killed": 83,
+        "timeout": 0,
+        "survived": 27,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/entities/__init__.py": {
+        "killed": 5,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/entities/sharing.py": {
+        "killed": 0,
+        "timeout": 0,
+        "survived": 16,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/maintenance.py": {
+        "killed": 722,
+        "timeout": 4,
+        "survived": 127,
+        "no tests": 55,
+        "not run": 0
+      },
+      "moolakata/store/mapping.py": {
+        "killed": 240,
+        "timeout": 0,
+        "survived": 14,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/migrate.py": {
+        "killed": 180,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 28,
+        "not run": 0
+      },
+      "moolakata/store/reencrypt.py": {
+        "killed": 555,
+        "timeout": 0,
+        "survived": 216,
+        "no tests": 40,
+        "not run": 0
+      },
+      "moolakata/store/repos/ledger.py": {
+        "killed": 1505,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/repos/rules.py": {
+        "killed": 61,
+        "timeout": 61,
+        "survived": 8,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/repos/secrets.py": {
+        "killed": 103,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/rows.py": {
+        "killed": 12,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/schema_check.py": {
+        "killed": 272,
+        "timeout": 0,
+        "survived": 78,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/scoping.py": {
+        "killed": 80,
+        "timeout": 0,
+        "survived": 16,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/tables/_base.py": {
+        "killed": 129,
+        "timeout": 0,
+        "survived": 217,
+        "no tests": 43,
+        "not run": 0
+      },
+      "moolakata/store/tables/accounts.py": {
+        "killed": 0,
+        "timeout": 0,
+        "survived": 7,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/tables/receipts.py": {
+        "killed": 5,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/tables/shares.py": {
+        "killed": 0,
+        "timeout": 0,
+        "survived": 174,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/types.py": {
+        "killed": 52,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/store/views.py": {
+        "killed": 131,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/store/access_views.py",
+    "moolakata/store/cli.py",
+    "moolakata/store/commit_checks.py",
+    "moolakata/store/copies.py",
+    "moolakata/store/copy.py",
+    "moolakata/store/data_version.py",
+    "moolakata/store/db.py",
+    "moolakata/store/entities/__init__.py",
+    "moolakata/store/entities/sharing.py",
+    "moolakata/store/maintenance.py",
+    "moolakata/store/mapping.py",
+    "moolakata/store/migrate.py",
+    "moolakata/store/reencrypt.py",
+    "moolakata/store/repos/ledger.py",
+    "moolakata/store/repos/rules.py",
+    "moolakata/store/repos/secrets.py",
+    "moolakata/store/rows.py",
+    "moolakata/store/schema_check.py",
+    "moolakata/store/scoping.py",
+    "moolakata/store/tables/_base.py",
+    "moolakata/store/tables/accounts.py",
+    "moolakata/store/tables/receipts.py",
+    "moolakata/store/tables/shares.py",
+    "moolakata/store/types.py",
+    "moolakata/store/views.py"
+  ]
+}

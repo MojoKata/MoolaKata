@@ -1,0 +1,22 @@
+{
+  "name": "baseline-prices",
+  "first": {
+    "killed": 403,
+    "timeout": 0,
+    "survived": 336,
+    "no tests": 5,
+    "not run": 0,
+    "files": {
+      "moolakata/ui/prices.py": {
+        "killed": 403,
+        "timeout": 0,
+        "survived": 336,
+        "no tests": 5,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/ui/prices.py"
+  ]
+}

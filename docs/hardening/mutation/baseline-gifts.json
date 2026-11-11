@@ -1,0 +1,38 @@
+{
+  "name": "baseline-gifts",
+  "first": {
+    "killed": 1457,
+    "timeout": 0,
+    "survived": 835,
+    "no tests": 154,
+    "not run": 0,
+    "files": {
+      "moolakata/gifts/__init__.py": {
+        "killed": 533,
+        "timeout": 0,
+        "survived": 173,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/gifts/holidays.py": {
+        "killed": 26,
+        "timeout": 0,
+        "survived": 3,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/gifts.py": {
+        "killed": 898,
+        "timeout": 0,
+        "survived": 659,
+        "no tests": 154,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/gifts/__init__.py",
+    "moolakata/gifts/holidays.py",
+    "moolakata/ui/gifts.py"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "name": "baseline-projections",
+  "first": {
+    "killed": 2502,
+    "timeout": 0,
+    "survived": 1710,
+    "no tests": 56,
+    "not run": 0,
+    "files": {
+      "moolakata/projections/__init__.py": {
+        "killed": 1027,
+        "timeout": 0,
+        "survived": 715,
+        "no tests": 4,
+        "not run": 0
+      },
+      "moolakata/projections/assumptions.py": {
+        "killed": 78,
+        "timeout": 0,
+        "survived": 51,
+        "no tests": 24,
+        "not run": 0
+      },
+      "moolakata/projections/bitcoin.py": {
+        "killed": 200,
+        "timeout": 0,
+        "survived": 32,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/projections/engine.py": {
+        "killed": 315,
+        "timeout": 0,
+        "survived": 178,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/projections/taxtables.py": {
+        "killed": 41,
+        "timeout": 0,
+        "survived": 41,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/projections.py": {
+        "killed": 841,
+        "timeout": 0,
+        "survived": 693,
+        "no tests": 28,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/projections/__init__.py",
+    "moolakata/projections/assumptions.py",
+    "moolakata/projections/bitcoin.py",
+    "moolakata/projections/engine.py",
+    "moolakata/projections/taxtables.py",
+    "moolakata/ui/projections.py"
+  ]
+}

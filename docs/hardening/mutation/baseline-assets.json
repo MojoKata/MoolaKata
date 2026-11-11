@@ -1,0 +1,22 @@
+{
+  "name": "baseline-assets",
+  "first": {
+    "killed": 466,
+    "timeout": 1,
+    "survived": 5,
+    "no tests": 0,
+    "not run": 0,
+    "files": {
+      "moolakata/assets/__init__.py": {
+        "killed": 466,
+        "timeout": 1,
+        "survived": 5,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/assets/__init__.py"
+  ]
+}

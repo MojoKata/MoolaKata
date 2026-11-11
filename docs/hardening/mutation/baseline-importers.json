@@ -1,0 +1,62 @@
+{
+  "name": "baseline-importers",
+  "first": {
+    "killed": 4213,
+    "timeout": 11,
+    "survived": 518,
+    "no tests": 32,
+    "not run": 0,
+    "files": {
+      "moolakata/importers/brokerage.py": {
+        "killed": 490,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/importers/csvfile.py": {
+        "killed": 581,
+        "timeout": 0,
+        "survived": 192,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/importers/ofx.py": {
+        "killed": 411,
+        "timeout": 0,
+        "survived": 287,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/importers/parsed.py": {
+        "killed": 451,
+        "timeout": 0,
+        "survived": 39,
+        "no tests": 32,
+        "not run": 0
+      },
+      "moolakata/importers/statements.py": {
+        "killed": 580,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/imports.py": {
+        "killed": 1700,
+        "timeout": 11,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "modules": [
+    "moolakata/importers/brokerage.py",
+    "moolakata/importers/csvfile.py",
+    "moolakata/importers/ofx.py",
+    "moolakata/importers/parsed.py",
+    "moolakata/importers/statements.py",
+    "moolakata/ui/imports.py"
+  ]
+}
