@@ -58,5 +58,14 @@
     "moolakata/importers/parsed.py",
     "moolakata/importers/statements.py",
     "moolakata/ui/imports.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/importers/__init__.py": "d35d0cbdce29dee7008a31d5811bf40e21980ad3",
+    "moolakata/importers/brokerage.py": "d280a5f7071b2fe6402e5651614e677a933c5cf8",
+    "moolakata/importers/csvfile.py": "0b56518c5a21c9dde7f9e4862913cb0c566b9529",
+    "moolakata/importers/ofx.py": "ee76552471cf8d28f8964d1eb003e1cf2630b2de",
+    "moolakata/importers/parsed.py": "61128211511372001819e5d1bfe65aa7f5ea3d94",
+    "moolakata/importers/statements.py": "8f238815efcd1a48beb1c491e0c905ac0ff504e8",
+    "moolakata/ui/imports.py": "94f0c866f789f4ffb45e3c89dadef59e74356a81"
+  }
 }

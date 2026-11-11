@@ -98,5 +98,20 @@
     "moolakata/ui/accounts.py",
     "moolakata/ui/rules.py",
     "moolakata/ui/transactions.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/ledger/__init__.py": "1df55602036518f46d83ec7a92db8001de20da46",
+    "moolakata/ledger/balances.py": "3373c3c34cbf3784fbd3c025806e92291b4ff742",
+    "moolakata/ledger/categories.py": "1f0e993b3547325d5295cbb8d5b4a3051c6ee5ff",
+    "moolakata/ledger/expected.py": "873bc2ba8486ebe2297371598a577aba9edcf7a5",
+    "moolakata/ledger/holdingcheck.py": "874dc03c8bb24afbe3e1d0d65bcb57d073cf1cc2",
+    "moolakata/ledger/lots.py": "c765d8f579bcc109f918f017b93d0e8767b29525",
+    "moolakata/ledger/reconcile.py": "17d46717113903e63947046f3521ce248b37f355",
+    "moolakata/ledger/rules.py": "0f6b09118dd3614eabdf40ea9ef845feb396c8a6",
+    "moolakata/ledger/transfers.py": "84938955f082d6caac28bf28266628e5638adc1b",
+    "moolakata/ledger/types.py": "bbefefe5266a2588b9ecf615e86b48ad3fd0d3de",
+    "moolakata/ui/accounts.py": "35908704f88208c3fd62dd48bf9bbac483144822",
+    "moolakata/ui/rules.py": "d4a5a11e31706ccd4f85e1f9f93e9f69331e279d",
+    "moolakata/ui/transactions.py": "ded8c7b5b55547b3cf52024dc7b2820045748989"
+  }
 }

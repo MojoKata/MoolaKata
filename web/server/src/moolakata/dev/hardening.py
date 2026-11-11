@@ -100,6 +100,18 @@ def module_runs(recs: list[dict], blobs: dict[str, str]) -> dict[str, dict]:
     return out
 
 
+def baseline_runs(recs: list[dict], blobs: dict[str, str]) -> dict[str, str]:
+    """Each module's first run not yet settled (the CI baseline's), "changed" when its content
+    is no longer what that run mutated, else "current": a changed one's survivors are stale."""
+    out = {}
+    for r in recs:
+        if r.get("pr"):
+            continue
+        for m, b in r.get("first_content", {}).items():
+            out[m] = "current" if blobs.get(m) == b else "changed"
+    return out
+
+
 def catch(c: dict) -> tuple[int, int]:
     """Changes caught, of those a test reached or should have: timeouts count as caught."""
     caught = c["killed"] + c["timeout"]
@@ -190,7 +202,9 @@ def data(history: list[dict], files: list[dict], repo: str) -> dict:
     plan = tomllib.loads(PATH.read_text())
     found = findings((paths.ROOT / plan["review"]).read_text())
     recs = records()
-    runs = module_runs(recs, head_blobs())
+    blobs = head_blobs()
+    runs = module_runs(recs, blobs)
+    baseline = baseline_runs(recs, blobs)
     last = history[-1]
     base = next((h for h in history if "hardening" in h), last)
     bugs = {int(i.split("-")[-1]) for r in recs for i in r.get("found", [])}
@@ -202,6 +216,7 @@ def data(history: list[dict], files: list[dict], repo: str) -> dict:
             "lines": [f["linesReached"], f["lineCount"]],
             "branches": [f["branchesReached"], f["branchCount"]],
             "run": runs.get(mod),
+            "baseline": baseline.get(mod),
             "python": not f["path"].startswith("web/ui/"),
         })  # fmt: skip
     first: dict[str, list[int]] = {}
@@ -255,7 +270,9 @@ def data(history: list[dict], files: list[dict], repo: str) -> dict:
                 "found": r.get("found", []),
                 "catch": catch(r["first"]),
                 "changes": sum(r["first"][k] for k in mutate.COUNTED),
-                "stale": [m for m in r["modules"] if runs.get(m, {}).get("stale")],
+                "stale": [m for m in r["modules"] if runs.get(m, {}).get("stale")]
+                if r.get("pr")
+                else [m for m, b in r.get("first_content", {}).items() if blobs.get(m) != b],
             }
             for r in recs
         ],

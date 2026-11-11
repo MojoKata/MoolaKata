@@ -8,6 +8,7 @@
                                     [--from DIR...]
     web/dev.sh mutate testrun | testmap | plan [--rest <run>...] | export <dir> | gather <run>
                                                                          (the CI baseline)
+    web/dev.sh mutate baseline [--repo R] [--ref REF] [--jobs NAME...] | stale   (baseline.py)
 
 `run` makes a scratch copy of the server in web/.dev/mutate (mutmut changes the code it tests,
 so never the checkout), links what the server reads from beside itself, installs the lock's
@@ -41,12 +42,15 @@ for the changes those runs left unrun (a job out of time), split by mutmut's est
 with `run --only-file`; `export` keeps a job's outcomes, survivors and log in a directory for
 its artifact; `gather` downloads a run's artifacts and records each area's first run as
 `baseline-<area>`, with its survivors in web/.dev/mutate-results/baseline/, a change's outcome
-from whichever job finished it.
+from whichever job finished it, and each module's content in the commit its jobs ran
+(`first_content`); a module two runs saw differently is not recorded.
 """
 
 import argparse
+import ast
 import contextlib
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -386,15 +390,39 @@ def summary(_args) -> int:
     for fn, c in sorted(by_fn.items(), key=lambda x: -x[1]["survived"]):
         if c["survived"]:
             print(f"  {c['survived']:4} of {sum(c.values()):4}  {fn.removeprefix('moolakata.')}")
-    mutmut = str(COPY / ".venv" / "bin" / "mutmut")
-    with (WORK / "survivors.txt").open("w") as out:
-        for name in survivors:
-            show = [mutmut, "show", name]
-            shown = subprocess.run(show, cwd=COPY, capture_output=True, text=True)  # noqa: S603
-            diff = [x for x in shown.stdout.splitlines() if re.match(r"^[-+][^-+]", x)]
-            out.write(f"# {name}\n" + "\n".join(diff) + "\n")
+    write_survivors(WORK / "survivors.txt", survivors, src_of(COPY / "mutants" / "src"))
     print(f"\n{len(survivors)} survivors; each change in {WORK / 'survivors.txt'}")
     return 0
+
+
+def src_of(src: Path) -> dict[str, str]:
+    """Each change's file, as mutmut names it from the copy (src/moolakata/x.py), by its .meta."""
+    return {n: f"src/{rel}" for rel, keys in codes(src).items() for n in keys}
+
+
+def shown(names: dict[str, str], generate: bool = False) -> dict[str, str]:
+    """`mutmut show`'s diff of each change, in one process in the copy (`mutant_diffs`); with
+    `generate`, of the copy's mutants made afresh."""
+    cmd = [str(COPY / ".venv" / "bin" / "python"), "-m", "moolakata.dev.mutant_diffs"]
+    asked = json.dumps({"generate": generate, "names": names})
+    r = subprocess.run(cmd, cwd=COPY, input=asked, capture_output=True, text=True, check=True)  # noqa: S603
+    return json.loads(r.stdout.rsplit("\n", 1)[-1])
+
+
+def write_survivors(path: Path, survivors: list[str], files: dict[str, str]) -> None:
+    """Each survivor's name and its diff's lines, as `diffs` reads them."""
+    got = shown({n: files[n] for n in survivors}) if survivors else {}
+    with path.open("w") as out:
+        for name in survivors:
+            out.write(f"# {name}\n" + "".join(x + "\n" for x in hunk(got.get(name, ""))))
+
+
+def hunk(shown: str) -> list[str]:
+    """The lines of `mutmut show`'s diff: those unchanged around the change (` `), removed
+    (`-`) and added (`+`), without its headers."""
+    lines = shown.splitlines()
+    at = next((i for i, x in enumerate(lines) if x.startswith("@@")), len(lines))
+    return [x for x in lines[at + 1 :] if x[:1] in (" ", "-", "+")]
 
 
 # A record's outcomes, in this order; "suspicious" and the rest count as not run.
@@ -420,13 +448,18 @@ def blob(path: Path) -> str:
     return r.stdout.strip()
 
 
-def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> dict:
-    """`record` with this run added: the first run's outcomes and modules, or the settling
-    run's outcomes, pull request, bugs found, equivalents and each file's content."""
+def recorded(
+    record: dict, by_file: dict[str, Counter], first: bool, args, content: dict | None = None
+) -> dict:
+    """`record` with this run added: the first run's outcomes, modules and each one's content
+    as it ran (`first_content`, the checkout's unless given), or the settling run's outcomes,
+    pull request, bugs found, equivalents and each file's content."""
     out = dict(record)
     if first:
         out["first"] = counts(by_file)
         out["modules"] = sorted(by_file)
+        here = [f for f in sorted(by_file) if (SERVER / "src" / f).exists()]
+        out["first_content"] = content or {f: blob(SERVER / "src" / f) for f in here}
         return out
     out["last"] = counts(by_file)
     out["pr"] = args.pr
@@ -439,6 +472,34 @@ def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> di
         f: blob(SERVER / "src" / f) for f in sorted({*out.get("modules", []), *by_file})
     }
     return out
+
+
+@functools.cache
+def blob_at(repo: str, commit: str, rel: str) -> str:
+    """A server file's content (its git blob id) at a run's commit, fetched from the run's
+    repository when the checkout lacks it."""
+    git = shutil.which("git") or "git"
+    spec = [git, "rev-parse", f"{commit}:web/server/src/{rel}"]
+    r = subprocess.run(spec, cwd=paths.ROOT, capture_output=True, text=True)  # noqa: S603
+    if r.returncode:
+        fetch = [git, "fetch", "--no-tags", "-q", f"https://github.com/{repo}", commit]
+        subprocess.run(fetch, cwd=paths.ROOT, check=True)  # noqa: S603 - our own command
+        r = subprocess.run(spec, cwd=paths.ROOT, capture_output=True, text=True, check=True)  # noqa: S603
+    return r.stdout.strip()
+
+
+def contents(dirs: list[Path]) -> tuple[dict[str, str], list[str]]:
+    """Each module's content in the commits its jobs ran on (`downloaded` keeps each run's),
+    those with nothing to change included, and the modules two of them saw differently: their
+    outcomes don't add up."""
+    seen: dict[str, set[str]] = defaultdict(set)
+    for d in dirs:
+        ran = json.loads((d.parent / "run.json").read_text())
+        named = json.loads((d / "job.json").read_text())["modules"].split()
+        for rel in {*codes(d / "src"), *named}:  # with those mutmut found nothing to change in
+            seen[rel].add(blob_at(ran["repo"], ran["commit"], rel))
+    one = {m: next(iter(b)) for m, b in sorted(seen.items()) if len(b) == 1}
+    return one, sorted(m for m, b in seen.items() if len(b) > 1)
 
 
 def merged(dirs: list[Path]) -> dict[str, dict[str, int | None]]:
@@ -625,11 +686,15 @@ def export(args) -> int:
         at.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(meta, at)
     by_file, _, survivors = outcomes(src)
-    # Each survivor's change when the run got as far as its summary; its name always.
+    # Each survivor's change: from its summary, or, a run stopped before it, from its mutants;
+    # its name always.
     if (WORK / "survivors.txt").exists():
         shutil.copy2(WORK / "survivors.txt", out / "survivors.txt")
     else:
-        (out / "survivors.txt").write_text("".join(f"# {n}\n" for n in survivors))
+        try:
+            write_survivors(out / "survivors.txt", survivors, src_of(src))
+        except OSError, subprocess.CalledProcessError, ValueError:
+            (out / "survivors.txt").write_text("".join(f"# {n}\n" for n in survivors))
     if (WORK / "mutmut.log").exists():
         shutil.copy2(WORK / "mutmut.log", out / "mutmut.log")
     job = {"name": args.name, "area": args.area, "modules": args.modules}
@@ -724,6 +789,13 @@ def rest_jobs(jobs: dict[str, Path]) -> tuple[list[dict], dict[str, list[str]]]:
     return out, names
 
 
+def head_of(repo: str, run: str) -> str:
+    """The commit a workflow run ran."""
+    view = [shutil.which("gh") or "gh", "run", "view", run, "-R", repo,
+            "--json", "headSha", "-q", ".headSha"]  # fmt: skip
+    return subprocess.run(view, capture_output=True, text=True, check=True).stdout.strip()  # noqa: S603
+
+
 def downloaded(runs: list[str]) -> dict[str, Path]:
     """The mutate workflow's runs' artifacts, downloaded once, by job name: a job run again in
     a later run replaces the earlier one."""
@@ -735,9 +807,108 @@ def downloaded(runs: list[str]) -> dict[str, Path]:
             gh = [shutil.which("gh") or "gh", "run", "download", run, "-R", repo or REPO,
                   "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
             subprocess.run(gh, check=True)  # noqa: S603 - our own command
+        if not (dest / "run.json").exists():  # the commit it ran, for each module's content
+            ran = {"repo": repo or REPO, "run": run, "commit": head_of(repo or REPO, run)}
+            (dest / "run.json").write_text(json.dumps(ran) + "\n")
         for job in sorted(dest.glob("*/job.json")):
             jobs[json.loads(job.read_text())["name"]] = job.parent
     return jobs
+
+
+def diffs(dirs: list[Path]) -> dict[str, list[str]]:
+    """Each survivor's lines of `mutmut show`'s diff, by name, from the jobs' survivors.txt
+    (a later job's over an earlier one's: the same code, so the same change)."""
+    out: dict[str, list[str]] = {}
+    for d in dirs:
+        f = d / "survivors.txt"
+        lines: list[str] = []
+        for x in f.read_text().splitlines() if f.exists() else []:
+            if x.startswith("# "):
+                lines = out[x[2:].split(":")[0].strip()] = []
+            else:
+                lines.append(x)
+    return out
+
+
+@functools.cache
+def source(content: str) -> str:
+    """A file's text by its git blob id."""
+    cmd = [shutil.which("git") or "git", "cat-file", "-p", content]
+    return subprocess.run(cmd, cwd=paths.ROOT, capture_output=True, text=True, check=True).stdout  # noqa: S603
+
+
+def function_of(name: str) -> str:
+    """The function a change is in, from mutmut's name for it: `x__show__mutmut_8` is
+    `_show`, `xǁSpanǁholds__mutmut_7` is `Span.holds`."""
+    key = re.sub(r"__mutmut_\d+$", "", name.rsplit(".", 1)[1])
+    return ".".join(key[1:].split("ǁ")[1:]) if key.startswith("xǁ") else key[2:]
+
+
+def line_of(text: str, function: str, diff: list[str]) -> int | None:
+    """The line of a module where a change's first removed line is: where its unchanged and
+    removed lines are found in its function, when found there once."""
+    tree = ast.parse(text)
+    *owner, fn = function.split(".")
+    body = tree.body
+    for cls in owner:
+        body = next((n.body for n in body if isinstance(n, ast.ClassDef) and n.name == cls), [])
+    node = next((n for n in body if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
+                 and n.name == fn), None)  # fmt: skip
+    old = [x for x in diff if x[:1] in (" ", "-")]
+    first = next((i for i, x in enumerate(old) if x[:1] == "-"), None)
+    if node is None or first is None:
+        return None
+    start = (node.decorator_list[0].lineno if node.decorator_list else node.lineno) - 1
+    lines = [x.strip() for x in text.splitlines()[start : node.end_lineno]]
+    want = [x[1:].strip() for x in old]  # mutmut prints a method's code dedented
+    at = [i for i in range(len(lines) - len(want) + 1) if lines[i : i + len(want)] == want]
+    return start + at[0] + first + 1 if len(at) == 1 else None
+
+
+def survivor_entries(
+    dirs: list[Path], content: dict[str, str], made: dict[str, list[str]] | None = None
+) -> list[dict]:
+    """The surviving changes of runs `export` kept, each with its module, function, line and
+    the lines it removed and added, in the module's order; a change the jobs kept no diff of
+    takes it from `made` (`remade`)."""
+    by_name = {n: rel for rel, keys in merged(dirs).items() for n, c in keys.items() if c == 0}
+    kept = diffs(dirs)
+    out = []
+    for name, rel in by_name.items():
+        diff = kept.get(name) or (made or {}).get(name, [])
+        function = function_of(name)
+        found = diff and rel in content
+        out.append({
+            "name": name, "module": rel, "function": function,
+            "line": line_of(source(content[rel]), function, diff) if found else None,
+            "removed": [x[1:] for x in diff if x[:1] == "-"],
+            "added": [x[1:] for x in diff if x[:1] == "+"],
+        })  # fmt: skip
+    number = lambda e: int(e["name"].rsplit("_", 1)[1])  # noqa: E731
+    return sorted(out, key=lambda e: (e["module"], e["line"] or 0, e["function"], number(e)))
+
+
+def unshown(dirs: list[Path]) -> dict[str, str]:
+    """The survivors the jobs kept no diff of (a job stopped before its summary), by file."""
+    kept = diffs(dirs)
+    return {n: rel for rel, keys in merged(dirs).items() for n, c in keys.items()
+            if c == 0 and not kept.get(n)}  # fmt: skip
+
+
+def remade(missing: dict[str, str], content: dict[str, str]) -> dict[str, list[str]]:
+    """The diffs of survivors no job kept, from mutmut's mutants made again in the copy from
+    the checkout: the same code and mutmut name the same changes. A module whose code is no
+    longer what the runs mutated is left out."""
+    here = {f for f in set(missing.values()) if (SERVER / "src" / f).exists()}
+    same = {f for f in here if content.get(f) == blob(SERVER / "src" / f)}
+    asked = {n: f"src/{f}" for n, f in missing.items() if f in same}
+    if not asked:
+        return {}
+    make_copy()
+    configure(sorted(same), [])
+    got = shown(asked, generate=True)
+    print(f"{len(asked)} survivors' changes made again from mutmut's mutants of the checkout")
+    return {n: hunk(d) for n, d in got.items() if d}
 
 
 def ran_nothing(dirs: list[Path]) -> bool:
@@ -762,6 +933,8 @@ def gather(args) -> int:
     ]
     print("area: changes, killed, survived, no tests, not run")
     unrun: list[str] = []
+    differ: list[str] = []
+    kept: list[tuple[str, list[Path], dict[str, str]]] = []
     for area, dirs in sorted(by_area.items()):
         by_file, _ = outcomes_of(dirs)
         c = counts(by_file)
@@ -776,27 +949,37 @@ def gather(args) -> int:
         if empty:
             unrun += empty
             continue
-        keep = BASELINE / slug(area)
-        keep.mkdir(parents=True, exist_ok=True)
-        with (keep / "survivors.txt").open("w") as out:
-            for d in sorted(dirs):
-                if (d / "survivors.txt").exists():
-                    out.write((d / "survivors.txt").read_text())
+        content, mixed = contents([d for d in dirs if d not in unreached])
+        if mixed:  # the runs saw different code: its outcomes don't add up
+            differ += mixed
+            continue
+        kept.append((area, dirs, content))
         if not args.no_record:
             name = f"baseline-{slug(area)}"
             path = RECORDS / f"{name}.json"
             old = json.loads(path.read_text()) if path.exists() else {"name": name}
             path.parent.mkdir(parents=True, exist_ok=True)
-            new = recorded(old, by_file, True, args)
+            new = recorded(old, by_file, True, args, content)
             path.write_text(json.dumps(new, indent=2) + "\n")
-    print(f"survivors by area in {BASELINE}")
+    # The diffs no job kept, made again at once for every area, then each area's survivors.
+    missing = {n: f for _, dirs, _ in kept for n, f in unshown(dirs).items()}
+    made = remade(missing, {f: b for _, _, c in kept for f, b in c.items()}) if missing else {}
+    keep = BASELINE if args.no_record else RECORDS / "survivors"  # an area's to a file
+    keep.mkdir(parents=True, exist_ok=True)
+    for area, dirs, content in kept:
+        found = survivor_entries(dirs, content, made)
+        lines = ",\n".join(json.dumps(e, ensure_ascii=False) for e in found)
+        (keep / f"{slug(area)}.json").write_text(f"[\n{lines}\n]\n")
+    print(f"survivors by area in {keep}")
     for d in unreached:
         job = json.loads((d / "job.json").read_text())
         print(f"no test file reaches {job['modules']} ({job['area']}): for its sweep")
     if unrun:
         print(f"ran nothing, so their areas are not recorded: {' '.join(sorted(unrun))}")
-        return 1
-    return 0
+    if differ:
+        print("changed between the runs, so their areas are not recorded (run them again on "
+              f"one commit): {' '.join(differ)}")  # fmt: skip
+    return 1 if unrun or differ else 0
 
 
 def check(args) -> int:
@@ -867,10 +1050,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="the mutate workflow's run ids, the earliest first (owner/repo:id for "
                         "a fork's)")  # fmt: skip
     g.add_argument("--no-record", action="store_true", help="survivors only")
+    from . import baseline  # it drives this module's commands
+
+    baseline.add_parsers(sub)
     args = p.parse_args(argv)
     commands = {"run": run, "summary": summary, "check": check, "record": record,
                 "testrun": testrun, "testmap": testmap, "plan": plan, "export": export,
-                "gather": gather}  # fmt: skip
+                "gather": gather, **baseline.COMMANDS}  # fmt: skip
     return commands[args.what](args)
 
 

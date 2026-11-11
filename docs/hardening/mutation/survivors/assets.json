@@ -1,0 +1,7 @@
+[
+{"name": "moolakata.assets.x_basis__mutmut_7", "module": "moolakata/assets/__init__.py", "function": "basis", "line": 124, "removed": ["        + sum((m.amount for m in d.improvements if day is None or m.date <= day), ZERO)"], "added": ["        + sum((m.amount for m in d.improvements if day is None or m.date <= day), )"]},
+{"name": "moolakata.assets.x_series__mutmut_52", "module": "moolakata/assets/__init__.py", "function": "series", "line": 247, "removed": ["                sum((value_on(i, ds[i.id], day, current.get(i.metal)) for i in items), ZERO),"], "added": ["                sum((value_on(i, ds[i.id], day, current.get(i.metal)) for i in items), ),"]},
+{"name": "moolakata.assets.x_metals__mutmut_24", "module": "moolakata/assets/__init__.py", "function": "metals", "line": 278, "removed": ["        oz = sum((fine_ounces(i) for i in held), ZERO)"], "added": ["        oz = sum((fine_ounces(i) for i in held), )"]},
+{"name": "moolakata.assets.x_metals__mutmut_30", "module": "moolakata/assets/__init__.py", "function": "metals", "line": 279, "removed": ["        cost = sum((basis(i, ds[i.id]) for i in held), ZERO)"], "added": ["        cost = sum((basis(i, ds[i.id]) for i in held), )"]},
+{"name": "moolakata.assets.x_metals__mutmut_41", "module": "moolakata/assets/__init__.py", "function": "metals", "line": 282, "removed": ["            (value_on(i, ds[i.id], day, price.price if price else None) for i in held), ZERO", "        )"], "added": ["            (value_on(i, ds[i.id], day, price.price if price else None) for i in held), )"]}
+]

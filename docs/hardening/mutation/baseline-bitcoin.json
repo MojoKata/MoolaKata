@@ -74,5 +74,16 @@
     "moolakata/bitcoin/transfers.py",
     "moolakata/bitcoin/wallet.py",
     "moolakata/ui/wallets.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/bitcoin/__init__.py": "351b64f4c7f16bae9dd2306e90c484c72c3da0f6",
+    "moolakata/bitcoin/descriptor.py": "f6a8ba95786110714f46fd497008b49685541acb",
+    "moolakata/bitcoin/keys.py": "e272774568bd70e12b330853eb10a0e71692e8fc",
+    "moolakata/bitcoin/sources.py": "d2303693021c0c3dfae8839e6b8a5637e53abec6",
+    "moolakata/bitcoin/stub.py": "f858d4a7158fac0021ef7224ff20a3661b512f29",
+    "moolakata/bitcoin/sync.py": "0951287a2067f73d0fddbd324fe46a73f9498212",
+    "moolakata/bitcoin/transfers.py": "89b58ebc4596505b13375ac83f8c168c25d529b2",
+    "moolakata/bitcoin/wallet.py": "f38594fd9c59e89ac57124a73a4830184c62786d",
+    "moolakata/ui/wallets.py": "e8ccbdd32be12ba03ca61f82423358a96666d346"
+  }
 }

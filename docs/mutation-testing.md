@@ -183,7 +183,8 @@ Modules are paths under `web/server/src`; a folder means every module in it. The
    from) is stopped and the change counted killed: such a change keeps allocating, and before
    mutmut's time limit ended it, one grew a worker to 9.3 GB and stopped a whole run.
 6. **Prints** the outcomes by file and the survivors by function, and writes each survivor's
-   change to `web/.dev/mutate/survivors.txt`. `web/dev.sh mutate summary` prints them again.
+   change (its diff, with the unchanged lines around it) to `web/.dev/mutate/survivors.txt`.
+   `web/dev.sh mutate summary` prints them again.
 
 `--only <names or globs>` reruns chosen changes
 (`moolakata.ledger.lots.x__consume__mutmut_*` for one function), still with a fresh map.
@@ -235,8 +236,15 @@ web/dev.sh mutate gather <run id>...    # gh run download; one record per area (
 
 `gather` downloads each run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
 outcomes, records its first run as `docs/hardening/mutation/baseline-<area>.json` (as `record
---first` does) and writes its survivors to `web/.dev/mutate-results/baseline/<area>/`. The
-records are committed; the area's sweep settles its record with `record baseline-<area> --pr N`
+--first` does) and its survivors as `docs/hardening/mutation/survivors/<area>.json`: one
+change a line, with its module, function, line and the lines it removed and added, in the
+module's order (`--no-record` writes them to `web/.dev/mutate-results/baseline/` instead). A
+job stopped by its time limit exports its survivors' diffs from its mutants, since it never
+reached its summary; for runs exported before that, `gather` makes the missing diffs again
+from mutmut's own mutants of the checkout (no test runs: the same code and the same mutmut
+name the same changes), for each module whose code is still what the runs mutated. A line is
+where the change's unchanged and removed lines are found once in its function, else empty.
+The records and the survivors are committed; the area's sweep settles its record with `record baseline-<area> --pr N`
 after a full run of its modules. A job that ran out of time leaves changes not run, and the
 `rest` input runs them: given the runs (as `gather` takes them), `mutate plan --rest` splits
 each job's unrun changes into jobs (`auth-1.r1-1`, …, round 1) that run only those (`run
@@ -254,6 +262,17 @@ first change (the memory limit, or a test failing in the copy) is run again by n
 the earlier one's, and records no area with a job that ran nothing. A module no test file
 reaches (one run only as a subprocess, where coverage doesn't follow) has nothing to run: its
 job says so, and `gather` names it for the area's sweep.
+
+Each record keeps every module's content as the runs mutated it (`first_content`, git blob
+ids from each run's commit); `gather` records no area whose modules two runs saw differently,
+since their outcomes don't add up. `web/dev.sh mutate stale` names the modules changed since
+their latest run, which a step's pull request lists (REVIEW.md §11.8), and the hardening page
+marks them *baseline, changed since*.
+
+`web/dev.sh mutate baseline` runs the whole loop (start the workflow, wait, `rest` rounds until
+nothing is left unrun, then `gather`), and picks up where it stopped. `mutation-baseline.md` is
+the procedure step by step, what the first baseline ran into and how each was settled, and how
+to make it again, whole or in part.
 
 A pull request that changes the workflow or these tools runs a trial on two small modules,
 `duration.py` and `ui/tokens.py` (which no test file imports), so the whole chain is checked

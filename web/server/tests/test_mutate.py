@@ -16,6 +16,14 @@ import pytest
 from moolakata.dev import mutate
 
 
+@pytest.fixture(autouse=True)
+def _one_commit(monkeypatch):
+    """The runs gathered here all ran one commit, where each module reads the same."""
+    monkeypatch.setattr(mutate, "head_of", lambda repo, run: f"commit-{run}")
+    monkeypatch.setattr(mutate, "blob_at", lambda repo, commit, rel: f"blob-{rel}")
+    monkeypatch.setattr(mutate, "remade", lambda missing, content: {})  # no copy made here
+
+
 def meta(src, rel, codes):
     path = src / f"{rel}.meta"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,8 +172,10 @@ def test_gather_records_each_areas_first_run_from_its_jobs_and_keeps_its_survivo
         ledger["first"]["no tests"],
     ) == (3, 1, 1)
     assert "pr" not in ledger  # a first run, settled by the area's sweep
-    survivors = (tmp_path / "baseline" / "ledger" / "survivors.txt").read_text()
-    assert survivors == "# ledger-1\n# ledger-2\n"
+    assert json.loads((tmp_path / "records" / "survivors" / "ledger.json").read_text()) == [
+        {"name": "moolakata.ledger.post.py.x_f__mutmut_2", "module": "moolakata/ledger/post.py",
+         "function": "f", "line": None, "removed": [], "added": []},
+    ]  # fmt: skip
     assert (tmp_path / "records" / "baseline-core.json").exists()
 
 
@@ -468,3 +478,242 @@ def test_a_changes_worker_takes_the_name_the_watcher_finds(monkeypatch):
         monkeypatch.setenv("MUTANT_UNDER_TEST", under_test)
         mutant_name.pytest_configure(None)
     assert named == ["mutmut: moolakata.money.x_parse__mutmut_3"]
+
+
+def test_gather_keeps_each_modules_content_as_its_runs_ran_it_and_refuses_code_that_differs(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    users, roles = "moolakata/auth/users.py", "moolakata/auth/roles.py"
+    d = _job(tmp_path, "1", "auth-1", "server/auth", users, [1, None])
+    # roles.py has nothing mutmut changes: its content is kept all the same.
+    (d / "job.json").write_text(json.dumps(
+        {"name": "auth-1", "area": "server/auth", "modules": f"{users} {roles}"}))  # fmt: skip
+    _job(tmp_path, "2", "auth-1.r1-1", "server/auth", users, [None, 0])
+    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 0
+    got = json.loads((tmp_path / "records" / "baseline-auth.json").read_text())
+    assert got["first_content"] == {roles: f"blob-{roles}", users: f"blob-{users}"}
+    assert json.loads((tmp_path / ".dev/mutate-ci/2/run.json").read_text())["commit"] == "commit-2"
+    # Run 2 saw another users.py: the outcomes don't add up, so the area isn't recorded.
+    (tmp_path / "records" / "baseline-auth.json").unlink()
+    monkeypatch.setattr(mutate, "blob_at", lambda repo, commit, rel: f"{commit}-{rel}")
+    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 1
+    assert f"changed between the runs, so their areas are not recorded (run them again on one " \
+           f"commit): {users}" in capsys.readouterr().out  # fmt: skip
+    assert not (tmp_path / "records" / "baseline-auth.json").exists()
+
+
+def test_stale_names_modules_changed_since_their_latest_run_and_those_in_none(
+    tmp_path, monkeypatch, capsys
+):
+    from moolakata.dev import baseline, hardening
+
+    a, b, c, d = (f"moolakata/{x}.py" for x in "abcd")
+    recs = [
+        {"name": "baseline-core", "modules": [a], "first_content": {a: "a1", b: "b1"}},
+        # Settled, then changed, then run again by the baseline: the baseline's is the latest.
+        {"name": "values", "pr": 32, "modules": [a, c], "content": {a: "a0", c: "c1"}},
+    ]
+    monkeypatch.setattr(hardening, "records", lambda: recs)
+    monkeypatch.setattr(mutate, "server_modules", lambda: {a: 1, b: 1, c: 1, d: 1})
+    monkeypatch.setattr(
+        baseline, "current", lambda ms: [{b: "b2", c: "c2"}.get(m, "a1") for m in ms]
+    )
+    assert mutate.main(["stale"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        f"baseline-core: changed since its first run: {b}",
+        f"values: changed since settled in #32: {c}",
+        f"in no run: {d}",
+    ]
+    monkeypatch.setattr(
+        baseline, "current", lambda ms: [{b: "b1", c: "c1"}.get(m, "a1") for m in ms]
+    )
+    monkeypatch.setattr(mutate, "server_modules", lambda: {a: 1, b: 1, c: 1})
+    assert mutate.main(["stale"]) == 0
+    assert capsys.readouterr().out == "every module is as its run mutated it\n"
+
+
+def test_the_baseline_runs_rest_rounds_until_nothing_is_unrun_then_records(tmp_path, monkeypatch):
+    from moolakata.dev import baseline
+
+    monkeypatch.setattr(baseline, "STATE", tmp_path / "state.json")
+    started, left = [], iter([([], 30), ([], 4), ([], 0)])
+
+    def dispatch(repo, ref, inputs):
+        started.append(inputs)
+        return str(100 + len(started))
+
+    monkeypatch.setattr(baseline, "dispatch", dispatch)
+    monkeypatch.setattr(baseline, "wait", lambda repo, run: [])
+    monkeypatch.setattr(baseline, "unrun_after", lambda runs: next(left))
+    gathered = []
+    monkeypatch.setattr(mutate, "gather", lambda a: gathered.append(a.run) or 0)
+    assert mutate.main(["baseline", "--repo", "someone/MoolaKata", "--ref", "base"]) == 0
+    runs = ["someone/MoolaKata:101", "someone/MoolaKata:102", "someone/MoolaKata:103"]
+    assert started[0] == {"areas": "server/*", "jobs": "", "parallel": "20"}
+    assert started[1] == {"rest": " ".join(runs[:1]), "parallel": "20"}
+    assert started[2] == {"rest": " ".join(runs[:2]), "parallel": "20"}
+    assert gathered == [runs]
+    assert json.loads((tmp_path / "state.json").read_text())["runs"] == runs
+
+
+def test_the_baseline_stops_on_a_job_that_ran_nothing_or_a_round_that_gains_nothing(
+    tmp_path, monkeypatch, capsys
+):
+    from moolakata.dev import baseline
+
+    monkeypatch.setattr(baseline, "STATE", tmp_path / "state.json")
+    started = []
+    monkeypatch.setattr(baseline, "dispatch", lambda repo, ref, i: started.append(i) or "7")
+    monkeypatch.setattr(baseline, "wait", lambda repo, run: [])
+    monkeypatch.setattr(mutate, "gather", lambda a: pytest.fail("nothing to record"))
+    monkeypatch.setattr(baseline, "unrun_after", lambda runs: (["store-5"], 10))
+    assert mutate.main(["baseline"]) == 1
+    assert "then: web/dev.sh mutate baseline --jobs store-5" in capsys.readouterr().out
+    # Fixed, it's run again by name, and the loop goes on where it stopped.
+    left = iter([([], 12), ([], 12)])
+    monkeypatch.setattr(baseline, "unrun_after", lambda runs: next(left))
+    assert mutate.main(["baseline", "--jobs", "store-5"]) == 1
+    assert started[1]["jobs"] == "store-5" and started[2]["rest"]
+    assert "as many as the round before: stopped" in capsys.readouterr().out
+    assert len(json.loads((tmp_path / "state.json").read_text())["runs"]) == 3
+
+
+def test_a_dispatch_reads_its_runs_id_from_the_link_gh_prints(monkeypatch):
+    from moolakata.dev import baseline
+
+    calls = []
+    link = "https://github.com/someone/MoolaKata/actions/runs/42998791763\n"
+    monkeypatch.setattr(baseline, "gh", lambda *a: calls.append(a) or link)
+    got = baseline.dispatch("someone/MoolaKata", "base", {"rest": "1 2", "jobs": ""})
+    assert got == "42998791763"
+    assert calls == [("workflow", "run", "mutate.yml", "-R", "someone/MoolaKata", "--ref", "base",
+                      "-f", "rest=1 2")]  # fmt: skip
+
+
+def test_the_changes_left_after_the_runs_leave_out_jobs_that_ran_nothing(tmp_path, monkeypatch):
+    from moolakata.dev import baseline
+
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    _job(tmp_path, "1", "auth-1", "server/auth", "moolakata/auth/users.py", [1, None, None])
+    _job(tmp_path, "2", "auth-1.r1-1", "server/auth", "moolakata/auth/users.py", [None, 1, None])
+    _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None, None])
+    assert baseline.unrun_after(["1", "someone/MoolaKata:2"]) == (["keys-1"], 1)
+
+
+SHOWN = """# moolakata.money.x_f__mutmut_2: survived
+--- src/moolakata/money.py
++++ src/moolakata/money.py
+@@ -1,4 +1,4 @@
+ def total(xs):
+-    return sum(xs)
++    return None
+"""
+
+MONEY = """import functools
+
+
+class Span:
+    def holds(self, x):
+        return x
+
+
+@functools.cache
+def total(xs):
+    return sum(xs)
+
+
+def again(xs):
+    return sum(xs)
+"""
+
+
+def test_a_changes_diff_reads_without_its_headers_and_its_function_from_its_name():
+    assert mutate.hunk(SHOWN) == [" def total(xs):", "-    return sum(xs)", "+    return None"]
+    assert mutate.hunk("") == []
+    assert mutate.function_of("moolakata.ui.profile.x__show__mutmut_8") == "_show"
+    assert mutate.function_of("moolakata.budgets.xǁSpanǁholds__mutmut_7") == "Span.holds"
+
+
+def test_a_changes_line_is_where_its_lines_are_found_once_in_its_function():
+    # The unchanged line above tells the two `return sum(xs)` apart; a decorator counts in.
+    assert mutate.line_of(MONEY, "total", [" def total(xs):", "-    return sum(xs)"]) == 11
+    assert mutate.line_of(MONEY, "again", ["-    return sum(xs)", "+    return None"]) == 15
+    # A method's code, as mutmut prints it, dedented.
+    assert mutate.line_of(MONEY, "Span.holds", [" def holds(self, x):", "-    return x"]) == 6
+    assert mutate.line_of(MONEY, "total", ["-    return max(xs)"]) is None  # not there
+    assert mutate.line_of(MONEY, "gone", ["-    return sum(xs)"]) is None
+    twice = MONEY + "\n\ndef both(xs):\n    return 1\n    return 1\n"
+    assert mutate.line_of(twice, "both", ["-    return 1", "+    return 2"]) is None
+
+
+def test_gather_keeps_each_survivor_with_its_line_and_diff_and_makes_the_missing_ones(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    monkeypatch.setattr(mutate, "source", lambda content: MONEY)
+    money = "moolakata/money.py"
+    d = _job(tmp_path, "1", "core-1", "server/core", money, [1, 0, 0])
+    # The job's summary kept change 2's diff; change 3's job stopped before it.
+    (d / "survivors.txt").write_text(
+        "# moolakata.money.py.x_f__mutmut_2\n def total(xs):\n-    return sum(xs)\n"
+        "+    return None\n# moolakata.money.py.x_f__mutmut_3\n"
+    )
+    asked = []
+
+    def remade(missing, content):
+        asked.append(missing)
+        return {"moolakata.money.py.x_f__mutmut_3": ["-    return sum(xs)", "+    return 0"]}
+
+    monkeypatch.setattr(mutate, "remade", remade)
+    assert mutate.gather(argparse.Namespace(run=["1"], no_record=False)) == 0
+    assert asked == [{"moolakata.money.py.x_f__mutmut_3": money}]
+    got = json.loads((tmp_path / "records" / "survivors" / "core.json").read_text())
+    # `f` isn't in MONEY: the line is found in a named function only.
+    assert [(e["name"][-1], e["line"], e["removed"], e["added"]) for e in got] == [
+        ("2", None, ["    return sum(xs)"], ["    return None"]),
+        ("3", None, ["    return sum(xs)"], ["    return 0"]),
+    ]
+
+
+def test_the_missing_diffs_are_made_again_only_where_the_code_is_what_the_runs_mutated(
+    monkeypatch,
+):
+    a, b = "moolakata/money.py", "moolakata/duration.py"
+    monkeypatch.undo()  # the real `remade`, its copy's steps stubbed
+    calls = []
+    monkeypatch.setattr(mutate, "blob", lambda path: "same" if path.name == "money.py" else "x")
+    monkeypatch.setattr(mutate, "make_copy", lambda: calls.append("copy"))
+    monkeypatch.setattr(mutate, "configure", lambda ms, tests: calls.append(("only", ms)))
+    monkeypatch.setattr(mutate, "shown", lambda names, generate: calls.append(
+        (names, generate)) or {n: SHOWN for n in names})  # fmt: skip
+    got = mutate.remade({"m.x_f__mutmut_2": a, "d.x_g__mutmut_1": b}, {a: "same", b: "old"})
+    assert got == {"m.x_f__mutmut_2": mutate.hunk(SHOWN)}
+    assert calls == ["copy", ("only", [a]), ({"m.x_f__mutmut_2": f"src/{a}"}, True)]
+    assert mutate.remade({"d.x_g__mutmut_1": b}, {b: "old"}) == {}  # nothing the same: no copy
+
+
+def test_export_keeps_each_survivors_diff_from_the_mutants_when_the_run_was_stopped(
+    tmp_path, monkeypatch
+):
+    work = tmp_path / "work"
+    monkeypatch.setattr(mutate, "WORK", work)
+    monkeypatch.setattr(mutate, "COPY", work / "web")
+    monkeypatch.setattr(mutate, "UNREACHED", work / "unreached.txt")
+    monkeypatch.setattr(mutate, "_mutmut_pids", lambda: [])
+    meta(work / "web" / "mutants" / "src", "moolakata/money.py", [1, 0])
+    asked = []
+    monkeypatch.setattr(mutate, "shown", lambda names: asked.append(names) or
+                        {n: SHOWN for n in names})  # fmt: skip
+    out = tmp_path / "out"
+    args = ["export", str(out), "--name", "core-1", "--area", "server/core", "--modules", "x"]
+    assert mutate.main(args) == 0
+    assert asked == [{"moolakata.money.py.x_f__mutmut_2": "src/moolakata/money.py"}]
+    assert (out / "survivors.txt").read_text() == (
+        "# moolakata.money.py.x_f__mutmut_2\n def total(xs):\n-    return sum(xs)\n"
+        "+    return None\n"
+    )

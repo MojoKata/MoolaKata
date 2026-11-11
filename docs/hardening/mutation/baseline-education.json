@@ -26,5 +26,9 @@
   "modules": [
     "moolakata/education/__init__.py",
     "moolakata/ui/education.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/education/__init__.py": "c9aa6ced6da9a426c671215da6b66c2136d6a3fe",
+    "moolakata/ui/education.py": "5c28b46b582363550f37fe80fa4a70146900c368"
+  }
 }

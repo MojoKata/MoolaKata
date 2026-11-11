@@ -26,5 +26,9 @@
   "modules": [
     "moolakata/loans/__init__.py",
     "moolakata/ui/loans.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/loans/__init__.py": "fba51c4c7c22948d9553e55a7b1b16482f011988",
+    "moolakata/ui/loans.py": "dfcbf52542d339dda034caf1a8c93558245c3972"
+  }
 }

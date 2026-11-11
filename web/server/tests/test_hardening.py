@@ -78,6 +78,25 @@ def test_a_module_counts_as_tested_until_its_content_changes():
     assert got["server/loans"]["current"] == 0 and got["server/loans"]["statements"] == 80
 
 
+def test_a_baseline_module_reads_changed_once_its_content_is_not_what_the_baseline_mutated():
+    rules, users, dates = (
+        "moolakata/rules.py",
+        "moolakata/auth/users.py",
+        "moolakata/taxes/dates.py",
+    )
+    recs = [
+        {"name": "baseline-core", "modules": [rules, users],
+         "first_content": {rules: "r1", users: "u1"}},
+        # Settled since: its settled run is what counts, not the baseline's.
+        {"name": "baseline-taxes", "pr": 50, "modules": [dates], "first_content": {dates: "d0"},
+         "content": {dates: "d1"}},
+        # A first run recorded before runs kept their content: nothing to tell.
+        {"name": "values", "modules": ["moolakata/valuation.py"]},
+    ]  # fmt: skip
+    blobs = {rules: "r1", users: "u2", dates: "d1", "moolakata/valuation.py": "v"}
+    assert hardening.baseline_runs(recs, blobs) == {rules: "current", users: "changed"}
+
+
 def test_a_step_is_done_when_its_pull_request_has_merged(monkeypatch):
     monkeypatch.setattr(hardening, "merged", lambda history: {h["pr"] for h in history})
     plan = {"step": [

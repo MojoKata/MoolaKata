@@ -26,5 +26,9 @@
   "modules": [
     "moolakata/giving/__init__.py",
     "moolakata/ui/giving.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/giving/__init__.py": "a23c55bebba388c516d66c3e1879c61663e88a9f",
+    "moolakata/ui/giving.py": "8f97c144454a1832dd3fe8a2c0064a02aa7ad9af"
+  }
 }

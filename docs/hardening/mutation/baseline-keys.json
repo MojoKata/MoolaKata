@@ -82,5 +82,17 @@
     "moolakata/keys/welcome.py",
     "moolakata/ui/unlock.py",
     "moolakata/ui/welcome.py"
-  ]
+  ],
+  "first_content": {
+    "moolakata/keys/__init__.py": "d043a24b5b68c9b0c39f50b5bdaa7485140e720d",
+    "moolakata/keys/breakglass.py": "99872a115aa91624353dcde6e6fc05c87ac90ea4",
+    "moolakata/keys/cli.py": "af6536dec68395778f38f8c2965b936f405ae76d",
+    "moolakata/keys/files.py": "e21bee4e86484fc733f97e3c9b859cb71ce5df73",
+    "moolakata/keys/master.py": "5136a623dbc45b82863ac250f7ae2af830e6fd45",
+    "moolakata/keys/phrase.py": "9b3b89e13debd1bdcd8541c3e5fe96489634c5a0",
+    "moolakata/keys/secrets.py": "b6ce42f96bece7983c9f5674670ac589493f0244",
+    "moolakata/keys/welcome.py": "21cd8dd1f1b70fbaa56ba5b94ffda2c2a06055f3",
+    "moolakata/ui/unlock.py": "03ed5ac991b77ba2a004312286f622801b76aa0f",
+    "moolakata/ui/welcome.py": "7867cefc1ad187939417c3af6c2d244861048f71"
+  }
 }
