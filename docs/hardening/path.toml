@@ -38,6 +38,7 @@ kind = "tooling"
 what = "The mutation baseline: every server module's first run on CI, side by side, before the sweeps"
 
 [[step]]
+pr = 44
 kind = "med"
 what = "Med bugs in the server: a rule that can freeze it, an invitation left working, Bitcoin's default source, a key taken out, a savings target"
 findings = [25, 49, 20, 62, 31, 452]
