@@ -148,10 +148,13 @@ web/dev.sh mutate run moolakata/valuation.py moolakata/ledger/lots.py moolakata/
 
 Modules are paths under `web/server/src`; a folder means every module in it. The command:
 
-1. **Copies the server** to `web/.dev/mutate` (mutmut changes the code it tests, so never the
-   checkout), with what the server reads from beside itself linked in (`ui`, `audit.json`,
-   `coverage-floor.json`, `dev.sh`, `install`; `connector`, `docs`, `.github`, `publish` a
-   level up; `VERSION` copied where the build and the code look for it).
+1. **Copies the server** to `web/.dev/mutate/web` (mutmut changes the code it tests, so never
+   the checkout), laid out as the repository: mutmut runs the tests from the copy's
+   `mutants/`, where the code takes the copy for `web/` and its parent for the root, so a path
+   a test takes relative to the root reads as in the checkout. What the server reads from
+   beside itself is linked in (`ui`, `audit.json`, `coverage-floor.json`, `dev.sh`, `install`,
+   and `server` to the copy itself; `connector`, `docs`, `.github`, `publish`, `.dockerignore`
+   a level up; `VERSION` copied where the build and the code look for it).
 2. **Installs the lock's `mutation` group** in the copy (mutmut, pinned and audited like any
    tool in `uv.lock`; `setup` never installs it).
 3. **Chooses the tests**: every fast test file that imports one of the modules, plus any named
@@ -161,9 +164,24 @@ Modules are paths under `web/server/src`; a folder means every module in it. The
 4. **Writes mutmut's settings** in the copy and **runs it** with `--workers` (6 by default)
    from a fresh `mutants/` folder, so the map of which tests reach which function is built
    from the tests as they are (a rerun reusing the last map never tries tests added since).
+   mutmut runs in its forkserver mode: its main process only imports and collects the tests,
+   and every session (the stats, the clean run, each change) runs in a fork of it. In its fork
+   mode the stats ran in the process every worker is forked from, and the workers inherited
+   what the tests left there: the imports' thread pool, its thread gone in the fork, so an
+   upload's job never ran.
+   Before the changes, mutmut checks that one can fail the tests by making every changed
+   function raise, so the tests call none as conftest loads (the records' mapping is a
+   session fixture): pytest takes an error while conftest loads for a usage error, which
+   mutmut takes for a broken command, and a job changing `store/mapping.py` never ran.
+   Each change's tests run in one process, and a test's temporary folder goes when it passes
+   (pytest keeps them otherwise, and a session over a well-tested module, a copy of the store
+   each test, reaches a gigabyte: enough sessions filled a CI runner's disk).
 5. **Watches its memory** as PSS (its workers rename themselves `mutmut: <change>`, and share
    pages) and stops the run past `--limit` (15 GB by default, inside the project's budget of
-   about 20 GB; six workers peaked at 7 to 11 GB).
+   about 20 GB; six workers peaked at 7 to 11 GB). A change's worker that writes more than `--worker-limit`
+   of its own (3 GB by default, beyond the pages it shares with the process it was forked
+   from) is stopped and the change counted killed: such a change keeps allocating, and before
+   mutmut's time limit ended it, one grew a worker to 9.3 GB and stopped a whole run.
 6. **Prints** the outcomes by file and the survivors by function, and writes each survivor's
    change to `web/.dev/mutate/survivors.txt`. `web/dev.sh mutate summary` prints them again.
 
@@ -190,8 +208,10 @@ walks them all.
 Every server module's run, side by side on GitHub's standard runners, started by hand: the
 **mutate** workflow (`.github/workflows/mutate.yml`) in the repository's Actions tab, **Run
 workflow** on `main`. Its inputs: the areas (globs, every one by default), the code lines per
-job (1000), whether to run modules whose settled run is current too (no), and the jobs at once
-(14 of the account's 20, leaving room for pull requests' checks).
+job (1000), whether to run modules whose settled run is current too (no), the jobs at once
+(14 of the account's 20, leaving room for pull requests' checks), and the jobs to run, by name
+(every one; a name only runs an earlier run's job again, which the same tree's plan names the
+same), or instead the earlier runs whose unrun changes to run (`rest`).
 
 1. **The test map** (6 jobs): the fast tests run once under coverage, each test's setup, call
    and teardown measured in a context named by its file (`moolakata.dev.testmap`, through
@@ -210,15 +230,28 @@ job (1000), whether to run modules whose settled run is current too (no), and th
 Then, on this machine:
 
 ```sh
-web/dev.sh mutate gather <run id>    # gh run download; one record per area
+web/dev.sh mutate gather <run id>...    # gh run download; one record per area (owner/repo:id for a fork's run)
 ```
 
-`gather` downloads the run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
+`gather` downloads each run's artifacts to `web/.dev/mutate-ci/<run>`, prints each area's
 outcomes, records its first run as `docs/hardening/mutation/baseline-<area>.json` (as `record
 --first` does) and writes its survivors to `web/.dev/mutate-results/baseline/<area>/`. The
 records are committed; the area's sweep settles its record with `record baseline-<area> --pr N`
-after a full run of its modules. A job that ran out of time leaves changes not run: its modules
-go again (`--only` on what is left, or a smaller size), on CI or here.
+after a full run of its modules. A job that ran out of time leaves changes not run, and the
+`rest` input runs them: given the runs (as `gather` takes them), `mutate plan --rest` splits
+each job's unrun changes into jobs (`auth-1.r1-1`, …, round 1) that run only those (`run
+--only-file`); with the `jobs` input too, only those jobs' (another's may be under way). mutmut runs the quickest changes first, so those left are the slowest, each at
+least the slowest one reached; its estimate is a change's worst case (every test run, as for a
+survivor), and a job is given twice what 240 minutes of 4 workers allows at that, since a killed
+change stops at its first failing test. More time per job isn't to be had (a runner stops at
+6 hours), and a smaller size can't split a module larger than one job. `gather` with every run
+takes each change's outcome from whichever job finished it; a round that leaves some unrun again
+is followed by another, numbered after it. A job stopped before its
+first change (the memory limit, or a test failing in the copy) is run again by name, with the
+`jobs` input, once the cause is fixed; `gather <first run> <rerun>` takes a later run's job over
+the earlier one's, and records no area with a job that ran nothing. A module no test file
+reaches (one run only as a subprocess, where coverage doesn't follow) has nothing to run: its
+job says so, and `gather` names it for the area's sweep.
 
 A pull request that changes the workflow or these tools runs a trial on two small modules,
 `duration.py` and `ui/tokens.py` (which no test file imports), so the whole chain is checked

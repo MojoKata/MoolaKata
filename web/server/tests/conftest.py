@@ -5,6 +5,7 @@ import shutil
 from decimal import Decimal
 from pathlib import Path
 
+import opened
 import parts  # CI's parts, split by measured time (S17.10.1)
 import pytest
 
@@ -27,12 +28,19 @@ from moolakata.store import mapping
 from moolakata.store.maintenance import open_store
 
 measure_the_browser_app()
-# The records are mapped before any test, as the server maps them when it starts: a test that
-# builds a query on a fake session works alone as well as after one that opened a store.
-mapping.map_all()
 # Every kept budget month is worked out again on a hit and compared (S7.3.10): each test that
 # reads a month twice also proves the cache answers what the data says.
 month_cache.CHECK = True
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _mapped():
+    """The records are mapped before any test, as the server maps them when it starts: a test
+    that builds a query on a fake session works alone as well as after one that opened a store.
+    In a fixture, not as conftest loads: mutmut's check that a change can fail the tests makes
+    every changed function raise, and one raising while conftest loads is pytest's usage error,
+    which mutmut takes for a broken command, where here each test fails."""
+    mapping.map_all()
 
 
 @pytest.fixture(autouse=True)
@@ -343,9 +351,20 @@ def make_user(
         return u
 
 
+# The clients sign_in opened, closed after their test: an open one keeps its event loop's
+# thread, and with it the app, the server and the store, until the run ends. The list is
+# opened.py's, the one every import of this file shares.
+@pytest.fixture(autouse=True)
+def _signed_in_closed():
+    yield
+    while opened.clients:
+        opened.clients.pop().__exit__(None, None, None)
+
+
 def sign_in(srv, username: str, password: str = "a long user passphrase") -> TestClient:
     c = new_client(srv)
     c.__enter__()
+    opened.clients.append(c)
     r = c.post("/ui/api/session", json={"login": username, "password": password})
     assert r.status_code == 200, r.text
     return c

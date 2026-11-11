@@ -3,8 +3,15 @@ mutmut leaves in its .meta files, counted by file, and kept for the hardening pa
 first run, the settling run and each file's content."""
 
 import argparse
+import importlib.util
 import json
+import os
 import subprocess
+import sys
+import time
+import tomllib
+
+import pytest
 
 from moolakata.dev import mutate
 
@@ -148,7 +155,7 @@ def test_gather_records_each_areas_first_run_from_its_jobs_and_keeps_its_survivo
         area = "server/core" if name.startswith("core") else "server/ledger"
         (d / "job.json").write_text(json.dumps({"name": name, "area": area, "modules": rel}))
         (d / "survivors.txt").write_text(f"# {name}\n")
-    assert mutate.gather(argparse.Namespace(run="123", no_record=False)) == 0
+    assert mutate.gather(argparse.Namespace(run=["123"], no_record=False)) == 0
     ledger = json.loads((tmp_path / "records" / "baseline-ledger.json").read_text())
     assert ledger["modules"] == ["moolakata/ledger/post.py", "moolakata/ui/transactions.py"]
     assert (
@@ -171,3 +178,293 @@ def test_record_reads_runs_export_kept(tmp_path, monkeypatch):
     assert mutate.record(a) == 0
     got = json.loads((tmp_path / "records" / "x.json").read_text())
     assert got["modules"] == ["moolakata/a.py", "moolakata/b.py"] and got["first"]["killed"] == 2
+
+
+def test_the_copy_is_laid_out_as_the_repository_so_a_test_reads_by_either_path(
+    tmp_path, monkeypatch
+):  # fmt: skip
+    """From mutants/, paths takes the copy for web/ and its parent for the root: a test that read
+    root/web/install/Dockerfile found nothing while the copy was web/server, and a server path
+    taken relative to the root read server/src/... (no area)."""
+    assert mutate.COPY == mutate.WORK / "web"
+    root, web = tmp_path / "repo", tmp_path / "repo" / "web"
+    for name in mutate.BESIDE:
+        (web / name).mkdir(parents=True)
+    (web / "install" / "Dockerfile").write_text("FROM x\n")
+    for name in mutate.ABOVE:
+        (root / name).mkdir(parents=True)
+    copy = web / ".dev" / "mutate" / "web"
+    copy.mkdir(parents=True)
+    monkeypatch.setattr(mutate.paths, "ROOT", root)
+    monkeypatch.setattr(mutate.paths, "WEB", web)
+    monkeypatch.setattr(mutate, "COPY", copy)
+    for _ in range(2):  # and again, as each run makes the copy
+        mutate.link_copy()
+        seen_web, seen_root = copy, copy.parent
+        for name in mutate.BESIDE:
+            assert (seen_root / "web" / name).resolve() == (web / name).resolve()
+            assert (seen_web / name).resolve() == (web / name).resolve()
+        for name in mutate.ABOVE:
+            assert (seen_root / name).resolve() == (root / name).resolve()
+        assert (seen_root / "web" / "server").resolve() == copy.resolve()
+        assert (seen_root / "web" / "install" / "Dockerfile").read_text() == "FROM x\n"
+        server = seen_web / "server" / "src"
+        assert server.relative_to(seen_root).as_posix() == "web/server/src"
+
+
+def test_gather_takes_a_later_runs_job_over_the_earlier_and_records_no_area_that_ran_nothing(
+    tmp_path, monkeypatch
+):  # fmt: skip
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+
+    def job(run, name, area, rel, codes):
+        d = tmp_path / ".dev" / "mutate-ci" / run / f"mutation-{name}"
+        meta(d / "src", rel, codes)
+        (d / "job.json").write_text(json.dumps({"name": name, "area": area, "modules": rel}))
+
+    # Run 1: auth-1 stopped before its first change, keys-1 too; ledger-1 ran.
+    job("1", "auth-1", "server/auth", "moolakata/auth/users.py", [None, None])
+    job("1", "keys-1", "server/keys", "moolakata/keys/files.py", [None])
+    job("1", "ledger-1", "server/ledger", "moolakata/ledger/post.py", [1, 0])
+    # Run 2: auth-1 again, run.
+    job("2", "auth-1", "server/auth", "moolakata/auth/users.py", [1, 1])
+    # Run 2 from a fork, by owner/repo:id; both already downloaded.
+    given = ["1", "someone/MoolaKata:2"]
+    assert mutate.gather(argparse.Namespace(run=given, no_record=False)) == 1  # keys-1
+    records = tmp_path / "records"
+    auth = json.loads((records / "baseline-auth.json").read_text())
+    assert (auth["first"]["killed"], auth["first"]["not run"]) == (2, 0)
+    assert (records / "baseline-ledger.json").exists()
+    assert not (records / "baseline-keys.json").exists()
+
+
+def _job(root, run, name, area, rel, codes, estimates=None):
+    d = root / ".dev" / "mutate-ci" / run / f"mutation-{name}"
+    meta(d / "src", rel, codes)
+    if estimates is not None:
+        path = d / "src" / f"{rel}.meta"
+        data = json.loads(path.read_text())
+        data["estimated_durations_by_key"] = estimates
+        path.write_text(json.dumps(data))
+    (d / "job.json").write_text(json.dumps({"name": name, "area": area, "modules": rel}))
+    return d
+
+
+def test_gather_takes_each_changes_outcome_from_whichever_job_finished_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    users = "moolakata/auth/users.py"
+    _job(tmp_path, "1", "auth-1", "server/auth", users, [1, None, None, None])
+    _job(tmp_path, "2", "auth-1.r1-1", "server/auth", users, [None, 0, 1, None])
+    # keys-1 ran nothing, then a job finishing its changes ran one: its area is recorded.
+    _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None, None])
+    _job(tmp_path, "2", "keys-1.r1-1", "server/keys", "moolakata/keys/files.py", [None, 1])
+    assert mutate.gather(argparse.Namespace(run=["1", "2"], no_record=False)) == 0
+    first = json.loads((tmp_path / "records" / "baseline-auth.json").read_text())["first"]
+    assert (first["killed"], first["survived"], first["not run"]) == (2, 1, 1)
+    assert sum(first[k] for k in mutate.COUNTED) == 4  # each change once, not once a job
+    assert (tmp_path / "records" / "baseline-keys.json").exists()
+
+
+def test_the_changes_left_unrun_are_split_by_the_slowest_estimate_and_dealt_out(tmp_path):
+    users = "moolakata/auth/users.py"
+    # A job may take 2 * 240 min * 4 workers of worst cases: 3 of 38,400 s each.
+    worst = 2 * mutate.REST_MINUTES * 60 * mutate.REST_WORKERS / 3
+    estimates = {"moolakata.auth.users.py.x_f__mutmut_1": worst}
+    # And no more than half what the first run finished in its 330 minutes, scaled to 240: of
+    # 9 reached, 3 (at 8 reached, 2).
+    codes = [1] * 9 + [None] * 7
+    jobs = {
+        "auth-1": _job(tmp_path, "1", "auth-1", "server/auth", users, codes, estimates),
+        "core-1": _job(tmp_path, "1", "core-1", "server/core", "moolakata/money.py", [1, 0]),
+        # Stopped before its first change: run again by name, not here.
+        "keys-1": _job(tmp_path, "1", "keys-1", "server/keys", "moolakata/keys/files.py", [None]),
+    }
+    got, names = mutate.rest_jobs(jobs)
+    assert [j["name"] for j in got] == ["auth-1.r1-1", "auth-1.r1-2", "auth-1.r1-3"]
+    unrun = sorted(f"moolakata.auth.users.py.x_f__mutmut_{i}" for i in range(10, 17))
+    assert names["auth-1.r1-1"] == unrun[0::3]
+    assert sorted(n for these in names.values() for n in these) == unrun
+    assert got[0] == {
+        "name": "auth-1.r1-1",
+        "area": "server/auth",
+        "lines": 0,
+        "size": "3 changes",
+        "modules": users,
+        "only": "auth-1.r1-1.txt",
+    }
+    # A round left changes unrun again: the next round's jobs are numbered after it.
+    jobs["auth-1.r1-2"] = _job(
+        tmp_path, "2", "auth-1.r1-2", "server/auth", users, [None] * 9 + [1, 1] + [None] * 5
+    )
+    again, names = mutate.rest_jobs(jobs)
+    assert {j["name"].rsplit("-", 1)[0] for j in again} == {"auth-1.r2"}
+    assert sorted(n for these in names.values() for n in these) == unrun[2:]
+    # The first run reached fewer: the jobs are smaller than the estimates allow.
+    fewer = _job(tmp_path, "3", "auth-1", "server/auth", users, [1] * 8 + [None] * 8, estimates)
+    assert [len(x) for x in mutate.rest_jobs({"auth-1": fewer})[1].values()] == [2, 2, 2, 2]
+
+
+def test_a_later_round_is_sized_by_the_slowest_job_of_the_round_that_left_its_changes(tmp_path):
+    money = "moolakata/money.py"
+    # The first run reached 30 of 50: jobs of 30 * 240 / 330 / 2, 10 each, for the 20 left.
+    first = _job(tmp_path, "1", "core-1", "server/core", money, [1] * 30 + [None] * 20)
+    assert [len(x) for x in mutate.rest_jobs({"core-1": first})[1].values()] == [10, 10]
+    jobs = {"core-1": first}
+    for name, codes in [
+        ("core-1.r1-1", [None] * 30 + [1] * 10 + [None] * 10),
+        # Out of time at 4 of its 10: the 6 left are slower still, a job of 4 * 240 / 330 / 2.
+        ("core-1.r1-2", [None] * 40 + [0] * 4 + [None] * 6),
+        # Stopped before its first change: it says nothing of the pace.
+        ("core-1.r1-3", [None] * 50),
+    ]:
+        jobs[name] = _job(tmp_path, "2", name, "server/core", money, codes)
+    got, names = mutate.rest_jobs(jobs)
+    assert [j["name"] for j in got] == [f"core-1.r2-{k}" for k in range(1, 7)]
+    assert [len(x) for x in names.values()] == [1] * 6
+
+
+def test_the_plan_for_the_rest_writes_each_jobs_changes_for_run_to_read(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    _job(tmp_path, "7", "auth-1", "server/auth", "moolakata/auth/users.py", [1, None], {})
+    out = tmp_path / "rest"
+    assert mutate.main(["plan", "--rest", "someone/MoolaKata:7", "--rest-dir", str(out)]) == 0
+    jobs = json.loads(capsys.readouterr().out)
+    assert [j["name"] for j in jobs] == ["auth-1.r1-1"]
+    listed = out / jobs[0]["only"]
+    assert listed.read_text().split() == ["moolakata.auth.users.py.x_f__mutmut_2"]
+    # With --jobs, only those baseline jobs' unrun changes.
+    _job(tmp_path, "7", "keys-1", "server/keys", "moolakata/keys/files.py", [1, None], {})
+    named = ["plan", "--rest", "7", "--jobs", "keys-1", "--rest-dir", str(tmp_path / "r2")]
+    assert mutate.main(named) == 0
+    assert [j["name"] for j in json.loads(capsys.readouterr().out)] == ["keys-1.r1-1"]
+    a = argparse.Namespace(only=["x.y__mutmut_1"], only_file=str(listed), workers=4)
+    assert mutate.mutmut_command(a)[-2:] == [
+        "x.y__mutmut_1",
+        "moolakata.auth.users.py.x_f__mutmut_2",
+    ]
+    assert (
+        mutate.mutmut_command(argparse.Namespace(only=None, only_file=None, workers=4))[-1] == "4"
+    )
+
+
+def test_the_plan_keeps_only_the_jobs_named_and_refuses_a_name_it_does_not_have(capsys):
+    every = json.loads(_plan(capsys, []))
+    names = [every[0]["name"], every[-1]["name"]]
+    again = json.loads(_plan(capsys, ["--jobs", *names]))
+    assert [j["name"] for j in again] == names
+    assert again == [j for j in every if j["name"] in names]
+    assert mutate.main(["plan", "--all", "--jobs", "nowhere-9"]) == 1
+
+
+def _plan(capsys, extra):
+    assert mutate.main(["plan", "--all", *extra]) == 0
+    return capsys.readouterr().out
+
+
+def test_modules_no_test_reaches_are_run_as_nothing_exported_as_unreached_and_named(
+    tmp_path, monkeypatch, capsys
+):  # fmt: skip
+    """receipts/worker.py runs only as a subprocess: no test file imports or maps to it."""
+    work = tmp_path / "work"
+    monkeypatch.setattr(mutate, "WORK", work)
+    monkeypatch.setattr(mutate, "COPY", work / "web" / "server")
+    monkeypatch.setattr(mutate, "UNREACHED", work / "unreached.txt")
+    monkeypatch.setattr(mutate, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
+    monkeypatch.setattr(mutate, "make_copy", lambda: pytest.fail("no copy without tests"))
+    (tmp_path / "map.json").write_text("{}")
+    worker = "moolakata/receipts/worker.py"
+    assert mutate.main(["run", worker, "--map", str(tmp_path / "map.json")]) == 0
+    run = tmp_path / ".dev" / "mutate-ci" / "7"
+    out = run / "mutation-receipts-3"
+    assert mutate.main(["export", str(out), "--name", "receipts-3", "--area",
+                        "server/receipts", "--modules", worker]) == 0  # fmt: skip
+    assert json.loads((out / "job.json").read_text())["unreached"] is True
+    meta(run / "mutation-receipts-1" / "src", "moolakata/receipts/parser.py", [1])
+    (run / "mutation-receipts-1" / "job.json").write_text(json.dumps(
+        {"name": "receipts-1", "area": "server/receipts", "modules": "x"}))  # fmt: skip
+    capsys.readouterr()
+    assert mutate.main(["gather", "7"]) == 0  # recorded, the unreached named
+    assert f"no test file reaches {worker}" in capsys.readouterr().out
+    assert (tmp_path / "records" / "baseline-receipts.json").exists()
+
+
+def test_mutmuts_tests_run_in_one_process_and_drop_a_passing_tests_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(mutate, "COPY", tmp_path)
+    monkeypatch.setattr(mutate, "SERVER", tmp_path)
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n\n[tool.mutmut]\nold = 1\n')
+    mutate.configure(["moolakata/money.py"], ["tests/test_money.py"])
+    got = tomllib.loads((tmp_path / "pyproject.toml").read_text())
+    assert "old" not in got["tool"]["mutmut"]
+    assert got["tool"]["mutmut"]["only_mutate"] == ["src/moolakata/money.py"]
+    assert got["tool"]["mutmut"]["pytest_add_cli_args"] == [
+        "-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed",
+        "-p", "moolakata.dev.mutant_name",
+    ]  # fmt: skip
+    assert got["tool"]["mutmut"]["process_isolation"] == "forkserver"
+
+
+def test_conftest_imported_again_closes_the_clients_an_earlier_import_opened():
+    """mutmut runs several pytest sessions in one process: each imports conftest again, while
+    a test module keeps the sign_in it first imported. One list, opened.py's, for all of them."""
+    import conftest
+    import opened
+
+    spec = importlib.util.spec_from_file_location("conftest_again", conftest.__file__)
+    again = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(again)
+    assert again.opened.clients is conftest.opened.clients is opened.clients
+    assert not hasattr(conftest, "_signed_in")
+
+
+def test_conftest_loads_while_the_mapping_raises_as_under_mutmuts_forced_failure(monkeypatch):
+    """mutmut checks that a change can fail the tests by making every changed function raise:
+    called as conftest loads, a raising map_all was pytest's usage error (exit 4), which mutmut
+    takes for a broken command, so a job changing mapping.py never ran."""
+    import conftest
+
+    from moolakata.store import mapping
+
+    def raising():
+        raise RuntimeError("forced failure")
+
+    monkeypatch.setattr(mapping, "map_all", raising)
+    spec = importlib.util.spec_from_file_location("conftest_failing", conftest.__file__)
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+
+
+def test_a_worker_past_its_memory_is_named_and_its_change_counted_killed(tmp_path):
+    workers = {
+        11: ("m.x_f__mutmut_1", 0.8),
+        12: ("m.x_f__mutmut_2", 3.1),
+        13: ("m.x_g__mutmut_1", 3.0),
+    }
+    assert mutate.runaways(workers, 3.0) == [12]
+    meta(tmp_path, "moolakata/money.py", [mutate.OUT_OF_MEMORY, 0])
+    by_file, _, survivors = mutate.outcomes(tmp_path)
+    assert by_file["moolakata/money.py"]["killed"] == 1 and len(survivors) == 1
+
+
+def test_the_signal_that_stops_a_worker_ends_python_with_the_code_counted_killed():
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    time.sleep(0.5)
+    os.kill(child.pid, -mutate.OUT_OF_MEMORY)
+    assert child.wait(timeout=10) == mutate.OUT_OF_MEMORY
+
+
+def test_a_changes_worker_takes_the_name_the_watcher_finds(monkeypatch):
+    from moolakata.dev import mutant_name
+
+    named = []
+    monkeypatch.setattr(mutant_name, "title", named.append)
+    for under_test in ("stats", "fail", "", "moolakata.money.x_parse__mutmut_3"):
+        monkeypatch.setenv("MUTANT_UNDER_TEST", under_test)
+        mutant_name.pytest_configure(None)
+    assert named == ["mutmut: moolakata.money.x_parse__mutmut_3"]

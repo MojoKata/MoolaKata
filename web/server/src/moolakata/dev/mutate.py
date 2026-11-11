@@ -1,11 +1,13 @@
 """Mutation runs (requirements S17.5.12, docs/mutation-testing.md): `web/dev.sh mutate`.
 
     web/dev.sh mutate run <module>... [--tests FILE...] [--workers N] [--only NAME...]
+                                     [--only-file FILE]
     web/dev.sh mutate summary
     web/dev.sh mutate check <change> <test file>
     web/dev.sh mutate record <name> --first | --pr N [--found CR3-n...] [--equivalent N]
                                     [--from DIR...]
-    web/dev.sh mutate testrun | testmap | plan | export <dir> | gather <run>   (the CI baseline)
+    web/dev.sh mutate testrun | testmap | plan [--rest <run>...] | export <dir> | gather <run>
+                                                                         (the CI baseline)
 
 `run` makes a scratch copy of the server in web/.dev/mutate (mutmut changes the code it tests,
 so never the checkout), links what the server reads from beside itself, installs the lock's
@@ -34,9 +36,12 @@ file as its context (`moolakata.dev.testmap`); `testmap` combines what the parts
 web/.dev/testmap/map.json, each module's reaching test files, which `run --map` adds to those
 importing it (a route module is reached through HTTP, not imported). `plan` packs the modules,
 area by area, into jobs of about `--size` code lines (a module larger than that is a job of its
-own), leaving out those whose settled run is current; `export` keeps a job's outcomes, survivors
-and log in a directory for its artifact; `gather` downloads a run's artifacts and records each
-area's first run as `baseline-<area>`, with its survivors in web/.dev/mutate-results/baseline/.
+own), leaving out those whose settled run is current; with `--rest <run>...`, instead, jobs
+for the changes those runs left unrun (a job out of time), split by mutmut's estimates and run
+with `run --only-file`; `export` keeps a job's outcomes, survivors and log in a directory for
+its artifact; `gather` downloads a run's artifacts and records each area's first run as
+`baseline-<area>`, with its survivors in web/.dev/mutate-results/baseline/, a change's outcome
+from whichever job finished it.
 """
 
 import argparse
@@ -58,21 +63,32 @@ from .. import paths
 
 SERVER = paths.WEB / "server"
 WORK = paths.WEB / ".dev" / "mutate"
-COPY = WORK / "web" / "server"
+# The copy is laid out as the repository: mutmut runs its tests from the copy's mutants/, where
+# `paths` takes the copy for web/ and its parent for the root, so the copy is named web and
+# its parent holds what the root does. A path a test takes relative to the root reads as it
+# does in the checkout (web/server/src/...).
+COPY = WORK / "web"
 RECORDS = paths.ROOT / "docs" / "hardening" / "mutation"
 TESTMAP = paths.WEB / ".dev" / "testmap"
 BASELINE = paths.WEB / ".dev" / "mutate-results" / "baseline"
+UNREACHED = WORK / "unreached.txt"  # the last run's modules, when no test file reached them
 REPO = "MojoKata/MoolaKata"
 LIMIT_GB = 15.0  # stops the run; the project's budget is about 20 GB (6 workers: 7 to 11)
+# One change's worker may write this much of its own (beyond the pages it shares with the run
+# it was forked from): past it, the change keeps allocating (one of assets' grew a worker to
+# 9.3 GB before mutmut's time limit) and the worker is stopped, the change counted killed,
+# rather than the whole run stopped at --limit. The others' PSS stayed under 2.3 GB.
+WORKER_GB = 3.0
+OUT_OF_MEMORY = -signal.SIGUSR1  # mutmut records a worker stopped so with this exit code
 
-# What the server reads from beside itself, at import and in tests, linked into the copy. The
-# tests run from the copy's mutants/, where `paths` takes the copy for web/ and its parent for
-# the repository's root.
+# What the server reads from beside itself (BESIDE) and from the root (ABOVE), at import and in
+# tests, linked into the copy and its parent.
 BESIDE = ["ui", "audit.json", "coverage-floor.json", "dev.sh", "install"]
-ABOVE = ["connector", "docs", ".github", "publish"]
+ABOVE = ["connector", "docs", ".github", "publish", ".dockerignore"]
 # Tests never run once per change: the generated worlds (hours each), the browser's, the audit's.
 SLOW = re.compile(r"(_world|_worlds|^test_browser|^test_app|^test_mockup|^test_no_network)")
-OUTCOME = {1: "killed", 3: "killed", 0: "survived", 5: "no tests", 33: "no tests", 34: "skipped",
+OUTCOME = {1: "killed", 3: "killed", OUT_OF_MEMORY: "killed", 0: "survived", 5: "no tests",
+           33: "no tests", 34: "skipped",
            36: "timeout", 24: "timeout", -24: "timeout", 152: "timeout", 255: "timeout",
            37: "type check", None: "not run"}  # fmt: skip
 
@@ -135,16 +151,21 @@ def make_copy() -> None:
     # The build reads ../VERSION; the code, from the mutants' side, the copy's own.
     for at in (COPY, COPY.parent):
         shutil.copy2(paths.WEB / "VERSION", at / "VERSION")
+    link_copy()
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    uv = shutil.which("uv") or "uv"
+    sync = [uv, "sync", "--frozen", "--group", "mutation", "--quiet"]
+    subprocess.run(sync, cwd=COPY, env=env, check=True)  # noqa: S603 - our own command
+
+
+def link_copy() -> None:
+    """The copy's links: what web/ holds beside the server, the server's own folder (the copy
+    itself, so web/server/src is its code), and what the root holds, a level up."""
     for name in BESIDE:
         _link(COPY / name, paths.WEB / name)
     _link(COPY / "server", COPY)
     for name in ABOVE:
         _link(COPY.parent / name, paths.ROOT / name)
-    _link(COPY.parent / "web", COPY.parent)
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    uv = shutil.which("uv") or "uv"
-    sync = [uv, "sync", "--frozen", "--group", "mutation", "--quiet"]
-    subprocess.run(sync, cwd=COPY, env=env, check=True)  # noqa: S603 - our own command
 
 
 def _link(at: Path, to: Path) -> None:
@@ -156,8 +177,17 @@ def _link(at: Path, to: Path) -> None:
     at.symlink_to(to)
 
 
+# Each change's tests run in one process, and a test's temporary folder goes when it passes:
+# pytest keeps every test's folder of its last three sessions, and all of a session a timeout
+# stopped, and a change runs a session of its own (a copy of the store each test, a gigabyte
+# a session for a well-tested module), which filled a CI runner's disk. Each change's worker
+# names itself for the watcher (`mutant_name.py`).
+PYTEST_ARGS = ["-p", "no:xdist", "-p", "no:cacheprovider", "-o", "tmp_path_retention_policy=failed",
+               "-p", "moolakata.dev.mutant_name"]  # fmt: skip
+
+
 def configure(modules: list[str], tests: list[str]) -> None:
-    """mutmut's settings in the copy's pyproject.toml: the modules, the tests, one process."""
+    """mutmut's settings in the copy's pyproject.toml: the modules, the tests, `PYTEST_ARGS`."""
     only = []
     for m in modules:
         path = f"src/{m}"
@@ -169,7 +199,12 @@ def configure(modules: list[str], tests: list[str]) -> None:
         'source_paths = ["src"]\n'
         f"only_mutate = {json.dumps(only)}\n"
         f"pytest_add_cli_args_test_selection = {json.dumps(tests)}\n"
-        'pytest_add_cli_args = ["-p", "no:xdist", "-p", "no:cacheprovider"]\n'
+        f"pytest_add_cli_args = {json.dumps(PYTEST_ARGS)}\n"
+        # Every session in a fork of a process that only imported the tests: in mutmut's fork
+        # mode the stats ran in the process the workers fork from, and they inherited what the
+        # tests left there (the imports' thread pool, its thread gone in the fork: an upload's
+        # job never ran, and auth-1's clean tests failed).
+        'process_isolation = "forkserver"\n'
         'also_copy = ["tests"]\n'
     )
     (COPY / "pyproject.toml").write_text(text)
@@ -206,23 +241,76 @@ def _pss_gb() -> float:
     return total / 1024 / 1024
 
 
+def _own_gb(pid: int) -> float:
+    """What a worker has written of its own: its private pages, not those it shares."""
+    total = 0
+    for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+        if line.startswith(("Private_Clean:", "Private_Dirty:")):
+            total += int(line.split()[1])
+    return total / 1024 / 1024
+
+
+def _workers() -> dict[int, tuple[str, float]]:
+    """This run's workers still running: each one's change and its own memory."""
+    out = {}
+    for pid in _mutmut_pids():
+        try:
+            cmd = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
+            if cmd.startswith("mutmut: "):
+                out[pid] = (cmd.removeprefix("mutmut: ").strip(), _own_gb(pid))
+        except OSError:
+            continue
+    return out
+
+
+def runaways(workers: dict[int, tuple[str, float]], cap: float) -> list[int]:
+    """The workers past the memory one change may use."""
+    return [pid for pid, (_, gb) in workers.items() if gb > cap]
+
+
+def mutmut_command(args) -> list[str]:
+    """The copy's mutmut over the changes `--only` and `--only-file` name, or every one."""
+    only = [
+        *(args.only or []),
+        *(Path(args.only_file).read_text().split() if args.only_file else []),
+    ]
+    return [str(COPY / ".venv" / "bin" / "mutmut"), "run", "--max-children", str(args.workers),
+            *only]  # fmt: skip
+
+
 def run(args) -> int:
     testmap = json.loads(Path(args.map).read_text()) if args.map else None
     tests = tests_for(args.modules, args.tests or [], testmap)
     print(f"mutating {', '.join(args.modules)}")
     print(f"with {len(tests)} test files: {', '.join(t.removeprefix('tests/') for t in tests)}")
+    UNREACHED.unlink(missing_ok=True)
+    if not tests:
+        # mutmut can't run without tests; every change is untested. `export` says so.
+        print("no test file reaches these modules (one run as a subprocess, say): nothing run")
+        shutil.rmtree(COPY / "mutants", ignore_errors=True)
+        for name in ("survivors.txt", "mutmut.log"):
+            (WORK / name).unlink(missing_ok=True)
+        UNREACHED.parent.mkdir(parents=True, exist_ok=True)
+        UNREACHED.write_text("\n".join(args.modules) + "\n")
+        return 0
     make_copy()
     configure(args.modules, tests)
-    cmd = [str(COPY / ".venv" / "bin" / "mutmut"), "run", "--max-children", str(args.workers),
-           *(args.only or [])]  # fmt: skip
+    cmd = mutmut_command(args)
     log = (WORK / "mutmut.log").open("w")
     # The copy's own mutmut, with arguments from the command line it was run with.
     proc = subprocess.Popen(cmd, cwd=COPY, stdout=log, stderr=subprocess.STDOUT)  # noqa: S603
-    peak, stopped = 0.0, threading.Event()
+    peak, largest, stopped = 0.0, 0.0, threading.Event()
 
     def watch() -> None:
-        nonlocal peak
+        nonlocal peak, largest
         while proc.poll() is None:
+            workers = _workers()
+            largest = max([largest, *(gb for _, gb in workers.values())])
+            for pid in runaways(workers, args.worker_limit):
+                name, gb = workers[pid]
+                print(f"stopped {name}: {gb:.1f} GB of its own, past {args.worker_limit:.1f} GB")
+                with contextlib.suppress(OSError):
+                    os.kill(pid, -OUT_OF_MEMORY)
             gb = _pss_gb()
             peak = max(peak, gb)
             if gb > args.limit:
@@ -230,14 +318,17 @@ def run(args) -> int:
                 stopped.set()
                 proc.terminate()
                 return
-            time.sleep(10)
+            time.sleep(5)
 
     threading.Thread(target=watch, daemon=True).start()
     while proc.poll() is None:
         time.sleep(30)
         print(f"  {_progress()}", flush=True)
     log.close()
-    print(f"peak memory {peak:.1f} GB (PSS); log: {WORK / 'mutmut.log'}")
+    print(
+        f"peak memory {peak:.1f} GB (PSS), a worker's own at most {largest:.1f} GB; "
+        f"log: {WORK / 'mutmut.log'}"
+    )
     summary(None)
     return 1 if stopped.is_set() else proc.returncode
 
@@ -251,15 +342,28 @@ def _progress() -> str:
     return lines[-1].strip()[:100] if lines else "starting"
 
 
+def codes(src: Path) -> dict[str, dict[str, int | None]]:
+    """Each change's exit code from mutmut's .meta files under `src`, by file."""
+    out = {}
+    for meta in sorted(src.rglob("*.meta")):
+        rel = meta.relative_to(src).as_posix().removesuffix(".meta")
+        out[rel] = json.loads(meta.read_text())["exit_code_by_key"]
+    return out
+
+
 def outcomes(src: Path) -> tuple[dict[str, Counter], dict[str, Counter], list[str]]:
     """A run's outcomes from mutmut's .meta files under `src`: by file, by function, and the
     survivors' names."""
+    return counted(codes(src))
+
+
+def counted(by_file_codes: dict[str, dict[str, int | None]]):
+    """Exit codes by file as outcomes: by file, by function, and the survivors' names."""
     by_file: dict[str, Counter] = defaultdict(Counter)
     by_fn: dict[str, Counter] = defaultdict(Counter)
     survivors = []
-    for meta in sorted(src.rglob("*.meta")):
-        rel = meta.relative_to(src).as_posix().removesuffix(".meta")
-        for name, code in json.loads(meta.read_text())["exit_code_by_key"].items():
+    for rel, keys in by_file_codes.items():
+        for name, code in keys.items():
             outcome = OUTCOME.get(code, "suspicious")
             by_file[rel][outcome] += 1
             by_fn[name.rsplit("__mutmut_", 1)[0]][outcome] += 1
@@ -337,15 +441,22 @@ def recorded(record: dict, by_file: dict[str, Counter], first: bool, args) -> di
     return out
 
 
+def merged(dirs: list[Path]) -> dict[str, dict[str, int | None]]:
+    """The exit codes of runs `export` kept, change by change: a later run's outcome over an
+    earlier one's, and an outcome over none (a job finishing what another left unrun mutates
+    the same modules, and runs only those changes)."""
+    out: dict[str, dict[str, int | None]] = defaultdict(dict)
+    for d in dirs:
+        for rel, keys in codes(d / "src").items():
+            for name, code in keys.items():
+                if code is not None or name not in out[rel]:
+                    out[rel][name] = code
+    return dict(out)
+
+
 def outcomes_of(dirs: list[Path]) -> tuple[dict[str, Counter], list[str]]:
     """The outcomes by file and the survivors of runs `export` kept, together."""
-    by_file: dict[str, Counter] = defaultdict(Counter)
-    survivors: list[str] = []
-    for d in dirs:
-        files, _, names = outcomes(d / "src")
-        for f, c in files.items():
-            by_file[f] += c
-        survivors += names
+    by_file, _, survivors = counted(merged(dirs))
     return by_file, survivors
 
 
@@ -431,16 +542,34 @@ def plan_jobs(modules: dict[str, int], areas: list[str], size: int, skip: set[st
         for k, ms in enumerate(pack(by_area[area], size), 1):
             lines = sum(by_area[area][m] for m in ms)
             out.append({"name": f"{slug(area)}-{k}", "area": area, "lines": lines,
-                        "modules": " ".join(ms)})  # fmt: skip
+                        "size": f"{lines} lines", "modules": " ".join(ms)})  # fmt: skip
     return out
 
 
 def plan(args) -> int:
+    if args.rest:
+        given = downloaded(args.rest)
+        if args.jobs:  # only these baseline jobs' unrun changes: another's are under way
+            given = {n: d for n, d in given.items() if source_of(n) in args.jobs}
+        jobs, names = rest_jobs(given)
+        out = Path(args.rest_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        for name, these in names.items():
+            (out / f"{name}.txt").write_text("\n".join(these) + "\n")
+        print(json.dumps(jobs))
+        print(f"{len(jobs)} jobs, {sum(len(x) for x in names.values())} changes", file=sys.stderr)
+        return 0
     modules = server_modules()
     if args.modules:
         modules = {m: n for m, n in modules.items() if m in args.modules}
     skip = set() if args.all or args.modules else current_modules()
     jobs = plan_jobs(modules, args.areas, args.size, skip)
+    if args.jobs:  # an earlier run's jobs again: the same tree's plan names them the same
+        unknown = sorted(set(args.jobs) - {j["name"] for j in jobs})
+        if unknown:
+            print(f"not in the plan: {' '.join(unknown)}", file=sys.stderr)
+            return 1
+        jobs = [j for j in jobs if j["name"] in args.jobs]
     print(json.dumps(jobs))
     total = sum(j["lines"] for j in jobs)
     print(f"{len(jobs)} jobs, {total} code lines", file=sys.stderr)
@@ -504,30 +633,149 @@ def export(args) -> int:
     if (WORK / "mutmut.log").exists():
         shutil.copy2(WORK / "mutmut.log", out / "mutmut.log")
     job = {"name": args.name, "area": args.area, "modules": args.modules}
+    if UNREACHED.exists():
+        job["unreached"] = True
     (out / "job.json").write_text(json.dumps(job) + "\n")
     changes = sum(sum(c.values()) for c in by_file.values())
     print(f"{out}: {changes} changes, {len(survivors)} survivors")
     return 0
 
 
+# A job's changes left unrun are run by later jobs, each given as many as its time allows by
+# mutmut's estimates. mutmut runs a job's changes the quickest first, so those left are the
+# slowest: each at least the slowest it reached (its estimate is a change's worst case, every
+# one of its tests run, as for a survivor). A killed change stops at its first failing test, and
+# fewer than half survive, so a job is given twice what its worst case allows. An estimate is
+# its tests' time alone, not a change's session around them, so no more than half what the
+# slowest job of its latest round finished in the same time either (those left are slower than
+# those it reached): the first run, then the round that left them. A job that runs out of time
+# again leaves the rest to the next round.
+REST_MINUTES = 240  # of the job's 330, the rest for the stats and the clean run
+JOB_MINUTES = 330
+REST_WORKERS = 4
+MATRIX = 256  # GitHub's most jobs in one run; more wait for the next round
+
+
+def source_of(name: str) -> str:
+    """The baseline job a job finishing its changes belongs to (`auth-1.r2-3`: auth-1's)."""
+    return name.split(".r", 1)[0]
+
+
+def round_of(name: str) -> int:
+    """The round of a job finishing its changes (`auth-1.r2-3`: 2), 0 for the baseline job's."""
+    m = re.search(r"\.r(\d+)-\d+$", name)
+    return int(m.group(1)) if m else 0
+
+
+def pace(named: list[tuple[str, Path]]) -> int:
+    """The fewest changes a job of the latest round that finished any finished in its time."""
+    by_round: dict[int, list[int]] = defaultdict(list)
+    for name, d in named:
+        if n := sum(c is not None for keys in merged([d]).values() for c in keys.values()):
+            by_round[round_of(name)].append(n)
+    return min(by_round[max(by_round)]) if by_round else 0
+
+
+def slowest(dirs: list[Path]) -> float:
+    """The largest of mutmut's estimates, in seconds, in the runs `export` kept."""
+    most = 0.0
+    for d in dirs:
+        for meta in (d / "src").rglob("*.meta"):
+            est = json.loads(meta.read_text()).get("estimated_durations_by_key") or {}
+            most = max([most, *est.values()])
+    return most
+
+
+def rest_jobs(jobs: dict[str, Path]) -> tuple[list[dict], dict[str, list[str]]]:
+    """Jobs for the changes the runs left unrun, each baseline job's split by its estimates,
+    and each new job's changes."""
+    by_source: dict[str, list[tuple[str, Path]]] = defaultdict(list)
+    for name, d in jobs.items():
+        by_source[source_of(name)].append((name, d))
+    out: list[dict] = []
+    names: dict[str, list[str]] = {}
+    for source, named in sorted(by_source.items()):
+        dirs = [d for _, d in named]
+        first = json.loads((dirs[0] / "job.json").read_text())
+        if first.get("unreached"):
+            continue
+        if ran_nothing(dirs):  # its setup failed: run again by name once the cause is fixed
+            print(f"{source} ran nothing: run it again by name", file=sys.stderr)
+            continue
+        unrun = sorted(n for keys in merged(dirs).values() for n, c in keys.items() if c is None)
+        if not unrun:
+            continue
+        worst = slowest(dirs)
+        each = int(2 * REST_MINUTES * 60 * REST_WORKERS / worst) if worst else len(unrun)
+        each = min(each, int(pace(named) * REST_MINUTES / JOB_MINUTES / 2))
+        parts = max(1, -(-len(unrun) // max(1, each)))
+        r = max(round_of(n) for n, _ in named) + 1
+        for k in range(parts):
+            these = unrun[k::parts]  # dealt out, so one function's changes are spread
+            name = f"{source}.r{r}-{k + 1}"
+            names[name] = these
+            out.append({"name": name, "area": first["area"], "lines": 0,
+                        "size": f"{len(these)} changes", "modules": first["modules"],
+                        "only": f"{name}.txt"})  # fmt: skip
+    if len(out) > MATRIX:
+        print(f"{len(out) - MATRIX} jobs wait for the next round", file=sys.stderr)
+        out = out[:MATRIX]
+        names = {j["name"]: names[j["name"]] for j in out}
+    return out, names
+
+
+def downloaded(runs: list[str]) -> dict[str, Path]:
+    """The mutate workflow's runs' artifacts, downloaded once, by job name: a job run again in
+    a later run replaces the earlier one."""
+    jobs: dict[str, Path] = {}
+    for given in runs:
+        repo, _, run = given.rpartition(":")  # owner/repo:run for a fork's run
+        dest = paths.WEB / ".dev" / "mutate-ci" / run
+        if not dest.exists():
+            gh = [shutil.which("gh") or "gh", "run", "download", run, "-R", repo or REPO,
+                  "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
+            subprocess.run(gh, check=True)  # noqa: S603 - our own command
+        for job in sorted(dest.glob("*/job.json")):
+            jobs[json.loads(job.read_text())["name"]] = job.parent
+    return jobs
+
+
+def ran_nothing(dirs: list[Path]) -> bool:
+    """Whether a job `export` kept, with those finishing its changes, was stopped before its
+    first change had an outcome."""
+    by_file, _ = outcomes_of(dirs)
+    return not any(c[k] for c in by_file.values() for k in COUNTED[:-1])
+
+
 def gather(args) -> int:
-    """A baseline run's artifacts downloaded, each area's first run recorded as
-    `baseline-<area>`, and its survivors kept for the sweep."""
-    dest = paths.WEB / ".dev" / "mutate-ci" / args.run
-    if not dest.exists():
-        gh = [shutil.which("gh") or "gh", "run", "download", args.run, "-R", REPO,
-              "-p", "mutation-*", "-D", str(dest)]  # fmt: skip
-        subprocess.run(gh, check=True)  # noqa: S603 - our own command
+    """Baseline runs' artifacts downloaded, each area's first run recorded as `baseline-<area>`,
+    and its survivors kept for the sweep. A job run again in a later run replaces the earlier
+    one, and the jobs finishing a job's changes add theirs to its; an area with a job that ran
+    nothing (stopped before its first change, with nothing finished for it since) is not
+    recorded."""
+    jobs = downloaded(args.run)
     by_area: dict[str, list[Path]] = defaultdict(list)
-    for job in sorted(dest.glob("*/job.json")):
-        by_area[json.loads(job.read_text())["area"]].append(job.parent)
+    for d in jobs.values():
+        by_area[json.loads((d / "job.json").read_text())["area"]].append(d)
+    unreached = [
+        d for d in jobs.values() if json.loads((d / "job.json").read_text()).get("unreached")
+    ]
     print("area: changes, killed, survived, no tests, not run")
+    unrun: list[str] = []
     for area, dirs in sorted(by_area.items()):
         by_file, _ = outcomes_of(dirs)
         c = counts(by_file)
         total = sum(c[k] for k in COUNTED)
         print(f"  {area:22} {total:6} {c['killed'] + c['timeout']:6} {c['survived']:6} "
               f"{c['no tests']:5} {c['not run']:5}")  # fmt: skip
+        by_source: dict[str, list[Path]] = defaultdict(list)
+        for d in dirs:
+            if d not in unreached:
+                by_source[source_of(json.loads((d / "job.json").read_text())["name"])].append(d)
+        empty = [s for s, ds in sorted(by_source.items()) if ran_nothing(ds)]
+        if empty:
+            unrun += empty
+            continue
         keep = BASELINE / slug(area)
         keep.mkdir(parents=True, exist_ok=True)
         with (keep / "survivors.txt").open("w") as out:
@@ -542,6 +790,12 @@ def gather(args) -> int:
             new = recorded(old, by_file, True, args)
             path.write_text(json.dumps(new, indent=2) + "\n")
     print(f"survivors by area in {BASELINE}")
+    for d in unreached:
+        job = json.loads((d / "job.json").read_text())
+        print(f"no test file reaches {job['modules']} ({job['area']}): for its sweep")
+    if unrun:
+        print(f"ran nothing, so their areas are not recorded: {' '.join(sorted(unrun))}")
+        return 1
     return 0
 
 
@@ -568,7 +822,14 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--tests", nargs="*", help="test files to add to those importing the modules")
     r.add_argument("--workers", type=int, default=6)
     r.add_argument("--only", nargs="*", help="rerun only these changes (names or globs)")
+    r.add_argument("--only-file", help="and those named in this file, one a line")
     r.add_argument("--limit", type=float, default=LIMIT_GB, help="stop past this many GB")
+    r.add_argument(
+        "--worker-limit",
+        type=float,
+        default=WORKER_GB,
+        help="stop a change's worker past this many GB of its own; the change is killed",
+    )
     r.add_argument("--map", help="a test map (testmap's map.json): its tests are added")
     sub.add_parser("summary", help="the last run's outcomes and survivors")
     c = sub.add_parser("check", help="one change against one test file")
@@ -588,13 +849,23 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--size", type=int, default=1000, help="code lines per job")
     pl.add_argument("--all", action="store_true", help="also modules whose run is current")
     pl.add_argument("--modules", nargs="*", help="only these modules (a trial)")
+    pl.add_argument("--jobs", nargs="*", help="only these jobs, by name, run again")
+    pl.add_argument(
+        "--rest",
+        nargs="*",
+        help="instead, the changes these runs left unrun (as gather takes them)",
+    )
+    pl.add_argument("--rest-dir", default=str(paths.WEB / ".dev" / "rest"),
+                    help="where each such job's changes are written")  # fmt: skip
     e = sub.add_parser("export", help="the last run's outcomes, kept in a directory")
     e.add_argument("dir")
     e.add_argument("--name", required=True)
     e.add_argument("--area", required=True)
     e.add_argument("--modules", required=True)
     g = sub.add_parser("gather", help="a CI baseline run's artifacts, recorded by area")
-    g.add_argument("run", help="the mutate workflow's run id")
+    g.add_argument("run", nargs="+",
+                   help="the mutate workflow's run ids, the earliest first (owner/repo:id for "
+                        "a fork's)")  # fmt: skip
     g.add_argument("--no-record", action="store_true", help="survivors only")
     args = p.parse_args(argv)
     commands = {"run": run, "summary": summary, "check": check, "record": record,

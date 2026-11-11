@@ -61,5 +61,8 @@
        before the runner's six hours with what it finished kept, and its outcomes and
        survivors kept as the run's artifacts for 90 days. It runs at most as many jobs at once
        as its input says (14 by default), leaving the rest of the account's runners to pull
-       requests' checks. A pull request that changes it or its tools runs it on two small
-       modules.
+       requests' checks. Named jobs can be run again on their own, and their outcomes taken
+       over the earlier run's; the changes earlier runs left unrun can be run on their own,
+       in jobs sized by mutmut's estimates, each change's outcome taken from whichever job
+       finished it. A pull request that changes it or its tools runs it on two
+       small modules.
