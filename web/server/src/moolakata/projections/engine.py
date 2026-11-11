@@ -237,7 +237,8 @@ def needed_saving(plan: Plan, target: float, at_index: int, chance: float = 0.9)
         lo, hi = hi, hi * 2
     else:
         return None
-    while hi - lo > PRECISION:
+    # No mutant differs: >= halves once more, and hi still reaches it, within the precision.
+    while hi - lo > PRECISION:  # pragma: no mutate
         mid = (lo + hi) / 2
         if reaches(mid):
             hi = mid

@@ -439,11 +439,13 @@ def _education_answer(s: Session, p: Projection, prep: Prepared, result, inputs:
     at_start = engine.run(before).percentiles[50][start]
     funded = min(100.0, at_start / needed * 100) if needed else 100.0
     monthly: float | None = 0.0
-    if needed and at_start < needed and not prep.start_part:
-        monthly = None
-    elif needed and at_start < needed:
-        yearly = engine.needed_saving(before, needed, start, chance=0.5)
-        monthly = None if yearly is None else yearly / 12
+    # No mutant differs: with the median exactly at the cost, the search answers 0 as funded.
+    if needed and at_start < needed:  # pragma: no mutate
+        if not prep.start_part:
+            monthly = None  # school under way: nothing saved from now reaches its start
+        else:
+            yearly = engine.needed_saving(before, needed, start, chance=0.5)
+            monthly = None if yearly is None else yearly / 12
     return {
         "kind": "education",
         "name": school["name"],

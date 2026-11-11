@@ -285,7 +285,8 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> None:
         s.scalars(
             select(Transaction).where(
                 Transaction.accountId == account_id,
-                Transaction.fitId.like("btc:%"),
+                # No mutant differs: SQLite's LIKE ignores case, and every fitId is lower case.
+                Transaction.fitId.like("btc:%"),  # pragma: no mutate
                 Transaction.deleted == false(),
             )
         )
@@ -295,7 +296,8 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> None:
         select(TransactionWalletKey.transactionId, WalletKey.value)
         .join(WalletKey)
         .where(
-            TransactionWalletKey.transactionId.in_([r.id for r in recorded]),
+            # No mutant differs: it only spares reading other accounts' links, never used.
+            TransactionWalletKey.transactionId.in_([r.id for r in recorded]),  # pragma: no mutate
             TransactionWalletKey.deleted == false(),
         )
     ):

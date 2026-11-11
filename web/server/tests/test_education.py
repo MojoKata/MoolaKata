@@ -289,3 +289,14 @@ def test_the_saving_named_funds_school_at_the_median(alice, monkeypatch):
     monkeypatch.setattr(engine, "DOUBLINGS", 0)
     p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "monthly": 10}))
     assert p["result"]["answer"]["neededMonthly"] is None
+
+
+def test_a_school_under_way_and_funded_needs_no_more_saving(server, alice):
+    """Funded is funded: a school already started that the balance covers names no saving,
+    rather than saying none reaches it."""
+    acct, _, _ = plan(alice)
+    add(alice, acct["id"], "900000.00", "2023-06-01")
+    p = alice.post(f"/ui/api/accounts/{acct['id']}/goal").json()["projection"]
+    p = saved(change(alice, "Prjct", p, inputs={**p["inputs"], "firstYear": 2026}))
+    a = p["result"]["answer"]
+    assert a["funded"] == 100 and a["neededMonthly"] == 0.0
