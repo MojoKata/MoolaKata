@@ -742,3 +742,60 @@ def test_no_transaction_still_on_the_chain_is_ever_marked_whatever_keys_come_and
             assert {t for t, (m, _) in got.items() if m} == marked, f"step {step}: {op}"
             assert all(linked for _, linked in got.values()), "every one linked to a key"
             assert not marked & chain.on, "nothing still on the chain is marked"
+
+
+def _links(server, account_id) -> set[str]:
+    """The accounts whose keys the account's transactions are linked to."""
+    from sqlalchemy import select
+
+    from moolakata.store.entities.accounts import Transaction, TransactionWalletKey, WalletKey
+
+    with server.db.read(unscoped="test") as s:
+        return set(
+            s.scalars(
+                select(WalletKey.accountId)
+                .join(TransactionWalletKey)
+                .join(Transaction, Transaction.id == TransactionWalletKey.transactionId)
+                .where(Transaction.accountId == account_id)
+            )
+        )
+
+
+def test_a_transfer_between_two_wallets_is_linked_to_each_ones_own_keys(server, alice, monkeypatch):
+    """One transaction, recorded in both wallets it moved coins between: each record is linked
+    to its own wallet's keys only, so taking a key out of one never judges the other's."""
+    r0 = keys.extended(ZPUB).address(0, 0)
+    chain = Chain([sources.Tx("5" * 64, T1, 1_000, 0, {r0, TYPED})])
+    monkeypatch.setattr(sync, "source", lambda srv, s: chain)
+    hot = new_account(alice, name="Hot wallet", type="crypto-wallet")
+    cold = new_account(alice, name="Cold storage", type="crypto-wallet")
+    saved(wallet(alice, hot["id"], ZPUB))
+    saved(wallet(alice, cold["id"], TYPED))
+    sync.sync_account(server, hot["id"])
+    sync.sync_account(server, cold["id"])
+    sync.sync_account(server, hot["id"])
+    assert _links(server, hot["id"]) == {hot["id"]}
+    assert _links(server, cold["id"]) == {cold["id"]}
+
+
+def test_a_deleted_link_brings_a_transaction_no_key(server, alice, monkeypatch):
+    """A link marked deleted counts as none: the transaction is judged again, as one no key
+    brought is (CR3-20), and marked once two reads miss it."""
+    from sqlalchemy import update
+
+    from moolakata import clock
+    from moolakata.store.entities.accounts import TransactionWalletKey
+
+    r0 = keys.extended(ZPUB).address(0, 0)
+    chain = Chain([sources.Tx("6" * 64, T1, 1_000, 0, {r0})])
+    monkeypatch.setattr(sync, "source", lambda srv, s: chain)
+    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+    saved(wallet(alice, w["id"], ZPUB))
+    sync.sync_account(server, w["id"])
+    saved(wallet(alice, w["id"], TYPED))  # the key that read it taken out
+    with server.db.tx(unscoped="test") as s:
+        s.execute(update(TransactionWalletKey).values(deletedAt=clock.now()))
+    chain.on.clear()
+    sync.sync_account(server, w["id"])
+    sync.sync_account(server, w["id"])
+    assert _off_chain(server, w["id"])["6" * 64][0], "judged, and marked"

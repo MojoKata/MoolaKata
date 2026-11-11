@@ -94,7 +94,7 @@ def test_an_admin_from_before_the_welcome_only_reaches_setup(client, server):
     )
     assert r.status_code == 200 and r.json()["user"]["needsSetup"] is False
     assert client.cookies.get("mk_session") != first
-    assert client.get("/ui/api/profile").status_code == 200
+    assert client.get("/ui/api/profile").json()["email"] == "legacy@home.lan"
     with new_client(server) as old:
         old.cookies.set("mk_session", first, domain="mk.test", path="/ui")
         assert old.get("/ui/api/session").status_code == 401
@@ -330,6 +330,23 @@ def test_a_confirmed_new_address_ends_a_reset_link_sent_to_the_old_one(client, s
     )
     assert r.status_code == 404
     assert sign_in(server, "hal")  # the password stands
+
+
+def test_a_new_address_ends_only_its_own_users_links(client, server):
+    """Another user's reset link, mailed to them, works on after this user's address changes."""
+    set_public_url(server)
+    make_user(server, "hal")
+    make_user(server, "ivy")
+    assert client.post("/ui/api/password-reset", json={"login": "ivy"}).status_code == 204
+    _, ivys = last_link(server)
+    c = sign_in(server, "hal")
+    assert c.post("/ui/api/profile/email", json={"email": "hal@new.lan"}).status_code == 204
+    _, confirm = last_link(server)
+    assert c.post("/ui/api/email-change/confirm", json={"token": confirm}).status_code == 204
+    r = client.post(
+        "/ui/api/password-reset/confirm", json={"token": ivys, "password": "a new long passphrase"}
+    )
+    assert r.status_code == 204
 
 
 def test_an_address_is_set_only_where_the_links_mailed_to_the_old_one_end():

@@ -247,10 +247,9 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
     return made
 
 
-def link_keys(s, account_id: str, txs: list[sources.Tx]) -> int:
+def link_keys(s, account_id: str, txs: list[sources.Tx]) -> None:
     """Each recorded transaction of the read linked to the keys whose addresses it touched:
-    when it is recorded, and when a key added since sees it too (CR3-20). Returns the links
-    made."""
+    when it is recorded, and when a key added since sees it too (CR3-20)."""
     key_of = {r.address: r.keyId for r in wallet.addresses_of(s, account_id)}
     by_fit = {f"btc:{t.txid}": t for t in txs}
     rows = s.execute(
@@ -265,14 +264,11 @@ def link_keys(s, account_id: str, txs: list[sources.Tx]) -> int:
             )
         ).all()
     )
-    made = 0
     for txn_id, fit in rows:
         for key_id in sorted({key_of[a] for a in by_fit[fit].addresses if a in key_of}):
             if (txn_id, key_id) not in have:
                 s.add(TransactionWalletKey(transactionId=txn_id, walletKeyId=key_id))
-                made += 1
     s.flush()
-    return made
 
 
 def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
@@ -285,22 +281,28 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> int:
     seen = {f"btc:{t.txid}" for t in txs}
     # By the key as entered: one taken out and typed in again is read again.
     live = {k.value for k in wallet.keys_of(s, account_id)}
+    recorded = list(
+        s.scalars(
+            select(Transaction).where(
+                Transaction.accountId == account_id,
+                Transaction.fitId.like("btc:%"),
+                Transaction.deleted == false(),
+            )
+        )
+    )
     keys: dict[str, set[str]] = {}
     for txn_id, value in s.execute(
         select(TransactionWalletKey.transactionId, WalletKey.value)
-        .join(WalletKey, WalletKey.id == TransactionWalletKey.walletKeyId)
-        .where(WalletKey.accountId == account_id, TransactionWalletKey.deleted == false())
+        .join(WalletKey)
+        .where(
+            TransactionWalletKey.transactionId.in_([r.id for r in recorded]),
+            TransactionWalletKey.deleted == false(),
+        )
     ):
         keys.setdefault(txn_id, set()).add(value)
     now = clock.now()
     marked = 0
-    for r in s.scalars(
-        select(Transaction).where(
-            Transaction.accountId == account_id,
-            Transaction.fitId.like("btc:%"),
-            Transaction.deleted == false(),
-        )
-    ):
+    for r in recorded:
         if r.fitId in seen:
             r.offChainAt = r.offChainMissedAt = None
         elif r.offChainKeptAt is not None or r.offChainAt is not None:

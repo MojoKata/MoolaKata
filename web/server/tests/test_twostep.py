@@ -238,3 +238,24 @@ def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):
         assert r.status_code == 200, r.text
     assert "signin.new-address" in kinds(server)
     assert any("new address" in m["Subject"] for m in mails(server))
+
+
+def test_a_new_address_leaves_a_sign_in_waiting_for_its_code(server, frozen):
+    """Only the links mailed to the old address end with it (CR3-452): a sign-in elsewhere
+    waiting for its two-step code goes on."""
+    from test_users import last_link, set_public_url
+
+    set_public_url(server)
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    seed, _ = turn_on(c)
+    later(30)
+    with new_client(server) as b:
+        token = b.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+            "twoStepToken"
+        ]
+        assert c.post("/ui/api/profile/email", json={"email": "alice@new.lan"}).status_code == 204
+        _, confirm = last_link(server)
+        assert c.post("/ui/api/email-change/confirm", json={"token": confirm}).status_code == 204
+        r = b.post("/ui/api/session/two-step", json={"token": token, "code": code(seed)})
+        assert r.status_code == 200, r.text

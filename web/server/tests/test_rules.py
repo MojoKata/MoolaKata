@@ -238,3 +238,21 @@ def test_user_text_reaches_a_regular_expression_only_through_a_rule():
             if not isinstance(arg, ast.Constant):
                 found.add(path.relative_to(root).as_posix())
     assert found == set(built)
+
+
+@pytest.mark.parametrize(
+    ("args", "said"),
+    [
+        ((b"missing ): (",), "Not a regular expression: missing ): (."),
+        (("as text",), "Not a regular expression: as text."),
+        ((b"bad \xff byte",), "Not a regular expression: bad � byte."),
+        ((), "Not a regular expression: ."),
+        ((b"invalid perl operator: (?<=",), "RE2 has no look-arounds or back-references."),
+        ((b"invalid escape sequence: \\9",), "RE2 has no look-arounds or back-references."),
+    ],
+)
+def test_re2s_reason_is_read_whatever_form_it_comes_in(args, said):
+    """RE2 gives its reason as bytes; text, a byte that isn't UTF-8 and none at all read too."""
+    import re2
+
+    assert match._refusal(re2.error(*args)) == said

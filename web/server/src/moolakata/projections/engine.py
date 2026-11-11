@@ -229,8 +229,8 @@ def needed_saving(plan: Plan, target: float, at_index: int, chance: float = 0.9)
         return bool((path[:, at_index] >= target).mean() >= chance)
 
     if reaches(0.0):
-        return 0.0
-    lo, hi = 0.0, max(target, 1.0)
+        return 0.0  # so the target is above every balance, and above 0
+    lo, hi = 0.0, target
     for _ in range(DOUBLINGS):
         if reaches(hi):
             break

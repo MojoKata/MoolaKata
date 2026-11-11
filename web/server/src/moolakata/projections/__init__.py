@@ -375,7 +375,7 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         target = float(inputs.get("target", 0) or 0)
         idx = prep.target_index
         chance = float((result.at[:, idx] >= target).mean()) if target else 1.0
-        yearly = engine.needed_saving(plan, target, idx) if target else 0.0
+        yearly = engine.needed_saving(plan, target, idx)  # no target: none needed, 0
         needed = None if yearly is None else yearly / 12
         out["answer"] = {
             "kind": "savings",

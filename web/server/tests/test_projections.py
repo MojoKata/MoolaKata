@@ -51,6 +51,8 @@ def test_the_same_inputs_give_the_same_figures(alice):
     assert again["result"]["percentiles"]["50"] == p["result"]["percentiles"]["50"]
     res = p["result"]
     assert res["years"][0] == 2026 and res["years"][-1] == 1979 + 95
+    assert res["assumptions"]["inflation"] == 2.5, "the assumptions it ran on, in full"
+    assert [x["name"] for x in res["answer"]["people"]] == ["Alice"]
     lo, mid, hi = (res["percentiles"][k][-10] for k in ("10", "50", "90"))
     assert lo <= mid <= hi
     assert 0 <= res["answer"]["chance"] <= 1 and res["answer"]["retireYear"] == 2041
@@ -441,3 +443,29 @@ def test_an_answer_no_saving_reaches_says_so(alice, monkeypatch):
     r = make(alice, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
     assert r.status_code == 200, r.text
     assert r.json()["result"]["answer"]["neededMonthly"] is None
+
+
+def test_a_saving_that_stops_mid_year_counts_its_part_and_rises_each_year():
+    """The model's savings in a year (S6.4): a year's contribution rising by its growth, the
+    last year of saving counting its part (school's start, CR3-31). No returns, no fees."""
+    plan = engine.Plan(start=0.0, weights={"cash": 1.0}, returns={"cash": 0.0},
+                       vols={"cash": 0.0}, inflation=0.0, fees=0.0, first_year=2026, years=4,
+                       contribution=1000.0, contribution_growth=0.1, contribute_years=2,
+                       contribute_part=0.25)  # fmt: skip
+    path, _ = engine._simulate(plan, engine._expected_return(plan)[None, :])
+    assert path[0].tolist() == pytest.approx([0.0, 1000.0, 1000.0 + 1100.0 * 0.25, 1275.0])
+
+
+def _flat(start: float) -> tuple[engine.Plan, int]:
+    """A plan with no returns, fees or spread: what is saved is what there is."""
+    return engine.Plan(start=start, weights={"cash": 1.0}, returns={"cash": 0.0},
+                       vols={"cash": 0.0}, inflation=0.0, fees=0.0, first_year=2026, years=2,
+                       contribute_years=1), 1  # fmt: skip
+
+
+def test_a_target_met_exactly_needs_nothing_and_a_quarter_short_needs_a_quarter(monkeypatch):
+    plan, idx = _flat(1_000.0)
+    assert engine.needed_saving(plan, 1_000.0, idx) == 0.0, "exactly at the target reaches it"
+    monkeypatch.setattr(engine, "PRECISION", 0.01)
+    plan, idx = _flat(999.75)
+    assert engine.needed_saving(plan, 1_000.0, idx) == pytest.approx(0.25, abs=0.01)
