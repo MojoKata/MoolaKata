@@ -1982,6 +1982,15 @@
  */
 
 /**
+ * How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14).
+ * @typedef {Object} Listener
+ * @property {string} mode
+ * @property {number} port
+ * @property {Array<string>} trustedProxies
+ * @property {(string | null)} certificate
+ */
+
+/**
  * @typedef {Object} LoanOut
  * @property {string} account
  * @property {string} form

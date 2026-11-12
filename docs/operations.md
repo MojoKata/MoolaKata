@@ -23,7 +23,11 @@ locked screen in a browser or with `docker compose exec moolakata moolakata keys
 
 `install/compose.yaml` runs it behind the household's reverse proxy (`proxy` mode);
 `install/proxy/` has Caddy, nginx and haproxy examples. `install/compose.tls.yaml` runs its
-own HTTPS with a self-signed certificate, for trying it on a local network. Each release
+own HTTPS (`tls` mode): with a certificate given in `[tls]`, for real use, or with none, a
+self-signed one it makes, for trying it on a local network. That one is kept unencrypted in
+the data directory, so anyone with a copy of the directory could pose as the server; a given
+certificate is kept outside it. A certificate is read at start: a renewed one takes effect at
+the next, which starts locked (§2 step 5). Each release
 has these files attached as they are at its tag
 (`https://github.com/MojoKata/MoolaKata/releases/download/v<version>/<file>`).
 
@@ -107,7 +111,8 @@ The app itself (`/ui`) stays reachable only on the household's own network or ov
 
 - **In a VM**: [`DEPLOY.md`](DEPLOY.md) §3 makes a fresh Debian VM on Proxmox VE with Docker
   and runs a test server on it in `tls` mode; for real use, the same VM runs §2's steps, with
-  `compose.yaml` behind your reverse proxy. Give the VM 2 GB of memory, or 1 GB with receipt
+  `compose.yaml` behind your reverse proxy, or `compose.tls.yaml` given a certificate (§1). Give
+  the VM 2 GB of memory, or 1 GB with receipt
   reading turned off (Settings › Receipts).
 - **In an LXC container** (*not yet tried on a real host*): turn on **nesting** (Options ›
   Features), install Docker inside, then as above.
@@ -122,6 +127,27 @@ with nothing typed in a shell: two datasets for data and backups; a **custom app
 one-time `permissions` step that gives them to uid 10001, and the configuration in
 `MOOLAKATA_CONFIG` (the same TOML as `moolakata.toml`, which the server reads when no file is
 named with `--config`); and the welcome, which makes the key and the admin.
+
+That install is a test server: it serves the self-signed certificate it makes (§1). A server
+the household relies on is given a certificate:
+
+- **From TrueNAS's catalog**, once MoolaKata is listed there (requirements S17.8.3.1), choose
+  one from **System › Certificates** in the app's form. TrueNAS restarts the app when it renews
+  it.
+- **Until then**, put the certificate's files (`fullchain.pem` and `privkey.pem`) in a dataset
+  that is **not** replicated with the data, such as `tank/certs/moolakata`, readable by uid
+  10001; uncomment the volume marked *given* in `compose.truenas.yaml`, and add under `[tls]` in
+  `MOOLAKATA_CONFIG`:
+
+  ```toml
+  cert = "/etc/moolakata/tls/fullchain.pem"
+  key = "/etc/moolakata/tls/privkey.pem"
+  ```
+
+  When the certificate is renewed, copy the new files in and restart the app.
+
+Either way the server starts locked after the restart (§2 step 5). Settings › Network shows
+which certificate it serves.
 Both datasets go into snapshot and replication tasks as they are: nothing in them opens
 without the phrase. Unlock after each start (§2 step 5).
 

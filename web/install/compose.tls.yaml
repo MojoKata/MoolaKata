@@ -1,7 +1,10 @@
-# MoolaKata with its own HTTPS listener and a self-signed certificate, for testing on a local
-# network (requirements S13.3, S17.8.4). Use compose.yaml behind a reverse proxy for real use.
-# Copy moolakata.toml to moolakata-tls.toml, set mode = "tls" in it, and list under [tls] names
-# the name or address browsers will use, for the self-signed certificate.
+# MoolaKata with its own HTTPS listener (requirements S13.3, S17.8.4). Copy moolakata.toml to
+# moolakata-tls.toml and set mode = "tls" in it. To try it on a local network, list under
+# [tls] names the name or address browsers will use: the server makes a self-signed
+# certificate for them, kept in ./data. A server the household relies on is given a
+# certificate instead: set [tls] cert and key, and mount their folder (below), kept outside
+# ./data; or use compose.yaml behind a reverse proxy. A renewed certificate is read at the next
+# start, which starts locked.
 
 services:
   moolakata:
@@ -13,6 +16,7 @@ services:
       - ./data:/var/lib/moolakata
       - ./backups:/var/backups/moolakata
       - ./moolakata-tls.toml:/etc/moolakata.toml:ro
+      # - ./certs:/etc/moolakata/tls:ro   a given certificate, as [tls] cert and key name it
       - /etc/localtime:/etc/localtime:ro   # the host's time zone, which backups and emails follow
     environment:
       TZ: ${TZ:-}   # or name it here, or in .env beside this file: TZ=America/Denver (S14.9.2)

@@ -59,9 +59,10 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       confirmation tokens (SHA-256 of a random value). They never need to be read back, so
       there is no key that could reveal them.
    7. **Not encrypted**: the configuration file; the logs, which must never hold amounts, names
-      or secrets; the `tls/` pair in the data directory in `tls` mode (S13.3), which is for
-      testing: being plain, it protects the listener, and a phrase typed through it, only from
-      those who hold no copy of the data directory; and the **mail folder**, where emails are
+      or secrets; the `tls/` pair the server makes in the data directory in `tls` mode when
+      given no certificate (S13.3), which is for testing: being plain, it protects the
+      listener, and a phrase typed through it, only from those who hold no copy of the data
+      directory, so a server people rely on is given a certificate kept outside it; and the **mail folder**, where emails are
       written while SMTP is not set up (S16.2): each holds a link that works once, an
       invitation's for a week and the others' for a day at most, so each file is removed once
       its link has expired. Emails waiting to go out through SMTP are queued in the database,

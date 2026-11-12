@@ -31,3 +31,13 @@ connector on a laptop away from home needs the range it calls from added here.
 
 Changing any of these asks for your password again when it was given over 10 minutes ago: a
 wider range lets more addresses reach the server.
+
+## Listener
+
+How the server listens, set in `moolakata.toml` and shown here read only: its mode and port. In
+`proxy` mode, behind a reverse proxy, it names the proxies whose forwarded addresses it believes.
+In `tls` mode, serving HTTPS itself, it says whose certificate it uses: one given in `[tls]` (on
+TrueNAS, one from System › Certificates), or its own, self-signed, which is for trying MoolaKata
+out. Browsers warn about its own, and anyone with a copy of the data directory holds its key, so a
+server people rely on is given a certificate or runs behind a reverse proxy. A renewed certificate
+is read at the next start, and the server starts locked.

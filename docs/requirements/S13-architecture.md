@@ -19,11 +19,14 @@
    plain HTTP behind haproxy, Caddy or nginx, which ends TLS (forwarded headers are trusted
    only from the configured proxy addresses, each the proxy's own address and never a whole
    private range, since anything else in it could pose as the proxy); or **`tls`**, its own
-   HTTPS listener with HTTP/2 (forwarded headers ignored). **`proxy`** is the expected setup.
-   **`tls`** is for testing on a local network: given no certificate, the server makes a
+   HTTPS listener with HTTP/2 (forwarded headers ignored). Either serves a household:
+   **`proxy`** behind its proxy, or **`tls`** with a certificate given in `[tls]` (on TrueNAS,
+   one from System › Certificates, S17.8.3.2). Given no certificate, the server makes a
    self-signed one on first start and keeps it in the data directory (`tls/`, the key mode
-   0600). The pair is not encrypted: it protects the listener, not the data, and the listener
-   must read it before any key is entered (S15.1.7). It names the server and `localhost`, and
+   0600), which is for testing on a local network: browsers warn about it, and the pair is
+   not encrypted, so it protects the listener, not the data, and the listener must read it
+   before any key is entered (S15.1.7). A certificate is read at start: a renewed one takes
+   effect at the next, which starts locked (S15.4). It names the server and `localhost`, and
    the names and addresses listed in `[tls] names`, which are how browsers on the network reach
    it; a change to the list makes it again. A certificate named in `[tls]` lives wherever the
    admin keeps it. From a trusted proxy, `X-Forwarded-For`, `X-Forwarded-Proto` and

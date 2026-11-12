@@ -111,6 +111,14 @@ taxed, and withdrawals for medical costs are tax-free.
 
 [IRS Publication 969](https://www.irs.gov/publications/p969)
 
+## HTTPS: Hypertext Transfer Protocol Secure
+
+How a browser talks to a web server over an encrypted connection. The server proves who it is with
+a certificate, which browsers trust when an authority they know signed it, and warn about when it
+signed itself.
+
+[MDN: HTTPS](https://developer.mozilla.org/en-US/docs/Glossary/HTTPS)
+
 ## IRA: Individual Retirement Account
 
 A retirement account you open yourself, outside an employer's plan; the IRS calls it an

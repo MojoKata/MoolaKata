@@ -68,8 +68,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | **G27** | [Correcting an instrument's class](gaps.md#g27-correcting-an-instruments-class--low) | Low |
 | **G28** | [Short sales of stock](gaps.md#g28-short-sales-of-stock--low) | Low |
 | **G29** | [Whether an IRA contribution can be deducted](gaps.md#g29-whether-an-ira-contribution-can-be-deducted--low) | Low |
+| **G30** | [A renewed certificate without a restart](gaps.md#g30-a-renewed-certificate-without-a-restart--low) | Low |
 
-A new gap takes the next id after G29.
+A new gap takes the next id after G30.
 
 ## Open questions
 

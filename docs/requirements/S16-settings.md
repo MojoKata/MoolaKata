@@ -100,10 +100,12 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     what doesn't exist. The ranges are in the database, so while the server is locked they
     can't be read: the locked screen and the unlock then answer any address that reaches the
     listener, and the proxy is what limits them. The section also shows, read only, how the
-    listener runs: its mode (`proxy` or `tls`), its port, and the trusted proxies' addresses
-    (S13.3), all set in its configuration (`moolakata.toml`, or `MOOLAKATA_CONFIG`, S17.8).
-15. *Not a section*: `tls` mode is for testing (S13.3), and Settings › Network shows how the
-    listener runs.
+    listener runs: its mode (`proxy` or `tls`), its port, and in `proxy` mode the trusted
+    proxies' addresses, in `tls` mode whether its certificate was given or is its own, the
+    one for testing (S13.3), all set in its configuration (`moolakata.toml`, or
+    `MOOLAKATA_CONFIG`, S17.8).
+15. *Not a section*: the listener's mode and certificate (S13.3) are set in the configuration,
+    and Settings › Network shows how the listener runs.
 16. **Alerts** (S12.11): how long a source may fail before it raises an alert (48 hours by
     default, 1 to 336), and the time of the daily summary email (07:00 by default, in each
     user's time zone).

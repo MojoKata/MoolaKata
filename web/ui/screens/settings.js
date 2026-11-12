@@ -276,6 +276,7 @@ function Plain({ section }) {
               ${area('networkConnectorRanges', 'any address')}
               </${Field}>
               <p class="small dim">/healthz and /demo answer any address.</p>
+              <${ListenerRows} />
       `,
     );
   }
@@ -1727,5 +1728,37 @@ function Keys() {
           : null}
       </div>
     <${ReminderSetting} />
+  `;
+}
+
+/** How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14). */
+function ListenerRows() {
+  const res = useApi('/settings/listener');
+  const l = /** @type {import('../api/types.js').Listener | undefined} */ (res.data);
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!l) return html`<${Loading} lines=${2} />`;
+  const own = l.certificate === 'own';
+  return html`
+    <div
+      class="list-item mt"><span class="grow dim">Listener</span><code>${l.mode} mode · port ${l
+        .port}, in the container</code></div>
+    ${l.mode === 'proxy'
+      ? html`
+        <div class="list-item"><span class="grow dim">Trusted proxies</span><code>${l.trustedProxies
+          .join(', ') || 'none'}</code></div>
+        <p class="small dim">Both are set in <code>moolakata.toml</code>: the proxy's own address, never
+          a whole range.</p>
+      `
+      : html`
+        <div class="list-item"><span class="grow dim">Certificate</span>${own
+          ? html`its own, self-signed <span class="pill warn">for testing</span>`
+          : html`given in <code>moolakata.toml</code>`}</div>
+        <p class="small dim">${own
+          ? html`Browsers warn about it, and its key sits in the data directory unencrypted. A
+            server people rely on is given a certificate in <code>[tls]</code>, or runs behind a
+            reverse proxy.`
+          : html`Both are set in <code>moolakata.toml</code>. A renewed certificate is read at the
+            next start, which starts locked.`}</p>
+      `}
   `;
 }
