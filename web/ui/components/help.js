@@ -35,12 +35,18 @@ export function useGuide(key, vars) {
 /** @param {string} key */
 export function useDialogGuide(key) {
   useEffect(() => {
+    // Dialogs stack (S12.15.7): the top one's guide shows, and the one beneath's comes back.
+    const mine = { key };
+    guideStack.push(mine);
     dialogGuide.value = key;
     return () => {
-      dialogGuide.value = null;
+      guideStack.splice(guideStack.indexOf(mine), 1);
+      dialogGuide.value = guideStack.at(-1)?.key ?? null;
     };
   }, [key]);
 }
+/** The guides of the open dialogs, the top one's last. @type {{ key: string }[]} */
+const guideStack = [];
 
 const cache = new Map();
 /** @param {string} name */
@@ -90,7 +96,9 @@ export function HelpPane() {
   // The active topic: the focused field's heading stays marked until another field's heading
   // takes over (S12.7.3). Headings are reused across guides, so a new guide marks afresh.
   const heading = (/** @type {Element | null} */ el) => {
-    const id = el?.id?.startsWith('f-') ? el.id.slice(2) : el?.closest?.('[data-help]')
+    // A dialog over another puts "d1-" before its fields' ids (S12.15.7).
+    const own = el?.id?.replace(/^d\d+-/, '');
+    const id = own?.startsWith('f-') ? own.slice(2) : el?.closest?.('[data-help]')
       ?.getAttribute('data-help');
     return id && ref.current ? ref.current.querySelector(`[data-anchor="${id}"]`) : null;
   };

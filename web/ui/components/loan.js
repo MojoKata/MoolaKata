@@ -81,9 +81,9 @@ export function newTerms(type, accountId) {
 
 /**
  * The terms' fields, bound to the loan's record.
- * @param {{ rec: LoanRec, type: string, draft?: import('../app/draft.js').Draft | null }} p
+ * @param {{ rec: LoanRec, type: string }} p
  */
-export function TermsFields({ rec, type, draft = null }) {
+export function TermsFields({ rec, type }) {
   const mortgage = type === 'mortgage';
   return html`
     <div class="row">
@@ -120,16 +120,16 @@ export function TermsFields({ rec, type, draft = null }) {
           hint="Interest only while drawing; then the balance is repaid over the rest of the term." />
       `
       : null}
-    <${InBudgets} rec=${rec} draft=${draft} />
+    <${InBudgets} rec=${rec} />
   `;
 }
 
 /**
  * How the loan's payments count in budgets (S1.9.7): split by the schedule, or whole in one
  * category.
- * @param {{ rec: LoanRec, draft: import('../app/draft.js').Draft | null }} p
+ * @param {{ rec: LoanRec }} p
  */
-function InBudgets({ rec, draft }) {
+function InBudgets({ rec }) {
   return html`
     <div class="row">
       <${RecField} rec=${rec} name="budgetCounting" label="In budgets" id="in-budgets"
@@ -140,7 +140,7 @@ function InBudgets({ rec, draft }) {
       ${rec.applies('budgetCategoryId')
         ? html`
           <${CategoryField} rec=${rec} name="budgetCategoryId" label="Counts in"
-            id="budget-category" draft=${draft} first=${['', 'Loan payments']}
+            id="budget-category" first=${['', 'Loan payments']}
             only=${(/** @type {any} */ c) => c.kind !== 'transfer'} />
         `
         : null}
@@ -618,14 +618,14 @@ function ServicerDialog({ close, a }) {
 /**
  * The Settings card with the terms, in the account's Settings draft: the schedule is worked
  * out again once they are saved.
- * @param {{ a: any, rec: LoanRec, draft?: import('../app/draft.js').Draft | null }} p
+ * @param {{ a: any, rec: LoanRec }} p
  */
-export function TermsCard({ a, rec, draft = null }) {
+export function TermsCard({ a, rec }) {
   const res = useApi(`/accounts/${a.id}/loan`);
   const v = /** @type {any} */ (res.data);
   return html`
     <div class="card"><h3>Loan terms</h3>
-      <${TermsFields} rec=${rec} type=${a.type} draft=${draft} />
+      <${TermsFields} rec=${rec} type=${a.type} />
       <${RecField} rec=${rec} name="paymentsMode" label="Payments" id="payments-mode"
         hint="A payment day with none recorded: missed 15 days after it, or paid as scheduled."
         options=${[

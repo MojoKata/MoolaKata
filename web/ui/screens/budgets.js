@@ -30,12 +30,7 @@ import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
 import { Amt } from '../components/amount.js';
-import {
-  addedFor,
-  CategoriesTab,
-  CategoryField,
-  NewCategoryFor,
-} from '../components/categories.js';
+import { CategoriesTab, CategoryField } from '../components/categories.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
@@ -1985,7 +1980,7 @@ function PlanDialog({ close, b, month }) {
               <td>${r.state === 'new'
                 ? html`
                   <${CategoryField} rec=${r} name="categoryId" bare label="Category"
-                    help="category" id=${'plan-' + r.key} draft=${draft}
+                    help="category" id=${'plan-' + r.key}
                     first=${['', 'Choose a category']} only=${(/** @type {any} */ c) =>
                       c.kind !== 'transfer' &&
                       (c.id === r.get('categoryId') || !taken.has(c.id))} />
@@ -2029,23 +2024,9 @@ function PlanDialog({ close, b, month }) {
                 <${RecField} rec=${r} name="projectionId" bare label="Projection"
                   help="projection" options=${plans} />
               </td>
-              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() => {
-                // A category made for this line goes with it.
-                const made = addedFor(draft, r.get('categoryId'));
-                if (made) draft?.remove(made);
-                draft?.remove(r);
-              }}><${Icon} name="x" /></button></td>
+              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() =>
+                draft?.remove(r)}><${Icon} name="x" /></button></td>
             </tr>
-            ${addedFor(draft, r.get('categoryId'))
-              ? html`
-                <tr class="sub-row">
-                  <td colspan=${span}>
-                    <${NewCategoryFor} rec=${r}
-                      name="categoryId" draft=${draft} id=${'plan-' + r.key + '-new'} />
-                  </td>
-                </tr>
-              `
-              : null}
             <${RowErrors} rec=${r} span=${span} />
           `
         )}</tbody>

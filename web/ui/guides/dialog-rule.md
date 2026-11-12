@@ -33,25 +33,10 @@ One account, or any of those you can change.
 What a matching transaction is filed under, when it has no category yet. **Leave it as it is**
 for a rule that only renames or tags.
 
-## New category {#new-category}
+## New category…
 
-What **New category…**, at the end of the list, adds: its name, up to 60 characters. It's made
-when you save, and everyone sees it: the household has one tree of categories.
-
-## Under {#new-category-under}
-
-The top-level category it goes under, or none for a new top-level one. Categories have two
-levels.
-
-## Kind {#new-category-kind}
-
-Expense, income, savings or transfer: how budgets count what's filed under it. Transfers never
-count.
-
-## Tax tag {#new-category-tax-tag}
-
-Puts what's filed under it in Taxes › Deductions: charitable gifts, medical and dental, and the
-others. Most categories have none.
+At the end of the list: opens **New category** over this dialog. The category it makes
+is chosen here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Rename to
 

@@ -125,9 +125,7 @@ function AccountForm({ type, close, back }) {
             <${RecField} rec=${acct} name="mask" label="Last 4" id="mask"
               placeholder="4821" />
           </div>
-          ${t.education && plan && draft
-            ? html`<${PlanFields} rec=${plan} draft=${draft} />`
-            : null}
+          ${t.education && plan && draft ? html`<${PlanFields} rec=${plan} />` : null}
           ${t.wallet
             ? html`
               <p class="small dim">Bitcoin. Other coins come later.</p>
@@ -136,7 +134,7 @@ function AccountForm({ type, close, back }) {
                 hint=${LOT_HINT} />
             `
             : t.loan && loan
-            ? html`<${TermsFields} rec=${loan} type=${type} draft=${draft} />`
+            ? html`<${TermsFields} rec=${loan} type=${type} />`
             : t.physical
             ? html`<p class="small dim">Add the items after making the account, each with its
               purchase date, cost basis, notes and documents.</p>`

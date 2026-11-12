@@ -2,7 +2,7 @@
 // dialog (its name, parent, kind and tax tag, each locked with why when the reader may not
 // change it, S7.2.3), an admin's merge (S7.2.4), and **New category…** at the end of every list
 // of categories to choose from (S12.2.6).
-import { useEffect, useState } from 'preact/hooks';
+import { useContext, useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
@@ -14,7 +14,7 @@ import { session } from '../store/session.js';
 import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
-import { Field, FormError, Select } from './fields.js';
+import { Field, FormError, IdPrefix, Select } from './fields.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { Failed, Loading } from './bits.js';
@@ -97,73 +97,38 @@ function parents(list, but) {
 }
 
 /**
- * The fields of a new category made from a list inside a dialog (a transaction's, a rule's, a
- * plan line's, a loan's): in the same draft, saved with the dialog (S12.15.7).
- * @param {{ cat: CategoryRec, list: any[], idPrefix: string }} p
- */
-function NewCategoryFields({ cat, list, idPrefix }) {
-  return html`
-    <div class="sub-form" role="group" aria-label="New category">
-      <div class="row">
-        <${RecField} rec=${cat} name="name" label="New category" id=${idPrefix + '-name'}
-          help="new-category" />
-        <${RecField} rec=${cat} name="parentId" label="Under" id=${idPrefix + '-parent'}
-          help="new-category-under" options=${[
-            ['', 'Nothing: a top-level category'],
-            ...parents(
-              list,
-            ).map((c) => [c.id, c.path]),
-          ]} />
-      </div>
-      <div class="row">
-        <${RecField} rec=${cat} name="kind" label="Kind" id=${idPrefix + '-kind'}
-          help="new-category-kind" options=${KINDS} />
-        <${RecField} rec=${cat} name="taxTag" label="Tax tag" id=${idPrefix + '-tag'}
-          help="new-category-tax-tag" options=${TAX_TAGS} />
-      </div>
-    </div>
-  `;
-}
-
-/** The new category a record's field names, made in this draft, if any. */
-export function addedFor(/** @type {any} */ draft, /** @type {any} */ value) {
-  return /** @type {CategoryRec | undefined} */ (draft?.records.find((/** @type {any} */ r) =>
-    r instanceof CategoryRec && r.state === 'new' && !r.removed && r.id === value
-  ));
-}
-
-/**
- * A record's category, chosen from the list, or made there with New category… (S12.2.6): the
- * new one's fields open below, in the dialog's draft. Bare, inside a Field of a row (a split's
- * part), it draws the choice alone, and `NewCategoryFor` draws the fields after the row.
- * @param {{ rec: any, name: string, draft: import('../app/draft.js').Draft | null,
- *   label: string, first?: [string, string] | null, id?: string, help?: string,
- *   bare?: boolean, hint?: any, kind?: string, disabled?: boolean,
- *   only?: (c: any) => boolean }} p
+ * A record's category, chosen from the list, or made there with New category… (S12.2.6),
+ * which opens New category over the dialog (S12.15.7): saved there, it is chosen here; left,
+ * the choice stays as it was. Bare, inside a Field of a row (a split's part), it draws the
+ * choice alone.
+ * @param {{ rec: any, name: string, label: string, first?: [string, string] | null,
+ *   id?: string, help?: string, bare?: boolean, hint?: any, kind?: string,
+ *   disabled?: boolean, only?: (c: any) => boolean }} p
  */
 export function CategoryField(p) {
-  const { rec, name, draft } = p;
+  const { rec, name } = p;
   const cats = useCategories();
   const value = rec.get(name);
-  const added = addedFor(draft, value);
-  const pick = (/** @type {string} */ v) => {
-    if (v === NEW) {
-      if (added || !draft) return;
-      const made = draft.add(CategoryRec, { name: '', kind: p.kind || 'expense' });
-      rec.set(name, made.id);
-      return;
-    }
-    if (added) draft?.remove(added);
-    rec.input(name, v);
+  // While New category is open over the dialog, the list shows the choice that opened it.
+  const [making, setMaking] = useState(false);
+  const pick = async (/** @type {string} */ v) => {
+    if (v !== NEW) return rec.input(name, v);
+    setMaking(true);
+    const made = await addCategory({ kind: p.kind });
+    setMaking(false);
+    if (made) rec.input(name, made.id);
   };
-  // Its Field's id, as the Field gives it: the label's slug unless one is given.
-  const id = p.id || slug(p.label);
   // Bare, the Field around it names it: its id as that Field gives its control (fields.js).
+  const ids = useContext(IdPrefix);
   const own = p.bare
-    ? { id: (p.help ? 'x-' : 'f-') + id, 'aria-label': p.label, 'data-help': p.help }
+    ? {
+      id: ids + (p.help ? 'x-' : 'f-') + (p.id || slug(p.label)),
+      'aria-label': p.label,
+      'data-help': p.help,
+    }
     : {};
   const select = html`
-    <${Select} value=${added ? NEW : value ?? ''} onChange=${pick} disabled=${p.disabled}
+    <${Select} value=${making ? NEW : value ?? ''} onChange=${pick} disabled=${p.disabled}
       options=${categoryOptions(
         p.only ? cats.list.filter(p.only) : cats.list,
         p.first === undefined ? ['', 'Uncategorised'] : p.first,
@@ -174,20 +139,7 @@ export function CategoryField(p) {
   return html`
     <${Field} label=${p.label} id=${p.id} help=${p.help} hint=${p.hint}
       error=${rec.error(name)}>${select}</${Field}>
-    ${added ? html`<${NewCategoryFields} cat=${added} list=${cats.list} idPrefix=${id} />` : null}
   `;
-}
-
-/**
- * The fields of the new category a bare `CategoryField` made, drawn where the row allows.
- * @param {{ rec: any, name: string, draft: import('../app/draft.js').Draft | null, id: string }} p
- */
-export function NewCategoryFor({ rec, name, draft, id }) {
-  const cats = useCategories();
-  const added = addedFor(draft, rec.get(name));
-  return added
-    ? html`<${NewCategoryFields} cat=${added} list=${cats.list} idPrefix=${id} />`
-    : null;
 }
 
 /** Why a field is locked for the reader (S7.2.3). @param {any} c */

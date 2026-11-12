@@ -185,11 +185,14 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     page.keyboard.press("Escape")  # back to the list, then closed
     wait_guide(page, "dialog-rules")
     close_dialog(page)
-    # New category… opens a new category's fields in the dialog that chose it.
+    # New category… opens New category over the dialog that chose it, with its own guide; the
+    # one beneath's comes back when it closes (S12.15.7).
     open_dialog(page, f"/ui/accounts/{ids['checking']}/transactions", "Add", "dialog-transaction")
     page.select_option(".dialog #f-category", "new-category")
-    page.wait_for_selector(".dialog #x-category-name")
-    check_guide(page, ".dialog", "a transaction's new category")
+    wait_guide(page, "dialog-edit-category")
+    check_guide(page, ".dialog-layer:not([inert]) .dialog", "a transaction's new category")
+    page.keyboard.press("Escape")
+    wait_guide(page, "dialog-transaction")
     close_dialog(page)
     # A merge into a category with categories of its own maps each of them.
     open_dialog(page, "/ui/budgets/x/categories", "Merge Health", "dialog-merge-category")
@@ -301,9 +304,12 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     open_dialog(page, "/ui/accounts", "New account", "dialog-new-account")
     page.get_by_role("button", name=re.compile("^529 plan")).click()
     wait_guide(page, "dialog-account-form")
-    page.select_option(".dialog #f-beneficiary", "new")
-    page.wait_for_selector(".dialog #f-new-name")
     check_guide(page, ".dialog", "the 529 form")
+    page.select_option(".dialog #f-beneficiary", "new")
+    wait_guide(page, "dialog-new-person")
+    check_guide(page, ".dialog-layer:not([inert]) .dialog", "a 529's new person")
+    page.keyboard.press("Escape")
+    wait_guide(page, "dialog-account-form")
     close_dialog(page)
     # A token's chosen items, then the token shown once.
     open_dialog(page, "/ui/profile", "New token", "dialog-new-token")

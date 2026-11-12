@@ -197,7 +197,8 @@ export function DraftDialog(p) {
   // The fields come once the records are read: the first takes the focus then (S12.1.3).
   useEffect(() => {
     if (!draft) return;
-    const box = document.querySelector('.dialog .body');
+    // The dialog on top: one opened over another draws after it (S12.15.7).
+    const box = [...document.querySelectorAll('.dialog .body')].at(-1);
     if (!box || box.contains(document.activeElement)) return;
     /** @type {HTMLElement | null} */ (box.querySelector(
       'input:not([type=hidden]):not(:disabled),select:not(:disabled),textarea:not(:disabled)',
@@ -213,6 +214,7 @@ export function DraftDialog(p) {
   return html`
     <${Dialog} title=${p.title} wide=${p.wide} close=${close} note=${p.note}
       changed=${p.changed || (() => !!draft?.changed)}
+      save=${p.hideSave ? undefined : () => saveFromQuestion(save)}
       onSubmit=${() => save.run().catch(() => {})}
       footer=${html`
         ${p.extra?.({ save, outcome }) || null}${p.hideSave ? null : html`
@@ -237,25 +239,51 @@ export function DraftDialog(p) {
 }
 
 /**
- * The question before a screen's form loses its changes (S12.15.6).
+ * A save asked for from the question before changes are lost: whether it saved. A refusal or
+ * a question stays with the form, which shows it (S12.15.6).
+ * @param {{ run: () => Promise<any> }} save
+ */
+export async function saveFromQuestion(save) {
+  try {
+    return (await save.run())?.status === 'saved';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The question before a screen's form loses its changes (S12.15.6): Keep editing (focused, and
+ * what Escape answers), Discard, or Save. Closes with 'discard', 'save' or nothing.
  * `answered` hears the answer as it is given, before the dialog has gone.
  * @param {{ close: (v?: any) => void, where: string, answered?: () => void }} p
  */
-function DiscardDialog({ close, where, answered }) {
-  const answer = (/** @type {boolean} */ discard) => {
+export function LeaveDialog({ close, where, answered }) {
+  const answer = (/** @type {string | undefined} */ how) => {
     answered?.();
-    close(discard);
+    close(how);
   };
   return html`
-    <${Dialog} title="Discard your changes?" close=${() => answer(false)} footer=${html`
-      <button type="button" class="btn danger" onClick=${() => answer(true)}>Discard</button>
-      <button type="button" class="btn primary" autofocus onClick=${() =>
-        answer(false)}>Keep editing</button>
+    <${Dialog} title="Save your changes?" close=${() => answer(undefined)} footer=${html`
+      <button type="button" class="btn" autofocus onClick=${() => answer(undefined)}>Keep
+        editing</button>
+      <button type="button" class="btn danger" onClick=${() => answer('discard')}>Discard</button>
+      <button type="button" class="btn primary" onClick=${() => answer('save')}>Save</button>
     `}>
-      <p class="small dim">What you changed in ${where} isn't saved. Keep editing to save it, or
-        discard it and go on.</p>
+      <p class="small dim">What you changed in ${where} isn't saved. Save it, or discard it and
+        go on.</p>
       </${Dialog}>
   `;
+}
+
+/**
+ * Asks before a screen's form loses its changes, and saves when told to: whether to go on.
+ * @param {string} where @param {() => void} answered @param {() => Promise<boolean>} saveIt
+ */
+export async function askToLeave(where, answered, saveIt) {
+  const how = await openDialog(LeaveDialog, { where, answered });
+  if (how === 'discard') return true;
+  if (how === 'save') return saveIt();
+  return false;
 }
 
 /**
@@ -282,12 +310,16 @@ export function DraftForm(p) {
   });
   const changedRef = useRef(/** @type {() => boolean} */ (() => false));
   changedRef.current = () => !!draft?.changed;
+  const saveRef = useRef(save);
+  saveRef.current = save;
   useEffect(
     () =>
       guardForm({
         has: () => changedRef.current(),
         where: p.where,
-        ask: (where, answered) => openDialog(DiscardDialog, { where, answered }),
+        // The save as it stands when asked: the guard is set once, before the draft loads.
+        ask: (where, answered) =>
+          askToLeave(where, answered, () => saveFromQuestion(saveRef.current)),
         route,
       }),
     [p.where],

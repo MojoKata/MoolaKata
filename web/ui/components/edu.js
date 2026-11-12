@@ -17,7 +17,9 @@ import { EducationAnswer } from '../screens/projections.js';
 import { num } from '../app/dec.js';
 import { canAdd, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
+import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
+import { openDialog } from './dialog.js';
+import { useDialogGuide } from './help.js';
 
 /** A 529's plan (S1.8.1), in its account's draft. */
 export class EduPlanRec extends Record {
@@ -35,7 +37,7 @@ export class EduPlanRec extends Record {
   };
 }
 
-/** A beneficiary added from the plan (S10.10.3), in the same draft. */
+/** A person added from the plan's Beneficiary (S10.10.3), in Add a person's own draft. */
 class Beneficiary extends Record {
   /** @override */
   static prefix = 'Persn';
@@ -54,24 +56,56 @@ class Beneficiary extends Record {
 }
 
 /**
- * The plan's fields, bound to its record; "Add a person…" adds one to the draft.
- * @param {{ rec: EduPlanRec, draft: import('../app/draft.js').Draft }} p
+ * A person added from a list that chooses one (S12.15.7): over the dialog or the Settings form
+ * that asked, saved with its own Save. Closes with what was saved.
+ * @param {{ close: (v?: any) => void }} p
  */
-export function PlanFields({ rec, draft }) {
+function PersonDialog({ close }) {
+  useDialogGuide('dialog-new-person');
+  const f = useDraft((draft) => {
+    draft.add(Beneficiary, { name: '' });
+  });
+  const rec = /** @type {Beneficiary | undefined} */ (f.draft?.records[0]);
+  return html`
+    <${DraftDialog} f=${f} title="Add a person" close=${close} what="This person"
+      label="Add the person" done="Person added">
+      ${rec
+        ? html`
+          <${RecField} rec=${rec} name="name" label="Their name" />
+          <div class="row">
+            <${RecField} rec=${rec} name="sex" label="Sex" options=${[
+              ['', 'Choose…'],
+              ['female', 'Female'],
+              ['male', 'Male'],
+            ]} />
+            <${RecField} rec=${rec} name="birthYear" label="Year of birth"
+              hint="When school starts, for the Goal tab." />
+          </div>
+        `
+        : null}
+    </${DraftDialog}>
+  `;
+}
+
+/**
+ * The plan's fields, bound to its record; "Add a person…" opens Add a person over the form,
+ * and chooses the one it adds.
+ * @param {{ rec: EduPlanRec }} p
+ */
+export function PlanFields({ rec }) {
   const people = useList('/persons');
   const list = /** @type {any[]} */ (people.data) || [];
-  const added = /** @type {Beneficiary | undefined} */ (
-    draft.records.find((r) => r instanceof Beneficiary && !r.removed)
-  );
-  const who = rec.get('beneficiaryId');
-  const pick = (/** @type {string} */ v) => {
-    if (v === 'new') {
-      const p = added || draft.add(Beneficiary, { name: '' });
-      rec.set('beneficiaryId', p.id);
-      return;
-    }
-    if (added) draft.remove(added);
-    rec.input('beneficiaryId', v);
+  // While Add a person is open, the list shows the choice that opened it.
+  const [making, setMaking] = useState(false);
+  const pick = async (/** @type {string} */ v) => {
+    if (v !== 'new') return rec.input('beneficiaryId', v);
+    setMaking(true);
+    const saved = await openDialog(PersonDialog, {});
+    setMaking(false);
+    const made = saved?.find?.((/** @type {any} */ x) => x.entity === 'Persn')?.record;
+    if (!made) return;
+    people.reload();
+    rec.input('beneficiaryId', made.id);
   };
   return html`
     <div class="row">
@@ -82,32 +116,19 @@ export function PlanFields({ rec, draft }) {
     </div>
     <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}
       hint="One of the household's people. The 529 counts in your net worth, not theirs.">
-      <${Select} value=${added && who === added.id ? 'new' : who || ''} onChange=${pick}
+      <${Select} value=${making ? 'new' : rec.get('beneficiaryId') || ''} onChange=${pick}
         options=${[
           ['', 'Choose…'],
           ...list.map((p) => [p.id, p.name]),
           ['new', 'Add a person…'],
-        ]} /></${Field}>
-    ${added && who === added.id
-      ? html`
-        <div class="row">
-          <${RecField} rec=${added} name="name" label="Their name" id="new-name" />
-          <${RecField} rec=${added} name="sex" label="Sex" id="new-sex" options=${[
-            ['', 'Choose…'],
-            ['female', 'Female'],
-            ['male', 'Male'],
-          ]} />
-          <${RecField} rec=${added} name="birthYear" label="Year of birth" id="new-birth-year"
-            hint="When school starts, for the Goal tab." />
-        </div>
-      `
-      : null}
-    <div class="row">
-      <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date"
-        hint="A Roth IRA rollover is possible 15 years on." />
-      <${RecField} rec=${rec} name="stateDeduction" label="State tax deduction a year"
-        id="state-deduction" hint="What you expect, typed." />
-    </div>
+        ]} />
+      </${Field}>
+      <div class="row">
+        <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date"
+          hint="A Roth IRA rollover is possible 15 years on." />
+        <${RecField} rec=${rec} name="stateDeduction" label="State tax deduction a year"
+          id="state-deduction" hint="What you expect, typed." />
+      </div>
   `;
 }
 
@@ -123,13 +144,13 @@ export async function loadPlan(draft, accountId) {
 
 /**
  * The Settings card with the plan, in the account's Settings draft.
- * @param {{ rec: EduPlanRec, draft: import('../app/draft.js').Draft }} p
+ * @param {{ rec: EduPlanRec }} p
  */
-export function PlanCard({ rec, draft }) {
+export function PlanCard({ rec }) {
   return html`
     <div class="card">
       <h3>The plan</h3>
-      <${PlanFields} rec=${rec} draft=${draft} />
+      <${PlanFields} rec=${rec} />
     </div>
   `;
 }

@@ -5,7 +5,7 @@
 
 /**
  * A screen's form: whether it holds changes, its name for the question, the question itself
- * (resolving to whether to discard), and how to move on.
+ * (resolving to whether to go on: discarded, or saved), and how to move on.
  * @typedef {{ has: () => boolean, where: string,
  *   ask: (where: string, answered: () => void) => Promise<boolean>,
  *   route: (url: string) => void }} Guarded
@@ -42,8 +42,8 @@ export function installGuard() {
     asking = true;
     // No longer asking once answered, not once the question's dialog has gone: Back pressed
     // just after Keep editing asks again (CR3-420).
-    form.ask(form.where, () => (asking = false)).then((discard) => {
-      if (!discard) return;
+    form.ask(form.where, () => (asking = false)).then((goOn) => {
+      if (!goOn) return;
       guarded.clear();
       form.route(url);
     });

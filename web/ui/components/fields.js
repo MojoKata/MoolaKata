@@ -1,11 +1,15 @@
 // Form fields: a label, the control, a hint and the server's refusal at that field (R3.7).
 // Each control's id is "f-" and its label's slug, which the help pane follows (S12.7.3).
-import { cloneElement, isValidElement } from 'preact';
-import { useState } from 'preact/hooks';
+import { cloneElement, createContext, isValidElement } from 'preact';
+import { useContext, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { slug } from '../app/format.js';
 import { Icon } from './icon.js';
 import { outside } from '../app/bounds.js';
+
+/** What a dialog opened over another puts before its fields' ids ("d1-"), so they stay its own
+ * (S12.15.7); the help pane reads past it. */
+export const IdPrefix = createContext('');
 
 /**
  * @param {{ label: string, id?: string, hint?: any, error?: string | null, help?: string,
@@ -14,7 +18,7 @@ import { outside } from '../app/bounds.js';
 export function Field({ label, id, hint, error, help, children }) {
   // A control that repeats (a split's parts) keeps a unique id and names its heading with
   // data-help instead (S12.7.3).
-  const fid = (help ? 'x-' : 'f-') + (id || slug(label));
+  const fid = useContext(IdPrefix) + (help ? 'x-' : 'f-') + (id || slug(label));
   const kids = Array.isArray(children) ? children : [children];
   const control = kids.map((c) =>
     isValidElement(c) && !(/** @type {any} */ (c).props.id)
@@ -156,9 +160,10 @@ export function Select({ value, onChange, options, ...rest }) {
  *   disabled?: boolean, help?: string }} p
  */
 export function Switch({ on, onChange, label, id, disabled, help }) {
+  const ids = useContext(IdPrefix);
   return html`
     <button type="button" class=${'switch' + (on ? ' on' : '')} role="switch"
-      aria-checked=${on ? 'true' : 'false'} aria-label=${label} id=${(help ? 'x-' : 'f-') +
+      aria-checked=${on ? 'true' : 'false'} aria-label=${label} id=${ids + (help ? 'x-' : 'f-') +
         (id || slug(label))} data-help=${help}
       disabled=${disabled} onClick=${() => onChange(!on)}></button>
   `;

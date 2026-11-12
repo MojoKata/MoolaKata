@@ -193,7 +193,7 @@ function RuleDialog({ close, rule, fill }) {
               ...writable.map((a) => [a.id, a.name]),
             ]} />
           </div>
-          <${CategoryField} rec=${rec} name="categoryId" label="Category" draft=${f.draft}
+          <${CategoryField} rec=${rec} name="categoryId" label="Category"
             first=${['', 'Leave it as it is']} />
           <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
             hint="The payee shown; the bank's text is kept beside it." />

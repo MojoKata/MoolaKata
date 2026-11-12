@@ -970,7 +970,7 @@ function Settings({ a, reload }) {
             ${loan && terms
               ? html`
                 <div class="grid" style=${{ alignContent: 'start' }}>
-                  <${TermsCard} a=${a} rec=${terms} draft=${f.draft} />
+                  <${TermsCard} a=${a} rec=${terms} />
                   <div class="card">
                     <h3>Statements</h3>
                     <${StatementsExpected} a=${a} rec=${rec} />
@@ -990,7 +990,7 @@ function Settings({ a, reload }) {
               : education && plan && f.draft
               ? html`
                 <div class="grid" style=${{ alignContent: 'start' }}>
-                  <${PlanCard} rec=${plan} draft=${f.draft} />
+                  <${PlanCard} rec=${plan} />
                   <div class="card">
                     <h3>Keeping it current</h3>
                     ${keeping(rec)}
