@@ -811,6 +811,7 @@ def test_each_use_is_listed_for_its_maker_and_counted_for_others(people, how):
     mine = new(alice, "Hobbies")
     empty = uses(alice, mine["id"])
     assert empty == {
+        "gone": False,
         "seen": 0,
         "unseen": 0,
         "transactions": 0,
@@ -904,7 +905,18 @@ def test_the_uses_of_no_category(people):
     assert alice.get("/ui/api/categories/Cat_nothing/uses").status_code == 404
     gone = new(alice, "Gone")
     assert remove(alice, "Cat", row(alice, gone["id"])).status_code == 200
-    assert alice.get(f"/ui/api/categories/{gone['id']}/uses").status_code == 404
+    # One deleted says so, for a tour open on it.
+    assert uses(alice, gone["id"]) == {
+        "gone": True,
+        "seen": 0,
+        "unseen": 0,
+        "transactions": 0,
+        "rules": [],
+        "planLines": [],
+        "moves": [],
+        "loans": [],
+        "categories": [],
+    }
 
 
 @pytest.mark.parametrize(
@@ -936,3 +948,40 @@ def test_a_refused_delete_counts_both(people):
     )
     r = remove(bob, "Cat", row(bob, pets["id"]))
     assert r.json()["errors"][0]["message"].startswith("It's in use: 1 use you can see, and 1")
+
+
+def test_a_save_tells_the_savers_own_pages(people, server, monkeypatch):
+    """S12.6: a save, a bulk categorise and rules applied each tell the pages of the user who
+    made them, so a tour's counts follow (S12.17.4); nothing at all, or nothing changed, tells
+    no one."""
+    alice = people["alice"]
+    told = []
+    monkeypatch.setattr(
+        server.events,
+        "publish",
+        lambda kind, data=None, users=None, **kw: told.append((kind, data, users)),
+    )
+    me = [people["ids"]["alice"]]
+    acct = new_account(alice)
+    t = add(alice, acct["id"], "-3.00", payee="Toy shop")
+    assert ("saved", None, me) in told
+    told.clear()
+    pets = new(alice, "Pets")
+    told.clear()
+    r = alice.post(
+        "/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]}
+    )
+    assert r.json() == {"changed": 1} and told == [("saved", None, me)]
+    told.clear()
+    alice.post("/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]})
+    assert told == [], "nothing changed"
+    make(alice, "Rule", payeeMatch="toy", categoryId=pets["id"])
+    add(alice, acct["id"], "-4.00", payee="Toy barn")
+    told.clear()
+    assert alice.post("/ui/api/rules/apply", json={}).json() == {"changed": 1}
+    assert told == [("saved", None, me)]
+    told.clear()
+    assert alice.post("/ui/api/rules/apply", json={}).json() == {"changed": 0}
+    assert told == []
+    r = alice.post("/ui/api/save", json={"ops": [], "confirm": []})
+    assert r.status_code == 200 and told == []

@@ -5,7 +5,7 @@
 import { useContext, useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useList, useSubmit } from '../app/hooks.js';
+import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { Record } from '../app/draft.js';
 import { changes } from '../app/stream.js';
 import { FIELDS } from '../api/fields.js';
@@ -13,13 +13,20 @@ import { slug } from '../app/format.js';
 import { session } from '../store/session.js';
 import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
-import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { askToLeave, DraftDialog, RecField, saveFromQuestion, useDraft } from './draft-form.js';
+import { startTour } from '../store/tour.js';
 import { Field, FormError, IdPrefix, Select } from './fields.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { Failed, Loading } from './bits.js';
 import { toast } from './toast.js';
-import { categoryOptions, defaultMapping, mergeTargets, NEW } from '../app/categories.js';
+import {
+  categoryOptions,
+  defaultMapping,
+  mergeTargets,
+  NEW,
+  usesWords,
+} from '../app/categories.js';
 
 export { categoryOptions, defaultMapping, mergeTargets, NEW };
 
@@ -46,12 +53,13 @@ const KIND_NAMES = Object.fromEntries(KINDS);
 const TAG_NAMES = Object.fromEntries(TAX_TAGS);
 
 /**
- * The categories, loaded again when any page changes them (S12.6).
+ * The categories, loaded again when any page changes them, or the reader saves (whether each
+ * is in use may change, S12.6).
  * @returns {{ list: any[], byId: { [id: string]: any }, loaded: boolean, error: any,
  *   reload: () => void }}
  */
 export function useCategories() {
-  const r = useList('/categories', {}, ['category']);
+  const r = useList('/categories', {}, ['category', 'saved']);
   const list = /** @type {any[]} */ (r.data) || [];
   return {
     list,
@@ -178,7 +186,11 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
         close(o.saved);
       }}
       extra=${({ save }) =>
-        cat?.allowed.delete
+        cat?.inUse
+          ? html`<${FindThem} cat=${cat} close=${close} leave=${async () =>
+            !f.draft?.changed ||
+            await askToLeave('this category', () => {}, () => saveFromQuestion(save))} />`
+          : cat?.allowed.delete
           ? html`<button type="button" class="btn danger" onClick=${async () => {
             if (!f.draft || !rec) return;
             const sure = await confirmAction({
@@ -211,19 +223,44 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
               disabled=${locked} options=${TAX_TAGS}
               hint="Puts its transactions in Taxes › Deductions." />
           </div>
-          ${cat && !cat.allowed.delete && !cat.serverNamed
-            ? html`<p class="small dim">${
-              cat.inUse
-                ? (cat.allowed.merge
-                  ? 'In use: merge it into another category rather than delete it.'
-                  : 'In use: an admin can merge it into another category.')
-                : 'Only admins delete a shipped category or another user’s.'
-            }</p>`
+          ${cat?.inUse
+            ? html`<${InUse} cat=${cat} />`
+            : cat && !cat.allowed.delete && !cat.serverNamed
+            ? html`<p class="small dim">Only admins delete a shipped category or another user’s.</p>`
             : null}
         `
         : null}
     </${DraftDialog}>
   `;
+}
+
+/**
+ * A category in use: how many uses the reader can see and how many they can't (S12.2.6).
+ * @param {{ cat: any }} p
+ */
+function InUse({ cat }) {
+  const u = /** @type {any} */ (useApi(`/categories/${cat.id}/uses`, {}, ['category', 'saved'])
+    .data);
+  const then = cat.allowed.merge
+    ? 'Merge it into another category rather than delete it.'
+    : 'An admin can merge it into another category.';
+  const words = u ? `: ${usesWords(u.seen, u.unseen)}` : '';
+  return html`<p class="small dim in-use">${`In use${words}. ${then}`}</p>`;
+}
+
+/**
+ * Find them: closes the dialog (asking first if it holds changes) and starts the Find uses
+ * tour (S12.17.6); there while the reader can see a use.
+ * @param {{ cat: any, close: (v?: any) => void, leave: () => Promise<boolean> }} p
+ */
+function FindThem({ cat, close, leave }) {
+  const u = /** @type {any} */ (useApi(`/categories/${cat.id}/uses`, {}, ['category']).data);
+  if (!u?.seen) return null;
+  return html`<button type="button" class="btn" onClick=${async () => {
+    if (!(await leave())) return;
+    close();
+    startTour({ kind: 'uses', catId: cat.id });
+  }}>Find them</button>`;
 }
 
 /**

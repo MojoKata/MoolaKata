@@ -4668,8 +4668,10 @@
  */
 
 /**
- * What names a category that the reader can see, by kind, and how many uses they can't.
+ * What names a category that the reader can see, by kind, and how many uses they can't;
+ * for one deleted (or merged away) since, `gone` and nothing more.
  * @typedef {Object} UsesOut
+ * @property {boolean} [gone]
  * @property {number} seen
  * @property {number} unseen
  * @property {number} transactions

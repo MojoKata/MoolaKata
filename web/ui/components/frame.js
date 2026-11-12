@@ -14,6 +14,8 @@ import { Icon } from './icon.js';
 import { Avatar } from './bits.js';
 import { openMenu } from './menu.js';
 import { HelpCorner, HelpPane } from './help.js';
+import { TourPane } from './tour.js';
+import { tour } from '../store/tour.js';
 
 /** The screen's title and crumbs, set by each screen with useTitle(). */
 export const title = signal(
@@ -126,7 +128,7 @@ export function Frame({ children, onSignOut }) {
 
   return html`<div class=${
     'app' + (collapsed.value ? ' collapsed' : '') +
-    (helpOpen.value ? ' help-open' : '')
+    (helpOpen.value ? ' help-open' : '') + (tour.value ? ' touring' : '')
   }>
     <aside class="side" aria-label="Navigation">
       <div class="brand">
@@ -221,6 +223,7 @@ export function Frame({ children, onSignOut }) {
       </div>
       <div class="content">${children}</div>
     </main>
+    <${TourPane} />
     ${helpOpen.value ? html`<${HelpPane} />` : null}
   </div>`;
 }

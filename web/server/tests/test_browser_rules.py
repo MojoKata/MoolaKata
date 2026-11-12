@@ -66,9 +66,7 @@ def test_a_rule_at_its_address_saves_only_while_changed(browser, household):
     page, problems = signed_in(browser, h, f"{RULES}/{first['id']}", f"{PANE} #f-payee-contains")
     assert page.input_value(f"{PANE} #f-payee-contains") == "browser bakery"
     assert (
-        page.locator('a.rule-link[aria-current="true"]')
-        .inner_text()
-        .startswith("“browser bakery”")
+        page.locator('a.rule-link[aria-current="true"]').inner_text().startswith("“browser bakery”")
     )
     assert buttons(page) == ["Delete"]
     assert not any(held(page))
@@ -185,7 +183,10 @@ def test_make_a_rule_opens_new_rule_over_the_transaction(browser, household):
     wait(page, f"{TOP} #d1-f-payee-contains", problems)
     assert page.locator(f"{TOP} h2").inner_text() == "New rule"
     assert page.input_value(f"{TOP} #d1-f-payee-contains") == "Browser pretzels"
-    assert page.input_value(f"{TOP} #d1-f-category") == h.cats["Food › Groceries"]
+    # The categories come as the dialog opens: their list may arrive after the field.
+    until(
+        page, f"document.querySelector('#d1-f-category')?.value === {h.cats['Food › Groceries']!r}"
+    )
     page.click(f"{TOP} footer button.primary")
     until(page, "document.querySelectorAll('.dialog').length === 1")
     assert page.input_value(".dialog #f-memo") == "kept while the rule is made"

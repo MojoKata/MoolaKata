@@ -1,6 +1,6 @@
 // What the browser remembers about how the page looks (requirements S17.3.7): theme, sidebar,
-// help pane, page size, privacy mode and the tax book in view. Nothing else is kept in the
-// browser.
+// help pane, the tour's width, page size, privacy mode and the tax book in view. Nothing else is
+// kept in the browser but the tour open in a tab (store/tour.js).
 import { effect, signal } from '@preact/signals';
 
 /**
@@ -32,6 +32,7 @@ export const theme = stored('theme', /** @type {'dark' | 'light' | 'system'} */ 
 export const collapsed = stored('sidebar-collapsed', false);
 export const helpOpen = stored('help-open', true);
 export const helpWidth = stored('help-width', 360);
+export const tourWidth = stored('tour-width', 340);
 export const pageSize = stored('page-size', 100);
 export const privacy = stored('privacy', false);
 /** The tax book the Taxes screen shows, by id. */

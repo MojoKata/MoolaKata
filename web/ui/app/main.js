@@ -17,6 +17,7 @@ import { MenuHost } from '../components/menu.js';
 import { Toasts } from '../components/toast.js';
 import { installTooltips, TooltipHost } from '../components/tooltip.js';
 import { installGuard } from './guard.js';
+import { endTour } from '../store/tour.js';
 
 // An exact number placed straight in a page shows its digits as they are (S12.12): Preact
 // renders text and elements, so a Dec child becomes its text.
@@ -42,6 +43,7 @@ const LockedScreen = lazy(() => import('../screens/locked.js'));
 
 function signOutLocally(/** @type {string} */ why) {
   lostChanges.value = dialogHasChanges();
+  endTour(); // a tour lasts while the session does (S12.17.2)
   disconnect();
   session.value = null;
   ended.value = why || 'signed-out';

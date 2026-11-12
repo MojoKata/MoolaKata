@@ -27211,7 +27211,7 @@
       },
       "UsesOut": {
         "additionalProperties": false,
-        "description": "What names a category that the reader can see, by kind, and how many uses they can't.",
+        "description": "What names a category that the reader can see, by kind, and how many uses they can't;\nfor one deleted (or merged away) since, `gone` and nothing more.",
         "properties": {
           "categories": {
             "items": {
@@ -27219,6 +27219,11 @@
             },
             "title": "Categories",
             "type": "array"
+          },
+          "gone": {
+            "default": false,
+            "title": "Gone",
+            "type": "boolean"
           },
           "loans": {
             "items": {

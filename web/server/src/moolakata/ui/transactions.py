@@ -883,7 +883,8 @@ def categorise(body: Categorise, request: Request, c: Caller = Depends(caller)):
     """Bulk categorise (S12.2.3): Activity says how many, never which amounts."""
     if len(body.ids) > 1000:
         raise refuse("ids", "too-many", "At most 1,000 at a time.")
-    with server(request).db.tx(user=c.id) as s:
+    srv = server(request)
+    with srv.db.tx(user=c.id) as s:
         if body.categoryId:
             cat = s.get(Category, body.categoryId)
             if cat is None or cat.deleted:
@@ -907,7 +908,9 @@ def categorise(body: Categorise, request: Request, c: Caller = Depends(caller)):
                 owner=a.ownerId,
                 detail={"fields": ["category"], "count": n},
             )
-        return Done(changed=sum(per_account.values()))
+    if per_account:
+        srv.events.publish("saved", users=[c.id])  # as a save does (S12.6)
+    return Done(changed=sum(per_account.values()))
 
 
 @router.post("/transactions/{txn_id}/both-real", response_model=TxnOut)

@@ -379,8 +379,10 @@ class UseChild(Model):
 
 
 class UsesOut(Model):
-    """What names a category that the reader can see, by kind, and how many uses they can't."""
+    """What names a category that the reader can see, by kind, and how many uses they can't;
+    for one deleted (or merged away) since, `gone` and nothing more."""
 
+    gone: bool = False
     seen: int
     unseen: int
     transactions: int  # each once, whether it or a part of it names the category
@@ -396,8 +398,12 @@ def category_uses(cat_id: str, request: Request, c: Caller = Depends(caller)):
     """A category's uses for its dialog's count and the Find uses tour."""
     with server(request).db.read(user=c.id) as s:
         cat = s.get(Category, cat_id)
-        if cat is None or cat.deleted:
+        if cat is None:
             raise Problem(404, "not-found", "Not found")
+        if cat.deleted:
+            # A tour open on it hears that it went, and says so (S12.17.6).
+            return UsesOut(gone=True, seen=0, unseen=0, transactions=0, rules=[], planLines=[],
+                           moves=[], loans=[], categories=[])  # fmt: skip
         mine, unseen = _counts(s, cat_id)
         budget_ids = {x.budgetId for x in [*mine.lines, *mine.moves]}
         budgets = {b.id: b.name for b in s.scalars(select(Budget).where(Budget.id.in_(budget_ids)))}
