@@ -2,6 +2,7 @@ import datetime as dt
 import email
 import re
 
+import pytest
 from conftest import make_user, new_client, sign_in
 from edits import change, make, save_settings, saved
 from sqlalchemy import select
@@ -295,6 +296,25 @@ def test_an_unchanged_address_sends_nothing_and_keeps_the_link(admin_client, ser
     assert "user.invitation-resent" not in kinds(server)
 
 
+def test_any_other_problem_sending_refuses_the_correction_whole(admin_client, server, monkeypatch):
+    """Only a missing public URL lets the address change without the invitation; any other
+    problem sending it refuses the save, so the old link and address stand together."""
+    from moolakata.errors import Problem
+
+    eve, old = _invite_eve(admin_client, server)
+
+    def broken(*a, **k):
+        raise Problem(503, "mail-down", "The mail relay is down.")
+
+    monkeypatch.setattr(accounts, "_send_invitation", broken)
+    r = change(admin_client, "User", eve, email="eve@home.lan")
+    assert r.status_code == 503 and "mail-down" in r.text
+    monkeypatch.undo()
+    with server.db.read(unscoped="test") as s:
+        assert s.get(User, eve["id"]).email == "eve@hme.lan"
+    assert _link_works(server, old)
+
+
 def test_a_correction_with_no_public_url_ends_the_old_link_and_sends_none(admin_client, server):
     """With no public URL there is no link to build: the address is still corrected and the
     old link ended, so the wrong mailbox can't use it; Resend invitation sends it later."""
@@ -372,6 +392,42 @@ def test_an_address_is_set_only_where_the_links_mailed_to_the_old_one_end():
                     name = re.sub(r"^x_(.+)__mutmut_\w+$", r"\1", fn.name)
                     found.add(f"{path.relative_to(root).as_posix()}:{name}")
     assert found == {"auth/users.py:_set_email", "links/manage.py:apply_directory"}
+
+
+PURPOSES = ("invitation", "reset", "email-change", "two-step")
+
+
+def test_every_purpose_a_link_has_is_judged_here():
+    """A new purpose in the schema needs a decision below: does it end with the address?"""
+    from moolakata.store.tables.users import OneTimeToken as table
+
+    checks = [str(c.sqltext) for c in table.constraints if hasattr(c, "sqltext")]
+    (check,) = [c for c in checks if c.startswith("purpose IN")]
+    assert set(re.findall(r"'([a-z-]+)'", check)) == set(PURPOSES)
+    assert set(accounts.MAILED) < set(PURPOSES)
+
+
+@pytest.mark.parametrize("new", ["fay@new.lan", "fay@home.lan", None])
+def test_a_new_address_ends_the_links_mailed_to_the_old_one_and_only_those(server, new):
+    """CR3-49, CR3-452, every purpose against each kind of change: an invitation or a reset
+    was mailed to the old address and ends with it; a pending change's link went to the new
+    address it names, and a two-step sign-in is the user's own, so both stay. The same
+    address ends nothing."""
+    from moolakata.store.entities.users import OneTimeToken
+
+    fay = make_user(server, "fay", email="fay@home.lan")
+    with server.db.tx(unscoped="test") as s:
+        u = s.get(User, fay.id)
+        for purpose in PURPOSES:
+            accounts._issue(s, u, purpose, dt.timedelta(hours=1), "fay@next.lan")
+        accounts._set_email(s, u, new)
+        s.flush()
+        left = {
+            t.purpose for t in s.scalars(select(OneTimeToken).where(OneTimeToken.userId == u.id))
+        }
+        assert u.email == new
+    ended = set() if new == "fay@home.lan" else set(accounts.MAILED)
+    assert left == set(PURPOSES) - ended
 
 
 def test_only_admins_manage_users(server):
