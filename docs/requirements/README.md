@@ -68,8 +68,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | **G27** | [Correcting an instrument's class](gaps.md#g27-correcting-an-instruments-class--low) | Low |
 | **G28** | [Short sales of stock](gaps.md#g28-short-sales-of-stock--low) | Low |
 | **G29** | [Whether an IRA contribution can be deducted](gaps.md#g29-whether-an-ira-contribution-can-be-deducted--low) | Low |
+| **G30** | [A renewed certificate without a restart](gaps.md#g30-a-renewed-certificate-without-a-restart--low) | Low |
 
-A new gap takes the next id after G29.
+A new gap takes the next id after G30.
 
 ## Open questions
 
@@ -339,4 +340,8 @@ The rulings the rest of the requirements apply.
     keyboard; while the field already holds its value, one inside is hidden and one outside
     greyed out. A value past the field's bounds (or not whole, for a count) is marked as it is
     typed, and refused when saved. Bounds are words, not icons: an arrow to a line reads as
-    upload or download.
+    upload or download. A blank that is refused is refused when saved, never while the field is
+    being chosen or filled. A placeholder says what a blank means, on a field where a blank
+    means something (*any*, *for ever*, *no limit*); where it means nothing, a placeholder may
+    give an example, marked as one (*ex: 192.168.1.20*), so it never reads as a value a blank
+    gets.

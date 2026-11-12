@@ -9191,6 +9191,10 @@
             "title": "Quantity",
             "type": "number"
           },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
           "symbol": {
             "title": "Symbol",
             "type": "string"
@@ -9221,6 +9225,7 @@
           "price",
           "priceAsOf",
           "priceSource",
+          "stale",
           "value",
           "gain",
           "lots"
@@ -11909,6 +11914,46 @@
           "links"
         ],
         "title": "LinksView",
+        "type": "object"
+      },
+      "Listener": {
+        "additionalProperties": false,
+        "description": "How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14).",
+        "properties": {
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "trustedProxies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Trustedproxies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode",
+          "port",
+          "trustedProxies",
+          "certificate"
+        ],
+        "title": "Listener",
         "type": "object"
       },
       "LoanOut": {
@@ -37244,6 +37289,30 @@
         "summary": "Resume",
         "tags": [
           "links"
+        ]
+      }
+    },
+    "/ui/api/settings/listener": {
+      "get": {
+        "operationId": "get_listener_ui_api_settings_listener_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listener"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Get Listener",
+        "tags": [
+          "settings"
         ]
       }
     },

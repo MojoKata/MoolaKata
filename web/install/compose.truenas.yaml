@@ -1,7 +1,11 @@
 # MoolaKata as a TrueNAS custom app (requirements S17.8.3, docs/DEPLOY.md §4): paste it into
 # Apps › Discover Apps › More Options › Install via YAML. /mnt/tank/moolakata holds the two
 # datasets (DEPLOY.md §4.1); use your pool's name in place of tank, and the NAS's address in
-# [tls] names.
+# [tls] names. As it is, the server makes a self-signed certificate for that address, which is
+# for testing (S13.3). A server the household relies on is given a certificate: put its files
+# in a dataset that isn't replicated with the data, readable by uid 10001, uncomment the
+# volume marked "given", and add cert and key under [tls] (docs/operations.md §2.2). A renewed
+# one is read at the next start.
 services:
   # Gives the two datasets to the server's account (uid 10001) before it starts, then ends:
   # root, with the one capability that takes, and no network.
@@ -43,6 +47,7 @@ services:
     volumes:
       - /mnt/tank/moolakata/data:/var/lib/moolakata
       - /mnt/tank/moolakata/backups:/var/backups/moolakata
+      # - /mnt/tank/certs/moolakata:/etc/moolakata/tls:ro   given
       - /etc/localtime:/etc/localtime:ro
     read_only: true
     tmpfs:

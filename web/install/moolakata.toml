@@ -6,8 +6,9 @@
 # Shown in logs and the self-signed certificate. The name linked servers see is set in
 # Settings › General.
 name = "moolakata"
-# "proxy": plain HTTP behind the household's reverse proxy, which ends TLS (the expected
-# setup). "tls": MoolaKata's own HTTPS with HTTP/2, for testing on a local network.
+# "proxy": plain HTTP behind the household's reverse proxy, which ends TLS. "tls": MoolaKata's
+# own HTTPS with HTTP/2, with the certificate under [tls], or with none its own self-signed
+# one, which is for testing on a local network.
 mode = "proxy"
 port = 37373
 # The reverse proxy's own address: X-Forwarded-For and -Proto are believed only from it. Never
@@ -21,8 +22,9 @@ backups = "/var/backups/moolakata"
 # socket = "/run/moolakata/sock"   where host commands reach the running server (S13.6): a
 #                                  directory of the server's account alone, as compose.yaml's tmpfs
 
-# [tls]   in "tls" mode: a certificate and key; without them, a self-signed pair is made on
-# cert = "/etc/moolakata/tls/fullchain.pem"   first start and kept in the data directory.
+# [tls]   in "tls" mode: a certificate and key, for real use; without them, a self-signed pair
+# cert = "/etc/moolakata/tls/fullchain.pem"   is made on first start and kept in the data
+#                                             directory, for testing.
 # key = "/etc/moolakata/tls/privkey.pem"
 # names = ["money.lan", "192.168.1.20"]   what browsers use to reach it, for the self-signed
 #                                         certificate (it always names the server and localhost)

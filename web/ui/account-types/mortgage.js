@@ -7,7 +7,6 @@ export default {
   icon: 'home',
   hint: 'Liability with terms',
   investing: false,
-  reconcilable: false,
   contributions: false,
   loan: true,
 };

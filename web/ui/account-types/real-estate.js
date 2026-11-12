@@ -7,7 +7,6 @@ export default {
   icon: 'home',
   hint: 'Property, improvements',
   investing: false,
-  reconcilable: false,
   contributions: false,
   physical: 'valuations',
 };

@@ -8,7 +8,8 @@ new payee or a tag.
 Text the payee holds as the bank writes it, case aside: `whole foods` matches `WHOLE FOODS
 #123`. Start with `re:` for a regular expression: `re:^AMZN` matches a payee that starts with
 AMZN. It takes [RE2's syntax](https://github.com/google/re2/wiki/Syntax), which has no
-back-references (`\1`) or look-arounds (`(?=…)`, `(?<!…)`).
+back-references (`\1`), look-arounds (`(?=…)`, `(?<!…)`), atomic groups (`(?>…)`), possessive
+repeats (`a++`) or conditionals. Case is aside unless the pattern starts with `(?-i)`.
 
 ## Amount from
 

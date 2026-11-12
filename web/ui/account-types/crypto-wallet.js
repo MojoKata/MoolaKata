@@ -8,7 +8,6 @@ export default {
   icon: 'wallet',
   hint: 'Address or xpub only',
   investing: true,
-  reconcilable: false,
   contributions: false,
   wallet: true,
 };

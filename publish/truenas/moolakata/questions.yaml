@@ -197,9 +197,10 @@ questions:
         - variable: certificate_id
           label: Certificate
           description: |
-            The certificate MoolaKata serves HTTPS with. With none, it makes one of its own,
-            for the addresses under MoolaKata Configuration, and browsers ask before they
-            trust it.</br>
+            The certificate MoolaKata serves HTTPS with: choose one for a server the household
+            relies on. With none, it makes one of its own, for the addresses under MoolaKata
+            Configuration, which is for trying MoolaKata out: browsers ask before they trust
+            it, and its key is kept unencrypted with the data.</br>
             When TrueNAS renews the chosen certificate it restarts the app, and MoolaKata
             starts locked until someone enters its recovery phrase.
           schema:

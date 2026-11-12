@@ -63,7 +63,8 @@
       2. **The server's form**: its time zone, in TrueNAS's own field, which a user's
          **Auto** zone follows (S14.9.2); the addresses browsers use, for the certificate the
          server makes for itself; the web port (37373); a certificate from **System ›
-         Certificates**, or none for the server's own, its help saying that TrueNAS restarts
+         Certificates**, which a server the household relies on is given, or none for the
+         server's own, for trying it (S13.3), its help saying so and that TrueNAS restarts
          the app when it renews the certificate and the server then starts locked (S15.4);
          the data and the backups storage, each an ixVolume (the default) or a host path,
          a host path given to the server's account when its top directory belongs to
@@ -99,8 +100,9 @@
          server's favicon, and in `publish/truenas/media/` the connector's icon (its page's
          mark) and screenshots of the release's pages over the dev seed's household.
    4. **TLS**: the example `compose.yaml` runs in `proxy` mode behind the household's
-      reverse proxy. A second example runs `tls` mode with a self-signed certificate for
-      testing on a local network (S13.3).
+      reverse proxy. A second example runs `tls` mode with the server's own self-signed
+      certificate, for testing on a local network, or with one given in `[tls]` for real use
+      (S13.3); so does `compose.truenas.yaml`.
    5. **The base image's updates.** The Dockerfile pins its base by digest, so a rebuild
       changes nothing until the digest moves, and the image never runs `apt-get upgrade` at
       build: the same Dockerfile gives the same image. The digest moves with each release,

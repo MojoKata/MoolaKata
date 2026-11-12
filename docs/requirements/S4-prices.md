@@ -32,7 +32,7 @@
    | Options | **CBOE delayed quotes** | none | the JSON behind cboe.com's quote pages: an underlying's whole chain in one answer, 15 minutes delayed, read after the close. Not an official API: CBOE offers it for personal, non-commercial use and may change it, so Settings says so |
    | Options, fallback | **Massive** (formerly Polygon.io), Basic plan | free | end-of-day prices and two years of history; 5 calls a minute, each page of a result counting as one |
    | Treasuries, I bonds and EE bonds | **manual** | — | a value typed from TreasuryDirect's published figures, with its date; a source for the Treasury's yield curve and savings-bond rates comes later (L3) |
-   | No free ticker: 529 portfolios, 401(k) collective trusts, individual corporate and municipal bonds | **manual** | — | a value from a statement or an import, or a typed price, with its date. A statement value older than 90 days is marked stale and raises an alert (S12.11) |
+   | No free ticker: 529 portfolios, 401(k) collective trusts, individual corporate and municipal bonds | **manual** | — | a value from a statement or an import, or a typed price, with its date. A statement's value is marked stale once the statement after it is overdue (S1.11.7.3), or a year and 60 days on in an account that expects none, and raises an alert (S12.11) unless that overdue statement's own alert is up: it is for statements that arrive without valuing the holding |
 
 4. **Schedule**: once a day, after the US market close (6:00 PM Eastern by default), a
    background task loads the day's close for every **held or watched** instrument (watched:

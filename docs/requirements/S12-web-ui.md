@@ -232,7 +232,8 @@
           days (S1.11), a Connection that keeps one of their accounts current needing a sign-in
           or failing (S18.5), a recorded wallet transaction the chain has dropped (S1.6.2.7),
           an option past its expiry that wasn't settled on its own (S3.6), asking what
-          happened, and a holding valued from a statement more than 90 days old (S4.3);
+          happened, and a holding still valued from a stale statement (S4.3) while the account's
+          next statement isn't overdue;
        3. **for each user**: a request to share a private person they created, which goes to
           its creator and to the admins (S10.10.3), an occasion entering its lead time
           (S7.7.3), an option expiring within a week, a pledge due (S7.9), an active projection

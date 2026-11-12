@@ -16,14 +16,14 @@ from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from . import clock
-from .ledger import balances
+from .ledger import balances, expected
 from .money import CENT
 from .store.db import read_once
 from .store.entities.accounts import Account, Holding, Instrument, Transaction
 from .store.entities.prices import TypedPrice
 
 ZERO = Decimal(0)
-TYPED_STALE_DAYS = 90  # a typed price, as a statement's value (S4.7)
+TYPED_STALE_DAYS = 90  # a typed price (S4.7)
 
 
 @dataclass(frozen=True)
@@ -105,17 +105,27 @@ def _tiers(
     # Statements and trades count only before an instrument's first close or typed price.
     loose = [i for i in rest if not any(p.asOf <= first for p in out[i][0])]
     if loose:
-        for h in s.scalars(
-            _owned(select(Holding), Holding, owner).where(
-                Holding.instrumentId.in_(loose),
-                Holding.deleted == false(),
-                Holding.asOf <= last,
-                Holding.marketValue.is_not(None),
+        held = list(
+            s.scalars(
+                _owned(select(Holding), Holding, owner).where(
+                    Holding.instrumentId.in_(loose),
+                    Holding.deleted == false(),
+                    Holding.asOf <= last,
+                    Holding.marketValue.is_not(None),
+                )
             )
-        ):
+        )
+        # A statement's value is stale once the statement after it is overdue (S4.3).
+        accounts = {
+            a.id: a
+            for a in s.scalars(select(Account).where(Account.id.in_({h.accountId for h in held})))
+        }
+        on = min(last, today)
+        for h in held:
             if h.quantity:
                 worth = h.marketValue / h.quantity
-                out[h.instrumentId][1].append(Price(worth, h.asOf, "statement"))
+                stale = on >= expected.stale_from(accounts[h.accountId], h.asOf)
+                out[h.instrumentId][1].append(Price(worth, h.asOf, "statement", stale))
         # An option's last trade isn't its mark: intrinsic value stands in instead (S3.7).
         mult = multipliers(s, loose)
         traded = [i for i in loose if i not in mult]

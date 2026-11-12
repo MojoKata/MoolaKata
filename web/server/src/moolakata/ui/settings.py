@@ -76,6 +76,34 @@ def get_settings(request: Request, c: Caller = Depends(admin)):
         return view(s)
 
 
+class Listener(Model):
+    """How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14)."""
+
+    mode: str  # proxy or tls
+    port: int
+    trustedProxies: list[str]  # in proxy mode, the addresses whose forwarded headers count
+    # In tls mode: "given", a certificate named in [tls]; or "own", the one the server made
+    # for itself, which is for testing (S13.3).
+    certificate: str | None
+
+
+def _address(net) -> str:
+    """A proxy's own address as written, a range as a range."""
+    return str(net.network_address) if net.num_addresses == 1 else str(net)
+
+
+@router.get("/settings/listener", response_model=Listener)
+def get_listener(request: Request, c: Caller = Depends(admin)):
+    cfg = server(request).config
+    tls = cfg.mode == "tls"
+    return Listener(
+        mode=cfg.mode,
+        port=cfg.port,
+        trustedProxies=[] if tls else [_address(n) for n in cfg.trusted_proxies],
+        certificate=("given" if cfg.tls_cert else "own") if tls else None,
+    )
+
+
 class SettingRecord(Model):
     """A setting as a section's draft saves it (S16): its key, and a value its definition
     checks; a password's value is written and never read back, null removing it."""

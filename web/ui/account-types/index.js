@@ -39,7 +39,6 @@ import t28 from './payment-app.js';
  * @property {string} icon
  * @property {string} hint
  * @property {boolean} investing  has Holdings, a lot method and trades
- * @property {boolean} reconcilable  has a Reconcile tab
  * @property {boolean} contributions  records contribution years and sources
  * @property {boolean} [loan]  has terms, a schedule and a payoff planner (S1.9)
  * @property {boolean} [education]  a 529 plan: its plan, contributions, withdrawals and goal (S1.8)

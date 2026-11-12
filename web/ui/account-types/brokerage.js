@@ -7,6 +7,5 @@ export default {
   icon: 'candles',
   hint: 'Stocks, ETFs, funds',
   investing: true,
-  reconcilable: true,
   contributions: false,
 };

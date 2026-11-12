@@ -253,6 +253,73 @@ def test_deleted_or_valueless_statements_and_deleted_trades_price_nothing(server
     assert _prices(server, owner, [x], sep(10)) == {x: P(D(100), sep(1), "trade")}
 
 
+def _every(s, account: str, interval: str) -> None:
+    s.get(Account, account).statementInterval = interval
+    s.flush()
+
+
+def test_a_statements_value_is_stale_by_the_day_asked_not_by_today(server):
+    """CR3-8: a quarterly plan's Mar 31 value is stale from Jul 30, the day its next statement
+    is overdue; a figure for an earlier day saw it fresh, though it is stale today."""
+    owner = make_user(server, "alice").id
+    with server.db.tx(unscoped="test") as s:
+        a, x = _account(s, owner), _instrument(s, "CIT")
+        _every(s, a, "quarterly")
+        _statement(s, a, x, d(2026, 3, 31), "10", "1000")
+    assert _prices(server, owner, [x], d(2026, 7, 29))[x].stale is False
+    assert _prices(server, owner, [x], d(2026, 7, 30))[x].stale is True
+    assert _prices(server, owner, [x], TODAY)[x].stale is True
+
+
+@pytest.mark.parametrize(("later", "stale"), [("monthly", True), ("quarterly", False)])
+def test_two_accounts_statements_the_newer_values_it_by_its_own_accounts_interval(
+    server, later, stale
+):
+    """The same fund in two of the owner's accounts: the newer statement's value counts, and
+    whether it is stale is its own account's interval's to say (Aug 31: monthly, stale from
+    Oct 15, today; quarterly, from Dec 30)."""
+    owner = make_user(server, "alice").id
+    with server.db.tx(unscoped="test") as s:
+        a, b, x = _account(s, owner), _account(s, owner), _instrument(s, "SHARED")
+        _every(s, a, "quarterly")
+        _every(s, b, later)
+        _statement(s, a, x, d(2026, 6, 30), "10", "1000")
+        _statement(s, b, x, d(2026, 8, 31), "10", "1100")
+    assert _prices(server, owner, [x], TODAY)[x] == P(D(110), d(2026, 8, 31), "statement", stale)
+
+
+@pytest.mark.parametrize("newer", ["typed", "close"])
+def test_a_typed_price_or_a_close_after_a_stale_statement_values_it_instead(server, newer):
+    """A stale statement's value gives way to a later typed price or a close, neither stale:
+    nothing is left valued from the old statement, so no alert either."""
+    owner = make_user(server, "alice").id
+    with server.db.tx(unscoped="test") as s:
+        a, x = _account(s, owner), _instrument(s, "CIT")
+        _every(s, a, "quarterly")
+        _statement(s, a, x, d(2026, 3, 31), "10", "1000")
+        if newer == "typed":
+            _typed(s, owner, x, d(2026, 10, 1), "104")
+        else:
+            _close(s, x, d(2026, 10, 14), "104")
+    got = _prices(server, owner, [x], TODAY)[x]
+    assert (got.price, got.source, got.stale) == (
+        D(104),
+        "manual" if newer == "typed" else "close",
+        False,
+    )
+
+
+def test_a_statement_line_of_no_shares_prices_nothing(server):
+    """A position the statement lists at zero shares (sold in the period) gives no price, and
+    no division by zero: the earlier line's value stands."""
+    owner = make_user(server, "alice").id
+    with server.db.tx(unscoped="test") as s:
+        a, x = _account(s, owner), _instrument(s, "SOLD")
+        _statement(s, a, x, sep(5), "2", "500")
+        _statement(s, a, x, sep(6), "0", "0")
+    assert _prices(server, owner, [x], sep(10))[x] == P(D(250), sep(5), "statement")
+
+
 def test_a_trade_on_the_day_asked_prices_it(server):
     """The owner's last trade prices an instrument with nothing else, a trade on the day asked
     included."""

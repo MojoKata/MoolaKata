@@ -31,7 +31,8 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    error; **Add a source**; and the time of the daily refresh (6:00 PM Eastern by default).
 7. **Bitcoin** (S1.6): the explorer or node for self-custody wallets: a public Esplora
    (mempool.space suggested, or Blockstream) or the household's own node (its own mempool or
-   Esplora by its address; an Electrum server by host, port and TLS; Bitcoin Core by host,
+   Esplora by its address, which a Save left without it refuses rather than read as the
+   public one's; an Electrum server by host, port and TLS; Bitcoin Core by host,
    port, RPC user and password), with when the wallets were last read and a **Test** button. No
    wallet is read until an admin saves this section (R3.5), the suggested choice untouched
    included; until then it says *Not saved yet* in place of when the wallets were last read.
@@ -100,10 +101,12 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     what doesn't exist. The ranges are in the database, so while the server is locked they
     can't be read: the locked screen and the unlock then answer any address that reaches the
     listener, and the proxy is what limits them. The section also shows, read only, how the
-    listener runs: its mode (`proxy` or `tls`), its port, and the trusted proxies' addresses
-    (S13.3), all set in its configuration (`moolakata.toml`, or `MOOLAKATA_CONFIG`, S17.8).
-15. *Not a section*: `tls` mode is for testing (S13.3), and Settings › Network shows how the
-    listener runs.
+    listener runs: its mode (`proxy` or `tls`), its port, and in `proxy` mode the trusted
+    proxies' addresses, in `tls` mode whether its certificate was given or is its own, the
+    one for testing (S13.3), all set in its configuration (`moolakata.toml`, or
+    `MOOLAKATA_CONFIG`, S17.8).
+15. *Not a section*: the listener's mode and certificate (S13.3) are set in the configuration,
+    and Settings › Network shows how the listener runs.
 16. **Alerts** (S12.11): how long a source may fail before it raises an alert (48 hours by
     default, 1 to 336), and the time of the daily summary email (07:00 by default, in each
     user's time zone).

@@ -14,7 +14,7 @@ export class SettingRec extends Record {
 }
 
 /**
- * The section's keys as one: `get`, `set`, `revert` and `error` by key, and every refusal
+ * The section's keys as one: `get`, `set`, `revert`, `refuse` and `error` by key, and every refusal
  * named by its key.
  * @param {Map<string, SettingRec>} recs
  */
@@ -28,6 +28,9 @@ function byKey(recs) {
     get: (/** @type {string} */ k) => one(k).get('value'),
     set: (/** @type {string} */ k, /** @type {any} */ v) => one(k).set('value', v),
     revert: (/** @type {string} */ k) => one(k).revert('value'),
+    /** Refuse the key's value, as a check before saving does. */
+    refuse: (/** @type {string} */ k, /** @type {string} */ message) =>
+      one(k).refuse('value', message),
     /** A refusal at the key's value, or at the key, which its definition names. */
     error: (/** @type {string} */ k) =>
       one(k).error('value') || one(k).error(k) || one(k).error(null),

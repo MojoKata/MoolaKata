@@ -276,6 +276,7 @@ function Plain({ section }) {
               ${area('networkConnectorRanges', 'any address')}
               </${Field}>
               <p class="small dim">/healthz and /demo answer any address.</p>
+              <${ListenerRows} />
       `,
     );
   }
@@ -932,6 +933,9 @@ function BitcoinSection() {
   });
   const rec = fd.rec;
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
+  // An own Esplora picked before its address is typed: the address alone can't say so, since
+  // until then it is the public one's.
+  const [ownEsplora, setOwnEsplora] = useState(false);
   const test = useSubmit(async () => {
     const r = await api.post('/settings/bitcoin/test');
     toast(r.answer);
@@ -953,11 +957,11 @@ function BitcoinSection() {
   const f = {
     node: source !== 'esplora'
       ? source
+      : ownEsplora || (url !== MEMPOOL && url !== BLOCKSTREAM)
+      ? 'esplora'
       : url === MEMPOOL
       ? 'mempool'
-      : url === BLOCKSTREAM
-      ? 'blockstream'
-      : 'esplora',
+      : 'blockstream',
     url: url === MEMPOOL || url === BLOCKSTREAM ? '' : url,
     host: rec.get('bitcoinNodeHost') || '',
     port: rec.get('bitcoinNodePort'),
@@ -965,6 +969,7 @@ function BitcoinSection() {
     rpcUser: rec.get('bitcoinRpcUser') || '',
   };
   const setF = (/** @type {any} */ next) => {
+    setOwnEsplora(next.node === 'esplora');
     const esplora = ['mempool', 'blockstream', 'esplora'].includes(next.node);
     rec.set('bitcoinSource', esplora ? 'esplora' : next.node);
     rec.set(
@@ -1002,7 +1007,13 @@ function BitcoinSection() {
   const own = ['electrum', 'core'].includes(f.node);
   return html`
     <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Bitcoin"
-      what="These settings" saved=${() => {
+      what="These settings" before=${() => {
+        // An own Esplora's address has no default: left blank it would be read as the public
+        // one's, so Save refuses it there.
+        if (f.node !== 'esplora' || f.url.trim()) return true;
+        rec.refuse('bitcoinEsploraUrl', 'Your Esplora’s address.');
+        return false;
+      }} saved=${() => {
         toast('Saved');
         res.reload();
         s.reload();
@@ -1021,10 +1032,9 @@ function BitcoinSection() {
             e,
             'bitcoinEsploraUrl',
           )}
-            hint="Its API, such as http://umbrel.local:3006/api.">
-            <${Input} value=${f.url} onInput=${set(
-              'url',
-            )} placeholder="http://192.168.1.20:3006/api" />
+            hint="Its API's address.">
+            <${Input} value=${f.url} onInput=${set('url')}
+              placeholder="ex: http://umbrel.local:3006/api" />
             </${Field}>
         `
         : null}
@@ -1727,5 +1737,37 @@ function Keys() {
           : null}
       </div>
     <${ReminderSetting} />
+  `;
+}
+
+/** How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14). */
+function ListenerRows() {
+  const res = useApi('/settings/listener');
+  const l = /** @type {import('../api/types.js').Listener | undefined} */ (res.data);
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!l) return html`<${Loading} lines=${2} />`;
+  const own = l.certificate === 'own';
+  return html`
+    <div
+      class="list-item mt"><span class="grow dim">Listener</span><code>${l.mode} mode · port ${l
+        .port}, in the container</code></div>
+    ${l.mode === 'proxy'
+      ? html`
+        <div class="list-item"><span class="grow dim">Trusted proxies</span><code>${l.trustedProxies
+          .join(', ') || 'none'}</code></div>
+        <p class="small dim">Both are set in <code>moolakata.toml</code>: the proxy's own address, never
+          a whole range.</p>
+      `
+      : html`
+        <div class="list-item"><span class="grow dim">Certificate</span>${own
+          ? html`its own, self-signed <span class="pill warn">for testing</span>`
+          : html`given in <code>moolakata.toml</code>`}</div>
+        <p class="small dim">${own
+          ? html`Browsers warn about it, and its key sits in the data directory unencrypted. A
+            server people rely on is given a certificate in <code>[tls]</code>, or runs behind a
+            reverse proxy.`
+          : html`Both are set in <code>moolakata.toml</code>. A renewed certificate is read at the
+            next start, which starts locked.`}</p>
+      `}
   `;
 }

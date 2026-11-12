@@ -95,6 +95,19 @@ def name_of(every: str, start: dt.date, end: dt.date) -> str:
     return f"the {end.year} statement" if end.month == 12 else f"the year to {end:%B %Y} statement"
 
 
+def due_after(every: str, last: dt.date) -> dt.date:
+    """When the statement after one ending `last` is overdue: its interval, then its grace."""
+    return add_months(last, MONTHS[every]) + dt.timedelta(days=GRACE_DAYS[every])
+
+
+def stale_from(account, as_of: dt.date) -> dt.date:
+    """The day a value read from a statement ending `as_of` is stale (S4.3): the day the
+    statement after it is overdue (S1.11.7.3), so a quarterly plan's Mar 31 value is stale from
+    Jul 30. An account that expects none counts as yearly: a value read long ago still is."""
+    every = interval(account)
+    return due_after("yearly" if every == "none" else every, as_of)
+
+
 def overdue(account, imports, today: dt.date) -> Overdue | None:
     """The next statement after the last one covered, once its period and the grace after it
     have passed: a monthly statement ending Aug 31 is overdue from Oct 15."""
@@ -104,7 +117,7 @@ def overdue(account, imports, today: dt.date) -> Overdue | None:
         return None
     last = ends[-1]
     end = add_months(last, MONTHS[every])
-    due = end + dt.timedelta(days=GRACE_DAYS[every])
+    due = due_after(every, last)
     if today < due:
         return None
     start = last + dt.timedelta(days=1)

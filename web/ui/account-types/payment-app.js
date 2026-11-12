@@ -8,6 +8,5 @@ export default {
   icon: 'card',
   hint: 'Venmo, PayPal, Cash App',
   investing: false,
-  reconcilable: true,
   contributions: false,
 };

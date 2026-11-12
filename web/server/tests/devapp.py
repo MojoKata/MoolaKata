@@ -149,7 +149,8 @@ GUIDE_CHECK = """(scope) => {
   const guide = document.querySelector('.help .guide');
   if (!root || !guide) return { error: 'no ' + (!root ? scope : 'help pane') };
   const anchors = [...guide.querySelectorAll('[data-anchor]')].map((h) => h.dataset.anchor);
-  const fields = [...root.querySelectorAll('[id^="f-"], [data-help]')]
+  // A field's refusal (its .err line, id f-<field>-err) is part of its field, not one.
+  const fields = [...root.querySelectorAll('[id^="f-"]:not(.err), [data-help]')]
     .map((el) => el.dataset.help || el.id.slice(2))
     .filter((id, i, all) => all.indexOf(id) === i);
   const missing = fields.filter((f) => !anchors.includes(f));

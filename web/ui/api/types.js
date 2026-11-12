@@ -1551,6 +1551,7 @@
  * @property {(import('../app/dec.js').Dec | null)} price
  * @property {(string | null)} priceAsOf
  * @property {(string | null)} priceSource
+ * @property {boolean} stale
  * @property {(import('../app/dec.js').Dec | null)} value
  * @property {(import('../app/dec.js').Dec | null)} gain
  * @property {Array<LotRow>} lots
@@ -1978,6 +1979,15 @@
  * @property {(string | null)} address
  * @property {(string | null)} [certificate]
  * @property {Array<moolakata__ui__links__LinkOut>} links
+ */
+
+/**
+ * How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14).
+ * @typedef {Object} Listener
+ * @property {string} mode
+ * @property {number} port
+ * @property {Array<string>} trustedProxies
+ * @property {(string | null)} certificate
  */
 
 /**

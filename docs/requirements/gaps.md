@@ -104,3 +104,15 @@ the phase-out ranges in the tax tables (S16.11), and the MAGI as the user enters
 eligibility reads it, S8.6): the panel suggests each contribution's deductible part, which the
 user accepts into its mark or changes. **Waits on:** the tax tables carrying the IRA
 phase-out ranges.
+
+## G30: A renewed certificate without a restart — Low
+
+**What is named:** in `tls` mode the server reads its certificate at start (S13.3), and on
+TrueNAS the app is restarted when System › Certificates renews it (S17.8.3.2), so the server
+starts locked (S15.4) every renewal: every 60 to 90 days for an ACME certificate.
+
+**What is not:** taking the renewed certificate while running. **Settled:** nothing yet.
+**Proposed:** the listener watches the certificate's files and loads a changed pair for new
+connections, keeping the old one if the new pair doesn't load; the catalog apps then mount the
+certificate rather than copy it, so TrueNAS has no reason to restart them. **Waits on:** a
+household on a renewing certificate.

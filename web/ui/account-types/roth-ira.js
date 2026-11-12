@@ -7,6 +7,5 @@ export default {
   icon: 'retire',
   hint: 'Tax-free',
   investing: true,
-  reconcilable: false,
   contributions: true,
 };

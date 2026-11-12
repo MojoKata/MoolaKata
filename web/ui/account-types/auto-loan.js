@@ -7,7 +7,6 @@ export default {
   icon: 'car',
   hint: 'Liability with terms',
   investing: false,
-  reconcilable: false,
   contributions: false,
   loan: true,
 };

@@ -54,14 +54,45 @@ def test_patterns_that_cant_be_kept_are_refused(bad):
         match.compile_pattern(bad)
 
 
+NO_BACKTRACKING = "RE2 has no look-arounds or back-references."
+NO_ATOMIC = "RE2 has no atomic groups, possessive repeats or conditionals."
+FLAGS = "RE2's inline flags are i, m, s and U."
+
+
 @pytest.mark.parametrize(
-    "pattern", [r"re:(?=AMZN)", r"re:(?!AMZN)", r"re:(?<=SQ )x", r"re:(?<!SQ )x", r"re:(a)\1"]
+    ("pattern", "said"),
+    [
+        # Every form of Python's syntax that RE2 hasn't: look-arounds,
+        (r"re:(?=AMZN)", NO_BACKTRACKING),
+        (r"re:(?!AMZN)", NO_BACKTRACKING),
+        (r"re:(?<=SQ )x", NO_BACKTRACKING),
+        (r"re:(?<!SQ )x", NO_BACKTRACKING),
+        # back-references, by number and by name, in each spelling,
+        (r"re:(a)\1", NO_BACKTRACKING),
+        (r"re:(a)(b)(c)(d)(e)(f)(g)(h)(i)\9", NO_BACKTRACKING),
+        (r"re:(a)\g<1>", NO_BACKTRACKING),
+        (r"re:(?P<n>a)(?P=n)", NO_BACKTRACKING),
+        (r"re:(?<n>a)\k<n>", NO_BACKTRACKING),
+        # atomic groups, possessive repeats and conditionals,
+        (r"re:(?>a+)b", NO_ATOMIC),
+        (r"re:a++", NO_ATOMIC),
+        (r"re:a*+", NO_ATOMIC),
+        (r"re:a?+", NO_ATOMIC),
+        (r"re:a{2}+", NO_ATOMIC),
+        (r"re:(a)?(?(1)b|c)", NO_ATOMIC),
+        # and the inline flags RE2 hasn't.
+        (r"re:(?x) a", FLAGS),
+        (r"re:(?a)a", FLAGS),
+        (r"re:(?L)a", FLAGS),
+        (r"re:(?u)a", FLAGS),
+        (r"re:(?-x)a", FLAGS),
+    ],
 )
-def test_what_needs_backtracking_is_refused_in_plain_words(pattern):
+def test_what_python_has_and_re2_hasnt_is_refused_in_plain_words(pattern, said):
     """RE2's syntax (S2.7.1): what Python's has and RE2's hasn't is named, not RE2's text."""
     with pytest.raises(match.Invalid) as e:
         match.compile_pattern(pattern)
-    assert str(e.value) == "RE2 has no look-arounds or back-references."
+    assert str(e.value) == said
 
 
 def test_any_other_refusal_gives_re2s_reason():
@@ -81,6 +112,15 @@ def test_any_other_refusal_gives_re2s_reason():
         (r"re:^(sq|tst)\s*\*", "TST* BLUE BOTTLE", True),
         (r"re:café$", "CAFÉ", True),  # case aside beyond ASCII too
         (r"re:\z", "anything", True),
+        # RE2's own inline flags: (?i) changes nothing; (?-i) turns case on, as the user asks.
+        (r"re:(?i)amzn", "AMZN MKTP", True),
+        (r"re:(?-i)AMZN", "amzn mktp", False),
+        (r"re:(?-i)AMZN", "AMZN MKTP", True),
+        (r"re:(?-i:AMZN) mktp", "AMZN MKTP", True),
+        (r"re:(?s)a.b", "A\nB", True),
+        # \10 is no back-reference in RE2: it is the character with octal code 10.
+        (r"re:(a)\10", "A\x08", True),
+        (r"re:(a)\10", "AA", False),
     ],
 )
 def test_re2_patterns_match_as_written(pattern, payee, hit):

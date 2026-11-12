@@ -7,6 +7,5 @@ export default {
   icon: 'bank',
   hint: 'Certificate of deposit',
   investing: false,
-  reconcilable: true,
   contributions: false,
 };

@@ -7,7 +7,6 @@ export default {
   icon: 'gem',
   hint: 'Valued as you say',
   investing: false,
-  reconcilable: false,
   contributions: false,
   physical: 'valuations',
 };

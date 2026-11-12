@@ -319,35 +319,89 @@ def test_a_check_that_fails_leaves_its_alerts_open_and_unsent(server, admin_clie
     assert listed(admin_client)["open"] == []
 
 
-def test_a_holding_valued_from_an_old_statement_alerts_its_owner(server, frozen):
-    # S4.3, S12.11.1.2: a holding valued from a statement more than 90 days old.
+def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen):
+    """Holdings valued from statements an account has no import for (no next statement is
+    due, so none is overdue) alert when stale: one alert for the account, naming the oldest."""
     from test_accounts import new_account
 
     from moolakata.store.entities.accounts import Holding, Instrument
 
-    with server.db.tx(unscoped="test") as s:
-        settings.put(s, "sessionIdleHours", 168, None)
     make_user(server, "alice")
     c = sign_in(server, "alice")
-    acct = new_account(c, name="Plan", type="brokerage")
+    acct = new_account(c, name="Old plan", type="brokerage")
     with server.db.tx(unscoped="test") as s:
-        fund = Instrument(id=ids.new_id("Instr"), symbol="XFUNDZ", instrumentClass="mutual-fund")
-        s.add(fund)
-        s.flush()
-        s.add(
-            Holding(
-                id=ids.new_id("Hold"),
-                accountId=acct["id"],
-                instrumentId=fund.id,
-                asOf=(T0 - dt.timedelta(days=89)).date(),
-                quantity=10,
-                marketValue=1000,
-            )
-        )
+        s.get(Account, acct["id"]).statementInterval = "monthly"
+        for symbol, ended in (("XJULZ", dt.date(2026, 7, 31)), ("XAUGZ", dt.date(2026, 8, 31))):
+            fund = Instrument(id=ids.new_id("Instr"), symbol=symbol, instrumentClass="mutual-fund")
+            s.add(fund)
+            s.flush()
+            s.add(Holding(id=ids.new_id("Hold"), accountId=acct["id"], instrumentId=fund.id,
+                          asOf=ended, quantity=10, marketValue=1000))  # fmt: skip
+    at(days=2)  # Oct 15: Aug 31's next statement is due, and Jul 31's was a month ago
     alerts.evaluate(server)
-    assert [a["kind"] for a in listed(c)["open"]] == []
-    at(days=2)
-    alerts.evaluate(server)
-    (a,) = [a for a in listed(c)["open"] if a["kind"] == "statement-value-old"]
-    assert a["title"] == "Plan: a holding is valued from a statement over 90 days old"
-    assert a["link"] == f"/ui/accounts/{acct['id']}/holdings"
+    (a,) = [
+        a for a in listed(sign_in(server, "alice"))["open"] if a["kind"] == "statement-value-old"
+    ]
+    assert a["about"].startswith("the statement of Jul 31, 2026")
+
+
+def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen):
+    # S4.3, S12.11.1.2, CR3-8: a statement's value is stale once the statement after it is
+    # overdue (S1.11.7.3), and alerts only when that statement's own alert isn't already up: a
+    # plan whose next statement is late gets the overdue alert alone, and a newer import that
+    # doesn't value the holding leaves it stale and alerting. An account expecting no
+    # statements counts as yearly.
+    from test_accounts import new_account
+
+    from moolakata.store.entities.accounts import Holding, Instrument
+
+    alice = make_user(server, "alice")
+    c = sign_in(server, "alice")
+    plan = new_account(c, name="Plan", type="401k")
+    kept = new_account(c, name="Kept", type="brokerage")
+
+    def statement(acct, every, name, symbol, ended):
+        with server.db.tx(unscoped="test") as s:
+            s.get(Account, acct["id"]).statementInterval = every
+            fund = Instrument(id=ids.new_id("Instr"), symbol=symbol, instrumentClass="mutual-fund")
+            s.add(fund)
+            s.flush()
+            s.add(Import(id=ids.new_id("Imprt"), accountId=acct["id"], userId=alice.id,
+                         format="statement", fileName=name, fileHash=name,
+                         coveredFrom=ended.replace(day=1), coveredTo=ended))  # fmt: skip
+            s.add(Holding(id=ids.new_id("Hold"), accountId=acct["id"], instrumentId=fund.id,
+                          asOf=ended, quantity=10, marketValue=1000))  # fmt: skip
+
+    def stale(acct) -> list[bool]:
+        c = sign_in(server, "alice")  # a fresh session on the day the clock is at
+        got = c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
+        return [h["stale"] for h in got]
+
+    def raised() -> dict[str, dict]:
+        alerts.evaluate(server)
+        open_ = listed(sign_in(server, "alice"))["open"]
+        return {a["kind"] + " " + a["title"].split(":")[0]: a for a in open_}
+
+    # Both stale from Oct 30: Jun 30, a quarter and 30 days on; Aug 31, 2025, a year and 60.
+    statement(plan, "quarterly", "q2.pdf", "XPLANZ", dt.date(2026, 6, 30))
+    statement(kept, "none", "aug.pdf", "XKEPTZ", dt.date(2025, 8, 31))
+    at(days=16)
+    assert raised() == {}
+    assert stale(plan) == stale(kept) == [False]
+    at(days=17)
+    assert stale(plan) == stale(kept) == [True]
+    got = raised()
+    assert set(got) == {"statement-overdue Plan", "statement-value-old Kept"}
+    a = got["statement-value-old Kept"]
+    assert a["title"] == "Kept: a holding is still valued from an old statement"
+    assert a["about"].startswith("the statement of Aug 31, 2025")
+    assert a["link"] == f"/ui/accounts/{kept['id']}/holdings"
+
+    # The plan's July–September download arrives without its positions: the holding's value
+    # is still June's, stale, and now the value's own alert says so.
+    with server.db.tx(unscoped="test") as s:
+        s.add(Import(id=ids.new_id("Imprt"), accountId=plan["id"], userId=alice.id,
+                     format="ofx", fileName="q3.ofx", fileHash="q3",
+                     coveredFrom=dt.date(2026, 7, 1), coveredTo=dt.date(2026, 9, 30)))  # fmt: skip
+    assert set(raised()) == {"statement-value-old Plan", "statement-value-old Kept"}
+    assert stale(plan) == [True]

@@ -7,6 +7,5 @@ export default {
   icon: 'bank',
   hint: 'Bank · interest',
   investing: false,
-  reconcilable: true,
   contributions: false,
 };
