@@ -972,22 +972,15 @@ function BitcoinSection() {
     setOwnEsplora(next.node === 'esplora');
     const esplora = ['mempool', 'blockstream', 'esplora'].includes(next.node);
     rec.set('bitcoinSource', esplora ? 'esplora' : next.node);
-    // An own Esplora left blank would be read as the public default, so it is refused; any
-    // other choice clears that refusal (inputAs, unlike set, is what marks and clears it).
-    const address = next.node === 'mempool'
-      ? MEMPOOL
-      : next.node === 'blockstream'
-      ? BLOCKSTREAM
-      : next.node === 'esplora'
-      ? next.url
-      : rec.get('bitcoinEsploraUrl');
-    rec.inputAs(
+    rec.set(
       'bitcoinEsploraUrl',
-      address || '',
-      () =>
-        next.node === 'esplora' && !String(address || '').trim()
-          ? { error: 'Your Esplora’s address.' }
-          : { value: address },
+      next.node === 'mempool'
+        ? MEMPOOL
+        : next.node === 'blockstream'
+        ? BLOCKSTREAM
+        : next.node === 'esplora'
+        ? next.url
+        : rec.get('bitcoinEsploraUrl'),
     );
     rec.set('bitcoinNodeHost', next.host || null);
     rec.set('bitcoinNodePort', next.port);
@@ -1014,7 +1007,13 @@ function BitcoinSection() {
   const own = ['electrum', 'core'].includes(f.node);
   return html`
     <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Bitcoin"
-      what="These settings" saved=${() => {
+      what="These settings" before=${() => {
+        // An own Esplora's address has no default: left blank it would be read as the public
+        // one's, so Save refuses it there.
+        if (f.node !== 'esplora' || f.url.trim()) return true;
+        rec.refuse('bitcoinEsploraUrl', 'Your Esplora’s address.');
+        return false;
+      }} saved=${() => {
         toast('Saved');
         res.reload();
         s.reload();
@@ -1034,9 +1033,7 @@ function BitcoinSection() {
             'bitcoinEsploraUrl',
           )}
             hint="Its API, such as http://umbrel.local:3006/api.">
-            <${Input} value=${f.url} onInput=${set(
-              'url',
-            )} placeholder="http://192.168.1.20:3006/api" />
+            <${Input} value=${f.url} onInput=${set('url')} />
             </${Field}>
         `
         : null}

@@ -127,10 +127,10 @@ def test_the_first_save_of_an_own_node_writes_its_source_and_address(tmp_path, b
 
 
 def test_an_own_esplora_left_blank_is_refused_not_read_as_the_public_one(tmp_path, browser):
-    """Choosing an own Esplora keeps the choice and asks for its address (it snapped back to
-    mempool.space while the address was the public one's); left blank, Save is refused, since
-    a blank address would be read as the public default, and nothing is sent. Another choice
-    clears the refusal."""
+    """Choosing an own Esplora keeps the choice and shows its address field (it snapped back to
+    mempool.space while the address was the public one's); left blank, Save refuses it at the
+    field, since a blank would be read as the public default, and nothing is sent. Another
+    choice clears the refusal."""
     base, proc = unlocked(tmp_path)
     try:
         c = client(base)
@@ -153,9 +153,11 @@ def test_an_own_esplora_left_blank_is_refused_not_read_as_the_public_one(tmp_pat
         choice = page.get_by_label("Explorer or node")
         choice.select_option("esplora")
         assert choice.input_value() == "esplora"
-        wait(page, f'{FORM} :text("Your Esplora’s address.")', problems)
+        page.locator(f"{FORM} #f-esplora-url").wait_for()
+        # Nothing is said while it is being filled; Save is when a blank is refused.
+        assert page.locator(f'{FORM} :text("Your Esplora’s address.")').count() == 0
         page.click(f"{FORM} button.primary:enabled")
-        wait(page, f'{FORM} :text("Correct the fields marked first.")', problems)
+        wait(page, f'{FORM} .err:has-text("Your Esplora’s address.")', problems)
         assert "bitcoinSource" not in c.get("/ui/api/settings").json()["records"]
         choice.select_option("blockstream")
         assert page.locator(f'{FORM} :text("Your Esplora’s address.")').count() == 0
