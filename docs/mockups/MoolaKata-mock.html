@@ -105,6 +105,25 @@ main { overflow-y: auto; min-width: 0; position: relative; }
 .help { width: 360px; border-left: 1px solid var(--border); background: var(--bg-2); overflow-y: auto; padding: 18px 22px 40px; position: relative; display: none; }
 .app.help-open .help { display: block; }
 .app.help-open .help-corner { display: none; }
+/* A tour (S12.17): beside the page, inside what a dialog masks, left of the guide. */
+.app.touring { grid-template-columns: auto 1fr auto auto; }
+.tour { width: 340px; border-left: 1px solid var(--border); background: var(--bg-2); overflow-y: auto; padding: 16px 20px 40px; position: relative; }
+.tour-split { position: absolute; top: 0; bottom: 0; left: 0; width: 6px; cursor: col-resize; z-index: 2; }
+.tour-split:hover, .tour-split:focus-visible { background: var(--ok); opacity: .5; outline: none; }
+.tour header { display: flex; align-items: flex-start; gap: 8px; }
+.tour header h2 { font-size: 16px; margin: 2px 0 0; flex: 1; }
+.tour .steps { list-style: none; padding: 0; margin: 14px 0 0; }
+.tour .step { padding: 10px 0; border-top: 1px solid var(--border); }
+.tour .step h3 { font-size: 13.5px; margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
+.tour .tick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border-strong); display: inline-grid; place-items: center; flex: none; font-size: 11px; }
+.tour .step.done .tick { background: var(--ok); border-color: var(--ok); color: var(--on-accent); }
+.tour .step.done h3, .tour .step.done li { color: var(--fg-muted); }
+.tour .step.done li a { text-decoration: line-through; }
+.tour .step ul { margin: 2px 0 0 26px; padding: 0; }
+.tour .step li { margin: 4px 0; }
+.tour a { cursor: pointer; }
+.tour a.here { font-weight: 700; }
+.tour a.here::before { content: '▶ '; font-size: 9px; }
 .help h1 { font-size: 18px; margin: 0 0 6px; }
 .help h2 { font-size: 14px; margin: 18px 0 4px; padding: 4px 6px; margin-left: -6px; border-radius: 6px; transition: background .6s; }
 .help h2.flash { background: var(--accent-dim); }
@@ -292,6 +311,11 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
 .settings-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; align-self: start; }
 .settings-nav a { padding: 7px 10px; border-radius: 7px; color: var(--fg-dim); cursor: pointer; }
 .settings-nav a.on { background: var(--bg-3); color: var(--fg); }
+.rules-layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); gap: 16px; align-items: start; }
+.rule-row { cursor: pointer; align-items: flex-start; padding: 9px 8px; }
+.rule-row:hover { background: var(--bg-3); border-radius: 8px; }
+.rule-pane [hidden] { display: none !important; }
+.rule-move:disabled, .rule-apply:disabled { opacity: .35; cursor: not-allowed; }
 .auth { min-height: calc(100vh / var(--zoom)); display: grid; place-items: center; padding: 20px; }
 .auth .card { width: 380px; max-width: 100%; padding: 28px; }
 .auth h2 { margin: 14px 0 4px; }
@@ -353,7 +377,7 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
   .content, .topbar { padding-left: 16px; padding-right: 16px; }
   .content { padding-bottom: 90px; }
   .budget-row { grid-template-columns: 110px 1fr; } .budget-row .num { grid-column: 1 / -1; text-align: left; }
-  .settings-layout { grid-template-columns: minmax(0, 1fr); } .settings-nav { flex-direction: row; overflow-x: auto; position: static; }
+  .settings-layout, .rules-layout { grid-template-columns: minmax(0, 1fr); } .settings-nav { flex-direction: row; overflow-x: auto; position: static; }
   .type-grid { grid-template-columns: 1fr 1fr; }
   .split { flex-direction: column; align-items: stretch; }
   .price-status span.txt { display: none; }
@@ -1244,11 +1268,15 @@ function pager(shown, total, key) {
   const nums = [...new Set([1, 2, cur, cur + 1, cur + 2, cur + 10, pages - 1, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
   return `<div class="pager"><label class="small dim" for="pg-${key}">Page size</label><select class="in" id="pg-${key}" style="width:90px;height:30px" data-act="pgsize"><option>100</option><option selected>500</option><option>1000</option></select><span class="small dim">${shown}</span><div class="jump">${nums.map((n) => `<button class="${n === cur ? 'on' : ''}">${n}</button>`).join('')}</div><span class="spacer"></span>${state.newItems ? `<button class="pill new" data-act="newitems">+${state.newItems} New items</button>` : ''}</div>`;
 }
-SCREENS.transactions = () => `
+// Transactions (S12.2.3): the Transactions and Rules tabs, each at its own address.
+function txTabs(cur) {
+  return `<div class="tabs" role="tablist">${['Transactions', 'Rules'].map((x) => `<button class="tab ${x === cur ? 'on' : ''}" role="tab" data-act="tab" data-k="txpage" data-v="${x}">${x}</button>`).join('')}</div>`;
+}
+SCREENS.transactions = (param) => param === 'rules' ? txTabs('Rules') + rulesTab() : `${txTabs('Transactions')}
   <div class="toolbar"><input class="in" style="max-width:260px" placeholder="Search payee, memo, amount…" aria-label="Search">
     ${sel(['All accounts', ...visibleAccounts().map((a) => a.name)], 'All accounts').replace('class="in"', 'class="in" style="max-width:190px" aria-label="Account"')}
     ${filterChips('tx', ['All', 'Uncategorised', 'Tax-tagged', 'With receipt'], 'All')}<span class="spacer"></span>
-    <button class="btn" data-act="dlg" data-v="rules">Rules</button><button class="btn" data-act="dlg" data-v="import">${icon('upload')} Import</button><button class="btn primary" data-act="dlg" data-v="newTx">${icon('plus')} Add</button></div>
+    <button class="btn" data-act="dlg" data-v="import">${icon('upload')} Import</button><button class="btn primary" data-act="dlg" data-v="newTx">${icon('plus')} Add</button></div>
   <div class="notice warn" style="margin-bottom:12px">${icon('info')}<div><b>3 uncategorised.</b> Select rows to categorise them together, or make a rule from one.</div></div>
   ${txTable((() => { const f = state.filters.tx || 'All'; return TX.filter((t) => f === 'All' || (f === 'Uncategorised' && !t.cat) || (f === 'Tax-tagged' && t.tax) || (f === 'With receipt' && t.rc)); })())}
   ${pager('1–500 of 2,624', 2624, 'tx')}`;
@@ -2113,7 +2141,7 @@ const catBody = ({ name = '', under = 'Nothing: a top-level category', kind = 'E
 DIALOGS.newCategory = () => ({ title: 'New category', body: catBody({}), ok: 'Add the category' });
 DIALOGS.editCategory = () => ({ title: 'Edit Pets › Vet', body: catBody({ name: 'Vet', under: 'Pets', tag: 'Medical and dental' }), ok: 'Save', note: '<button class="btn danger" data-act="confirm" data-v="Delete Pets › Vet?|Yes, delete|Category deleted (mock)">Delete</button>' });
 DIALOGS.editCategoryKept = () => ({ title: 'Edit Gifts', body: catBody({ name: 'Gifts', kindLock: true }), ok: 'Save' });
-DIALOGS.editCategoryLocked = () => ({ title: 'Edit Pet › Dog', body: catBody({ name: 'Dog', under: 'Pet', lock: 'It’s in use now: only admins change its parent, kind and tax tag.', note: 'In use: an admin can merge it into another category.' }), ok: 'Save' });
+DIALOGS.editCategoryLocked = () => ({ title: 'Edit Pet › Dog', body: catBody({ name: 'Dog', under: 'Pet', lock: 'It’s in use now: only admins change its parent, kind and tax tag.', note: 'In use: 47 uses you can see, and 22 you can’t. An admin can merge it into another category. <button class="btn sm" data-act="tourstart" data-v="uses">Find them</button>' }), ok: 'Save' });
 // An admin's merge (S7.2.4): Pet into Pets, each of Pet's own categories mapped, a namesake first.
 DIALOGS.mergeCategory = () => ({ title: 'Merge Pet', wide: true, body: `<p class="small dim" style="margin-top:0">Everything filed under Pet (transactions, splits, rules, plan lines, moves, a loan’s category) moves to the one you choose, for every user, and Pet is deleted.</p>${field('Into', sel(['Choose…', 'Pets', 'Housing', 'Food', 'Health'], 'Pets'), 'Another expense category at the top level, since it has categories of its own.')}<h4>Its categories</h4>${[['Dog', 'dog'], ['Cat', 'Cat (moves across)']].map(([n, to]) => `<div class="field"><label for="x-merge-${n.toLowerCase()}">${n}</label>${sel([`${n} (moves across)`, 'dog', 'Vet'], to).replace('<select class="in"', `<select class="in" id="x-merge-${n.toLowerCase()}" data-help="merge-children"`)}</div>`).join('')}<p class="small">The plans of Household change: where a budget plans both, it plans both amounts in one line.</p>`, ok: 'Merge', danger: true });
 DIALOGS.resetTwoStep = () => ({ title: 'Reset two-step sign-in', body: `<p style="margin-top:0">This turns off two-step sign-in for Alice Griffin, so her password alone signs her in, and signs her out everywhere. Do it only when she has lost both her app and her recovery codes, and you know it is her asking.</p><p class="small dim">She gets an email saying so, and can turn it on again in Profile.</p>`, ok: 'Turn it off' });
@@ -2259,24 +2287,94 @@ DIALOGS.holding = (d) => ({ title: `${d.sym || 'AAPL'} · holding`, wide: true, 
   <div class="legend"><span>▲ buys and ▼ sells are marked on the app’s chart</span></div>
   <table class="t mt"><thead><tr><th>Lot acquired</th><th class="num">Qty</th><th class="num">Cost/share</th><th class="num">Gain</th><th>Term</th></tr></thead><tbody><tr><td>2023-05-02</td><td class="num">60</td><td class="num">${money(168.4)}</td><td class="num">${signed(4206)}</td><td>Long</td></tr><tr><td>2024-08-19</td><td class="num">40</td><td class="num">${money(177.9)}</td><td class="num">${signed(2424)}</td><td>Long</td></tr></tbody></table>`, ok: null });
 DIALOGS.newPortfolio = () => ({ title: 'Portfolio', body: `${field('Name', inp('Retirement'))}<div class="field"><label>Accounts</label>${visibleAccounts().filter((a) => ['investing', 'retirement', 'crypto'].includes(a.group)).map((a) => `<label class="list-item" style="cursor:pointer"><input type="checkbox" ${a.group === 'retirement' && a.owner === state.user ? 'checked' : ''}> <span class="grow">${esc(a.name)} <span class="small dim">${esc(a.inst)}</span></span>${a.owner !== state.user ? '<span class="pill">shared</span>' : ''}</label>`).join('')}</div>${field('Benchmark', sel(['VT (global stocks)', 'SPY', '60/40 VT/BND', 'None'], 'VT (global stocks)'))}`, ok: 'Save' });
-// The user's own rules, first match wins (S2.7): one row each, moved, edited or deleted here.
+// The user's own rules, first match wins (S2.7), on Transactions › Rules (S12.2.3.2): the list
+// on the left, the rule chosen on the right, its Discard and Save shown while it holds changes.
 const RULES = [
-  { when: '<code>re:^WHOLE ?FOODS</code>', then: '<span class="pill">Food › Groceries</span> · shown as Whole Foods' },
-  { when: '“kroger”', then: '<span class="pill">Food › Groceries</span>' },
-  { when: '“shell” · up to $100.00 · money out', then: '<span class="pill">Transportation › Fuel</span>' },
-  { when: '“netflix”', then: '<span class="pill">Personal › Subscriptions</span> · #streaming' },
-  { when: '“acme corp payroll” · money in', then: '<span class="pill">Income › Salary</span>' },
+  { payee: 're:^WHOLE ?FOODS', cat: 'Food › Groceries', rename: 'Whole Foods' },
+  { payee: 'kroger', cat: 'Food › Groceries' },
+  { payee: 'shell', to: '100.00', dir: 'Money out', cat: 'Transportation › Fuel' },
+  { payee: 'netflix', cat: 'Personal › Subscriptions', tags: 'streaming' },
+  { payee: 'acme corp payroll', dir: 'Money in', cat: 'Income › Salary' },
 ];
+const RULE_CATS = ['Leave it as it is', 'Food › Groceries', 'Food › Dining out', 'Transportation › Fuel', 'Personal › Subscriptions', 'Income › Salary', 'New category…'];
+const RULE_DIRS = ['Money in or out', 'Money out', 'Money in'];
+const RULE_ACCTS = ['Any account', 'Everyday Checking', 'Blue Cash Preferred'];
+// A rule's fields: the Rules tab's right side, and New rule over a transaction's dialog (S2.7.6).
+function ruleFields(r) {
+  return `${field('Payee contains', inp(r.payee, 'WHOLE FOODS, or re:^AMZN'), 'As the bank writes it; case doesn’t matter. re: starts a regular expression.')}<div class="row">${field('Amount from', inp(r.from || '', 'any'))}${field('Amount to', inp(r.to || '', 'any'))}</div><div class="row">${field('Direction', sel(RULE_DIRS, r.dir || RULE_DIRS[0]))}${field('Account', sel(RULE_ACCTS, r.acct || RULE_ACCTS[0]))}</div>${field('Category', sel(RULE_CATS, r.cat || RULE_CATS[0]))}${field('Rename to', inp(r.rename || '', 'leave the payee'), 'The payee shown; the bank’s text is kept beside it.')}${field('Tags', inp(r.tags || '', 'coffee, work'), 'Your own, separated by commas.')}`;
+}
+DIALOGS.newRule = () => ({ title: 'New rule', body: ruleFields({ payee: 'WHOLE FOODS MKT', cat: 'Food › Groceries' }), ok: 'Save' });
+DIALOGS.editTxNewRule = () => ({ ...DIALOGS.editTx(), after: () => showDialog('newRule', {}, true) });
+function ruleWhen(r) {
+  return [r.payee.startsWith('re:') ? `<code>${esc(r.payee)}</code>` : `“${esc(r.payee)}”`, r.from && r.to ? `${money(+r.from)}–${money(+r.to)}` : r.from ? `${money(+r.from)} or more` : r.to ? `up to ${money(+r.to)}` : '', r.dir && r.dir !== RULE_DIRS[0] ? r.dir.toLowerCase() : '', r.acct && r.acct !== RULE_ACCTS[0] ? `in ${esc(r.acct)}` : ''].filter(Boolean).join(' · ');
+}
+function ruleThen(r) {
+  return [r.cat && r.cat !== RULE_CATS[0] ? `<span class="pill">${esc(r.cat)}</span>` : '', r.rename ? `shown as ${esc(r.rename)}` : '', r.tags ? r.tags.split(',').map((x) => '#' + esc(x.trim())).join(' ') : ''].filter(Boolean).join(' · ');
+}
+// The address past the screen: transactions/rules/<n | new | sorted>/<changed | leaving>; the
+// last two parts are the MOCK pill's states, not addresses of the app.
+function hashNow() { return location.hash.replace(/^#\/?/, ''); }
+function rulesTab() {
+  const [, , pick = '', how = ''] = hashNow().split('/');
+  const isNew = pick === 'new', i = isNew ? RULES.length : +pick - 1;
+  const r = isNew ? { payee: '' } : RULES[i];
+  const changed = isNew || how === 'changed' || how === 'leaving';
+  const rows = [...RULES, ...(isNew ? [r] : [])];
+  if (how === 'changed' || how === 'leaving') setTimeout(() => { const el = $('.rule-pane #f-rename-to'); if (el) { el.value = 'Whole Foods Market'; ruleMarks(); } if (how === 'leaving') $('.rule-leave [data-v=keep]')?.focus(); });
+  const left = `<div class="card"><div class="toolbar" style="margin-bottom:6px"><button class="btn" data-act="rulego" data-v="transactions/rules/new">${icon('plus')} Add rule</button>${pick === 'sorted' ? '' : `<button class="btn rule-apply" data-act="toast" data-v="Set 3 transactions" ${changed ? 'disabled title="Save changes first"' : ''}>Apply to 3 uncategorised</button>`}</div>
+    <p class="small dim" style="margin:0 0 4px" data-help="first-match">First match wins, top to bottom. Applied to what you import, and to the uncategorised when you choose.</p>
+    ${rows.map((x, k) => { const n = k + 1, fresh = isNew && k === RULES.length;
+      return `<div class="list-item rule-row ${k === i ? 'sel' : ''}" data-act="rulego" data-v="transactions/rules/${fresh ? 'new' : n}"><span class="dim small" style="width:16px;flex:none">${n}</span><div class="grow">${fresh && !x.payee ? '<i class="dim">New rule</i>' : ruleWhen(x)}<div class="small" style="margin-top:2px">${ruleThen(x) || (fresh ? '<span class="dim">sets nothing yet</span>' : '')}</div></div>${fresh ? '<span class="pill new">not saved</span>' : `<span style="white-space:nowrap"><button class="btn sm rule-move" data-edge="${k === 0 ? 1 : ''}" ${k === 0 || changed ? 'disabled' : ''} ${changed ? 'title="Save changes first"' : ''} aria-label="Move rule ${n} up" data-act="toast" data-v="Moved up">↑</button> <button class="btn sm rule-move" data-edge="${k === RULES.length - 1 ? 1 : ''}" ${k === RULES.length - 1 || changed ? 'disabled' : ''} ${changed ? 'title="Save changes first"' : ''} aria-label="Move rule ${n} down" data-act="toast" data-v="Moved down">↓</button></span>`}</div>`; }).join('')}</div>`;
+  const right = !r ? `<div class="card"><p class="dim" style="margin:0">Choose a rule to see and change it, or <b>Add rule</b>.</p></div>`
+    : `<div class="card rule-pane" ${changed ? 'data-changed' : ''} ${isNew ? 'data-new' : ''}><h3>${isNew ? 'New rule' : `Rule ${i + 1}`}</h3>
+    ${ruleFields(r)}
+    <div class="toolbar mt">${isNew ? '' : '<button class="btn danger" data-act="confirm" data-v="Delete this rule?|Yes, delete|Rule deleted (mock)">Delete</button>'}<span class="spacer"></span><button class="btn rule-save" data-act="rulediscard" ${changed ? '' : 'hidden'}>Discard</button><button class="btn primary rule-save" data-act="rulesave" ${changed ? '' : 'hidden'}>Save</button></div></div>`;
+  return `<div class="rules-layout">${left}${right}</div>${how === 'leaving' ? rulePrompt() : ''}`;
+}
+// Whether the rule shown differs from what it was read as; a new rule always does (S12.15.1).
+function ruleDirty() {
+  const p = $('.rule-pane'); if (!p) return false;
+  if (p.hasAttribute('data-new')) return true;
+  return [...p.querySelectorAll('input,select')].some((el) => el.tagName === 'SELECT' ? [...el.options].some((o) => o.selected !== o.defaultSelected) : el.value !== el.defaultValue);
+}
+function ruleMarks() {
+  const p = $('.rule-pane'); if (!p) return;
+  const d = ruleDirty();
+  p.toggleAttribute('data-changed', d);
+  p.querySelectorAll('.rule-save').forEach((b) => (b.hidden = !d));
+  // What acts on the saved rules waits for a save (S12.2.3.2.4).
+  document.querySelectorAll('.rule-move, .rule-apply').forEach((b) => { b.disabled = d || !!b.dataset.edge; b.title = d ? 'Save changes first' : ''; });
+}
+function ruleRead() {
+  const v = (id) => $(`.rule-pane #f-${id}`).value;
+  return { payee: v('payee-contains'), from: v('amount-from'), to: v('amount-to'), dir: v('direction'), acct: v('account'), cat: v('category'), rename: v('rename-to'), tags: v('tags') };
+}
+function rulePrompt() {
+  return `<div class="scrim confirm rule-leave"><div class="dialog prompt" role="alertdialog" aria-label="Save your changes?"><header><h2>Save your changes?</h2></header><div class="body"><p class="small dim" style="margin:0">What you changed in this rule isn’t saved. Save it, or discard it and go on.</p></div><footer><button class="btn" data-act="ruleleave" data-v="keep">Keep editing</button><button class="btn danger" data-act="ruleleave" data-v="discard">Discard</button><button class="btn primary" data-act="ruleleave" data-v="save">Save</button></footer></div></div>`;
+}
+// Leaving a rule with changes asks first (S12.2.3.2.3); true when it asked.
+function ruleAsk(to) {
+  if (!ruleDirty() || hashNow() === to) return false;
+  state.ruleTarget = to;
+  $('.content').insertAdjacentHTML('beforeend', rulePrompt());
+  $('.rule-leave [data-v=keep]').focus();
+  return true;
+}
+function ruleGoNow(to) { if (hashNow() === to) render(); else go(to); }
+function ruleSave() {
+  const [, , pick] = hashNow().split('/'), r = ruleRead();
+  if (!r.payee.trim()) { toast('Enter what the payee contains'); return false; }
+  if (pick === 'new') RULES.push(r); else RULES[+pick - 1] = r;
+  toast('Rule saved');
+  return pick === 'new' ? `transactions/rules/${RULES.length}` : `transactions/rules/${pick}`;
+}
 // A corporate action on a holding (S2.4): shown as a spin-off, with its basis share.
 DIALOGS.corporateAction = () => ({ title: 'Record a corporate action', body: `${field('Holding', sel(['GE in Individual Brokerage', 'AAPL in Individual Brokerage', 'VTI in Roth IRA'], 'GE in Individual Brokerage'))}<div class="row">${field('Action', sel(['Split or reverse split', 'Symbol change', 'Spin-off', 'Merger'], 'Spin-off'))}${field('Date', inp('2026-01-03', '', 'date'))}</div>${field('New symbol', inp('GEHC', 'META'))}${field('New shares for each held', inp('0.3333'), 'One new share for every three held.')}${field('Basis to the new shares', inp('13.65', '13.65'), 'In percent, from the company’s Form 8937.')}<p class="small dim" style="margin:0">Each lot keeps the day it was bought: 33.33 GEHC with $1,365.00 of the $10,000.00 basis; GE keeps $8,635.00.</p>`, ok: 'Record it' });
-DIALOGS.rules = () => ({ title: 'Categorisation rules', wide: true, body: `<p class="small dim" style="margin-top:0" data-help="first-match">First match wins, top to bottom. Applied to what you import, and to the uncategorised when you choose.</p><div class="toolbar" style="margin-bottom:8px"><button class="btn sm" data-act="dlg" data-v="rule">${icon('plus')} Add a rule</button></div><div class="table-wrap"><table class="t"><thead><tr><th>#</th><th>When</th><th>Then</th><th></th></tr></thead><tbody>
-  ${RULES.map((r, i) => `<tr><td class="dim">${i + 1}</td><td>${r.when}</td><td>${r.then}</td><td style="white-space:nowrap;text-align:right"><button class="btn sm" ${i === 0 ? 'disabled' : ''} aria-label="Move rule ${i + 1} up" data-act="toast" data-v="Moved up">↑</button> <button class="btn sm" ${i === RULES.length - 1 ? 'disabled' : ''} aria-label="Move rule ${i + 1} down" data-act="toast" data-v="Moved down">↓</button> <button class="btn sm" data-act="dlg" data-v="rule">Edit…</button> <button class="btn sm danger" data-act="confirm" data-v="Delete this rule?|Yes, delete|Rule deleted (mock)">Delete</button></td></tr>`).join('')}</tbody></table></div>`, ok: 'Apply to 3 uncategorised' });
-DIALOGS.rule = () => ({ title: 'Edit a rule', body: `${field('Payee contains', inp('re:^WHOLE ?FOODS', 'WHOLE FOODS, or re:^AMZN'), 'As the bank writes it; case doesn’t matter. re: starts a regular expression.')}<div class="row">${field('Amount from', inp('', 'any'))}${field('Amount to', inp('', 'any'))}</div><div class="row">${field('Direction', sel(['Money in or out', 'Money out', 'Money in'], 'Money in or out'))}${field('Account', sel(['Any account', 'Everyday Checking', 'Blue Cash Preferred'], 'Any account'))}</div>${field('Category', sel(['Leave it as it is', 'Food › Groceries', 'Food › Dining out', 'Transportation › Fuel', 'New category…'], 'Food › Groceries'))}${field('Rename to', inp('Whole Foods', 'leave the payee'), 'The payee shown; the bank’s text is kept beside it.')}${field('Tags', inp('', 'coffee, work'), 'Your own, separated by commas.')}`, ok: 'Save' });
 // A route outside a dialog's save (a statement's review, Both real, accepting a book) that would
 // move a filed year: asked by the same question (S2.8.2), sent again once confirmed.
 DIALOGS.statementClosed = () => ({ title: 'Change a filed year?', body: `<p style="margin-top:0">This changes the realized gains of 2025, a year whose return is filed. Change it anyway? The return may need amending, and the tax book will list the change.</p><p class="small dim">Importing the December statement of Schwab · Individual adds a sale of 12 AAPL on Dec 12, 2025.</p>`, ok: 'Import anyway' });
 DIALOGS.editTxClosed = () => ({ ...DIALOGS.editTx(), body: `<div class="notice" style="margin-bottom:12px">${icon('alert')}<div>This changes the realized gains of 2025, a year whose return is filed. Change it anyway? The return may need amending, and the tax book will list the change.</div></div>${DIALOGS.editTx().body}`, ok: 'Change it anyway' });
-DIALOGS.editTx = () => ({ title: 'Edit transaction', body: `<div class="row">${field('Date', inp('2026-10-03', '', 'date'))}${field('Amount', inp('-86.40'))}</div>${field('Payee', inp('Whole Foods'))}<div class="small dim" style="margin:-6px 0 10px">as the bank wrote it: WHOLE FOODS MKT #10233</div>${field('Category', sel(['Food › Groceries', 'Food › Dining out', 'Housing › Utilities', 'New category…', 'Split…'], 'Food › Groceries'))}${field('Memo', inp(''))}<div class="toolbar"><button class="btn sm" data-act="dlg" data-v="rule">Make a rule</button><span class="small dim">files this payee the same way from now on</span></div>
+DIALOGS.editTx = () => ({ title: 'Edit transaction', body: `<div class="row">${field('Date', inp('2026-10-03', '', 'date'))}${field('Amount', inp('-86.40'))}</div>${field('Payee', inp('Whole Foods'))}<div class="small dim" style="margin:-6px 0 10px">as the bank wrote it: WHOLE FOODS MKT #10233</div>${field('Category', sel(['Food › Groceries', 'Food › Dining out', 'Housing › Utilities', 'New category…', 'Split…'], 'Food › Groceries'))}${field('Memo', inp(''))}<div class="toolbar"><button class="btn sm" data-act="dlgover" data-v="newRule">Make a rule</button><span class="small dim">a new rule for this payee, made over this dialog</span></div>
   <div class="list-item"><span class="grow">Reimbursable<div class="small dim">to be paid back; it keeps its category</div></span>${sw(false)}</div>
   <div class="row">${field('Reimbursable amount', inp('', 'all of it'))}${field('Owed by', inp('', 'Acme Corp'))}</div>
   <div class="field"><label>In budgets</label>${[['Household (active)', 'Food › Groceries'], ['Household, envelope', 'the Food envelope']].map(([n, c]) => `<div class="list-item"><span class="grow">${n}<div class="small dim">counts in ${c}</div></span><span class="small dim">Leave out</span>${sw(false)}</div>`).join('')}<div class="hint">The category is the transaction’s: changing it changes every budget that counts it.</div></div>`, ok: 'Save' });
@@ -2291,18 +2389,48 @@ DIALOGS.editTxAsks = () => ({ ...DIALOGS.editTx(), body: `<div class="notice" st
 // S12.15.5: a record changed since the dialog read it: nothing saved.
 DIALOGS.editTxStale = () => ({ ...DIALOGS.editTx(), body: `<div class="notice" style="margin-bottom:12px">${icon('alert')}<div>This transaction changed since you opened it, so nothing was saved. <b>Reload</b> opens it as it stands; what you changed here is lost.</div></div>${DIALOGS.editTx().body.replace('value="-86.40"', 'value="-68.40"')}`, ok: 'Reload' });
 // S12.15.6: a screen's form holding changes, and a move elsewhere in the app.
-DIALOGS.settingsDiscard = () => ({ title: 'Discard your changes?', body: `<p class="small dim" style="margin:0">What you changed in Settings › General isn’t saved. Keep editing to save it, or discard it and go on.</p>`, ok: 'Discard', cancel: 'Keep editing', focusCancel: true });
+DIALOGS.settingsDiscard = () => ({ title: 'Save your changes?', more: '<button class="btn danger" data-act="discard">Discard</button>', body: `<p class="small dim" style="margin:0">What you changed in Settings › General isn’t saved. Save it, or discard it and go on.</p>`, ok: 'Save', cancel: 'Keep editing', focusCancel: true });
 DIALOGS.newTx = () => ({ title: 'Add transaction', body: `${field('Account', sel(visibleAccounts().filter((a) => !a.linked).map((a) => a.name), 'Everyday Checking'))}<div class="row">${field('Date', inp('2026-10-10', '', 'date'))}${field('Amount', inp('-42.00'))}</div>${field('Payee', inp(''))}${field('Category', sel(['Food › Groceries', 'Food › Dining', 'Housing › Utilities', 'New category…', 'Split…'], 'Food › Dining'))}${field('Memo', inp(''))}`, ok: 'Add' });
 // New category… chosen: the new one's fields open below, saved with the transaction (S12.15.7).
-DIALOGS.newTxNewCategory = () => ({ title: 'Add transaction', body: `<div class="row">${field('Date', inp('2026-10-10', '', 'date'))}${field('Amount', inp('-86.00'))}</div>${field('Payee', inp('Banfield Pet Hospital'))}${field('Category', sel(['Food › Groceries', 'Food › Dining', 'Housing › Utilities', 'New category…', 'Split…'], 'New category…'))}<div class="sub-form"><div class="row">${field('New category', inp('Vet', ''))}${field('Under', sel(TOPS, 'Pets'))}</div><div class="row">${field('Kind', sel(['Expense', 'Income', 'Savings', 'Transfer'], 'Expense'))}${field('Tax tag', sel(TAX_TAG_NAMES, 'None'))}</div></div>${field('Memo', inp(''))}`, ok: 'Add' });
+DIALOGS.newTxNewCategory = () => ({ title: 'Add transaction', body: `<div class="row">${field('Date', inp('2026-10-10', '', 'date'))}${field('Amount', inp('-86.00'))}</div>${field('Payee', inp('Banfield Pet Hospital'))}${field('Category', sel(['Food › Groceries', 'Food › Dining', 'Housing › Utilities', 'New category…', 'Split…'], 'New category…'))}${field('Memo', inp(''))}`, ok: 'Add', after: () => showDialog('newCategory', {}, true) });
 
 let openDialog = null;
-function showDialog(name, data = {}) {
+// Tours (S12.17): one at a time, beside the page; its links move around the app and it stays.
+// Find uses (S12.17.6) of Pet › Dog, as Alice sees it: 47 uses she can see when it started.
+const TOUR_USES = { cat: 'Pet › Dog', seen: 47, unseen: 22, steps: [
+  { title: 'Transactions and their parts', n: 38, items: [['38 transactions filed under it', 'transactions']] },
+  { title: 'Rules', n: 2, cleared: true, items: [['“petsmart”', 'transactions/rules/2'], ['“chewy”', 'transactions/rules/4']] },
+  { title: 'Plan lines', n: 2, items: [['Household, from Jan 2026', 'budgets', 'bud:Month'], ['Household, envelope, from Mar 2026', 'budgets', 'bud:Month']] },
+  { title: 'Moves', n: 5, items: [['Household: ', [['Mar', 'budgets', 'bud:Month'], ['Jun', 'budgets', 'bud:Month'], ['Sep', 'budgets', 'bud:Month']]], ['Household, envelope: ', [['Apr', 'budgets', 'bud:Month'], ['Jul', 'budgets', 'bud:Month']]]] },
+] };
+function tourLink(label, go, tab) {
+  const here = !tab && hashNow() === go;
+  return `<a data-act="tourgo" data-v="${go}" ${tab ? `data-tab="${tab}"` : ''} class="${here ? 'here' : ''}">${label}</a>`;
+}
+function tourPane() {
+  const T = TOUR_USES, done = (s) => state.tourDone || s.cleared;
+  const left = T.steps.reduce((n, s) => n + (done(s) ? 0 : s.n), 0);
+  const head = left
+    ? `<p style="margin:12px 0 6px"><b>${left}</b> of the ${T.seen} uses you can see are left.</p><div class="bar"><i style="width:${((T.seen - left) / T.seen) * 100}%"></i></div>`
+    : `<div class="notice" style="margin-top:12px">${icon('check')}<div><b>Nothing you can see uses ${esc(T.cat)} now.</b></div></div>`;
+  const unseen = left
+    ? `<p class="small dim">${T.unseen} more you can’t see: only their owners, or an admin’s merge, clear those.</p>`
+    : `<p class="small">${T.unseen} uses you can’t see are left: an admin can merge it into another category.</p>`;
+  const steps = T.steps.map((s) => `<li class="step ${done(s) ? 'done' : ''}"><h3><span class="tick">${done(s) ? '✓' : ''}</span>${s.title}<span class="spacer"></span><span class="small dim" style="font-weight:400">${done(s) ? 'done' : s.n}</span></h3><ul>${s.items.map(([label, go, tab]) => `<li>${Array.isArray(go) ? label + go.map(([l, g, tb]) => tourLink(l, g, tb)).join(' · ') : tourLink(label, go, tab)}</li>`).join('')}</ul></li>`).join('');
+  return `<aside class="tour" aria-label="Find uses of ${esc(T.cat)}" style="width:${state.tourW || 340}px"><div class="tour-split" role="separator" aria-orientation="vertical" aria-label="Width of the tour" tabindex="0"></div><header><h2>Find uses of ${esc(T.cat)}</h2><button class="icon-btn" data-act="tourclose" title="Close the tour">${icon('x')}</button></header>
+    <p class="small" style="margin:10px 0 0">Everything you can see that files money under <b>${esc(T.cat)}</b>, by kind. Give each another category and the counts here fall as you go. The links take you to each place; this tour stays beside you until you close it.</p>
+    ${head}${unseen}<ol class="steps">${steps}</ol></aside>`;
+}
+// A dialog opened from a dialog opens over it (S12.15.7): the one beneath waits, inert, and is
+// back as it was when the one on top closes.
+const dialogStack = [];
+function showDialog(name, data = {}, over = false) {
   const d = DIALOGS[name](data);
-  closeDialog();
+  if (over && openDialog) { park(openDialog, true); dialogStack.push(openDialog); } else closeAllDialogs();
   const s = document.createElement('div');
   s.className = 'scrim';
-  s.innerHTML = `<div class="dialog ${d.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(d.title)}"><header><h2>${esc(d.title)}</h2><button class="icon-btn" data-act="close" title="Close">${icon('x')}</button></header><div class="body">${d.body}</div><footer>${d.note ? `<span class="note">${d.note}</span>` : ''}<button class="btn" data-act="close">${d.cancel || (d.ok ? 'Cancel' : 'Close')}</button>${d.ok ? `<button class="btn ${d.danger ? 'danger' : 'primary'}" data-act="ok" data-v="${esc(d.ok)}">${esc(d.ok)}</button>` : ''}</footer></div>`;
+  s.dataset.name = name;
+  s.innerHTML = `<div class="dialog ${d.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(d.title)}"><header><h2>${esc(d.title)}</h2><button class="icon-btn" data-act="close" title="Close">${icon('x')}</button></header><div class="body">${d.body}</div><footer>${d.note ? `<span class="note">${d.note}</span>` : ''}<button class="btn" data-act="close">${d.cancel || (d.ok ? 'Cancel' : 'Close')}</button>${d.more || ''}${d.ok ? `<button class="btn ${d.danger ? 'danger' : 'primary'}" data-act="ok" data-v="${esc(d.ok)}">${esc(d.ok)}</button>` : ''}</footer></div>`;
   document.body.append(s); openDialog = s; maskContent();
   // A dialog holding changes (S12.15.6) isn't closed by a click on the dimmed content, and asks
   // before Escape, ✕ or Cancel close it.
@@ -2323,7 +2451,7 @@ function leaveDialog() {
 function askDiscard() {
   const p = document.createElement('div');
   p.className = 'scrim prompt';
-  p.innerHTML = `<div class="dialog prompt" role="alertdialog" aria-label="Discard your changes?"><header><h2>Discard your changes?</h2></header><div class="body"><p class="small dim" style="margin:0">What you changed in this dialog isn’t saved.</p></div><footer><button class="btn danger" data-act="discard">Discard</button><button class="btn primary" data-act="keep">Keep editing</button></footer></div>`;
+  p.innerHTML = `<div class="dialog prompt" role="alertdialog" aria-label="Save your changes?"><header><h2>Save your changes?</h2></header><div class="body"><p class="small dim" style="margin:0">What you changed in this dialog isn’t saved. Save it, or discard it and go on.</p></div><footer><button class="btn" data-act="keep">Keep editing</button><button class="btn danger" data-act="discard">Discard</button><button class="btn primary" data-act="trapsave">Save</button></footer></div>`;
   openDialog.append(p);
   p.querySelector('[data-act=keep]').focus();
 }
@@ -2338,7 +2466,20 @@ function askConfirm(v) {
   p.addEventListener('mousedown', (e) => { if (e.target === p) p.remove(); });
   p.querySelector('[data-act=confirmno]').focus();
 }
-function closeDialog() { if (openDialog) { openDialog.remove(); openDialog = null; maskContent(); helpFor(null); } }
+function closeDialog() {
+  if (!openDialog) return;
+  openDialog.remove();
+  openDialog = dialogStack.pop() || null;
+  if (openDialog) park(openDialog, false);
+  maskContent(); helpFor(openDialog ? openDialog.dataset.name : null);
+}
+function closeAllDialogs() { while (openDialog) closeDialog(); }
+// The dialog beneath gives up its ids while one is over it, so a label or the guide finds the top one's.
+function park(s, on) {
+  s.inert = on;
+  if (on) { s.querySelectorAll('[id]').forEach((el) => { el.dataset.pid = el.id; el.removeAttribute('id'); }); s.querySelectorAll('label[for]').forEach((el) => { el.dataset.pfor = el.htmlFor; el.removeAttribute('for'); }); }
+  else { s.querySelectorAll('[data-pid]').forEach((el) => { el.id = el.dataset.pid; delete el.dataset.pid; }); s.querySelectorAll('[data-pfor]').forEach((el) => { el.htmlFor = el.dataset.pfor; delete el.dataset.pfor; }); }
+}
 // A dialog masks the content, not the guide beside it: the sidebar and the page are inert, and the help pane
 // stays in reach, so the dialog isn't aria-modal while it shows.
 function maskContent() {
@@ -2520,11 +2661,8 @@ const GUIDES = {
     <h2 ${hid('Date')}>Date</h2><p>The day it posted, as the bank wrote it.</p>
     <h2 ${hid('Amount')}>Amount</h2><p>Money in is positive, money out negative.</p>
     <h2 ${hid('Payee')}>Payee</h2><p>Who it was paid to or came from, as you want it shown. The bank’s text is kept, and your rules match on it.</p>
-    <h2 ${hid('Category')}>Category</h2><p>Where the money went, for budgets and taxes. <b>Make a rule</b> files this payee the same way from now on, from what you import.</p>
-    <h2 ${hid('New category')}>New category</h2><p>What <b>New category…</b>, at the end of the list, adds: its name, up to 60 characters. It’s made when you save, and everyone sees it: the household has one tree of categories.</p>
-    <h2 ${hid('Under')}>Under</h2><p>The top-level category it goes under, or none for a new top-level one. Categories have two levels.</p>
-    <h2 ${hid('Kind')}>Kind</h2><p>Expense, income, savings or transfer: how budgets count what’s filed under it. Transfers never count.</p>
-    <h2 ${hid('Tax tag')}>Tax tag</h2><p>Puts what’s filed under it in Taxes › Deductions: charitable gifts, medical and dental, and the others. Most categories have none.</p>
+    <h2 ${hid('Category')}>Category</h2><p>Where the money went, for budgets and taxes. <b>New category…</b>, at the end of the list, opens <b>New category</b> over this dialog; the one it makes is chosen here, and everyone sees it: the household has one tree of categories.</p>
+    <h2>Make a rule</h2><p>Opens <b>New rule</b> over this dialog, with this payee and category filled in, to file the payee the same way from now on. Its <b>Save</b> makes the rule; this transaction stays as it is.</p>
     <h2 ${hid('Memo')}>Memo</h2><p>A note of your own.</p>
     <h2 ${hid('Contribution year')}>Contribution year</h2><p>For a retirement account: the tax year a contribution counts for. One made before the April deadline may be for the year before.</p>
     <h2 ${hid('Contributed by')}>Contributed by</h2><p>You, your employer (a match), a rollover, or a Roth conversion. A transfer matched from another retirement account says it by itself.</p>
@@ -2555,19 +2693,11 @@ const GUIDES = {
     <h2 id="h-fees-column">Fees column</h2><p>Optional: commission, fees or spread.</p>
     <h2 id="h-date-format">Date format</h2><p>How the file writes dates: <code>%m/%d/%Y</code> for 10/12/2026, <code>%Y-%m-%d</code> for 2026-10-12.</p>
     <h2 id="h-spending-is-positive">Spending is positive</h2><p>Card exports often show purchases as positive amounts: this flips them.</p>`,
-  rules: `<h1>Categorisation rules</h1><p>Your rules for the transactions you import: each says what a payee looks like and what to set when one matches. They are yours alone, never shared, and never sent to a linked server.</p>
-    <h2 id="h-first-match">First match wins</h2><p>A transaction takes the first rule, top to bottom, that it matches, so a narrow rule goes above a broad one: <code>re:^KROGER FUEL</code> above <code>kroger</code>. Move a rule with <b>↑</b> and <b>↓</b>.</p><p>Rules set a category only where there is none, and never touch a split, a transfer between your accounts or a trade. They run on every file, statement and connector fetch you import, and on the receipts you add: a rule that renames a payee renames the merchant a receipt names.</p><p><b>Apply to the uncategorised</b> runs them now over the uncategorised transactions in the accounts you can change. Activity records how many it set, never an amount.</p>`,
-  categoryEdit: `<h1>A category</h1><p>A category of the household’s tree. Everyone sees it, and a change to it shows in Activity.</p>
-    <h2 ${hid('Name')}>Name</h2><p>Up to 60 characters, without ›. Two categories under the same parent can’t share a name, whatever its case. Anyone may rename a category.</p>
-    <h2 ${hid('Under')}>Under</h2><p>The top-level category it goes under, or none for a top-level one. Categories have two levels, so one with categories of its own stays at the top. Its parent, kind and tax tag are its maker’s to change until something is filed under it; after that, and for a shipped category or someone else’s, an admin’s.</p>
-    <h2 ${hid('Kind')}>Kind</h2><p>How budgets count what’s filed under it: <b>expense</b> and <b>income</b> count; <b>savings</b> counts as money put away; <b>transfer</b> never counts. Changing it changes every budget’s past months too. <i>Gifts</i>, <i>Giving</i>, <i>Cash</i>, <i>Fees and charges</i> and the loan payments’ categories keep theirs: MoolaKata counts in them by its own rules.</p>
-    <h2 ${hid('Tax tag')}>Tax tag</h2><p>Puts what’s filed under it in Taxes › Deductions, for every tax book whose accounts use it, past years too. Most categories have none.</p>
-    <h2>Delete</h2><p>For a category nothing uses: its maker’s or an admin’s, a shipped one an admin’s. One in use is merged into another instead.</p>`,
-  categoryMerge: `<h1>Merge a category</h1><p>Moves everything filed under a category into another, then deletes it: transactions, their parts, rules, budget plan lines and moves, and a loan’s whole-payment category, for every user. An admin’s, and it can’t be undone, though Activity records what went where.</p>
-    <h2 ${hid('Into')}>Into</h2><p>Another category of the same kind. A category with categories of its own merges into another top-level one.</p>
-    <h2 id="h-merge-children">Its categories</h2><p>Where each of its own categories goes: across, as it is, under the category it merges into; or into one of that category’s own. One with the same name is chosen to start with. One that moves across can’t keep a name the other already has.</p>
-    <h2>Budgets</h2><p>The budgets you can see whose plans change. Where a budget plans both categories, it plans both amounts in one line from then on, past months too: a yearly amount counts as a twelfth a month.</p>`,
-  rule: `<h1>A rule</h1><p>What a transaction must match, and what the rule sets. It needs at least one of a category, a new payee or a tag.</p>
+  rules: `<h1>Rules</h1><p>Your rules for the transactions you import: each says what a payee looks like and what to set when one matches. They are yours alone, never shared, and never sent to a linked server. The list is on the left; the rule you choose is on the right.</p>
+    <h2 id="h-first-match">First match wins</h2><p>A transaction takes the first rule, top to bottom, that it matches, so a narrow rule goes above a broad one: <code>re:^KROGER FUEL</code> above <code>kroger</code>. Move a rule with <b>↑</b> and <b>↓</b>. While the rule you’re changing has changes, they and <b>Apply</b> are off: save changes first.</p><p>Rules set a category only where there is none, and never touch a split, a transfer between your accounts or a trade. They run on every file, statement and connector fetch you import, and on the receipts you add: a rule that renames a payee renames the merchant a receipt names.</p>
+    <h2>Add rule</h2><p>Adds a rule at the end of the list and shows it on the right; <b>Discard</b> takes it away again. A transaction’s own dialog offers <b>Make a rule</b>, which opens <b>New rule</b> over it with its payee and category filled in.</p>
+    <h2>Apply to the uncategorised</h2><p>Beside <b>Add rule</b> while any are uncategorised: runs your saved rules now over the uncategorised transactions in the accounts you can change. Activity records how many it set, never an amount.</p>
+    <h2>Save and Discard</h2><p>Show while the rule has changes, and go when you put it back as it was. Choosing another rule, or going elsewhere, with changes asks first: <b>Keep editing</b>, <b>Discard</b> or <b>Save</b>.</p>
     <h2 ${hid('Payee contains')}>Payee contains</h2><p>Text the payee holds as the bank writes it, case aside: <code>whole foods</code> matches <code>WHOLE FOODS #123</code>. Start with <code>re:</code> for a regular expression: <code>re:^AMZN</code> matches a payee that starts with AMZN. It takes <a href="https://github.com/google/re2/wiki/Syntax" target="_blank" rel="noopener">RE2’s syntax</a>, which has no back-references (<code>\\1</code>), look-arounds (<code>(?=…)</code>, <code>(?&lt;!…)</code>), atomic groups (<code>(?&gt;…)</code>), possessive repeats (<code>a++</code>) or conditionals. Case is aside unless the pattern starts with <code>(?-i)</code>.</p>
     <h2 ${hid('Amount from')}>Amount from</h2><p>The smallest amount it matches, without its sign: 20 matches −$20.00 and $20.00. Leave it empty for any.</p>
     <h2 ${hid('Amount to')}>Amount to</h2><p>The largest amount it matches. With <b>Amount from</b>, a range: 0 to 20 for small purchases.</p>
@@ -2576,9 +2706,20 @@ const GUIDES = {
     <h2 ${hid('Category')}>Category</h2><p>What a matching transaction is filed under, when it has no category yet. <b>Leave it as it is</b> for a rule that only renames or tags.</p>
     <h2 ${hid('Rename to')}>Rename to</h2><p>The payee shown in your lists: <code>Amazon</code> for <code>AMZN Mktp US*2K4LL</code>. The bank’s text stays beside it, and the rules match on the bank’s text.</p>
     <h2 ${hid('Tags')}>Tags</h2><p>Your own tags, added to each match: <code>coffee, work</code>.</p>`,
+  categoryEdit: `<h1>A category</h1><p>A category of the household’s tree. Everyone sees it, and a change to it shows in Activity.</p>
+    <h2 ${hid('Name')}>Name</h2><p>Up to 60 characters, without ›. Two categories under the same parent can’t share a name, whatever its case. Anyone may rename a category.</p>
+    <h2 ${hid('Under')}>Under</h2><p>The top-level category it goes under, or none for a top-level one. Categories have two levels, so one with categories of its own stays at the top. Its parent, kind and tax tag are its maker’s to change until something is filed under it; after that, and for a shipped category or someone else’s, an admin’s.</p>
+    <h2 ${hid('Kind')}>Kind</h2><p>How budgets count what’s filed under it: <b>expense</b> and <b>income</b> count; <b>savings</b> counts as money put away; <b>transfer</b> never counts. Changing it changes every budget’s past months too. <i>Gifts</i>, <i>Giving</i>, <i>Cash</i>, <i>Fees and charges</i> and the loan payments’ categories keep theirs: MoolaKata counts in them by its own rules.</p>
+    <h2 ${hid('Tax tag')}>Tax tag</h2><p>Puts what’s filed under it in Taxes › Deductions, for every tax book whose accounts use it, past years too. Most categories have none.</p>
+    <h2>Delete</h2><p>For a category nothing uses: its maker’s or an admin’s, a shipped one an admin’s. One in use is merged into another instead.</p>
+    <h2>Find them</h2><p>For a category in use: how many uses you can see, and how many you can’t (a transaction counts once, whatever its parts). <b>Find them</b> opens the <b>Find uses</b> tour beside the page, listing each one you can see with a link to it; its counts fall as you give them another category, until you can delete it, or an admin merges it.</p>`,
+  categoryMerge: `<h1>Merge a category</h1><p>Moves everything filed under a category into another, then deletes it: transactions, their parts, rules, budget plan lines and moves, and a loan’s whole-payment category, for every user. An admin’s, and it can’t be undone, though Activity records what went where.</p>
+    <h2 ${hid('Into')}>Into</h2><p>Another category of the same kind. A category with categories of its own merges into another top-level one.</p>
+    <h2 id="h-merge-children">Its categories</h2><p>Where each of its own categories goes: across, as it is, under the category it merges into; or into one of that category’s own. One with the same name is chosen to start with. One that moves across can’t keep a name the other already has.</p>
+    <h2>Budgets</h2><p>The budgets you can see whose plans change. Where a budget plans both categories, it plans both amounts in one line from then on, past months too: a yearly amount counts as a twelfth a month.</p>`,
   transactions: `<h1>Transactions</h1><p>Every transaction across your accounts, to search, sort into categories, and attach receipts to.</p><div class="shot">screenshot · transactions</div>
     <h2 id="h-search">Search</h2><p>Matches payee, memo and amount (<code>142.18</code> or <code>&gt;100</code>).</p>
-    <h2 id="h-rules">Rules</h2><p>Your categorisation rules: what a payee looks like, and the category, payee and tags to set. They run on what you import, and on the uncategorised when you choose. A transaction’s own dialog offers <b>Make a rule</b> from it.</p><p>Example: <code>re:^AMZN</code> → <i>Personal › Subscriptions</i>, renamed <i>Amazon</i>.</p>
+    <h2 id="h-rules">Rules</h2><p>The <b>Rules</b> tab holds your categorisation rules: what a payee looks like, and the category, payee and tags to set. They run on what you import, and on the uncategorised when you choose. A transaction’s own dialog offers <b>Make a rule</b> from it.</p><p>Example: <code>re:^AMZN</code> → <i>Personal › Subscriptions</i>, renamed <i>Amazon</i>.</p>
     <h2 id="h-import">Import</h2><p>OFX, QFX or CSV. Rows already present are skipped.</p>
     <h2 id="h-into-account">Into account</h2><p>The account the file belongs to.</p>
     <h2 id="h-format">Format</h2><p>OFX or QFX, a saved CSV mapping for this institution, or a new CSV mapping.</p>`,
@@ -2872,7 +3013,7 @@ const GUIDES = {
   share: `<h1>Share</h1><p>Give people, groups or people on linked servers access to this item.</p><h2>Read</h2><p>They see everything about it and can’t change it.</p><h2>Write</h2><p>They can also add and import transactions, categorise, and attach receipts. They can’t delete it, share it on, or see its keys.</p><h2>What can be shared</h2><p>Accounts, portfolios, budgets, people with their gifts, giving plans, tax books and projections, each shared on its own.</p><h2>People on linked servers</h2><p>Read only, always. You choose the people; their server confirms who they are, keeps it encrypted, and shows it in a window of its own.</p><h2>Include receipts</h2><p>Off by default. When on, the account’s receipts and the text read from them go to that server too, stored there as encrypted files.</p>
     <h2>Sharing a portfolio</h2><p>People see only the accounts in it that are shared with them; the rest are hidden and left out of its value. The dialog names them and offers to share them too.</p><h2>A tax book</h2><p>The filers own it; give <b>Write</b> to someone who helps prepare the return.</p>`,
 };
-const HELP_ALIAS = { newCategory: 'categoryEdit', editCategory: 'categoryEdit', editCategoryKept: 'categoryEdit', editCategoryLocked: 'categoryEdit', mergeCategory: 'categoryMerge', newTxNewCategory: 'editTx', verifyKey: 'settings', reencrypt: 'settings', removeCopy: 'settings', rotate: 'settings', rotateLost: 'settings', rotatePhrase: 'settings', rotateCheck: 'settings', copiesKept: 'settings', dependent: 'taxes', optionAdjust: 'positions', strategy: 'positions', brokerageStatement: 'account', category: 'budgets', personDuplicate: 'gifts', personAsks: 'gifts', taxDocEdit: 'taxes', relationship: 'profile', prune: 'settings', newConnection: 'profile', connectionCreds: 'profile', connectorPair: 'settings', linkPause: 'settings', nodeCert: 'settings', transferMatch: 'account', statementSplit: 'account', statementKeep: 'account', statementColumns: 'account', newBudget: 'budgets', budgetSettings: 'budgets', editPlan: 'budgets', estimatePlan: 'budgets', coverFrom: 'budgets', assignLanded: 'budgets', makeBudgetActive: 'budgets', copyScenario: 'budgets', reimbursePair: 'budgets', twoStepSetup: 'profile', recoveryCodes: 'profile', resetTwoStep: 'users', newUser: 'users', newGroup: 'users', taxBook: 'taxes', filing: 'taxes', taxDoc: 'taxes', typeBalance: 'account', loanPayment: 'account', tickOff: 'account', statementImport: 'account', addSource: 'settings', btcModels: 'profile', newProjection: 'projections', makeActive: 'projections', newToken: 'profile', tokenShown: 'profile', sharePortfolio: 'share', householdColour: 'linked', copyKey: 'settings', person: 'gifts', gift: 'gifts', donation: 'giving', givingPlan: 'giving', organisation: 'giving', assetItem: 'account', account: 'account', portfolios: 'portfolios', trade: 'positions', tradeSell: 'positions', statementClosed: 'taxes', optionSettle: 'positions', optionMark: 'positions', acctForm: 'account', newAccount: 'accounts', import: 'transactions', csvMapping: 'csvMapping', upload: 'receipts', receipt: 'receipts', linkInvite: 'settings', linkAccept: 'settings', share: 'share', rules: 'rules', rule: 'rule', editTx: 'editTx', iraTx: 'editTx', transferIn: 'editTx', editTxClosed: 'editTx', editTxAsks: 'editTx', editTxStale: 'editTx', editTxDiscard: 'editTx', settingsDiscard: 'settings', corporateAction: 'corporateAction' };
+const HELP_ALIAS = { newRule: 'rules', editTxNewRule: 'editTx', newCategory: 'categoryEdit', editCategory: 'categoryEdit', editCategoryKept: 'categoryEdit', editCategoryLocked: 'categoryEdit', mergeCategory: 'categoryMerge', newTxNewCategory: 'editTx', verifyKey: 'settings', reencrypt: 'settings', removeCopy: 'settings', rotate: 'settings', rotateLost: 'settings', rotatePhrase: 'settings', rotateCheck: 'settings', copiesKept: 'settings', dependent: 'taxes', optionAdjust: 'positions', strategy: 'positions', brokerageStatement: 'account', category: 'budgets', personDuplicate: 'gifts', personAsks: 'gifts', taxDocEdit: 'taxes', relationship: 'profile', prune: 'settings', newConnection: 'profile', connectionCreds: 'profile', connectorPair: 'settings', linkPause: 'settings', nodeCert: 'settings', transferMatch: 'account', statementSplit: 'account', statementKeep: 'account', statementColumns: 'account', newBudget: 'budgets', budgetSettings: 'budgets', editPlan: 'budgets', estimatePlan: 'budgets', coverFrom: 'budgets', assignLanded: 'budgets', makeBudgetActive: 'budgets', copyScenario: 'budgets', reimbursePair: 'budgets', twoStepSetup: 'profile', recoveryCodes: 'profile', resetTwoStep: 'users', newUser: 'users', newGroup: 'users', taxBook: 'taxes', filing: 'taxes', taxDoc: 'taxes', typeBalance: 'account', loanPayment: 'account', tickOff: 'account', statementImport: 'account', addSource: 'settings', btcModels: 'profile', newProjection: 'projections', makeActive: 'projections', newToken: 'profile', tokenShown: 'profile', sharePortfolio: 'share', householdColour: 'linked', copyKey: 'settings', person: 'gifts', gift: 'gifts', donation: 'giving', givingPlan: 'giving', organisation: 'giving', assetItem: 'account', account: 'account', portfolios: 'portfolios', trade: 'positions', tradeSell: 'positions', statementClosed: 'taxes', optionSettle: 'positions', optionMark: 'positions', acctForm: 'account', newAccount: 'accounts', import: 'transactions', csvMapping: 'csvMapping', upload: 'receipts', receipt: 'receipts', linkInvite: 'settings', linkAccept: 'settings', share: 'share', editTx: 'editTx', iraTx: 'editTx', transferIn: 'editTx', editTxClosed: 'editTx', editTxAsks: 'editTx', editTxStale: 'editTx', editTxDiscard: 'editTx', settingsDiscard: 'settings', corporateAction: 'corporateAction' };
 /* ---------- terms: the guides' acronyms, explained on hover and focus (the app's are in
    web/ui/guides/terms.md; a test keeps the two the same) ---------- */
 const TERMS = {
@@ -3007,7 +3148,8 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && termOpen
 document.addEventListener('scroll', () => termOpen && !placeTerm() && hideTerm(0), true);
 function helpFor(dialog) {
   const pane = $('#help-body'); if (!pane) return;
-  const key = dialog ? HELP_ALIAS[dialog] || route().screen : route().screen;
+  const r = route(), page = r.screen === 'transactions' && r.param === 'rules' ? 'rules' : r.screen;
+  const key = dialog ? HELP_ALIAS[dialog] || page : page;
   pane.innerHTML = GUIDES[key] || `<h1>${esc(key)}</h1><p>This screen’s guide is written with the screen.</p>`;
   markTerms(pane);
 }
@@ -3028,7 +3170,8 @@ function render() {
   const navActive = screen === 'account' ? 'accounts' : screen;
   const themeIcon = { dark: 'moon', light: 'bulb', system: 'palette' }[state.theme];
   const item = ([k, l, ic, badge]) => `<a class="nav-item ${navActive === k ? 'active' : ''}" data-go="${k}" title="${l}">${icon(ic)}<span class="nav-label">${l}</span>${badge === 'alerts' ? (state.alertsUnseen[state.user] ? `<span class="nav-badge" id="alerts-badge">${state.alertsUnseen[state.user]}</span>` : '') : badge ? `<span class="nav-badge">${badge}</span>` : ''}</a>`;
-  $('#root').innerHTML = `<div class="app ${state.collapsed ? 'collapsed' : ''} ${state.help ? 'help-open' : ''}">
+  const tourTop = $('.tour')?.scrollTop;
+  $('#root').innerHTML = `<div class="app ${state.collapsed ? 'collapsed' : ''} ${state.help ? 'help-open' : ''} ${state.tour ? 'touring' : ''}">
     <aside class="side">
       <div class="brand"><button class="logo hh" data-act="households" title="Linked households" aria-haspopup="menu">${HOUSEHOLD.initials}</button><div class="brand-text"><div class="brand-name">${HOUSEHOLD.name} <span class="pill-mock" data-act="mock" title="Mockup controls">MOCK</span></div><div class="brand-ver">MoolaKata 0.1.0-mock${state.update ? ' <span class="pill new" data-act="update" title="An update is available. Reload the page to update">update</span>' : ''}</div></div></div>
       <button class="collapse-btn" data-act="collapse" title="Collapse sidebar">${icon('chev')}</button>
@@ -3041,10 +3184,11 @@ function render() {
         <span class="price-status" title="Prices are delayed; Settings › Prices lists the sources">${state.stale ? '<span class="dot stale"></span><span class="txt">Prices stale · last 2 days ago</span>' : '<span class="dot"></span><span class="txt">Prices · Oct 11 close</span>'}</span>
         <button class="icon-btn" data-act="privacy" title="${state.privacy ? 'Show amounts' : 'Hide amounts (privacy mode)'}">${icon(state.privacy ? 'eye-off' : 'eye')}</button></div>
       <div class="content">${(SCREENS[screen] || (() => '<div class="empty">Nothing here.</div>'))(param)}</div>
-    </main>
+    </main>${state.tour ? tourPane() : ''}
     <aside class="help" aria-label="Help"><button class="icon-btn help-close" data-act="help" title="Hide help (F1)">${icon('x')}</button><div id="help-body"></div></aside>
   </div>`;
   document.body.classList.toggle('privacy', state.privacy);
+  if (tourTop) $('.tour').scrollTop = tourTop;
   helpFor(openDialog ? null : null);
   maskContent();
 }
@@ -3110,8 +3254,8 @@ function renderLinked() {
 }
 
 const SETTINGS_SECS= [['general', 'General'], ['email', 'Email (SMTP)'], ['signin', 'Sign-in and sessions'], ['signup', 'Sign-up'], ['passwords', 'Passwords'], ['prices', 'Prices'], ['imports', 'Imports'], ['crypto', 'Bitcoin'], ['links', 'Linked servers'], ['connector', 'Connector'], ['receipts', 'Receipts'], ['tax', 'Tax tables'], ['backups', 'Backups'], ['storage', 'Storage'], ['keys', 'Key storage'], ['network', 'Network'], ['alerts', 'Alerts']];
-const MOCK_SCREENS= [['dashboard', 'Dashboard'], ['dashboard/envelope', 'Dashboard · an envelope budget (cards not backed)'], ['accounts', 'Accounts'], ['account/fid', 'Account · brokerage'], ['account/cold', 'Account · self-custody wallet'], ['account/mort', 'Account · mortgage (payoff planner)'], ['account/529', 'Account · 529 plan'], ['account/chk', 'Account · checking (reconcile)'], ['account/metals', 'Account · precious metals'], ['account/collect', 'Account · collectables'], ['account/house', 'Account · real estate'], ['gifts', 'Gifts'], ['giving', 'Giving'], ['linked/griffin-parents', 'Linked household window'], ['linked/griffin-parents/portfolios/ret', 'Linked household · portfolio'], ['linked/griffin-parents/positions', 'Linked household · positions'], ['linked/griffin-parents/budgets', 'Linked household · budgets'], ['linked/griffin-parents/taxes', 'Linked household · a tax book (its documents)'], ['transactions', 'Transactions'], ['portfolios', 'Portfolios'], ['portfolios/retire', 'Portfolio page'], ['portfolios/all', 'Portfolio · all my accounts (loans and items in Holdings)'], ['projections/retall', 'Projection · on all my accounts (what it leaves out)'], ['account/heloc', 'Account · HELOC in its draw period'], ['account/car', 'Account · car loan (a payment missed)'], ['positions', 'Positions'], ['budgets', 'Budgets'], ['budgets/envelope', 'Budgets · a scenario (envelope)'], ['projections', 'Projections'], ['taxes', 'Taxes'], ['taxes/separate', 'Taxes · filing separately after a joint return'], ['taxes/invited', 'Taxes · named on a book: Accept or Decline'], ['receipts', 'Receipts'], ['watchlist', 'Watchlist'], ['activity', 'Activity'], ['alerts', 'Alerts'], ['users', 'Users and Groups'], ['settings', 'Settings'], ['profile', 'Profile'], ['locked', 'Server locked (after a restart)'], ['restarting', 'Server restarting (after Rotate or Re-encrypt now)'], ['locked-reencrypting', 'Server locked: re-encrypting at the unlock'], ['signin', 'Sign in'], ['two-step', 'Sign in: two-step code'], ['signup', 'Sign up: ask for an account'], ['signup-confirm', 'Sign up: waiting for approval'], ['forgot', 'Forgot password'], ['connector-welcome', 'Connector page: welcome'], ['connector-words', 'Connector page: the vault’s words'], ['connector-check', 'Connector page: three words back'], ['connector-locked', 'Connector page: locked'], ['connector-status', 'Connector page: status'], ['connector-pair', 'Connector page: pair'], ['connector-paired', 'Connector page: paired (the fingerprint)'], ['connector-unpair', 'Connector page: unpair'], ['connector-lock', 'Connector page: lock'], ['connector-reset', 'Connector page: reset'], ['new-server', 'New server: welcome'], ['new-server-phrase', 'New server: the recovery phrase'], ['new-server-check', 'New server: three words back'], ['setup', 'New server: the admin account'], ['welcome', 'Invitation: choose a password'], ['reset', 'Reset password'], ['confirm-email', 'Email address confirmed'], ['disabled', 'Account disabled']];
-const MOCK_DIALOGS= [['prune', 'Prune expired files'], ['verifyKey', 'Verify key (the recovery phrase)'], ['removeCopy', 'Remove a copy (the phrase)'], ['reencrypt', 'Re-encrypt now'], ['rotate', 'Rotate the master key'], ['rotateLost', 'Rotate: the phrase lost (a break-glass code)'], ['rotatePhrase', 'Rotate: the new phrase'], ['rotateCheck', 'Rotate: three words back'], ['copiesKept', 'Copies kept (fewer days: the phrase)'], ['category', 'Edit a category (receipt retention)'], ['newCategory', 'New category (Budgets › Categories)'], ['editCategory', 'Edit a category (its maker, nothing uses it: Delete)'], ['editCategoryKept', 'Edit a category the server counts in (its kind stays)'], ['editCategoryLocked', 'Edit another user’s category in use (not an admin)'], ['mergeCategory', 'Merge a category (its categories mapped)'], ['newTxNewCategory', 'Add transaction: New category… chosen'], ['newConnection', 'New connection (connector)'], ['connectionCreds', 'Change credentials (an OFX connection)'], ['connectorPair', 'Pair the connector'], ['linkPause', 'Pause a link'], ['nodeCert', 'Bitcoin node’s certificate changed'], ['transferMatch', 'Match a transfer (shares or bitcoin)'], ['transferIn', 'Shares transferred in (lots as bought)'], ['statementSplit', 'A statement of two accounts'], ['brokerageStatement', 'Check a brokerage statement'], ['optionAdjust', 'Adjust options after a split'], ['strategy', 'Edit a strategy'], ['statementKeep', 'Keep a statement without reading'], ['statementColumns', 'Name a statement’s columns (after release)'], ['newBudget', 'New budget (method, options, estimate)'], ['estimatePlan', 'A plan estimated from history'], ['editPlan', 'Edit a budget’s plan (reserves)'], ['coverFrom', 'Move money (Cover from…)'], ['assignLanded', 'Assign landed money (interest)'], ['makeBudgetActive', 'Make a budget active'], ['budgetSettings', 'A budget’s settings: an account taken out from a month'], ['copyScenario', 'Copy a budget as a scenario'], ['reimbursePair', 'Pair a reimbursement'], ['twoStepSetup', 'Turn on two-step sign-in'], ['recoveryCodes', 'Two-step recovery codes'], ['resetTwoStep', 'Reset someone’s two-step (admin)'], ['receipt', 'Receipt (read, with a match)'], ['newUser', 'New user (invitation)'], ['newGroup', 'New group'], ['share', 'Share'], ['newAccount', 'New account'], ['trade', 'Record trade (option)'], ['tradeSell', 'Record trade (a sale, lots picked)'], ['statementClosed', 'Import a statement that changes a filed year'], ['optionSettle', 'An option expired, assigned or exercised'], ['optionMark', 'Type an option’s mark'], ['import', 'Import'], ['csvMapping', 'Name a CSV’s columns (its first file)'], ['upload', 'Add receipts'], ['linkInvite', 'Invite a server'], ['copyKey', 'Linked copy access key (admin)'], ['householdColour', 'Colour for a linked household'], ['sharePortfolio', 'Share a portfolio (some accounts hidden)'], ['newProjection', 'New projection'], ['btcModels', 'Bitcoin models'], ['addSource', 'Add a price source'], ['statementImport', 'Import a statement (PDF)'], ['typeBalance', 'Type today’s balance'], ['loanPayment', 'Record a loan payment'], ['tickOff', 'Tick off against a statement'], ['makeActive', 'Make a projection active'], ['newToken', 'New access token (MCP)'], ['tokenShown', 'Access token, shown once'], ['person', 'Gift plan (with its person)'], ['personDuplicate', 'New gift plan: name already here'], ['personAsks', 'A gift plan saved: an occasion with a gift taken away'], ['relationship', 'Add a relationship'], ['gift', 'Gift'], ['donation', 'Record donation (shares)'], ['givingPlan', 'Giving plan'], ['organisation', 'Add an organisation'], ['assetItem', 'Physical-asset item'], ['taxBook', 'New tax book'], ['dependent', 'Add a tax-book dependent'], ['filing', 'Filing (federal, in progress)'], ['taxDoc', 'Add a tax document'], ['taxDocEdit', 'A tax document kept: change or remove it'], ['rules', 'Categorisation rules'], ['rule', 'Edit a rule'], ['editTx', 'Edit a transaction (Make a rule)'], ['iraTx', 'An IRA contribution (deductible or not)'], ['editTxClosed', 'An edit to a filed year’s gains'], ['editTxAsks', 'A save that asks two things'], ['editTxStale', 'A save refused: changed meanwhile'], ['editTxDiscard', 'Discard your changes?'], ['settingsDiscard', 'Leaving a Settings form with changes'], ['corporateAction', 'Record a corporate action (spin-off)']];
+const MOCK_SCREENS= [['dashboard', 'Dashboard'], ['dashboard/envelope', 'Dashboard · an envelope budget (cards not backed)'], ['accounts', 'Accounts'], ['account/fid', 'Account · brokerage'], ['account/cold', 'Account · self-custody wallet'], ['account/mort', 'Account · mortgage (payoff planner)'], ['account/529', 'Account · 529 plan'], ['account/chk', 'Account · checking (reconcile)'], ['account/metals', 'Account · precious metals'], ['account/collect', 'Account · collectables'], ['account/house', 'Account · real estate'], ['gifts', 'Gifts'], ['giving', 'Giving'], ['linked/griffin-parents', 'Linked household window'], ['linked/griffin-parents/portfolios/ret', 'Linked household · portfolio'], ['linked/griffin-parents/positions', 'Linked household · positions'], ['linked/griffin-parents/budgets', 'Linked household · budgets'], ['linked/griffin-parents/taxes', 'Linked household · a tax book (its documents)'], ['transactions', 'Transactions'], ['transactions/rules', 'Transactions › Rules (none chosen)'], ['transactions/rules/1', 'Transactions › Rules · a rule'], ['transactions/rules/1/changed', 'Transactions › Rules · a rule with changes (Discard, Save)'], ['transactions/rules/1/leaving', 'Transactions › Rules · leaving a rule with changes'], ['transactions/rules/new', 'Transactions › Rules · Add rule'], ['transactions/rules/sorted', 'Transactions › Rules · nothing uncategorised'], ['portfolios', 'Portfolios'], ['portfolios/retire', 'Portfolio page'], ['portfolios/all', 'Portfolio · all my accounts (loans and items in Holdings)'], ['projections/retall', 'Projection · on all my accounts (what it leaves out)'], ['account/heloc', 'Account · HELOC in its draw period'], ['account/car', 'Account · car loan (a payment missed)'], ['positions', 'Positions'], ['budgets', 'Budgets'], ['budgets/envelope', 'Budgets · a scenario (envelope)'], ['projections', 'Projections'], ['taxes', 'Taxes'], ['taxes/separate', 'Taxes · filing separately after a joint return'], ['taxes/invited', 'Taxes · named on a book: Accept or Decline'], ['receipts', 'Receipts'], ['watchlist', 'Watchlist'], ['activity', 'Activity'], ['alerts', 'Alerts'], ['users', 'Users and Groups'], ['settings', 'Settings'], ['profile', 'Profile'], ['locked', 'Server locked (after a restart)'], ['restarting', 'Server restarting (after Rotate or Re-encrypt now)'], ['locked-reencrypting', 'Server locked: re-encrypting at the unlock'], ['signin', 'Sign in'], ['two-step', 'Sign in: two-step code'], ['signup', 'Sign up: ask for an account'], ['signup-confirm', 'Sign up: waiting for approval'], ['forgot', 'Forgot password'], ['connector-welcome', 'Connector page: welcome'], ['connector-words', 'Connector page: the vault’s words'], ['connector-check', 'Connector page: three words back'], ['connector-locked', 'Connector page: locked'], ['connector-status', 'Connector page: status'], ['connector-pair', 'Connector page: pair'], ['connector-paired', 'Connector page: paired (the fingerprint)'], ['connector-unpair', 'Connector page: unpair'], ['connector-lock', 'Connector page: lock'], ['connector-reset', 'Connector page: reset'], ['new-server', 'New server: welcome'], ['new-server-phrase', 'New server: the recovery phrase'], ['new-server-check', 'New server: three words back'], ['setup', 'New server: the admin account'], ['welcome', 'Invitation: choose a password'], ['reset', 'Reset password'], ['confirm-email', 'Email address confirmed'], ['disabled', 'Account disabled']];
+const MOCK_DIALOGS= [['prune', 'Prune expired files'], ['verifyKey', 'Verify key (the recovery phrase)'], ['removeCopy', 'Remove a copy (the phrase)'], ['reencrypt', 'Re-encrypt now'], ['rotate', 'Rotate the master key'], ['rotateLost', 'Rotate: the phrase lost (a break-glass code)'], ['rotatePhrase', 'Rotate: the new phrase'], ['rotateCheck', 'Rotate: three words back'], ['copiesKept', 'Copies kept (fewer days: the phrase)'], ['category', 'Edit a category (receipt retention)'], ['newCategory', 'New category (Budgets › Categories)'], ['editCategory', 'Edit a category (its maker, nothing uses it: Delete)'], ['editCategoryKept', 'Edit a category the server counts in (its kind stays)'], ['editCategoryLocked', 'Edit another user’s category in use (not an admin)'], ['mergeCategory', 'Merge a category (its categories mapped)'], ['newTxNewCategory', 'Add transaction: New category… (New category over it)'], ['editTxNewRule', 'Edit a transaction: Make a rule (New rule over it)'], ['newConnection', 'New connection (connector)'], ['connectionCreds', 'Change credentials (an OFX connection)'], ['connectorPair', 'Pair the connector'], ['linkPause', 'Pause a link'], ['nodeCert', 'Bitcoin node’s certificate changed'], ['transferMatch', 'Match a transfer (shares or bitcoin)'], ['transferIn', 'Shares transferred in (lots as bought)'], ['statementSplit', 'A statement of two accounts'], ['brokerageStatement', 'Check a brokerage statement'], ['optionAdjust', 'Adjust options after a split'], ['strategy', 'Edit a strategy'], ['statementKeep', 'Keep a statement without reading'], ['statementColumns', 'Name a statement’s columns (after release)'], ['newBudget', 'New budget (method, options, estimate)'], ['estimatePlan', 'A plan estimated from history'], ['editPlan', 'Edit a budget’s plan (reserves)'], ['coverFrom', 'Move money (Cover from…)'], ['assignLanded', 'Assign landed money (interest)'], ['makeBudgetActive', 'Make a budget active'], ['budgetSettings', 'A budget’s settings: an account taken out from a month'], ['copyScenario', 'Copy a budget as a scenario'], ['reimbursePair', 'Pair a reimbursement'], ['twoStepSetup', 'Turn on two-step sign-in'], ['recoveryCodes', 'Two-step recovery codes'], ['resetTwoStep', 'Reset someone’s two-step (admin)'], ['receipt', 'Receipt (read, with a match)'], ['newUser', 'New user (invitation)'], ['newGroup', 'New group'], ['share', 'Share'], ['newAccount', 'New account'], ['trade', 'Record trade (option)'], ['tradeSell', 'Record trade (a sale, lots picked)'], ['statementClosed', 'Import a statement that changes a filed year'], ['optionSettle', 'An option expired, assigned or exercised'], ['optionMark', 'Type an option’s mark'], ['import', 'Import'], ['csvMapping', 'Name a CSV’s columns (its first file)'], ['upload', 'Add receipts'], ['linkInvite', 'Invite a server'], ['copyKey', 'Linked copy access key (admin)'], ['householdColour', 'Colour for a linked household'], ['sharePortfolio', 'Share a portfolio (some accounts hidden)'], ['newProjection', 'New projection'], ['btcModels', 'Bitcoin models'], ['addSource', 'Add a price source'], ['statementImport', 'Import a statement (PDF)'], ['typeBalance', 'Type today’s balance'], ['loanPayment', 'Record a loan payment'], ['tickOff', 'Tick off against a statement'], ['makeActive', 'Make a projection active'], ['newToken', 'New access token (MCP)'], ['tokenShown', 'Access token, shown once'], ['person', 'Gift plan (with its person)'], ['personDuplicate', 'New gift plan: name already here'], ['personAsks', 'A gift plan saved: an occasion with a gift taken away'], ['relationship', 'Add a relationship'], ['gift', 'Gift'], ['donation', 'Record donation (shares)'], ['givingPlan', 'Giving plan'], ['organisation', 'Add an organisation'], ['assetItem', 'Physical-asset item'], ['taxBook', 'New tax book'], ['dependent', 'Add a tax-book dependent'], ['filing', 'Filing (federal, in progress)'], ['taxDoc', 'Add a tax document'], ['taxDocEdit', 'A tax document kept: change or remove it'], ['editTx', 'Edit a transaction (Make a rule)'], ['iraTx', 'An IRA contribution (deductible or not)'], ['editTxClosed', 'An edit to a filed year’s gains'], ['editTxAsks', 'A save that asks two things'], ['editTxStale', 'A save refused: changed meanwhile'], ['editTxDiscard', 'Save your changes? (leaving a dialog)'], ['settingsDiscard', 'Leaving a Settings form with changes'], ['corporateAction', 'Record a corporate action (spin-off)']];
 window.MOCK_INDEX = { screens: MOCK_SCREENS.map((x) => x[0]), dialogs: MOCK_DIALOGS.map((x) => x[0]), settings: SETTINGS_SECS.map((x) => x[0]) };
 
 /* ---------- linked households menu ---------- */
@@ -3132,7 +3276,7 @@ function mockMenu(anchor) {
   const screens = MOCK_SCREENS;
   const dialogs = MOCK_DIALOGS;
   m.innerHTML = `<div class="mh">Signed in as</div>${Object.values(USERS).slice(0, 2).map((u) => `<button data-act="as" data-v="${u.username}" class="${state.user === u.username ? 'on' : ''}"><span class="avatar sm av-${u.username}">${u.initials}</span>${u.name} ${u.admin ? '(admin)' : ''}</button>`).join('')}
-    <div class="mh">State</div><button data-act="stale" class="${state.stale ? 'on' : ''}">Prices stale</button><button data-act="privacy" class="${state.privacy ? 'on' : ''}">Privacy mode</button><button data-act="mupdate" class="${state.update ? 'on' : ''}">Update available</button><button data-act="mnew">3 new rows arrive</button><button data-act="malert">A new alert arrives (live)</button><button data-act="mupload">Upload a receipt (reads it)</button><button data-act="mlock" class="${state.locked ? 'on' : ''}">Linked data locked</button><button data-act="mspouse" class="${state.spouseWaiting ? 'on' : ''}">A marriage waiting to be confirmed</button><button data-act="mjoin" class="${state.joinable ? 'on' : ''}">A linked user may be a person here</button><button data-act="mlinkcert" class="${state.linkCert ? 'on' : ''}">A linked server’s certificate changed</button><button data-act="mlinkbroken" class="${state.linkBroken ? 'on' : ''}">A link broken (the other side has none)</button><button data-act="mconnmoved" class="${state.connectorMoved ? 'on' : ''}">The connector reports from a new address</button><button data-act="mlandlock" class="${state.noLandlock ? 'on' : ''}">A host without Landlock</button><button data-act="munlimited" class="${state.unlimitedRisk ? 'on' : ''}">A strategy with unlimited risk</button><button data-act="mbtcunsaved" class="${state.btcUnsaved ? 'on' : ''}">Bitcoin not saved yet (Settings › Bitcoin)</button><button data-act="mtlsown" class="${state.tlsOwn ? 'on' : ''}">The listener on its own certificate (Settings › Network)</button><button data-act="mnosaving" class="${state.noSaving ? 'on' : ''}">A target no saving reaches (savings and education answers)</button><button data-act="mnotpriced" class="${state.notPriced ? 'on' : ''}">A strategy not priced (a takeover’s shares)</button><button data-act="mreencrypt" class="${state.reencryptScheduled ? 'on' : ''}">A re-encryption waits for the restart</button><button data-act="mrestored" class="${state.restored ? 'on' : ''}">After a restore</button>
+    <div class="mh">State</div><button data-act="tourstart" class="${state.tour ? 'on' : ''}">Tour: Find uses of Pet › Dog</button><button data-act="mtourdone" class="${state.tourDone ? 'on' : ''}">Tour: every use you can see cleared</button><button data-act="stale" class="${state.stale ? 'on' : ''}">Prices stale</button><button data-act="privacy" class="${state.privacy ? 'on' : ''}">Privacy mode</button><button data-act="mupdate" class="${state.update ? 'on' : ''}">Update available</button><button data-act="mnew">3 new rows arrive</button><button data-act="malert">A new alert arrives (live)</button><button data-act="mupload">Upload a receipt (reads it)</button><button data-act="mlock" class="${state.locked ? 'on' : ''}">Linked data locked</button><button data-act="mspouse" class="${state.spouseWaiting ? 'on' : ''}">A marriage waiting to be confirmed</button><button data-act="mjoin" class="${state.joinable ? 'on' : ''}">A linked user may be a person here</button><button data-act="mlinkcert" class="${state.linkCert ? 'on' : ''}">A linked server’s certificate changed</button><button data-act="mlinkbroken" class="${state.linkBroken ? 'on' : ''}">A link broken (the other side has none)</button><button data-act="mconnmoved" class="${state.connectorMoved ? 'on' : ''}">The connector reports from a new address</button><button data-act="mlandlock" class="${state.noLandlock ? 'on' : ''}">A host without Landlock</button><button data-act="munlimited" class="${state.unlimitedRisk ? 'on' : ''}">A strategy with unlimited risk</button><button data-act="mbtcunsaved" class="${state.btcUnsaved ? 'on' : ''}">Bitcoin not saved yet (Settings › Bitcoin)</button><button data-act="mtlsown" class="${state.tlsOwn ? 'on' : ''}">The listener on its own certificate (Settings › Network)</button><button data-act="mnosaving" class="${state.noSaving ? 'on' : ''}">A target no saving reaches (savings and education answers)</button><button data-act="mnotpriced" class="${state.notPriced ? 'on' : ''}">A strategy not priced (a takeover’s shares)</button><button data-act="mreencrypt" class="${state.reencryptScheduled ? 'on' : ''}">A re-encryption waits for the restart</button><button data-act="mrestored" class="${state.restored ? 'on' : ''}">After a restore</button>
     <div class="mh">Dialogs</div>${dialogs.map(([k, l]) => `<button data-act="dlg" data-v="${k}">${l}</button>`).join('')}
     <div class="mh">Screens</div>${screens.map(([k, l]) => `<button data-go="${k}">${l}</button>`).join('')}`;
   document.body.append(m);
@@ -3148,7 +3292,9 @@ document.addEventListener('click', (e) => {
   if (!t) { if (!e.target.closest('#menu')) closeMenu(); else if (e.target.closest('#menu a[href]')) setTimeout(closeMenu); return; }
   const inMenu = !!t.closest('#menu');
   if (t.dataset.go != null && !t.dataset.act) {
-    e.preventDefault(); closeMenu(); closeDialog();
+    e.preventDefault(); closeMenu();
+    if (!openDialog && ruleAsk(t.dataset.go)) return;
+    closeAllDialogs();
     if (t.dataset.go === 'signin') { state.signedOut = true; }
     else state.signedOut = false;
     go(t.dataset.go); return;
@@ -3175,7 +3321,11 @@ document.addEventListener('click', (e) => {
     case 'as': state.user = v; state.signedOut = false; if (!USERS[v].admin && ['users', 'settings'].includes(route().screen)) go('dashboard'); render(); toast(`Signed in as ${USERS[v].name}`); break;
     case 'range': state.range = v; render(); break;
     case 'filter': state.filters[t.dataset.k] = v; render(); break;
-    case 'tab': state.tabs[t.dataset.k] = v; render(); break;
+    case 'tab': if (t.dataset.k === 'txpage') { const to = v === 'Rules' ? 'transactions/rules' : 'transactions'; if (!ruleAsk(to)) ruleGoNow(to); break; } state.tabs[t.dataset.k] = v; render(); break;
+    case 'rulego': if (!ruleAsk(v)) ruleGoNow(v); break;
+    case 'rulediscard': { const [, , pick] = hashNow().split('/'); ruleGoNow(pick === 'new' ? 'transactions/rules' : `transactions/rules/${pick}`); break; }
+    case 'rulesave': { const to = ruleSave(); if (to) ruleGoNow(to); break; }
+    case 'ruleleave': { t.closest('.rule-leave').remove(); if (v === 'keep') break; if (v === 'save' && !ruleSave()) break; ruleGoNow(state.ruleTarget || 'transactions/rules/2'); break; }
     case 'settings': state.settings = v; render(); break;
     case 'scenario': state.scenario = +v; render(); break;
     case 'switch': t.classList.toggle('on'); t.setAttribute('aria-checked', t.classList.contains('on')); break;
@@ -3183,9 +3333,15 @@ document.addEventListener('click', (e) => {
     case 'fill': t.previousElementSibling.value = t.dataset.v; break; // a count's All button
     case 'fill-in': t.parentElement.querySelector('input').value = t.dataset.v; break; // a field's ↺
     case 'dlg': e.stopPropagation(); showDialog(v, { ...t.dataset }); break;
+    case 'tourstart': closeAllDialogs(); state.tour = 'uses'; state.tourDone = false; render(); break;
+    case 'tourclose': state.tour = null; render(); break;
+    case 'tourgo': { if (t.dataset.tab) { const [k, tv] = t.dataset.tab.split(':'); state.tabs[k] = tv; } if (!ruleAsk(v)) ruleGoNow(v); break; }
+    case 'mtourdone': state.tour = 'uses'; state.tourDone = !state.tourDone; render(); break;
+    case 'dlgover': e.stopPropagation(); showDialog(v, { ...t.dataset }, true); break;
     case 'close': leaveDialog(); break;
     case 'keep': t.closest('.scrim.prompt').remove(); break;
     case 'discard': closeDialog(); break;
+    case 'trapsave': closeDialog(); toast('Saved'); break;
     case 'changed-go': state.taxBook = 'tb25'; state.year = 2025; state.tabs.tax = 'Issues'; go('taxes'); break;
     case 'waive': state.waived = true; toast('Settled: no amendment needed'); render(); break;
     case 'taxbook-go': { const b = TAX_BOOKS.find((x) => x.id === v); state.taxBook = b.id; state.year = b.year; render(); break; }
@@ -3211,7 +3367,7 @@ document.addEventListener('click', (e) => {
     case 'mjoined': state.joinable = false; closeDialog(); toast('Margaret Griffin on griffin-parents is Margaret Griffin here'); render(); break;
     case 'pfsw': state.payoff[v] = !state.payoff[v]; render(); break;
     case 'goalcost': state.goal.cost = +v; render(); break;
-    case 'ok': closeDialog(); if (v === 'Reload') showDialog('editTx'); else if (v === 'Show the new phrase') showDialog('rotatePhrase'); else if (v === 'I’ve written them down') showDialog('rotateCheck'); else if (v === 'Rotate and restart' || v === 'Re-encrypt and restart') go('restarting'); else if (v === 'Upload') simulateUpload(); else if (v === 'Unlock') { state.locked = false; state.unlockedBy = USERS[state.user].name.split(' ')[0]; render(); toast('Unlocked · applied 12 changes from griffin-parents'); } else if (v === 'Verify') toast('These words open this server’s key mk-3f9a…c21e · recorded as checked today'); else if (v === 'Done, words saved') toast('Access key made · pulling from ortiz-cpa'); else if (v === 'Create token') showDialog('tokenShown'); else if (v === 'Make active') toast('Active · baseline set today'); else toast(v === 'Done' ? 'Waiting for the other server' : `${v}: done (mock)`); break;
+    case 'ok': { const was = t.closest('.scrim')?.dataset.name; closeDialog(); if (was === 'newRule') { toast('Rule saved'); break; } if (was === 'newCategory' && openDialog) { toast('Category made and chosen'); break; } } if (v === 'Reload') showDialog('editTx'); else if (v === 'Show the new phrase') showDialog('rotatePhrase'); else if (v === 'I’ve written them down') showDialog('rotateCheck'); else if (v === 'Rotate and restart' || v === 'Re-encrypt and restart') go('restarting'); else if (v === 'Upload') simulateUpload(); else if (v === 'Unlock') { state.locked = false; state.unlockedBy = USERS[state.user].name.split(' ')[0]; render(); toast('Unlocked · applied 12 changes from griffin-parents'); } else if (v === 'Verify') toast('These words open this server’s key mk-3f9a…c21e · recorded as checked today'); else if (v === 'Done, words saved') toast('Access key made · pulling from ortiz-cpa'); else if (v === 'Create token') showDialog('tokenShown'); else if (v === 'Make active') toast('Active · baseline set today'); else toast(v === 'Done' ? 'Waiting for the other server' : `${v}: done (mock)`); break;
     case 'newitems': state.newItems = 0; render(); toast('Loaded the newest rows'); break;
     case 'update': toast('Reloading to the new version (mock)'); state.update = false; render(); break;
     case 'pgsize': break;
@@ -3230,6 +3386,8 @@ document.addEventListener('change', (e) => {
   if (el.dataset.pf) { state.payoff[el.dataset.pf] = num; setTimeout(render); }
   if (el.dataset.goal) { state.goal[el.dataset.goal] = num; setTimeout(render); }
 });
+document.addEventListener('input', (e) => { if (e.target.closest?.('.rule-pane')) ruleMarks(); });
+document.addEventListener('change', (e) => { if (e.target.closest?.('.rule-pane')) ruleMarks(); });
 document.addEventListener('input', (e) => {
   const el = e.target; if (el.dataset.check !== 'seed') return;
   const v = el.value.trim(), words = v.split(/\s+/).filter(Boolean);
@@ -3241,6 +3399,21 @@ document.addEventListener('input', (e) => {
   if (!bad && err && el.value) err.remove();
 });
 document.addEventListener('mousemove', chartHover);
+// The tour's width (S12.17.1): its left edge drags, up to half the window, and moves with the arrow keys.
+const tourWidth = (w) => { state.tourW = Math.round(Math.max(260, Math.min(innerWidth / zoomOf() / 2, w))); $('.tour').style.width = state.tourW + 'px'; };
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.classList?.contains('tour-split')) return;
+  e.preventDefault();
+  const x0 = e.clientX, w0 = $('.tour').offsetWidth, Z = zoomOf();
+  const move = (m) => tourWidth(w0 + (x0 - m.clientX) / Z);
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+document.addEventListener('keydown', (e) => {
+  if (!e.target.classList?.contains('tour-split')) return;
+  if (e.key === 'ArrowLeft') tourWidth($('.tour').offsetWidth + 20);
+  if (e.key === 'ArrowRight') tourWidth($('.tour').offsetWidth - 20);
+});
 document.addEventListener('keydown', (e) => {
   if (e.key === 'F1') { e.preventDefault(); state.help = !state.help; render(); }
   if (e.key === 'Escape') {
@@ -3249,7 +3422,7 @@ document.addEventListener('keydown', (e) => {
     closeMenu(); leaveDialog();
   }
 });
-addEventListener('hashchange', () => { closeDialog(); render(); helpFor(null); });
+addEventListener('hashchange', () => { closeAllDialogs(); render(); helpFor(null); });
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme);
 render(); helpFor(null);
 </script>

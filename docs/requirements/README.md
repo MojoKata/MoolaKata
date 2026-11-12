@@ -48,7 +48,7 @@ opens the dialogs.
 | **S9** | [Receipts](S9-receipts.md) | Upload, encrypted storage, viewing, links, sharing, retention and reading receipts on the server |
 | **S10** | [Users, groups and sharing](S10-users-and-sharing.md) | Users, sign-in, groups, what can be shared and how, Activity and the MCP endpoint |
 | **S11** | [Linked servers](S11-linked-servers.md) | Read-only sharing between households on separate MoolaKata servers |
-| **S12** | [Web UI](S12-web-ui.md) | The frame, navigation, screens, help pane, live updates, linked households' windows and Alerts |
+| **S12** | [Web UI](S12-web-ui.md) | The frame, navigation, screens, help pane, tours, live updates, linked households' windows and Alerts |
 | **S13** | [Architecture](S13-architecture.md) | The listener and its modes, background tasks, the egress guard, the refused start, security policies and API conventions |
 | **S14** | [Storage and secrets](S14-storage-and-secrets.md) | The database, files, secrets, backups, time zones and retention |
 | **S15** | [Encryption and the master key](S15-encryption-and-master-key.md) | The master key and its recovery phrase, the data key, rotation and recovery, for the admin who runs the server |

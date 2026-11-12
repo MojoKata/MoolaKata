@@ -41,11 +41,30 @@
       Some types add tabs: a loan *Schedule* and *Payoff* (S1.9, S6.10); a 529
       *Contributions*, *Withdrawals* and *Goal* (S1.8); a physical-asset account *Items*
       (S1.10);
-   3. **Transactions**: every account's transactions together, filtered by account, category,
-      date, amount, payee and tag, with bulk categorise, split, attach receipt, and **Import**.
-      A transaction's dialog marks it reimbursable (S2.9), and its **In budgets** line names
-      each budget counting it, what it counts as there, and that budget's **Leave out**
-      switch (S7.3.5);
+   3. **Transactions**, with the tabs *Transactions* and *Rules*:
+      1. *Transactions* (`/ui/transactions`): every account's transactions together, filtered
+         by account, category, date, amount, payee and tag, with bulk categorise, split,
+         attach receipt, and **Import**; `?category=<id>` opens it filtered to a category. A
+         transaction's dialog marks it reimbursable (S2.9), and its **In budgets** line names
+         each budget counting it, what it counts as there, and that budget's **Leave out**
+         switch (S7.3.5).
+      2. *Rules* (`/ui/transactions/rules`): the user's categorisation rules (S2.7), in two
+         parts. On the left, **Add rule**, and beside it, while any transaction in the
+         accounts the user can change is uncategorised, **Apply to N uncategorised**, which
+         runs the saved rules (S2.7.4); under them the rules in order, each with its number,
+         its conditions, what it sets, and **↑** and **↓**. On the right, the rule chosen
+         (`/ui/transactions/rules/<id>`): its fields, which edit a draft (S12.15), and
+         **Delete**; with none chosen, a line saying to choose a rule or add one.
+         1. **Discard** and **Save** show while the rule holds changes, and go when it is put
+            back as it was (S12.15.1). **Discard** puts it back; **Save** saves it.
+         2. **Add rule** puts a new rule at the end of the list, chosen, its fields as a new
+            rule has them, with **Discard** and **Save** showing; **Discard** takes it out of
+            the list. Saved, it takes its own address.
+         3. **Leaving a rule with changes**: choosing another rule, **Add rule**, the other
+            tab, moving elsewhere in the app or the browser's Back asks first (S12.15.6).
+         4. While the rule chosen holds changes, what acts on the saved rules (**↑**, **↓**,
+            **Apply to N uncategorised**) is disabled, its tooltip saying *Save changes
+            first*;
    4. **Portfolios**: the user's portfolios and those shared with them; a portfolio page with
       the charts of S5.2, its holdings, and its *Projections*;
    5. **Positions**: open and closed positions across accounts, with stocks, options and
@@ -53,15 +72,21 @@
       an option leg builder;
    6. **Budgets**: the list of budgets, the active one first and then the scenarios, with
       **New budget** (its method and options, and **Estimate from history**, S7.1); for one
-      budget, the month view with its reserves and moves, **Where the money is**, the
+      budget, the month view with its reserves and moves (`?month=YYYY-MM` in its address
+      opens a month), **Where the money is**, the
       month's review, **Compare**, cash flow, trends, **Awaiting reimbursement**, recurring
       transactions and rules (S7.4). Beside the list, **Categories**: the household's tree,
       each with its kind, tax tag and who added it, with **Add a category**, and for each
       **Edit** (its name, parent, kind and tax tag; what the reader may not change shown
-      locked, with why), **Delete** and **Merge** as S7.2.3 and S7.2.4 allow. Every list
+      locked, with why), **Delete** and **Merge** as S7.2.3 and S7.2.4 allow. A category
+      in use says in its dialog how many of its uses the reader can see and how many they
+      can't (*47 uses you can see, and 22 you can't*; a transaction counts once, whatever
+      its parts), and the refused delete says the same; **Find them**, while there are any
+      the reader can see, closes the dialog (asking first if it holds changes, S12.15.6)
+      and starts the *Find uses* tour (S12.17.6). Every list
       of categories to choose from (a transaction's and its parts', bulk categorise, a
-      rule's, a plan line's, a loan's) ends with **New category…**, which adds one there
-      and chooses it;
+      rule's, a plan line's, a loan's) ends with **New category…**, which opens **New
+      category** over the dialog (S12.15.7) and chooses the one it makes;
    7. **Projections**: active projections first, with their tracking, then the scenarios;
       each with its inputs and the fan chart (S6);
    8. **Gifts**: *Upcoming* occasions, *People*, *Gifts* (ideas to given, and received), and
@@ -338,21 +363,24 @@
        is saved: the dialog says so, with **Reload**, which opens it again from the records as
        they stand and loses the changes made in it, and **Cancel**.
     6. **Changes not saved.** While a draft holds changes, Escape, ✕, **Cancel** or the
-       browser's Back asks **Discard your changes?**, with **Keep editing**, focused, and
-       **Discard**; a click on the dimmed content does nothing; and on a screen's form, so does
-       moving elsewhere in the app. Typed text that doesn't read yet counts as a change.
+       browser's Back asks **Save your changes?**, with **Keep editing**, focused and what
+       Escape answers, **Discard**, in red, and **Save**; a click on the dimmed content does
+       nothing; and on a screen's form, so does moving elsewhere in the app. **Save** saves
+       and goes on; one refused, or one that asks first (S12.15.4), stays, with the reasons
+       or questions shown. Typed text that doesn't read yet counts as a change.
        Leaving or reloading the page brings the browser's own question. A dialog without
        changes closes as S12.1.3 says. A
        session that ends, or a server that locks, while a dialog holds changes loses them, and
        the sign-in or locked screen says so.
-    7. **A dialog opened from a dialog.** One that makes a record the first only refers to (a
-       person for a gift, an organisation for a donation) saves it with its own **Save**, and
-       the first dialog then refers to it; cancelling the first leaves it. A category made with
-       **New category…** (S12.2.6) opens its fields in the first dialog instead, and is made
-       with the first dialog's save, or not at all. One that fills in a record the first dialog's records own (a split, a plan
-       line's reserve, a gift plan's occasion) edits the first dialog's draft: **Done** keeps
-       its changes without saving them, **Cancel** puts back what it changed, and they are
-       saved, or discarded, with the first dialog's.
+    7. **A dialog opened from a dialog** opens over it, and the first, as it was, is back when
+       it closes. One that makes a record on the way (a person for a gift, an organisation
+       for a donation, a category with **New category…**, S12.2.6, a rule with **Make a
+       rule**, S2.7.6) saves it with its own **Save**, and the first dialog then refers to it
+       where it asked (the category chosen in the field that offered it); cancelling the
+       first leaves it. One that fills in a record the first dialog's records own (a split, a
+       plan line's reserve, a gift plan's occasion) edits the first dialog's draft: **Done**
+       keeps its changes without saving them, **Cancel** puts back what it changed, and they
+       are saved, or discarded, with the first dialog's.
 16. **Deleting asks first.** Whatever deletes, removes, revokes, ends, resets, forgets, ungroups
     or unpairs something (a transaction, an account, a gift, a rule, a document, a token, a
     link, a linked copy, the connector's pairing) asks once, in a small box over the page or
@@ -363,3 +391,43 @@
     draft, the record is taken out of the draft and the draft saved at once (S12.15.4). An
     action that asks for more than a yes (a copy's removal, which asks for the recovery
     phrase) asks in its own dialog instead.
+17. **Tours.** A tour leads someone through a task that spans screens: finding what uses a
+    category is the first; setting things up across several screens (a household's
+    accounts, a linked server) is what they are for as well.
+    1. **The pane.** A tour opens in a pane at the right of the page, inside the content and
+       left of the help pane, so a dialog dims it and holds it with the page. Its title is
+       the tour's name, with ✕ at the top right, which closes it; it is never collapsed and
+       brought back. Its width drags and moves with the arrow keys, as the help pane's does
+       (S12.7.1), and the browser remembers it. One tour is open at a time: starting another
+       closes the first.
+    2. **It stays.** Its links go to screens, tabs and records by their addresses, and the
+       pane stays as it was, scrolled where it was, while the person moves around the app.
+       It is kept for the browser tab, through a reload, until it is closed or the session
+       ends.
+    3. **What it holds**: a short preamble (what the task is, and how the tour helps), then
+       its steps in a list. A step is a line of text, with links where there are places to
+       go, and a state read from the server: to do, or done (ticked). A step done while the
+       tour is open stays where it is, ticked, so the list never jumps. The link to where the
+       person is now is marked.
+    4. **It follows the server.** When the live stream (S12.6) says its records changed, it
+       reads its steps again: counts fall and steps tick themselves. When every step is done,
+       it says so, and what comes next.
+    5. **Its words** are Markdown shipped with the app, beside the guides
+       (`web/ui/tours/<tour>.md`); the steps and their counts come from the server.
+    6. **Find uses** (S12.2.6), for a category. The preamble says what it is for: everything
+       the reader can see that files money under the category, to give each another category
+       (or merge it, S7.2.4), with the counts falling as they go; and how many uses they
+       can't see, which only their owners or an admin's merge can clear. One step for each
+       kind of use the reader can see, with its count:
+       1. **Transactions and their parts**: a link to Transactions filtered to the category
+          (`/ui/transactions?category=<id>`).
+       2. **Rules**: a link to each (`/ui/transactions/rules/<id>`).
+       3. **Plan lines**: each budget that plans it, linked to the budget's month where the
+          line starts (`/ui/budgets/<id>/month?month=YYYY-MM`).
+       4. **Moves**: each budget, with a link to each month that has one.
+       5. **Loans**: each loan whose whole payment counts in it, linked to the loan's
+          Settings tab (`/ui/accounts/<id>/settings`).
+       6. **Categories under it**: each by name, linked to Budgets › Categories.
+       Done, it says that nothing the reader can see uses the category: with nothing left,
+       a link to the category's dialog, to delete it; with uses they can't see, how many,
+       and that an admin can merge it.

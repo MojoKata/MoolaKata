@@ -71,13 +71,15 @@
    4. **On demand**, *Apply to the uncategorised* runs the user's rules over the uncategorised
       transactions in the accounts they can change, and says how many it set; Activity records
       that count, never an amount (S10.8).
-   5. **The list** shows each rule's conditions and what it sets, and can add, edit, delete and
-      move a rule up or down; each change is recorded in Activity as a rule change. A rule
+   5. **The list**, on the *Rules* tab (S12.2.3.2), shows each rule's conditions and what it
+      sets, and adds, edits, deletes and moves a rule up or down; each change is recorded in
+      Activity as a rule change. A rule
       whose account or category was deleted shows it as deleted; one whose account went
       matches nothing. Rules are their user's own: never shared, and never across a link
       (S11.5.2).
-   6. **From a transaction**: its dialog offers *Make a rule*, with its payee and category
-      filled in.
+   6. **From a transaction**: its dialog offers *Make a rule*, which opens **New rule** over
+      it (S12.15.7): the *Rules* tab's fields, the payee and category filled in. Its **Save**
+      makes the rule, and the transaction's dialog stays as it was.
    7. **The receipt reader** passes the merchant it read through the uploader's rules: a rule
       that renames a payee renames the merchant the same way (S9.8.2.5.3).
 8. **Editing history** is allowed. Every derived figure (balances, lots, gains, budgets,

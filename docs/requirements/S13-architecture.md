@@ -268,7 +268,8 @@
       (`docs/link-protocol.md`), `/connector` by its path (`/connector/v1/`), and `/mcp` by
       the protocol version the client and server agree on.
    10. **Visibility**: every read goes through the caller's shares (S10.3) and the soft-delete
-       views (`schema.md` §4.2). A list never counts or hints at what the caller can't see.
+       views (`schema.md` §4.2). A list never counts or hints at what the caller can't see,
+       but for a category's uses, counted and never named, so it can be cleared (S12.2.6).
    11. **The save** (`POST /ui/api/save`): a form's draft (S12.15) in one request,
        applied in one database transaction or not at all.
        1. **The request** is `{ops, confirm}`. Each op is `{op, entity, id, version, fields}`:
