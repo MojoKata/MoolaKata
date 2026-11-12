@@ -873,11 +873,17 @@ def test_a_second_merge_reads_only_the_live_lines(people, server):
         assert merge(admin, row_, into).status_code == 200
 
     merged(pet["id"], pets["id"])
+    with server.db.read(unscoped="test") as s:
+        first = {x.id for x in s.scalars(select(BudgetLine).where(BudgetLine.deleted.is_(True)))}
+    clock.fix(T1)
     merged(pets["id"], animals["id"])
     with server.db.read(unscoped="test") as s:
         alive = (BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
         got = [(x.categoryId, x.amount) for x in s.scalars(select(BudgetLine).where(*alive))]
         assert got == [(animals["id"], D("30.00"))]
+        # What the first merge deleted is kept as it was: its time, not the second's.
+        assert len(first) == 2
+        assert {s.get(BudgetLine, x).deletedAt for x in first} == {T0}
 
 
 def test_a_line_taken_out_of_the_plan_stays_out_when_moved(people, server):

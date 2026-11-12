@@ -278,6 +278,7 @@ def apply(s: Session, p: Plan, actor: str) -> None:
                 .values({col.key: into.id, "version": BudgetMove.version + 1, "updatedAt": now})
             )
         # A live move between the two is a move within one category now: it moves nothing.
+        # Its time is the merge's already, from being moved onto `into` just above.
         s.execute(
             update(BudgetMove)
             .where(
@@ -285,7 +286,7 @@ def apply(s: Session, p: Plan, actor: str) -> None:
                 BudgetMove.toCategoryId == into.id,
                 BudgetMove.deleted == false(),
             )
-            .values(deletedAt=now, deletedById=actor, version=BudgetMove.version + 1, updatedAt=now)
+            .values(deletedAt=now, deletedById=actor, version=BudgetMove.version + 1)
         )
         _merge_plans(s, gone.id, into.id, actor)
         gone.mark_deleted(actor)
