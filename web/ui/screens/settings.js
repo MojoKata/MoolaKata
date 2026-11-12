@@ -1032,8 +1032,9 @@ function BitcoinSection() {
             e,
             'bitcoinEsploraUrl',
           )}
-            hint="Its API, such as http://umbrel.local:3006/api.">
-            <${Input} value=${f.url} onInput=${set('url')} />
+            hint="Its API's address.">
+            <${Input} value=${f.url} onInput=${set('url')}
+              placeholder="ex: http://umbrel.local:3006/api" />
             </${Field}>
         `
         : null}

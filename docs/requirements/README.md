@@ -340,4 +340,8 @@ The rulings the rest of the requirements apply.
     keyboard; while the field already holds its value, one inside is hidden and one outside
     greyed out. A value past the field's bounds (or not whole, for a count) is marked as it is
     typed, and refused when saved. Bounds are words, not icons: an arrow to a line reads as
-    upload or download.
+    upload or download. A blank that is refused is refused when saved, never while the field is
+    being chosen or filled. A placeholder says what a blank means, on a field where a blank
+    means something (*any*, *for ever*, *no limit*); where it means nothing, a placeholder may
+    give an example, marked as one (*ex: 192.168.1.20*), so it never reads as a value a blank
+    gets.
