@@ -5,7 +5,7 @@
 // pane. openDialog() resolves with what the dialog closes with.
 import { createContext } from 'preact';
 import { computed, signal } from '@preact/signals';
-import { useContext, useEffect, useRef, useState } from 'preact/hooks';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { paneWidth } from './help.js';
 import { IdPrefix } from './fields.js';
@@ -101,8 +101,9 @@ const OnTop = createContext(true);
 export function DialogHost() {
   const all = stack.value;
   const open = all.length > 0;
-  // Everything in the frame but the help pane is out of reach while any dialog is open.
-  useEffect(() => {
+  // Everything in the frame but the help pane is out of reach while any dialog is open: set
+  // and cleared in the same commit as the dialogs, never a frame late.
+  useLayoutEffect(() => {
     if (!open) return;
     const masked =
       /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.app > :not(.help)')]);
