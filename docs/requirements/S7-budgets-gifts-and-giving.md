@@ -49,9 +49,11 @@
       correction, in none.
 2. **Categories** form a two-level tree (*Housing › Rent*). Each is an **expense**,
    **income**, **savings** or **transfer** category. A default set ships, and each category
-   may carry a **tax tag** (charitable, medical, business, childcare, education, …) that
-   feeds Taxes (S8.5), and **Keep receipts for** a number of years, empty for ever
-   (S14.10.1).
+   may carry a **tax tag** (charitable, medical, business, childcare, education, loan
+   interest, property tax, retirement) that feeds Taxes (S8.7), and **Keep receipts for** a
+   number of years, empty for ever (S14.10.1). The tree is the server's: one for the
+   household, which every user reads, so a transaction's category means the same to everyone
+   who sees it, in every budget (S7.12.6). No item owns a category, and none is shared.
    1. **Savings** is money put away rather than spent: a transfer into an account the budget
       doesn't count (S7.3.2), or a loan's principal (S1.9.7). A plan line in a savings
       category can name an active projection (S6.7) and shows its monthly contribution beside
@@ -60,6 +62,33 @@
       *Savings* (savings: *Emergency fund*, *Retirement*, *Investing*, *Education*), and
       *Loan payments* (*Interest*, *Escrow*, *PMI and fees* as expenses, *Principal* as
       savings, S1.9.7).
+   3. **Who changes what.** Any user adds a category, at the top level or under one, with
+      any kind and tax tag, and renames any category. Its parent, kind and tax tag are its
+      maker's to change while nothing uses it (no transaction, split, rule, plan line, move,
+      loan or category of its own names it); after that, and for a shipped category or
+      another user's, an admin's. **Keep receipts for** is an admin's (S14.10.1.1). A
+      category nothing uses is deleted by its maker or an admin, a shipped one by an admin
+      alone; one in use is merged instead (S7.2.4). Names are up to 60 characters, without
+      *›*, and two beside each other differ by more than case. A category with categories of
+      its own stays at the top. The shipped categories MoolaKata counts in by its own rules
+      (*Gifts* and *Giving*, S7.7; *Cash* and *Fees and charges*; *Loan payments* and the
+      categories a loan payment's parts count and are split in, S1.9.7) are renamed like any
+      other, but keep their kind and are never deleted or merged away.
+   4. **Merging** a category into another, of the same kind, is an admin's: everything
+      that names it (transactions, splits, rules, plan lines, moves, a loan's whole-payment
+      category) moves to the other, and it is deleted, in one change. A category with
+      categories of its own merges into another top-level one, each of its own either moving
+      across as it is or merging into one of the other's (of the same kind; one moving
+      across can't keep a name the other's already have). Where a budget plans both, its plan
+      becomes, month by month, past months too, one line with both amounts (a yearly one as
+      a twelfth a month, to the cent, or a monthly one twelve times a year, as the
+      surviving line is planned), on the surviving line's terms; what that line leaves unset
+      (rollover, a reserve's target and account, a projection) the merged line gives, and two
+      reserves' targets add up. A move between the two goes. A month marked reviewed shows
+      what changed (S7.14). Before it merges, the dialog names the budgets the admin sees
+      whose plans change.
+   5. Every change to a category is recorded in Activity, with who made it and what it
+      was and became, for every user (S10.8).
 3. **Each period** has, per category, the **planned** amount, the **actual**, and what
    remains.
    1. **What counts**: the transactions in the budget's accounts, by their categories:

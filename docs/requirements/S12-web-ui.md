@@ -55,7 +55,13 @@
       **New budget** (its method and options, and **Estimate from history**, S7.1); for one
       budget, the month view with its reserves and moves, **Where the money is**, the
       month's review, **Compare**, cash flow, trends, **Awaiting reimbursement**, recurring
-      transactions and rules (S7.4);
+      transactions and rules (S7.4). Beside the list, **Categories**: the household's tree,
+      each with its kind, tax tag and who added it, with **Add a category**, and for each
+      **Edit** (its name, parent, kind and tax tag; what the reader may not change shown
+      locked, with why), **Delete** and **Merge** as S7.2.3 and S7.2.4 allow. Every list
+      of categories to choose from (a transaction's and its parts', bulk categorise, a
+      rule's, a plan line's, a loan's) ends with **New category…**, which adds one there
+      and chooses it;
    7. **Projections**: active projections first, with their tracking, then the scenarios;
       each with its inputs and the fan chart (S6);
    8. **Gifts**: *Upcoming* occasions, *People*, *Gifts* (ideas to given, and received), and
@@ -82,12 +88,12 @@
    price refresh with a dot that turns amber when prices are stale (S4.7).
 6. **Live updates**: the frame keeps one Server-Sent Events stream open (`GET /ui/api/events`).
    It carries fingerprints and counts, never data: prices refreshed, an import finished, a
-   statement read, a share received or removed, a linked pull done, a background task finished
-   (a backup, a re-encryption), a sign-up request (for admins), a new alert (its count, never
-   its title), the badges' counts (Alerts among them), and the server's version. A screen whose
-   data changed reloads it through its usual routes. The stream never extends the session, ends
-   after a few minutes (the browser reconnects), and takes the page to sign-in or *account is
-   disabled* when the session ends.
+   statement read, a share received or removed, the categories changed, a linked pull done, a
+   background task finished (a backup, a re-encryption), a sign-up request (for admins), a new
+   alert (its count, never its title), the badges' counts (Alerts among them), and the server's
+   version. A screen whose data changed reloads it through its usual routes. The stream never
+   extends the session, ends after a few minutes (the browser reconnects), and takes the page
+   to sign-in or *account is disabled* when the session ends.
 7. **Help pane**, on every screen:
    1. **F1** toggles it. While it is closed, a dim quarter-circle with a question mark sits in
       the page's top right corner, and grows into a green circle on hover ("Show help (F1)").
@@ -340,9 +346,10 @@
        session that ends, or a server that locks, while a dialog holds changes loses them, and
        the sign-in or locked screen says so.
     7. **A dialog opened from a dialog.** One that makes a record the first only refers to (a
-       person for a gift, a category for a transaction, an organisation for a donation) saves
-       it with its own **Save**, and the first dialog then refers to it; cancelling the first
-       leaves it. One that fills in a record the first dialog's records own (a split, a plan
+       person for a gift, an organisation for a donation) saves it with its own **Save**, and
+       the first dialog then refers to it; cancelling the first leaves it. A category made with
+       **New category…** (S12.2.6) opens its fields in the first dialog instead, and is made
+       with the first dialog's save, or not at all. One that fills in a record the first dialog's records own (a split, a plan
        line's reserve, a gift plan's occasion) edits the first dialog's draft: **Done** keeps
        its changes without saving them, **Cancel** puts back what it changed, and they are
        saved, or discarded, with the first dialog's.

@@ -970,7 +970,7 @@ function Settings({ a, reload }) {
             ${loan && terms
               ? html`
                 <div class="grid" style=${{ alignContent: 'start' }}>
-                  <${TermsCard} a=${a} rec=${terms} />
+                  <${TermsCard} a=${a} rec=${terms} draft=${f.draft} />
                   <div class="card">
                     <h3>Statements</h3>
                     <${StatementsExpected} a=${a} rec=${rec} />

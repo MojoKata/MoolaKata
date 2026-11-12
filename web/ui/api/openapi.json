@@ -1357,6 +1357,36 @@
         "title": "AlertRow",
         "type": "object"
       },
+      "Allowed": {
+        "additionalProperties": false,
+        "description": "What the reader may do with a category now (S7.2.3).",
+        "properties": {
+          "change": {
+            "title": "Change",
+            "type": "boolean"
+          },
+          "delete": {
+            "title": "Delete",
+            "type": "boolean"
+          },
+          "merge": {
+            "title": "Merge",
+            "type": "boolean"
+          },
+          "rename": {
+            "title": "Rename",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rename",
+          "change",
+          "delete",
+          "merge"
+        ],
+        "title": "Allowed",
+        "type": "object"
+      },
       "Amount": {
         "additionalProperties": false,
         "properties": {
@@ -3513,9 +3543,38 @@
       "CategoryOut": {
         "additionalProperties": false,
         "properties": {
+          "allowed": {
+            "$ref": "#/components/schemas/Allowed"
+          },
+          "createdById": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdbyid"
+          },
+          "createdByName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdbyname"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "inUse": {
+            "title": "Inuse",
+            "type": "boolean"
           },
           "keepReceiptsYears": {
             "anyOf": [
@@ -3551,6 +3610,14 @@
             "title": "Path",
             "type": "string"
           },
+          "serverNamed": {
+            "title": "Servernamed",
+            "type": "boolean"
+          },
+          "shipped": {
+            "title": "Shipped",
+            "type": "boolean"
+          },
           "taxTag": {
             "anyOf": [
               {
@@ -3575,6 +3642,12 @@
           "taxTag",
           "path",
           "keepReceiptsYears",
+          "shipped",
+          "serverNamed",
+          "createdById",
+          "createdByName",
+          "inUse",
+          "allowed",
           "version"
         ],
         "title": "CategoryOut",
@@ -3582,7 +3655,7 @@
       },
       "CategoryRecord": {
         "additionalProperties": false,
-        "description": "A category as a draft saves it (S2.5): made with its name, kind and parent; afterwards\nonly how long receipts in it are kept, an admin's, since it decides what file pruning may\nremove (S14.10.1.1).",
+        "description": "A category as a draft saves it (S2.5): its name, kind, parent and tax tag, and how long\nreceipts in it are kept, an admin's, since it decides what file pruning may remove\n(S14.10.1.1).",
         "properties": {
           "keepReceiptsYears": {
             "anyOf": [
@@ -12910,6 +12983,58 @@
         "title": "Me",
         "type": "object"
       },
+      "MergeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "children": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Children",
+            "type": "object"
+          },
+          "into": {
+            "title": "Into",
+            "type": "string"
+          }
+        },
+        "required": [
+          "into"
+        ],
+        "title": "MergeIn",
+        "type": "object"
+      },
+      "MergeOut": {
+        "additionalProperties": false,
+        "properties": {
+          "into": {
+            "$ref": "#/components/schemas/CategoryOut"
+          }
+        },
+        "required": [
+          "into"
+        ],
+        "title": "MergeOut",
+        "type": "object"
+      },
+      "MergePreview": {
+        "additionalProperties": false,
+        "description": "The budgets the reader sees whose plans the merge changes.",
+        "properties": {
+          "budgets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Budgets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "budgets"
+        ],
+        "title": "MergePreview",
+        "type": "object"
+      },
       "MetalOut": {
         "additionalProperties": false,
         "properties": {
@@ -18595,7 +18720,7 @@
               "card-unknown",
               "cash-invalid",
               "cash-missing",
-              "category-fixed",
+              "category-in-use",
               "category-kept",
               "category-twice",
               "category-unknown",
@@ -18912,6 +19037,7 @@
               "split-fixed",
               "split-trade",
               "splits-unbalanced",
+              "stale",
               "stale-version",
               "statement-does-not-add-up",
               "statement-interval-invalid",
@@ -18929,6 +19055,7 @@
               "tagged",
               "tags-invalid",
               "target-invalid",
+              "tax-tag-invalid",
               "term-invalid",
               "theme-invalid",
               "token-fixed",
@@ -19060,7 +19187,7 @@
                   "card-unknown",
                   "cash-invalid",
                   "cash-missing",
-                  "category-fixed",
+                  "category-in-use",
                   "category-kept",
                   "category-twice",
                   "category-unknown",
@@ -19377,6 +19504,7 @@
                   "split-fixed",
                   "split-trade",
                   "splits-unbalanced",
+                  "stale",
                   "stale-version",
                   "statement-does-not-add-up",
                   "statement-interval-invalid",
@@ -19394,6 +19522,7 @@
                   "tagged",
                   "tags-invalid",
                   "target-invalid",
+                  "tax-tag-invalid",
                   "term-invalid",
                   "theme-invalid",
                   "token-fixed",
@@ -32077,7 +32206,105 @@
         },
         "summary": "List Categories",
         "tags": [
-          "transactions"
+          "categories"
+        ]
+      }
+    },
+    "/ui/api/categories/{cat_id}/merge": {
+      "post": {
+        "description": "An admin's merge (S7.2.4): one transaction, every use moved, in the request.",
+        "operationId": "merge_ui_api_categories__cat_id__merge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cat_id",
+            "required": true,
+            "schema": {
+              "title": "Cat Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Merge",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/ui/api/categories/{cat_id}/merge-preview": {
+      "post": {
+        "description": "What a merge would change that the reader can see, checked as the merge would be.",
+        "operationId": "merge_preview_ui_api_categories__cat_id__merge_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cat_id",
+            "required": true,
+            "schema": {
+              "title": "Cat Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Merge Preview",
+        "tags": [
+          "categories"
         ]
       }
     },

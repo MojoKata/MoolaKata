@@ -136,7 +136,7 @@ function AccountForm({ type, close, back }) {
                 hint=${LOT_HINT} />
             `
             : t.loan && loan
-            ? html`<${TermsFields} rec=${loan} type=${type} />`
+            ? html`<${TermsFields} rec=${loan} type=${type} draft=${draft} />`
             : t.physical
             ? html`<p class="small dim">Add the items after making the account, each with its
               purchase date, cost basis, notes and documents.</p>`

@@ -1931,3 +1931,14 @@ ol.phrase li::marker {
   color: var(--fg-muted);
   font-size: 12px;
 }
+
+/* A record made from a list inside a dialog: its fields below the choice (New category…). */
+.sub-form {
+  border-left: 3px solid var(--border-strong);
+  padding: 2px 0 0 12px;
+  margin: -4px 0 12px;
+}
+tr.sub-row td {
+  border-bottom: none;
+  padding-top: 0;
+}

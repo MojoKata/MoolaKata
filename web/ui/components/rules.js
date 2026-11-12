@@ -15,6 +15,7 @@ import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { TagsField } from './tags.js';
+import { CategoryField } from './categories.js';
 
 const DIRECTIONS = [['any', 'Money in or out'], ['out', 'Money out'], ['in', 'Money in']];
 
@@ -160,7 +161,6 @@ class RuleRec extends Record {
 function RuleDialog({ close, rule, fill }) {
   useDialogGuide('dialog-rule');
   const accounts = useList('/accounts');
-  const cats = useList('/categories');
   const f = useDraft((draft) => {
     if (rule) draft.load(RuleRec, rule);
     else {
@@ -193,10 +193,8 @@ function RuleDialog({ close, rule, fill }) {
               ...writable.map((a) => [a.id, a.name]),
             ]} />
           </div>
-          <${RecField} rec=${rec} name="categoryId" label="Category" options=${[
-            ['', 'Leave it as it is'],
-            ...(/** @type {any[]} */ (cats.data) || []).map((c) => [c.id, c.path]),
-          ]} />
+          <${CategoryField} rec=${rec} name="categoryId" label="Category" draft=${f.draft}
+            first=${['', 'Leave it as it is']} />
           <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
             hint="The payee shown; the bank's text is kept beside it." />
           ${f.draft

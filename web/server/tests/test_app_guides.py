@@ -94,6 +94,7 @@ def screens(page) -> list[str]:
         paths.append(f"/ui/projections/{x['id']}")
     for b in budgets:
         paths += [f"/ui/budgets/{b}/{t}" for t in ("month", "cash-flow", "trends", "recurring")]
+    paths.append(f"/ui/budgets/{budgets[0]}/categories")
     for s in SETTINGS_SECTIONS:
         paths.append(f"/ui/settings/{s}")
     return paths
@@ -138,6 +139,9 @@ def dialogs(page) -> list[tuple[str, str, str]]:
         ("/ui/budgets", "Move", "dialog-move"),
         ("/ui/budgets/x/list", "Copy as scenario", "dialog-copy"),
         ("/ui/budgets/x/list", "Make active", "dialog-make-active"),
+        ("/ui/budgets/x/categories", "Add a category", "dialog-edit-category"),
+        ("/ui/budgets/x/categories", "Edit Food › Groceries", "dialog-edit-category"),
+        ("/ui/budgets/x/categories", "Merge Entertainment", "dialog-merge-category"),
         ("/ui/receipts", "Receipt Blue Bottle Coffee", "dialog-receipt"),
         ("/ui/projections", "New projection", "dialog-new-projection"),
         ("/ui/gifts/people", "Add a gift plan", "dialog-person"),
@@ -180,6 +184,18 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     check_guide(page, ".dialog", "a rule")
     page.keyboard.press("Escape")  # back to the list, then closed
     wait_guide(page, "dialog-rules")
+    close_dialog(page)
+    # New category… opens a new category's fields in the dialog that chose it.
+    open_dialog(page, f"/ui/accounts/{ids['checking']}/transactions", "Add", "dialog-transaction")
+    page.select_option(".dialog #f-category", "new-category")
+    page.wait_for_selector(".dialog #x-category-name")
+    check_guide(page, ".dialog", "a transaction's new category")
+    close_dialog(page)
+    # A merge into a category with categories of its own maps each of them.
+    open_dialog(page, "/ui/budgets/x/categories", "Merge Health", "dialog-merge-category")
+    page.select_option(".dialog #f-merge-into", label="Personal")
+    page.wait_for_selector('.dialog [data-help="merge-budgets"]')
+    check_guide(page, ".dialog", "a merge with categories of its own")
     close_dialog(page)
     # The type picker leads to the form.
     open_dialog(page, "/ui/accounts", "New account", "dialog-new-account")

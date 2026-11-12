@@ -49,6 +49,7 @@ export function connect(ended) {
       'signup',
       'alert',
       'receipt',
+      'category',
     ]
   ) {
     source.addEventListener(kind, () => bump(kind));

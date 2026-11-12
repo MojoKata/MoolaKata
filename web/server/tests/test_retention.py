@@ -196,8 +196,9 @@ def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_clien
     food = next(
         x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
     )
-    r = change(admin_client, "Cat", food, name="Eating")
-    assert r.json()["errors"][0]["code"] == "category-fixed"
+    # Its name is anyone's to change (S7.2.3), and leaves how long its receipts are kept be.
+    renamed = saved(change(alice, "Cat", food, name="Eating"))
+    assert renamed["name"] == "Eating" and renamed["keepReceiptsYears"] == 7
 
 
 def test_an_admins_household_wide_file_work_counts_every_users_files(server, admin_client):

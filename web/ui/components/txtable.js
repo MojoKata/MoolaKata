@@ -4,7 +4,7 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useList } from '../app/hooks.js';
+import { addCategory, categoryOptions, NEW, useCategories } from './categories.js';
 import { date, price, quantity } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Icon } from './icon.js';
@@ -12,12 +12,7 @@ import { openDialog } from './dialog.js';
 import { toast } from './toast.js';
 import { TransactionDialog } from '../screens/transaction-dialog.js';
 
-/** @returns {{ list: any[], byId: Record<string, any> }} */
-export function useCategories() {
-  const r = useList('/categories');
-  const list = /** @type {any[]} */ (r.data) || [];
-  return { list, byId: Object.fromEntries(list.map((c) => [c.id, c])) };
-}
+export { useCategories };
 
 /**
  * @param {{ rows: any[], showAccount?: boolean, onChanged: () => void, accounts?: any[] }} p
@@ -39,14 +34,20 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
     setSel(new Set());
     onChanged();
   };
-  const options = [['', 'Uncategorised'], ...cats.list.map((c) => [c.id, c.path])];
+  const options = categoryOptions(cats.list);
   return html`
     ${sel.size
       ? html`<div class="toolbar notice" role="region" aria-label="Selected transactions">
           <b>${sel.size} selected</b>
           <label class="sr-only" for="f-categorise-as">Categorise as</label>
           <select class="in" id="f-categorise-as" style=${{ maxWidth: '260px' }} value=${bulk}
-            onChange=${(/** @type {any} */ e) => setBulk(e.currentTarget.value)}>
+            onChange=${async (/** @type {any} */ e) => {
+        const el = e.currentTarget;
+        if (el.value !== NEW) return setBulk(el.value);
+        const made = await addCategory();
+        if (made) setBulk(made.id);
+        else el.value = bulk;
+      }}>
             ${options.map(([v, l]) => html`<option value=${v}>${l}</option>`)}</select>
           <button type="button" class="btn sm primary" onClick=${() =>
         categorise([...sel], bulk)}>Categorise</button>
@@ -144,7 +145,13 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                   <select class="in" style=${{ height: '30px', maxWidth: '220px' }}
                     aria-label=${'Category of ' +
                       (t.payee || 'transaction')} value=${t.categoryId || ''}
-                    onChange=${(/** @type {any} */ e) => categorise([t.id], e.currentTarget.value)}>
+                    onChange=${async (/** @type {any} */ e) => {
+                      const el = e.currentTarget;
+                      if (el.value !== NEW) return categorise([t.id], el.value);
+                      const made = await addCategory();
+                      if (made) categorise([t.id], made.id);
+                      else el.value = t.categoryId || '';
+                    }}>
                                 ${options.map(([v, l]) =>
                                   html`<option value=${v}>${l}</option>`
                                 )}</select>

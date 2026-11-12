@@ -90,7 +90,7 @@
    |---|---|
    | **Account** | its transactions, holdings, positions and receipts; a loan's payoff plans and a physical-asset account's items |
    | **Portfolio** | its charts and the accounts in it, as S5.1 says |
-   | **Budget** | its categories, plan, moves, leave-outs, actuals, reserves and trends (S7.1) |
+   | **Budget** | its plan (a line per category), moves, leave-outs, actuals, reserves and trends (S7.1) |
    | **Gift plan** | its person's occasions, budget, notes and gifts (S7.8.5) |
    | **Giving plan** | its target, pace, donations and organisations (S7.9.1) |
    | **Tax book** | its panels, filings and documents (S8.14.3) |
@@ -152,7 +152,8 @@
 8. **Activity** lists the changes worth showing, each naming who made it and what it is about,
    to the people concerned (the owner, the receivers of any of the eight kinds, and admins for
    users and groups): shares given or taken away, accounts created, closed or deleted, imports,
-   rule changes, links made or ended, a written email opened (S10.2), and who did each. A
+   rule changes, links made or ended, a written email opened (S10.2), changes to the
+   categories (to every local user, S7.2.5), and who did each. A
    receiver whose share is removed keeps the entry that says so. Amounts are never named
    (R3.8).
 9. **Agents (MCP).** An AI assistant can read, and never change, what a user can see,

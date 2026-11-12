@@ -15,7 +15,7 @@ import { openRules } from '../components/rules.js';
 import { Field, Input, Seg, Switch, SwitchRow } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
-import { useCategories } from '../components/txtable.js';
+import { CategoryField, CategoryRec, NewCategoryFor } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
 import { confirmAction } from '../components/confirm.js';
@@ -207,10 +207,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   );
   const account = accounts.find((a) => a.id === t?.get('accountId')) || { type: 'checking' };
   const type = BY_TYPE[account.type] || BY_TYPE.checking;
-  const cats = useCategories();
   const kind = t?.get('kind') || '';
   const trade = TRADE.includes(kind);
-  const options = [['', 'Uncategorised'], ...cats.list.map((c) => [c.id, c.path])];
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
   const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
   const deleting = !!t?.removed;
@@ -322,7 +320,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
             `}
             ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
             ${!trade && !parts.length
-              ? html`<${RecField} rec=${t} name="categoryId" label="Category" options=${options} />`
+              ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" draft=${draft} />`
               : null}
             ${!trade
               ? html`
@@ -339,8 +337,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                       <div class="row" key=${r.key} style=${{ alignItems: 'end' }}>
                         <${Field} label=${'Part ' + (i + 1) + ' category'} help="split"
                           id=${'split-' + i + '-category'} error=${r.error('categoryId')}>
-                          <${RecField} rec=${r} name="categoryId" bare label=${'Part ' +
-                            (i + 1) + ' category'} options=${options} />
+                          <${CategoryField} rec=${r} name="categoryId" bare draft=${draft}
+                            id=${'split-' + i + '-category'} help="split" label=${'Part ' +
+                              (i + 1) + ' category'} />
                           </${Field}>
                           <${Field} label=${'Part ' + (i + 1) + ' amount'} help="split"
                             id=${'split-' + i + '-amount'} error=${r.error('amount')}>
@@ -354,9 +353,19 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                               `
                               : null}
                             <button type="button" class="icon-btn" aria-label=${'Remove part ' +
-                              (i + 1)} onClick=${() => draft?.remove(r)}
+                              (i + 1)} onClick=${() => {
+                              // A category made for this part goes with it.
+                              const made = draft?.records.find((x) =>
+                                x instanceof CategoryRec && x.state === 'new' &&
+                                x.id === r.get('categoryId')
+                              );
+                              if (made) draft?.remove(made);
+                              draft?.remove(r);
+                            }}
                               style=${{ marginBottom: '14px' }}>×</button>
                             </div>
+                      <${NewCategoryFor} rec=${r} name="categoryId" draft=${draft}
+                        id=${'split-' + i + '-new'} />
                     `
                   )}
                   ${parts.length

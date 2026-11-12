@@ -572,8 +572,8 @@ SUBJECTS = {
 
 def _activity() -> str:
     """S10.8: the changes concerning a user: those they made or own, those about what they
-    read, a share of theirs removed, and for admins those about users, groups, links,
-    Settings and keys. Read only."""
+    read, a share of theirs removed, for admins those about users, groups, links, Settings
+    and keys, and for every local user those about the categories. Read only."""
     zero = ("0", "0", "0", "0", "0")
     mine = (
         f'SELECT {_cols("e.id", 'u."userId"', "0", "0", "0", "0", "1")}\nFROM "Activity" AS e\n'
@@ -599,7 +599,13 @@ def _activity() -> str:
         'WHERE e."forAdmins" AND (e."subjectKind" IS NULL '
         "OR e.\"subjectKind\" IN ('user', 'group', 'link'))"
     )
-    return _collapse("\nUNION ALL\n".join((mine, *subjects, removed, admins)))
+    # The categories are every user's (S7.2), so is what happens to them (S10.8). SQL reads
+    # its words and names in any case, so a change of case changes nothing: hence the marks.
+    cols = _cols("e.id", 'u."userId"', *zero)  # pragma: no mutate
+    joined = 'FROM "Activity" AS e\nJOIN "AccessUser" AS u ON u.local\n'  # pragma: no mutate
+    categories = f"SELECT {cols}\n{joined}WHERE e.\"subjectKind\" = 'category'"  # pragma: no mutate
+    every = (mine, *subjects, removed, admins, categories)
+    return _collapse("\nUNION ALL\n".join(every))  # pragma: no mutate
 
 
 def _user() -> str:

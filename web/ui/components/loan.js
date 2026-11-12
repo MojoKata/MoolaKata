@@ -16,6 +16,7 @@ import { useDialogGuide } from './help.js';
 import { errAt, Field, FormError, Input, Select } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
+import { CategoryField } from './categories.js';
 import { dec, num } from '../app/dec.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
@@ -80,9 +81,9 @@ export function newTerms(type, accountId) {
 
 /**
  * The terms' fields, bound to the loan's record.
- * @param {{ rec: LoanRec, type: string }} p
+ * @param {{ rec: LoanRec, type: string, draft?: import('../app/draft.js').Draft | null }} p
  */
-export function TermsFields({ rec, type }) {
+export function TermsFields({ rec, type, draft = null }) {
   const mortgage = type === 'mortgage';
   return html`
     <div class="row">
@@ -119,18 +120,16 @@ export function TermsFields({ rec, type }) {
           hint="Interest only while drawing; then the balance is repaid over the rest of the term." />
       `
       : null}
-    <${InBudgets} rec=${rec} />
+    <${InBudgets} rec=${rec} draft=${draft} />
   `;
 }
 
 /**
  * How the loan's payments count in budgets (S1.9.7): split by the schedule, or whole in one
  * category.
- * @param {{ rec: LoanRec }} p
+ * @param {{ rec: LoanRec, draft: import('../app/draft.js').Draft | null }} p
  */
-function InBudgets({ rec }) {
-  const cats = useList('/categories');
-  const list = /** @type {any[]} */ (cats.data) || [];
+function InBudgets({ rec, draft }) {
   return html`
     <div class="row">
       <${RecField} rec=${rec} name="budgetCounting" label="In budgets" id="in-budgets"
@@ -138,11 +137,13 @@ function InBudgets({ rec }) {
           ['split', 'Split by the schedule'],
           ['whole', 'The whole payment in one category'],
         ]} />
-      <${RecField} rec=${rec} name="budgetCategoryId" label="Counts in" id="budget-category"
-        options=${[
-          ['', 'Loan payments'],
-          ...list.filter((c) => c.kind !== 'transfer').map((c) => [c.id, c.path]),
-        ]} />
+      ${rec.applies('budgetCategoryId')
+        ? html`
+          <${CategoryField} rec=${rec} name="budgetCategoryId" label="Counts in"
+            id="budget-category" draft=${draft} first=${['', 'Loan payments']}
+            only=${(/** @type {any} */ c) => c.kind !== 'transfer'} />
+        `
+        : null}
     </div>
   `;
 }
@@ -617,14 +618,14 @@ function ServicerDialog({ close, a }) {
 /**
  * The Settings card with the terms, in the account's Settings draft: the schedule is worked
  * out again once they are saved.
- * @param {{ a: any, rec: LoanRec }} p
+ * @param {{ a: any, rec: LoanRec, draft?: import('../app/draft.js').Draft | null }} p
  */
-export function TermsCard({ a, rec }) {
+export function TermsCard({ a, rec, draft = null }) {
   const res = useApi(`/accounts/${a.id}/loan`);
   const v = /** @type {any} */ (res.data);
   return html`
     <div class="card"><h3>Loan terms</h3>
-      <${TermsFields} rec=${rec} type=${a.type} />
+      <${TermsFields} rec=${rec} type=${a.type} draft=${draft} />
       <${RecField} rec=${rec} name="paymentsMode" label="Payments" id="payments-mode"
         hint="A payment day with none recorded: missed 15 days after it, or paid as scheduled."
         options=${[
