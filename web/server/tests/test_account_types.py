@@ -49,3 +49,22 @@ def test_a_module_agrees_with_the_server(name):
 def test_no_module_says_which_accounts_have_a_reconcile_tab():
     """The tab follows the account's `reconcilable`, which the server sends (S1.11)."""
     assert not [n for n, m in MODULES.items() if "reconcilable" in m]
+
+
+# S1.11: every account kept from files or statements is reconciled on its Reconcile tab; a
+# loan against its servicer's balance on its own screen (S1.9.4); a watched wallet, cash on
+# hand and a physical asset have no statements. Written out, not derived, so the rule's every
+# type is read against the requirement.
+RECONCILED = {
+    "checking": True, "savings": True, "money-market": True, "cd": True, "payment-app": True,
+    "credit-card": True, "brokerage": True, "ira": True, "roth-ira": True, "401k": True,
+    "403b": True, "457b": True, "hsa": True, "529": True, "daf": True, "crypto-exchange": True,
+    "cash": False, "crypto-wallet": False, "mortgage": False, "heloc": False, "auto-loan": False,
+    "student-loan": False, "personal-loan": False, "loan": False, "precious-metals": False,
+    "collectables": False, "real-estate": False, "vehicle": False, "other-asset": False,
+}  # fmt: skip
+
+
+def test_which_types_are_reconciled_follows_s1_11_for_every_type():
+    assert set(RECONCILED) == set(atypes.GROUPS)
+    assert {t: atypes.reconcilable(t) for t in atypes.GROUPS} == RECONCILED

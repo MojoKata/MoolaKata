@@ -75,6 +75,42 @@ def test_a_statements_value_is_stale_when_the_next_is_overdue():
     )
 
 
+def _months_on(day: dt.date, months: int) -> dt.date:
+    """The oracle: so many months on, worked out apart from `add_months`. A month's last day
+    goes to the last day of the month reached; any other day keeps its number, or the month's
+    last day where the month is shorter."""
+    y, m = divmod(day.month - 1 + months, 12)
+    first = dt.date(day.year + y, m + 1, 1)
+    last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    if (day + dt.timedelta(days=1)).day == 1:
+        return last
+    return first.replace(day=min(day.day, last.day))
+
+
+def test_every_end_date_and_interval_goes_stale_when_the_next_is_overdue():
+    """CR3-8, every statement end over a common year and a leap year, for every interval:
+    stale on the day the overdue alert's statement is due and not the day before; that day is
+    the interval on by the oracle, plus the grace; a later statement never goes stale sooner;
+    and none counts as yearly."""
+    bounds = {"monthly": (28, 31), "quarterly": (89, 92), "yearly": (365, 366)}
+    day, end = dt.date(2027, 1, 1), dt.date(2028, 12, 31)
+    seen: dict[str, dt.date] = {}
+    while day <= end:
+        for every, (low, high) in bounds.items():
+            a = acct("401k", every=every)
+            stale = expected.stale_from(a, day)
+            on = _months_on(day, expected.MONTHS[every])
+            assert stale == on + dt.timedelta(days=expected.GRACE_DAYS[every]), (every, day)
+            assert low <= (on - day).days <= high, (every, day)
+            assert expected.overdue(a, imp(day), stale).due == stale
+            assert expected.overdue(a, imp(day), stale - dt.timedelta(days=1)) is None
+            assert stale >= seen.get(every, stale), (every, day)
+            seen[every] = stale
+        none = expected.stale_from(acct("401k", every="none"), day)
+        assert none == expected.stale_from(acct("401k", every="yearly"), day)
+        day += dt.timedelta(days=1)
+
+
 def test_the_interval_is_learned_from_three_and_a_dismissed_one_isnt_proposed_again():
     quarters = imp(dt.date(2026, 3, 31), dt.date(2026, 6, 30), dt.date(2026, 9, 30))
     assert expected.learned(quarters[:2]) is None

@@ -100,21 +100,24 @@ def server_log_tail(lines: int = 80, paths=()) -> str:
     return "\n".join(SERVER_LOG[-1].read_text(errors="replace").splitlines()[-lines:])
 
 
-def start(tmp, keyed: bool):
+def start(tmp, keyed: bool, mode: str = "proxy", server: str = "", more: str = ""):
     """A server from this checkout, as the image runs it: with a keyring, locked; without,
-    uninitialised (S15.4.4). Its base address, its process and its key (None without)."""
+    uninitialised (S15.4.4). In `proxy` mode by default; `server` adds lines to [server] and
+    `more` sections of its own. Its base address, its process and its key (None without)."""
     port = free_port()
     config = tmp / "moolakata.toml"
     config.write_text(f"""
 [server]
 name = "smoke"
-mode = "proxy"
+mode = "{mode}"
 host = "127.0.0.1"
 port = {port}
+{server}
 [paths]
 data = "{tmp / "data"}"
 backups = "{tmp / "backups"}"
 socket = "{tmp / "run" / "sock"}"
+{more}
 """)
     key = None
     if keyed:
@@ -127,11 +130,11 @@ socket = "{tmp / "run" / "sock"}"
         stdout=log,
         stderr=subprocess.STDOUT,
     )
-    base = f"http://127.0.0.1:{port}"
+    base = f"{'https' if mode == 'tls' else 'http'}://127.0.0.1:{port}"
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
         try:
-            r = httpx.get(base + "/healthz")
+            r = httpx.get(base + "/healthz", verify=False)  # a tls server's own certificate
             if r.status_code == 503 and r.json()["status"] in ("locked", "uninitialised"):
                 break
         except httpx.TransportError:
@@ -147,18 +150,19 @@ def stop(proc) -> None:
     assert proc.wait(timeout=8) == 0
 
 
-def unlocked(tmp):
+def unlocked(tmp, **config):
     """A keyed server, opened with its phrase as the unlock page or `keys unlock` open it
-    (S15.4.3). Its base address and its process."""
-    base, proc, key = start(tmp, keyed=True)
+    (S15.4.3); `config` as `start` takes it. Its base address and its process."""
+    base, proc, key = start(tmp, keyed=True, **config)
     r = httpx.post(
         base + "/ui/api/unlock",
         json={"phrase": " ".join(phrase.to_words(key))},
         headers={"Origin": base},
         timeout=60,
+        verify=False,  # a tls server's own certificate
     )
     assert r.status_code == 200, r.text
-    assert httpx.get(base + "/healthz").status_code == 200
+    assert httpx.get(base + "/healthz", verify=False).status_code == 200
     return base, proc
 
 
@@ -176,7 +180,8 @@ def browser():
 def open_page(browser, url):
     """A page at a desktop window's size, and the list of what went wrong on it: page errors,
     console errors, and answers of 400 or more."""
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    # A tls test server's certificate is its own; nothing else is served over https.
+    page = browser.new_page(viewport={"width": 1440, "height": 900}, ignore_https_errors=True)
     page.add_init_script(TRACK_FETCHES)
     problems = []
     page.on("pageerror", lambda e: problems.append(f"page error: {e}"))
@@ -231,7 +236,8 @@ def months_back(n: int) -> str:
 def client(base: str) -> httpx.Client:
     """An API client for the server. The session cookie is Secure, which httpx won't send over
     http, so it is carried by hand."""
-    c = httpx.Client(base_url=base, headers={"Origin": base}, timeout=30)
+    # verify=False: a tls test server's certificate is its own.
+    c = httpx.Client(base_url=base, headers={"Origin": base}, timeout=30, verify=False)
 
     def keep(response: httpx.Response) -> None:
         for v in response.headers.get_list("set-cookie"):

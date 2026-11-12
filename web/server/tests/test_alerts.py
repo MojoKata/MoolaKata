@@ -319,6 +319,32 @@ def test_a_check_that_fails_leaves_its_alerts_open_and_unsent(server, admin_clie
     assert listed(admin_client)["open"] == []
 
 
+def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen):
+    """Holdings valued from statements an account has no import for (no next statement is
+    due, so none is overdue) alert when stale: one alert for the account, naming the oldest."""
+    from test_accounts import new_account
+
+    from moolakata.store.entities.accounts import Holding, Instrument
+
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    acct = new_account(c, name="Old plan", type="brokerage")
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, acct["id"]).statementInterval = "monthly"
+        for symbol, ended in (("XJULZ", dt.date(2026, 7, 31)), ("XAUGZ", dt.date(2026, 8, 31))):
+            fund = Instrument(id=ids.new_id("Instr"), symbol=symbol, instrumentClass="mutual-fund")
+            s.add(fund)
+            s.flush()
+            s.add(Holding(id=ids.new_id("Hold"), accountId=acct["id"], instrumentId=fund.id,
+                          asOf=ended, quantity=10, marketValue=1000))  # fmt: skip
+    at(days=2)  # Oct 15: Aug 31's next statement is due, and Jul 31's was a month ago
+    alerts.evaluate(server)
+    (a,) = [
+        a for a in listed(sign_in(server, "alice"))["open"] if a["kind"] == "statement-value-old"
+    ]
+    assert a["about"].startswith("the statement of Jul 31, 2026")
+
+
 def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen):
     # S4.3, S12.11.1.2, CR3-8: a statement's value is stale once the statement after it is
     # overdue (S1.11.7.3), and alerts only when that statement's own alert isn't already up: a
