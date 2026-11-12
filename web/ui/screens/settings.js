@@ -933,6 +933,9 @@ function BitcoinSection() {
   });
   const rec = fd.rec;
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
+  // An own Esplora picked before its address is typed: the address alone can't say so, since
+  // until then it is the public one's.
+  const [ownEsplora, setOwnEsplora] = useState(false);
   const test = useSubmit(async () => {
     const r = await api.post('/settings/bitcoin/test');
     toast(r.answer);
@@ -954,11 +957,11 @@ function BitcoinSection() {
   const f = {
     node: source !== 'esplora'
       ? source
+      : ownEsplora || (url !== MEMPOOL && url !== BLOCKSTREAM)
+      ? 'esplora'
       : url === MEMPOOL
       ? 'mempool'
-      : url === BLOCKSTREAM
-      ? 'blockstream'
-      : 'esplora',
+      : 'blockstream',
     url: url === MEMPOOL || url === BLOCKSTREAM ? '' : url,
     host: rec.get('bitcoinNodeHost') || '',
     port: rec.get('bitcoinNodePort'),
@@ -966,17 +969,25 @@ function BitcoinSection() {
     rpcUser: rec.get('bitcoinRpcUser') || '',
   };
   const setF = (/** @type {any} */ next) => {
+    setOwnEsplora(next.node === 'esplora');
     const esplora = ['mempool', 'blockstream', 'esplora'].includes(next.node);
     rec.set('bitcoinSource', esplora ? 'esplora' : next.node);
-    rec.set(
+    // An own Esplora left blank would be read as the public default, so it is refused; any
+    // other choice clears that refusal (inputAs, unlike set, is what marks and clears it).
+    const address = next.node === 'mempool'
+      ? MEMPOOL
+      : next.node === 'blockstream'
+      ? BLOCKSTREAM
+      : next.node === 'esplora'
+      ? next.url
+      : rec.get('bitcoinEsploraUrl');
+    rec.inputAs(
       'bitcoinEsploraUrl',
-      next.node === 'mempool'
-        ? MEMPOOL
-        : next.node === 'blockstream'
-        ? BLOCKSTREAM
-        : next.node === 'esplora'
-        ? next.url
-        : rec.get('bitcoinEsploraUrl'),
+      address || '',
+      () =>
+        next.node === 'esplora' && !String(address || '').trim()
+          ? { error: 'Your Esplora’s address.' }
+          : { value: address },
     );
     rec.set('bitcoinNodeHost', next.host || null);
     rec.set('bitcoinNodePort', next.port);

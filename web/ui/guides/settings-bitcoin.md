@@ -14,7 +14,8 @@ watch-only descriptor wallet for each wallet account. Only public keys and addre
 
 ## Esplora address {#esplora-url}
 
-Your own instance's API: `http://umbrel.local:3006/api`, for example.
+Your own instance's API: `http://umbrel.local:3006/api`, for example. It is needed: left
+blank, Save asks for it rather than read the public mempool.space in its place.
 
 ## Node address {#node-host}
 
