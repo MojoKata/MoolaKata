@@ -24,7 +24,7 @@ def new(h: Household, name: str, **kw) -> dict:
 def test_the_tab_lists_the_tree_and_adds_a_category(browser, household):
     h = household
     page, problems = signed_in(browser, h, TAB, 'table.categories td:has-text("Groceries")')
-    assert page.locator('[role=tab][aria-selected=true]').inner_text().strip() == "Categories"
+    assert page.locator("[role=tab][aria-selected=true]").inner_text().strip() == "Categories"
     page.click('main button:has-text("Add a category")')
     wait(page, ".dialog #f-name", problems)
     page.fill(".dialog #f-name", "Browser pets")
@@ -105,8 +105,16 @@ def test_a_new_category_from_a_transactions_list_is_made_in_the_same_save(browse
 
 def test_a_new_category_from_a_rows_list_opens_its_own_dialog(browser, household):
     h = household
-    t = made(make(h.c, "Txn", accountId=h.checking["id"], date=f"{months_back(1)}-16",
-                  amount="-12.00", payee="Browser florist"))  # fmt: skip
+    t = made(
+        make(
+            h.c,
+            "Txn",
+            accountId=h.checking["id"],
+            date=f"{months_back(1)}-16",
+            amount="-12.00",
+            payee="Browser florist",
+        )
+    )
     path = f"/ui/accounts/{h.checking['id']}/transactions"
     picker = 'select[aria-label="Category of Browser florist"]'
     page, problems = signed_in(browser, h, path, picker)
@@ -116,9 +124,10 @@ def test_a_new_category_from_a_rows_list_opens_its_own_dialog(browser, household
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     wait(page, ".toast:has-text('categorised')", problems)
-    assert h.c.get(f"/ui/api/transactions/{t['id']}").json()["categoryId"] == cats(h)[
-        "Browser flowers"
-    ]["id"]
+    assert (
+        h.c.get(f"/ui/api/transactions/{t['id']}").json()["categoryId"]
+        == cats(h)["Browser flowers"]["id"]
+    )
     assert problems == []
     page.close()
 
@@ -135,7 +144,10 @@ def test_a_merge_maps_each_of_its_categories(browser, household):
     page.click('button[aria-label="Merge Browser pet"]')
     wait(page, ".dialog #f-merge-into", problems)
     page.select_option(".dialog #f-merge-into", label="Browser pets two")
-    dog_pick, cat_pick = f".dialog #x-merge-child-{dog['id']}", f".dialog #x-merge-child-{cat['id']}"
+    dog_pick, cat_pick = (
+        f".dialog #x-merge-child-{dog['id']}",
+        f".dialog #x-merge-child-{cat['id']}",
+    )
     wait(page, dog_pick, problems)
     # Dog meets dog, whatever the case; Cat has no namesake, so it moves across.
     assert page.input_value(dog_pick) == dogs["id"]
