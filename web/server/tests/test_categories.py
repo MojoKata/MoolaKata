@@ -759,3 +759,15 @@ def test_two_new_categories_naming_each_other_are_refused_not_lost(people):
     r = alice.post("/ui/api/save", json={"ops": ops})
     assert r.status_code == 422, r.text
     assert {e["code"] for e in r.json()["errors"]} == {"parent-invalid"}
+
+
+def test_a_save_that_changes_nothing_records_nothing(people, server):
+    from moolakata.categories import used
+
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    before = len(alice.get("/ui/api/activity").json()["items"])
+    assert saved(change(alice, "Cat", pets, name="Pets"))["version"] == pets["version"]
+    assert len(alice.get("/ui/api/activity").json()["items"]) == before
+    with server.db.read(unscoped="test") as s:
+        assert used(s, []) == set()
