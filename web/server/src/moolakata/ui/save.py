@@ -147,6 +147,32 @@ class SaveOut(Model):
 ORDER = {"create": 0, "update": 1, "delete": 2}
 
 
+def _ordered(ops: list[Op]) -> list[Op]:
+    """Creates, then updates, then deletes, each in the order sent; but a create that another
+    op names goes before it (a category made from a transaction's dialog, S12.15.7), so a
+    kind's checks find what it refers to."""
+    made = {o.id for o in ops if o.op == "create"}
+
+    def names(o: Op) -> set[str]:
+        return {v for v in o.fields.values() if isinstance(v, str) and v in made and v != o.id}
+
+    out: list[Op] = []
+    placed: set[int] = set()  # by the op itself: a repeated id is refused later, not here
+
+    def place(o: Op, path: frozenset[int]) -> None:
+        if id(o) in placed or id(o) in path:
+            return
+        for other in ops:
+            if other.op == "create" and other.id in names(o):
+                place(other, path | {id(o)})
+        placed.add(id(o))
+        out.append(o)
+
+    for o in sorted(ops, key=lambda o: ORDER[o.op]):
+        place(o, frozenset())
+    return out
+
+
 def _as_dict(value: Any) -> dict:
     """A record as the API answers it, its decimals written as exact numbers."""
     if isinstance(value, BaseModel):
@@ -309,7 +335,7 @@ def apply(s: Session, c: Caller, request: Request, body: SaveIn) -> tuple[list[S
     s.execute(text("PRAGMA defer_foreign_keys = ON"))
     out = _Outcome()
     seen: set[str] = set()
-    for op in sorted(body.ops, key=lambda o: ORDER[o.op]):
+    for op in _ordered(body.ops):
         kind = KINDS.get(op.entity)
         if kind is None:
             out.refuse("entity", "entity-unknown", "Not a kind of record a dialog saves.", op.id)

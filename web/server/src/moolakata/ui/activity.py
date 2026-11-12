@@ -170,6 +170,14 @@ TEXT = {
     "share.given": "{actor} shared {subject} with {grantee} ({allow})",
     "share.changed": "{actor} changed {grantee}'s access to {subject} ({allow})",
     "share.removed": "{actor} stopped sharing {subject} with {grantee}",
+    "category.added": "{actor} added the category {name}",
+    "category.renamed": "{actor} renamed the category {from} to {to}",
+    "category.moved": "{actor} moved the category {name} from {from} to {to}",
+    "category.kind": "{actor} made {name} a {to} category (it was {from})",
+    "category.tax-tag": "{actor} changed {name}'s tax tag from {from} to {to}",
+    "category.retention": "{actor} set how long {name}'s receipts are kept to {to} (it was {from})",
+    "category.deleted": "{actor} deleted the category {name}",
+    "category.merged": "{actor} merged the category {name} into {to}{children}",
 }
 FIELD_NAMES = {
     "displayName": "the name",
@@ -221,6 +229,16 @@ def _txns(n: int, adjective: str = "") -> str:
     return f"{n} {adjective}transaction" + ("" if n == 1 else "s")
 
 
+def _children(rows: list[dict]) -> str:
+    """A merged category's own categories: each merged into one of the target's, or moved."""
+    if not rows:
+        return ""
+    said = [
+        f"{r['name']} into {r['into']}" if r.get("into") else f"{r['name']} moved" for r in rows
+    ]
+    return " (" + "; ".join(said) + ")"
+
+
 def render(a: Activity, names: dict[tuple[str, str], str]) -> str:
     detail = json.loads(a.detail or "{}")
     actor = names.get(("user", a.actorId or ""), "MoolaKata" if a.via != "host" else "The host")
@@ -245,6 +263,7 @@ def render(a: Activity, names: dict[tuple[str, str], str]) -> str:
         "why": detail.get("why", ""),
         "files": f"{detail.get('files', 0):,}",
         "shares": (": " + "; ".join(detail["shares"])) if detail.get("shares") else "",
+        "children": _children(detail.get("children") or []),
     }
     template = TEXT.get(a.kind, "{actor}: " + a.kind)
     return template.format(**values)
