@@ -495,7 +495,8 @@ def test_only_an_admin_merges_and_a_stale_one_is_refused(people):
     ]["merge"]
     saved(change(alice, "Cat", source, name="Pet!"))
     assert merge(admin, source, pets["id"]).status_code == 412
-    assert merge(admin, {"id": ids.new_id("Cat"), "version": 1}, pets["id"]).status_code == 404
+    r = merge(admin, {"id": ids.new_id("Cat"), "version": 1}, pets["id"])
+    assert (r.status_code, r.json()["code"], r.json()["detail"]) == (404, "not-found", "Not found")
 
 
 def test_a_merge_in_a_large_household_takes_moments(people, server):
@@ -605,6 +606,7 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
         ).json()
 
     across, untouched = mv(food, pet["id"]), mv(food, fun)
+    live_between, from_target = mv(pets["id"], pet["id"]), mv(pets["id"], food)
     old_between = mv(pets["id"], pet["id"])
     saved(remove(alice, "BdgMv", old_between))
     loan_acct = new_account(alice, name="Loan", type="auto-loan", mask="3333")
@@ -633,6 +635,8 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
             "rule": s.get(Rule, rule["id"]).version,
             "across": s.get(BudgetMove, across["id"]).version,
             "untouched": s.get(BudgetMove, untouched["id"]).version,
+            "live": s.get(BudgetMove, live_between["id"]).version,
+            "from_target": s.get(BudgetMove, from_target["id"]).version,
             "between": (
                 s.get(BudgetMove, old_between["id"]).version,
                 s.get(BudgetMove, old_between["id"]).deletedAt,
@@ -678,6 +682,12 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
             T1,
         )
         assert s.get(BudgetMove, untouched["id"]).version == before["untouched"]
+        now_within = s.get(BudgetMove, live_between["id"])
+        assert (now_within.deleted, now_within.deletedById, now_within.deletedAt) == (True, ada, T1)
+        # Moved onto Pets (+1), then deleted as a move within it (+1).
+        assert (now_within.version, now_within.updatedAt) == (before["live"] + 2, T1)
+        kept = s.get(BudgetMove, from_target["id"])
+        assert (kept.deleted, kept.version) == (False, before["from_target"])
         old = s.get(BudgetMove, old_between["id"])
         assert old.deletedAt == before["between"][1], "already deleted: when it was is kept"
         assert old.version == before["between"][0] + 1 and old.fromCategoryId == pets["id"]
@@ -810,7 +820,7 @@ def test_the_preview_leaves_out_deleted_budgets_and_sorts_by_name(people):
     admin = people["admin"]
     pet, pets = new(admin, "Pet"), new(admin, "Pets")
     made = {}
-    for name in ("beta", "Alpha", "Gone"):
+    for name in ("Beta", "alpha", "Gone"):
         acct = new_account(admin, name=f"{name} checking")
         made[name] = make(admin, "Bdgt", name=name, accountIds=[acct["id"]]).json()
         assert (
@@ -823,7 +833,8 @@ def test_the_preview_leaves_out_deleted_budgets_and_sorts_by_name(people):
     source = next(
         x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
     )
-    assert preview(admin, source, pets["id"]).json() == {"budgets": ["Alpha", "beta"]}
+    # By name, whatever its case: alpha before Beta.
+    assert preview(admin, source, pets["id"]).json() == {"budgets": ["alpha", "Beta"]}
 
 
 def test_a_refused_merge_reads_as_its_parts():
@@ -836,3 +847,59 @@ def test_a_refused_merge_reads_as_its_parts():
         "Choose another expense category.",
     )
     assert e.args == ("into", "merge-kind", "Choose another expense category.")
+
+
+def test_a_second_merge_reads_only_the_live_lines(people, server):
+    """Pet into Pets, then Pets into Animals: the first merge's lines, deleted, play no part."""
+    admin = people["admin"]
+    pet, pets, animals = new(admin, "Pet"), new(admin, "Pets"), new(admin, "Animals")
+    acct = new_account(admin)
+    b = make(admin, "Bdgt", name="Twice", accountIds=[acct["id"]]).json()
+    assert (
+        save_plan(
+            admin,
+            b,
+            "2026-09-01",
+            [
+                {"categoryId": pet["id"], "amount": "10.00"},
+                {"categoryId": pets["id"], "amount": "20.00"},
+            ],
+        ).status_code
+        == 200
+    )
+
+    def merged(src, into):
+        row_ = next(x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == src)
+        assert merge(admin, row_, into).status_code == 200
+
+    merged(pet["id"], pets["id"])
+    merged(pets["id"], animals["id"])
+    with server.db.read(unscoped="test") as s:
+        alive = (BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
+        got = [(x.categoryId, x.amount) for x in s.scalars(select(BudgetLine).where(*alive))]
+        assert got == [(animals["id"], D("30.00"))]
+
+
+def test_a_line_taken_out_of_the_plan_stays_out_when_moved(people, server):
+    admin = people["admin"]
+    pet, pets = new(admin, "Pet"), new(admin, "Pets")
+    acct = new_account(admin)
+    b = make(admin, "Bdgt", name="Out", accountIds=[acct["id"]]).json()
+    assert (
+        save_plan(
+            admin, b, "2026-08-01", [{"categoryId": pet["id"], "amount": "10.00"}]
+        ).status_code
+        == 200
+    )
+    assert save_plan(admin, b, "2026-10-01", []).status_code == 200  # taken out from October
+    row_ = next(x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"])
+    assert merge(admin, row_, pets["id"]).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        alive = (BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
+        got = sorted(
+            (x.fromMonth, x.out, x.categoryId) for x in s.scalars(select(BudgetLine).where(*alive))
+        )
+        assert got == [
+            (dt.date(2026, 8, 1), False, pets["id"]),
+            (dt.date(2026, 10, 1), True, pets["id"]),
+        ]

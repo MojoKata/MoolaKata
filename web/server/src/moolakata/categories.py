@@ -10,7 +10,7 @@ merged away, and keep their kind.
 
 import datetime as dt
 from collections.abc import Iterable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from decimal import ROUND_HALF_EVEN, Decimal
 
 from sqlalchemy import false, func, select, update
@@ -102,17 +102,7 @@ class Line:
 
     @staticmethod
     def of(x: BudgetLine) -> Line:
-        return Line(
-            fromMonth=x.fromMonth,
-            amount=x.amount,
-            out=x.out,
-            cadence=x.cadence,
-            rollover=x.rollover,
-            overspend=x.overspend,
-            projectionId=x.projectionId,
-            target=x.target,
-            heldInId=x.heldInId,
-        )
+        return Line(**{f.name: getattr(x, f.name) for f in fields(Line)})
 
     def same_terms(self, other: Line) -> bool:
         """Whether two lines plan the same, whatever month each starts."""

@@ -66,7 +66,7 @@ class CategoryRecord(NewCategory):
 
 def _used(s, ids) -> set[str]:
     # Nothing it reads changes the user's records, so they are left as read (no expiring).
-    why = "categories: whether anything names them"
+    why = "categories: whether anything names them"  # pragma: no mutate
     with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
         return cats.used(srv, ids)
 
@@ -100,7 +100,7 @@ def _out(
         shipped=cat.builtIn is not None,
         serverNamed=cats.server_named(cat),
         createdById=cat.createdById,
-        createdByName=names.get(cat.createdById or ""),
+        createdByName=names.get(cat.createdById),
         inUse=in_use,
         allowed=_allowed(c, cat, in_use),
         version=cat.version,
@@ -171,7 +171,9 @@ def _record(ctx, kind: str, cat: Category, **detail) -> None:
         detail=detail,
     )
     srv = server(ctx.request)
-    ctx.after("category", lambda: srv.events.publish("category", {}))
+    # Once per save, however many categories it changes: the key only says which work it is.
+    tell = lambda: srv.events.publish("category")  # noqa: E731
+    ctx.after("category", tell)  # pragma: no mutate
 
 
 def _category_create(ctx, record_id: str, body: CategoryRecord) -> None:
@@ -267,8 +269,8 @@ def _category_update(ctx, cat: Category, body: CategoryRecord) -> None:
             cat,
             name=cat.name,
             **{
-                "from": paths.get(before["parentId"], top) if before["parentId"] else top,
-                "to": paths.get(body.parentId, top) if body.parentId else top,
+                "from": paths[before["parentId"]] if before["parentId"] else top,
+                "to": paths[body.parentId] if body.parentId else top,
             },
         )
     if "kind" in changed:
@@ -363,7 +365,7 @@ def _merge_plan(s, c: Caller, cat_id: str, body: MergeIn) -> cats.Plan:
 def _visible_budgets(s, budget_ids: set[str]) -> list[str]:
     """The names of those the reader sees: the user's session reads no other (schema.md §7.6),
     and says nothing of the rest (S13.8.10)."""
-    rows = s.scalars(select(Budget).where(Budget.id.in_(budget_ids), Budget.deleted == false()))
+    rows = s.scalars(select(Budget).where(Budget.id.in_(budget_ids)))
     return sorted((b.name for b in rows), key=str.lower)
 
 

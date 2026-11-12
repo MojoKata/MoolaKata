@@ -600,14 +600,12 @@ def _activity() -> str:
         "OR e.\"subjectKind\" IN ('user', 'group', 'link'))"
     )
     # The categories are every user's (S7.2), so is what happens to them (S10.8). SQL reads
-    # its words and names in any case, so a change of case changes nothing.
-    # pragma: no mutate
-    categories = (
-        f'SELECT {_cols("e.id", 'u."userId"', *zero)}\nFROM "Activity" AS e\n'
-        'JOIN "AccessUser" AS u ON u.local\n'
-        "WHERE e.\"subjectKind\" = 'category'"
-    )
-    return _collapse("\nUNION ALL\n".join((mine, *subjects, removed, admins, categories)))
+    # its words and names in any case, so a change of case changes nothing: hence the marks.
+    cols = _cols("e.id", 'u."userId"', *zero)  # pragma: no mutate
+    joined = 'FROM "Activity" AS e\nJOIN "AccessUser" AS u ON u.local\n'  # pragma: no mutate
+    categories = f"SELECT {cols}\n{joined}WHERE e.\"subjectKind\" = 'category'"  # pragma: no mutate
+    every = (mine, *subjects, removed, admins, categories)
+    return _collapse("\nUNION ALL\n".join(every))  # pragma: no mutate
 
 
 def _user() -> str:

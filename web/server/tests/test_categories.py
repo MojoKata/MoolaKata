@@ -672,8 +672,8 @@ def test_a_deleted_category_is_not_found_and_its_name_is_free_again(people, serv
     with server.db.read(unscoped="test") as s:
         got = s.get(Category, gone["id"])
         assert got.deleted and got.deletedById == got.createdById  # Alice, who deleted it
-    assert change(alice, "Cat", gone, name="Back").status_code == 404
-    assert remove(alice, "Cat", gone).status_code == 404
+    for r in (change(alice, "Cat", gone, name="Back"), remove(alice, "Cat", gone)):
+        assert answer(r) == (404, None, "not-found", "Not found")
     assert new(alice, "Gone soon")["id"] != gone["id"]
 
 
@@ -697,13 +697,22 @@ def test_each_change_names_its_category_and_tells_every_page(people, server, mon
     vet = saved(change(alice, "Cat", vet, parentId=rows(alice)["Health"]["id"]))
     vet = saved(change(admin, "Cat", vet, keepReceiptsYears=7))
     saved(change(admin, "Cat", row(admin, vet["id"]), keepReceiptsYears=3))
-    assert told.count("category") == 5
+    saved(change(admin, "Cat", row(admin, vet["id"]), keepReceiptsYears=1))
+    saved(change(alice, "Cat", row(alice, pets["id"]), taxTag="medical"))
+    saved(change(alice, "Cat", row(alice, pets["id"]), taxTag=None))
+    assert told.count("category") == 8
     items = admin.get("/ui/api/activity").json()["items"]
     cats = [a for a in items if a["kind"].startswith("category.")]
     assert {a["subjectKind"] for a in cats} == {"category"}
     assert {a["subjectId"] for a in cats} == {pets["id"], vet["id"]}
     texts = [a["text"] for a in cats]
     assert "Alice moved the category Vet from Pets to Health" in texts
+    assert (
+        "Ada Admin set how long Health › Vet's receipts are kept to 1 year (it was 3 years)"
+        in texts
+    )
+    assert "Alice changed Pets's tax tag from medical to none" in texts
+    assert "Alice changed Pets's tax tag from none to medical" in texts
     assert (
         "Ada Admin set how long Health › Vet's receipts are kept to 3 years (it was 7 years)"
         in texts
