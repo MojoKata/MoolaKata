@@ -128,6 +128,15 @@ Deno.test('a key outside the kind is refused and marked with what it takes', () 
   equal(v.stopped(), false, 'text takes anything');
 });
 
+Deno.test('a drop is refused where a kind has its characters, taken as text', () => {
+  const t = typed({});
+  t.h.onDrop(t.ev({}));
+  equal(t.stopped(), true);
+  const u = typed({ kind: 'text' });
+  u.h.onDrop(u.ev({}));
+  equal(u.stopped(), false);
+});
+
 Deno.test('text put in whole is cleaned as a paste is, or refused whole', () => {
   const t = typed({});
   t.el.value = '';

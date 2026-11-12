@@ -338,6 +338,12 @@ def test_the_plans_refusals_show_at_their_fields(browser, household, new_loan):
     extra = page.locator("#f-extra-each-month")
     assert extra.input_value() == "100"
     assert extra.get_attribute("data-tip") == "Digits and . only."
+    # One that doesn't read is marked when left, and the plan stays as it was worked out.
+    extra.fill("1.2.3")
+    extra.press("Tab")
+    assert extra.get_attribute("data-tip") == "Type an amount, such as 1234.50."
+    assert_outcome(page, plan(h, a, monthly="100"))
+    extra.fill("100")
     worked_out(page, problems, lambda: page.fill("#f-monthly-from", ahead(6)))
     good = plan(h, a, monthly="100", monthlyFrom=ahead(6))
     worked_out(page, problems, lambda: page.fill("#f-monthly-until", ahead(3)))

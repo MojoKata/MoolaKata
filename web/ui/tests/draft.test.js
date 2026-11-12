@@ -251,6 +251,19 @@ Deno.test('what is typed stays in its field while it is edited', () => {
   equal(t.shown('amount'), '7.00', 'a value set by code shows as that value');
 });
 
+Deno.test('typed text set into several fields keeps why it does not read until Save', () => {
+  const { d } = draft();
+  const t = d.load(Txn, read());
+  const both = (/** @type {string} */ x) =>
+    /^\d+$/.test(x) ? { value: { memo: x } } : { error: 'Digits, please.' };
+  equal(t.inputAs('memo-key', 'abc', both), false);
+  equal([t.error('memo-key'), t.unreadWhy('memo-key')], [null, 'Digits, please.']);
+  t.refuseUnread();
+  equal(t.error('memo-key'), 'Digits, please.');
+  equal(t.inputAs('memo-key', '12', both), true);
+  equal([t.error('memo-key'), t.unreadWhy('memo-key'), t.get('memo')], [null, null, '12']);
+});
+
 Deno.test('text that does not read yet is a change, and is never sent', async () => {
   const { d, sent } = draft();
   const t = d.load(Txn, read());

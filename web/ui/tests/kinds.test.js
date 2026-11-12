@@ -106,6 +106,12 @@ Deno.test('bounds are exact, and say themselves as the field shows them', () => 
   equal(check(count, { min: 1, max: 2 }, '0'), '1 or more.');
   equal(check(count, { min: 1, max: 2 }, '3'), '2 or less.');
   equal(check(money, { min: -5, negative: true }, '-5.01'), '-5 or more.');
+  // Bounds with no button: a value it must be more than, and a most.
+  equal(check(money, { above: 0 }, '0', fmt), 'More than $0.00.');
+  equal(check(money, { above: 0 }, '0.01', fmt), null);
+  equal(check(KINDS.percent, { atMost: 40 }, '40%'), null);
+  equal(check(KINDS.percent, { atMost: 40 }, '40.001%'), '40 or less.');
+  equal(check(money, { max: 10, atMost: 5 }, '7'), null, 'a max, when given, is the most');
   equal(
     check(KINDS.quantity, { max: '0.3' }, '0.30000000000000001'),
     '0.3 or less.',
@@ -127,4 +133,5 @@ Deno.test('a web address is http or https with a host, up to 2,000 characters', 
   equal(long.length, URL_MOST);
   equal(webAddress(long), null);
   equal(webAddress(long + 'a'), 'At most 2,000 characters.');
+  equal(webAddress('https://[::1'), refused, 'one the URL parser refuses');
 });

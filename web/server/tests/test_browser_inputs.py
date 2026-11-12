@@ -58,6 +58,11 @@ def test_the_filters_amount_bounds_are_taken_when_left(browser, household):
     least.press("Tab")
     assert least.get_attribute("data-tip") == "Type an amount, such as 1234.50."
     assert page.locator(f'{LIST}:has-text("Bound test")').count() == 1
+    # Clearing the filters empties the bounds, their marks gone with what they held.
+    with page.expect_response(lambda r: "/transactions?" in r.url and "max=" not in r.url):
+        page.get_by_role("button", name="Clear the filters").click()
+    assert [least.input_value(), most.input_value()] == ["", ""]
+    assert least.get_attribute("data-tip") is None
     assert problems == []
     page.close()
 
