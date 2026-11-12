@@ -44,9 +44,10 @@ what = "Med bugs in the server: a rule that can freeze it, an invitation left wo
 findings = [25, 49, 20, 62, 31, 452]
 
 [[step]]
+pr = 45
 kind = "med"
 what = "Med: when a statement value is stale, the TrueNAS install's mode, the Reconcile tab"
-findings = [8, 12, 17]
+findings = [8, 12, 17, 308]
 
 [[step]]
 kind = "med"
