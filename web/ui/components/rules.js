@@ -202,7 +202,7 @@ export function RulesTab({ id }) {
           `}
         <${FormError} error=${act.error || apply.error} />
       </div>
-      ${!rows
+      ${!rows || (id && !fresh && !rule && res.loading)
         ? html`
           <div class="card">
             <${Loading} lines=${6} />
