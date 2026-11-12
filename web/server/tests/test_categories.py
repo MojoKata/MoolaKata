@@ -1017,6 +1017,36 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
     live = alice.get(f"/ui/api/transactions/{gone_part['id']}").json()
     part = next(x for x in live["splits"] if x["categoryId"] == mine["id"])
     saved(change(alice, "Split", part, categoryId=other["id"]))
+    # A part deleted from a live transaction, the rest made to add up in the same save.
+    three = add(
+        alice,
+        acct["id"],
+        "-3.00",
+        splits=[
+            {"categoryId": mine["id"], "amount": "-1.00"},
+            {"categoryId": None, "amount": "-1.00"},
+            {"categoryId": None, "amount": "-1.00"},
+        ],
+    )
+    have_parts = alice.get(f"/ui/api/transactions/{three['id']}").json()["splits"]
+    cut = next(x for x in have_parts if x["categoryId"] == mine["id"])
+    grow = next(x for x in have_parts if x["categoryId"] is None)
+    r = alice.post(
+        "/ui/api/save",
+        json={
+            "ops": [
+                {"op": "delete", "entity": "Split", "id": cut["id"], "version": cut["version"]},
+                {
+                    "op": "update",
+                    "entity": "Split",
+                    "id": grow["id"],
+                    "version": grow["version"],
+                    "fields": {"amount": "-2.00"},
+                },
+            ]
+        },
+    )
+    assert r.status_code == 200, r.text
     # Rules: two of its own, out of the order they were made in once moved; one deleted; one
     # of another category.
     first = make(alice, "Rule", payeeMatch="zzz", categoryId=mine["id"]).json()
@@ -1034,6 +1064,11 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
         for m in months:
             assert save_plan(alice, b, m, [line(mine["id"]), line(other["id"])]).status_code == 200
     assert save_plan(alice, b2, "2026-06-01", [line(other["id"])]).status_code == 200
+    # Taken out from April, then planned again from April: the line taking it out is deleted.
+    b3 = make(alice, "Bdgt", name="B three", accountIds=[acct["id"]], method="envelope").json()
+    for month, cat in (("2026-03-01", mine), ("2026-04-01", other), ("2026-04-01", mine)):
+        r = save_plan(alice, b3, month, [line(cat["id"])])
+        assert r.status_code == 200, r.text
     food = rows(alice)["Food"]["id"]
     move = lambda b, m, a, z: make(  # noqa: E731
         alice, "BdgMv", budgetId=b["id"], month=m, fromCategoryId=a, toCategoryId=z, amount="1.00"
@@ -1041,6 +1076,7 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
     move(b1, "2026-09-01", food, mine["id"])
     move(b1, "2026-07-01", mine["id"], food)
     move(b2, "2026-05-01", food, other["id"])
+    move(b2, "2026-03-01", mine["id"], food)  # the later budget's, an earlier month
     gone = move(b2, "2026-04-01", food, mine["id"])
     saved(remove(alice, "BdgMv", gone))
     # Loans: one counting in it, one in another, one whose terms went.
@@ -1073,16 +1109,19 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
         ("B one", "2026-09-01"),
         ("B two", "2026-05-01"),
         ("B two", "2026-06-01"),  # where the plan takes it out: a line that names it too
+        ("B three", "2026-03-01"),
+        ("B three", "2026-04-01"),
     ]
     assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [
         ("B one", "2026-07-01"),
         ("B one", "2026-09-01"),
+        ("B two", "2026-03-01"),
     ]
     assert [x["name"] for x in u["loans"]] == ["Loan mine"]
     assert [x["name"] for x in u["categories"]] == ["a_b", "Alpha", "aZ", "beta"]
     # A deleted account's loan is no use the reader sees, but still one: restored, it would
     # name the category again (as `used` holds it, keeping the category from deletion).
-    assert u["seen"] == 1 + 2 + 4 + 2 + 1 + 4 and u["unseen"] == 1
+    assert u["seen"] == 1 + 2 + 6 + 3 + 1 + 4 and u["unseen"] == 1
     assert first["id"] in {r["id"] for r in u["rules"]}
 
 

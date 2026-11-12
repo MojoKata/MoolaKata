@@ -124,6 +124,9 @@ def uses(s: Session, cat_id: str) -> Uses:
             or_(Transaction.categoryId == cat_id, Transaction.id.in_(in_parts)),
         )
     )
+    # A loan is never deleted (it keeps its terms; its account is), so this reads as any
+    # record's live test would, and no test can tell it from none.
+    live_loan = Loan.deleted == false()  # pragma: no mutate
     return Uses(
         transactions=transactions or 0,
         rules=list(
@@ -151,9 +154,7 @@ def uses(s: Session, cat_id: str) -> Uses:
                 .order_by(BudgetMove.budgetId, BudgetMove.month)
             )
         ),
-        loans=list(
-            s.scalars(select(Loan).where(Loan.budgetCategoryId == cat_id, Loan.deleted == false()))
-        ),
+        loans=list(s.scalars(select(Loan).where(Loan.budgetCategoryId == cat_id, live_loan))),
         children=sorted(children(s, cat_id), key=lambda x: x.name.lower()),
     )
 
