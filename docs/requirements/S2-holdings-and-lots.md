@@ -56,8 +56,10 @@
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per
    user, in **Transactions › Rules**, first match wins.
    1. **What a rule matches**: the payee as the institution wrote it, by text it contains (case
-      aside) or, after `re:`, a regular expression (RE2's syntax, with no back-references or
-      look-arounds; case aside; at most 200 characters); and, when given, an amount range
+      aside) or, after `re:`, a regular expression (RE2's syntax, with no back-references,
+      look-arounds, atomic groups, possessive repeats or conditionals, each refused in those
+      words; case aside unless the pattern turns it on with `(?-i)`; at most 200 characters);
+      and, when given, an amount range
       (from and to, of the amount without its sign), a direction (money in, money out, or
       either) and one account.
    2. **What it sets**, one or more of: the **category**; the **payee** shown (*Rename to*),

@@ -16,8 +16,25 @@ MAX_TAGS = 10
 _OPTIONS = re2.Options()
 _OPTIONS.case_sensitive = False
 _OPTIONS.log_errors = False
-# RE2's refusals of what Python's syntax has and RE2's hasn't: a look-around, a back-reference.
-_BACKTRACKING = re.compile(r"invalid perl operator: \(\?<?[=!]|invalid escape sequence: \\[1-9]")
+# What Python's syntax has and RE2's hasn't (S2.7.1), each said in plain words rather than in
+# RE2's: matched against RE2's reason, in this order.
+_PLAIN = (
+    (
+        # (?=, (?!, (?<=, (?<!; \1 to \9, \g<1>, \k<name> and (?P=name)
+        re.compile(r"invalid perl operator: \((\?<?[=!]|\?P)|invalid escape sequence: \\[1-9gk]"),
+        "RE2 has no look-arounds or back-references.",
+    ),
+    (
+        # (?>…), a++ a*+ a?+ a{2}+, (?(1)…)
+        re.compile(r"invalid perl operator: \(\?[>(]|bad repetition operator: \S*\+$"),
+        "RE2 has no atomic groups, possessive repeats or conditionals.",
+    ),
+    (
+        # (?x), (?a), (?L), (?u) and the like
+        re.compile(r"invalid perl operator: \(\?-?[A-Za-z]"),
+        "RE2's inline flags are i, m, s and U.",
+    ),
+)
 
 
 class Invalid(ValueError):
@@ -54,8 +71,9 @@ def compile_pattern(text: str) -> Any:
 def _refusal(e: Exception) -> str:
     why = e.args[0] if e.args else ""
     why = why.decode(errors="replace") if isinstance(why, bytes) else str(why)
-    if _BACKTRACKING.search(why):
-        return "RE2 has no look-arounds or back-references."
+    for seen, said in _PLAIN:
+        if seen.search(why):
+            return said
     return f"Not a regular expression: {why}."
 
 
