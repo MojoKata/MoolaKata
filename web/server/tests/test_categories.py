@@ -1119,9 +1119,8 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
     ]
     assert [x["name"] for x in u["loans"]] == ["Loan mine"]
     assert [x["name"] for x in u["categories"]] == ["a_b", "Alpha", "aZ", "beta"]
-    # A deleted account's loan is no use the reader sees, but still one: restored, it would
-    # name the category again (as `used` holds it, keeping the category from deletion).
-    assert u["seen"] == 1 + 2 + 6 + 3 + 1 + 4 and u["unseen"] == 1
+    # A deleted account's loan names nothing: a deleted account can't come back on its own.
+    assert u["seen"] == 1 + 2 + 6 + 3 + 1 + 4 and u["unseen"] == 0
     assert first["id"] in {r["id"] for r in u["rules"]}
 
 
@@ -1145,3 +1144,37 @@ def test_a_deleted_move_leaves_its_category_unused(people):
         assert row(alice, spare["id"])["inUse"]
         saved(remove(alice, "BdgMv", m))
         assert not row(alice, spare["id"])["inUse"]
+
+
+def test_what_a_deleted_account_or_budget_held_names_nothing(people):
+    """A deleted account's transactions and their parts, and a deleted budget's plan lines and
+    moves, count for nothing, seen or unseen, and leave the category free to delete: they are
+    deleted with what they belong to (schema.md §4.2)."""
+    from test_budgets import save_plan
+
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice, name="Closed for good", mask="1212")
+    add(alice, acct["id"], "-1.00", categoryId=pets["id"])
+    parts = [{"categoryId": pets["id"], "amount": "-1.00"}, {"categoryId": None, "amount": "-1.00"}]
+    add(alice, acct["id"], "-2.00", splits=parts)
+    keep = new_account(alice, name="Kept", mask="3434")
+    b = make(alice, "Bdgt", name="Gone budget", accountIds=[keep["id"]], method="envelope").json()
+    assert (
+        save_plan(
+            alice, b, "2026-10-01", [{"categoryId": pets["id"], "amount": "5.00"}]
+        ).status_code
+        == 200
+    )
+    food = rows(alice)["Food"]["id"]
+    make(alice, "BdgMv", budgetId=b["id"], month="2026-10-01", fromCategoryId=food,
+         toCategoryId=pets["id"], amount="1.00")  # fmt: skip
+    u = uses(alice, pets["id"])
+    assert (u["seen"], u["transactions"], len(u["planLines"]), len(u["moves"])) == (4, 2, 1, 1)
+    saved(remove(alice, "Acct", alice.get(f"/ui/api/accounts/{acct['id']}").json()))
+    saved(remove(alice, "Bdgt", alice.get(f"/ui/api/budgets/{b['id']}").json()))
+    for who in ("alice", "bob"):
+        u = uses(people[who], pets["id"])
+        assert (u["seen"], u["unseen"]) == (0, 0), who
+    assert not row(alice, pets["id"])["inUse"]
+    assert remove(alice, "Cat", row(alice, pets["id"])).status_code == 200

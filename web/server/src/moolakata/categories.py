@@ -13,14 +13,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass, fields, replace
 from decimal import ROUND_HALF_EVEN, Decimal
 
-from sqlalchemy import and_, false, func, or_, select, update
+from sqlalchemy import false, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from . import clock, ids
 from .budgets import LOAN_PARTS
 from .loans import PARTS
+from .store.db import live as live_rows
 from .store.entities.accounts import Category, Loan, Rule, Split, Transaction
 from .store.entities.budgets import BudgetLine, BudgetMove
+from .store.tables import accounts as ta
+from .store.tables import budgets as tb
+from .store.tables import loans as tl
 from .taxes.panels import TAG_LABELS
 
 KINDS = ("expense", "income", "savings", "transfer")
@@ -58,13 +62,12 @@ def children(s: Session, cat_id: str) -> list[Category]:
     )
 
 
-def _live_split():
-    """A split that counts: not deleted, of a transaction not deleted (a deleted transaction's
-    parts name nothing, as the transaction itself doesn't)."""
-    return and_(
-        Split.deleted == false(),
-        Split.transactionId.in_(select(Transaction.id).where(Transaction.deleted == false())),
-    )
+def _rows(what, table):
+    """SELECT `what` (a record, or one of its columns) of what still is: not deleted, nor
+    deleted with what it belongs to (a transaction's account, a part's transaction, a line's
+    budget; schema.md §4.2). A deleted account can't come back on its own, so what it held
+    names nothing."""
+    return live_rows(what, table)
 
 
 def used(s: Session, cat_ids: Iterable[str]) -> set[str]:
@@ -77,18 +80,19 @@ def used(s: Session, cat_ids: Iterable[str]) -> set[str]:
         return set()
     out: set[str] = set()
     probes = [
-        (Transaction.categoryId, Transaction.deleted == false()),
-        (Split.categoryId, _live_split()),
-        (Rule.categoryId, Rule.deleted == false()),
-        (BudgetLine.categoryId, BudgetLine.deleted == false()),
-        (BudgetMove.fromCategoryId, BudgetMove.deleted == false()),
-        (BudgetMove.toCategoryId, BudgetMove.deleted == false()),
-        (Loan.budgetCategoryId, Loan.deleted == false()),
-        (Category.parentId, Category.deleted == false()),
+        _rows(Transaction.categoryId, ta.Transaction),
+        _rows(Split.categoryId, ta.Split),
+        _rows(Rule.categoryId, ta.Rule),
+        _rows(BudgetLine.categoryId, tb.BudgetLine),
+        _rows(BudgetMove.fromCategoryId, tb.BudgetMove),
+        _rows(BudgetMove.toCategoryId, tb.BudgetMove),
+        _rows(Loan.budgetCategoryId, tl.Loan),
+        _rows(Category.parentId, ta.Category),
     ]
-    for col, live_row in probes:
+    for rows in probes:
+        col = rows.selected_columns[0]
         # Only the categories asked about, for speed: what else is found isn't asked.
-        found = select(col).where(col.in_(want), live_row).distinct()  # pragma: no mutate
+        found = rows.where(col.in_(want)).distinct()  # pragma: no mutate
         out |= set(s.scalars(found))
     return out
 
@@ -115,46 +119,34 @@ class Uses:
 def uses(s: Session, cat_id: str) -> Uses:
     """A category's uses as `s` sees them: the reader's session lists what they can see, the
     server's counts them all, so the difference is what the reader can't."""
-    in_parts = select(Split.transactionId).where(Split.categoryId == cat_id, _live_split())
-    transactions = s.scalar(
-        select(func.count())
-        .select_from(Transaction)
-        .where(
-            Transaction.deleted == false(),
-            or_(Transaction.categoryId == cat_id, Transaction.id.in_(in_parts)),
-        )
+    in_parts = _rows(Split.transactionId, ta.Split).where(Split.categoryId == cat_id)
+    named = _rows(Transaction.id, ta.Transaction).where(
+        or_(Transaction.categoryId == cat_id, Transaction.id.in_(in_parts))
     )
-    # A loan is never deleted (it keeps its terms; its account is), so this reads as any
-    # record's live test would, and no test can tell it from none.
-    live_loan = Loan.deleted == false()  # pragma: no mutate
+    # A user's rules come in their list's order by their index (ownerId, position) as it is:
+    # the order is said all the same, and no test can tell it from none.
+    rules = _rows(Rule, ta.Rule).order_by(Rule.position)  # pragma: no mutate
     return Uses(
-        transactions=transactions or 0,
+        transactions=len(set(s.scalars(named))),  # each once, by its id
         rules=list(
-            s.scalars(
-                # A reader's session sees their own rules alone: in their list's order.
-                select(Rule)
-                .where(Rule.categoryId == cat_id, Rule.deleted == false())
-                .order_by(Rule.position)
-            )
+            # A reader's session sees their own rules alone: in their list's order.
+            s.scalars(rules.where(Rule.categoryId == cat_id))
         ),
         lines=list(
             s.scalars(
-                select(BudgetLine)
-                .where(BudgetLine.categoryId == cat_id, BudgetLine.deleted == false())
+                _rows(BudgetLine, tb.BudgetLine)
+                .where(BudgetLine.categoryId == cat_id)
                 .order_by(BudgetLine.budgetId, BudgetLine.fromMonth)
             )
         ),
         moves=list(
             s.scalars(
-                select(BudgetMove)
-                .where(
-                    or_(BudgetMove.fromCategoryId == cat_id, BudgetMove.toCategoryId == cat_id),
-                    BudgetMove.deleted == false(),
-                )
+                _rows(BudgetMove, tb.BudgetMove)
+                .where(or_(BudgetMove.fromCategoryId == cat_id, BudgetMove.toCategoryId == cat_id))
                 .order_by(BudgetMove.budgetId, BudgetMove.month)
             )
         ),
-        loans=list(s.scalars(select(Loan).where(Loan.budgetCategoryId == cat_id, live_loan))),
+        loans=list(s.scalars(_rows(Loan, tl.Loan).where(Loan.budgetCategoryId == cat_id))),
         children=sorted(children(s, cat_id), key=lambda x: x.name.lower()),
     )
 
