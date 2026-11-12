@@ -141,6 +141,12 @@ MASKS = (
         "the backup made at the server's start races the stub prices' first fill",
     ),
     Mask("/ui/api/settings/keys/copies", "copies[].bytes", 2642771, "that backup, as a copy"),
+    Mask(
+        "/ui/api/settings/listener",
+        "port",
+        37373,
+        "the build's server listens on a free port; an install's is 37373",
+    ),
 )
 
 
