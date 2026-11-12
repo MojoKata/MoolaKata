@@ -83,6 +83,12 @@ def test_no_answer_names_what_its_reader_cant_read(household, who):  # noqa: F81
         users = dict(
             s.execute(text('SELECT username, id FROM "User" WHERE "linkId" IS NULL')).all()
         )
+        used_most = s.execute(
+            text(
+                'SELECT "categoryId" FROM "Transaction" WHERE "categoryId" IS NOT NULL'
+                ' GROUP BY "categoryId" ORDER BY count(*) DESC LIMIT 1'
+            )
+        ).scalar_one()
     uid = users[who]
     c = sign_in(srv, who, PASSWORD)
     paths = [p for p, ops in contract.openapi_document()["paths"].items() if "get" in ops]
@@ -94,6 +100,9 @@ def test_no_answer_names_what_its_reader_cant_read(household, who):  # noqa: F81
             continue
         filled = {}
         for p in params:
+            if p == "cat_id":  # every user reads every category: the one most used, whose
+                filled[p] = used_most  # uses must name only what the reader reads
+                continue
             mine = {i for i, u in views[PARAMS[p]] if u == uid}
             # The household's own edge cases first (a receipt kept on both sides of a share),
             # else the first the user reads.

@@ -128,9 +128,10 @@ def uses(s: Session, cat_id: str) -> Uses:
         transactions=transactions or 0,
         rules=list(
             s.scalars(
+                # A reader's session sees their own rules alone: in their list's order.
                 select(Rule)
                 .where(Rule.categoryId == cat_id, Rule.deleted == false())
-                .order_by(Rule.ownerId, Rule.position)
+                .order_by(Rule.position)
             )
         ),
         lines=list(

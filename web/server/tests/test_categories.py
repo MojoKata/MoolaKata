@@ -985,3 +985,124 @@ def test_a_save_tells_the_savers_own_pages(people, server, monkeypatch):
     assert told == []
     r = alice.post("/ui/api/save", json={"ops": [], "confirm": []})
     assert r.status_code == 200 and told == []
+
+
+def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
+    """Only what names this category, not another's; nothing deleted (a rule, a plan line, a
+    move, a loan, a part taken out of a live transaction); each kind in its order: rules as the
+    list, plan lines and moves by budget then month, categories by name in any case."""
+    from edits import terms
+    from test_budgets import save_plan
+
+    alice = people["alice"]
+    mine, other = new(alice, "Mine"), new(alice, "Other")
+    acct = new_account(alice)
+    # Transactions: its own, one through a part, and another category's of each sort.
+    add(alice, acct["id"], "-1.00", categoryId=mine["id"])
+    add(alice, acct["id"], "-2.00", categoryId=other["id"])
+    parts = [
+        {"categoryId": other["id"], "amount": "-1.00"},
+        {"categoryId": None, "amount": "-1.00"},
+    ]
+    add(alice, acct["id"], "-2.00", splits=parts)
+    gone_part = add(
+        alice,
+        acct["id"],
+        "-3.00",
+        splits=[
+            {"categoryId": mine["id"], "amount": "-1.00"},
+            {"categoryId": None, "amount": "-2.00"},
+        ],
+    )
+    live = alice.get(f"/ui/api/transactions/{gone_part['id']}").json()
+    part = next(x for x in live["splits"] if x["categoryId"] == mine["id"])
+    saved(change(alice, "Split", part, categoryId=other["id"]))
+    # Rules: two of its own, out of the order they were made in once moved; one deleted; one
+    # of another category.
+    first = make(alice, "Rule", payeeMatch="zzz", categoryId=mine["id"]).json()
+    second = make(alice, "Rule", payeeMatch="aaa", categoryId=mine["id"]).json()
+    make(alice, "Rule", payeeMatch="other", categoryId=other["id"]).json()
+    dropped = make(alice, "Rule", payeeMatch="dropped", categoryId=mine["id"]).json()
+    saved(remove(alice, "Rule", dropped))
+    have = {r["id"]: r for r in alice.get("/ui/api/rules").json()["items"]}
+    saved(change(alice, "Rule", have[second["id"]], position=0))
+    # Plan lines and moves in two budgets, the later budget's earlier, each month made late.
+    b1 = make(alice, "Bdgt", name="B one", accountIds=[acct["id"]], method="envelope").json()
+    b2 = make(alice, "Bdgt", name="B two", accountIds=[acct["id"]], method="envelope").json()
+    line = lambda c: {"categoryId": c, "amount": "5.00"}  # noqa: E731
+    for b, months in ((b1, ("2026-09-01", "2026-07-01")), (b2, ("2026-05-01",))):
+        for m in months:
+            assert save_plan(alice, b, m, [line(mine["id"]), line(other["id"])]).status_code == 200
+    assert save_plan(alice, b2, "2026-06-01", [line(other["id"])]).status_code == 200
+    food = rows(alice)["Food"]["id"]
+    move = lambda b, m, a, z: make(  # noqa: E731
+        alice, "BdgMv", budgetId=b["id"], month=m, fromCategoryId=a, toCategoryId=z, amount="1.00"
+    ).json()
+    move(b1, "2026-09-01", food, mine["id"])
+    move(b1, "2026-07-01", mine["id"], food)
+    move(b2, "2026-05-01", food, other["id"])
+    gone = move(b2, "2026-04-01", food, mine["id"])
+    saved(remove(alice, "BdgMv", gone))
+    # Loans: one counting in it, one in another, one whose terms went.
+    for name, cat in (("Loan mine", mine), ("Loan other", other), ("Loan gone", mine)):
+        loan = new_account(alice, name=name, type="auto-loan", mask="7777")
+        made_terms = terms(
+            alice,
+            loan["id"],
+            principal="9000.00",
+            rate="5",
+            termMonths=48,
+            startDate="2026-11-01",
+            budgetCounting="whole",
+            budgetCategoryId=cat["id"],
+        )
+        assert made_terms.status_code == 200, made_terms.text
+        if name == "Loan gone":  # its terms go with its account
+            saved(remove(alice, "Acct", alice.get(f"/ui/api/accounts/{loan['id']}").json()))
+    # Categories under it, named in either case.
+    for name in ("beta", "Alpha", "a_b", "aZ"):
+        new(alice, name, parentId=mine["id"])
+    new(alice, "Elsewhere", parentId=other["id"])
+
+    u = uses(alice, mine["id"])
+    assert u["transactions"] == 1
+    assert [r["payeeMatch"] for r in u["rules"]] == ["aaa", "zzz"]
+    assert [r["position"] for r in u["rules"]] == sorted(r["position"] for r in u["rules"])
+    assert [(x["budgetName"], x["month"]) for x in u["planLines"]] == [
+        ("B one", "2026-07-01"),
+        ("B one", "2026-09-01"),
+        ("B two", "2026-05-01"),
+        ("B two", "2026-06-01"),  # where the plan takes it out: a line that names it too
+    ]
+    assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [
+        ("B one", "2026-07-01"),
+        ("B one", "2026-09-01"),
+    ]
+    assert [x["name"] for x in u["loans"]] == ["Loan mine"]
+    assert [x["name"] for x in u["categories"]] == ["a_b", "Alpha", "aZ", "beta"]
+    # A deleted account's loan is no use the reader sees, but still one: restored, it would
+    # name the category again (as `used` holds it, keeping the category from deletion).
+    assert u["seen"] == 1 + 2 + 4 + 2 + 1 + 4 and u["unseen"] == 1
+    assert first["id"] in {r["id"] for r in u["rules"]}
+
+
+def test_a_deleted_move_leaves_its_category_unused(people):
+    """`used` reads moves as the count does: a deleted one names nothing."""
+    alice = people["alice"]
+    spare = new(alice, "Spare")
+    acct = new_account(alice)
+    b = make(alice, "Bdgt", name="B", accountIds=[acct["id"]], method="envelope").json()
+    food = rows(alice)["Food"]["id"]
+    for a, z in ((spare["id"], food), (food, spare["id"])):
+        m = make(
+            alice,
+            "BdgMv",
+            budgetId=b["id"],
+            month="2026-10-01",
+            fromCategoryId=a,
+            toCategoryId=z,
+            amount="1.00",
+        ).json()
+        assert row(alice, spare["id"])["inUse"]
+        saved(remove(alice, "BdgMv", m))
+        assert not row(alice, spare["id"])["inUse"]
