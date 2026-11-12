@@ -328,9 +328,11 @@
       reset, typed when known), the interest method (monthly amortization, or simple
       interest accrued daily, as most car loans use), the scheduled payment, and for a
       mortgage **escrow** (property tax, insurance) and **PMI**. A HELOC has a draw period
-      with interest-only payments, then a repayment period. The term is 1 to 600 months, and
-      the rate 0% to 40%, to three decimal places as a note states it (6.875%); a reset's
-      rate takes four, as an index plus a margin can give (7.3125%).
+      with interest-only payments, then a repayment period. The original principal is more
+      than 0, except a HELOC's, which may be 0 (**Min: $0.00**, R3.11), as a line of credit
+      opened with nothing drawn is; escrow and PMI are each *none* while blank. The term is 1
+      to 600 months, and the rate 0% to 40%, to three decimal places as a note states it
+      (6.875%); a reset's rate takes four, as an index plus a margin can give (7.3125%).
    2. **The amortization schedule** is computed from the terms: each payment's interest,
       principal, escrow and remaining balance. It is recomputed when a payment differs
       from the schedule, the rate resets, or the loan is **recast**. Between the payment days

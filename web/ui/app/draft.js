@@ -354,13 +354,19 @@ export class Record {
     this.#tick.value++;
   }
 
-  /** Set a field from what was typed; a value that doesn't read is the field's error. @param {string} name @param {string} input */
-  input(name, input) {
-    const spec = this.spec(name), r = typeOf(spec).parse(input, spec);
+  /**
+   * Set a field from what was typed; a value that doesn't read is the field's error. `read` is
+   * what the type reads, where the input shows more than the value (a percent's "%").
+   * @param {string} name @param {string} input @param {string} [read]
+   */
+  input(name, input, read = input) {
+    const spec = this.spec(name), r = typeOf(spec).parse(read, spec);
     this.#typed.set(name, input);
+    // A change clears the field's refusal; text that doesn't read is refused at Save, and
+    // marked by its input when the field is left (S12.18.3), never while it is typed.
+    this.#errors.delete(name);
     if ('error' in r) {
-      this.#unread.add(name);
-      this.#errors.set(name, r.error);
+      this.#unread.set(name, r.error);
       this.#tick.value++;
       return false;
     }
@@ -385,9 +391,9 @@ export class Record {
   inputAs(key, input, read) {
     const r = read(input);
     this.#typed.set(key, input);
+    this.#errors.delete(key);
     if ('error' in r) {
-      this.#unread.add(key);
-      this.#errors.set(key, r.error);
+      this.#unread.set(key, r.error);
       this.#tick.value++;
       return false;
     }
@@ -410,8 +416,20 @@ export class Record {
   }
 
   #inputting = false;
-  /** Fields whose typed text doesn't read yet: a change too, not to be lost unasked. */
-  #unread = new Set();
+  /** Fields whose typed text doesn't read yet, with why: a change too, not to be lost unasked. */
+  #unread = new Map();
+
+  /** Why a field's typed text doesn't read, while it doesn't. @param {string} key */
+  unreadWhy(key) {
+    this.#tick.value;
+    return this.#unread.get(key) ?? null;
+  }
+
+  /** Refuse each field whose typed text doesn't read, at the field, as Save does. */
+  refuseUnread() {
+    for (const [key, why] of this.#unread) this.#errors.set(key, why);
+    this.#tick.value++;
+  }
 
   /** What a field shows in its input: what was typed there, else its value. @param {string} name */
   shown(name) {
@@ -830,6 +848,7 @@ export class Draft {
   async save(o = {}) {
     // Nothing is sent while a field holds text that doesn't read: its reason is at the field.
     if (this.records.some((r) => !r.removed && r.unread)) {
+      for (const r of this.records) if (!r.removed && r.unread) r.refuseUnread();
       this.formError = 'Correct the fields marked first.';
       this.#tick.value++;
       return { status: 'refused', message: this.formError };

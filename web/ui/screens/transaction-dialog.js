@@ -12,7 +12,7 @@ import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { NewRuleDialog } from '../components/rules.js';
-import { Field, Input, Seg, Switch, SwitchRow } from '../components/fields.js';
+import { Field, Seg, Switch, SwitchRow, TypedInput } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
 import { CategoryField } from '../components/categories.js';
@@ -294,7 +294,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
             ${trade
               ? html`
                 <div class="row">
-                  <${RecField} rec=${t} name="symbol" label="Symbol" placeholder="VTI"
+                  <${RecField} rec=${t} name="symbol" label="Symbol" placeholder="ex: VTI"
                     disabled=${editing} />
                   <${RecField} rec=${t} name="quantity" label="Quantity" />
                   <${RecField} rec=${t} name="price" label="Price" />
@@ -407,7 +407,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                     <div class="row">
                       <${RecField} rec=${t} name="reimbursable" label="Reimbursable amount" />
                       <${RecField} rec=${t} name="owedBy" label="Owed by"
-                        placeholder="Acme Corp" />
+                        placeholder="ex: Acme Corp" />
                     </div>
                   `
                   : null}
@@ -625,16 +625,16 @@ function TransferLots({ t }) {
       ${rows.map((r, i) =>
         html`
           <div class="row">
-            <${Input} type="date" value=${r.acquiredOn || ''} aria-label=${`Lot ${
+            <${TypedInput} kind="date" value=${r.acquiredOn || ''} aria-label=${`Lot ${
               i + 1
             }: bought on`}
               onInput=${(/** @type {string} */ v) => edit(i, 'acquiredOn', v)} />
-            <${Input} value=${r.quantity || ''} inputmode="decimal" aria-label=${`Lot ${
+            <${TypedInput} kind="quantity" value=${r.quantity || ''} aria-label=${`Lot ${
               i + 1
             }: quantity`}
               placeholder="quantity" onInput=${(/** @type {string} */ v) =>
                 edit(i, 'quantity', v)} />
-            <${Input} value=${r.costBasis || ''} inputmode="decimal" aria-label=${`Lot ${
+            <${TypedInput} kind="money" value=${r.costBasis || ''} aria-label=${`Lot ${
               i + 1
             }: cost basis`}
               placeholder="cost basis" onInput=${(/** @type {string} */ v) =>

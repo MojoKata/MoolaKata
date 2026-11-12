@@ -2,7 +2,7 @@
 filtered and paged; manual entry and edits; bulk categorise; splits, tags and transfers."""
 
 import datetime as dt
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -314,6 +314,30 @@ def shape(
     return out
 
 
+def _size_bounds(least: str | None, most: str | None) -> tuple[Decimal | None, Decimal | None]:
+    """A filter's At least and At most (S12.2.3.1): each a size, zero or more, any while
+    blank; At most under At least is refused, never read as no rows."""
+    out: list[Decimal | None] = []
+    for name, value in (("min", least), ("max", most)):
+        text = (value or "").strip()
+        if not text:
+            out.append(None)
+            continue
+        try:
+            d = Decimal(text)
+        except InvalidOperation:
+            d = None
+        if d is None or not d.is_finite():
+            raise refuse(name, "amount-invalid", "Enter an amount such as 25.00.", 400)
+        if d < 0:
+            raise refuse(name, "amount-invalid", "Zero or more.", 400)
+        out.append(d)
+    lo, hi = out
+    if lo is not None and hi is not None and hi < lo:
+        raise refuse("max", "range-invalid", "Below At least.", 400)
+    return lo, hi
+
+
 @router.get("/transactions", response_model=Page[TxnOut])
 def list_transactions(
     request: Request,
@@ -359,19 +383,12 @@ def list_transactions(
             q = q.where(Transaction.date >= start)
         if end:
             q = q.where(Transaction.date <= end)
-        for value, op in ((min_amount, "ge"), (max_amount, "le")):
-            if value:
-                try:
-                    dollars = Decimal(value)
-                except Exception:
-                    raise refuse(
-                        "min" if op == "ge" else "max",
-                        "amount-invalid",
-                        "Enter an amount such as 25.00.",
-                        400,
-                    ) from None
-                size = type_coerce(func.abs(Transaction.amount), Cents())
-                q = q.where(size >= dollars if op == "ge" else size <= dollars)
+        least, most = _size_bounds(min_amount, max_amount)
+        size = type_coerce(func.abs(Transaction.amount), Cents())
+        if least is not None:
+            q = q.where(size >= least)
+        if most is not None:
+            q = q.where(size <= most)
         if payee:
             like = f"%{payee.strip().lower()}%"
             q = q.where(

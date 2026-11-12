@@ -155,7 +155,7 @@ export function ConnectorSection() {
           }.`}>
           <${Input} value=${rec.get('connectorAddress') || ''} onInput=${(
             /** @type {string} */ x,
-          ) => rec.set('connectorAddress', x || null)} placeholder="https://money.lan:37373" />
+          ) => rec.set('connectorAddress', x || null)} placeholder="the public URL" />
         </${Field}>
       </${DraftForm}>
       <div class="toolbar mt">

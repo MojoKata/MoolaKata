@@ -45,7 +45,7 @@ The terms give the schedule; saving them recomputes it.
 
 ## Original principal
 
-What was borrowed, from the closing disclosure or the loan agreement.
+What was borrowed, from the closing disclosure or the loan agreement: more than $0.
 
 ## Start date
 
@@ -69,18 +69,18 @@ interest.
 Principal and interest per payment. Blank: computed from the terms; type the servicer's figure if it
 differs by a few cents.
 
-## Escrow for property tax {#escrow-tax}
+## Property tax escrow per payment {#escrow-tax}
 
-Property tax collected with each payment. Not principal; shown in Taxes.
+Property tax collected with each payment. Not principal; shown in Taxes. Blank: none.
 
-## Escrow for insurance {#escrow-insurance}
+## Insurance escrow per payment {#escrow-insurance}
 
-Homeowner's insurance collected with each payment.
+Homeowner's insurance collected with each payment. Blank: none.
 
 ## PMI per month {#pmi}
 
 Mortgage insurance, until the loan is 80% of the home's original value (on request) or 78%
-(automatically).
+(automatically). Blank: none, as with 20% or more down.
 
 ## Secured by {#secured-by}
 

@@ -321,8 +321,8 @@ export const FIELDS = {
     quantity: {"type": "quantity"},
   },
   Lump: {
-    date: {"type": "date"},
-    amount: {"type": "money"},
+    date: {"type": "date", "nullable": true},
+    amount: {"type": "money", "nullable": true},
   },
   MoveRecord: {
     month: {"type": "date"},

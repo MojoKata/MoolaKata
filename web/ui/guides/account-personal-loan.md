@@ -40,7 +40,7 @@ The terms give the schedule; saving them recomputes it.
 
 ## Original principal
 
-What was borrowed, from the closing disclosure or the loan agreement.
+What was borrowed, from the closing disclosure or the loan agreement: more than $0.
 
 ## Start date
 

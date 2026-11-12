@@ -231,6 +231,40 @@ def test_a_529_counts_with_no_gift_plan_and_an_election_over_its_five_years(alic
     assert alice.get("/ui/api/gifts/spending?year=2029").json()["flagged"] == []
 
 
+LONG = "https://shop.example.com/" + "a" * (2000 - 25)
+
+
+@pytest.mark.parametrize(
+    ("link", "kept", "refused"),
+    [
+        (None, None, None),
+        ("", None, None),  # blank: no link
+        ("   ", None, None),
+        (" https://shop.example.com/item?id=1 ", "https://shop.example.com/item?id=1", None),
+        ("http://shop.lan/x", "http://shop.lan/x", None),
+        (LONG, LONG, None),  # 2,000 characters
+        (LONG + "a", None, "At most 2,000 characters."),
+        ("shop.example.com/item", None, "A web address starting with https:// or http://."),
+        ("javascript:alert(1)", None, "A web address starting with https:// or http://."),
+        ("ftp://shop.example.com", None, "A web address starting with https:// or http://."),
+        ("https://", None, "A web address starting with https:// or http://."),
+        ("https://shop.example.com/a b", None, "A web address starting with https:// or http://."),
+        ("https://[::1", None, "A web address starting with https:// or http://."),
+    ],
+)
+def test_a_gifts_link_is_a_web_address(alice, link, kept, refused):
+    """S7.8.1: http or https and a host, up to 2,000 characters; blank is no link."""
+    gran = person(alice, name="Margaret Griffin")
+    r = make(alice, "Gift", description="Scarf", people=[gran["id"]], link=link)
+    if refused:
+        assert r.status_code == 422, r.text
+        [e] = r.json()["errors"]
+        assert (e["field"], e["code"], e["message"]) == ("link", "link-invalid", refused)
+        return
+    assert r.status_code == 200, r.text
+    assert r.json()["link"] == kept
+
+
 def test_received_gifts_and_thank_yous(alice):
     gran = person(alice, name="Margaret Griffin")
     g = gift(alice, people=[gran["id"]], description="Scarf", status="received", thankYou=True)

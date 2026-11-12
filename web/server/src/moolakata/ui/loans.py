@@ -348,10 +348,13 @@ def _equity(s, row: Loan, terms, owed, rows, today) -> Equity | None:
     )
 
 
-def _check(body: TermsIn) -> list[FieldError]:
+def _check(body: TermsIn, account_type: str) -> list[FieldError]:
     e = []
-    if body.principal < 0:
+    # A HELOC opens with nothing drawn; any other loan borrowed something (S1.9.1, R3.11).
+    if account_type == "heloc" and body.principal < 0:
         e.append(FieldError("principal", "principal-invalid", "Zero or more."))
+    if account_type != "heloc" and body.principal <= 0:
+        e.append(FieldError("principal", "principal-invalid", "More than zero."))
     if not 1 <= body.termMonths <= 600:
         e.append(FieldError("termMonths", "term-invalid", "Between 1 and 600 months."))
     if not 0 <= body.rate <= 40:
@@ -386,7 +389,7 @@ def get_loan(account_id: str, request: Request, c: Caller = Depends(caller)):
 
 def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
     """The terms' columns, checked as the account's own route checks them."""
-    errors = _check(body)
+    errors = _check(body, a.type)
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
     if body.securedById:
@@ -594,8 +597,9 @@ def _unpaired_payments(s, a: Account) -> list[Transaction]:
 
 
 class Lump(Model):
-    date: dt.date
-    amount: Money
+    # Each may come blank, to be refused at its field rather than as a malformed request.
+    date: dt.date | None = None
+    amount: Money | None = None
 
 
 class PlanIn(Model):
@@ -712,7 +716,17 @@ def _check_plan(body: PlanIn) -> None:
     if body.monthlyFrom and body.monthlyUntil and body.monthlyUntil < body.monthlyFrom:
         e.append(FieldError("monthlyUntil", "until-before-from", "After the start."))
     for i, x in enumerate(body.lumps):
-        if x.amount <= 0:
+        # A lump sum needs both; one missing either is refused, never left out (S6.10.1).
+        for f in ("date", "amount"):
+            if getattr(x, f) is None:
+                e.append(
+                    FieldError(
+                        f"lumps.{i}.{f}",
+                        "lump-incomplete",
+                        "A date and an amount, or remove the lump sum.",
+                    )
+                )
+        if x.amount is not None and x.amount <= 0:
             e.append(FieldError(f"lumps.{i}.amount", "amount-invalid", "More than zero."))
     if body.investClass not in assumptions.CLASS_KEYS:
         e.append(FieldError("investClass", "class-invalid", "One of the asset classes."))

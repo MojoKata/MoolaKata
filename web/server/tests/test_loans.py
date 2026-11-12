@@ -236,6 +236,42 @@ def test_rounding_up_each_payment():
     assert first.payment == D(2100)
 
 
+@pytest.mark.parametrize(
+    ("lump", "refused"),
+    [
+        ({"date": "2027-04-15", "amount": "5000"}, []),
+        ({"date": "2027-04-15"}, ["lumps.1.amount"]),
+        ({"amount": "5000"}, ["lumps.1.date"]),
+        ({}, ["lumps.1.date", "lumps.1.amount"]),
+        ({"date": None, "amount": None}, ["lumps.1.date", "lumps.1.amount"]),
+        ({"date": "2027-04-15", "amount": "0"}, ["lumps.1.amount"]),
+        ({"date": "2027-04-15", "amount": "1"}, []),  # the least whole dollar is a lump sum
+    ],
+)
+def test_a_lump_sum_needs_its_date_and_amount_or_is_refused_at_them(server, frozen, lump, refused):
+    """S6.10.1: a lump sum missing either is refused at its own row and field, in the preview
+    and the saved plan alike, never left out unsaid."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    loan = new_account(c, name="Home", type="mortgage")
+    saved(
+        terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
+    )
+    inputs = {"lumps": [{"date": "2027-01-15", "amount": "1000"}, lump]}
+    preview = c.post(f"/ui/api/accounts/{loan['id']}/loan/payoff", json=inputs)
+    plan = make(c, "Pyoff", accountId=loan["id"], name="Lumps", inputs=inputs)
+    for r in (preview, plan):
+        if not refused:
+            assert r.status_code == 200, r.text
+            continue
+        assert r.status_code == 422, r.text
+        assert [e["field"] for e in r.json()["errors"]] == refused
+        if lump.get("amount") != "0":
+            assert {(e["code"], e["message"]) for e in r.json()["errors"]} == {
+                ("lump-incomplete", "A date and an amount, or remove the lump sum.")
+            }
+
+
 def test_the_planner_and_plans_through_the_api(server, frozen):
     make_user(server, "alice")
     c = sign_in(server, "alice")
@@ -291,6 +327,27 @@ def test_rounding_up_counts_pmi_only_while_it_is_due():
     with_pmi = next(x for x in ahead if x.pmi)
     without = next(x for x in ahead if not x.pmi)
     assert with_pmi.payment == D(2200) and without.payment == D(2100), "PMI's 90 no longer in it"
+
+
+@pytest.mark.parametrize(
+    "kind", ["mortgage", "heloc", "auto-loan", "student-loan", "personal-loan", "loan"]
+)
+@pytest.mark.parametrize("principal", ["-1", "0", "0.01"])
+def test_a_loan_borrowed_something_but_a_heloc_may_open_at_zero(server, kind, principal):
+    """S1.9.1, R3.11: a principal of 0 is refused, but a HELOC's, a line opened with nothing
+    drawn; a negative never."""
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, name="Loan", type=kind)
+    r = terms(c, a["id"], principal=principal, startDate="2026-01-01", termMonths=240, rate="8")
+    taken = principal == "0.01" or (principal == "0" and kind == "heloc")
+    if taken:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    [e] = [e for e in r.json()["errors"] if e["field"] == "principal"]
+    want = "Zero or more." if kind == "heloc" else "More than zero."
+    assert (e["code"], e["message"]) == ("principal-invalid", want)
 
 
 def test_a_helocs_payment_while_drawing_is_the_interest_due(server, frozen):

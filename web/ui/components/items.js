@@ -10,7 +10,7 @@ import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, Input, Select } from './fields.js';
+import { Field, Input, Select, TypedInput } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
@@ -360,7 +360,7 @@ export function ItemDialog({ close, a, id }) {
               }[t] || ''} />
               ${t === 'real-estate'
                 ? html`
-                  <${RecField} rec=${rec} name="address" label="Address" placeholder="Optional" />
+                  <${RecField} rec=${rec} name="address" label="Address" />
                   <${RecField} rec=${rec} name="primaryResidence" label="Primary residence"
                     hint="Your main home: its sale may be partly tax-free." />
                 `
@@ -402,7 +402,7 @@ export function ItemDialog({ close, a, id }) {
               ${rec.get('valuation') === 'depreciation'
                 ? html`
                   <${RecField} rec=${rec} name="depreciationRate" label="Depreciation per year"
-                    id="depreciation-rate" placeholder="12"
+                    id="depreciation-rate" placeholder="ex: 12"
                     hint="A percentage of the value each year, until a valuation replaces it." />
                 `
                 : null}
@@ -540,11 +540,11 @@ function Valuations({ it, rec, draft }) {
       ? html`
         <div class="row">
           <${Field} label="Value" help="valuations" id="valuation-value">
-            <${Input} value=${f.value} inputmode="decimal"
+            <${TypedInput} kind="money" value=${f.value}
               onInput=${(/** @type {string} */ x) => setF({ ...f, value: x })} />
             </${Field}>
             <${Field} label="On" help="valuations" id="valuation-date">
-              <${Input} type="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
+              <${TypedInput} kind="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
                 setF({ ...f, date: x })} />
               </${Field}>
               </div>
@@ -592,16 +592,16 @@ function Improvements({ it, rec, draft }) {
     ${it.access.writable
       ? html`
         <${Field} label="What was done" help="improvements" id="improvement-description">
-          <${Input} value=${f.description} placeholder="Kitchen remodel"
+          <${Input} value=${f.description} placeholder="ex: Kitchen remodel"
             onInput=${(/** @type {string} */ x) => setF({ ...f, description: x })} />
           </${Field}>
           <div class="row">
             <${Field} label="Cost" help="improvements" id="improvement-amount">
-              <${Input} value=${f.amount} inputmode="decimal"
+              <${TypedInput} kind="money" value=${f.amount}
                 onInput=${(/** @type {string} */ x) => setF({ ...f, amount: x })} />
               </${Field}>
               <${Field} label="On" help="improvements" id="improvement-date">
-                <${Input} type="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
+                <${TypedInput} kind="date" value=${f.date} onInput=${(/** @type {string} */ x) =>
                   setF({ ...f, date: x })} />
                 </${Field}>
                 </div>

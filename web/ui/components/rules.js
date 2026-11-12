@@ -69,7 +69,7 @@ function RuleFields({ rec, draft }) {
   const writable = (/** @type {any[]} */ (accounts.data) || []).filter((a) => a.access.writable);
   return html`
     <${RecField} rec=${rec} name="payeeMatch" label="Payee contains"
-      placeholder="WHOLE FOODS, or re:^AMZN"
+      placeholder="ex: WHOLE FOODS, or re:^AMZN"
       hint="As the bank writes it; case doesn't matter. re: starts a regular expression." />
     <div class="row">
       <${RecField} rec=${rec} name="amountMin" label="Amount from" placeholder="any" />
@@ -86,7 +86,7 @@ function RuleFields({ rec, draft }) {
       first=${['', 'Leave it as it is']} />
     <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
       hint="The payee shown; the bank's text is kept beside it." />
-    <${TagsField} rec=${rec} draft=${draft} placeholder="coffee, work"
+    <${TagsField} rec=${rec} draft=${draft} placeholder="ex: coffee, work"
       hint="Your own, separated by commas." />
   `;
 }

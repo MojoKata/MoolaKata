@@ -43,7 +43,9 @@
    5. **A merger** moves every lot to the acquirer at its ratio. Cash paid besides the shares
       is a gain only as far as the lot's gain goes, worked out from the acquirer's price that
       day (IRC §356); the new shares' basis is the old less the cash plus that gain, and the
-      gain is a row of Form 8949. A merger paid all in cash is a sale of every lot.
+      gain is a row of Form 8949. A merger paid all in cash is a sale of every lot. The cash
+      for each share is asked of every merger, `0` for one paid all in shares (**Min: $0.00**
+      fills it in, R3.11): a blank is refused, so cash left out is never read as none.
    6. A move between instruments is a pair of transactions, one on each; deleting either
       deletes both, after asking. Options on the shares are adjusted as S3.10 says.
    7. **The action is kept** as typed, its transactions made from it: deleting the action, or

@@ -67,7 +67,8 @@ The day the opening balance applies to.
 
 ## Original principal
 
-A loan's amount borrowed, from the closing disclosure or the loan agreement.
+A loan's amount borrowed, from the closing disclosure or the loan agreement: more than $0. A HELOC's
+may be $0, a line opened with nothing drawn: **Min** fills it in.
 
 ## Start date
 
@@ -90,17 +91,17 @@ Most mortgages amortize monthly. Most car loans charge simple interest daily.
 
 Principal and interest per payment. Blank: computed from the terms.
 
-## Escrow for property tax {#escrow-tax}
+## Property tax escrow per payment {#escrow-tax}
 
-A mortgage's property tax collected with each payment.
+A mortgage's property tax collected with each payment. Blank: none.
 
-## Escrow for insurance {#escrow-insurance}
+## Insurance escrow per payment {#escrow-insurance}
 
-Homeowner's insurance collected with each payment.
+Homeowner's insurance collected with each payment. Blank: none.
 
 ## PMI per month {#pmi}
 
-Mortgage insurance, until it can be dropped.
+Mortgage insurance, until it can be dropped. Blank: none.
 
 ## Secured by {#secured-by}
 

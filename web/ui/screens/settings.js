@@ -11,7 +11,16 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Failed, Loading } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Select, Switch, SwitchRow } from '../components/fields.js';
+import {
+  errAt,
+  Field,
+  FormError,
+  Input,
+  Select,
+  Switch,
+  SwitchRow,
+  TypedInput,
+} from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { awaitRestart, loadSession } from '../store/session.js';
 import { disconnect } from '../app/stream.js';
@@ -168,7 +177,9 @@ function Plain({ section }) {
               <${Field} label="Public URL" error=${errAt(e, 'publicUrl')}
                 hint="Links in emails are built from it, never from the request."><${Input} value=${f
                   .publicUrl || ''}
-                onInput=${set('publicUrl')} placeholder="https://money.example.lan" /></${Field}>
+                onInput=${set(
+                  'publicUrl',
+                )} placeholder="ex: https://money.example.lan" /></${Field}>
       `,
     );
   }
@@ -180,17 +191,17 @@ function Plain({ section }) {
         <div class="row">
           <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}
             hint="Signed out after this long without using MoolaKata.">
-            <${Input} value=${f.sessionIdleHours} onInput=${set(
+            <${TypedInput} kind="count" value=${f.sessionIdleHours} onInput=${set(
               'sessionIdleHours',
               true,
-            )} inputmode="numeric" />
+            )} />
             </${Field}>
             <${Field} label="Longest session (days)" error=${errAt(e, 'sessionAbsoluteDays')}
               hint="Signed out after this long, used or not.">
-              <${Input} value=${f.sessionAbsoluteDays} onInput=${set(
+              <${TypedInput} kind="count" value=${f.sessionAbsoluteDays} onInput=${set(
                 'sessionAbsoluteDays',
                 true,
-              )} inputmode="numeric" />
+              )} />
               </${Field}>
               </div>
               <div class="row">
@@ -198,15 +209,15 @@ function Plain({ section }) {
                   e,
                   'lockoutFailures',
                 )}>
-                  <${Input}
+                  <${TypedInput} kind="count"
                     value=${f.lockoutFailures} onInput=${set(
                       'lockoutFailures',
                       true,
-                    )} inputmode="numeric" />
+                    )} />
                   </${Field}>
                   <${Field} label="Lockout (minutes)" error=${errAt(e, 'lockoutMinutes')}>
-                    <${Input} value=${f.lockoutMinutes}
-                      onInput=${set('lockoutMinutes', true)} inputmode="numeric" />
+                    <${TypedInput} kind="count" value=${f.lockoutMinutes}
+                      onInput=${set('lockoutMinutes', true)} />
                     </${Field}>
                     </div>
       `,
@@ -294,10 +305,10 @@ function Plain({ section }) {
           <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP,
             HEIC <span class="small dim">· checked from the content</span></div>
           <${Field} label="Largest file (MB)" id="receipt-max-mb" error=${errAt(e, 'receiptMaxMb')}>
-            <${Input} value=${f.receiptMaxMb} onInput=${set(
+            <${TypedInput} kind="count" value=${f.receiptMaxMb} onInput=${set(
               'receiptMaxMb',
               true,
-            )} inputmode="numeric" />
+            )} />
             </${Field}>
             <${SwitchRow} label="Read receipts" on=${f.readReceipts}
               onChange=${(/** @type {boolean} */ x) => setF({ ...f, readReceipts: x })}
@@ -352,11 +363,11 @@ function Plain({ section }) {
         <h3>Passwords</h3>
         <${Field} label="Minimum length" error=${errAt(e, 'passwordMinLength')}
           hint="At least 8. The only rule: no character classes, no expiry; the most common passwords are refused.">
-          <${Input}
+          <${TypedInput} kind="count"
             value=${f.passwordMinLength} onInput=${set(
               'passwordMinLength',
               true,
-            )} inputmode="numeric" />
+            )} />
           </${Field}>
       `,
     );
@@ -374,8 +385,8 @@ function Plain({ section }) {
       <div
         class="list-item"><span class="grow dim">File types</span>OFX, QFX, CSV; statements as PDF, JPEG, PNG, WebP, HEIC <span class="small dim">· checked from the content</span></div>
       <${Field} label="Largest file (MB)" error=${errAt(e, 'importMaxMb')}>
-        <${Input} value=${f.importMaxMb}
-          onInput=${set('importMaxMb', true)} inputmode="numeric" />
+        <${TypedInput} kind="count" value=${f.importMaxMb}
+          onInput=${set('importMaxMb', true)} />
         </${Field}>
         <${SwitchRow} label="Read statements" on=${f.readStatements}
           onChange=${(/** @type {boolean} */ x) => setF({ ...f, readStatements: x })}
@@ -854,10 +865,12 @@ function EmailSection() {
       <div class="row">
         <${Field} label="Host" id="smtp-host" error=${errAt(e, 'smtpHost')}
           hint="Changing it asks for your password again and clears the password below: type it again for the new host.">
-          <${Input} value=${f.smtpHost} onInput=${set('smtpHost')} placeholder="smtp.example.com" />
+          <${Input} value=${f.smtpHost} onInput=${set(
+            'smtpHost',
+          )} placeholder="ex: smtp.example.com" />
           </${Field}>
           <${Field} label="Port" id="smtp-port" error=${errAt(e, 'smtpPort')}>
-            <${Input} value=${f.smtpPort} onInput=${set('smtpPort', true)} inputmode="numeric" />
+            <${TypedInput} kind="count" value=${f.smtpPort} onInput=${set('smtpPort', true)} />
             </${Field}>
             </div>
             <${Field} label="Security" id="smtp-security" error=${errAt(e, 'smtpSecurity')}
@@ -1043,10 +1056,10 @@ function BitcoinSection() {
           <div class="row">
             <${Field} label="Node address" id="node-host" error=${errAt(e, 'bitcoinNodeHost')}
               hint="Allowed through the egress guard because it is named here. Changing it clears the node’s stored password.">
-              <${Input} value=${f.host} onInput=${set('host')} placeholder="192.168.1.20" />
+              <${Input} value=${f.host} onInput=${set('host')} placeholder="ex: 192.168.1.20" />
               </${Field}>
               <${Field} label="Node port" id="node-port" error=${errAt(e, 'bitcoinNodePort')}>
-                <${Input} value=${f.port} onInput=${set('port', true)} inputmode="numeric" />
+                <${TypedInput} kind="count" value=${f.port} onInput=${set('port', true)} />
                 </${Field}>
                 </div>
                 <${SwitchRow} label="TLS" hint=${f.node === 'electrum'
@@ -1150,7 +1163,7 @@ function CopiesKept({ close, v }) {
       footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
       <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
         hint="Every backup of each of these most recent days is kept: 3 to 365.">
-        <${Input} value=${n} inputmode="numeric" onInput=${setN} required />
+        <${TypedInput} kind="count" value=${n} onInput=${setN} required />
         </${Field}>
       ${fewer
         ? html`

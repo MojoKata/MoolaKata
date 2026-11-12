@@ -9,7 +9,7 @@ import { api } from '../api/client.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { useDialogGuide } from './help.js';
 import { Field, Select } from './fields.js';
-import { today } from '../app/format.js';
+import { money, today } from '../app/format.js';
 
 const KINDS = [
   ['split', 'Split or reverse split'],
@@ -45,7 +45,8 @@ class ActionRec extends Record {
     cashPerShare: { when: (/** @type {ActionRec} */ r) => r.get('kind') === 'merger' },
     newPrice: {
       when: (/** @type {ActionRec} */ r) =>
-        r.get('kind') === 'merger' && !!r.get('newSymbol') && !!r.get('cashPerShare'),
+        r.get('kind') === 'merger' && !!r.get('newSymbol') &&
+        (r.get('cashPerShare')?.sign() ?? 0) > 0,
     },
   };
 }
@@ -97,16 +98,16 @@ export function CorporateAction({ close, accountId }) {
               <${RecField} rec=${rec} name="kind" label="Action" options=${KINDS} />
               <${RecField} rec=${rec} name="date" label="Date" type="date" />
             </div>
-            <${RecField} rec=${rec} name="newSymbol" label="New symbol" placeholder="META"
+            <${RecField} rec=${rec} name="newSymbol" label="New symbol" placeholder="ex: META"
               hint=${rec.get('kind') === 'merger' ? 'Empty for a merger paid all in cash.' : ''} />
             <${RecField} rec=${rec} name="ratio" label="New shares for each held"
               hint=${rec.get('kind') === 'split'
                 ? '2 for a 2-for-1 split, 0.1 for a 1-for-10 reverse.'
                 : ''} />
             <${RecField} rec=${rec} name="basisShare" label="Basis to the new shares"
-              hint="In percent, from the company's Form 8937." placeholder="13.65" />
+              hint="In percent, from the company's Form 8937." placeholder="ex: 13.65" />
             <${RecField} rec=${rec} name="cashPerShare" label="Cash for each share held"
-              placeholder="0.00" />
+              min="0.00" format=${money} />
             <${RecField} rec=${rec} name="newPrice" label="A new share's price that day"
               hint="The cash is a gain only as far as the gain goes, and this tells the gain." />
         `

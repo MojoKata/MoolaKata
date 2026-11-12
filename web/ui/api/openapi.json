@@ -12841,23 +12841,33 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "examples": [
-              1234.5
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "money",
-            "title": "Amount",
-            "type": "number"
+            "title": "Amount"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           }
         },
-        "required": [
-          "date",
-          "amount"
-        ],
         "title": "Lump",
         "type": "object"
       },
@@ -17058,9 +17068,15 @@
         "additionalProperties": false,
         "properties": {
           "for": {
-            "default": "1d",
-            "title": "For",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "For"
           }
         },
         "title": "PauseIn",
@@ -18771,6 +18787,7 @@
               "driver-fixed",
               "driver-invalid",
               "duration-invalid",
+              "duration-missing",
               "ein-invalid",
               "email-change-by-user",
               "email-domain",
@@ -18842,6 +18859,7 @@
               "legs-twice",
               "limit-invalid",
               "line-fixed",
+              "link-invalid",
               "link-not-active",
               "link-not-valid",
               "link-unchanged",
@@ -18855,6 +18873,7 @@
               "lot-method-invalid",
               "lot-unknown",
               "lots-unbalanced",
+              "lump-incomplete",
               "made-by-an-assignment",
               "mapping-does-not-read",
               "mapping-incomplete",
@@ -19238,6 +19257,7 @@
                   "driver-fixed",
                   "driver-invalid",
                   "duration-invalid",
+                  "duration-missing",
                   "ein-invalid",
                   "email-change-by-user",
                   "email-domain",
@@ -19309,6 +19329,7 @@
                   "legs-twice",
                   "limit-invalid",
                   "line-fixed",
+                  "link-invalid",
                   "link-not-active",
                   "link-not-valid",
                   "link-unchanged",
@@ -19322,6 +19343,7 @@
                   "lot-method-invalid",
                   "lot-unknown",
                   "lots-unbalanced",
+                  "lump-incomplete",
                   "made-by-an-assignment",
                   "mapping-does-not-read",
                   "mapping-incomplete",

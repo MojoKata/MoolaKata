@@ -13,7 +13,15 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from '../components/fields.js';
+import {
+  errAt,
+  Field,
+  FormError,
+  Input,
+  Select,
+  SwitchRow,
+  TypedInput,
+} from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
@@ -896,7 +904,7 @@ function MoveDialog({ close, b, month, rows, to, cards = [] }) {
                 </${Field}>
                 </div>
                 <${RecField} rec=${rec} name="amount" label="Amount to move" />
-                <${RecField} rec=${rec} name="note" label="Note" placeholder="optional" />
+                <${RecField} rec=${rec} name="note" label="Note" />
                 <p class="small dim">For ${monthLabel(month)} only. It shows on both rows and in
             Activity; delete it to undo.</p>
         `
@@ -1500,7 +1508,7 @@ function BudgetDialog({ close }) {
       }}>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Name" placeholder="Household" />
+          <${RecField} rec=${rec} name="name" label="Name" placeholder="ex: Household" />
           <${RecField} rec=${rec} name="method" label="Method" options=${METHODS}
             hint="It keeps its method; copy it as a scenario to try the other." />
           <${RecField} rec=${rec} name="reserves" label="Reserves"
@@ -1906,10 +1914,11 @@ function EstimateDialog({ close, b, month, months }) {
                     }} /></td>
                   <td>${x.label}</td>
                   <td class="num">
-                    <${Input} value=${amounts[x.categoryId] ?? money(x.amount).slice(1)}
+                    <${TypedInput} kind="money" value=${amounts[x.categoryId] ??
+                      money(x.amount).slice(1)}
                       onInput=${(/** @type {string} */ v) =>
                         setAmounts({ ...amounts, [x.categoryId]: v })}
-                      inputmode="decimal" aria-label=${`${x.label}: amount`} data-help="amount"
+                      aria-label=${`${x.label}: amount`} data-help="amount"
                       bad=${r?.error('amount')} />
                   </td>
                   <td>${x.cadence === 'year' ? 'Year' : 'Month'}</td>

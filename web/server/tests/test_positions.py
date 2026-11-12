@@ -276,6 +276,49 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, alice):
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "basisShare"
 
 
+@pytest.mark.parametrize(
+    ("symbol", "cash", "refused"),
+    [
+        ("MSFT", None, "cash-missing"),  # blank: asked, never read as none (S2.4.5, R3.11)
+        ("MSFT", "0", None),  # paid all in shares: 0, typed or filled in by Min
+        ("MSFT", "-1", "cash-invalid"),
+        (None, None, "cash-missing"),  # all in cash: what each share was paid
+        (None, "0", "cash-missing"),
+        (None, "54.20", None),
+    ],
+)
+def test_a_mergers_cash_is_asked_of_every_merger(server, alice, symbol, cash, refused):
+    a = new_account(alice, name="Brokerage", type="brokerage")["id"]
+    add(alice, a, "10000.00", "2025-01-01", kind="deposit")
+    add(alice, a, "-2000.00", "2025-01-02", kind="buy", symbol="TWTR", quantity="50", price="40")
+    [held] = alice.get("/ui/api/positions").json()["open"]
+    body = dict(accountId=a, instrumentId=held["instrumentId"], kind="merger", date="2026-10-13")
+    body |= {"newSymbol": symbol, "ratio": "0.2"} if symbol else {}
+    body |= {"cashPerShare": cash} if cash is not None else {}
+    r = create(alice, "CorpA", **body)
+    if refused:
+        assert r.status_code == 422, r.text
+        first = r.json()["errors"][0]
+        assert (first["field"], first["code"]) == ("cashPerShare", refused)
+        said = {
+            (
+                True,
+                "cash-missing",
+            ): "The cash for each share held: 0 for a merger paid all in shares.",
+            (False, "cash-missing"): "What each share was paid.",
+            (True, "cash-invalid"): "Zero or more.",
+        }
+        assert first["message"] == said[(symbol is not None, refused)]
+        return
+    assert r.status_code == 200, r.text
+    lots, disposals = _lots(server, a)
+    if symbol:
+        assert lots["MSFT"][:2] == (Decimal("10.0"), Decimal("2000.00")), "the basis moves whole"
+        assert disposals == [], "no cash, no gain, and no price asked for"
+    else:
+        assert disposals[0].proceeds == Decimal("2710.00")
+
+
 # ---- Each row as Positions shows it (S3.1) ----
 
 

@@ -11,7 +11,7 @@ import { withReauth } from './reauth.js';
 import { confirmAction } from './confirm.js';
 import { Dialog, openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select } from './fields.js';
+import { errAt, Field, FormError, Input, Select, TypedInput } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
@@ -108,7 +108,7 @@ export function LinksSection() {
             values.publicUrl ? ` (${values.publicUrl})` : ', which is not set'
           }.`}>
           <${Input} value=${rec.get('linkAddress') || ''} onInput=${(/** @type {string} */ x) =>
-            rec.set('linkAddress', x || null)} placeholder="https://money.griffin.ts.net" />
+            rec.set('linkAddress', x || null)} placeholder="the public URL" />
         </${Field}>
       </${DraftForm}>
       ${live.length
@@ -357,7 +357,8 @@ function JoinLink({ close }) {
       footer=${html`<button class="btn primary" disabled=${save.busy || !code}>Connect</button>`}>
       <${Field} label="Link code" error=${errAt(save.error, 'code')}>
         <textarea class="in mono" rows="3" value=${code} onInput=${(/** @type {any} */ e) =>
-          setCode(e.currentTarget.value)} placeholder="mkl1.…"
+          setCode(e.currentTarget.value)}
+          placeholder="ex: mkl1.…"
           spellcheck="false"></textarea>
         </${Field}>
         <p class="small dim">MoolaKata connects to the address in the code, checks that server's
@@ -527,7 +528,8 @@ const month = (iso) =>
  */
 function PauseDialog({ close, link }) {
   useDialogGuide('dialog-link-pause');
-  const [span, setSpan] = useState('1d');
+  // Empty until a duration is typed or ↺ fills in the default (S11.7.2, R3.11).
+  const [span, setSpan] = useState('');
   const go = useSubmit(async () => {
     const out = await api.post(`/settings/links/${link.id}/pause`, { for: span });
     toast(`Paused until ${moment(out.pausedUntil)}`);
@@ -542,8 +544,9 @@ function PauseDialog({ close, link }) {
       <${Field} label="Pause for" id="pause-for" error=${errAt(go.error, 'for')}
         hint=${minutes
           ? `Resumes on its own ${moment(new Date(Date.now() + minutes * 60000).toISOString())}.`
-          : 'A duration: 1d, 2w 3d, 4h.'}>
-        <${Input} value=${span} onInput=${setSpan} placeholder="1d" />
+          : null}>
+        <${TypedInput} kind="duration" value=${span} onInput=${setSpan}
+          reset=${{ value: '1d', label: '1 day' }} placeholder="ex: 1d 4h" />
         </${Field}>
         <p class="small dim">Nothing is pulled or answered while it is paused, and the other
         server isn't alerted that this one is unreachable.</p>

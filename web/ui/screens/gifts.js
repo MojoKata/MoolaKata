@@ -580,7 +580,7 @@ function PersonDialog({ close, row }) {
                 ? ' (private: only those it is shared with)'
                 : ''}</div>
               <div class="row">
-                <${RecField} rec=${who} name="name" label="Name" placeholder="Emma Griffin"
+                <${RecField} rec=${who} name="name" label="Name" placeholder="ex: Emma Griffin"
                   onEdit=${unuse} />
                 <${RecField} rec=${who} name="sex" label="Sex" options=${[
                   ['', 'Choose…'],
@@ -655,7 +655,7 @@ function PersonDialog({ close, row }) {
               : null}
             <div class="row">
               <${RecField} rec=${plan} name="giftBudget" label="Yearly gift budget" id="gift-budget"
-                placeholder="600" />
+                placeholder="none" />
             </div>
             <div class="field" data-help="holidays" id="x-holidays"><label>Holidays</label>
               <div class="chips" style=${{
@@ -685,7 +685,9 @@ function PersonDialog({ close, row }) {
                     <${Field} label="Called" help="dates" id=${'date-name-' + i}
                       error=${o.error('name')}>
                       <${RecField} rec=${o} name="name" bare label="Called"
-                        placeholder=${o.get('kind') === 'anniversary' ? 'Wedding' : 'Name day'} />
+                        placeholder=${o.get('kind') === 'anniversary'
+                          ? 'ex: Wedding'
+                          : 'ex: Name day'} />
                       </${Field}>
                       <${Field} label="On" help="dates" id=${'date-on-' + i}
                         error=${o.error('on') || o.error('month')}>
@@ -872,7 +874,7 @@ function GiftDialog({ close, gift, start }) {
                 rec.set('occasionYear', y ? Number(y) : null);
               }} options=${occasions} /></${Field}>
             <${RecField} rec=${rec} name="description" label="Description"
-              placeholder="Watercolour set" />
+              placeholder="ex: Watercolour set" />
             ${received
               ? html`<${RecField} rec=${rec} name="thankYou" label="Thank-you sent" />`
               : html`
@@ -912,7 +914,8 @@ function GiftDialog({ close, gift, start }) {
                       hint="Cash or a cheque: counted against the annual gift exclusion." />
                     <div class="row">
                       <${RecField} rec=${rec} name="store" label="Where bought" id="store" />
-                      <${RecField} rec=${rec} name="link" label="Link" placeholder="https://" />
+                      <${RecField} rec=${rec} name="link" label="Link" kind="url"
+                        placeholder="ex: https://example.com/item" />
                     </div>
               `}
             <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />

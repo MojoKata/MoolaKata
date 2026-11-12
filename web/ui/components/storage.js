@@ -9,7 +9,7 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { withReauth } from './reauth.js';
 import { Failed, Loading } from './bits.js';
 import { Dialog, openDialog } from './dialog.js';
-import { errAt, Field, FormError, Input } from './fields.js';
+import { errAt, Field, FormError, Input, TypedInput } from './fields.js';
 import { useDialogGuide } from './help.js';
 import { toast } from './toast.js';
 import { Record } from '../app/draft.js';
@@ -138,8 +138,8 @@ export function StorageSection() {
         <${Field} label="Keep statements for" id="keep-statements-years"
           error=${rec.error('keepStatementsYears')}
           hint="Years after each statement's period. Empty keeps them for ever.">
-          <${Input} value=${years ?? ''} onInput=${(/** @type {string} */ x) =>
-            rec.set('keepStatementsYears', x.trim() ? Number(x) : null)} inputmode="numeric"
+          <${TypedInput} kind="count" value=${years ?? ''} onInput=${(/** @type {string} */ x) =>
+            rec.set('keepStatementsYears', x.trim() ? Number(x) : null)}
             placeholder="for ever" />
           </${Field}>
           </${DraftForm}>
@@ -303,10 +303,9 @@ function PruneDialog({ close, v }) {
       <div class="list-item"><span class="grow"><b>Space freed</b></span><b>${size(bytes)}</b></div>
       <div class="notice mt" role="note"><div>No backup is made first: a backup holds no files.
         A pruned file survives only in the host's own backups of the data directory.</div></div>
-      <${Field} label="Type the number of files to confirm" id="prune-count"
+      <${Field} label=${`Type ${files} to confirm`} id="prune-count"
         error=${errAt(run.error, 'count')}>
-        <${Input} value=${typed} onInput=${setTyped} inputmode="numeric" placeholder=${count(files)}
-          required />
+        <${TypedInput} kind="count" value=${typed} onInput=${setTyped} required />
       </${Field}>
       ${needPassword
         ? html`

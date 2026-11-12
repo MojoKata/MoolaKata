@@ -37,7 +37,7 @@ import { Icon } from '../components/icon.js';
 import { confirmAction } from '../components/confirm.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { errAt, Field, FormError, Input, SwitchRow } from '../components/fields.js';
+import { errAt, Field, FormError, SwitchRow, TypedInput } from '../components/fields.js';
 import { ShareDialog } from '../components/share.js';
 import { TxTable } from '../components/txtable.js';
 import { toast } from '../components/toast.js';
@@ -679,7 +679,7 @@ function Adjust({ close, a, check }) {
       ${rec
         ? html`
           <${RecField} rec=${rec} name="memo" label="Why" id="note"
-            placeholder="A fee the bank refunded" />
+            placeholder="ex: A fee the bank refunded" />
         `
         : null}
     </${DraftDialog}>
@@ -733,12 +733,12 @@ function TickOff({ close, a }) {
       }>${rec ? 'Mark reconciled' : 'Start'}</button>`}>
       <div class="row">
         <${Field} label="Statement closing date" id="statement-date">
-          <${Input} type="date" value=${day} onInput=${setDay}
+          <${TypedInput} kind="date" value=${day} onInput=${setDay}
             required disabled=${!!rec} />
           </${Field}>
           <${Field} label="Statement closing balance" id="statement-balance"
-            error=${errAt(start.error, 'statementBalance')}><${Input}
-            value=${balance} onInput=${setBalance} inputmode="decimal" required disabled=${!!rec} /></${Field}></div>
+            error=${errAt(start.error, 'statementBalance')}><${TypedInput} kind="money"
+            value=${balance} onInput=${setBalance} required disabled=${!!rec} /></${Field}></div>
         ${rec
           ? html`
             <div class="table-wrap" style=${{ maxHeight: '320px', overflow: 'auto' }}>

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, gifts, people, receipts
+from .. import access, activity, clock, gifts, people, receipts, webaddress
 from ..errors import FieldError, Problem, refuse
 from ..gifts import holidays
 from ..store import scoping
@@ -481,6 +481,9 @@ def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
         e.append(FieldError("cost", "amount-invalid", "Zero or more."))
     if body.occasion and not body.occasionYear:
         e.append(FieldError("occasionYear", "year-missing", "The year of the occasion."))
+    link = (body.link or "").strip()
+    if link and (why := webaddress.why_not(link)):
+        e.append(FieldError("link", "link-invalid", why))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
     for pid in body.people:
@@ -499,7 +502,7 @@ def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
         "cost": body.cost,
         "transactionId": body.transactionId or None,
         "store": (body.store or "").strip() or None,
-        "link": (body.link or "").strip() or None,
+        "link": link or None,
         "notes": body.notes or None,
         "cash": body.cash,
         "thankYou": body.thankYou and body.status == "received",

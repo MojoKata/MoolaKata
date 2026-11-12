@@ -74,9 +74,9 @@
          a 412; `<DraftDialog>` and `<DraftForm>` bring the question before discarding (with a
          guard on the router for a screen's form), the button that saves, then saves anyway
          or reloads, and what a save came to above it; `<RecField>` draws a field by its type
-         (text for money and quantities, a list for a choice or a reference, a switch for yes
-         or no) bound to its record: its value, what was typed, its refusal, and hidden while a
-         rule says it doesn't apply.
+         (its kind's typed input for money, quantities, whole numbers and dates, a list for a
+         choice or a reference, a switch for yes or no) bound to its record: its value, what
+         was typed, its mark and its refusal, and hidden while a rule says it doesn't apply.
       7. **A record that holds from a date on** (a budget's plan line, from a month on: a
          change adds a row from then, earlier months keeping theirs): its entity class says
          which month the form changes it from and sends it with every change (a `changes()`
@@ -86,3 +86,11 @@
          meanwhile) makes the change stale (S12.15.5) rather than overwriting it unseen. The
          save's answer names the record as it was sent. One kind is built this way; a
          second would make it a declaration of the draft and the save.
+      8. **Typed inputs** (S12.18) are one component, `<TypedInput>` in
+         `components/fields.js`, given a kind from `app/kinds.js`: the kind's characters (a
+         pattern each typed or pasted character is tested against, in `beforeinput`), its
+         paste clean-up (also for text put in whole), its whole-value check and what it says
+         when one fails. Over
+         `<ValueInput>`'s controls (× ↺ Min Max All), it keeps the mark: set when the field is
+         left, at Save, or when a key or paste is refused, and cleared by any change. Kinds are
+         plain data and functions, tested without a page.

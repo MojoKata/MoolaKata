@@ -11,7 +11,7 @@ import { Amt } from './amount.js';
 import { Dec, dec } from '../app/dec.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { Dialog, openDialog } from './dialog.js';
-import { errAt, Field, FormError, Input, Select } from './fields.js';
+import { errAt, Field, FormError, Select, TypedInput } from './fields.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
@@ -287,7 +287,7 @@ function AdjustDialog({ close }) {
               options=${groups.map((x) => [x.underlyingId, x.underlying])} />
             </${Field}>
             <${Field} label="Effective" id="adjust-date" error=${errAt(save.error, 'date')}>
-              <${Input} type="date" value=${day} onInput=${setDay} />
+              <${TypedInput} kind="date" value=${day} onInput=${setDay} />
               </${Field}>
               </div>
               <div class="table-wrap">
@@ -336,7 +336,7 @@ function AdjustDialog({ close }) {
                                         style=${{
                                           maxWidth: '180px',
                                         }} aria-label="Deliverable" value=${r.deliverable}
-                                        placeholder="150 XYZ + 20 ABC" onInput=${(
+                                        placeholder="ex: 150 XYZ + 20 ABC" onInput=${(
                                           /** @type {any} */ e,
                                         ) =>
                                           set(c.instrumentId, 'deliverable')(

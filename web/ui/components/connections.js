@@ -256,7 +256,7 @@ export function ConnectionDialog({ close, connection }) {
             <${Select} value=${f.driver} onChange=${set('driver')} options=${DRIVER_OPTIONS} />
             </${Field}>
             <${Field} label="Connection name" id="label" error=${errAt(e, 'label')}>
-              <${Input} value=${f.label} onInput=${set('label')} placeholder="Schwab login"
+              <${Input} value=${f.label} onInput=${set('label')} placeholder="ex: Schwab login"
                 required />
               </${Field}>
               </div>
@@ -264,7 +264,9 @@ export function ConnectionDialog({ close, connection }) {
           ? html`
             <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}
               hint="From the institution, or ofxhome.com. The sign-in is bound to this address: changing it later asks for the sign-in again.">
-              <${Input} value=${f.url} onInput=${set('url')} placeholder="https://ofx.example.com/"
+              <${Input} value=${f.url} onInput=${set(
+                'url',
+              )} placeholder="ex: https://ofx.example.com/"
                 required />
               </${Field}>
               <div class="row">
@@ -312,7 +314,9 @@ export function ConnectionDialog({ close, connection }) {
         ? html`
           <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}
             hint="Change it when the institution moves its server: the sign-in below is then sealed for the new one, with your password again.">
-            <${Input} value=${f.url} onInput=${set('url')} placeholder="https://ofx.example.com/"
+            <${Input} value=${f.url} onInput=${set(
+              'url',
+            )} placeholder="ex: https://ofx.example.com/"
               required />
             </${Field}>
         `
@@ -356,7 +360,7 @@ export function ConnectionDialog({ close, connection }) {
               </${Field}>
               <${Field} label="The address you landed on" id="landed" error=${errAt(e, 'sealed')}>
                 <${Input} value=${f.landed} onInput=${set('landed')}
-                  placeholder="https://127.0.0.1/?code=…" />
+                  placeholder="ex: https://127.0.0.1/?code=…" />
                 </${Field}>
           `
           : html`
@@ -447,7 +451,7 @@ export function SyncCard({ rec }) {
                 `
                 : html`
                   <${Input} value=${which} onInput=${(/** @type {string} */ v) =>
-                    rec.input('syncAccount', v)} placeholder="Individual ••4417" />
+                    rec.input('syncAccount', v)} placeholder="ex: Individual ••4417" />
                 `}
             </${Field}>
           </div>

@@ -5,7 +5,8 @@ import { useContext, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { slug } from '../app/format.js';
 import { Icon } from './icon.js';
-import { outside } from '../app/bounds.js';
+import { accepts, check, cleanPaste, kindOf, says } from '../app/kinds.js';
+import { hideTip, showTip } from './tooltip.js';
 
 /** What a dialog opened over another puts before its fields' ids ("d1-"), so they stay its own
  * (S12.15.7); the help pane reads past it. */
@@ -74,12 +75,11 @@ export function Input({ value, onInput, type = 'text', placeholder, bad, ...rest
  * contracts") or **Max** for an amount, and from `min` **Min** (an amount only: a count's least
  * is quicker typed); then any other value in `fill`. Each names its value as its tooltip
  * (`format` shows it as the field does); one inside hides, and one outside greys out, while the
- * field holds its value. A value past `min` or `max`, not a number, or not whole for a count,
- * marks the field as it is typed; the server still refuses it when saved.
+ * field holds its value. It draws the controls only: `<TypedInput>` checks what is typed.
  * @param {{ value: string, onInput: (v: string) => void, clear?: boolean,
- *   reset?: { value: string, label: string }, min?: number, max?: number, noun?: string,
- *   format?: (n: number) => string, fill?: Fill[], id?: string, inputmode?: string,
- *   type?: string, placeholder?: string, bad?: boolean }} p
+ *   reset?: { value: string, label: string }, min?: number | string, max?: number | string,
+ *   noun?: string, format?: (n: any) => string, fill?: Fill[], id?: string,
+ *   inputmode?: string, type?: string, placeholder?: string, bad?: boolean, [k: string]: any }} p
  */
 export function ValueInput(
   { value, onInput, clear, reset, min, max, noun, format = String, fill = [], bad, ...rest },
@@ -93,7 +93,6 @@ export function ValueInput(
         : { text: 'Max', value: String(max), label: `Max: ${format(max)}` }
       : null,
   ].filter((x) => x !== null);
-  const off = outside(v, min, max, noun !== undefined);
   const control = (
     /** @type {string} */ name,
     /** @type {string} */ tip,
@@ -109,20 +108,169 @@ export function ValueInput(
       ? control('reset', `Use the default: ${reset.label}`, reset.value)
       : null,
   ].filter(Boolean);
-  return html`<span class="value-input"><span class=${
-    'value-in' +
-    (inside.length ? ` ends-${inside.length}` : '')
-  }><${Input} value=${v} onInput=${onInput}
-    bad=${bad || off} inputmode=${
-    min != null || max != null ? noun ? 'numeric' : 'decimal' : undefined
-  } ...${rest} />${inside.length ? html`<span class="value-ends">${inside}</span>` : null}</span>${
-    [...bounds, ...fill].map((f) =>
-      html`
-        <button type="button" class="btn" aria-label=${f.label} data-tip=${f.label}
-          disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
-      `
-    )
-  }</span>`;
+  const outside = [...bounds, ...fill];
+  if (!inside.length && !outside.length) {
+    return html`<${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />`;
+  }
+  return html`
+    <span
+      class="value-input"><span class=${'value-in' +
+        (inside.length
+          ? ` ends-${inside.length}`
+          : '')}><${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />${inside.length
+        ? html`<span class="value-ends">${inside}</span>`
+        : null}</span>${outside.map((f) =>
+          html`
+            <button type="button" class="btn" aria-label=${f.label} data-tip=${f.label}
+              disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
+          `
+        )}</span>
+  `;
+}
+
+/**
+ * What a typed input does with what reaches it (S12.18): a key outside its kind's characters
+ * is refused and marked; a paste, or text put in whole (autofill, dictation), is cleaned first
+ * and taken whole or refused whole; any change clears the mark; the value is checked when the
+ * field is left, at Enter, and at Save (a form's submit asks every typed input in it,
+ * `checkOnSubmit`). `mark` is the current mark; `onMark` sets it.
+ * @param {{ kind: string, bounds: import('../app/kinds.js').Bounds,
+ *   format?: (n: any) => string, mark: string | null, onMark: (m: string | null) => void,
+ *   onInput: (v: string) => void, onCommit?: (v: string, ok: boolean) => void }} p
+ */
+export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onCommit }) {
+  const k = kindOf(kind);
+  const refuse = (/** @type {HTMLElement} */ el) => {
+    const why = says(k, bounds);
+    onMark(why);
+    el.setAttribute('data-tip', why);
+    showTip(el);
+  };
+  /** Put text in at the selection, cleaned, or refuse it whole. @param {HTMLInputElement} el @param {string} text */
+  const put = (el, text) => {
+    const clean = cleanPaste(k, bounds, text);
+    if (clean === null) return refuse(el);
+    const end = el.value.length;
+    el.setRangeText(clean, el.selectionStart ?? end, el.selectionEnd ?? end, 'end');
+    onMark(null);
+    hideTip();
+    onInput(el.value);
+  };
+  const commit = (/** @type {string} */ v) => {
+    const m = check(k, bounds, v, format);
+    onMark(m);
+    onCommit?.(v, !m);
+    return m;
+  };
+  return {
+    'data-kind': kind,
+    onBeforeInput: (/** @type {InputEvent} */ e) => {
+      if (!k.chars || !e.data) return;
+      if (e.inputType !== 'insertText' && e.inputType !== 'insertReplacementText') return;
+      if (accepts(k, bounds, e.data)) return;
+      e.preventDefault();
+      const el = /** @type {HTMLInputElement} */ (e.currentTarget);
+      // One key is refused; more at once is put in as a paste is.
+      if ([...e.data].length > 1) put(el, e.data);
+      else refuse(el);
+    },
+    onPaste: (/** @type {ClipboardEvent} */ e) => {
+      if (!k.chars) return;
+      e.preventDefault();
+      put(
+        /** @type {HTMLInputElement} */ (e.currentTarget),
+        e.clipboardData?.getData('text') ?? '',
+      );
+    },
+    onDrop: (/** @type {DragEvent} */ e) => {
+      if (k.chars) e.preventDefault();
+    },
+    onInput: (/** @type {string} */ v) => {
+      if (mark) hideTip();
+      onMark(null);
+      onInput(v);
+    },
+    onBlur: (/** @type {any} */ e) => void commit(e.currentTarget.value),
+    onKeyDown: (/** @type {KeyboardEvent} */ e) => {
+      if (e.key === 'Enter') commit(/** @type {HTMLInputElement} */ (e.currentTarget).value);
+    },
+    'onmk-check': (/** @type {CustomEvent} */ e) => {
+      if (commit(/** @type {HTMLInputElement} */ (e.currentTarget).value)) e.detail.marked = true;
+    },
+  };
+}
+
+/**
+ * A field for one kind of value (S12.18): an amount, a quantity, a percent, a count, a
+ * duration, a date, a web address or text, over `<ValueInput>`'s controls. `min` and `max`
+ * bound it (and give Min, Max or All); `above` (a value it must be more than) and `atMost`
+ * bound it with no button; a field takes a negative only where its least allows one, or
+ * `negative` says so. `mark` is a mark the screen sets (a bound another field sets), shown as
+ * this field's own are: a red border and a tooltip. `onCommit` hears the value when
+ * the field is left or Enter is pressed, with whether it passed: a field with no Save takes
+ * it then.
+ * @param {{ kind?: string, value: string, onInput: (v: string) => void,
+ *   onCommit?: (v: string, ok: boolean) => void, mark?: string | null, negative?: boolean,
+ *   above?: number | string, atMost?: number | string, min?: number | string, max?: number | string, noun?: string, format?: (n: any) => string,
+ *   clear?: boolean, reset?: { value: string, label: string }, fill?: Fill[], bad?: boolean,
+ *   [k: string]: any }} p
+ */
+export function TypedInput(
+  { kind = 'text', value, onInput, onCommit, mark: outer, negative, above, atMost, bad, ...rest },
+) {
+  const [mark, setMark] = useState(/** @type {string | null} */ (null));
+  const k = kindOf(kind);
+  const least = above ?? rest.min;
+  const bounds = {
+    negative: negative ?? (least == null || Number(least) < 0),
+    min: rest.min,
+    max: rest.max,
+    above,
+    atMost,
+  };
+  const shown = mark || outer || null;
+  const handlers = typedHandlers({
+    kind,
+    bounds,
+    format: rest.format,
+    mark,
+    onMark: setMark,
+    onInput,
+    onCommit,
+  });
+  // The mark is the field's tooltip, and its description for a screen reader.
+  const marked = {
+    bad: bad || !!shown,
+    'data-tip': shown || undefined,
+    'aria-description': shown || undefined,
+    'aria-invalid': shown || bad || rest['aria-invalid'] ? 'true' : undefined,
+  };
+  if (kind === 'date') {
+    // A date is taken as it is chosen: the picker's change, as a list's choice is.
+    return html`
+      <${ValueInput} value=${value} type="date" ...${rest} ...${handlers}
+        onBeforeInput=${undefined} onPaste=${undefined} onDrop=${undefined}
+        onChange=${handlers.onBlur} ...${marked} />
+    `;
+  }
+  return html`
+    <${ValueInput} value=${value} inputmode=${k.inputmode} ...${rest} ...${handlers}
+      ...${marked} />
+  `;
+}
+
+/**
+ * At a form's submit, every typed input in it checks what it holds and marks what fails
+ * (S12.18.3). The save goes on: the draft refuses what doesn't read, at its field, and the
+ * server whatever else. Installed once, on the document, ahead of every form's own submit.
+ */
+export function checkOnSubmit() {
+  document.addEventListener('submit', (e) => {
+    const form = /** @type {HTMLFormElement} */ (e.target);
+    for (const el of form.querySelectorAll('[data-kind]')) {
+      el.dispatchEvent(new CustomEvent('mk-check', { detail: { marked: false } }));
+    }
+  }, true);
 }
 
 /**
@@ -132,7 +280,7 @@ export function ValueInput(
  */
 export function CountInput({ value, onInput, max, noun, ...rest }) {
   return html`
-    <${ValueInput} value=${value} onInput=${onInput} min=${1} max=${max}
+    <${TypedInput} kind="count" value=${value} onInput=${onInput} min=${1} max=${max}
       noun=${noun} ...${rest} />
   `;
 }

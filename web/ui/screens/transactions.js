@@ -19,6 +19,9 @@ import { pageSize } from '../store/prefs.js';
 import { ImportDialog } from './import.js';
 import { RulesTab } from '../components/rules.js';
 import { TransactionDialog } from './transaction-dialog.js';
+import { Field, TypedInput } from '../components/fields.js';
+import { check, KINDS } from '../app/kinds.js';
+import { Dec } from '../app/dec.js';
 
 const EMPTY = { account: '', category: '', from: '', to: '', min: '', max: '', payee: '', tag: '' };
 
@@ -76,6 +79,26 @@ function TransactionList() {
     setF({ ...f, [k]: v });
     setPage(1);
   };
+  // The amount's bounds as typed: taken when left or at Enter, once they pass (S12.18.4); At
+  // most under At least is marked, and the list stays as it was.
+  const [bounds, setBounds] = useState({ min: f.min, max: f.max });
+  const [cross, setCross] = useState(/** @type {string | null} */ (null));
+  // Clearing the filters draws their inputs afresh, their marks gone with what they held.
+  const [cleared, setCleared] = useState(0);
+  const typeBound = (/** @type {'min' | 'max'} */ k) => (/** @type {string} */ v) => {
+    setBounds((b) => ({ ...b, [k]: v }));
+    setCross(null);
+  };
+  const takeBounds = () => {
+    const passes = (/** @type {string} */ v) => !check(KINDS.money, { min: 0 }, v);
+    const lo = passes(bounds.min) ? bounds.min.trim() : f.min;
+    const hi = passes(bounds.max) ? bounds.max.trim() : f.max;
+    if (lo && hi && Dec.parse(hi).lt(Dec.parse(lo))) return setCross('Below At least.');
+    if (lo !== f.min || hi !== f.max) {
+      setF({ ...f, min: lo, max: hi });
+      setPage(1);
+    }
+  };
   const fresh = () => {
     setSince(new Date().toISOString());
     setNewer(0);
@@ -115,30 +138,32 @@ function TransactionList() {
     </div>
     <details class="mt" style=${{ marginBottom: '12px' }}>
       <summary class="small">More filters</summary>
-      <div class="row mt">
-        <div
-          class="field"><label for="f-from">From</label><input class="in" id="f-from" type="date" value=${f
-            .from}
-          onInput=${(/** @type {any} */ e) => set('from')(e.currentTarget.value)} /></div>
-        <div
-          class="field"><label for="f-to">To</label><input class="in" id="f-to" type="date" value=${f
-            .to}
-          onInput=${(/** @type {any} */ e) => set('to')(e.currentTarget.value)} /></div>
-        <div
-          class="field"><label for="f-min">At least</label><input class="in" id="f-min" inputmode="decimal" value=${f
-            .min}
-          onInput=${(/** @type {any} */ e) =>
-            set('min')(e.currentTarget.value)} placeholder="0.00" /></div>
-        <div
-          class="field"><label for="f-max">At most</label><input class="in" id="f-max" inputmode="decimal" value=${f
-            .max}
-          onInput=${(/** @type {any} */ e) => set('max')(e.currentTarget.value)} /></div>
+      <div class="row mt" key=${cleared}>
+        <${Field} label="From" id="from">
+          <${TypedInput} kind="date" value=${f.from}
+            onInput=${set('from')} />
+          </${Field}>
+          <${Field} label="To" id="to">
+            <${TypedInput} kind="date" value=${f.to}
+              onInput=${set('to')} />
+            </${Field}>
+            <${Field} label="At least" id="min">
+              <${TypedInput} kind="money" min=${0}
+                value=${bounds.min} placeholder="any" onInput=${typeBound('min')}
+                onCommit=${takeBounds} />
+              </${Field}>
+              <${Field} label="At most" id="max"><${TypedInput} kind="money" min=${0}
+          value=${bounds.max} placeholder="any" mark=${cross} onInput=${typeBound('max')}
+          onCommit=${takeBounds} /></${Field}>
         <div class="field"><label for="f-tag">Tag</label><input class="in" id="f-tag" value=${f.tag}
           onInput=${(/** @type {any} */ e) =>
             set('tag')(e.currentTarget.value.trim().toLowerCase())} /></div>
       </div>
       <button type="button" class="btn sm" onClick=${() => {
         setF(EMPTY);
+        setBounds({ min: '', max: '' });
+        setCross(null);
+        setCleared((n) => n + 1);
         setTyping('');
         setPage(1);
       }}>Clear the filters</button>

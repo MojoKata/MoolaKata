@@ -208,8 +208,9 @@
       its lead time raises an alert (S12.11).
 8. **Gifts.**
    1. **A gift** is for one or more people and an occasion (and its year): a description, a
-      **status** (*idea*, *planned*, *bought*, *given*), its cost, where it was bought, a link,
-      notes, and receipts (S9). A cost is linked to its transaction, which needs write on its
+      **status** (*idea*, *planned*, *bought*, *given*), its cost, where it was bought, a link
+      (a web address, `http://` or `https://` and a host, up to 2,000 characters), notes, and
+      receipts (S9). A cost is linked to its transaction, which needs write on its
       account and is recorded in Activity, or typed. One purchase can be split across several
       gifts.
    2. **Ideas** are gifts without a date: a running list per person, to pick from when an
