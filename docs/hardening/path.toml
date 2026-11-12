@@ -3,6 +3,9 @@
 # shows it checked, with what changed by area at its merge. A step's pull request is added here
 # when it is opened. Before a step is signed off, its last CI run's times are checked
 # (`web/dev.sh ci-times`, REVIEW.md §11.7), and a job past the budget is split further in it.
+# Each step also answers the coverage question (REVIEW.md §11.7), in its walk and at its
+# sign-off: each changed function's lines and branches at diminishing returns, and every data
+# axis of the change written out with its points; the tests it calls for go in its pull request.
 #
 # kind: "med" for a step that fixes named findings, "sweep" for an area's sweep (its findings,
 # coverage and a mutation run over all its modules, every survivor settled), "tracker" for this,
@@ -50,6 +53,7 @@ what = "Med: when a statement value is stale, the TrueNAS install's mode, the Re
 findings = [8, 12, 17, 308, 453, 454]
 
 [[step]]
+pr = 46
 kind = "med"
 what = "Categories: a walk with the user, then who owns, adds and changes them"
 findings = [7, 75]

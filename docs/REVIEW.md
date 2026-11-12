@@ -393,6 +393,12 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    the tests allow while they grow. Making a test itself quicker (fewer cases or seeds, smaller
    data, a cheaper fixture, a test reworked or dropped) trades some checking for time: it is put
    to the user first, with what it costs, what it saves and a recommendation.
+   Each step also answers the **coverage question**, as its walk's last round and again at its
+   sign-off: from CI's coverage artifact (`server.json` per function, `browser.lcov` per line),
+   whether each changed function's lines and branches are at diminishing returns (the 90s), and
+   whether every data axis the change brings is written out with its points (each fact a record
+   carries, each choice a caller makes, each kind of refusal). The tests it calls for go in the
+   same pull request.
 8. **The sweep starts from the baseline** (`mutation-testing.md`, *The CI baseline*): every
    server module's first mutation run is made on CI before the sweeps, so an area's sweep
    begins with its survivors in hand, and only the modules changed since are run again. A
