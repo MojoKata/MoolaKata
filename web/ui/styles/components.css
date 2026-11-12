@@ -1195,6 +1195,38 @@
     background: var(--border-strong);
     border-radius: 2px;
   }
+  /* Transactions › Rules (S12.2.3.2): the rules, and the one chosen beside them. */
+  .rules-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .rule-row {
+    align-items: flex-start;
+    padding: 9px 8px;
+  }
+  .rule-row .rule-n {
+    width: 16px;
+    flex: none;
+  }
+  .rule-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .rule-link:hover {
+    text-decoration: underline;
+  }
+  .rule-moves {
+    white-space: nowrap;
+  }
+  /* A button off until a save: its wrapper hears the pointer, so the tip shows. */
+  .tip-wrap {
+    display: inline-block;
+  }
+  .tip-wrap > button:disabled {
+    pointer-events: none;
+  }
   .settings-layout {
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr);

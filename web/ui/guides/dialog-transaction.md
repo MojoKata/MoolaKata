@@ -69,8 +69,9 @@ Who was paid, or who paid you.
 
 ## Category
 
-Where the money went, for budgets and taxes. **Make a rule** files this payee the same way from
-now on, from what you import.
+Where the money went, for budgets and taxes. **Make a rule** opens **New rule** over this dialog,
+to file this payee the same way from now on, from what you import; this transaction stays as it
+is.
 
 ## New category…
 

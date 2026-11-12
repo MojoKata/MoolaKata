@@ -869,14 +869,11 @@ def test_a_rule_moved_and_a_budget_made_active_are_saved_at_once(browser, househ
     first = made(make(h.c, "Rule", payeeMatch="bakery", categoryId=h.cats["Food › Groceries"]))
     second = made(make(h.c, "Rule", payeeMatch="bagel", categoryId=h.cats["Food › Groceries"]))
     order = lambda: [x["id"] for x in h.c.get("/ui/api/rules").json()["items"]]  # noqa: E731
-    page, problems = signed_in(browser, h, "/ui/transactions", 'button:has-text("Rules")')
-    page.click('main button:has-text("Rules")')
     up = f'button[aria-label="Move rule {order().index(second["id"]) + 1} up"]'
-    wait(page, up, problems)
+    page, problems = signed_in(browser, h, "/ui/transactions/rules", up)
     page.click(up)
     wait(page, f"{up}:enabled", problems)
     assert order().index(second["id"]) < order().index(first["id"])
-    page.click('.dialog footer button:has-text("Close")')
     for gone in (first["id"], second["id"]):  # each read anew: a delete renumbers the rest
         r = next(x for x in h.c.get("/ui/api/rules").json()["items"] if x["id"] == gone)
         saved(remove(h.c, "Rule", r))

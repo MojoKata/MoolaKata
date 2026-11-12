@@ -33,6 +33,8 @@ export function Screens() {
       <${Route} path="/ui/accounts/:id" component=${Account} />
       <${Route} path="/ui/accounts/:id/:tab" component=${Account} />
       <${Route} path="/ui/transactions" component=${Transactions} />
+      <${Route} path="/ui/transactions/:tab" component=${Transactions} />
+      <${Route} path="/ui/transactions/:tab/:id" component=${Transactions} />
       <${Route} path="/ui/portfolios" component=${Portfolios} />
       <${Route} path="/ui/portfolios/:id" component=${Portfolio} />
       <${Route} path="/ui/portfolios/:id/:tab" component=${Portfolio} />

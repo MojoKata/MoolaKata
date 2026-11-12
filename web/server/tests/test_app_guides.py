@@ -41,6 +41,8 @@ def screens(page) -> list[str]:
         "/ui/",
         "/ui/accounts",
         "/ui/transactions",
+        "/ui/transactions/rules",
+        "/ui/transactions/rules/new",
         "/ui/portfolios",
         "/ui/positions/open",
         "/ui/positions/closed",
@@ -97,6 +99,8 @@ def screens(page) -> list[str]:
     paths.append(f"/ui/budgets/{budgets[0]}/categories")
     for s in SETTINGS_SECTIONS:
         paths.append(f"/ui/settings/{s}")
+    # A rule chosen on Transactions › Rules, its fields on the right.
+    paths.append(f"/ui/transactions/rules/{api_items(page, '/ui/api/rules')[0]['id']}")
     return paths
 
 
@@ -116,7 +120,6 @@ def dialogs(page) -> list[tuple[str, str, str]]:
         ("/ui/accounts", "Import", "dialog-import"),
         ("/ui/accounts", "Share Everyday checking", "dialog-share"),
         ("/ui/transactions", "Add", "dialog-transaction"),
-        ("/ui/transactions", "Rules", "dialog-rules"),
         (
             f"/ui/accounts/{ids['checking']}/reconcile",
             "Type today's balance",
@@ -177,13 +180,15 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     (a token, a linked copy's reset, a link address), so on this module's own server."""
     page = fresh
     ids = account_ids(page)
-    # The rules' list leads to a rule.
-    open_dialog(page, "/ui/transactions", "Rules", "dialog-rules")
-    page.get_by_role("button", name="Add a rule").click()
+    # Make a rule opens New rule over the transaction's dialog (S2.7.6).
+    visit(page, "/ui/transactions")
+    page.locator("table button.linklike", has_text="Kroger").first.click()
+    wait_guide(page, "dialog-transaction")
+    page.get_by_role("button", name="Make a rule").click()
     wait_guide(page, "dialog-rule")
-    check_guide(page, ".dialog", "a rule")
-    page.keyboard.press("Escape")  # back to the list, then closed
-    wait_guide(page, "dialog-rules")
+    check_guide(page, ".dialog-layer:not([inert]) .dialog", "a new rule")
+    page.keyboard.press("Escape")
+    wait_guide(page, "dialog-transaction")
     close_dialog(page)
     # New category… opens New category over the dialog that chose it, with its own guide; the
     # one beneath's comes back when it closes (S12.15.7).

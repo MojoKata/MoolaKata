@@ -11,7 +11,7 @@ import { canAdd, Record } from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
-import { openRules } from '../components/rules.js';
+import { NewRuleDialog } from '../components/rules.js';
 import { Field, Input, Seg, Switch, SwitchRow } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
@@ -19,6 +19,7 @@ import { CategoryField } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
 import { confirmAction } from '../components/confirm.js';
+import { openDialog } from '../components/dialog.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -265,15 +266,14 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               }}>Not a transfer</button>`
               : null}
             ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
-              ? html`<button type="button" class="btn" onClick=${() => {
-                // One dialog at a time: this one closes, and the rule opens filled from it.
-                close();
-                setTimeout(() =>
-                  openRules({
+              ? html`<button type="button" class="btn" onClick=${() =>
+                // New rule opens over this dialog, which stays as it is (S2.7.6, S12.15.7).
+                openDialog(NewRuleDialog, {
+                  fill: {
                     payeeMatch: txn.payeeRaw || txn.payee,
                     categoryId: t?.get('categoryId') || null,
-                  }), 0);
-              }}>Make a rule</button>`
+                  },
+                })}>Make a rule</button>`
               : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>

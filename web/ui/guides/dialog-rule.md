@@ -1,7 +1,9 @@
-# A rule
+# New rule
 
-What a transaction must match, and what the rule sets. It needs at least one of a category, a
-new payee or a tag.
+A new rule, made from a transaction over its dialog: what a transaction must match, and what the
+rule sets, its payee and category filled in from the transaction. It needs at least one of a
+category, a new payee or a tag. **Add the rule** saves it; the transaction stays as it is. The
+rules are listed on Transactions › Rules.
 
 ## Payee contains
 

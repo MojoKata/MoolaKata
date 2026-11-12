@@ -291,11 +291,13 @@ export async function askToLeave(where, answered, saveIt) {
  * holds changes, moving elsewhere in the app, Back or leaving the page asks first. `where`
  * names it in the question ("Settings › General").
  * `extra` draws the buttons beside Save, given the save (a Delete removes its record and saves);
- * `class` styles the form (a card).
+ * `class` styles the form (a card). `changed` replaces the draft's own answer (a new record
+ * not yet saved is a change, S12.2.3.2.2). `discard`, given, shows Discard and Save only
+ * while the form holds changes (S12.2.3.2.1); Discard calls it.
  * @param {{ f: ReturnType<typeof useDraft>, where: string, what: string, done?: Done,
  *   label?: string, confirm?: string, before?: () => boolean | void,
  *   saved?: (o: any) => void, extra?: (s: { save: any, outcome: any }) => any,
- *   class?: string, children: any }} p
+ *   changed?: () => boolean, discard?: () => void, class?: string, children: any }} p
  */
 export function DraftForm(p) {
   const { f } = p;
@@ -308,8 +310,9 @@ export function DraftForm(p) {
       f.reload();
     }),
   });
+  const has = p.changed || (() => !!draft?.changed);
   const changedRef = useRef(/** @type {() => boolean} */ (() => false));
-  changedRef.current = () => !!draft?.changed;
+  changedRef.current = has;
   const saveRef = useRef(save);
   saveRef.current = save;
   useEffect(
@@ -339,11 +342,19 @@ export function DraftForm(p) {
       <${FormError} error=${save.error} />
       <div class="toolbar mt">
         ${p.extra?.({ save, outcome }) || null}<span class="spacer"></span>
-        <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
-          label=${p.label || 'Save'} confirm=${p.confirm || 'Save anyway'} reload=${() => {
-            clear();
-            f.reload();
-          }} />
+        ${p.discard && !has() && outcome?.status !== 'stale' ? null : html`
+          ${p.discard
+            ? html`<button type="button" class="btn" onClick=${() => {
+              clear();
+              p.discard?.();
+            }}>Discard</button>`
+            : null}
+          <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
+            label=${p.label || 'Save'} confirm=${p.confirm || 'Save anyway'} reload=${() => {
+              clear();
+              f.reload();
+            }} />
+        `}
       </div>
     </form>
   `;
