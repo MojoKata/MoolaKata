@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, fields, replace
 from decimal import ROUND_HALF_EVEN, Decimal
 
-from sqlalchemy import false, func, select, update
+from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from . import clock, ids
@@ -58,29 +58,103 @@ def children(s: Session, cat_id: str) -> list[Category]:
     )
 
 
+def _live_split():
+    """A split that counts: not deleted, of a transaction not deleted (a deleted transaction's
+    parts name nothing, as the transaction itself doesn't)."""
+    return and_(
+        Split.deleted == false(),
+        Split.transactionId.in_(select(Transaction.id).where(Transaction.deleted == false())),
+    )
+
+
 def used(s: Session, cat_ids: Iterable[str]) -> set[str]:
     """Which of these categories something names: a transaction, a split, a rule, a budget's
     plan line or move, a loan's whole-payment category, or a child. Asked of a session that
-    reads as the server (`scoping.as_server`): a use is a use whoever can see it."""
+    reads as the server (`scoping.as_server`): a use is a use whoever can see it. The same
+    uses `uses` lists and counts."""
     want = set(cat_ids)
     if not want:
         return set()
     out: set[str] = set()
     probes = [
-        (Transaction.categoryId, Transaction.deleted),
-        (Split.categoryId, Split.deleted),
-        (Rule.categoryId, Rule.deleted),
-        (BudgetLine.categoryId, BudgetLine.deleted),
-        (BudgetMove.fromCategoryId, BudgetMove.deleted),
-        (BudgetMove.toCategoryId, BudgetMove.deleted),
-        (Loan.budgetCategoryId, Loan.deleted),
-        (Category.parentId, Category.deleted),
+        (Transaction.categoryId, Transaction.deleted == false()),
+        (Split.categoryId, _live_split()),
+        (Rule.categoryId, Rule.deleted == false()),
+        (BudgetLine.categoryId, BudgetLine.deleted == false()),
+        (BudgetMove.fromCategoryId, BudgetMove.deleted == false()),
+        (BudgetMove.toCategoryId, BudgetMove.deleted == false()),
+        (Loan.budgetCategoryId, Loan.deleted == false()),
+        (Category.parentId, Category.deleted == false()),
     ]
-    for col, gone in probes:
+    for col, live_row in probes:
         # Only the categories asked about, for speed: what else is found isn't asked.
-        found = select(col).where(col.in_(want), gone == false()).distinct()  # pragma: no mutate
+        found = select(col).where(col.in_(want), live_row).distinct()  # pragma: no mutate
         out |= set(s.scalars(found))
     return out
+
+
+@dataclass(frozen=True)
+class Uses:
+    """What names a category, as the session reading it sees (S12.2.6): transactions counted
+    once whatever their parts, and every other use listed."""
+
+    transactions: int
+    rules: list[Rule]
+    lines: list[BudgetLine]
+    moves: list[BudgetMove]
+    loans: list[Loan]
+    children: list[Category]
+
+    @property
+    def count(self) -> int:
+        return self.transactions + sum(
+            len(x) for x in (self.rules, self.lines, self.moves, self.loans, self.children)
+        )
+
+
+def uses(s: Session, cat_id: str) -> Uses:
+    """A category's uses as `s` sees them: the reader's session lists what they can see, the
+    server's counts them all, so the difference is what the reader can't."""
+    in_parts = select(Split.transactionId).where(Split.categoryId == cat_id, _live_split())
+    transactions = s.scalar(
+        select(func.count())
+        .select_from(Transaction)
+        .where(
+            Transaction.deleted == false(),
+            or_(Transaction.categoryId == cat_id, Transaction.id.in_(in_parts)),
+        )
+    )
+    return Uses(
+        transactions=transactions or 0,
+        rules=list(
+            s.scalars(
+                select(Rule)
+                .where(Rule.categoryId == cat_id, Rule.deleted == false())
+                .order_by(Rule.ownerId, Rule.position)
+            )
+        ),
+        lines=list(
+            s.scalars(
+                select(BudgetLine)
+                .where(BudgetLine.categoryId == cat_id, BudgetLine.deleted == false())
+                .order_by(BudgetLine.budgetId, BudgetLine.fromMonth)
+            )
+        ),
+        moves=list(
+            s.scalars(
+                select(BudgetMove)
+                .where(
+                    or_(BudgetMove.fromCategoryId == cat_id, BudgetMove.toCategoryId == cat_id),
+                    BudgetMove.deleted == false(),
+                )
+                .order_by(BudgetMove.budgetId, BudgetMove.month)
+            )
+        ),
+        loans=list(
+            s.scalars(select(Loan).where(Loan.budgetCategoryId == cat_id, Loan.deleted == false()))
+        ),
+        children=sorted(children(s, cat_id), key=lambda x: x.name.lower()),
+    )
 
 
 # ---------- a merge's plan lines ----------

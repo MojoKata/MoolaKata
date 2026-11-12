@@ -26779,6 +26779,93 @@
         "title": "UpcomingOut",
         "type": "object"
       },
+      "UseChild": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "UseChild",
+        "type": "object"
+      },
+      "UseInBudget": {
+        "additionalProperties": false,
+        "properties": {
+          "budgetId": {
+            "title": "Budgetid",
+            "type": "string"
+          },
+          "budgetName": {
+            "title": "Budgetname",
+            "type": "string"
+          },
+          "month": {
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budgetId",
+          "budgetName",
+          "month"
+        ],
+        "title": "UseInBudget",
+        "type": "object"
+      },
+      "UseLoan": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "name"
+        ],
+        "title": "UseLoan",
+        "type": "object"
+      },
+      "UseRule": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "payeeMatch": {
+            "title": "Payeematch",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "payeeMatch",
+          "position"
+        ],
+        "title": "UseRule",
+        "type": "object"
+      },
       "UserGrant": {
         "additionalProperties": false,
         "properties": {
@@ -27120,6 +27207,71 @@
           "version"
         ],
         "title": "UserRow",
+        "type": "object"
+      },
+      "UsesOut": {
+        "additionalProperties": false,
+        "description": "What names a category that the reader can see, by kind, and how many uses they can't.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/UseChild"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "loans": {
+            "items": {
+              "$ref": "#/components/schemas/UseLoan"
+            },
+            "title": "Loans",
+            "type": "array"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/UseInBudget"
+            },
+            "title": "Moves",
+            "type": "array"
+          },
+          "planLines": {
+            "items": {
+              "$ref": "#/components/schemas/UseInBudget"
+            },
+            "title": "Planlines",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/UseRule"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "seen": {
+            "title": "Seen",
+            "type": "integer"
+          },
+          "transactions": {
+            "title": "Transactions",
+            "type": "integer"
+          },
+          "unseen": {
+            "title": "Unseen",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seen",
+          "unseen",
+          "transactions",
+          "rules",
+          "planLines",
+          "moves",
+          "loans",
+          "categories"
+        ],
+        "title": "UsesOut",
         "type": "object"
       },
       "ValuationOut": {
@@ -32303,6 +32455,45 @@
           }
         },
         "summary": "Merge Preview",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/ui/api/categories/{cat_id}/uses": {
+      "get": {
+        "description": "A category's uses for its dialog's count and the Find uses tour.",
+        "operationId": "category_uses_ui_api_categories__cat_id__uses_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cat_id",
+            "required": true,
+            "schema": {
+              "title": "Cat Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Category Uses",
         "tags": [
           "categories"
         ]

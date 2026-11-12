@@ -36,9 +36,13 @@ def error(r) -> tuple[int, str | None, str]:
 
 @pytest.fixture
 def people(server, admin_client):
-    make_user(server, "alice")
-    make_user(server, "bob")
-    return {"admin": admin_client, "alice": sign_in(server, "alice"), "bob": sign_in(server, "bob")}
+    a, b = make_user(server, "alice"), make_user(server, "bob")
+    return {
+        "admin": admin_client,
+        "alice": sign_in(server, "alice"),
+        "bob": sign_in(server, "bob"),
+        "ids": {"alice": a.id, "bob": b.id},
+    }
 
 
 def test_anyone_adds_a_category_at_either_level_with_any_tax_tag(people):
@@ -647,7 +651,7 @@ def test_what_a_delete_refused_says(people):
                 422,
                 None,
                 "category-in-use",
-                "It's in use: an admin can merge it into another category.",
+                "It's in use: 1 use you can't see. An admin can merge it into another category.",
             ),
         ),
         (
@@ -771,3 +775,164 @@ def test_a_save_that_changes_nothing_records_nothing(people, server):
     assert len(alice.get("/ui/api/activity").json()["items"]) == before
     with server.db.read(unscoped="test") as s:
         assert used(s, []) == set()
+
+
+# ---------- its uses (S12.2.6, S12.17.6) ----------
+
+
+def uses(c, cat_id: str) -> dict:
+    r = c.get(f"/ui/api/categories/{cat_id}/uses")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+KIND = {
+    "transaction": "transactions",
+    "split": "transactions",
+    "rule": "rules",
+    "plan line": "planLines",
+    "move": "moves",
+    "loan": "loans",
+    "child": "categories",
+}
+# Who else sees each kind of use, as made in an account or budget of the maker's own: a child
+# category is the household's; the rest are the maker's until shared (S10.3).
+EVERYONE_SEES = {"child"}
+
+
+def _listed(u: dict, kind: str) -> int:
+    v = u[KIND[kind]]
+    return v if kind in ("transaction", "split") else len(v)
+
+
+@pytest.mark.parametrize("how", USES)
+def test_each_use_is_listed_for_its_maker_and_counted_for_others(people, how):
+    alice, bob = people["alice"], people["bob"]
+    mine = new(alice, "Hobbies")
+    empty = uses(alice, mine["id"])
+    assert empty == {
+        "seen": 0,
+        "unseen": 0,
+        "transactions": 0,
+        "rules": [],
+        "planLines": [],
+        "moves": [],
+        "loans": [],
+        "categories": [],
+    }
+    _put_to_use(alice, mine["id"], how)
+    u = uses(alice, mine["id"])
+    assert (u["seen"], u["unseen"], _listed(u, how)) == (1, 0, 1)
+    assert all(_listed(u, k) == 0 for k in USES if KIND[k] != KIND[how])
+    other = uses(bob, mine["id"])
+    if how in EVERYONE_SEES:
+        assert (other["seen"], other["unseen"], _listed(other, how)) == (1, 0, 1)
+    else:
+        assert (other["seen"], other["unseen"], _listed(other, how)) == (0, 1, 0)
+
+
+def test_what_each_use_says(people):
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    for how in USES:
+        _put_to_use(alice, pets["id"], how)
+    u = uses(alice, pets["id"])
+    assert (u["seen"], u["unseen"], u["transactions"]) == (7, 0, 2)
+    assert u["rules"] == [{"id": u["rules"][0]["id"], "payeeMatch": "toys", "position": 0}]
+    assert [(x["budgetName"], x["month"]) for x in u["planLines"]] == [
+        ("B plan line", "2026-10-01")
+    ]
+    assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [("B move", "2026-10-01")]
+    assert [x["name"] for x in u["loans"]] == ["Car loan"]
+    assert [x["name"] for x in u["categories"]] == ["Inside"]
+    budgets = {b["name"]: b["id"] for b in alice.get("/ui/api/budgets").json()["items"]}
+    assert u["planLines"][0]["budgetId"] == budgets["B plan line"]
+    assert u["moves"][0]["budgetId"] == budgets["B move"]
+
+
+def test_a_transaction_counts_once_whatever_its_parts(people):
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice)
+    split = [
+        {"categoryId": pets["id"], "amount": "-2.00"},
+        {"categoryId": pets["id"], "amount": "-3.00"},
+    ]
+    add(alice, acct["id"], "-5.00", splits=split)
+    add(alice, acct["id"], "-4.00", categoryId=pets["id"])
+    u = uses(alice, pets["id"])
+    assert (u["transactions"], u["seen"]) == (2, 2)
+    # As the Transactions page filtered to it counts them.
+    listed = alice.get("/ui/api/transactions", params={"category": pets["id"]}).json()
+    assert listed["total"] == 2
+
+
+def test_a_shared_account_shows_its_uses(people):
+    from edits import share
+
+    alice, bob = people["alice"], people["bob"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice)
+    for amount in ("-1.00", "-2.00", "-3.00"):
+        add(alice, acct["id"], amount, categoryId=pets["id"])
+    hidden = new_account(alice, name="Mine alone", mask="4242")
+    add(alice, hidden["id"], "-9.00", categoryId=pets["id"])
+    assert (uses(bob, pets["id"])["seen"], uses(bob, pets["id"])["unseen"]) == (0, 4)
+    share(alice, "account", acct["id"], users={people["ids"]["bob"]: "read"})
+    u = uses(bob, pets["id"])
+    assert (u["seen"], u["unseen"], u["transactions"]) == (3, 1, 3)
+
+
+def test_deleted_uses_count_for_nothing(people):
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice)
+    whole = add(alice, acct["id"], "-4.00", categoryId=pets["id"])
+    parts = [{"categoryId": pets["id"], "amount": "-2.00"}, {"categoryId": None, "amount": "-3.00"}]
+    split = add(alice, acct["id"], "-5.00", splits=parts)
+    assert uses(alice, pets["id"])["seen"] == 2
+    for t in (whole, split):
+        saved(remove(alice, "Txn", t))
+    # A deleted transaction's parts name nothing either: the category may go.
+    u = uses(alice, pets["id"])
+    assert (u["seen"], u["unseen"], u["transactions"]) == (0, 0, 0)
+    assert not row(alice, pets["id"])["inUse"]
+
+
+def test_the_uses_of_no_category(people):
+    alice = people["alice"]
+    assert alice.get("/ui/api/categories/Cat_nothing/uses").status_code == 404
+    gone = new(alice, "Gone")
+    assert remove(alice, "Cat", row(alice, gone["id"])).status_code == 200
+    assert alice.get(f"/ui/api/categories/{gone['id']}/uses").status_code == 404
+
+
+@pytest.mark.parametrize(
+    "seen,unseen,words",
+    [
+        (1, 0, "1 use you can see"),
+        (2, 0, "2 uses you can see"),
+        (0, 1, "1 use you can't see"),
+        (0, 3, "3 uses you can't see"),
+        (1, 1, "1 use you can see, and 1 you can't"),
+        (47, 22, "47 uses you can see, and 22 you can't"),
+    ],
+)
+def test_how_uses_are_counted_in_words(seen, unseen, words):
+    from moolakata.ui.categories import uses_words
+
+    assert uses_words(seen, unseen) == words
+
+
+def test_a_refused_delete_counts_both(people):
+    alice, bob = people["alice"], people["bob"]
+    pets = new(alice, "Pets")
+    _put_to_use(alice, pets["id"], "transaction")
+    new(bob, "Inside", parentId=pets["id"])
+    r = remove(people["admin"], "Cat", row(people["admin"], pets["id"]))
+    assert r.json()["errors"][0]["message"] == (
+        "It's in use: 1 use you can see, and 1 you can't."
+        " An admin can merge it into another category."
+    )
+    r = remove(bob, "Cat", row(bob, pets["id"]))
+    assert r.json()["errors"][0]["message"].startswith("It's in use: 1 use you can see, and 1")

@@ -3,6 +3,8 @@ changed and deleted through the save (S13.8.11) by the rules of S7.2.3; merged b
 through their own route (S7.2.4), in one transaction. Each change goes to Activity, for every
 user (S10.8), and the live stream tells every page (S12.6)."""
 
+import datetime as dt
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
@@ -11,7 +13,7 @@ from .. import activity
 from .. import categories as cats
 from ..errors import Problem, refuse
 from ..store import scoping
-from ..store.entities.accounts import Category
+from ..store.entities.accounts import Account, Category
 from ..store.entities.budgets import Budget, BudgetLine
 from ..store.entities.users import User
 from . import save
@@ -300,8 +302,12 @@ def _category_delete(ctx, cat: Category) -> None:
             None, "category-kept", "MoolaKata counts in this category by its own rules: it stays."
         )
     if cat.id in _used(s, [cat.id]):
+        mine, unseen = _counts(s, cat.id)
         raise refuse(
-            None, "category-in-use", "It's in use: an admin can merge it into another category."
+            None,
+            "category-in-use",
+            f"It's in use: {uses_words(mine.count, unseen)}."
+            " An admin can merge it into another category.",
         )
     maker = cat.createdById == ctx.caller.id and not cat.builtIn
     if not ctx.caller.admin and not maker:
@@ -325,6 +331,100 @@ save.register(
         read=_read,
     )
 )
+
+
+# ---------- its uses (S12.2.6, S12.17.6) ----------
+
+
+def uses_words(seen: int, unseen: int) -> str:
+    """How many uses the reader can see and how many they can't, as the dialog and a refused
+    delete say it."""
+    s = "" if seen == 1 else "s"
+    if not unseen:
+        return f"{seen} use{s} you can see"
+    if not seen:
+        return f"{unseen} use{'' if unseen == 1 else 's'} you can't see"
+    return f"{seen} use{s} you can see, and {unseen} you can't"
+
+
+def _counts(s, cat_id: str) -> tuple[cats.Uses, int]:
+    """The uses the reader sees, and how many more there are: counted, never named (S13.8.10)."""
+    mine = cats.uses(s, cat_id)
+    why = "categories: how many uses the reader can't see"  # pragma: no mutate
+    with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
+        every = cats.uses(srv, cat_id).count
+    return mine, every - mine.count
+
+
+class UseRule(Model):
+    id: str
+    payeeMatch: str
+    position: int  # from 0, as the reader's list orders them
+
+
+class UseInBudget(Model):
+    budgetId: str
+    budgetName: str
+    month: dt.date  # a plan line's first month, a move's month
+
+
+class UseLoan(Model):
+    accountId: str
+    name: str
+
+
+class UseChild(Model):
+    id: str
+    name: str
+
+
+class UsesOut(Model):
+    """What names a category that the reader can see, by kind, and how many uses they can't."""
+
+    seen: int
+    unseen: int
+    transactions: int  # each once, whether it or a part of it names the category
+    rules: list[UseRule]
+    planLines: list[UseInBudget]
+    moves: list[UseInBudget]
+    loans: list[UseLoan]
+    categories: list[UseChild]
+
+
+@router.get("/categories/{cat_id}/uses", response_model=UsesOut)
+def category_uses(cat_id: str, request: Request, c: Caller = Depends(caller)):
+    """A category's uses for its dialog's count and the Find uses tour."""
+    with server(request).db.read(user=c.id) as s:
+        cat = s.get(Category, cat_id)
+        if cat is None or cat.deleted:
+            raise Problem(404, "not-found", "Not found")
+        mine, unseen = _counts(s, cat_id)
+        budget_ids = {x.budgetId for x in [*mine.lines, *mine.moves]}
+        budgets = {b.id: b.name for b in s.scalars(select(Budget).where(Budget.id.in_(budget_ids)))}
+        accounts = {
+            a.id: a.name
+            for a in s.scalars(
+                select(Account).where(Account.id.in_({x.accountId for x in mine.loans}))
+            )
+        }
+        return UsesOut(
+            seen=mine.count,
+            unseen=unseen,
+            transactions=mine.transactions,
+            rules=[
+                UseRule(id=r.id, payeeMatch=r.payeeMatch, position=r.position) for r in mine.rules
+            ],
+            planLines=[
+                UseInBudget(budgetId=x.budgetId, budgetName=budgets[x.budgetId], month=x.fromMonth)
+                for x in mine.lines
+            ],
+            moves=[
+                UseInBudget(budgetId=x.budgetId, budgetName=budgets[x.budgetId], month=x.month)
+                for x in mine.moves
+            ],
+            loans=[UseLoan(accountId=x.accountId, name=accounts[x.accountId]) for x in mine.loans],
+            categories=[UseChild(id=x.id, name=x.name) for x in mine.children],
+        )
 
 
 # ---------- a merge (S7.2.4) ----------
