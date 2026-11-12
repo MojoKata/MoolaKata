@@ -245,6 +245,7 @@ def test_rounding_up_each_payment():
         ({}, ["lumps.1.date", "lumps.1.amount"]),
         ({"date": None, "amount": None}, ["lumps.1.date", "lumps.1.amount"]),
         ({"date": "2027-04-15", "amount": "0"}, ["lumps.1.amount"]),
+        ({"date": "2027-04-15", "amount": "1"}, []),  # the least whole dollar is a lump sum
     ],
 )
 def test_a_lump_sum_needs_its_date_and_amount_or_is_refused_at_them(server, frozen, lump, refused):
@@ -266,9 +267,9 @@ def test_a_lump_sum_needs_its_date_and_amount_or_is_refused_at_them(server, froz
         assert r.status_code == 422, r.text
         assert [e["field"] for e in r.json()["errors"]] == refused
         if lump.get("amount") != "0":
-            assert r.json()["errors"][0]["message"] == (
-                "A date and an amount, or remove the lump sum."
-            )
+            assert {(e["code"], e["message"]) for e in r.json()["errors"]} == {
+                ("lump-incomplete", "A date and an amount, or remove the lump sum.")
+            }
 
 
 def test_the_planner_and_plans_through_the_api(server, frozen):

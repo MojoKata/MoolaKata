@@ -1355,7 +1355,8 @@ def test_a_sale_picks_its_lots_in_the_dialog(browser, household):
 
 def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     # CR3-403, R3.11: the settle dialog's Contracts starts empty; 0 is marked when the field is
-    # left (and refused if saved); All fills in the contracts held and greys out; Record settles them.
+    # left (and refused if saved); All fills in the contracts held and greys out; Record settles
+    # them.
     h = household
     acct = made(make(h.c, "Acct", name="Settled", type="brokerage"))
     expiry = f"{months_back(1)}-15"

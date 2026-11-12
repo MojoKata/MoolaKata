@@ -80,12 +80,12 @@ def test_accounts_are_checked_and_their_owners_own(server):
         ("3.01", "7", ["-7.00"], None),
         ("", "7", ["-7.00", "-3.00"], None),
         ("7", "7", ["-7.00"], None),  # At most equal to At least
-        ("8", "7", None, ("max", "range-invalid")),  # At most under At least
-        ("-1", "", None, ("min", "amount-invalid")),
-        ("", "-1", None, ("max", "amount-invalid")),
-        ("NaN", "", None, ("min", "amount-invalid")),
-        ("", "Infinity", None, ("max", "amount-invalid")),
-        ("abc", "", None, ("min", "amount-invalid")),
+        ("8", "7", None, ("max", "range-invalid", "Below At least.")),  # At most under At least
+        ("-1", "", None, ("min", "amount-invalid", "Zero or more.")),
+        ("", "-1", None, ("max", "amount-invalid", "Zero or more.")),
+        ("NaN", "", None, ("min", "amount-invalid", "Enter an amount such as 25.00.")),
+        ("", "Infinity", None, ("max", "amount-invalid", "Enter an amount such as 25.00.")),
+        ("abc", "", None, ("min", "amount-invalid", "Enter an amount such as 25.00.")),
     ],
 )
 def test_a_filters_amount_bounds_are_sizes_any_while_blank(server, least, most, got, refused):
@@ -97,7 +97,7 @@ def test_a_filters_amount_bounds_are_sizes_any_while_blank(server, least, most, 
     r = c.get("/ui/api/transactions", params={"min": least, "max": most})
     if refused:
         assert r.status_code == 400, r.text
-        assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [refused]
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [refused]
         return
     assert r.status_code == 200, r.text
     assert sorted(t["amount"] for t in r.json()["items"]) == got

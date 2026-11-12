@@ -300,6 +300,15 @@ def test_a_mergers_cash_is_asked_of_every_merger(server, alice, symbol, cash, re
         assert r.status_code == 422, r.text
         first = r.json()["errors"][0]
         assert (first["field"], first["code"]) == ("cashPerShare", refused)
+        said = {
+            (
+                True,
+                "cash-missing",
+            ): "The cash for each share held: 0 for a merger paid all in shares.",
+            (False, "cash-missing"): "What each share was paid.",
+            (True, "cash-invalid"): "Zero or more.",
+        }
+        assert first["message"] == said[(symbol is not None, refused)]
         return
     assert r.status_code == 200, r.text
     lots, disposals = _lots(server, a)
