@@ -466,3 +466,287 @@ def test_a_category_made_in_a_dialogs_draft_is_made_before_what_names_it(people)
     assert r.status_code == 200, r.text
     got = alice.get(f"/ui/api/transactions/{txn}").json()
     assert got["categoryId"] == cat == rows(alice)["Vet bills"]["id"]
+
+
+# ---------- each refusal's whole answer: what the dialog shows ----------
+
+
+def answer(r) -> tuple:
+    e = r.json()["errors"][0]
+    return r.status_code, e.get("field"), e["code"], e["message"]
+
+
+TOP_TAKEN = "There is a category with this name at the top level already."
+NAME_WORDS = "Enter a name of up to 60 characters, without ›."
+TWO_LEVELS = "Categories have two levels: choose a top-level one."
+YEARS = "A whole number of years from 1."
+
+
+def test_what_a_new_category_is_refused_says(people):
+    admin, alice = people["admin"], people["alice"]
+    food = rows(alice)["Food"]["id"]
+
+    def made(c, **fields):
+        return answer(make(c, "Cat", **{"name": "Odd", "kind": "expense", **fields}))
+
+    assert made(alice, name=" ") == (422, "name", "name-invalid", NAME_WORDS)
+    assert made(alice, name="FOOD") == (422, "name", "name-taken", TOP_TAKEN)
+    assert made(alice, name="groceries", parentId=food) == (
+        422,
+        "name",
+        "name-taken",
+        "There is a category with this name beside it already.",
+    )
+    assert made(alice, kind="spending") == (
+        422,
+        "kind",
+        "kind-invalid",
+        "Expense, income, savings or transfer.",
+    )
+    assert made(alice, parentId=rows(alice)["Food › Groceries"]["id"]) == (
+        422,
+        "parentId",
+        "parent-invalid",
+        TWO_LEVELS,
+    )
+    assert made(alice, taxTag="hobby") == (
+        422,
+        "taxTag",
+        "tax-tag-invalid",
+        "Choose one of the tax tags, or none.",
+    )
+    assert made(alice, keepReceiptsYears=5) == (
+        403,
+        "keepReceiptsYears",
+        "admins-only",
+        "Only admins can do this.",
+    )
+    assert made(admin, keepReceiptsYears=0) == (422, "keepReceiptsYears", "years-invalid", YEARS)
+    assert new(admin, "Kept five", keepReceiptsYears=5)["keepReceiptsYears"] == 5
+
+
+@pytest.mark.parametrize("years,ok", [(0, False), (1, True), (100, True), (101, False)])
+def test_how_long_receipts_are_kept_is_from_1_to_100_years(people, years, ok):
+    admin = people["admin"]
+    cat = new(admin, f"Kept {years}")
+    r = change(admin, "Cat", cat, keepReceiptsYears=years)
+    if ok:
+        assert saved(r)["keepReceiptsYears"] == years
+        # Emptied again: for ever, or as its parent says.
+        assert (
+            saved(change(admin, "Cat", row(admin, cat["id"]), keepReceiptsYears=None))[
+                "keepReceiptsYears"
+            ]
+            is None
+        )
+    else:
+        assert answer(r) == (422, "keepReceiptsYears", "years-invalid", YEARS)
+
+
+def test_what_a_change_refused_says(people):
+    admin, alice, bob = people["admin"], people["alice"], people["bob"]
+    have = rows(admin)
+    mine = new(alice, "Mine")
+    _use(people, mine["id"])
+    cases = [
+        (
+            bob,
+            have["Entertainment"],
+            {"kind": "income"},
+            (
+                403,
+                "kind",
+                "admins-only",
+                "Only admins change a shipped category's parent, kind or tax tag.",
+            ),
+        ),
+        (
+            bob,
+            row(bob, mine["id"]),
+            {"taxTag": "medical"},
+            (
+                403,
+                "taxTag",
+                "admins-only",
+                "Only admins change another user's category's parent, kind or tax tag.",
+            ),
+        ),
+        (
+            alice,
+            row(alice, mine["id"]),
+            {"parentId": have["Food"]["id"]},
+            (
+                403,
+                "parentId",
+                "admins-only",
+                "It's in use now: only admins change its parent, kind or tax tag.",
+            ),
+        ),
+        (
+            admin,
+            have["Gifts"],
+            {"kind": "income"},
+            (
+                422,
+                "kind",
+                "category-kept",
+                "MoolaKata counts in this category by its own rules: its kind stays.",
+            ),
+        ),
+        (
+            admin,
+            have["Food"],
+            {"parentId": have["Health"]["id"]},
+            (
+                422,
+                "parentId",
+                "parent-invalid",
+                "It has categories of its own, and categories have two levels: it stays at the"
+                " top.",
+            ),
+        ),
+        (
+            admin,
+            have["Travel"],
+            {"taxTag": "hobby"},
+            (422, "taxTag", "tax-tag-invalid", "Choose one of the tax tags, or none."),
+        ),
+        (
+            admin,
+            have["Travel"],
+            {"keepReceiptsYears": 0},
+            (422, "keepReceiptsYears", "years-invalid", YEARS),
+        ),
+        (admin, have["Travel"], {"name": "food"}, (422, "name", "name-taken", TOP_TAKEN)),
+    ]
+    for c, cat, fields, want in cases:
+        assert answer(change(c, "Cat", cat, **fields)) == want, fields
+
+
+def test_what_a_delete_refused_says(people):
+    admin, alice, bob = people["admin"], people["alice"], people["bob"]
+    have = rows(admin)
+    used = new(alice, "Used")
+    _use(people, used["id"])
+    mine = new(alice, "Spare")
+    cases = [
+        (
+            admin,
+            have["Gifts"],
+            (
+                422,
+                None,
+                "category-kept",
+                "MoolaKata counts in this category by its own rules: it stays.",
+            ),
+        ),
+        (
+            admin,
+            row(admin, used["id"]),
+            (
+                422,
+                None,
+                "category-in-use",
+                "It's in use: an admin can merge it into another category.",
+            ),
+        ),
+        (
+            alice,
+            have["Travel"],
+            (403, None, "admins-only", "Only admins delete a shipped category."),
+        ),
+        (
+            bob,
+            row(bob, mine["id"]),
+            (403, None, "admins-only", "Only admins delete another user's category."),
+        ),
+    ]
+    for c, cat, want in cases:
+        assert answer(remove(c, "Cat", cat)) == want, cat["path"]
+
+
+def test_a_deleted_category_is_not_found_and_its_name_is_free_again(people, server):
+    alice = people["alice"]
+    gone = new(alice, "Gone soon")
+    saved(remove(alice, "Cat", gone))
+    with server.db.read(unscoped="test") as s:
+        got = s.get(Category, gone["id"])
+        assert got.deleted and got.deletedById == got.createdById  # Alice, who deleted it
+    assert change(alice, "Cat", gone, name="Back").status_code == 404
+    assert remove(alice, "Cat", gone).status_code == 404
+    assert new(alice, "Gone soon")["id"] != gone["id"]
+
+
+def test_a_row_names_its_maker_and_the_save_answers_with_the_row(people):
+    admin, alice = people["admin"], people["alice"]
+    mine = new(alice, "Named")
+    assert row(admin, mine["id"])["createdByName"] == "Alice"
+    assert rows(admin)["Food"]["createdByName"] is None and rows(admin)["Food"]["shipped"]
+    _use(people, mine["id"])
+    renamed = saved(change(admin, "Cat", row(admin, mine["id"]), name="Named again"))
+    assert renamed["inUse"] is True and renamed["createdByName"] == "Alice"
+    assert saved(change(admin, "Cat", rows(admin)["Travel"], name="Trips"))["inUse"] is False
+
+
+def test_each_change_names_its_category_and_tells_every_page(people, server, monkeypatch):
+    admin, alice = people["admin"], people["alice"]
+    told = []
+    monkeypatch.setattr(server.events, "publish", lambda kind, data=None, **kw: told.append(kind))
+    pets = new(alice, "Pets")
+    vet = new(alice, "Vet", parentId=pets["id"])
+    vet = saved(change(alice, "Cat", vet, parentId=rows(alice)["Health"]["id"]))
+    vet = saved(change(admin, "Cat", vet, keepReceiptsYears=7))
+    saved(change(admin, "Cat", row(admin, vet["id"]), keepReceiptsYears=3))
+    assert told.count("category") == 5
+    items = admin.get("/ui/api/activity").json()["items"]
+    cats = [a for a in items if a["kind"].startswith("category.")]
+    assert {a["subjectKind"] for a in cats} == {"category"}
+    assert {a["subjectId"] for a in cats} == {pets["id"], vet["id"]}
+    texts = [a["text"] for a in cats]
+    assert "Alice moved the category Vet from Pets to Health" in texts
+    assert (
+        "Ada Admin set how long Health › Vet's receipts are kept to 3 years (it was 7 years)"
+        in texts
+    )
+    assert (
+        "Ada Admin set how long Health › Vet's receipts are kept to 7 years"
+        " (it was its parent's, or for ever)" in texts
+    )
+
+
+def test_two_new_categories_naming_each_other_are_refused_not_lost(people):
+    """The save puts a create another names first; two that name each other can't both go
+    first, and are refused as any parent that isn't there yet is."""
+    from edits import new_id
+
+    alice = people["alice"]
+    a, b = new_id("Cat"), new_id("Cat")
+    ops = [
+        {
+            "op": "create",
+            "entity": "Cat",
+            "id": a,
+            "fields": {
+                "name": "A",
+                "kind": "expense",
+                "parentId": b,
+                "taxTag": None,
+                "keepReceiptsYears": None,
+            },
+        },
+        {
+            "op": "create",
+            "entity": "Cat",
+            "id": b,
+            "fields": {
+                "name": "B",
+                "kind": "expense",
+                "parentId": a,
+                "taxTag": None,
+                "keepReceiptsYears": None,
+            },
+        },
+    ]
+    r = alice.post("/ui/api/save", json={"ops": ops})
+    assert r.status_code == 422, r.text
+    assert {e["code"] for e in r.json()["errors"]} == {"parent-invalid"}

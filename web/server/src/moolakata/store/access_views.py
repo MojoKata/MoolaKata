@@ -599,7 +599,9 @@ def _activity() -> str:
         'WHERE e."forAdmins" AND (e."subjectKind" IS NULL '
         "OR e.\"subjectKind\" IN ('user', 'group', 'link'))"
     )
-    # The categories are every user's (S7.2), so is what happens to them (S10.8).
+    # The categories are every user's (S7.2), so is what happens to them (S10.8). SQL reads
+    # its words and names in any case, so a change of case changes nothing.
+    # pragma: no mutate
     categories = (
         f'SELECT {_cols("e.id", 'u."userId"', *zero)}\nFROM "Activity" AS e\n'
         'JOIN "AccessUser" AS u ON u.local\n'

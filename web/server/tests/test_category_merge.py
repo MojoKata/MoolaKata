@@ -94,6 +94,12 @@ LINES = [
         [L(1, "100")],
     ),
     (
+        "the target's reserve, the source without one",
+        [L(1, "100", target=D("1200"), heldInId="Acct_t")],
+        [L(1, "40")],
+        [L(1, "140", target=D("1200"), heldInId="Acct_t")],
+    ),
+    (
         "the target's terms win",
         [L(1, "100", overspend="next", projectionId="Prjct_a")],
         [L(1, "40", overspend="carry", projectionId="Prjct_b")],
@@ -172,6 +178,12 @@ def preview(c, source: dict, into: str, children: dict | None = None):
 def error(r):
     e = r.json()["errors"][0]
     return r.status_code, e.get("field"), e["code"]
+
+
+def answer(r):
+    """A refusal as the dialog shows it: its status, field, code and words."""
+    e = r.json()["errors"][0]
+    return r.status_code, e.get("field"), e["code"], e["message"]
 
 
 def test_a_merge_moves_everything_that_named_the_category(people, server):
@@ -343,35 +355,82 @@ def _refusal_world(admin):
 
 
 REFUSALS = [
-    # (what, source, into, children (names → names or "self"), (status, field, code))
-    ("into itself", "lonely", "lonely", {}, (422, "into", "merge-itself")),
-    ("into one deleted", "lonely", "gone", {}, (422, "into", "category-unknown")),
-    ("into another kind", "lonely", "wage", {}, (422, "into", "merge-kind")),
-    ("a parent into a child", "pet", "groceries", None, (422, "into", "merge-level")),
-    ("a child left out", "pet", "pets", {"dog": "dogs"}, (422, "children", "merge-children")),
-    ("a child not its own", "lonely", "pets", {"dog": "dogs"}, (422, "children", "merge-children")),
+    # (what, source, into, children (names → names or "self"), (status, field, code, message))
+    (
+        "into itself",
+        "lonely",
+        "lonely",
+        {},
+        (422, "into", "merge-itself", "Choose another category to merge it into."),
+    ),
+    (
+        "into one deleted",
+        "lonely",
+        "gone",
+        {},
+        (422, "into", "category-unknown", "Choose a category."),
+    ),
+    (
+        "into another kind",
+        "lonely",
+        "wage",
+        {},
+        (422, "into", "merge-kind", "Choose another expense category."),
+    ),
+    (
+        "a parent into a child",
+        "pet",
+        "groceries",
+        None,
+        (422, "into", "merge-level", "Categories have two levels: merge it into a top-level one."),
+    ),
+    (
+        "a child left out",
+        "pet",
+        "pets",
+        {"dog": "dogs"},
+        (422, "children", "merge-children", "Say where each of its categories goes."),
+    ),
+    (
+        "a child not its own",
+        "lonely",
+        "pets",
+        {"dog": "dogs"},
+        (422, "children", "merge-children", "Say where each of its categories goes."),
+    ),
     (
         "into a child outside the target",
         "pet",
         "pets",
         {"dog": "groceries", "toy": "self"},
-        (422, "children.dog", "merge-children"),
+        (422, "children.dog", "merge-children", "Choose one of Pets's categories."),
     ),
     (
         "a child into another kind",
         "pet",
         "pets",
         {"dog": "dogs", "toy": "dogs"},
-        (422, "children.toy", "merge-kind"),
+        (422, "children.toy", "merge-kind", "Choose another savings category."),
     ),
     (
         "a child kept beside its namesake",
         "pet",
         "pets",
         {"dog": "self", "toy": "self"},
-        (422, "children.dog", "name-taken"),
+        (422, "children.dog", "name-taken", "Pets has a Dog already: merge Dog into it."),
     ),
-    ("a category the server counts in", "gifts", "food", {}, (422, None, "category-kept")),
+    (
+        "a category the server counts in",
+        "gifts",
+        "food",
+        {},
+        (
+            422,
+            None,
+            "category-kept",
+            "MoolaKata counts in this category by its own rules: it stays.",
+        ),
+    ),
 ]
 
 
@@ -385,11 +444,12 @@ def test_a_merge_is_checked(people, what, src, into, kids, want):
     if kids is None:
         kids = {"dog": "self", "toy": "self"}
     children = {w[k]["id"]: (w[k]["id"] if v == "self" else w[v]["id"]) for k, v in kids.items()}
-    status, field, code = want
+    status, field, code, message = want
     if field and field.startswith("children."):
         field = f"children.{w[field.removeprefix('children.')]['id']}"
-    assert error(merge(admin, source, w[into]["id"], children)) == (status, field, code)
-    assert error(preview(admin, source, w[into]["id"], children)) == (status, field, code)
+    want = (status, field, code, message)
+    assert answer(merge(admin, source, w[into]["id"], children)) == want
+    assert answer(preview(admin, source, w[into]["id"], children)) == want
 
 
 def test_a_child_the_server_counts_in_moves_but_is_never_merged_away(people):
@@ -406,10 +466,11 @@ def test_a_child_the_server_counts_in_moves_but_is_never_merged_away(people):
         if x["parentId"] == housing["id"]
     }
     tax = rows(admin)["Housing › Property tax"]["id"]
-    assert error(merge(admin, housing, other["id"], {**kids, tax: homes["id"]})) == (
+    assert answer(merge(admin, housing, other["id"], {**kids, tax: homes["id"]})) == (
         422,
         f"children.{tax}",
         "category-kept",
+        "MoolaKata counts in Property tax by its own rules: it moves, as it is.",
     )
     r = merge(admin, housing, other["id"], kids)
     assert r.status_code == 200, r.text
@@ -423,7 +484,12 @@ def test_only_an_admin_merges_and_a_stale_one_is_refused(people):
         x for x in alice.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
     )
     assert not source["allowed"]["merge"]
-    assert error(merge(alice, source, pets["id"])) == (403, None, "admins-only")
+    assert answer(merge(alice, source, pets["id"])) == (
+        403,
+        None,
+        "admins-only",
+        "Only admins merge categories.",
+    )
     assert next(x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"])[
         "allowed"
     ]["merge"]
@@ -481,3 +547,292 @@ def test_a_merge_in_a_large_household_takes_moments(people, server):
     with server.db.read(unscoped="test") as s:
         left = s.scalars(select(Transaction.id).where(Transaction.categoryId == pet["id"])).first()
         assert left is None
+
+
+T1 = dt.datetime(2026, 10, 21, 9, 30, tzinfo=dt.UTC)
+
+
+def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
+    """Every record that named the category, deleted ones too, names the other, its version
+    up by one and its time the merge's; a move between the two that was already deleted stays
+    as it was; other categories' records, lines and moves are left as they are."""
+    from edits import remove, terms
+
+    admin, alice = people["admin"], people["alice"]
+    pet, pets = new(alice, "Pet"), new(alice, "Pets")
+    food = rows(alice)["Food"]["id"]
+    fun = rows(alice)["Entertainment"]["id"]
+    acct = new_account(alice)
+    t = add(alice, acct["id"], "-20.00", "2026-10-02", payee="Vet", categoryId=pet["id"])
+    gone = add(alice, acct["id"], "-5.00", "2026-10-03", payee="Old", categoryId=pet["id"])
+    saved(remove(alice, "Txn", gone))
+    other = add(alice, acct["id"], "-7.00", "2026-10-04", payee="Shop", categoryId=food)
+    split = add(
+        alice,
+        acct["id"],
+        "-9.00",
+        "2026-10-05",
+        payee="Mixed",
+        splits=[
+            {"categoryId": pet["id"], "amount": "-4.00"},
+            {"categoryId": food, "amount": "-5.00"},
+        ],
+    )
+    rule = make(alice, "Rule", payeeMatch="petco", categoryId=pet["id"]).json()
+    b = make(alice, "Bdgt", name="Home", accountIds=[acct["id"]], method="envelope").json()
+    assert (
+        save_plan(
+            alice,
+            b,
+            "2026-09-01",
+            [
+                {"categoryId": pet["id"], "amount": "40.00"},
+                {"categoryId": food, "amount": "300.00"},
+            ],
+        ).status_code
+        == 200
+    )
+
+    def mv(f, to):
+        return make(
+            alice,
+            "BdgMv",
+            budgetId=b["id"],
+            month="2026-10-01",
+            fromCategoryId=f,
+            toCategoryId=to,
+            amount="1.00",
+        ).json()
+
+    across, untouched = mv(food, pet["id"]), mv(food, fun)
+    old_between = mv(pets["id"], pet["id"])
+    saved(remove(alice, "BdgMv", old_between))
+    loan_acct = new_account(alice, name="Loan", type="auto-loan", mask="3333")
+    assert (
+        terms(
+            alice,
+            loan_acct["id"],
+            principal="9000.00",
+            rate="5",
+            termMonths=48,
+            startDate="2026-11-01",
+            budgetCounting="whole",
+            budgetCategoryId=pet["id"],
+        ).status_code
+        == 200
+    )
+    with server.db.read(unscoped="test") as s:
+        before = {
+            "txn": s.get(Transaction, t["id"]).version,
+            "gone": s.get(Transaction, gone["id"]).version,
+            "other": s.get(Transaction, other["id"]).version,
+            "split": {
+                p.categoryId: p.version
+                for p in s.scalars(select(Split).where(Split.transactionId == split["id"]))
+            },
+            "rule": s.get(Rule, rule["id"]).version,
+            "across": s.get(BudgetMove, across["id"]).version,
+            "untouched": s.get(BudgetMove, untouched["id"]).version,
+            "between": (
+                s.get(BudgetMove, old_between["id"]).version,
+                s.get(BudgetMove, old_between["id"]).deletedAt,
+            ),
+            "loan": s.scalars(select(Loan).where(Loan.accountId == loan_acct["id"])).one().version,
+        }
+        admin_id = s.scalars(select(Category.createdById).where(Category.id == pet["id"])).one()
+    clock.fix(T1)
+    source = next(
+        x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
+    )
+    assert merge(admin, source, pets["id"]).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        ada = s.get(Category, pet["id"]).deletedById
+        assert ada and ada != admin_id, "deleted by the admin who merged, not its maker"
+        for key, row_ in (
+            ("txn", s.get(Transaction, t["id"])),
+            ("gone", s.get(Transaction, gone["id"])),
+        ):
+            assert (row_.categoryId, row_.version, row_.updatedAt) == (
+                pets["id"],
+                before[key] + 1,
+                T1,
+            )
+        assert s.get(Transaction, gone["id"]).deleted, "repointed, still deleted"
+        assert s.get(Transaction, other["id"]).version == before["other"]
+        parts = {
+            p.categoryId: p
+            for p in s.scalars(select(Split).where(Split.transactionId == split["id"]))
+        }
+        assert (parts[pets["id"]].version, parts[pets["id"]].updatedAt) == (
+            before["split"][pet["id"]] + 1,
+            T1,
+        )
+        assert parts[food].version == before["split"][food]
+        r_ = s.get(Rule, rule["id"])
+        assert (r_.categoryId, r_.version, r_.updatedAt) == (pets["id"], before["rule"] + 1, T1)
+        m = s.get(BudgetMove, across["id"])
+        assert (m.toCategoryId, m.fromCategoryId, m.version, m.updatedAt) == (
+            pets["id"],
+            food,
+            before["across"] + 1,
+            T1,
+        )
+        assert s.get(BudgetMove, untouched["id"]).version == before["untouched"]
+        old = s.get(BudgetMove, old_between["id"])
+        assert old.deletedAt == before["between"][1], "already deleted: when it was is kept"
+        assert old.version == before["between"][0] + 1 and old.fromCategoryId == pets["id"]
+        loan = s.scalars(select(Loan).where(Loan.accountId == loan_acct["id"])).one()
+        assert (loan.budgetCategoryId, loan.version, loan.updatedAt) == (
+            pets["id"],
+            before["loan"] + 1,
+            T1,
+        )
+        lines = s.scalars(select(BudgetLine).where(BudgetLine.budgetId == b["id"])).all()
+        live = sorted((x.categoryId, x.amount) for x in lines if not x.deleted)
+        assert live == sorted([(pets["id"], D("40.00")), (food, D("300.00"))])
+        dead = [x for x in lines if x.deleted]
+        assert [x.categoryId for x in dead] == [pet["id"]] and dead[0].deletedById == ada
+
+
+def test_merged_lines_carry_every_term(people, server):
+    """A budget that plans only the source has its line moved with every term; one that
+    plans only the target is left alone; one that plans both has one line from each month."""
+    admin = people["admin"]
+    pet, pets = new(admin, "Pet", kind="savings"), new(admin, "Pets", kind="savings")
+    acct = new_account(admin)
+    saving = new_account(admin, name="Savings box", type="savings", mask="8888")
+    ids_ = [acct["id"], saving["id"]]
+    only_target = make(admin, "Bdgt", name="A target only", accountIds=ids_).json()
+    only_source = make(
+        admin, "Bdgt", name="B source only", accountIds=ids_, method="envelope", reserves=True
+    ).json()
+    assert (
+        save_plan(
+            admin, only_target, "2026-09-01", [{"categoryId": pets["id"], "amount": "10.00"}]
+        ).status_code
+        == 200
+    )
+    terms_ = {
+        "amount": "50.00",
+        "rollover": True,
+        "overspend": "next",
+        "target": "600.00",
+        "heldInId": saving["id"],
+    }
+    r = save_plan(admin, only_source, "2026-09-01", [{"categoryId": pet["id"], **terms_}])
+    assert r.status_code == 200, r.text
+    source = next(
+        x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
+    )
+    assert merge(admin, source, pets["id"]).status_code == 200
+    with server.db.read(unscoped="test") as s:
+
+        def live(b):
+            alive = (BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
+            return s.scalars(select(BudgetLine).where(*alive)).all()
+
+        (kept,) = live(only_target)
+        assert (kept.categoryId, kept.amount, kept.deleted) == (pets["id"], D("10.00"), False)
+        assert not s.scalars(
+            select(BudgetLine).where(
+                BudgetLine.budgetId == only_target["id"], BudgetLine.deleted.is_(True)
+            )
+        ).all()
+        (moved,) = live(only_source)
+        got = (
+            moved.categoryId,
+            moved.fromMonth,
+            moved.amount,
+            moved.out,
+            moved.cadence,
+            moved.rollover,
+            moved.overspend,
+            moved.target,
+            moved.heldInId,
+        )
+        assert got == (
+            pets["id"],
+            dt.date(2026, 9, 1),
+            D("50.00"),
+            False,
+            "month",
+            True,
+            "next",
+            D("600.00"),
+            saving["id"],
+        )
+
+
+def test_a_yearly_line_and_a_projection_carry_too(people, server):
+    admin = people["admin"]
+    pet, pets = new(admin, "Pet"), new(admin, "Pets")
+    acct = new_account(admin)
+    b = make(admin, "Bdgt", name="Yearly", accountIds=[acct["id"]]).json()
+    assert (
+        save_plan(
+            admin,
+            b,
+            "2026-09-01",
+            [
+                {"categoryId": pet["id"], "amount": "1200.00", "cadence": "year"},
+            ],
+        ).status_code
+        == 200
+    )
+    source = next(
+        x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
+    )
+    assert merge(admin, source, pets["id"]).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        (moved,) = s.scalars(
+            select(BudgetLine).where(BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
+        ).all()
+        assert (moved.cadence, moved.amount, moved.categoryId) == ("year", D("1200.00"), pets["id"])
+
+
+def test_a_deleted_child_needs_no_place(people):
+    from edits import remove
+
+    admin = people["admin"]
+    pet, pets = new(admin, "Pet"), new(admin, "Pets")
+    saved(remove(admin, "Cat", new(admin, "Old", parentId=pet["id"])))
+    source = next(
+        x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
+    )
+    # With no children left it may go into a child, as any childless one may.
+    child = new(admin, "Kid", parentId=pets["id"])
+    assert merge(admin, source, child["id"]).status_code == 200
+
+
+def test_the_preview_leaves_out_deleted_budgets_and_sorts_by_name(people):
+    from edits import remove
+
+    admin = people["admin"]
+    pet, pets = new(admin, "Pet"), new(admin, "Pets")
+    made = {}
+    for name in ("beta", "Alpha", "Gone"):
+        acct = new_account(admin, name=f"{name} checking")
+        made[name] = make(admin, "Bdgt", name=name, accountIds=[acct["id"]]).json()
+        assert (
+            save_plan(
+                admin, made[name], "2026-10-01", [{"categoryId": pet["id"], "amount": "1.00"}]
+            ).status_code
+            == 200
+        )
+    saved(remove(admin, "Bdgt", admin.get(f"/ui/api/budgets/{made['Gone']['id']}").json()))
+    source = next(
+        x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
+    )
+    assert preview(admin, source, pets["id"]).json() == {"budgets": ["Alpha", "beta"]}
+
+
+def test_a_refused_merge_reads_as_its_parts():
+    from moolakata.categories import Refused
+
+    e = Refused("into", "merge-kind", "Choose another expense category.")
+    assert (e.field, e.code, e.message) == (
+        "into",
+        "merge-kind",
+        "Choose another expense category.",
+    )
+    assert e.args == ("into", "merge-kind", "Choose another expense category.")

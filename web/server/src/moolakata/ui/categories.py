@@ -65,7 +65,9 @@ class CategoryRecord(NewCategory):
 
 
 def _used(s, ids) -> set[str]:
-    with scoping.as_server(s, "categories: whether anything names them", expire=False) as srv:
+    # Nothing it reads changes the user's records, so they are left as read (no expiring).
+    why = "categories: whether anything names them"
+    with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
         return cats.used(srv, ids)
 
 

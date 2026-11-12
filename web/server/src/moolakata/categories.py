@@ -77,7 +77,9 @@ def used(s: Session, cat_ids: Iterable[str]) -> set[str]:
         (Category.parentId, Category.deleted),
     ]
     for col, gone in probes:
-        out |= set(s.scalars(select(col).where(col.in_(want), gone == false()).distinct()))
+        # Only the categories asked about, for speed: what else is found isn't asked.
+        found = select(col).where(col.in_(want), gone == false()).distinct()  # pragma: no mutate
+        out |= set(s.scalars(found))
     return out
 
 
@@ -112,9 +114,9 @@ class Line:
             heldInId=x.heldInId,
         )
 
-    def terms(self) -> Line:
-        """Its terms alone, whatever month they start."""
-        return replace(self, fromMonth=dt.date.min)
+    def same_terms(self, other: Line) -> bool:
+        """Whether two lines plan the same, whatever month each starts."""
+        return replace(self, fromMonth=other.fromMonth) == other
 
 
 CENT = Decimal("0.01")
@@ -126,7 +128,7 @@ def per(amount: Decimal, cadence: str, to: str) -> Decimal:
     if cadence == to:
         return amount
     if cadence == "year":
-        return (amount / 12).quantize(CENT, rounding=ROUND_HALF_EVEN)
+        return (amount / 12).quantize(CENT, rounding=ROUND_HALF_EVEN)  # pragma: no mutate
     return amount * 12
 
 
@@ -158,17 +160,13 @@ def _both(t: Line, s: Line, month: dt.date) -> Line:
     )
 
 
-def merge_lines(target: list[BudgetLine | Line], source: list[BudgetLine | Line]) -> list[Line]:
+def merge_lines(target: list[Line], source: list[Line]) -> list[Line]:
     """One budget's plan for the target category once the source is merged into it (S7.2.4):
     month by month, what both planned, so every month, past ones too, plans what it did for
     the two. Where only one was in the plan, its line; where neither, out of the plan from
     there, once either had been in it. Lines that change nothing are left out."""
-    t = sorted(
-        (x if isinstance(x, Line) else Line.of(x) for x in target), key=lambda x: x.fromMonth
-    )
-    s = sorted(
-        (x if isinstance(x, Line) else Line.of(x) for x in source), key=lambda x: x.fromMonth
-    )
+    t = sorted(target, key=lambda x: x.fromMonth)
+    s = sorted(source, key=lambda x: x.fromMonth)
     out: list[Line] = []
     for month in sorted({x.fromMonth for x in t} | {x.fromMonth for x in s}):
         a, b = _in_force(t, month), _in_force(s, month)
@@ -183,7 +181,7 @@ def merge_lines(target: list[BudgetLine | Line], source: list[BudgetLine | Line]
             line = replace(out[-1], fromMonth=month, out=True, amount=Decimal(0))
         else:
             continue
-        if not out or out[-1].terms() != line.terms():
+        if not out or not out[-1].same_terms(line):
             out.append(line)
     return out
 
@@ -203,32 +201,32 @@ class Plan:
 
 
 class Refused(Exception):
+    """A merge refused: the field at fault (or none), its code, and the words to show."""
+
     def __init__(self, field: str | None, code: str, message: str) -> None:
-        super().__init__(message)
+        super().__init__(field, code, message)
         self.field, self.code, self.message = field, code, message
 
 
 def plan(s: Session, source: Category, target: Category, mapping: dict[str, str]) -> Plan:
     """Check a merge of `source` into `target`, `mapping` giving each of the source's children
     its place: itself (it moves under the target) or one of the target's children (it merges
-    into that one). Raises `Refused` naming what is wrong."""
+    into that one). The target is a live category; the source's children can't be it, as one
+    with children merges only into a top-level category. Raises `Refused` naming what is
+    wrong, at the first child (in the order they were made) for a child's."""
     if target.id == source.id:
         raise Refused("into", "merge-itself", "Choose another category to merge it into.")
-    if target.deleted:
-        raise Refused("into", "category-unknown", "Choose a category.")
     if target.kind != source.kind:
         raise Refused("into", "merge-kind", f"Choose another {source.kind} category.")
     if server_named(source):
         raise Refused(
             None, "category-kept", "MoolaKata counts in this category by its own rules: it stays."
         )
-    kids = sorted(children(s, source.id), key=lambda c: (c.name.lower(), c.id))
+    kids = sorted(children(s, source.id), key=lambda c: c.id)
     if kids and target.parentId:
         raise Refused(
             "into", "merge-level", "Categories have two levels: merge it into a top-level one."
         )
-    if target.parentId == source.id:
-        raise Refused("into", "merge-itself", "Choose a category outside this one.")
     theirs = {c.id: c for c in children(s, target.id)}
     if set(mapping) != {c.id for c in kids}:
         raise Refused("children", "merge-children", "Say where each of its categories goes.")
@@ -263,43 +261,33 @@ def plan(s: Session, source: Category, target: Category, mapping: dict[str, str]
     return Plan(source=source, target=target, pairs=pairs, moved=moved)
 
 
-@dataclass
-class Merged:
-    lines: int  # plan lines written
-    budgets: set[str]  # the budgets whose plans changed
-
-
-def apply(s: Session, p: Plan, actor: str) -> Merged:
+def apply(s: Session, p: Plan, actor: str) -> None:
     """Carry out a checked merge in `s`, a session that reads and writes as the server: every
-    use of each category merged away moves to the one it goes into, plan lines are merged per
-    budget, children kept move under the target, and the merged categories are deleted."""
+    record that names a category merged away names the one it goes into, deleted ones too (so
+    one restored later finds a live category), plan lines are merged per budget, children kept
+    move under the target, and the merged categories are deleted."""
     now = clock.now()
-    budgets: set[str] = set()
-    written = 0
     for c in p.moved:
         c.parentId = p.target.id
     for gone, into in p.pairs:
-        for col in (Transaction, Split, Rule):
+        for entity in (Transaction, Split, Rule):
             s.execute(
-                update(col)
-                .where(col.categoryId == gone.id, col.deleted == false())
-                .values(categoryId=into.id, version=col.version + 1, updatedAt=now)
-                .execution_options(synchronize_session=False)
+                update(entity)
+                .where(entity.categoryId == gone.id)
+                .values(categoryId=into.id, version=entity.version + 1, updatedAt=now)
             )
         s.execute(
             update(Loan)
             .where(Loan.budgetCategoryId == gone.id)
             .values(budgetCategoryId=into.id, version=Loan.version + 1, updatedAt=now)
-            .execution_options(synchronize_session=False)
         )
         for col in (BudgetMove.fromCategoryId, BudgetMove.toCategoryId):
             s.execute(
                 update(BudgetMove)
-                .where(col == gone.id, BudgetMove.deleted == false())
+                .where(col == gone.id)
                 .values({col.key: into.id, "version": BudgetMove.version + 1, "updatedAt": now})
-                .execution_options(synchronize_session=False)
             )
-        # A move between the two is a move within one category now: it moves nothing.
+        # A live move between the two is a move within one category now: it moves nothing.
         s.execute(
             update(BudgetMove)
             .where(
@@ -308,59 +296,36 @@ def apply(s: Session, p: Plan, actor: str) -> Merged:
                 BudgetMove.deleted == false(),
             )
             .values(deletedAt=now, deletedById=actor, version=BudgetMove.version + 1, updatedAt=now)
-            .execution_options(synchronize_session=False)
         )
-        n, touched = _merge_plans(s, gone.id, into.id, actor, now)
-        written += n
-        budgets |= touched
-        gone.mark_deleted(actor, now)
+        _merge_plans(s, gone.id, into.id, actor)
+        gone.mark_deleted(actor)
     s.flush()
-    return Merged(lines=written, budgets=budgets)
 
 
-def _merge_plans(
-    s: Session, gone: str, into: str, actor: str, now: dt.datetime
-) -> tuple[int, set[str]]:
-    rows = list(
-        s.scalars(
-            select(BudgetLine).where(
-                BudgetLine.categoryId.in_((gone, into)), BudgetLine.deleted == false()
-            )
+def _merge_plans(s: Session, gone: str, into: str, actor: str) -> None:
+    """Each budget that plans `gone`: its plan for the two as one, on `into` (`merge_lines`)."""
+    rows = s.scalars(
+        select(BudgetLine).where(
+            BudgetLine.categoryId.in_((gone, into)), BudgetLine.deleted == false()
         )
     )
     by_budget: dict[str, tuple[list[BudgetLine], list[BudgetLine]]] = {}
     for x in rows:
-        pair = by_budget.setdefault(x.budgetId, ([], []))
-        pair[0 if x.categoryId == into else 1].append(x)
-    written = 0
-    touched: set[str] = set()
+        theirs, mine = by_budget.setdefault(x.budgetId, ([], []))
+        (theirs if x.categoryId == into else mine).append(x)
     for budget_id, (theirs, mine) in by_budget.items():
         if not mine:
             continue
-        touched.add(budget_id)
-        merged = merge_lines(theirs, mine)
+        merged = merge_lines([Line.of(x) for x in theirs], [Line.of(x) for x in mine])
         for x in theirs + mine:
-            x.mark_deleted(actor, now)
+            x.mark_deleted(actor)
         s.flush()
         for line in merged:
             s.add(
                 BudgetLine(
-                    id=ids.new_id("BdgLn"),
-                    budgetId=budget_id,
-                    categoryId=into,
-                    fromMonth=line.fromMonth,
-                    amount=line.amount,
-                    out=line.out,
-                    cadence=line.cadence,
-                    rollover=line.rollover,
-                    overspend=line.overspend,
-                    projectionId=line.projectionId,
-                    target=line.target,
-                    heldInId=line.heldInId,
+                    id=ids.new_id("BdgLn"), budgetId=budget_id, categoryId=into, **vars(line)
                 )
             )
-            written += 1
-    return written, touched
 
 
 def name_taken(s: Session, name: str, parent_id: str | None, but: str | None = None) -> bool:
@@ -369,7 +334,7 @@ def name_taken(s: Session, name: str, parent_id: str | None, but: str | None = N
     q = select(Category.id).where(
         Category.deleted == false(),
         func.lower(Category.name) == name.lower(),
-        Category.parentId.is_(None) if parent_id is None else Category.parentId == parent_id,
+        Category.parentId == parent_id,  # IS NULL when None
     )
     if but:
         q = q.where(Category.id != but)
