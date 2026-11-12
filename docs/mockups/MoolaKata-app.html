@@ -19688,26 +19688,28 @@ export function RulesTab({ id }) {
             ${rows.map((r, i) =>
               html`
                 <div class=${'list-item rule-row' + (r.id === id ? ' sel' : '')} key=${r.id}>
-                  <span class="dim small rule-n">${i + 1}</span>
-                  <a class="grow rule-link" href=${RULES + '/' + r.id}
+                  <span class="dim small rule-n">${i + 1}</span>${' '}<a class="grow rule-link"
+                    href=${RULES + '/' + r.id}
                     aria-current=${r.id === id ? 'true' : undefined}>${when(r)}<div
-                      class="small">${sets(r)}</div></a>
-                  <span class="rule-moves">${arrow(r, i, i - 1)} ${arrow(r, i, i + 1)}</span>
+                      class="small">${sets(r)}</div></a>${' '}<span class="rule-moves">${arrow(
+                        r,
+                        i,
+                        i - 1,
+                      )} ${arrow(r, i, i + 1)}</span>
                 </div>
               `
             )}
             ${fresh
               ? html`
                 <div class="list-item rule-row sel">
-                  <span class="dim small rule-n">${rows.length + 1}</span>
-                  <span class="grow"><i>New rule</i></span>
-                  <span class="pill new">not saved</span>
+                  <span class="dim small rule-n">${rows.length + 1}</span>${' '}<span class="grow"
+                    ><i>New rule</i></span>${' '}<span class="pill new">not saved</span>
                 </div>
               `
               : null}
             ${!rows.length && !fresh
-              ? html`<p class="small dim">No rules yet. <b>Add rule</b>, or <b>Make a rule</b>
-                from a transaction.</p>`
+              ? html`<p class="small dim">No rules yet. <b>Add rule</b>, or <b>Make a rule</b> from
+                a transaction.</p>`
               : null}
           `}
         <${FormError} error=${act.error || apply.error} />
