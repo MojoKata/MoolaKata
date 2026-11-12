@@ -29,7 +29,6 @@ log = logging.getLogger("moolakata.prices")
 BENCHMARKS = ("SPY", "VT", "BND")
 BACKFILL_DAYS = 5 * 366
 STALE_DAYS = {"crypto": 2}
-STATEMENT_STALE_DAYS = 90
 
 
 def trading_days_between(a: dt.date, b: dt.date) -> int:
@@ -44,8 +43,8 @@ def trading_days_between(a: dt.date, b: dt.date) -> int:
 
 
 def typed_stale(as_of: dt.date, today: dt.date) -> bool:
-    """A typed price, as a statement's value, is stale after 90 days (S4.7)."""
-    return (today - as_of).days > STATEMENT_STALE_DAYS
+    """A typed price is stale after 90 days (S4.7)."""
+    return (today - as_of).days > valuation.TYPED_STALE_DAYS
 
 
 def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:

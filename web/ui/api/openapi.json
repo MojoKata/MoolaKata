@@ -9191,6 +9191,10 @@
             "title": "Quantity",
             "type": "number"
           },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
           "symbol": {
             "title": "Symbol",
             "type": "string"
@@ -9221,6 +9225,7 @@
           "price",
           "priceAsOf",
           "priceSource",
+          "stale",
           "value",
           "gain",
           "lots"

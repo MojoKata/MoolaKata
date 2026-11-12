@@ -1551,6 +1551,7 @@
  * @property {(import('../app/dec.js').Dec | null)} price
  * @property {(string | null)} priceAsOf
  * @property {(string | null)} priceSource
+ * @property {boolean} stale
  * @property {(import('../app/dec.js').Dec | null)} value
  * @property {(import('../app/dec.js').Dec | null)} gain
  * @property {Array<LotRow>} lots

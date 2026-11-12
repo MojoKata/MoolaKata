@@ -516,12 +516,14 @@ def accounts(s: Session, server) -> Iterable[Cause]:
 
 @check
 def statement_values(s: Session, server) -> Iterable[Cause]:
-    """For each account's owner: a holding valued from a statement more than 90 days old
-    (S4.3), until a newer statement, a price or a sale replaces it."""
+    """For each account's owner: a holding valued from a statement that is stale (S4.3), the
+    statement after it overdue, until a newer statement, a price or a sale replaces it. While
+    the account's own next statement is overdue (S1.11.7.3), that alert says it: this one is
+    for statements that arrive without valuing the holding."""
     from . import valuation
+    from .ledger import expected
     from .ledger import types as atypes
-    from .prices.refresh import STATEMENT_STALE_DAYS
-    from .store.entities.accounts import Account
+    from .store.entities.accounts import Account, Import
     from .store.repos import ledger as repo
 
     today = clock.today()
@@ -536,23 +538,26 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
         old = [
             p.asOf
             for p in valuation.prices(s, list(held), today, owner=a.ownerId).values()
-            if p.source == "statement" and (today - p.asOf).days > STATEMENT_STALE_DAYS
+            if p.source == "statement" and p.stale
         ]
-        if old:
-            oldest = min(old)
-            yield Cause(
-                key=f"statement-value:{a.id}",
-                kind="statement-value-old",
-                title=f"{a.name}: a holding is valued from a statement over 90 days old",
-                about=f"the statement of {oldest:%b %-d, %Y} · import a newer one, or type a price",
-                user_id=a.ownerId,
-                link=f"/ui/accounts/{a.id}/holdings",
-                fix="See the holdings",
-                icon="receipt",
-                since=dt.datetime.combine(
-                    oldest + dt.timedelta(days=STATEMENT_STALE_DAYS + 1), dt.time(), dt.UTC
-                ),
-            )
+        if not old:
+            continue
+        imports = s.scalars(
+            select(Import).where(Import.accountId == a.id, Import.deleted == false())
+        ).all()
+        if expected.overdue(a, imports, today) is not None:
+            continue
+        yield Cause(
+            key=f"statement-value:{a.id}",
+            kind="statement-value-old",
+            title=f"{a.name}: a holding is still valued from an old statement",
+            about=f"the statement of {min(old):%b %-d, %Y} · import a newer one that values "
+            "it, or type a price",
+            user_id=a.ownerId,
+            link=f"/ui/accounts/{a.id}/holdings",
+            fix="See the holdings",
+            icon="receipt",
+        )
 
 
 @check

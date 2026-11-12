@@ -55,6 +55,26 @@ def test_overdue_after_the_interval_and_its_grace():
     assert expected.overdue(a, [], dt.date(2030, 1, 1)) is None
 
 
+def test_a_statements_value_is_stale_when_the_next_is_overdue():
+    # S4.3, CR3-8: on the day the statement after it is overdue, not at a fixed 90 days; an
+    # account expecting none counts as yearly.
+    cases = [
+        ("monthly", dt.date(2026, 8, 31), dt.date(2026, 10, 15)),
+        ("quarterly", dt.date(2026, 3, 31), dt.date(2026, 7, 30)),
+        ("yearly", dt.date(2025, 12, 31), dt.date(2027, 3, 1)),
+        ("none", dt.date(2025, 12, 31), dt.date(2027, 3, 1)),
+    ]
+    for every, ended, stale in cases:
+        assert expected.stale_from(acct("401k", every=every), ended) == stale, every
+        if every != "none":
+            late = expected.overdue(acct("401k", every=every), imp(ended), stale)
+            assert late is not None and late.due == stale, every
+    assert expected.stale_from(acct("401k"), dt.date(2026, 3, 31)) == dt.date(2026, 7, 30)
+    assert expected.stale_from(acct("brokerage", kept='["manual"]'), dt.date(2025, 12, 31)) == (
+        dt.date(2027, 3, 1)
+    )
+
+
 def test_the_interval_is_learned_from_three_and_a_dismissed_one_isnt_proposed_again():
     quarters = imp(dt.date(2026, 3, 31), dt.date(2026, 6, 30), dt.date(2026, 9, 30))
     assert expected.learned(quarters[:2]) is None

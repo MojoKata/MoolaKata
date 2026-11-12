@@ -241,7 +241,9 @@ function Holdings({ a }) {
                 <td><button type="button" class="linklike" aria-expanded=${open === x.instrumentId
                   ? 'true'
                   : 'false'}
-                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${x.symbol}</button></td>
+                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${x.symbol}</button>${x.stale
+                    ? html`${' '}<span class="pill warn">stale</span>`
+                    : null}</td>
                 <td class="dim">${x.name || ''}</td>
                 <td class="num">${x.symbol === 'BTC'
                   ? bitcoin(x.quantity)
