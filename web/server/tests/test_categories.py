@@ -418,3 +418,51 @@ def test_a_shipped_categorys_key_stays_when_renamed(people, server):
     with server.db.read(unscoped="test") as s:
         got = s.scalars(select(Category).where(Category.builtIn == "food")).one()
         assert got.name == "Groceries and dining"
+
+
+def test_a_category_made_in_a_dialogs_draft_is_made_before_what_names_it(people):
+    """New category… in a transaction's dialog (S12.15.7): the category comes after the
+    transaction in the draft, and the save makes it first, so the transaction finds it; a
+    refusal of either saves neither."""
+    from edits import new_id
+
+    alice = people["alice"]
+    acct = new_account(alice)
+    txn, cat = new_id("Txn"), new_id("Cat")
+
+    def ops(name):
+        return [
+            {
+                "op": "create",
+                "entity": "Txn",
+                "id": txn,
+                "fields": {
+                    "accountId": acct["id"],
+                    "date": "2026-10-02",
+                    "amount": "-9.00",
+                    "kind": "withdrawal",
+                    "payee": "Vet",
+                    "categoryId": cat,
+                },
+            },
+            {
+                "op": "create",
+                "entity": "Cat",
+                "id": cat,
+                "fields": {
+                    "name": name,
+                    "kind": "expense",
+                    "parentId": None,
+                    "taxTag": None,
+                    "keepReceiptsYears": None,
+                },
+            },
+        ]
+
+    r = alice.post("/ui/api/save", json={"ops": ops("")})
+    assert r.status_code == 422 and cat in {e["id"] for e in r.json()["errors"]}
+    assert "Vet bills" not in rows(alice)
+    r = alice.post("/ui/api/save", json={"ops": ops("Vet bills")})
+    assert r.status_code == 200, r.text
+    got = alice.get(f"/ui/api/transactions/{txn}").json()
+    assert got["categoryId"] == cat == rows(alice)["Vet bills"]["id"]

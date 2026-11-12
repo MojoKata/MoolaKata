@@ -30,6 +30,12 @@ import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
 import { Amt } from '../components/amount.js';
+import {
+  addedFor,
+  CategoriesTab,
+  CategoryField,
+  NewCategoryFor,
+} from '../components/categories.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
@@ -42,6 +48,8 @@ TABS.splice(1, 0, ['where', 'Where it is']);
 TABS.unshift(['list', 'Budgets']);
 TABS.splice(TABS.length - 1, 0, ['compare', 'Compare']);
 TABS.splice(3, 0, ['review', 'Review']);
+// Beside the list: the household's categories, every budget's (S12.2.6).
+TABS.splice(1, 0, ['categories', 'Categories']);
 
 /** The month shown, kept while moving between tabs and budgets. */
 const shown = signal('');
@@ -84,11 +92,13 @@ export default function Budgets({ id, tab }) {
       location.assign(`/ui/budgets/${b.id}/month`);
     });
   if (!budgets.length) {
+    if (current === 'categories') return html`<${CategoriesTab} />`;
     return html`
       <${Empty}>No budget yet. A budget plans spending per category over the accounts you
         choose; share it with a group at write for a household budget.
         <div class="mt"><button type="button" class="btn primary" onClick=${newBudget}>
-          <${Icon} name="plus" /> New budget</button></div></${Empty}>
+          <${Icon} name="plus" /> New budget</button>
+          <a class="btn" href="/ui/budgets/none/categories">Categories</a></div></${Empty}>
     `;
   }
   const b = budgets.find((x) => x.id === id) || budgets[0];
@@ -146,6 +156,8 @@ export default function Budgets({ id, tab }) {
       ? html`<${Reimbursements} b=${b} />`
       : current === 'list'
       ? html`<${BudgetList} budgets=${budgets} reload=${list.reload} />`
+      : current === 'categories'
+      ? html`<${CategoriesTab} />`
       : current === 'review'
       ? html`<${Review} b=${b} />`
       : current === 'compare'
@@ -1933,15 +1945,13 @@ function PlanDialog({ close, b, month }) {
   ]);
   const envelope = b.method === 'envelope';
   const taken = new Set(
-    (draft?.records || []).filter((r) => !r.removed).map((r) => r.get('categoryId')),
+    (draft?.records || []).filter((r) => !r.removed && r instanceof PlanLine).map((r) =>
+      r.get('categoryId')
+    ),
   );
-  const options = /** @type {[string, string][]} */ ([
-    ['', 'Choose a category'],
-    ...(/** @type {any[]} */ (p.cats.data) || []).filter((c) => c.kind !== 'transfer').map((
-      c,
-    ) => [c.id, c.path]),
-  ]);
-  const rows = /** @type {PlanLine[]} */ ((draft?.records || []).filter((r) => !r.removed));
+  const rows = /** @type {PlanLine[]} */ (
+    (draft?.records || []).filter((r) => !r.removed && r instanceof PlanLine)
+  );
   const span = 6 + (envelope ? 1 : 0) + (b.reserves ? 2 : 0);
   // A line added and left without a category is no line.
   const before = () => {
@@ -1974,10 +1984,11 @@ function PlanDialog({ close, b, month }) {
             <tr key=${r.key}>
               <td>${r.state === 'new'
                 ? html`
-                  <${RecField} rec=${r} name="categoryId" bare label="Category" help="category"
-                    options=${options.filter(([id]) =>
-                      !id || id === r.get('categoryId') || !taken.has(id)
-                    )} />
+                  <${CategoryField} rec=${r} name="categoryId" bare label="Category"
+                    help="category" id=${'plan-' + r.key} draft=${draft}
+                    first=${['', 'Choose a category']} only=${(/** @type {any} */ c) =>
+                      c.kind !== 'transfer' &&
+                      (c.id === r.get('categoryId') || !taken.has(c.id))} />
                 `
                 : p.paths[r.get('categoryId')] || 'A category'}</td>
               <td class="num">
@@ -2018,9 +2029,23 @@ function PlanDialog({ close, b, month }) {
                 <${RecField} rec=${r} name="projectionId" bare label="Projection"
                   help="projection" options=${plans} />
               </td>
-              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() =>
-                draft?.remove(r)}><${Icon} name="x" /></button></td>
+              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() => {
+                // A category made for this line goes with it.
+                const made = addedFor(draft, r.get('categoryId'));
+                if (made) draft?.remove(made);
+                draft?.remove(r);
+              }}><${Icon} name="x" /></button></td>
             </tr>
+            ${addedFor(draft, r.get('categoryId'))
+              ? html`
+                <tr class="sub-row">
+                  <td colspan=${span}>
+                    <${NewCategoryFor} rec=${r}
+                      name="categoryId" draft=${draft} id=${'plan-' + r.key + '-new'} />
+                  </td>
+                </tr>
+              `
+              : null}
             <${RowErrors} rec=${r} span=${span} />
           `
         )}</tbody>
