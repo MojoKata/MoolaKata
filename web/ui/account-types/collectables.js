@@ -7,7 +7,6 @@ export default {
   icon: 'star',
   hint: 'Appraised items',
   investing: false,
-  reconcilable: false,
   contributions: false,
   physical: 'valuations',
 };

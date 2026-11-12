@@ -7,6 +7,5 @@ export default {
   icon: 'card',
   hint: 'Liability',
   investing: false,
-  reconcilable: true,
   contributions: false,
 };

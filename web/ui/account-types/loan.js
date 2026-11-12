@@ -7,7 +7,6 @@ export default {
   icon: 'card',
   hint: 'Any other loan',
   investing: false,
-  reconcilable: false,
   contributions: false,
   loan: true,
 };

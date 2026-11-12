@@ -8,6 +8,5 @@ export default {
   icon: 'wallet',
   hint: 'Cash on hand, kept by hand',
   investing: false,
-  reconcilable: false,
   contributions: false,
 };

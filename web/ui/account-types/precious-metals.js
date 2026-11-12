@@ -7,7 +7,6 @@ export default {
   icon: 'gem',
   hint: 'Valued at spot',
   investing: false,
-  reconcilable: false,
   contributions: false,
   physical: 'spot',
 };

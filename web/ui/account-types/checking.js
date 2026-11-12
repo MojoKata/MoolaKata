@@ -7,6 +7,5 @@ export default {
   icon: 'bank',
   hint: 'Bank · OFX, QFX, CSV',
   investing: false,
-  reconcilable: true,
   contributions: false,
 };

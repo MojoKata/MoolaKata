@@ -7,6 +7,5 @@ export default {
   icon: 'heart',
   hint: 'Giving',
   investing: true,
-  reconcilable: false,
   contributions: false,
 };

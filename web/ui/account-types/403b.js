@@ -7,6 +7,5 @@ export default {
   icon: 'retire',
   hint: 'Employer plan',
   investing: true,
-  reconcilable: false,
   contributions: true,
 };

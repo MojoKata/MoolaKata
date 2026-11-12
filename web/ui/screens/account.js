@@ -76,7 +76,7 @@ export default function Account({ id, tab }) {
       ? [['contributions', 'Contributions'], ['withdrawals', 'Withdrawals'], ['goal', 'Goal']]
       : []),
     ['transactions', 'Transactions'],
-    ...(type?.reconcilable ? [['reconcile', 'Reconcile']] : []),
+    ...(a.reconcilable ? [['reconcile', 'Reconcile']] : []),
     ['sharing', 'Sharing'],
     ['settings', 'Settings'],
   ]);

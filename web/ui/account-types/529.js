@@ -7,7 +7,6 @@ export default {
   icon: 'grad',
   hint: 'College savings',
   investing: true,
-  reconcilable: false,
   contributions: false,
   education: true,
 };

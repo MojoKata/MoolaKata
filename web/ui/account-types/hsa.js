@@ -7,6 +7,5 @@ export default {
   icon: 'retire',
   hint: 'Health savings',
   investing: true,
-  reconcilable: false,
   contributions: true,
 };

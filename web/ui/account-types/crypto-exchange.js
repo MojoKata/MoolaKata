@@ -7,6 +7,5 @@ export default {
   icon: 'coin',
   hint: 'CSV export, statements',
   investing: true,
-  reconcilable: false,
   contributions: false,
 };

@@ -7,7 +7,6 @@ export default {
   icon: 'car',
   hint: 'Depreciates',
   investing: false,
-  reconcilable: false,
   contributions: false,
   physical: 'depreciation',
 };

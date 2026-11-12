@@ -466,6 +466,7 @@ const ACCOUNTS = [
   { id: 'chk', name: 'Everyday Checking', inst: 'Chase', type: 'checking', group: 'banking', bal: 12480.22, chg: -1840.1, owner: 'alice', sync: 'Statement import', last4: '4471' },
   { id: 'joint', name: 'Joint Household', inst: 'Chase', type: 'checking', group: 'banking', bal: 6120.5, chg: 410.0, owner: 'bob', sync: 'Statement import', last4: '0932', sharedWith: 'write', via: 'Household' },
   { id: 'sav', name: 'High-Yield Savings', inst: 'Ally', type: 'savings', group: 'banking', bal: 38200.0, chg: 132.45, owner: 'alice', sync: 'OFX import', last4: '7720' },
+  { id: 'cash', name: 'Cash', inst: 'Cash on hand', type: 'cash', group: 'banking', bal: 180.0, chg: 159.5, owner: 'alice', sync: 'Kept by hand', last4: '' },
   { id: 'fid', name: 'Individual Brokerage', inst: 'Fidelity', type: 'brokerage', group: 'investing', bal: 182340.55, chg: 3120.4, owner: 'alice', sync: 'CSV import', last4: '8812', shares: 2 },
   { id: 'sch', name: 'Options Account', inst: 'Schwab', type: 'brokerage', group: 'investing', bal: 64210.1, chg: -820.33, owner: 'alice', sync: 'CSV import', last4: '1043' },
   { id: 'roth', name: 'Roth IRA', inst: 'Vanguard', type: 'roth-ira', group: 'retirement', bal: 96120.4, chg: 1410.2, owner: 'alice', sync: 'OFX import', last4: '5521', shares: 1 },
@@ -487,8 +488,8 @@ const ACCOUNTS = [
   { id: 'subaru', name: '2023 Subaru Outback', inst: 'Vehicle', type: 'vehicle', group: 'other', bal: 21940.0, chg: -310.0, owner: 'alice', sync: 'Depreciation 12%/yr', last4: '' },
   { id: 'mom', name: "Mom's Retirement", inst: 'Vanguard · via griffin-parents', type: 'ira', group: 'linked', bal: 412880.0, chg: 3010.0, owner: 'mom', sync: 'Linked · as of 2 h ago', last4: '', linked: true },
 ];
-const TYPE_ICON = { checking: 'bank', savings: 'bank', 'money-market': 'bank', cd: 'bank', brokerage: 'candles', ira: 'retire', 'roth-ira': 'retire', '401k': 'retire', hsa: 'retire', 'crypto-exchange': 'coin', 'crypto-wallet': 'wallet', 'credit-card': 'card', mortgage: 'home', heloc: 'home', 'auto-loan': 'car', 'student-loan': 'grad', 'personal-loan': 'card', loan: 'card', '529': 'grad', daf: 'heart', 'precious-metals': 'gem', collectables: 'star', 'real-estate': 'home', vehicle: 'car', 'other-asset': 'gem' };
-const TYPE_LABEL = { checking: 'Checking', savings: 'Savings', brokerage: 'Brokerage', ira: 'Traditional IRA', 'roth-ira': 'Roth IRA', '401k': '401(k)', hsa: 'HSA', 'crypto-exchange': 'Crypto exchange', 'crypto-wallet': 'Self-custody wallet', 'credit-card': 'Credit card', mortgage: 'Mortgage', heloc: 'HELOC', 'auto-loan': 'Car loan', 'student-loan': 'Student loan', 'personal-loan': 'Personal loan', loan: 'Loan', '529': '529 plan', daf: 'Donor-advised fund', 'precious-metals': 'Precious metals', collectables: 'Collectables', 'real-estate': 'Real estate', vehicle: 'Vehicle', 'other-asset': 'Other asset' };
+const TYPE_ICON = { checking: 'bank', cash: 'wallet', savings: 'bank', 'money-market': 'bank', cd: 'bank', brokerage: 'candles', ira: 'retire', 'roth-ira': 'retire', '401k': 'retire', hsa: 'retire', 'crypto-exchange': 'coin', 'crypto-wallet': 'wallet', 'credit-card': 'card', mortgage: 'home', heloc: 'home', 'auto-loan': 'car', 'student-loan': 'grad', 'personal-loan': 'card', loan: 'card', '529': 'grad', daf: 'heart', 'precious-metals': 'gem', collectables: 'star', 'real-estate': 'home', vehicle: 'car', 'other-asset': 'gem' };
+const TYPE_LABEL = { checking: 'Checking', cash: 'Cash', savings: 'Savings', brokerage: 'Brokerage', ira: 'Traditional IRA', 'roth-ira': 'Roth IRA', '401k': '401(k)', hsa: 'HSA', 'crypto-exchange': 'Crypto exchange', 'crypto-wallet': 'Self-custody wallet', 'credit-card': 'Credit card', mortgage: 'Mortgage', heloc: 'HELOC', 'auto-loan': 'Car loan', 'student-loan': 'Student loan', 'personal-loan': 'Personal loan', loan: 'Loan', '529': '529 plan', daf: 'Donor-advised fund', 'precious-metals': 'Precious metals', collectables: 'Collectables', 'real-estate': 'Real estate', vehicle: 'Vehicle', 'other-asset': 'Other asset' };
 const LOAN_TYPES = ['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'];
 const HOLDINGS = [
   { sym: 'VTI', name: 'Vanguard Total Stock Market ETF', qty: 310, price: 301.42, cost: 61220.0, cls: 'US stocks', day: 0.62 },
@@ -539,9 +540,13 @@ const TX = [
   { d: '2026-10-08', acct: 'Individual Brokerage', payee: 'Dividend · VTI', cat: 'Income › Dividends', amt: 286.9 },
   { d: '2026-10-07', acct: 'Everyday Checking', payee: 'Acme Corp Payroll', cat: 'Income › Salary', amt: 4820.0 },
   { d: '2026-10-06', acct: 'Joint Household', payee: 'City Utilities', cat: 'Housing › Utilities', amt: -188.32, rc: true },
+  { d: '2026-10-06', acct: 'Cash', payee: 'Farmers market', cat: 'Food › Groceries', amt: -34.0 },
   { d: '2026-10-05', acct: 'Blue Cash Preferred', payee: 'Netflix', cat: 'Entertainment › Streaming', amt: -15.49 },
+  { d: '2026-10-05', acct: 'Everyday Checking', payee: 'Transfer to Cash', cat: 'Transfer', amt: -200.0 },
+  { d: '2026-10-05', acct: 'Cash', payee: 'Transfer from Everyday Checking', cat: 'Transfer', amt: 200.0 },
   { d: '2026-10-04', acct: 'Everyday Checking', payee: 'Red Cross', cat: 'Giving › Charity', amt: -500.0, rc: true, tax: true },
   { d: '2026-10-03', acct: 'Everyday Checking', payee: 'Transfer to Ally Savings', cat: 'Transfer', amt: -1000.0 },
+  { d: '2026-10-08', acct: 'Cash', payee: 'Coffee cart', cat: null, amt: -6.5 },
   { d: '2026-10-02', acct: 'Blue Cash Preferred', payee: 'Dr. Patel Family Dental', cat: 'Health › Dental', amt: -240.0, rc: true, tax: true },
   { d: '2026-10-01', acct: 'Joint Household', payee: 'Rocket Mortgage', cat: 'Housing › Mortgage', amt: -2410.77 },
   { d: '2026-10-01', acct: 'Blue Cash Preferred', payee: 'AMZN Mktp US*2K4', cat: null, amt: -63.21 },
@@ -1004,7 +1009,7 @@ SCREENS.account = (id) => {
   const a = acctById(id);
   const loan = LOAN_TYPES.includes(a.type), edu = a.type === '529', phys = a.group === 'other';
   const invest = ['investing', 'retirement', 'crypto', 'linked', 'education', 'giving'].includes(a.group);
-  const list = ['Overview', ...(loan ? ['Schedule', 'Payoff'] : []), ...(invest ? ['Holdings'] : []), ...(invest && !edu && a.group !== 'giving' ? ['Positions'] : []), ...(edu ? ['Contributions', 'Withdrawals', 'Goal'] : []), ...(phys ? ['Items'] : []), 'Transactions', ...(!loan && !phys && a.type !== 'crypto-wallet' && !a.linked ? ['Reconcile'] : []), 'Receipts', ...(a.linked ? [] : ['Sharing', 'Settings'])];
+  const list = ['Overview', ...(loan ? ['Schedule', 'Payoff'] : []), ...(invest ? ['Holdings'] : []), ...(invest && !edu && a.group !== 'giving' ? ['Positions'] : []), ...(edu ? ['Contributions', 'Withdrawals', 'Goal'] : []), ...(phys ? ['Items'] : []), 'Transactions', ...(!loan && !phys && a.type !== 'crypto-wallet' && a.type !== 'cash' && !a.linked ? ['Reconcile'] : []), 'Receipts', ...(a.linked ? [] : ['Sharing', 'Settings'])];
   const [cur, bar] = tabs('acct-' + a.id, list, 'Overview');
   let body = '';
   if (cur === 'Overview') {
@@ -1013,7 +1018,7 @@ SCREENS.account = (id) => {
       <div class="list-item"><span class="grow dim">Type</span>${TYPE_LABEL[a.type]}</div>
       <div class="list-item"><span class="grow dim">Institution</span>${esc(a.inst)}</div>
       <div class="list-item"><span class="grow dim">Kept current by</span>${esc(a.sync)}</div>
-      ${loan ? loanDetails(a) : phys ? physDetails(a) : edu ? eduDetails() : invest ? `<div class="list-item"><span class="grow dim">Lot method</span>FIFO</div><div class="list-item"><span class="grow dim">Unrealized gain</span>${signed(a.bal * 0.21)}</div><div class="list-item"><span class="grow dim">Realized ${state.year}</span>${signed(a.id === 'sch' ? 825 : 1840.22)}</div>${a.id === 'sch' ? `<div class="list-item"><span class="grow dim">Options’ market value</span>${signed(-1005)}</div><div class="list-item"><span class="grow dim">Capital at risk</span>${money(73043)} <span class="small dim">&nbsp;at open ${money(72293)}</span></div>` : ''}` : `<div class="list-item"><span class="grow dim">Interest YTD</span>${money(a.id === 'sav' ? 1311.4 : 2.18)}</div>`}
+      ${loan ? loanDetails(a) : phys ? physDetails(a) : edu ? eduDetails() : invest ? `<div class="list-item"><span class="grow dim">Lot method</span>FIFO</div><div class="list-item"><span class="grow dim">Unrealized gain</span>${signed(a.bal * 0.21)}</div><div class="list-item"><span class="grow dim">Realized ${state.year}</span>${signed(a.id === 'sch' ? 825 : 1840.22)}</div>${a.id === 'sch' ? `<div class="list-item"><span class="grow dim">Options’ market value</span>${signed(-1005)}</div><div class="list-item"><span class="grow dim">Capital at risk</span>${money(73043)} <span class="small dim">&nbsp;at open ${money(72293)}</span></div>` : ''}` : a.type === 'cash' ? '' : `<div class="list-item"><span class="grow dim">Interest YTD</span>${money(a.id === 'sav' ? 1311.4 : 2.18)}</div>`}
       ${a.id === 'cold' ? `<div class="notice mt">${icon('sync')}<div>A transfer in of <b>0.05000000 BTC</b> on Oct 3 looks like your transfer out of <b>Coinbase</b> on Oct 2, less a 2,140-sat fee. <a data-act="dlg" data-v="transferMatch">Check the match</a></div></div>` : ''}
       ${a.linked ? `<div class="notice mt">${icon('link')}<div>Read-only copy from <b>griffin-parents</b>, shared by Margaret Griffin, kept encrypted on this server. Pulled 2 hours ago. <a data-act="lock">Lock now</a></div></div>` : ''}
     </div></div>${PROJ.filter((x) => x.active && x.onGo === 'account/' + a.id && x.type !== 'education').map((x) => `<div class="card mt"><h3>Projection</h3>${planRow(x)}</div>`).join('')}`;

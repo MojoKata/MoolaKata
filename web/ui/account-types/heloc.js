@@ -7,7 +7,6 @@ export default {
   icon: 'home',
   hint: 'Home-equity line of credit',
   investing: false,
-  reconcilable: false,
   contributions: false,
   loan: true,
 };
