@@ -1379,3 +1379,44 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     assert [x["symbol"] for x in held if x["symbol"].startswith("KO ")] == []
     assert problems == []
     page.close()
+
+
+def test_a_529s_beneficiary_added_in_a_dialog_over_its_settings(browser, household):
+    """S12.15.7: Add a person… opens Add a person over the 529's Settings; cancelled, the
+    choice is as it was; saved, the person is made and chosen, and the plan saves with them."""
+    h = household
+    a = made(make(h.c, "Acct", name="Browser 529", type="529"))
+    path = f"/ui/accounts/{a['id']}/settings"
+    page, problems = signed_in(browser, h, path, "#f-beneficiary")
+    page.select_option("#f-beneficiary", "new")
+    wait(page, ".dialog #f-their-name", problems)
+    page.keyboard.press("Escape")
+    wait(page, ".dialog", problems, state="detached")
+    for _ in range(600):  # the choice goes back once the dialog has gone
+        if page.input_value("#f-beneficiary") == "":
+            break
+        page.wait_for_timeout(50)
+    assert page.input_value("#f-beneficiary") == ""
+    page.select_option("#f-beneficiary", "new")
+    wait(page, ".dialog #f-their-name", problems)
+    page.fill(".dialog #f-their-name", "Browser Wren")
+    page.fill(".dialog #f-year-of-birth", "2019")
+    page.click(".dialog footer button.primary")
+    wait(page, '.dialog .err:has-text("Female or male.")', problems)  # refused at its field
+    problems.clear()  # the refused save's 422, expected
+    page.select_option(".dialog #f-sex", "female")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    people = {p["name"]: p["id"] for p in h.c.get("/ui/api/persons").json()["items"]}
+    wren = people["Browser Wren"]
+    for _ in range(600):
+        if page.input_value("#f-beneficiary") == wren:
+            break
+        page.wait_for_timeout(50)
+    assert page.input_value("#f-beneficiary") == wren
+    page.click("form.draft-form button.primary")
+    wait(page, ".toast", problems)
+    plan = h.c.get(f"/ui/api/accounts/{a['id']}/plan529").json()
+    assert plan["beneficiaryId"] == wren
+    assert problems == []
+    page.close()
