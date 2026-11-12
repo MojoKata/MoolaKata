@@ -128,14 +128,19 @@ Deno.test('an edit a rule makes is put back with the edit that caused it', () =>
   equal(t.changed, false);
 });
 
-Deno.test('a field that does not read keeps its error and the last value that did', () => {
+Deno.test('a field that does not read keeps why, unrefused until Save, and the last value that did', () => {
   const { d } = draft();
   const t = d.load(Txn, read());
   equal(t.input('amount', '12.3.4'), false);
-  truthy(t.error('amount'));
+  equal(t.error('amount'), null, 'not refused while it is typed');
+  truthy(t.unreadWhy('amount'));
   equal(t.get('amount'), Dec.parse('42.00'));
+  t.refuseUnread();
+  equal(t.error('amount'), t.unreadWhy('amount'), 'refused at Save, at the field');
+  t.input('amount', '12.3');
+  equal(t.error('amount'), null, 'a change clears the refusal');
   t.input('amount', '12.30');
-  equal(t.error('amount'), null);
+  equal(t.unreadWhy('amount'), null);
 });
 
 Deno.test('new records take ids made here, and refer to each other before any is saved', () => {
@@ -254,6 +259,7 @@ Deno.test('text that does not read yet is a change, and is never sent', async ()
   equal(d.ops(), []);
   equal((await d.save()).status, 'refused');
   equal(d.formError, 'Correct the fields marked first.', 'said above the buttons');
+  truthy(t.error('amount'), 'and refused at the field');
   equal(sent.length, 0);
   t.revert('amount');
   equal(d.changed, false);

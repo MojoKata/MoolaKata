@@ -1,14 +1,15 @@
 // A loan's Payoff tab (requirements S6.10): a plan of overpayments against the schedule, worked
 // out as it is typed; a recast after its lump sums; the same money invested instead; and the
 // saved plans, one of them the plan being followed.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { date } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow, TypedInput } from './fields.js';
+import { check, KINDS } from '../app/kinds.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { TimeChart } from '../charts/chart.js';
@@ -49,17 +50,25 @@ const BLANK = {
 const clean = (/** @type {string} */ s) => (s ? String(s).replace(/[$,\s]/g, '') : '');
 const num = (/** @type {string} */ s) => clean(s) || '0';
 
-/** @param {typeof BLANK} f */
-function body(f) {
+/** The lump sums with a date and an amount, by their place on screen. @param {typeof BLANK} f */
+const whole = (f) => f.lumps.flatMap((x, i) => (x.date && clean(x.amount) ? [i] : []));
+
+/**
+ * The plan as the API takes it. The preview leaves out a lump sum still being filled; a saved
+ * plan (`all`) sends every one, so one missing its date or amount is refused at it (S6.10.1).
+ * @param {typeof BLANK} f @param {boolean} [all]
+ */
+function body(f, all = false) {
+  const rows = all ? f.lumps.map((_, i) => i) : whole(f);
   return {
     monthly: num(f.monthly),
     monthlyFrom: f.monthlyFrom || null,
     monthlyUntil: f.monthlyUntil || null,
     yearly: num(f.yearly),
     yearlyMonth: Number(f.yearlyMonth),
-    lumps: f.lumps.filter((x) => x.date && clean(x.amount)).map((x) => ({
-      date: x.date,
-      amount: clean(x.amount),
+    lumps: rows.map((i) => ({
+      date: f.lumps[i].date || null,
+      amount: clean(f.lumps[i].amount) || null,
     })),
     biweekly: f.biweekly,
     roundTo: num(f.roundTo),
@@ -125,8 +134,38 @@ function Planner({ a, canWrite, plans, reload, start }) {
   const classes = /** @type {[string, string][]} */ (
     /** @type {any} */ (figures.data)?.classes || [['usStocks', 'US stocks']]
   );
-  const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
-  const sent = JSON.stringify(body(f));
+  // The plan the preview shows: taken when a field is left, at Enter, or as a choice is made,
+  // once every amount in it passes; what is still typed, or marked, leaves it as it was
+  // (S12.18.4). `places` maps the lump sums sent to their rows on screen.
+  const [taken, setTaken] = useState(() => ({
+    sent: JSON.stringify(body(start)),
+    places: whole(start),
+  }));
+  const take = (/** @type {typeof BLANK} */ next) => {
+    const amounts = [next.monthly, next.yearly, next.roundTo, next.recastFee];
+    const lumps = whole(next).map((i) => next.lumps[i].amount);
+    if ([...amounts, ...lumps].some((v) => check(KINDS.money, { min: 0 }, v))) return;
+    setTaken({ sent: JSON.stringify(body(next)), places: whole(next) });
+  };
+  // The plan as typed this moment: a field's change and its commit can come in one go (a
+  // date's input, then its change), before the screen draws again.
+  const now = useRef(f);
+  now.current = f;
+  /** Set what is typed; `taken` takes it too, as a choice or a row added or removed does. */
+  const set = (/** @type {string} */ k, taken = false) => (/** @type {any} */ x) => {
+    const next = { ...now.current, [k]: x };
+    now.current = next;
+    setF(next);
+    if (taken) take(next);
+  };
+  const commit = () => take(now.current);
+  // A refusal of the saved plan, at its fields; the preview's at a lump sum's row on screen.
+  const [refused, setRefused] = useState(/** @type {any} */ (null));
+  const lumpErr = (/** @type {number} */ i, /** @type {string} */ k) => {
+    const at = taken.places.indexOf(i);
+    return errAt(refused, `lumps.${i}.${k}`) || (at < 0 ? null : errAt(err, `lumps.${at}.${k}`));
+  };
+  const sent = taken.sent;
   useEffect(() => {
     let live = true;
     const timer = setTimeout(() => {
@@ -141,8 +180,10 @@ function Planner({ a, canWrite, plans, reload, start }) {
       clearTimeout(timer);
     };
   }, [sent]);
-  const lump = (/** @type {number} */ i, /** @type {string} */ k) => (/** @type {string} */ x) =>
-    set('lumps')(f.lumps.map((l, j) => (j === i ? { ...l, [k]: x } : l)));
+  const lump = (/** @type {number} */ i, /** @type {string} */ k) => (/** @type {string} */ x) => {
+    setRefused(null);
+    set('lumps')(now.current.lumps.map((l, j) => (j === i ? { ...l, [k]: x } : l)));
+  };
   const className = classes.find(([k]) => k === f.investClass)?.[1] || f.investClass;
   return html`
     <div class="grid g-main">
@@ -159,76 +200,78 @@ function Planner({ a, canWrite, plans, reload, start }) {
       <div class="grid" style=${{ alignContent: 'start' }}>
         <div class="card">
           <h3>Your plan</h3>
-          <${Field} label="Extra each month" error=${errAt(err, 'monthly')}
-            hint="Added to principal with every payment.">
-            <${Input} value=${f.monthly} onInput=${set('monthly')} inputmode="decimal"
-              placeholder="0" />
+          <${Field} label="Extra each month" error=${errAt(err, 'monthly')}>
+            <${TypedInput} kind="money" min=${0} value=${f.monthly} onInput=${set('monthly')}
+              onCommit=${commit} placeholder="none" />
             </${Field}>
             <div class="row">
               <${Field} label="From" id="monthly-from" error=${errAt(err, 'monthlyFrom')}>
-                <${Input} type="date" value=${f.monthlyFrom} onInput=${set('monthlyFrom')} />
+                <${TypedInput} kind="date" value=${f.monthlyFrom} onInput=${set('monthlyFrom')}
+                  onCommit=${commit} />
                 </${Field}>
                 <${Field} label="Until" id="monthly-until" error=${errAt(err, 'monthlyUntil')}>
-                  <${Input} type="date" value=${f.monthlyUntil} onInput=${set('monthlyUntil')} />
+                  <${TypedInput} kind="date" value=${f.monthlyUntil} onInput=${set('monthlyUntil')}
+                    onCommit=${commit} />
                   </${Field}>
                   </div>
                   <div class="row">
                     <${Field} label="Extra once a year" error=${errAt(err, 'yearly')}>
-                      <${Input} value=${f.yearly} onInput=${set('yearly')} inputmode="decimal"
-                        placeholder="0" />
+                      <${TypedInput} kind="money" min=${0} value=${f.yearly} onInput=${set(
+                        'yearly',
+                      )}
+                        onCommit=${commit} placeholder="none" />
                       </${Field}>
                       <${Field} label="In" id="yearly-month" error=${errAt(err, 'yearlyMonth')}>
-              <${Select} value=${f.yearlyMonth} onChange=${set('yearlyMonth')}
+              <${Select} value=${f.yearlyMonth} onChange=${set('yearlyMonth', true)}
                 options=${MONTHS} /></${Field}>
           </div>
           <div class="toolbar"><b class="small" data-help="lump-sums">Lump sums</b><span
             class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
-              set('lumps')([...f.lumps, { date: '', amount: '' }])}><${Icon} name="plus" /> Add a
-            lump sum</button></div>
+              set('lumps', true)([...f.lumps, { date: '', amount: '' }])}>
+              <${Icon} name="plus" /> Add a lump sum</button></div>
           ${f.lumps.map((l, i) =>
             html`
               <div class="row">
                 <${Field} label="On" help="lump-sums" id=${'lump-date-' + i}
-                  error=${errAt(err, `lumps.${i}.date`)}>
-                  <${Input} type="date" value=${l.date}
-                    onInput=${lump(i, 'date')} />
+                  error=${lumpErr(i, 'date')}>
+                  <${TypedInput} kind="date" value=${l.date} onInput=${lump(i, 'date')}
+                    onCommit=${commit} />
                   </${Field}>
-                  <${Field} label="Amount" help="lump-sums"
-                    id=${'lump-amount-' + i} error=${errAt(err, `lumps.${i}.amount`)}><${Input}
-                              value=${l.amount} onInput=${lump(
-                                i,
-                                'amount',
-                              )} inputmode="decimal" /></${Field}>
-                            <button type="button" class="icon-btn" aria-label="Remove the lump sum" onClick=${() =>
-                              set('lumps')(
-                                f.lumps.filter((_, j) => j !== i),
-                              )}><${Icon} name="x" /></button></div>
+                  <${Field} label="Amount" help="lump-sums" id=${'lump-amount-' + i}
+                    error=${lumpErr(i, 'amount')}>
+                    <${TypedInput} kind="money" min=${0} value=${l.amount}
+                      onInput=${lump(i, 'amount')} onCommit=${commit} />
+                    </${Field}>
+                    <button type="button" class="icon-btn" aria-label="Remove the lump sum"
+                      onClick=${() => {
+                        setRefused(null);
+                        set('lumps', true)(f.lumps.filter((_, j) => j !== i));
+                      }}><${Icon} name="x" /></button>
+                    </div>
             `
           )}
           <${SwitchRow} label="Biweekly payments"
             hint="Half a payment every two weeks: one extra payment a year." on=${f.biweekly}
-            onChange=${set('biweekly')} />
-          <${Field} label="Round each payment up to" id="round-to" error=${errAt(err, 'roundTo')}
-            hint="The next multiple of this, escrow included: 100 makes $2,154 into $2,200.">
-            <${Input} value=${f.roundTo} onInput=${set('roundTo')} inputmode="decimal"
-              placeholder="0" /></${Field}>
+            onChange=${set('biweekly', true)} />
+          <${Field} label="Round each payment up to" id="round-to" error=${errAt(err, 'roundTo')}>
+            <${TypedInput} kind="money" min=${0} value=${f.roundTo} onInput=${set('roundTo')}
+              onCommit=${commit} placeholder="none" />
+          </${Field}>
           <${SwitchRow} label="Recast after the lump sums"
             hint="Also shows keeping the term and lowering the payment, instead of paying off sooner."
-            on=${f.recast} onChange=${set('recast')} />
+            on=${f.recast} onChange=${set('recast', true)} />
           ${f.recast
             ? html`
-              <${Field} label="Recast fee" error=${errAt(err, 'recastFee')}
-                hint="The servicer's fee for each recast.">
-                <${Input} value=${f.recastFee} onInput=${set('recastFee')} inputmode="decimal"
-                  placeholder="250" />
+              <${Field} label="Recast fee" error=${errAt(err, 'recastFee')}>
+                <${TypedInput} kind="money" min=${0} value=${f.recastFee}
+                  onInput=${set('recastFee')} onCommit=${commit} placeholder="none" />
                 </${Field}>
             `
             : null}
           <${Field} label="Invest the extra in" id="invest-class" error=${errAt(err, 'investClass')}
             hint="For the comparison: at your expected return for it (Profile › Assumptions).">
-            <${Select} value=${f.investClass} onChange=${set(
-              'investClass',
-            )} options=${classes} /></${Field}>
+            <${Select} value=${f.investClass} onChange=${set('investClass', true)}
+              options=${classes} /></${Field}>
           <${FormError} error=${err} shown=${[
             'monthly',
             'monthlyFrom',
@@ -242,7 +285,10 @@ function Planner({ a, canWrite, plans, reload, start }) {
           ]} />
         </div>
         <${Saved} a=${a} canWrite=${canWrite} f=${f} plans=${plans} reload=${reload}
-          load=${(/** @type {any} */ i) => setF(form(i))} />
+          refused=${setRefused} load=${(/** @type {any} */ i) => {
+            setF(form(i));
+            take(form(i));
+          }} />
       </div>
     </div>
   `;
@@ -425,13 +471,20 @@ class PayoffRec extends Record {
 }
 
 /**
+ * `refused` hears the save's refusal, or null, so the plan's fields show theirs.
  * @param {{ a: any, canWrite: boolean, f: any, plans: any[], reload: () => void,
- *   load: (inputs: any) => void }} p
+ *   load: (inputs: any) => void, refused: (e: any) => void }} p
  */
-function Saved({ a, canWrite, f, plans, reload, load }) {
+function Saved({ a, canWrite, f, plans, reload, load, refused }) {
   const [name, setName] = useState('');
   const save = useSubmit(async () => {
-    await saveNow((d) => d.add(PayoffRec, { accountId: a.id, name, inputs: body(f) }));
+    refused(null);
+    try {
+      await saveNow((d) => d.add(PayoffRec, { accountId: a.id, name, inputs: body(f, true) }));
+    } catch (e) {
+      refused(e);
+      throw e;
+    }
     toast('Plan saved');
     setName('');
     reload();
@@ -482,7 +535,7 @@ function Saved({ a, canWrite, f, plans, reload, load }) {
             save.run().catch(() => {});
           }}>
             <${Field} label="Plan name" error=${errAt(save.error, 'name')}><${Input} value=${name}
-                    onInput=${setName} placeholder="Extra $300 a month" required /></${Field}><button
+                    onInput=${setName} placeholder="ex: Extra $300 a month" required /></${Field}><button
                     class="btn primary" style=${{ alignSelf: 'end' }} disabled=${save
                       .busy}>Save plan</button></form>
         `

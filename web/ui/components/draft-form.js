@@ -11,7 +11,7 @@ import { api } from '../api/client.js';
 import { Draft } from '../app/draft.js';
 import { Dialog, openDialog } from './dialog.js';
 import { guardForm } from '../app/guard.js';
-import { Field, FormError, Input, Select, Switch, ValueInput } from './fields.js';
+import { Field, FormError, Input, Select, Switch, TypedInput } from './fields.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
@@ -360,21 +360,35 @@ export function DraftForm(p) {
   `;
 }
 
-/** What a field's input reads, by type. */
-const TYPED = new Set(['money', 'quantity', 'percent', 'int']);
+/** The typed input (S12.18) for each type a record's field may have. */
+const KIND = /** @type {{ [type: string]: string }} */ ({
+  money: 'money',
+  quantity: 'quantity',
+  percent: 'percent',
+  int: 'count',
+  date: 'date',
+});
 
 /**
- * One field of a record, drawn by its type (S17.3.9.6): text for money and quantities, a list
- * for a choice or a reference (`options`, as [value, label]), a switch for yes or no; bound to
- * the record: its value, what was typed, its refusal; hidden while a rule says it doesn't
- * apply. `bare` draws the control alone (a table's cell), named by `label` and `help`.
+ * One field of a record, drawn by its type (S17.3.9.6): its kind's typed input for money,
+ * quantities, whole numbers and dates (`kind` names another, a web address), a list for a
+ * choice or a reference (`options`, as [value, label]), a switch for yes or no; bound to the
+ * record: its value, what was typed, its mark and its refusal; hidden while a rule says it
+ * doesn't apply. `bare` draws the control alone (a table's cell), named by `label` and `help`.
  * `id` names the control where its label alone wouldn't (`f-` and the id, S12.7.3).
- * `reset` gives a field with a default its ↺, which puts the default back (R3.11).
+ * `reset` gives a field with a default its ↺, which puts the default back; `min`, `max`
+ * (with `noun` for a count), `clear` and `fill` give its other controls (R3.11); `above`, `atMost`
+ * and `negative` bound it without one.
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
  *   type?: string, placeholder?: string, disabled?: boolean, onEdit?: () => void,
- *   style?: any, rows?: number, reset?: { value: string, label: string } }} p
+ *   style?: any, rows?: number, reset?: { value: string, label: string }, kind?: string,
+ *   min?: number | string, max?: number | string, above?: number | string,
+ *   atMost?: number | string,
+ *   negative?: boolean, noun?: string,
+ *   format?: (n: any) => string, clear?: boolean, fill?: import('./fields.js').Fill[],
+ *   mark?: string | null }} p
  */
 export function RecField(p) {
   const { rec, name } = p;
@@ -429,22 +443,23 @@ export function RecField(p) {
           edited();
         }}>${rec.shown(name)}</textarea>
     `;
-  } else if (p.reset) {
-    control = html`
-      <${ValueInput} value=${rec.shown(name)} bad=${!!error} reset=${p.reset}
-        placeholder=${p.placeholder} disabled=${p.disabled} ...${named}
-        onInput=${(/** @type {string} */ v) => {
-          rec.input(name, v);
-          edited();
-        }} />
-    `;
   } else {
+    const kind = p.kind || (p.type === 'date' ? 'date' : KIND[spec.type] || 'text');
+    // A percent is shown with its "%", and the record reads the number (S12.18.5).
+    const pct = kind === 'percent';
+    const typed = rec.typed(name);
+    const shown = typed ?? (pct && rec.get(name) != null ? rec.shown(name) + '%' : rec.shown(name));
     control = html`
-      <${Input} value=${rec.shown(name)} bad=${!!error}
-        type=${p.type || (spec.type === 'date' ? 'date' : 'text')} placeholder=${p.placeholder}
-        inputmode=${TYPED.has(spec.type) ? 'decimal' : undefined} disabled=${p.disabled}
-        style=${p.style} ...${named} onInput=${(/** @type {string} */ v) => {
-          rec.input(name, v);
+      <${TypedInput} kind=${kind} value=${shown} bad=${!!error} reset=${p.reset}
+        min=${p.min} max=${p.max} above=${p.above} atMost=${p.atMost} negative=${p.negative}
+        noun=${p.noun}
+        format=${p.format}
+        clear=${p.clear} fill=${p.fill} mark=${p.mark} type=${p.type === 'date'
+          ? undefined
+          : p.type} placeholder=${p.placeholder}
+        disabled=${p.disabled} style=${p.style}
+        ...${named} onInput=${(/** @type {string} */ v) => {
+          rec.input(name, v, pct ? v.trim().replace(/%$/, '') : v);
           edited();
         }} />
     `;

@@ -8,7 +8,7 @@ What the item is called in the list.
 
 ## Address
 
-A property's address, if you want it kept.
+Optional: a property's address, if you want it kept.
 
 ## Primary residence
 

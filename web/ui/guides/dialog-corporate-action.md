@@ -34,8 +34,9 @@ Form 8937 states it; the rest stays with the shares you held.
 
 ## Cash for each share held
 
-What a merger paid in cash for each share, besides any shares. Cash in lieu of a fractional share is
-a sale of its own: record it as one.
+What a merger paid in cash for each share, besides any shares. It is asked of every merger: for one
+paid all in shares, **Min** fills in $0.00. Cash in lieu of a fractional share is a sale of its own:
+record it as one.
 
 ## A new share's price that day
 

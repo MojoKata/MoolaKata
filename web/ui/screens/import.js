@@ -10,7 +10,7 @@ import { cents, date, fromCents, money } from '../app/format.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, TypedInput } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { toast } from '../components/toast.js';
 
@@ -330,11 +330,11 @@ function KeepReview({ kept, close }) {
       <div class="row">
         <${Field} label="Period from" id="period-start" error=${errAt(error, 'periodStart')}
           hint=${kept.periodStart ? 'Read from the statement.' : ''}>
-          <${Input} type="date" value=${f.periodStart} onInput=${(/** @type {string} */ v) =>
+          <${TypedInput} kind="date" value=${f.periodStart} onInput=${(/** @type {string} */ v) =>
             setF({ ...f, periodStart: v })} required />
           </${Field}>
           <${Field} label="Period to" id="period-end" error=${errAt(error, 'periodEnd')}>
-            <${Input} type="date" value=${f.periodEnd} onInput=${(/** @type {string} */ v) =>
+            <${TypedInput} kind="date" value=${f.periodEnd} onInput=${(/** @type {string} */ v) =>
               setF({ ...f, periodEnd: v })} required />
             </${Field}>
             </div>
@@ -554,24 +554,24 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         : null}
       <div class="row">
         <${Field} label="Period from" id="period-start" error=${errAt(error, 'periodStart')}>
-          <${Input} type="date" value=${review.periodStart || ''} onInput=${set(
+          <${TypedInput} kind="date" value=${review.periodStart || ''} onInput=${set(
             'periodStart',
           )} required />
           </${Field}>
           <${Field} label="Period to" id="period-end" error=${errAt(error, 'periodEnd')}>
-            <${Input} type="date" value=${review.periodEnd || ''} onInput=${set(
+            <${TypedInput} kind="date" value=${review.periodEnd || ''} onInput=${set(
               'periodEnd',
             )} required />
             </${Field}>
             <${Field} label="Opening balance" id="opening">
-              <${Input} value=${review.opening || ''} onInput=${set(
+              <${TypedInput} kind="money" value=${review.opening || ''} onInput=${set(
                 'opening',
-              )} inputmode="decimal" required />
+              )} required />
               </${Field}>
               <${Field} label="Closing balance" id="closing">
-          <${Input} value=${review.closing || ''} onInput=${set(
+          <${TypedInput} kind="money" value=${review.closing || ''} onInput=${set(
             'closing',
-          )} inputmode="decimal" required />
+          )} required />
         </${Field}>
       </div>
       <div class="kv">

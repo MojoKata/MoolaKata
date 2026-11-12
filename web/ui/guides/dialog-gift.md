@@ -43,7 +43,8 @@ The shop or site.
 
 ## Link
 
-A link to it, for an idea.
+Optional: a link to it, for an idea. A web address starting with `https://` or `http://`, up to
+2,000 characters.
 
 ## Notes
 

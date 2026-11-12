@@ -110,9 +110,9 @@ export function PlanFields({ rec }) {
   return html`
     <div class="row">
       <${RecField} rec=${rec} name="planState" label="Plan state" id="plan-state"
-        placeholder="Utah" />
+        placeholder="ex: Utah" />
       <${RecField} rec=${rec} name="planName" label="Plan name" id="plan-name"
-        placeholder="my529" />
+        placeholder="ex: my529" />
     </div>
     <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}
       hint="One of the household's people. The 529 counts in your net worth, not theirs.">
@@ -485,7 +485,7 @@ function AddExpense({ a, kinds, done }) {
             <${RecField} rec=${rec} name="amount" label="Amount" />
           </div>
           <${RecField} rec=${rec} name="description" label="Description"
-            placeholder="Fall tuition, State University" />
+            placeholder="ex: Fall tuition, State University" />
         `
         : null}
     </${DraftForm}>

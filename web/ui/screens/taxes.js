@@ -10,7 +10,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { openDialog } from '../components/dialog.js';
-import { Field, Input, Seg, Select, SwitchRow } from '../components/fields.js';
+import { Field, Seg, Select, SwitchRow, TypedInput } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -821,8 +821,9 @@ function BasisField({ rec, who, label }) {
   return html`
     <${Field} label=${label} help="carried-forward" id=${key}
       error=${rec.error(key) || rec.error('carried.basis8606')}>
-      <${Input} value=${rec.typed(key) ?? (bases[who.id] == null ? '' : String(bases[who.id]))}
-        inputmode="decimal" onInput=${(/** @type {string} */ x) =>
+      <${TypedInput} kind="money" value=${rec.typed(key) ??
+        (bases[who.id] == null ? '' : String(bases[who.id]))}
+        onInput=${(/** @type {string} */ x) =>
           rec.inputAs(key, x, (/** @type {string} */ t) => {
             const r = carriedAmount(t);
             if ('error' in r) return r;
@@ -894,8 +895,8 @@ function FilingDialog({ close, b, f: filing }) {
               ]} />
               <${RecField} rec=${rec} name="place" id="place"
                 label=${where === 'state' ? 'State' : 'Locality'}
-                placeholder=${where === 'state' ? 'Utah' : 'New York City'} />
-              <${RecField} rec=${rec} name="form" label="Form" placeholder="Form 1040, TC-40…" />
+                placeholder=${where === 'state' ? 'ex: Utah' : 'ex: New York City'} />
+              <${RecField} rec=${rec} name="form" label="Form" placeholder="ex: Form 1040, TC-40…" />
               <${RecField} rec=${rec} name="amendsId" label="Amends" id="amends" options=${[
                 ['', 'Nothing: an original return'],
                 ...b.filings.filter((/** @type {any} */ x) => x.id !== filing?.id).map((
@@ -995,8 +996,8 @@ function FilingDialog({ close, b, f: filing }) {
                 : html`
                   <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
                     error=${rec.error('carried-' + k)}>
-                    <${Input} value=${rec.typed('carried-' + k) ??
-                      (carried[k] == null ? '' : String(carried[k]))} inputmode="decimal"
+                    <${TypedInput} kind="money" value=${rec.typed('carried-' + k) ??
+                      (carried[k] == null ? '' : String(carried[k]))}
                       onInput=${(/** @type {string} */ x) =>
                         rec.inputAs('carried-' + k, x, (t) => {
                           const r = carriedAmount(t);
@@ -1101,7 +1102,7 @@ function DocumentDialog({ close, b, start, doc }) {
             <${RecField} rec=${rec} name="form" label="Document" id="form"
               options=${filed ? forms.filed : forms.received} />
             <${RecField} rec=${rec} name="issuer" label="Issued by" id="issuer"
-              placeholder=${filed ? 'IRS' : 'Acme Corp'} />
+              placeholder=${filed ? 'ex: IRS' : 'ex: Acme Corp'} />
           </div>
           <${RecField} rec=${rec} name="filingId" label="Filing" id="filing" options=${[
             ['', 'Choose…'],

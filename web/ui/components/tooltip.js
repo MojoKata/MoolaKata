@@ -17,6 +17,14 @@ function hide() {
   tip.value = null;
 }
 
+/** Show an element's tooltip now, as a refused key does while the field has the focus. @param {HTMLElement} el */
+export function showTip(el) {
+  show(/** @type {any} */ ({ target: el }));
+}
+
+/** Hide the tooltip shown, as a change to a marked field does. */
+export const hideTip = hide;
+
 export function installTooltips() {
   document.addEventListener('mouseover', show);
   document.addEventListener('focusin', show);

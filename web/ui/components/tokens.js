@@ -116,7 +116,7 @@ function NewToken({ close }) {
         speaks MCP. It can read, never change, and only what you choose here.</p>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Token name" placeholder="Claude on my laptop" />
+          <${RecField} rec=${rec} name="name" label="Token name" placeholder="ex: Claude on my laptop" />
           <${Field} label="Can read" error=${rec.error('scope') || rec.error('items')}
             hint="Never secrets, Settings or linked households.">
             <${Select} value=${rec.get('scope')} onChange=${(/** @type {string} */ v) =>

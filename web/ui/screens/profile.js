@@ -8,7 +8,7 @@ import { useApi, useSubmit } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
 import { Avatar, Failed, Loading } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select, TypedInput } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { ModelsChart } from '../charts/chart.js';
@@ -379,11 +379,11 @@ function RelationshipDialog({ close, me, r }) {
       </div>
       <div class="row">
         <${Field} label="From" id="from-date" error=${errAt(e, 'fromDate')}>
-          <${Input} type="date" value=${f.fromDate} onInput=${set('fromDate')} />
+          <${TypedInput} kind="date" value=${f.fromDate} onInput=${set('fromDate')} />
         </${Field}>
         <${Field} label="To" id="to-date" error=${errAt(e, 'toDate')}
           hint="Empty while it holds. A death ends a marriage by itself.">
-          <${Input} type="date" value=${f.toDate} onInput=${set('toDate')} />
+          <${TypedInput} kind="date" value=${f.toDate} onInput=${set('toDate')} />
         </${Field}>
         <${Field} label="Label" error=${errAt(e, 'label')} hint="For family: godmother.">
           <${Input} value=${f.label} onInput=${set('label')} />
@@ -702,12 +702,12 @@ function Assumptions() {
       </table>
       <div class="row mt">
         <${Field} label="General inflation (%)" id="general-inflation" error=${err('inflation')}>
-          <${Input} value=${f.inflation} inputmode="decimal" onInput=${(/** @type {string} */ x) =>
+          <${TypedInput} kind="quantity" value=${f.inflation} onInput=${(/** @type {string} */ x) =>
             setF({ ...f, inflation: Number(x) })} />
           </${Field}>
           <${Field} label="Education inflation (%)" id="education-inflation"
             error=${err('educationInflation')}>
-            <${Input} value=${f.educationInflation} inputmode="decimal" onInput=${(
+            <${TypedInput} kind="quantity" value=${f.educationInflation} onInput=${(
               /** @type {string} */ x,
             ) => setF({ ...f, educationInflation: Number(x) })} />
             </${Field}>

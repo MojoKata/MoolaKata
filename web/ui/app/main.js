@@ -16,6 +16,7 @@ import { dialogHasChanges, DialogHost } from '../components/dialog.js';
 import { MenuHost } from '../components/menu.js';
 import { Toasts } from '../components/toast.js';
 import { installTooltips, TooltipHost } from '../components/tooltip.js';
+import { checkOnSubmit } from '../components/fields.js';
 import { installGuard } from './guard.js';
 import { endTour } from '../store/tour.js';
 
@@ -113,6 +114,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 installTooltips();
+// Before any form's own submit, so a typed input marked stops it (S12.18.3).
+checkOnSubmit();
 // Before the router, so a screen's form hears Back first (S12.15.6).
 installGuard();
 whenSignedOut((code) => signOutLocally(code === 'account-disabled' ? 'disabled' : 'expired'));

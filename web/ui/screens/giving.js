@@ -633,7 +633,7 @@ function DonationDialog({ close, from }) {
                 label=${kind === 'goods' ? 'Fair market value' : 'Amount'} />
             `}
           <${RecField} rec=${rec} name="description" label="What was given" id="description"
-            placeholder="Two bags of clothes" />
+            placeholder="ex: Two bags of clothes" />
           <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received"
             hint="A written acknowledgement is needed for any single gift of $250 or more." />
         `
@@ -765,7 +765,7 @@ function OrganisationDialog({ close, o }) {
             minWidth: 0,
           }}>
             <${RecField} rec=${rec} name="name" label="Name"
-              placeholder="Greater Chicago Food Depository" />
+              placeholder="ex: Greater Chicago Food Depository" />
             <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
             <${RecField} rec=${rec} name="deductible" label="Deductible"
               hint="A 501(c)(3) charity. Not a political campaign or a person." />

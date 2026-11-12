@@ -20,4 +20,4 @@ left.
 
 ## Note
 
-Why, for whoever reads the month later.
+Optional: why, for whoever reads the month later. It shows on both rows and in Activity.

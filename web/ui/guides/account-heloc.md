@@ -45,7 +45,8 @@ The terms give the schedule; saving them recomputes it.
 
 ## Original principal
 
-What was borrowed, from the closing disclosure or the loan agreement.
+What was drawn when the line was opened, from the loan agreement: **Min** fills in $0.00 for a line
+opened with nothing drawn, as most are.
 
 ## Start date
 

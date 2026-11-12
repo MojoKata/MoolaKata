@@ -71,7 +71,7 @@ export function WalletFields({ rec }) {
       rec.error('walletKeys')}
       hint="An xpub, ypub or zpub, a descriptor (wpkh, tr, wsh multisig…), or addresses, one a line. Public data only.">
       <textarea class="in mono" rows="3" value=${rec.shown('walletKeys')} onInput=${onText}
-        placeholder="zpub6r…, wpkh([…]xpub…/<0;1>/*)#…, or bc1q… one a line" spellcheck="false"
+        placeholder="ex: zpub6r…, wpkh([…]xpub…/<0;1>/*)#…, or bc1q… one a line" spellcheck="false"
         autocomplete="off"></textarea>
       </${Field}>
       <${RecField} rec=${rec} name="gapLimit" label="Gap limit"

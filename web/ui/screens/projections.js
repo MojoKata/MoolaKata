@@ -11,7 +11,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Chips, Empty, Failed, Loading } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Seg, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Seg, Select, TypedInput } from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
@@ -394,7 +394,7 @@ function Inputs({ x, reload }) {
                   id=${i ? 'partner-retirement-age' : 'retirement-age'}
                   hint=${`${p.name || 'Born'} ${p.birthYear}`}
                   error=${errAt(e, `inputs.people.${i}.retireAge`)}>
-                  <${Input} value=${p.retireAge} inputmode="numeric" onInput=${(
+                  <${TypedInput} kind="count" value=${p.retireAge} onInput=${(
                     /** @type {string} */ v,
                   ) => {
                     const next = structuredClone(f);
@@ -408,12 +408,12 @@ function Inputs({ x, reload }) {
           <div class="row">
             <${Field} label="Contribution per year" id="contribution"
               error=${errAt(e, 'inputs.contribution.amount')}>
-              <${Input} value=${f.contribution?.amount ?? ''} inputmode="decimal"
+              <${TypedInput} kind="money" value=${f.contribution?.amount ?? ''}
                 onInput=${set('contribution.amount')} />
               </${Field}>
               <${Field} label="Grows yearly by (%)" id="contribution-growth"
                 error=${errAt(e, 'inputs.contribution.growth')}>
-                <${Input} value=${f.contribution?.growth ?? ''} inputmode="decimal"
+                <${TypedInput} kind="quantity" value=${f.contribution?.growth ?? ''}
                   onInput=${set('contribution.growth')} />
                 </${Field}>
                 </div>
@@ -431,14 +431,14 @@ function Inputs({ x, reload }) {
           ${f.withdrawal?.method === 'fixed'
             ? html`
               <${Field} label="Withdrawal a year, in today's dollars" id="withdrawal-amount">
-                <${Input} value=${f.withdrawal?.amount ?? ''} inputmode="decimal"
+                <${TypedInput} kind="money" value=${f.withdrawal?.amount ?? ''}
                   onInput=${set('withdrawal.amount')} />
                 </${Field}>
             `
             : f.withdrawal?.method === 'percent'
             ? html`
               <${Field} label="Percentage of the balance" id="withdrawal-percent">
-                <${Input} value=${f.withdrawal?.percent ?? 4} inputmode="decimal"
+                <${TypedInput} kind="quantity" value=${f.withdrawal?.percent ?? 4}
                   onInput=${set('withdrawal.percent')} />
                 </${Field}>
             `
@@ -449,7 +449,7 @@ function Inputs({ x, reload }) {
                 <${Field} label=${`${inc.label || 'Other income'} a month`} id=${'income-' + i}
                   help="other-income"
                   hint=${`From age ${inc.fromAge}, rising with inflation`}>
-                  <${Input} value=${inc.monthly} inputmode="decimal" onInput=${(
+                  <${TypedInput} kind="money" value=${inc.monthly} onInput=${(
                     /** @type {string} */ v,
                   ) => {
                     const next = structuredClone(f);
@@ -466,21 +466,21 @@ function Inputs({ x, reload }) {
         : html`
           <div class="row">
             <${Field} label="Target amount" id="target" error=${errAt(e, 'inputs.target')}>
-              <${Input} value=${f.target ?? ''} inputmode="decimal" onInput=${set('target')} />
+              <${TypedInput} kind="money" value=${f.target ?? ''} onInput=${set('target')} />
               </${Field}>
               <${Field} label="Target date" id="target-date" error=${errAt(e, 'inputs.date')}>
-                <${Input} type="date" value=${f.date || ''} onInput=${set('date', false)} />
+                <${TypedInput} kind="date" value=${f.date || ''} onInput=${set('date', false)} />
                 </${Field}>
                 </div>
                 <${Field} label="Saving per month" id="monthly" error=${errAt(e, 'inputs.monthly')}>
-                  <${Input} value=${f.monthly ?? ''} inputmode="decimal" onInput=${set(
+                  <${TypedInput} kind="money" value=${f.monthly ?? ''} onInput=${set(
                     'monthly',
                   )} />
                   </${Field}>
         `}
       <div class="row">
         <${Field} label="Fees a year (%)" id="fees" error=${errAt(e, 'inputs.fees')}>
-          <${Input} value=${f.fees ?? 0.1} inputmode="decimal" onInput=${set('fees')} />
+          <${TypedInput} kind="quantity" value=${f.fees ?? 0.1} onInput=${set('fees')} />
         </${Field}>
         <${Field} label="Bitcoin model" id="bitcoin-model">
           <${Select} value=${f.bitcoinModel || ''} onChange=${set('bitcoinModel', false)}
@@ -521,13 +521,13 @@ function EducationInputs({ f, set, setF, e }) {
       </${Field}>
       <div class="row">
         <${Field} label="Age school starts" id="start-age" error=${errAt(e, 'inputs.startAge')}>
-          <${Input} value=${f.startAge ?? 18} inputmode="numeric" onInput=${set('startAge')} />
+          <${TypedInput} kind="count" value=${f.startAge ?? 18} onInput=${set('startAge')} />
           </${Field}>
           <${Field} label="Years of school" id="school-years" error=${errAt(
             e,
             'inputs.schoolYears',
           )}>
-            <${Input} value=${f.schoolYears ?? 4} inputmode="numeric" onInput=${set(
+            <${TypedInput} kind="count" value=${f.schoolYears ?? 4} onInput=${set(
               'schoolYears',
             )} />
             </${Field}>
@@ -540,12 +540,12 @@ function EducationInputs({ f, set, setF, e }) {
     ${f.costBasis === 'typed'
       ? html`
         <${Field} label="Cost per year, typed" id="cost" error=${errAt(e, 'inputs.cost')}>
-          <${Input} value=${f.cost ?? ''} inputmode="decimal" onInput=${set('cost')} />
+          <${TypedInput} kind="money" value=${f.cost ?? ''} onInput=${set('cost')} />
           </${Field}>
       `
       : null}
     <${Field} label="Saving per month" id="monthly" error=${errAt(e, 'inputs.monthly')}>
-      <${Input} value=${f.monthly ?? ''} inputmode="decimal" onInput=${set('monthly')} />
+      <${TypedInput} kind="money" value=${f.monthly ?? ''} onInput=${set('monthly')} />
     </${Field}>
   `;
 }
@@ -586,7 +586,7 @@ function BuiltOn({ value, onChange, error }) {
     ${value.kind === 'typed'
       ? html`
         <${Field} label="Amount" id="typed-amount">
-          <${Input} value=${value.amount} inputmode="decimal" onInput=${(/** @type {string} */ v) =>
+          <${TypedInput} kind="money" value=${value.amount} onInput=${(/** @type {string} */ v) =>
             onChange({ ...value, amount: Number(v) })} />
           </${Field}>
       `

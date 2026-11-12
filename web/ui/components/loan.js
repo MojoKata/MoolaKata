@@ -8,12 +8,12 @@ import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, today } from '../app/format.js';
+import { date, money, today } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select } from './fields.js';
+import { errAt, Field, FormError, Select, TypedInput } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { CategoryField } from './categories.js';
@@ -87,13 +87,21 @@ export function TermsFields({ rec, type }) {
   const mortgage = type === 'mortgage';
   return html`
     <div class="row">
-      <${RecField} rec=${rec} name="principal" label="Original principal"
-        placeholder=${type === 'heloc' ? '0' : '360,000'} />
+      ${type === 'heloc'
+        ? html`
+          <${RecField} rec=${rec} name="principal" label="Original principal" min="0.00"
+            format=${money} />
+        `
+        : html`
+          <${RecField} rec=${rec} name="principal" label="Original principal" above=${0}
+            format=${money} placeholder="ex: 360000" />
+        `}
       <${RecField} rec=${rec} name="startDate" label="Start date" type="date" />
     </div>
     <div class="row">
       <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months" />
-      <${RecField} rec=${rec} name="rate" label="Interest rate" placeholder="5.875%" />
+      <${RecField} rec=${rec} name="rate" label="Interest rate" kind="percent" atMost=${40}
+        negative=${false} format=${(/** @type {any} */ n) => n + '%'} placeholder="ex: 5.875%" />
     </div>
     <div class="row">
       <${RecField} rec=${rec} name="method" label="Interest method" options=${METHODS} />
@@ -103,12 +111,13 @@ export function TermsFields({ rec, type }) {
     ${mortgage
       ? html`
         <div class="row">
-          <${RecField} rec=${rec} name="escrowTax" label="Escrow for property tax"
-            id="escrow-tax" placeholder="per payment" />
-          <${RecField} rec=${rec} name="escrowInsurance" label="Escrow for insurance"
-            id="escrow-insurance" placeholder="per payment" />
+          <${RecField} rec=${rec} name="escrowTax" label="Property tax escrow per payment"
+            id="escrow-tax" negative=${false} placeholder="none" />
+          <${RecField} rec=${rec} name="escrowInsurance" label="Insurance escrow per payment"
+            id="escrow-insurance" negative=${false} placeholder="none" />
         </div>
-        <${RecField} rec=${rec} name="pmi" label="PMI per month" id="pmi" placeholder="0" />
+        <${RecField} rec=${rec} name="pmi" label="PMI per month" id="pmi" negative=${false}
+          placeholder="none" />
       `
       : null}
     ${['mortgage', 'heloc', 'auto-loan', 'loan'].includes(type)
@@ -554,7 +563,7 @@ export function PaymentDialog({ close, a, v }) {
                 html`
                   <${Field} label=${label} id=${'part-' + k} help="split"
                     error=${typed ? errAt(e, k) : null}>
-                    <${Input} value=${split[k]} inputmode="decimal" onInput=${(
+                    <${TypedInput} kind="money" value=${split[k]} onInput=${(
                       /** @type {string} */ x,
                     ) => {
                       setSplit({ ...split, [k]: x });
@@ -602,7 +611,7 @@ function ServicerDialog({ close, a }) {
         ? html`
           <div class="row">
             <${Field} label="Principal owed" id="owed" error=${rec.error('balance')}>
-              <${Input} value=${owed} inputmode="decimal" onInput=${(/** @type {string} */ v) => {
+              <${TypedInput} kind="money" value=${owed} onInput=${(/** @type {string} */ v) => {
                 setOwed(v);
                 rec.input('balance', v.trim() ? '-' + v.trim().replace(/^[-−]/, '') : '');
               }} />
@@ -669,11 +678,12 @@ function Dated({ rec, name, label, what, add, hint }) {
         html`
           <div class="row">
             <${Field} label="From" help=${key} id=${`${what}-date-${i}`}>
-              <${Input} type="date" value=${r.date} onInput=${(/** @type {string} */ x) =>
+              <${TypedInput} kind="date" value=${r.date} onInput=${(/** @type {string} */ x) =>
                 put(i, 'date', x)} />
               </${Field}>
               <${Field} label=${what === 'rate' ? 'Rate' : 'Fee'} help=${key} id=${`${what}-${i}`}>
-                <${Input} value=${r[what] == null ? '' : String(r[what])} inputmode="decimal"
+                <${TypedInput} kind=${what === 'rate' ? 'percent' : 'money'}
+                  value=${r[what] == null ? '' : String(r[what])}
                   onInput=${(/** @type {string} */ x) => put(i, what, x)} />
                 </${Field}>
                 <button type="button" class="icon-btn" aria-label="Remove"

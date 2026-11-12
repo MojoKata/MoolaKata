@@ -6,7 +6,7 @@ Each record keeps its row, amounts, dates and links, and shows _File pruned_.
 
 ## Type the number of files to confirm {#prune-count}
 
-The count, as the title says, so nothing is pruned by a slip.
+The count the label names, typed, so nothing is pruned by a slip.
 
 ## Your password {#reauth-password}
 

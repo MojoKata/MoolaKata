@@ -123,7 +123,7 @@ function AccountForm({ type, close, back }) {
             <${RecField} rec=${acct} name="institution" label="Institution"
               placeholder="The bank or broker" />
             <${RecField} rec=${acct} name="mask" label="Last 4" id="mask"
-              placeholder="4821" />
+              placeholder="ex: 4821" />
           </div>
           ${t.education && plan && draft ? html`<${PlanFields} rec=${plan} />` : null}
           ${t.wallet
@@ -149,8 +149,7 @@ function AccountForm({ type, close, back }) {
                 : null}
               <div class="row">
                 <${RecField} rec=${acct} name="openingBalance" label="Opening balance"
-                  placeholder="0.00"
-                  hint="Optional. Without it, the first imported balance stands in." />
+                  placeholder="first imported balance" />
                 <${RecField} rec=${acct} name="openingDate" label="Opening balance date"
                   id="opening-date" type="date" />
               </div>

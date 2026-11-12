@@ -10,7 +10,7 @@ import { useList, useSubmit } from '../app/hooks.js';
 import { money, today } from '../app/format.js';
 import { Dialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { CountInput, errAt, Field, FormError, Input, Seg } from './fields.js';
+import { CountInput, errAt, Field, FormError, Seg, TypedInput } from './fields.js';
 import { toast } from './toast.js';
 import { dec } from '../app/dec.js';
 
@@ -95,10 +95,10 @@ export function OptionTrade({ close, accountId, start }) {
             <${RecField} rec=${rec} name="date" label="Date" type="date" />
           </div>
           <div class="row">
-            <${RecField} rec=${rec} name="symbol" label="Underlying" placeholder="MSFT" />
+            <${RecField} rec=${rec} name="symbol" label="Underlying" placeholder="ex: MSFT" />
             <${RecField} rec=${rec} name="right" label="Call or put" id="right"
               options=${[['call', 'Call'], ['put', 'Put']]} />
-            <${RecField} rec=${rec} name="strike" label="Strike" placeholder="480" />
+            <${RecField} rec=${rec} name="strike" label="Strike" placeholder="ex: 480" />
             <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
           </div>
           <div class="row">
@@ -151,7 +151,7 @@ export function Settle({ close, row }) {
         ]} /></div>
       <div class="row">
         <${Field} label="On" id="settle-date" error=${errAt(e, 'date')}>
-          <${Input} type="date"
+          <${TypedInput} kind="date"
             value=${f.date} onInput=${set('date')} />
           </${Field}>
           <${Field} label="Contracts" id="settle-contracts" error=${errAt(e, 'contracts')}>
@@ -188,7 +188,7 @@ export function Mark({ close, row }) {
       done=${`${row.symbol}: marked`}>
       <div class="row">
         <${Field} label="On" id="mark-date" error=${rec?.error('date')}>
-          <${Input} type="date" value=${day} onInput=${setDay} />
+          <${TypedInput} kind="date" value=${day} onInput=${setDay} />
         </${Field}>
         ${rec
           ? html`
