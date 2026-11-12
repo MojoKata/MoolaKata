@@ -468,7 +468,10 @@ class Recorder:
             paths += [
                 f"/ui/budgets/{b['id']}/{t}" for t in ("month", "cash-flow", "trends", "recurring")
             ]
-        paths += ["/ui/profile", "/ui/transactions?category=none"]
+        paths += ["/ui/profile", "/ui/transactions?category=none", "/ui/transactions/rules"]
+        # Transactions › Rules with a rule chosen (S12.2.3.2).
+        rules = self.api("/rules")["items"]
+        paths += [f"/ui/transactions/rules/{r['id']}" for r in rules[:1]]
         if admin:
             paths += ["/ui/users"] + [f"/ui/settings/{s}" for s in SETTINGS]
         jobs: list[tuple] = [("visit", p) for p in paths]

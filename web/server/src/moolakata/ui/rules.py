@@ -283,10 +283,13 @@ save.register(
 def apply_rules(request: Request, c: Caller = Depends(caller)):
     """The rules over the uncategorised transactions in the accounts the user can change; how
     many changed is recorded, never which (S2.7.4)."""
-    with server(request).db.tx(user=c.id) as s:
+    srv = server(request)
+    with srv.db.tx(user=c.id) as s:
         rules = repo.Rules(s, c.id)
         changed = sum(rules.apply(t) for t in _uncategorised(s, c.id)) if rules else 0
         s.flush()
         if changed:
             _record(s, "rules.applied", c, changed)
-        return Applied(changed=changed)
+    if changed:
+        srv.events.publish("saved", users=[c.id])  # as a save does (S12.6)
+    return Applied(changed=changed)

@@ -421,6 +421,9 @@ def save(body: SaveIn, request: Request, c: Caller = Depends(caller)):
         ) from e
     for fn in ctx._after.values():
         fn()
+    if saved:
+        # The saver's own pages read again what they show (S12.6): a tour's counts (S12.17.4).
+        srv.events.publish("saved", users=[c.id])
     payload = SaveOut(saved=saved).model_dump(mode="json")
     srv.idempotency.remember(c.id, key, 200, payload, {})
     return JSONResponse(payload, status_code=200)

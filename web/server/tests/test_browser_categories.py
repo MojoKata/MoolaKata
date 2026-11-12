@@ -79,7 +79,23 @@ def test_a_category_nothing_uses_is_deleted_from_its_dialog(browser, household):
     page.close()
 
 
-def test_a_new_category_from_a_transactions_list_is_made_in_the_same_save(browser, household):
+TOP = ".dialog-layer:not([inert])"
+
+
+def until(page, expr: str) -> None:
+    """Poll an expression from outside the page (the app's CSP refuses a string evaluated
+    inside it), for up to 30 s."""
+    for _ in range(600):
+        if page.evaluate(expr):
+            return
+        page.wait_for_timeout(50)
+    raise AssertionError(f"never true: {expr}")
+
+
+def test_a_new_category_from_a_dialog_opens_over_it_and_is_chosen(browser, household):
+    """S12.15.7: New category… opens New category over the transaction's dialog, which waits
+    as it was; saved there, the category is chosen in the field that offered it. Cancelled,
+    the choice is as it was."""
     h = household
     path = f"/ui/accounts/{h.checking['id']}/transactions"
     page, problems = signed_in(browser, h, path, 'main button:has-text("Add")')
@@ -89,14 +105,25 @@ def test_a_new_category_from_a_transactions_list_is_made_in_the_same_save(browse
     page.fill(".dialog #f-amount", "-31.00")
     page.fill(".dialog #f-payee", "Browser vet")
     page.select_option(".dialog #f-category", "new-category")
-    wait(page, ".dialog #x-category-name", problems)
-    page.fill(".dialog #x-category-name", "Browser vet bills")
-    page.select_option(".dialog #x-category-parent", label="Health")
-    page.select_option(".dialog #x-category-tag", "medical")
-    page.click(".dialog footer button.primary")
-    wait(page, ".dialog", problems, state="detached")
+    wait(page, f"{TOP} #d1-f-name", problems)
+    assert page.locator(".dialog").count() == 2
+    page.keyboard.press("Escape")
+    wait(page, ".dialog-layer", problems, state="attached")
+    until(page, "document.querySelectorAll('.dialog').length === 1")
+    until(page, "document.querySelector('.dialog #f-category').value === ''")
+    assert page.input_value(".dialog #f-payee") == "Browser vet", "the dialog beneath waits"
+    page.select_option(".dialog #f-category", "new-category")
+    wait(page, f"{TOP} #d1-f-name", problems)
+    page.fill(f"{TOP} #d1-f-name", "Browser vet bills")
+    page.select_option(f"{TOP} #d1-f-under", label="Health")
+    page.select_option(f"{TOP} #d1-f-tax-tag", "medical")
+    page.click(f"{TOP} footer button.primary")
+    until(page, "document.querySelectorAll('.dialog').length === 1")
     made_cat = cats(h)["Health › Browser vet bills"]
     assert made_cat["taxTag"] == "medical"
+    until(page, f"document.querySelector('.dialog #f-category').value === {made_cat['id']!r}")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
     rows = h.c.get("/ui/api/transactions", params={"payee": "Browser vet"}).json()["items"]
     assert [t["categoryId"] for t in rows] == [made_cat["id"]]
     assert problems == []

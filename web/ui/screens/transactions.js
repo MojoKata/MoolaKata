@@ -1,5 +1,6 @@
-// Transactions (requirements S12.2.3): every account's transactions together, filtered by
-// account, category, date, amount, payee and tag, with bulk categorise and Import.
+// Transactions (requirements S12.2.3): the Transactions tab, every account's transactions
+// together, filtered by account, category, date, amount, payee and tag, with bulk categorise and
+// Import; and the Rules tab (S12.2.3.2), each at its own address.
 import { useEffect, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
@@ -9,20 +10,34 @@ import { useApi, useList } from '../app/hooks.js';
 import { changes } from '../app/stream.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Empty, Failed, Loading } from '../components/bits.js';
+import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
 import { openDialog } from '../components/dialog.js';
 import { offsetOf, Pager } from '../components/pager.js';
 import { TxTable, useCategories } from '../components/txtable.js';
 import { pageSize } from '../store/prefs.js';
 import { ImportDialog } from './import.js';
-import { openRules } from '../components/rules.js';
+import { RulesTab } from '../components/rules.js';
 import { TransactionDialog } from './transaction-dialog.js';
 
 const EMPTY = { account: '', category: '', from: '', to: '', min: '', max: '', payee: '', tag: '' };
 
-export default function Transactions() {
+const TABS = /** @type {[string, string, string][]} */ ([
+  ['list', 'Transactions', '/ui/transactions'],
+  ['rules', 'Rules', '/ui/transactions/rules'],
+]);
+
+/** @param {{ tab?: string, id?: string }} p */
+export default function Transactions({ tab, id }) {
   useTitle('Transactions');
+  const current = tab === 'rules' ? 'rules' : 'list';
+  return html`
+    <${Tabs} tabs=${TABS} current=${current} base="/ui/transactions" />
+    ${current === 'rules' ? html`<${RulesTab} id=${id} />` : html`<${TransactionList} />`}
+  `;
+}
+
+function TransactionList() {
   useGuide('transactions');
   const { query } = useLocation();
   const [f, setF] = useState({ ...EMPTY, category: query.category || '' });
@@ -87,7 +102,6 @@ export default function Transactions() {
         <option value="">All categories</option><option value="none">Uncategorised</option>
         ${cats.list.map((c) => html`<option value=${c.id}>${c.path}</option>`)}</select>
       <span class="spacer"></span>
-      <button type="button" class="btn" onClick=${() => openRules().then(fresh)}>Rules</button>
       <button type="button" class="btn" disabled=${!all.some((a) => canAdd('Txn', a))}
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all }).then(

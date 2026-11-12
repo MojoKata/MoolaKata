@@ -18,9 +18,9 @@ Shows one category's transactions, or the **uncategorised** ones to sort.
 
 ## Rules
 
-Your categorisation rules: what a payee looks like, and the category, payee and tags to set.
-They run on what you import, and on the uncategorised when you choose. A transaction's own dialog
-offers **Make a rule** from it.
+The **Rules** tab holds your categorisation rules: what a payee looks like, and the category,
+payee and tags to set. They run on what you import, and on the uncategorised when you choose. A
+transaction's own dialog offers **Make a rule** from it.
 
 ## Import
 

@@ -65,7 +65,8 @@
    3. **Who changes what.** Any user adds a category, at the top level or under one, with
       any kind and tax tag, and renames any category. Its parent, kind and tax tag are its
       maker's to change while nothing uses it (no transaction, split, rule, plan line, move,
-      loan or category of its own names it); after that, and for a shipped category or
+      loan or category of its own names it; one deleted, or deleted with its account, its
+      transaction or its budget, names nothing); after that, and for a shipped category or
       another user's, an admin's. **Keep receipts for** is an admin's (S14.10.1.1). A
       category nothing uses is deleted by its maker or an admin, a shipped one by an admin
       alone; one in use is merged instead (S7.2.4). Names are up to 60 characters, without

@@ -4588,6 +4588,32 @@
  */
 
 /**
+ * @typedef {Object} UseChild
+ * @property {string} id
+ * @property {string} name
+ */
+
+/**
+ * @typedef {Object} UseInBudget
+ * @property {string} budgetId
+ * @property {string} budgetName
+ * @property {string} month
+ */
+
+/**
+ * @typedef {Object} UseLoan
+ * @property {string} accountId
+ * @property {string} name
+ */
+
+/**
+ * @typedef {Object} UseRule
+ * @property {string} id
+ * @property {string} payeeMatch
+ * @property {number} position
+ */
+
+/**
  * @typedef {Object} UserGrant
  * @property {string} id
  * @property {string} displayName
@@ -4639,6 +4665,21 @@
  * @property {(string | null)} reactivationAskedAt
  * @property {string} createdAt
  * @property {number} version
+ */
+
+/**
+ * What names a category that the reader can see, by kind, and how many uses they can't;
+ * for one deleted (or merged away) since, `gone` and nothing more.
+ * @typedef {Object} UsesOut
+ * @property {boolean} [gone]
+ * @property {number} seen
+ * @property {number} unseen
+ * @property {number} transactions
+ * @property {Array<UseRule>} rules
+ * @property {Array<UseInBudget>} planLines
+ * @property {Array<UseInBudget>} moves
+ * @property {Array<UseLoan>} loans
+ * @property {Array<UseChild>} categories
  */
 
 /**

@@ -36,7 +36,8 @@
    6. **Plain CSS** with custom properties and `@layer`: `tokens.css` (colours and sizes, dark
       first), `base.css`, `components.css`. Icons are one SVG sprite.
    7. **The server is the only state.** The browser remembers only how the page looks: theme,
-      sidebar, help pane, page size, privacy mode.
+      sidebar, help pane, a tour's width, page size, privacy mode; and, for a tab, the tour
+      open in it and the counts it started from (S12.17.2).
    8. Current Chrome, Edge, Safari and Firefox; no polyfills.
    9. **Editing records** (S12.15) goes through one module, `app/draft.js`, never through
       request bodies a dialog builds itself.

@@ -25,19 +25,7 @@ my529, Bright Start, and so on.
 
 ## Beneficiary
 
-Who it is for: one of the household's people. **Add a person…** adds them here.
-
-## Their name {#new-name}
-
-The new person's name.
-
-## Sex {#new-sex}
-
-The new person's: it chooses the words for the family tree, such as daughter or son.
-
-## Year of birth {#new-birth-year}
-
-Their year of birth, for when school starts.
+Who it is for: one of the household's people. **Add a person…** opens **Add a person** over this: the one it adds is chosen here.
 
 ## Opened {#opened-on}
 

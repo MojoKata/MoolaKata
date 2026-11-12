@@ -3,6 +3,7 @@
 // time. A household budget is one shared with a group at write.
 import { signal } from '@preact/signals';
 import { useState } from 'preact/hooks';
+import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
@@ -30,12 +31,7 @@ import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
 import { Amt } from '../components/amount.js';
-import {
-  addedFor,
-  CategoriesTab,
-  CategoryField,
-  NewCategoryFor,
-} from '../components/categories.js';
+import { CategoriesTab, CategoryField } from '../components/categories.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
@@ -53,6 +49,8 @@ TABS.splice(1, 0, ['categories', 'Categories']);
 
 /** The month shown, kept while moving between tabs and budgets. */
 const shown = signal('');
+/** The month the address last asked for (`?month=`), applied once. */
+let applied = '';
 
 /** @param {Date} d */
 function monthKey(d) {
@@ -68,6 +66,13 @@ function monthLabel(key) {
 /** @param {{ id?: string, tab?: string }} p */
 export default function Budgets({ id, tab }) {
   useTitle('Budgets');
+  // `?month=YYYY-MM` opens that month (S12.2.6): a tour's link to a plan line or a move. Once
+  // for each address, so the month list still moves it afterwards.
+  const asked = useLocation().query.month;
+  if (asked && asked !== applied && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked)) {
+    applied = asked;
+    shown.value = asked;
+  }
   const current = TABS.some(([k]) => k === tab) ? /** @type {string} */ (tab) : 'month';
   useGuide('budgets-' + current);
   const list = useList('/budgets', {}, ['share']);
@@ -81,6 +86,8 @@ export default function Budgets({ id, tab }) {
     { length: 13 },
     (_, i) => monthKey(new Date(now.getFullYear(), now.getMonth() + 1 - i, 1)),
   );
+  // One asked for by the address, further back than the list goes, joins it (S12.2.6).
+  if (!months.includes(shown.value)) months.push(shown.value);
   const newBudget = () =>
     openDialog(BudgetDialog, {}).then(async (b) => {
       if (!b) return;
@@ -1985,7 +1992,7 @@ function PlanDialog({ close, b, month }) {
               <td>${r.state === 'new'
                 ? html`
                   <${CategoryField} rec=${r} name="categoryId" bare label="Category"
-                    help="category" id=${'plan-' + r.key} draft=${draft}
+                    help="category" id=${'plan-' + r.key}
                     first=${['', 'Choose a category']} only=${(/** @type {any} */ c) =>
                       c.kind !== 'transfer' &&
                       (c.id === r.get('categoryId') || !taken.has(c.id))} />
@@ -2029,23 +2036,9 @@ function PlanDialog({ close, b, month }) {
                 <${RecField} rec=${r} name="projectionId" bare label="Projection"
                   help="projection" options=${plans} />
               </td>
-              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() => {
-                // A category made for this line goes with it.
-                const made = addedFor(draft, r.get('categoryId'));
-                if (made) draft?.remove(made);
-                draft?.remove(r);
-              }}><${Icon} name="x" /></button></td>
+              <td><button type="button" class="icon-btn" aria-label="Remove" onClick=${() =>
+                draft?.remove(r)}><${Icon} name="x" /></button></td>
             </tr>
-            ${addedFor(draft, r.get('categoryId'))
-              ? html`
-                <tr class="sub-row">
-                  <td colspan=${span}>
-                    <${NewCategoryFor} rec=${r}
-                      name="categoryId" draft=${draft} id=${'plan-' + r.key + '-new'} />
-                  </td>
-                </tr>
-              `
-              : null}
             <${RowErrors} rec=${r} span=${span} />
           `
         )}</tbody>

@@ -144,14 +144,16 @@ def page(dev_server):
         yield pg
 
 
-GUIDE_CHECK = """(scope) => {
+GUIDE_CHECK = r"""(scope) => {
   const root = document.querySelector(scope);
   const guide = document.querySelector('.help .guide');
   if (!root || !guide) return { error: 'no ' + (!root ? scope : 'help pane') };
   const anchors = [...guide.querySelectorAll('[data-anchor]')].map((h) => h.dataset.anchor);
-  // A field's refusal (its .err line, id f-<field>-err) is part of its field, not one.
-  const fields = [...root.querySelectorAll('[id^="f-"]:not(.err), [data-help]')]
-    .map((el) => el.dataset.help || el.id.slice(2))
+  // A field's refusal (its .err line, id f-<field>-err) is part of its field, not one. A dialog
+  // over another puts "d1-" before its fields' ids (S12.15.7).
+  const fields = [...root.querySelectorAll('[id]:not(.err), [data-help]')]
+    .filter((el) => el.dataset.help || /^(d\d+-)?f-/.test(el.id))
+    .map((el) => el.dataset.help || el.id.replace(/^d\d+-/, '').slice(2))
     .filter((id, i, all) => all.indexOf(id) === i);
   const missing = fields.filter((f) => !anchors.includes(f));
   const order = fields.filter((f) => anchors.includes(f)).map((f) => anchors.indexOf(f));

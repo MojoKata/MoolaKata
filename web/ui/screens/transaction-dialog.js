@@ -11,14 +11,15 @@ import { canAdd, Record } from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
-import { openRules } from '../components/rules.js';
+import { NewRuleDialog } from '../components/rules.js';
 import { Field, Input, Seg, Switch, SwitchRow } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
-import { CategoryField, CategoryRec, NewCategoryFor } from '../components/categories.js';
+import { CategoryField } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
 import { confirmAction } from '../components/confirm.js';
+import { openDialog } from '../components/dialog.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -265,15 +266,14 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               }}>Not a transfer</button>`
               : null}
             ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
-              ? html`<button type="button" class="btn" onClick=${() => {
-                // One dialog at a time: this one closes, and the rule opens filled from it.
-                close();
-                setTimeout(() =>
-                  openRules({
+              ? html`<button type="button" class="btn" onClick=${() =>
+                // New rule opens over this dialog, which stays as it is (S2.7.6, S12.15.7).
+                openDialog(NewRuleDialog, {
+                  fill: {
                     payeeMatch: txn.payeeRaw || txn.payee,
                     categoryId: t?.get('categoryId') || null,
-                  }), 0);
-              }}>Make a rule</button>`
+                  },
+                })}>Make a rule</button>`
               : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
@@ -320,7 +320,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
             `}
             ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
             ${!trade && !parts.length
-              ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" draft=${draft} />`
+              ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" />`
               : null}
             ${!trade
               ? html`
@@ -337,7 +337,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                       <div class="row" key=${r.key} style=${{ alignItems: 'end' }}>
                         <${Field} label=${'Part ' + (i + 1) + ' category'} help="split"
                           id=${'split-' + i + '-category'} error=${r.error('categoryId')}>
-                          <${CategoryField} rec=${r} name="categoryId" bare draft=${draft}
+                          <${CategoryField} rec=${r} name="categoryId" bare
                             id=${'split-' + i + '-category'} help="split" label=${'Part ' +
                               (i + 1) + ' category'} />
                           </${Field}>
@@ -353,19 +353,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                               `
                               : null}
                             <button type="button" class="icon-btn" aria-label=${'Remove part ' +
-                              (i + 1)} onClick=${() => {
-                              // A category made for this part goes with it.
-                              const made = draft?.records.find((x) =>
-                                x instanceof CategoryRec && x.state === 'new' &&
-                                x.id === r.get('categoryId')
-                              );
-                              if (made) draft?.remove(made);
-                              draft?.remove(r);
-                            }}
+                              (i + 1)} onClick=${() => draft?.remove(r)}
                               style=${{ marginBottom: '14px' }}>×</button>
                             </div>
-                      <${NewCategoryFor} rec=${r} name="categoryId" draft=${draft}
-                        id=${'split-' + i + '-new'} />
                     `
                   )}
                   ${parts.length

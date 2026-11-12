@@ -1,11 +1,14 @@
-// Dialogs (requirements S12.1.3): one at a time, trapping focus and returning it when closed.
-// A dialog masks the content, not the guide beside it: the sidebar and the page are out of reach
-// while it is open, and Tab goes round the dialog and the help pane. openDialog() resolves with
-// what the dialog closes with.
-import { signal } from '@preact/signals';
-import { useEffect, useRef, useState } from 'preact/hooks';
+// Dialogs (requirements S12.1.3, S12.15.7): trapping focus and returning it when closed. One
+// opened from another opens over it: the one beneath waits, inert, and is back as it was when
+// the one on top closes. A dialog masks the content, not the guide beside it: the sidebar and
+// the page are out of reach while one is open, and Tab goes round the top dialog and the help
+// pane. openDialog() resolves with what the dialog closes with.
+import { createContext } from 'preact';
+import { computed, signal } from '@preact/signals';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { paneWidth } from './help.js';
+import { IdPrefix } from './fields.js';
 import { Icon } from './icon.js';
 import { formChanges } from '../app/guard.js';
 
@@ -23,9 +26,14 @@ function ends(part) {
   return [all[0], all.at(-1)];
 }
 
-/** @type {import('@preact/signals').Signal<{ comp: any, props: any, resolve: (v: any) => void,
- *   back: HTMLElement | null } | null>} */
-export const current = signal(null);
+/** @typedef {{ comp: any, props: any, resolve: (v: any) => void, back: HTMLElement | null,
+ *   key: number }} Open */
+
+/** The dialogs open, the last on top. @type {import('@preact/signals').Signal<Open[]>} */
+export const stack = signal([]);
+/** The dialog on top, if any. */
+export const current = computed(() => stack.value.at(-1) || null);
+let opened = 0;
 
 /**
  * @param {any} comp  a component taking { close, ...props }
@@ -34,47 +42,90 @@ export const current = signal(null);
  */
 export function openDialog(comp, props = {}) {
   return new Promise((resolve) => {
-    current.value = {
+    stack.value = [...stack.value, {
       comp,
       props,
       resolve,
       back: /** @type {HTMLElement | null} */ (document.activeElement),
-    };
+      key: ++opened,
+    }];
   });
 }
 
-/** Whether the open dialog holds changes not saved (S12.15.6); set by the dialog itself. */
-let unsaved = () => false;
+/** Whether each open dialog holds changes not saved (S12.15.6); set by the dialogs themselves. */
+const unsaved = new Set(/** @type {(() => boolean)[]} */ ([]));
 
-/** Whether the open dialog, or a screen's form, holds changes not saved: they are lost if the
+/** Whether an open dialog, or a screen's form, holds changes not saved: they are lost if the
  * session ends now. */
 export function dialogHasChanges() {
-  return (!!current.value && unsaved()) || formChanges();
+  return [...unsaved].some((has) => has()) || formChanges();
 }
 
 /** The history entry a closing dialog takes back with it, while it goes (a Promise). */
 let leaving = Promise.resolve();
 
-/** @param {any} [value] */
-export function closeDialog(value) {
-  const d = current.value;
-  if (!d) return;
-  current.value = null;
+/**
+ * Closes a dialog, and any opened over it, which close with nothing.
+ * @param {Open} d @param {any} [value]
+ */
+function closeOne(d, value) {
+  const at = stack.value.indexOf(d);
+  if (at < 0) return;
+  const gone = stack.value.slice(at);
+  stack.value = stack.value.slice(0, at);
   // Once the dialog is gone and so is its history entry: a caller that goes somewhere next
   // isn't sent back by the entry's late `history.back()` (CR3-406).
   setTimeout(() => {
     leaving.then(() => {
-      d.resolve(value);
+      for (const x of gone.reverse()) x.resolve(x === d ? value : undefined);
       d.back?.focus?.();
     });
   }, 0);
 }
 
+/** Closes the dialog on top. @param {any} [value] */
+export function closeDialog(value) {
+  const d = stack.value.at(-1);
+  if (d) closeOne(d, value);
+}
+
+/** Closes every open dialog, the ones beneath with nothing. */
+export function closeAllDialogs() {
+  const d = stack.value[0];
+  if (d) closeOne(d);
+}
+
+/** Whether the dialog drawing here is the one on top. */
+const OnTop = createContext(true);
+
 export function DialogHost() {
-  const d = current.value;
-  if (!d) return null;
-  const C = d.comp;
-  return html`<${C} ...${d.props} close=${closeDialog} />`;
+  const all = stack.value;
+  const open = all.length > 0;
+  // Everything in the frame but the help pane is out of reach while any dialog is open: set
+  // and cleared in the same commit as the dialogs, never a frame late.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const masked =
+      /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.app > :not(.help)')]);
+    for (const m of masked) m.inert = true;
+    return () => {
+      for (const m of masked) m.inert = false;
+    };
+  }, [open]);
+  return all.map((d, i) => {
+    const C = d.comp;
+    const top = i === all.length - 1;
+    // A dialog over another names its fields apart, so a label and the guide find its own.
+    return html`
+      <div class="dialog-layer" key=${d.key} inert=${!top}>
+        <${OnTop.Provider} value=${top}>
+          <${IdPrefix.Provider} value=${i ? `d${i}-` : ''}>
+            <${C} ...${d.props} close=${(/** @type {any} */ v) => closeOne(d, v)} />
+            </${IdPrefix.Provider}>
+            </${OnTop.Provider}>
+            </div>
+    `;
+  });
 }
 
 /**
@@ -83,12 +134,17 @@ export function DialogHost() {
  * saved: then Escape, ✕, Cancel (a footer button marked data-cancel) or the browser's Back ask
  * before closing, a click on the dimmed
  * content does nothing, and leaving the page brings the browser's own question.
+ * `save`, for such a dialog, saves from the question (resolving to whether it saved).
  * @param {{ title: string, wide?: boolean, guide?: string, close: (v?: any) => void,
  *   footer?: any, note?: any, children: any, onSubmit?: () => void,
- *   changed?: () => boolean }} p
+ *   changed?: () => boolean, save?: () => Promise<boolean> }} p
  */
-export function Dialog({ title, wide, close, footer, note, children, onSubmit, changed }) {
+export function Dialog({ title, wide, close, footer, note, children, onSubmit, changed, save }) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const top = useContext(OnTop);
+  const topRef = useRef(top);
+  topRef.current = top;
+  const ids = useContext(IdPrefix);
   const [asking, setAsking] = useState(false);
   const askingRef = useRef(false);
   askingRef.current = asking;
@@ -104,12 +160,17 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
   const leave = () => (has() ? setAsking(true) : close());
   useEffect(() => {
     if (!changed) return;
-    unsaved = has;
+    unsaved.add(has);
     // Back goes to the entry the dialog adds, so it can be asked about; the entry goes with it.
     const mark = { mkDialog: Math.random() };
     history.pushState(mark, '', location.href);
     const onPop = () => {
       if (history.state?.mkDialog === mark.mkDialog) return;
+      // Beneath another dialog, Back is the top one's: this one keeps its entry.
+      if (!topRef.current) {
+        history.pushState(mark, '', location.href);
+        return;
+      }
       if (has()) {
         history.pushState(mark, '', location.href);
         setAsking(true);
@@ -123,7 +184,7 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
     return () => {
       removeEventListener('popstate', onPop);
       removeEventListener('beforeunload', onUnload);
-      unsaved = () => false;
+      unsaved.delete(has);
       if (history.state?.mkDialog === mark.mkDialog) {
         leaving = new Promise((done) => {
           addEventListener('popstate', () => done(undefined), { once: true });
@@ -140,11 +201,9 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
       'input:not([type=hidden]),select,textarea,button:not(.dialog-x)',
     );
     /** @type {HTMLElement | null} */ (first)?.focus();
-    // Everything in the frame but the help pane: the sidebar and the page.
-    const masked =
-      /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.app > :not(.help)')]);
-    for (const m of masked) m.inert = true;
     const onKey = (/** @type {KeyboardEvent} */ e) => {
+      // A dialog beneath another hears nothing: the top one answers.
+      if (!topRef.current) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         if (askingRef.current) setAsking(false);
@@ -164,11 +223,20 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
     };
     // On the document: a button that disables while it works drops the focus to the body.
     document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      for (const m of masked) m.inert = false;
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, []);
+  const [saving, setSaving] = useState(false);
+  // Save from the question: saved, the dialog closes as its save closes it; refused or asking
+  // first, the question goes and the dialog shows why (S12.15.6).
+  const saveNow = async () => {
+    if (!save) return;
+    setSaving(true);
+    try {
+      if (!(await save())) setAsking(false);
+    } finally {
+      setSaving(false);
+    }
+  };
   // The mask stops at the help pane, which stays in reach, and so isn't hidden from screen
   // readers either: the masked content is inert instead.
   const beside = paneWidth.value;
@@ -176,12 +244,13 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
     <div class="scrim" style=${{ right: beside + 'px' }} onClick=${(/** @type {any} */ e) =>
       e.target === e.currentTarget && !has() && close()}>
       <div class=${'dialog' + (wide ? ' wide' : '')} role="dialog"
-        aria-modal=${beside ? undefined : 'true'} aria-labelledby="dialog-title" ref=${box}>
+        aria-modal=${beside ? undefined : 'true'} aria-labelledby=${ids +
+          'dialog-title'} ref=${box}>
         <form onSubmit=${(/** @type {Event} */ e) => {
           e.preventDefault();
           onSubmit?.();
         }} class="dialog-form">
-            <header><h2 id="dialog-title">${title}</h2>
+            <header><h2 id=${ids + 'dialog-title'}>${title}</h2>
               <button type="button" class="icon-btn dialog-x" aria-label="Close" onClick=${() =>
                 leave()}><${Icon} name="x" /></button></header>
             <div class="body">${children}</div>
@@ -196,14 +265,21 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
           </form>
         ${asking
           ? html`
-            <div class="dialog-ask" role="alertdialog" aria-labelledby="dialog-ask-title">
+            <div class="dialog-ask" role="alertdialog" aria-labelledby=${ids + 'dialog-ask-title'}>
               <div class="dialog-ask-box">
-                <h3 id="dialog-ask-title">Discard your changes?</h3>
-                <p class="small dim">What you changed in this dialog isn't saved.</p>
+                <h3 id=${ids + 'dialog-ask-title'}>Save your changes?</h3>
+                <p class="small dim">What you changed in this dialog isn't saved. Save it, or
+                  discard it and go on.</p>
                 <div class="dialog-ask-buttons">
-                  <button type="button" class="btn danger" onClick=${() => close()}>Discard</button>
-                  <button type="button" class="btn primary" ref=${keep}
+                  <button type="button" class="btn" ref=${keep}
                     onClick=${() => setAsking(false)}>Keep editing</button>
+                  <button type="button" class="btn danger" onClick=${() => close()}>Discard</button>
+                  ${save
+                    ? html`
+                      <button type="button" class="btn primary" disabled=${saving}
+                        onClick=${saveNow}>Save</button>
+                    `
+                    : null}
                 </div>
               </div>
             </div>

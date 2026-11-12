@@ -434,8 +434,13 @@ def test_a_form_holding_changes_asks_before_discarding_them(browser, household):
     page, problems = opened(browser, h, b)
     amount_of(page).fill("12.")
     page.keyboard.press("Escape")
-    wait(page, "text=Discard your changes?", problems)
-    page.click('button:has-text("Keep editing")')
+    wait(page, "text=Save your changes?", problems)
+    # Keep editing, focused and what Escape answers; Discard, in red; and Save.
+    buttons = page.locator(".dialog-ask-buttons button")
+    assert buttons.all_inner_texts() == ["Keep editing", "Discard", "Save"]
+    assert "danger" in (buttons.nth(1).get_attribute("class") or "")
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Keep editing"
+    page.keyboard.press("Escape")
     assert page.locator(".dialog-ask").count() == 0
     assert amount_of(page).input_value() == "12.", "what was typed stays as typed"
     page.mouse.click(5, 5)
@@ -444,6 +449,29 @@ def test_a_form_holding_changes_asks_before_discarding_them(browser, household):
     page.click('button:has-text("Discard")')
     wait(page, ".dialog", problems, state="detached")
     assert plan_of(h, b) == before
+    assert problems == []
+    page.close()
+
+
+def test_save_in_the_question_saves_and_closes(browser, household):
+    """S12.15.6: Save in the question saves the draft, and the dialog goes as its own Save
+    would take it; one refused stays, showing why."""
+    h = household
+    b = fresh_budget(h, "Saved from the question")
+    page, problems = opened(browser, h, b)
+    amount_of(page).fill("twelve")
+    page.keyboard.press("Escape")
+    wait(page, "text=Save your changes?", problems)
+    page.click('.dialog-ask-buttons button:has-text("Save")')
+    wait(page, ".dialog .notice", problems)
+    assert page.locator(".dialog-ask").count() == 0, "a refusal shows in the dialog"
+    assert "Correct the fields marked first." in page.inner_text(".dialog")
+    amount_of(page).fill("12.00")
+    page.keyboard.press("Escape")
+    wait(page, "text=Save your changes?", problems)
+    page.click('.dialog-ask-buttons button:has-text("Save")')
+    wait(page, ".dialog", problems, state="detached")
+    assert 12 in [float(x["amount"]) for x in plan_of(h, b)]
     assert problems == []
     page.close()
 
@@ -474,7 +502,7 @@ def test_back_asks_and_text_that_doesnt_read_counts_as_a_change(browser, househo
     wait(page, ".dialog .notice", problems)
     assert "Correct the fields marked first." in page.inner_text(".dialog")
     page.go_back()
-    wait(page, "text=Discard your changes?", problems)
+    wait(page, "text=Save your changes?", problems)
     page.click('button:has-text("Discard")')
     wait(page, ".dialog", problems, state="detached")
     assert plan_of(h, b) == before
@@ -680,14 +708,30 @@ def test_a_screens_form_holding_changes_asks_before_moving_elsewhere(browser, ho
     wait(page, "form.draft-form", problems)
     page.fill("#f-name", "Rainy day")
     page.click('a.nav-item:has-text("Budgets")')
-    wait(page, "text=Discard your changes?", problems)
+    wait(page, "text=Save your changes?", problems)
     page.click('button:has-text("Keep editing")')
     assert page.url.endswith(path) and page.input_value("#f-name") == "Rainy day"
     page.go_back()
-    wait(page, "text=Discard your changes?", problems)
+    wait(page, "text=Save your changes?", problems)
     page.click('button:has-text("Discard")')
     page.wait_for_url(f"**{at}")
     assert account(h, "savings")[0]["name"] == "Savings"
+    assert problems == []
+    page.close()
+
+
+def test_save_in_a_screens_question_saves_and_moves_on(browser, household):
+    """S12.15.6: on a screen's form, Save in the question saves, then goes where the link
+    led."""
+    h = household
+    at = f"/ui/accounts/{h.extra['savings']['id']}"
+    page, problems = signed_in(browser, h, at + "/settings", "form.draft-form #f-name")
+    page.fill("#f-name", "Rainy day fund")
+    page.click('a.nav-item:has-text("Budgets")')
+    wait(page, "text=Save your changes?", problems)
+    page.click('.dialog footer button:has-text("Save")')
+    page.wait_for_url("**/ui/budgets**")
+    assert account(h, "savings")[0]["name"] == "Rainy day fund"
     assert problems == []
     page.close()
 
@@ -825,14 +869,11 @@ def test_a_rule_moved_and_a_budget_made_active_are_saved_at_once(browser, househ
     first = made(make(h.c, "Rule", payeeMatch="bakery", categoryId=h.cats["Food › Groceries"]))
     second = made(make(h.c, "Rule", payeeMatch="bagel", categoryId=h.cats["Food › Groceries"]))
     order = lambda: [x["id"] for x in h.c.get("/ui/api/rules").json()["items"]]  # noqa: E731
-    page, problems = signed_in(browser, h, "/ui/transactions", 'button:has-text("Rules")')
-    page.click('main button:has-text("Rules")')
     up = f'button[aria-label="Move rule {order().index(second["id"]) + 1} up"]'
-    wait(page, up, problems)
+    page, problems = signed_in(browser, h, "/ui/transactions/rules", up)
     page.click(up)
     wait(page, f"{up}:enabled", problems)
     assert order().index(second["id"]) < order().index(first["id"])
-    page.click('.dialog footer button:has-text("Close")')
     for gone in (first["id"], second["id"]):  # each read anew: a delete renumbers the rest
         r = next(x for x in h.c.get("/ui/api/rules").json()["items"] if x["id"] == gone)
         saved(remove(h.c, "Rule", r))
@@ -954,7 +995,7 @@ def test_cancel_asks_before_discarding_too(browser, household):
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-memo", "not kept")
     page.click('.dialog footer button:has-text("Cancel")')
-    wait(page, "text=Discard your changes?", problems)
+    wait(page, "text=Save your changes?", problems)
     page.click('button:has-text("Discard")')
     wait(page, ".dialog", problems, state="detached")
     assert txn_of(h, "bill")["memo"] != "not kept"
@@ -1336,5 +1377,46 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     wait(page, ".dialog", problems, state="detached")
     held = h.c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
     assert [x["symbol"] for x in held if x["symbol"].startswith("KO ")] == []
+    assert problems == []
+    page.close()
+
+
+def test_a_529s_beneficiary_added_in_a_dialog_over_its_settings(browser, household):
+    """S12.15.7: Add a person… opens Add a person over the 529's Settings; cancelled, the
+    choice is as it was; saved, the person is made and chosen, and the plan saves with them."""
+    h = household
+    a = made(make(h.c, "Acct", name="Browser 529", type="529"))
+    path = f"/ui/accounts/{a['id']}/settings"
+    page, problems = signed_in(browser, h, path, "#f-beneficiary")
+    page.select_option("#f-beneficiary", "new")
+    wait(page, ".dialog #f-their-name", problems)
+    page.keyboard.press("Escape")
+    wait(page, ".dialog", problems, state="detached")
+    for _ in range(600):  # the choice goes back once the dialog has gone
+        if page.input_value("#f-beneficiary") == "":
+            break
+        page.wait_for_timeout(50)
+    assert page.input_value("#f-beneficiary") == ""
+    page.select_option("#f-beneficiary", "new")
+    wait(page, ".dialog #f-their-name", problems)
+    page.fill(".dialog #f-their-name", "Browser Wren")
+    page.fill(".dialog #f-year-of-birth", "2019")
+    page.click(".dialog footer button.primary")
+    wait(page, '.dialog .err:has-text("Female or male.")', problems)  # refused at its field
+    problems.clear()  # the refused save's 422, expected
+    page.select_option(".dialog #f-sex", "female")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    people = {p["name"]: p["id"] for p in h.c.get("/ui/api/persons").json()["items"]}
+    wren = people["Browser Wren"]
+    for _ in range(600):
+        if page.input_value("#f-beneficiary") == wren:
+            break
+        page.wait_for_timeout(50)
+    assert page.input_value("#f-beneficiary") == wren
+    page.click("form.draft-form button.primary")
+    wait(page, ".toast", problems)
+    plan = h.c.get(f"/ui/api/accounts/{a['id']}/plan529").json()
+    assert plan["beneficiaryId"] == wren
     assert problems == []
     page.close()

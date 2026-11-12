@@ -4,15 +4,16 @@ import { initials } from '../app/format.js';
 import { Icon } from './icon.js';
 
 /**
- * Tabs as links, so each tab has its own address.
- * @param {{ tabs: [string, string][], current: string, base: string }} p
+ * Tabs as links, so each tab has its own address: the base and its key, or one of its own.
+ * @param {{ tabs: ([string, string] | [string, string, string])[], current: string,
+ *   base: string }} p
  */
 export function Tabs({ tabs, current, base }) {
   return html`<div class="tabs" role="tablist">${
-    tabs.map(([k, l]) =>
+    tabs.map(([k, l, href]) =>
       html`
         <a role="tab" aria-selected=${k === current ? 'true' : 'false'} class=${'tab' +
-          (k === current ? ' on' : '')} href=${`${base}/${k}`}
+          (k === current ? ' on' : '')} href=${href || `${base}/${k}`}
           data-v=${l}>${l}</a>
       `
     )

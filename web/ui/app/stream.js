@@ -50,6 +50,7 @@ export function connect(ended) {
       'alert',
       'receipt',
       'category',
+      'saved',
     ]
   ) {
     source.addEventListener(kind, () => bump(kind));

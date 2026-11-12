@@ -36,9 +36,13 @@ def error(r) -> tuple[int, str | None, str]:
 
 @pytest.fixture
 def people(server, admin_client):
-    make_user(server, "alice")
-    make_user(server, "bob")
-    return {"admin": admin_client, "alice": sign_in(server, "alice"), "bob": sign_in(server, "bob")}
+    a, b = make_user(server, "alice"), make_user(server, "bob")
+    return {
+        "admin": admin_client,
+        "alice": sign_in(server, "alice"),
+        "bob": sign_in(server, "bob"),
+        "ids": {"alice": a.id, "bob": b.id},
+    }
 
 
 def test_anyone_adds_a_category_at_either_level_with_any_tax_tag(people):
@@ -647,7 +651,7 @@ def test_what_a_delete_refused_says(people):
                 422,
                 None,
                 "category-in-use",
-                "It's in use: an admin can merge it into another category.",
+                "It's in use: 1 use you can't see. An admin can merge it into another category.",
             ),
         ),
         (
@@ -771,3 +775,406 @@ def test_a_save_that_changes_nothing_records_nothing(people, server):
     assert len(alice.get("/ui/api/activity").json()["items"]) == before
     with server.db.read(unscoped="test") as s:
         assert used(s, []) == set()
+
+
+# ---------- its uses (S12.2.6, S12.17.6) ----------
+
+
+def uses(c, cat_id: str) -> dict:
+    r = c.get(f"/ui/api/categories/{cat_id}/uses")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+KIND = {
+    "transaction": "transactions",
+    "split": "transactions",
+    "rule": "rules",
+    "plan line": "planLines",
+    "move": "moves",
+    "loan": "loans",
+    "child": "categories",
+}
+# Who else sees each kind of use, as made in an account or budget of the maker's own: a child
+# category is the household's; the rest are the maker's until shared (S10.3).
+EVERYONE_SEES = {"child"}
+
+
+def _listed(u: dict, kind: str) -> int:
+    v = u[KIND[kind]]
+    return v if kind in ("transaction", "split") else len(v)
+
+
+@pytest.mark.parametrize("how", USES)
+def test_each_use_is_listed_for_its_maker_and_counted_for_others(people, how):
+    alice, bob = people["alice"], people["bob"]
+    mine = new(alice, "Hobbies")
+    empty = uses(alice, mine["id"])
+    assert empty == {
+        "gone": False,
+        "seen": 0,
+        "unseen": 0,
+        "transactions": 0,
+        "rules": [],
+        "planLines": [],
+        "moves": [],
+        "loans": [],
+        "categories": [],
+    }
+    _put_to_use(alice, mine["id"], how)
+    u = uses(alice, mine["id"])
+    assert (u["seen"], u["unseen"], _listed(u, how)) == (1, 0, 1)
+    assert all(_listed(u, k) == 0 for k in USES if KIND[k] != KIND[how])
+    other = uses(bob, mine["id"])
+    if how in EVERYONE_SEES:
+        assert (other["seen"], other["unseen"], _listed(other, how)) == (1, 0, 1)
+    else:
+        assert (other["seen"], other["unseen"], _listed(other, how)) == (0, 1, 0)
+
+
+def test_what_each_use_says(people):
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    for how in USES:
+        _put_to_use(alice, pets["id"], how)
+    u = uses(alice, pets["id"])
+    assert (u["seen"], u["unseen"], u["transactions"]) == (7, 0, 2)
+    assert u["rules"] == [{"id": u["rules"][0]["id"], "payeeMatch": "toys", "position": 0}]
+    assert [(x["budgetName"], x["month"]) for x in u["planLines"]] == [
+        ("B plan line", "2026-10-01")
+    ]
+    assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [("B move", "2026-10-01")]
+    assert [x["name"] for x in u["loans"]] == ["Car loan"]
+    assert [x["name"] for x in u["categories"]] == ["Inside"]
+    budgets = {b["name"]: b["id"] for b in alice.get("/ui/api/budgets").json()["items"]}
+    assert u["planLines"][0]["budgetId"] == budgets["B plan line"]
+    assert u["moves"][0]["budgetId"] == budgets["B move"]
+
+
+def test_a_transaction_counts_once_whatever_its_parts(people):
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice)
+    split = [
+        {"categoryId": pets["id"], "amount": "-2.00"},
+        {"categoryId": pets["id"], "amount": "-3.00"},
+    ]
+    add(alice, acct["id"], "-5.00", splits=split)
+    add(alice, acct["id"], "-4.00", categoryId=pets["id"])
+    u = uses(alice, pets["id"])
+    assert (u["transactions"], u["seen"]) == (2, 2)
+    # As the Transactions page filtered to it counts them.
+    listed = alice.get("/ui/api/transactions", params={"category": pets["id"]}).json()
+    assert listed["total"] == 2
+
+
+def test_a_shared_account_shows_its_uses(people):
+    from edits import share
+
+    alice, bob = people["alice"], people["bob"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice)
+    for amount in ("-1.00", "-2.00", "-3.00"):
+        add(alice, acct["id"], amount, categoryId=pets["id"])
+    hidden = new_account(alice, name="Mine alone", mask="4242")
+    add(alice, hidden["id"], "-9.00", categoryId=pets["id"])
+    assert (uses(bob, pets["id"])["seen"], uses(bob, pets["id"])["unseen"]) == (0, 4)
+    share(alice, "account", acct["id"], users={people["ids"]["bob"]: "read"})
+    u = uses(bob, pets["id"])
+    assert (u["seen"], u["unseen"], u["transactions"]) == (3, 1, 3)
+
+
+def test_deleted_uses_count_for_nothing(people):
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice)
+    whole = add(alice, acct["id"], "-4.00", categoryId=pets["id"])
+    parts = [{"categoryId": pets["id"], "amount": "-2.00"}, {"categoryId": None, "amount": "-3.00"}]
+    split = add(alice, acct["id"], "-5.00", splits=parts)
+    assert uses(alice, pets["id"])["seen"] == 2
+    for t in (whole, split):
+        saved(remove(alice, "Txn", t))
+    # A deleted transaction's parts name nothing either: the category may go.
+    u = uses(alice, pets["id"])
+    assert (u["seen"], u["unseen"], u["transactions"]) == (0, 0, 0)
+    assert not row(alice, pets["id"])["inUse"]
+
+
+def test_the_uses_of_no_category(people):
+    alice = people["alice"]
+    assert alice.get("/ui/api/categories/Cat_nothing/uses").status_code == 404
+    gone = new(alice, "Gone")
+    assert remove(alice, "Cat", row(alice, gone["id"])).status_code == 200
+    # One deleted says so, for a tour open on it.
+    assert uses(alice, gone["id"]) == {
+        "gone": True,
+        "seen": 0,
+        "unseen": 0,
+        "transactions": 0,
+        "rules": [],
+        "planLines": [],
+        "moves": [],
+        "loans": [],
+        "categories": [],
+    }
+
+
+@pytest.mark.parametrize(
+    "seen,unseen,words",
+    [
+        (1, 0, "1 use you can see"),
+        (2, 0, "2 uses you can see"),
+        (0, 1, "1 use you can't see"),
+        (0, 3, "3 uses you can't see"),
+        (1, 1, "1 use you can see, and 1 you can't"),
+        (47, 22, "47 uses you can see, and 22 you can't"),
+    ],
+)
+def test_how_uses_are_counted_in_words(seen, unseen, words):
+    from moolakata.ui.categories import uses_words
+
+    assert uses_words(seen, unseen) == words
+
+
+def test_a_refused_delete_counts_both(people):
+    alice, bob = people["alice"], people["bob"]
+    pets = new(alice, "Pets")
+    _put_to_use(alice, pets["id"], "transaction")
+    new(bob, "Inside", parentId=pets["id"])
+    r = remove(people["admin"], "Cat", row(people["admin"], pets["id"]))
+    assert r.json()["errors"][0]["message"] == (
+        "It's in use: 1 use you can see, and 1 you can't."
+        " An admin can merge it into another category."
+    )
+    r = remove(bob, "Cat", row(bob, pets["id"]))
+    assert r.json()["errors"][0]["message"].startswith("It's in use: 1 use you can see, and 1")
+
+
+def test_a_save_tells_the_savers_own_pages(people, server, monkeypatch):
+    """S12.6: a save, a bulk categorise and rules applied each tell the pages of the user who
+    made them, so a tour's counts follow (S12.17.4); nothing at all, or nothing changed, tells
+    no one."""
+    alice = people["alice"]
+    told = []
+    monkeypatch.setattr(
+        server.events,
+        "publish",
+        lambda kind, data=None, users=None, **kw: told.append((kind, data, users)),
+    )
+    me = [people["ids"]["alice"]]
+    acct = new_account(alice)
+    t = add(alice, acct["id"], "-3.00", payee="Toy shop")
+    assert ("saved", None, me) in told
+    told.clear()
+    pets = new(alice, "Pets")
+    told.clear()
+    r = alice.post(
+        "/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]}
+    )
+    assert r.json() == {"changed": 1} and told == [("saved", None, me)]
+    told.clear()
+    alice.post("/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]})
+    assert told == [], "nothing changed"
+    make(alice, "Rule", payeeMatch="toy", categoryId=pets["id"])
+    add(alice, acct["id"], "-4.00", payee="Toy barn")
+    told.clear()
+    assert alice.post("/ui/api/rules/apply", json={}).json() == {"changed": 1}
+    assert told == [("saved", None, me)]
+    told.clear()
+    assert alice.post("/ui/api/rules/apply", json={}).json() == {"changed": 0}
+    assert told == []
+    r = alice.post("/ui/api/save", json={"ops": [], "confirm": []})
+    assert r.status_code == 200 and told == []
+
+
+def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
+    """Only what names this category, not another's; nothing deleted (a rule, a plan line, a
+    move, a loan, a part taken out of a live transaction); each kind in its order: rules as the
+    list, plan lines and moves by budget then month, categories by name in any case."""
+    from edits import terms
+    from test_budgets import save_plan
+
+    alice = people["alice"]
+    mine, other = new(alice, "Mine"), new(alice, "Other")
+    acct = new_account(alice)
+    # Transactions: its own, one through a part, and another category's of each sort.
+    add(alice, acct["id"], "-1.00", categoryId=mine["id"])
+    add(alice, acct["id"], "-2.00", categoryId=other["id"])
+    parts = [
+        {"categoryId": other["id"], "amount": "-1.00"},
+        {"categoryId": None, "amount": "-1.00"},
+    ]
+    add(alice, acct["id"], "-2.00", splits=parts)
+    gone_part = add(
+        alice,
+        acct["id"],
+        "-3.00",
+        splits=[
+            {"categoryId": mine["id"], "amount": "-1.00"},
+            {"categoryId": None, "amount": "-2.00"},
+        ],
+    )
+    live = alice.get(f"/ui/api/transactions/{gone_part['id']}").json()
+    part = next(x for x in live["splits"] if x["categoryId"] == mine["id"])
+    saved(change(alice, "Split", part, categoryId=other["id"]))
+    # A part deleted from a live transaction, the rest made to add up in the same save.
+    three = add(
+        alice,
+        acct["id"],
+        "-3.00",
+        splits=[
+            {"categoryId": mine["id"], "amount": "-1.00"},
+            {"categoryId": None, "amount": "-1.00"},
+            {"categoryId": None, "amount": "-1.00"},
+        ],
+    )
+    have_parts = alice.get(f"/ui/api/transactions/{three['id']}").json()["splits"]
+    cut = next(x for x in have_parts if x["categoryId"] == mine["id"])
+    grow = next(x for x in have_parts if x["categoryId"] is None)
+    r = alice.post(
+        "/ui/api/save",
+        json={
+            "ops": [
+                {"op": "delete", "entity": "Split", "id": cut["id"], "version": cut["version"]},
+                {
+                    "op": "update",
+                    "entity": "Split",
+                    "id": grow["id"],
+                    "version": grow["version"],
+                    "fields": {"amount": "-2.00"},
+                },
+            ]
+        },
+    )
+    assert r.status_code == 200, r.text
+    # Rules: two of its own, out of the order they were made in once moved; one deleted; one
+    # of another category.
+    first = make(alice, "Rule", payeeMatch="zzz", categoryId=mine["id"]).json()
+    second = make(alice, "Rule", payeeMatch="aaa", categoryId=mine["id"]).json()
+    make(alice, "Rule", payeeMatch="other", categoryId=other["id"]).json()
+    dropped = make(alice, "Rule", payeeMatch="dropped", categoryId=mine["id"]).json()
+    saved(remove(alice, "Rule", dropped))
+    have = {r["id"]: r for r in alice.get("/ui/api/rules").json()["items"]}
+    saved(change(alice, "Rule", have[second["id"]], position=0))
+    # Plan lines and moves in two budgets, the later budget's earlier, each month made late.
+    b1 = make(alice, "Bdgt", name="B one", accountIds=[acct["id"]], method="envelope").json()
+    b2 = make(alice, "Bdgt", name="B two", accountIds=[acct["id"]], method="envelope").json()
+    line = lambda c: {"categoryId": c, "amount": "5.00"}  # noqa: E731
+    for b, months in ((b1, ("2026-09-01", "2026-07-01")), (b2, ("2026-05-01",))):
+        for m in months:
+            assert save_plan(alice, b, m, [line(mine["id"]), line(other["id"])]).status_code == 200
+    assert save_plan(alice, b2, "2026-06-01", [line(other["id"])]).status_code == 200
+    # Taken out from April, then planned again from April: the line taking it out is deleted.
+    b3 = make(alice, "Bdgt", name="B three", accountIds=[acct["id"]], method="envelope").json()
+    for month, cat in (("2026-03-01", mine), ("2026-04-01", other), ("2026-04-01", mine)):
+        r = save_plan(alice, b3, month, [line(cat["id"])])
+        assert r.status_code == 200, r.text
+    food = rows(alice)["Food"]["id"]
+    move = lambda b, m, a, z: make(  # noqa: E731
+        alice, "BdgMv", budgetId=b["id"], month=m, fromCategoryId=a, toCategoryId=z, amount="1.00"
+    ).json()
+    move(b1, "2026-09-01", food, mine["id"])
+    move(b1, "2026-07-01", mine["id"], food)
+    move(b2, "2026-05-01", food, other["id"])
+    move(b2, "2026-03-01", mine["id"], food)  # the later budget's, an earlier month
+    gone = move(b2, "2026-04-01", food, mine["id"])
+    saved(remove(alice, "BdgMv", gone))
+    # Loans: one counting in it, one in another, one whose terms went.
+    for name, cat in (("Loan mine", mine), ("Loan other", other), ("Loan gone", mine)):
+        loan = new_account(alice, name=name, type="auto-loan", mask="7777")
+        made_terms = terms(
+            alice,
+            loan["id"],
+            principal="9000.00",
+            rate="5",
+            termMonths=48,
+            startDate="2026-11-01",
+            budgetCounting="whole",
+            budgetCategoryId=cat["id"],
+        )
+        assert made_terms.status_code == 200, made_terms.text
+        if name == "Loan gone":  # its terms go with its account
+            saved(remove(alice, "Acct", alice.get(f"/ui/api/accounts/{loan['id']}").json()))
+    # Categories under it, named in either case.
+    for name in ("beta", "Alpha", "a_b", "aZ"):
+        new(alice, name, parentId=mine["id"])
+    new(alice, "Elsewhere", parentId=other["id"])
+
+    u = uses(alice, mine["id"])
+    assert u["transactions"] == 1
+    assert [r["payeeMatch"] for r in u["rules"]] == ["aaa", "zzz"]
+    assert [r["position"] for r in u["rules"]] == sorted(r["position"] for r in u["rules"])
+    assert [(x["budgetName"], x["month"]) for x in u["planLines"]] == [
+        ("B one", "2026-07-01"),
+        ("B one", "2026-09-01"),
+        ("B two", "2026-05-01"),
+        ("B two", "2026-06-01"),  # where the plan takes it out: a line that names it too
+        ("B three", "2026-03-01"),
+        ("B three", "2026-04-01"),
+    ]
+    assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [
+        ("B one", "2026-07-01"),
+        ("B one", "2026-09-01"),
+        ("B two", "2026-03-01"),
+    ]
+    assert [x["name"] for x in u["loans"]] == ["Loan mine"]
+    assert [x["name"] for x in u["categories"]] == ["a_b", "Alpha", "aZ", "beta"]
+    # A deleted account's loan names nothing: a deleted account can't come back on its own.
+    assert u["seen"] == 1 + 2 + 6 + 3 + 1 + 4 and u["unseen"] == 0
+    assert first["id"] in {r["id"] for r in u["rules"]}
+
+
+def test_a_deleted_move_leaves_its_category_unused(people):
+    """`used` reads moves as the count does: a deleted one names nothing."""
+    alice = people["alice"]
+    spare = new(alice, "Spare")
+    acct = new_account(alice)
+    b = make(alice, "Bdgt", name="B", accountIds=[acct["id"]], method="envelope").json()
+    food = rows(alice)["Food"]["id"]
+    for a, z in ((spare["id"], food), (food, spare["id"])):
+        m = make(
+            alice,
+            "BdgMv",
+            budgetId=b["id"],
+            month="2026-10-01",
+            fromCategoryId=a,
+            toCategoryId=z,
+            amount="1.00",
+        ).json()
+        assert row(alice, spare["id"])["inUse"]
+        saved(remove(alice, "BdgMv", m))
+        assert not row(alice, spare["id"])["inUse"]
+
+
+def test_what_a_deleted_account_or_budget_held_names_nothing(people):
+    """A deleted account's transactions and their parts, and a deleted budget's plan lines and
+    moves, count for nothing, seen or unseen, and leave the category free to delete: they are
+    deleted with what they belong to (schema.md §4.2)."""
+    from test_budgets import save_plan
+
+    alice = people["alice"]
+    pets = new(alice, "Pets")
+    acct = new_account(alice, name="Closed for good", mask="1212")
+    add(alice, acct["id"], "-1.00", categoryId=pets["id"])
+    parts = [{"categoryId": pets["id"], "amount": "-1.00"}, {"categoryId": None, "amount": "-1.00"}]
+    add(alice, acct["id"], "-2.00", splits=parts)
+    keep = new_account(alice, name="Kept", mask="3434")
+    b = make(alice, "Bdgt", name="Gone budget", accountIds=[keep["id"]], method="envelope").json()
+    assert (
+        save_plan(
+            alice, b, "2026-10-01", [{"categoryId": pets["id"], "amount": "5.00"}]
+        ).status_code
+        == 200
+    )
+    food = rows(alice)["Food"]["id"]
+    make(alice, "BdgMv", budgetId=b["id"], month="2026-10-01", fromCategoryId=food,
+         toCategoryId=pets["id"], amount="1.00")  # fmt: skip
+    u = uses(alice, pets["id"])
+    assert (u["seen"], u["transactions"], len(u["planLines"]), len(u["moves"])) == (4, 2, 1, 1)
+    saved(remove(alice, "Acct", alice.get(f"/ui/api/accounts/{acct['id']}").json()))
+    saved(remove(alice, "Bdgt", alice.get(f"/ui/api/budgets/{b['id']}").json()))
+    for who in ("alice", "bob"):
+        u = uses(people[who], pets["id"])
+        assert (u["seen"], u["unseen"]) == (0, 0), who
+    assert not row(alice, pets["id"])["inUse"]
+    assert remove(alice, "Cat", row(alice, pets["id"])).status_code == 200

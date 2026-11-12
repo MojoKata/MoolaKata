@@ -62,6 +62,32 @@ def main(out: Path) -> int:
                     shot(f"{tag}-{value.split(' ')[0].lower()}")
                     missing_help(f"{screen} › {value}", "main")
 
+        # A tour (S12.17): beside the page, kept while its links move around the app; ✕ closes it.
+        page.evaluate("state.locked = false; state.tour = 'uses'; location.hash = '#/budgets'")
+        page.wait_for_timeout(120)
+        shot("tour-uses")
+        page.click(".tour a[data-v='transactions']")
+        page.wait_for_timeout(120)
+        if page.locator(".tour").count() != 1 or page.evaluate("location.hash") != "#/transactions":
+            errors.append("tour: following its link lost the tour or went elsewhere")
+        shot("tour-uses-followed")
+        split = page.locator(".tour-split").bounding_box()
+        before = page.locator(".tour").bounding_box()["width"]
+        page.mouse.move(split["x"] + split["width"] / 2, split["y"] + 200)
+        page.mouse.down()
+        page.mouse.move(split["x"] - 120, split["y"] + 200, steps=4)
+        page.mouse.up()
+        if page.locator(".tour").bounding_box()["width"] <= before:
+            errors.append("tour: dragging its edge left didn't widen it")
+        page.evaluate("state.tourDone = true; render()")
+        page.wait_for_timeout(60)
+        shot("tour-uses-done")
+        page.click(".tour [data-act=tourclose]")
+        page.wait_for_timeout(60)
+        if page.locator(".tour").count():
+            errors.append("tour: its ✕ left it open")
+        page.evaluate("state.tourDone = false")
+
         page.evaluate("state.locked = true; location.hash = '#/settings'")
         page.wait_for_timeout(120)
         for section in index["settings"]:
