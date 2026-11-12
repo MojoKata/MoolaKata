@@ -127,7 +127,8 @@
        expires in it, by category. Sizes are the files' sizes on disk; the section shows
        sizes and counts only, never what the files hold.
     5. **Prune 1,284 files (2.1 GB)** names what has expired. It previews them by category, any
-       of which can be unticked, asks the admin to type the count to confirm, and their
+       of which can be unticked, asks the admin to type the count to confirm (*Type 1,284 to
+       confirm*, the field empty until they do), and their
        password again if given over 10 minutes ago (S13.7.2), removes the files, and records
        the file pruning in Activity with its counts. No backup is made first: a backup holds no
        files (S14.6). A file several receipts share is removed once no live receipt needs it (a

@@ -130,7 +130,10 @@
     with the user's **overpayment** plans:
     1. **Plans**, combined freely: an extra amount every month (from a date, until a date),
        an extra amount once a year (a bonus month), one-time **lump sums** on dates,
-       **biweekly** payments (26 half-payments a year), and rounding each payment up.
+       **biweekly** payments (26 half-payments a year), and rounding each payment up. Each
+       amount is *none* while blank. A lump sum needs its date and its amount: one missing
+       either is left out of the results while it is being filled, and refused when the plan
+       is saved.
     2. **Results** for each plan against the schedule: the new payoff date, months saved,
        **interest saved**, total paid, and the balance over time as two lines on one chart,
        with the amortization table of each.

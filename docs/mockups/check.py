@@ -88,6 +88,36 @@ def main(out: Path) -> int:
             errors.append("tour: its ✕ left it open")
         page.evaluate("state.tourDone = false")
 
+        # Typed inputs (S12.18): a key outside a field's kind is refused and marked; a value that
+        # doesn't read is marked when the field is left, never while typed; a change clears it.
+        page.evaluate("state.locked = false; location.hash = '#/transactions'")
+        page.wait_for_timeout(120)
+        page.click("summary:has-text('More filters')")
+        least = page.locator("#f-at-least")
+
+        def mark() -> str:
+            return least.get_attribute("title") if "bad" in least.get_attribute("class") else ""
+
+        least.press_sequentially("a")
+        if least.input_value() != "" or mark() != "Digits and . only.":
+            errors.append("typed input: a letter in an amount wasn't refused and marked")
+        least.press_sequentially("1.2.3")
+        if mark():
+            errors.append("typed input: a change didn't clear the mark, or it was checked as typed")
+        page.keyboard.press("Tab")
+        if mark() != "Type an amount, such as 1234.50.":
+            errors.append("typed input: what doesn't read wasn't marked when the field was left")
+        shot("typed-input-marked")
+        least.fill("5")
+        if mark():
+            errors.append("typed input: a change left the mark")
+        page.evaluate("state.txFilters = 'below'; render()")
+        page.wait_for_timeout(80)
+        shot("transactions-at-most-below")
+        if page.locator("#f-at-most.bad").count() != 1:
+            errors.append("transactions: At most under At least isn't marked")
+        page.evaluate("state.txFilters = null")
+
         page.evaluate("state.locked = true; location.hash = '#/settings'")
         page.wait_for_timeout(120)
         for section in index["settings"]:

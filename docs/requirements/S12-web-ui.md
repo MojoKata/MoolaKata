@@ -44,7 +44,10 @@
    3. **Transactions**, with the tabs *Transactions* and *Rules*:
       1. *Transactions* (`/ui/transactions`): every account's transactions together, filtered
          by account, category, date, amount, payee and tag, with bulk categorise, split,
-         attach receipt, and **Import**; `?category=<id>` opens it filtered to a category. A
+         attach receipt, and **Import**; `?category=<id>` opens it filtered to a category. The
+         amount's **At least** and **At most** bound its size, whichever way the money went:
+         each is an amount, zero or more, *any* while blank, and *At most* under *At least* is
+         marked (S12.18.3) and leaves the list as it was. A
          transaction's dialog marks it reimbursable (S2.9), and its **In budgets** line names
          each budget counting it, what it counts as there, and that budget's **Leave out**
          switch (S7.3.5).
@@ -346,8 +349,9 @@
        quantity, a percentage, a whole number, yes or no, a date, a month, a choice from a list,
        a reference to another record, a list, or a structured value. Each type reads what is
        typed, shows a value back, and compares two values as values, so `42` and `42.00` are
-       the same amount. What is typed but doesn't read yet stays in its field with the reason,
-       and the draft keeps the last value that did.
+       the same amount. Each is typed in its kind's input (S12.18). What is typed but doesn't
+       read yet stays in its field, marked with the reason when the field is left; the draft
+       keeps the last value that did, and Save refuses it at its field.
     3. **A new record** takes its id in the browser (`schema.md` §2), so another new record in
        the same draft can refer to it. Records with a stated order keep it: a field's
        (a category's path, a date), the order they were made in, or a position the person sets
@@ -432,3 +436,31 @@
        Done, it says that nothing the reader can see uses the category: with nothing left,
        a link to the category's dialog, to delete it; with uses they can't see, how many,
        and that an admin can merge it.
+18. **Typed inputs.** Each kind of value is typed in an input of its own, the same on every
+    screen, so what it takes, when it is checked and how it is shown never vary (R3.11):
+    1. **The kinds**, each with the characters it takes and the form it is checked against:
+       an **amount** (digits and one `.`, at most two places), a **quantity** or ratio (digits
+       and one `.`), a **percent** (digits, one `.`, and `%` at its end), a **count** (digits),
+       a **duration** (digits, `w`, `d`, `h`, `m` and spaces, read as S12.13 says), a **date**
+       (the browser's date picker), a **web address** (no spaces; `http://` or `https://`, then
+       a host) and **text** (anything). An amount, quantity or count takes a `-` where the
+       field takes a negative.
+    2. **A key or a paste outside the kind's characters is not taken**, and the field is
+       marked with what it takes (*Digits and . only*). A paste, or text put in whole (by
+       autofill or dictation), is cleaned first: a dollar sign, spaces and non-breaking spaces
+       are dropped, commas where they group thousands, a typographic minus becomes `-`, and an
+       amount in parentheses becomes negative where the field takes one. Anything else left
+       refuses the whole of it, never a part.
+    3. **Checked when the field is left, and at Save**: its form, its bounds, and a bound
+       another field sets (*At most* under *At least*). A value that fails is marked: a red
+       border, and a tooltip saying why, which a screen reader reads with the field. Any
+       change to the field clears its mark; it is checked again when next left. Save marks
+       every field that fails and goes on, so each refusal shows under its field (S12.15.4).
+    4. **Without a Save** (a filter, a preview), Enter or leaving the field is when its value
+       is taken: one not yet checked, or marked, is left out, and what is shown stays as it
+       was until the value passes.
+    5. **What is shown and what is stored** are the input's own: an amount is shown at its two
+       places (`1234.50`) and stored as an exact decimal (S12.12), a percent is shown with its
+       `%` and stored as the number, a duration reads back as typed (S12.13), and a date shows
+       in the browser's own format and is stored as `YYYY-MM-DD`.
+    6. **The server checks every value again**, whatever the browser did (S13.8).

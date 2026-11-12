@@ -48,7 +48,7 @@ opens the dialogs.
 | **S9** | [Receipts](S9-receipts.md) | Upload, encrypted storage, viewing, links, sharing, retention and reading receipts on the server |
 | **S10** | [Users, groups and sharing](S10-users-and-sharing.md) | Users, sign-in, groups, what can be shared and how, Activity and the MCP endpoint |
 | **S11** | [Linked servers](S11-linked-servers.md) | Read-only sharing between households on separate MoolaKata servers |
-| **S12** | [Web UI](S12-web-ui.md) | The frame, navigation, screens, help pane, tours, live updates, linked households' windows and Alerts |
+| **S12** | [Web UI](S12-web-ui.md) | The frame, navigation, screens, help pane, tours, typed inputs, live updates, linked households' windows and Alerts |
 | **S13** | [Architecture](S13-architecture.md) | The listener and its modes, background tasks, the egress guard, the refused start, security policies and API conventions |
 | **S14** | [Storage and secrets](S14-storage-and-secrets.md) | The database, files, secrets, backups, time zones and retention |
 | **S15** | [Encryption and the master key](S15-encryption-and-master-key.md) | The master key and its recovery phrase, the data key, rotation and recovery, for the admin who runs the server |
@@ -338,10 +338,14 @@ The rulings the rest of the requirements apply.
     **All** (a count) or **Max** (an amount) fills in the most and **Min** the least, named
     with the value (*All: 2 contracts*), which is its tooltip. Each is a button reached by
     keyboard; while the field already holds its value, one inside is hidden and one outside
-    greyed out. A value past the field's bounds (or not whole, for a count) is marked as it is
-    typed, and refused when saved. Bounds are words, not icons: an arrow to a line reads as
-    upload or download. A blank that is refused is refused when saved, never while the field is
-    being chosen or filled. A placeholder says what a blank means, on a field where a blank
-    means something (*any*, *for ever*, *no limit*); where it means nothing, a placeholder may
+    greyed out. Each kind of value has its own input (S12.18), which takes only that kind's
+    characters: a key or a paste outside them is not taken, and the field is marked. What is
+    typed is checked when the field is left and at Save, never while it is being typed: a value
+    that doesn't read, is past the field's bounds (or not whole, for a count) or past a bound
+    another field sets is **marked**, a red border and a tooltip saying why, and any change to
+    the field clears the mark. Bounds are words, not icons: an arrow to a line reads as upload
+    or download. A blank that is refused is refused when saved, never while the field is being
+    chosen or filled. A placeholder says what a blank means, on a field where a blank means
+    something (*any*, *none*, *for ever*, *no limit*); where it means nothing, a placeholder may
     give an example, marked as one (*ex: 192.168.1.20*), so it never reads as a value a blank
     gets.
