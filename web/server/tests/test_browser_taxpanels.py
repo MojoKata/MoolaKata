@@ -686,7 +686,7 @@ def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
     assert page.input_value("#f-form") == "Return as filed"
     first = world.book(YEAR)["filings"][0]["id"]
     assert page.input_value("#f-filing") == first
-    assert page.get_attribute("#f-issuer", "placeholder") == "IRS"
+    assert page.get_attribute("#f-issuer", "placeholder") == "ex: IRS"
     assert page.locator("#f-account").count() == 0, "a filed document reports on no account"
     _close_dialog(page, problems)
     assert problems == []

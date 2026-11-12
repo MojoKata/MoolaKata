@@ -459,7 +459,7 @@ def test_save_in_the_question_saves_and_closes(browser, household):
     h = household
     b = fresh_budget(h, "Saved from the question")
     page, problems = opened(browser, h, b)
-    amount_of(page).fill("twelve")
+    amount_of(page).fill("1.2.3")
     page.keyboard.press("Escape")
     wait(page, "text=Save your changes?", problems)
     page.click('.dialog-ask-buttons button:has-text("Save")')
@@ -497,7 +497,7 @@ def test_back_asks_and_text_that_doesnt_read_counts_as_a_change(browser, househo
     b = fresh_budget(h, "Unread")
     before = plan_of(h, b)
     page, problems = opened(browser, h, b)
-    amount_of(page).fill("twelve")
+    amount_of(page).fill("1.2.3")
     page.click(".dialog footer button.primary")
     wait(page, ".dialog .notice", problems)
     assert "Correct the fields marked first." in page.inner_text(".dialog")
@@ -1354,8 +1354,8 @@ def test_a_sale_picks_its_lots_in_the_dialog(browser, household):
 
 
 def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
-    # CR3-403, R3.11: the settle dialog's Contracts starts empty; 0 is marked as typed (and
-    # refused if saved); All fills in the contracts held and greys out; Record settles them.
+    # CR3-403, R3.11: the settle dialog's Contracts starts empty; 0 is marked when the field is
+    # left (and refused if saved); All fills in the contracts held and greys out; Record settles them.
     h = household
     acct = made(make(h.c, "Acct", name="Settled", type="brokerage"))
     expiry = f"{months_back(1)}-15"
@@ -1368,6 +1368,8 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     field = page.locator(".dialog .value-input input")
     assert field.input_value() == ""
     field.fill("0")
+    assert page.locator(".dialog .value-input input.bad").count() == 0, "not while typed"
+    page.keyboard.press("Tab")
     wait(page, ".dialog .value-input input.bad", problems)
     page.get_by_role("button", name="All: 2 contracts").click()
     assert field.input_value() == "2"

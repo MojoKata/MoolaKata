@@ -1005,7 +1005,7 @@ def test_a_strategys_shares_follow_a_merger_at_its_ratio(alice):
     covered call, now on ACQ and at money at $1,000 a share; at open it is as it opened."""
     a, shares, before = _grouped_covered_call(alice)
     r = create(alice, "CorpA", accountId=a, instrumentId=shares, kind="merger",
-               date="2026-10-06", newSymbol="ACQ", ratio="0.5")  # fmt: skip
+               date="2026-10-06", newSymbol="ACQ", ratio="0.5", cashPerShare="0")  # fmt: skip
     assert r.status_code == 200, r.text
     [g] = alice.get("/ui/api/options/adjustable").json()["items"]
     [cn] = g["contracts"]
@@ -1034,7 +1034,7 @@ def _merged_calls(alice, strikes=("500",)):
         assert option(alice, a, "sell-to-open", "2026-10-02", "4.12", right="call", strike=k,
                       fees="0").status_code == 200  # fmt: skip
     r = create(alice, "CorpA", accountId=a, instrumentId=msft, kind="merger",
-               date="2026-10-06", newSymbol="ACQ", ratio="0.5")  # fmt: skip
+               date="2026-10-06", newSymbol="ACQ", ratio="0.5", cashPerShare="0")  # fmt: skip
     assert r.status_code == 200, r.text
     [g] = alice.get("/ui/api/options/adjustable").json()["items"]
     acq50 = [{"symbol": "ACQ", "shares": "50"}]
@@ -1106,7 +1106,7 @@ def test_a_covered_call_rolls_onto_the_acquirers_calls_after_a_merger(alice):
     offered as its roll, on the same underlying, and taken in."""
     a, shares, before = _grouped_covered_call(alice)
     r = create(alice, "CorpA", accountId=a, instrumentId=shares, kind="merger",
-               date="2026-10-06", newSymbol="ACQ", ratio="0.5")  # fmt: skip
+               date="2026-10-06", newSymbol="ACQ", ratio="0.5", cashPerShare="0")  # fmt: skip
     assert r.status_code == 200, r.text
     [g] = alice.get("/ui/api/options/adjustable").json()["items"]
     [cn] = g["contracts"]

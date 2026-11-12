@@ -225,7 +225,13 @@ def test_a_code_for_another_key_or_a_damaged_code_is_refused(admins):
 def test_pausing_stops_exchanges_and_ending_reaches_the_other_side(admins):
     _a, _b, ca, cb, wire = admins
     a_id, b_id = linked(ca, cb)
-    assert ca.post(f"/ui/api/settings/links/{a_id}/pause").json()["state"] == "paused"
+    # The duration is asked for: missing, blank or empty is refused, never read as 1d (R3.11).
+    for body in (None, {}, {"for": None}, {"for": ""}, {"for": "  "}):
+        r = ca.post(f"/ui/api/settings/links/{a_id}/pause", json=body)
+        assert (r.status_code, r.json()["code"]) == (422, "duration-missing"), body
+        assert r.json()["errors"][0]["field"] == "for"
+    paused = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"})
+    assert paused.json()["state"] == "paused"
     out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
     assert out["lastError"] and "paused" in out["lastError"]
     assert ca.post(f"/ui/api/settings/links/{a_id}/resume").json()["state"] == "active"

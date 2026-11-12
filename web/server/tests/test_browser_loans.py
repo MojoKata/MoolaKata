@@ -94,9 +94,11 @@ def planner(browser, h, a: dict):
 
 
 def worked_out(page, problems, act) -> None:
-    """`act` changes the plan; then its answer, and the page settled."""
+    """`act` changes the plan, and leaving the field takes it (S12.18.4); then its answer, and
+    the page settled."""
     with page.expect_response(lambda r: "/loan/payoff" in r.url):
         act()
+        page.keyboard.press("Tab")
     wait(page, f"{RESULTS} .kv", problems)
 
 
@@ -331,22 +333,23 @@ def test_the_plans_refusals_show_at_their_fields(browser, household, new_loan):
     a = fixed(new_loan, "Payoff refused mortgage")
     page, problems = planner(browser, h, a)
     worked_out(page, problems, lambda: page.fill("#f-extra-each-month", "100"))
-    good = plan(h, a, monthly="100")
-    worked_out(page, problems, lambda: page.fill("#f-extra-each-month", "-5"))
-    assert page.locator("#f-extra-each-month-err").inner_text() == "Zero or more."
+    # A minus isn't one of an amount's characters here: refused, and marked with what it takes.
+    page.fill("#f-extra-each-month", "-5")
+    extra = page.locator("#f-extra-each-month")
+    assert extra.input_value() == "100"
+    assert extra.get_attribute("data-tip") == "Digits and . only."
     worked_out(page, problems, lambda: page.fill("#f-monthly-from", ahead(6)))
+    good = plan(h, a, monthly="100", monthlyFrom=ahead(6))
     worked_out(page, problems, lambda: page.fill("#f-monthly-until", ahead(3)))
     assert page.locator("#f-monthly-until-err").inner_text() == "After the start."
     page.get_by_role("button", name="Add a lump sum").click()
     page.fill("#x-lump-date-0", ahead(2))
     worked_out(page, problems, lambda: page.fill("#x-lump-amount-0", "0"))
     assert page.locator("#x-lump-amount-0-err").inner_text() == "More than zero."
-    assert page.locator("#f-extra-each-month-err").inner_text() == "Zero or more."
     # Each refusal at its field alone, none again below the form; the last figures stay.
     assert page.locator('.card:has(h3:text("Your plan")) .notice.bad').count() == 0
     assert_outcome(page, good)
     # Corrected, the refusals go and the plan is worked out again.
-    worked_out(page, problems, lambda: page.fill("#f-extra-each-month", "100"))
     worked_out(page, problems, lambda: page.fill("#f-monthly-until", ""))
     worked_out(page, problems, lambda: page.fill("#x-lump-amount-0", "2500"))
     assert page.locator(".field .err").count() == 0
@@ -354,6 +357,45 @@ def test_the_plans_refusals_show_at_their_fields(browser, household, new_loan):
                                                                 "amount": "2500"}])  # fmt: skip
     assert_outcome(page, r)
     assert [p for p in problems if "/loan/payoff" not in p or not p.startswith("422")] == []
+    page.close()
+
+
+def test_a_lump_sum_half_filled_is_left_out_then_refused_at_its_row(browser, household, new_loan):
+    """S6.10.1, S12.18.4: a lump sum missing its date or amount is left out of the plan worked
+    out, unmarked, while it is filled; a refusal of the one after it lands at that one's row;
+    Save plan refuses the half-filled one at its own field and saves nothing."""
+    h = household
+    a = fixed(new_loan, "Payoff lumps mortgage")
+    page, problems = planner(browser, h, a)
+    page.get_by_role("button", name="Add a lump sum").click()
+    page.get_by_role("button", name="Add a lump sum").click()
+    page.fill("#x-lump-date-0", ahead(3))  # a date only
+    page.fill("#x-lump-date-1", ahead(2))
+    worked_out(page, problems, lambda: page.fill("#x-lump-amount-1", "0"))
+    assert page.locator("#x-lump-amount-1-err").inner_text() == "More than zero."
+    assert page.locator("#x-lump-amount-0-err").count() == 0, "not the row left out"
+    worked_out(page, problems, lambda: page.fill("#x-lump-amount-1", "5000"))
+    assert_outcome(page, plan(h, a, lumps=[{"date": ahead(2), "amount": "5000"}]))
+    assert page.locator(".field .err").count() == 0, "a row being filled isn't refused"
+    page.fill("#f-plan-name", "Half filled")
+    page.click(f'{SAVED} button:has-text("Save plan")')
+    wait(page, "#x-lump-amount-0-err", problems)
+    said = page.locator("#x-lump-amount-0-err").inner_text()
+    assert said == "A date and an amount, or remove the lump sum."
+    assert page.locator("#x-lump-date-0-err, #x-lump-amount-1-err").count() == 0
+    saved_plans = h.c.get(f"/ui/api/accounts/{a['id']}/loan/plans").json()["items"]
+    assert [p["name"] for p in saved_plans] == []
+    # Typed in, the refusal goes; saved, it holds both lump sums.
+    worked_out(page, problems, lambda: page.fill("#x-lump-amount-0", "1000"))
+    assert page.locator(".field .err").count() == 0
+    page.click(f'{SAVED} button:has-text("Save plan")')
+    wait(page, f'{SAVED} .list-item:has-text("Half filled")', problems)
+    [p] = h.c.get(f"/ui/api/accounts/{a['id']}/loan/plans").json()["items"]
+    assert [(x["date"], float(x["amount"])) for x in p["inputs"]["lumps"]] == [
+        (ahead(3), 1000),
+        (ahead(2), 5000),
+    ]
+    assert [x for x in problems if not x.startswith("422")] == []
     page.close()
 
 
@@ -432,8 +474,10 @@ def test_a_late_answer_never_replaces_a_newer_plans(browser, household, new_loan
     page.route("**/loan/payoff", lambda route: held.append(route))
     with page.expect_request("**/loan/payoff"):
         page.fill("#f-extra-each-month", "100")
+        page.keyboard.press("Enter")
     with page.expect_request("**/loan/payoff"):
         page.fill("#f-extra-each-month", "200")
+        page.keyboard.press("Enter")
     for _ in range(250):  # each request reaches its handler a moment after it is sent
         if len(held) == 2:
             break
@@ -613,23 +657,33 @@ def test_the_terms_form_refuses_what_a_loan_cant_be(browser, household, new_loan
     assert page.locator("#f-draw-months").input_value() == "120"
     assert page.locator("#f-term-months").input_value() == "360"
     page.fill("#f-name", "Refused HELOC")
-    page.fill("#f-original-principal", "-5")
+    # A HELOC may open at $0 (Min fills it in), never below: a minus is no amount's character
+    # here, so it is refused as typed and the field marked with what it takes (S12.18.2).
+    principal = page.locator("#f-original-principal")
+    principal.fill("-5")
+    assert principal.input_value() == ""
+    assert principal.get_attribute("data-tip") == "Digits and . only."
+    page.get_by_role("button", name="Min: $0.00").click()
+    assert principal.input_value() == "0.00"
     page.fill("#f-start-date", f"{months_back(6)}-01")
     page.fill("#f-term-months", "700")
     page.fill("#f-interest-rate", "45")
+    # Past 40%, the rate is marked when it is left (S12.18.3); the server refuses it at Save.
+    page.keyboard.press("Tab")
+    assert page.locator("#f-interest-rate").get_attribute("data-tip") == "40% or less."
     page.fill("#f-draw-months", "800")
     page.click(".dialog footer button.primary")
     wait(page, "#f-term-months-err", problems)
     said = {
         f: page.locator(f"#f-{f}-err").inner_text()
-        for f in ("original-principal", "term-months", "interest-rate", "draw-months")
+        for f in ("term-months", "interest-rate", "draw-months")
     }
     assert said == {
-        "original-principal": "Zero or more.",
         "term-months": "Between 1 and 600 months.",
         "interest-rate": "Between 0% and 40%.",
         "draw-months": "Shorter than the term.",
     }
+    assert page.locator("#f-original-principal-err").count() == 0
     assert page.locator(".dialog").count() == 1
     # Corrected, it is made, with its terms.
     page.fill("#f-original-principal", "40000")

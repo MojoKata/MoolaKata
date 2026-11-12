@@ -71,6 +71,38 @@ def test_accounts_are_checked_and_their_owners_own(server):
 # ---------- transactions ----------
 
 
+@pytest.mark.parametrize(
+    ("least", "most", "got", "refused"),
+    [
+        ("", "", ["-7.00", "-3.00", "50.00"], None),  # blank: any
+        ("0", "", ["-7.00", "-3.00", "50.00"], None),
+        ("3", "", ["-7.00", "-3.00", "50.00"], None),  # a size, whichever way the money went
+        ("3.01", "7", ["-7.00"], None),
+        ("", "7", ["-7.00", "-3.00"], None),
+        ("7", "7", ["-7.00"], None),  # At most equal to At least
+        ("8", "7", None, ("max", "range-invalid")),  # At most under At least
+        ("-1", "", None, ("min", "amount-invalid")),
+        ("", "-1", None, ("max", "amount-invalid")),
+        ("NaN", "", None, ("min", "amount-invalid")),
+        ("", "Infinity", None, ("max", "amount-invalid")),
+        ("abc", "", None, ("min", "amount-invalid")),
+    ],
+)
+def test_a_filters_amount_bounds_are_sizes_any_while_blank(server, least, most, got, refused):
+    make_user(server, "alice")
+    c = sign_in(server, "alice")
+    a = new_account(c, openingBalance="0.00", openingDate="2026-08-31")
+    for amount, kind in (("-3.00", None), ("-7.00", None), ("50.00", "deposit")):
+        add(c, a["id"], amount, "2026-09-01", **({"kind": kind} if kind else {}))
+    r = c.get("/ui/api/transactions", params={"min": least, "max": most})
+    if refused:
+        assert r.status_code == 400, r.text
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [refused]
+        return
+    assert r.status_code == 200, r.text
+    assert sorted(t["amount"] for t in r.json()["items"]) == got
+
+
 def test_transactions_filter_page_and_balance(server):
     make_user(server, "alice")
     c = sign_in(server, "alice")

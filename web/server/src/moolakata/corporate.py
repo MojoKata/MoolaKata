@@ -56,8 +56,17 @@ def record(
             FieldError("basisShare", "share-invalid", "The basis that moves, in percent: 13.65.")
         )
     if kind == "merger":
+        # Asked of every merger, so cash left out is never read as none (R3.11).
         if all_cash and not cash_per_share:
             e.append(FieldError("cashPerShare", "cash-missing", "What each share was paid."))
+        elif cash_per_share is None:
+            e.append(
+                FieldError(
+                    "cashPerShare",
+                    "cash-missing",
+                    "The cash for each share held: 0 for a merger paid all in shares.",
+                )
+            )
         if cash_per_share is not None and cash_per_share < 0:
             e.append(FieldError("cashPerShare", "cash-invalid", "Zero or more."))
         if cash_per_share and not all_cash and (new_price is None or new_price <= 0):

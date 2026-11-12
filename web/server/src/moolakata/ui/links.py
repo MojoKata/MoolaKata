@@ -325,7 +325,8 @@ def approve(link_id: str, request: Request, c: Caller = Depends(admin)):
 
 
 class PauseIn(Model):
-    for_: str = Field("1d", alias="for")  # a duration (S12.13): 1d, 2w 3d, 4h
+    # A duration (S12.13): 1d, 2w 3d, 4h. Asked for: a missing one is refused, never 1d.
+    for_: str | None = Field(None, alias="for")
 
 
 @router.post("/settings/links/{link_id}/pause", response_model=LinkOut)
@@ -333,8 +334,11 @@ def pause(link_id: str, request: Request, body: PauseIn | None = None, c: Caller
     """Pause for a duration, after which it resumes on its own (S11.7.2)."""
     from .. import duration
 
+    text = ((body.for_ if body else None) or "").strip()
+    if not text:
+        raise refuse("for", "duration-missing", "A duration: 1d, 2w 3d, 4h.")
     try:
-        span = duration.parse(body.for_ if body else "1d")
+        span = duration.parse(text)
     except duration.DurationError as e:
         raise refuse("for", "duration-invalid", str(e)) from None
     until = clock.now() + span
