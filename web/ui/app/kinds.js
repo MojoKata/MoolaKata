@@ -3,6 +3,7 @@
 // are tested without a page; `<TypedInput>` (components/fields.js) draws them.
 import { Dec } from './dec.js';
 import { parseDuration } from './duration.js';
+import { date, money, quantity } from './format.js';
 
 /**
  * How a field bounds its kind: whether it takes a negative, its least and most (`min` and
@@ -156,4 +157,39 @@ export function check(k, b, text, format = String) {
   const most = b.max ?? b.atMost;
   if (most != null && v.gt(bound(most))) return `${format(most)} or less.`;
   return null;
+}
+
+// ---------- the read persona (S12.18.6) ----------
+
+/** The page each kind of record has, by its id's prefix: a reference read goes there. */
+const PAGES = /** @type {{ [prefix: string]: (id: string) => string }} */ ({
+  Acct: (id) => `/ui/accounts/${id}`,
+  Bdgt: (id) => `/ui/budgets/${id}/month`,
+  Portf: (id) => `/ui/portfolios/${id}`,
+  Prjct: (id) => `/ui/projections/${id}`,
+});
+
+/** The page of the record an id names, or null where its kind has none. @param {any} id */
+export function pageOf(id) {
+  const prefix = /^([A-Za-z]+)_/.exec(String(id ?? ''))?.[1];
+  return prefix && PAGES[prefix] ? PAGES[prefix](String(id)) : null;
+}
+
+/**
+ * A value as its kind reads it: an amount "$1,234.50", a quantity or a count grouped, a percent
+ * with its "%", a date "Oct 12, 2026", anything else as it is; a blank "—". `format`, given,
+ * reads a number as its field shows it (sats, a price).
+ * @param {string} kind @param {any} value @param {(n: any) => string} [format]
+ */
+export function readText(kind, value, format) {
+  const t = String(value ?? '').trim();
+  if (t === '') return '—';
+  const k = kindOf(kind);
+  if (k.numeric && k.read(t)) return t;
+  if (format && k.numeric) return format(t.replace(/%$/, ''));
+  if (kind === 'money') return money(t);
+  if (kind === 'quantity' || kind === 'count') return quantity(t);
+  if (kind === 'percent') return quantity(t.replace(/%$/, '')) + '%';
+  if (kind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(t)) return date(t);
+  return t;
 }

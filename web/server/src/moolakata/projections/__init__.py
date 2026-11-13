@@ -20,6 +20,7 @@ from ..ledger import types as atypes
 from ..store import scoping
 from ..store.entities.accounts import Account, Instrument
 from ..store.entities.projections import Projection
+from ..store.entities.sharing import Portfolio
 from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from . import assumptions, bitcoin, engine, taxtables
@@ -219,6 +220,26 @@ class Prepared:
     start_part: float = 1.0
 
 
+def base_of(s: Session, p: Projection, viewer: str) -> BuiltOn:
+    """What it is built on today. Its owner reads their own; one it is shared with sees its
+    results (S6.1), worked out as the server over the owner's accounts, and a portfolio or an
+    account they aren't shared is named as such, never by its name."""
+    spec = json.loads(p.builtOn)
+    if viewer == p.ownerId:
+        return built_on(s, viewer, spec)
+    why = "a projection's base, over its owner's accounts"  # pragma: no mutate
+    with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
+        base = built_on(srv, p.ownerId, spec)
+    kind = spec.get("kind")
+    if kind == "portfolio" and access.perms(s, Portfolio, spec["id"], viewer) is None:
+        base.label = "a portfolio not shared with you"
+    elif kind == "accounts" and len(base.accounts) == 1:
+        seen = {a.id for a, _ in access.accounts(s, viewer)}
+        if base.accounts[0].id not in seen:
+            base.label = "an account not shared with you"
+    return base
+
+
 def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
     """The model's plan from the projection's inputs, its owner's assumptions and what it is
     built on today."""
@@ -232,7 +253,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         if (inputs.get("overrides") or {}).get(k) is not None:
             figures[k] = inputs["overrides"][k]
     model = inputs.get("bitcoinModel") or figures["bitcoinModel"]
-    base = built_on(s, viewer if viewer == p.ownerId else p.ownerId, json.loads(p.builtOn))
+    base = base_of(s, p, viewer)
     today = clock.today()
     year = today.year
     retire_index = target_index = None

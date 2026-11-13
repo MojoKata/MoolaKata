@@ -15,8 +15,8 @@ import { ShareDialog } from '../components/share.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { canAdd, READ_ONLY, Record as Rec, whyRead } from '../app/draft.js';
-import { Action, Attention } from '../components/state.js';
+import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
+import { Action, Attention, RowTool } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -245,13 +245,12 @@ function Donations({ year, reload }) {
                   <th class="num">Amount</th>
                   <th>Deductible</th>
                   <th>Acknowledgement</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows.map((d) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() => open(d)} onKeyDown=${(
-                    /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open(d)}>
+                  <tr>
                     <td class="small dim" style=${{ whiteSpace: 'nowrap' }}>${date(d.date)}</td>
                     <td>${d.name}${d.id
                       ? null
@@ -274,6 +273,15 @@ function Donations({ year, reload }) {
                       : d.needsAck
                       ? html`<span class="pill warn">missing · needed at $250+</span>`
                       : html`<span class="dim">—</span>`}</td>
+                    <td class="tool">
+                      ${!d.id || d.access.writable || d.description || d.granted != null
+                        ? html`
+                          <${RowTool} name=${`${d.name}, ${date(d.date)}`}
+                            read=${!!d.id && !d.access.writable} why=${d.id ? null : whyRead(d)}
+                            onClick=${() => open(d)} />
+                        `
+                        : null}
+                    </td>
                   </tr>
                 `
               )}</tbody>
@@ -311,13 +319,12 @@ function Organisations() {
                   <th>Causes</th>
                   <th>Pledge</th>
                   <th class="num">Given this year</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows.map((o) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() => open(o)} onKeyDown=${(
-                    /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open(o)}>
+                  <tr>
                     <td>${o.name}</td>
                     <td class="small dim" style=${{ whiteSpace: 'nowrap' }}>${o.ein ||
                       '—'}</td>
@@ -331,6 +338,14 @@ function Organisations() {
                       : html`<span class="dim">—</span>`}</td>
                     <td class="num">
                       <${Amt} v=${o.given} cents=${false} />
+                    </td>
+                    <td class="tool">
+                      ${o.access.writable || o.notes
+                        ? html`
+                          <${RowTool} name=${o.name} read=${!o.access.writable}
+                            onClick=${() => open(o)} />
+                        `
+                        : null}
                     </td>
                   </tr>
                 `
@@ -645,6 +660,9 @@ function DonationDialog({ close, from }) {
  */
 function DonationView({ close, d }) {
   useDialogGuide('dialog-donation');
+  // Opened from its row by one who may only read it: what the row shows is left out
+  // (S12.18.6.5).
+  const onRow = !d.access.writable;
   const f = useDraft((draft) => {
     draft.load(DonationRec, { ...d, receiptIds: [] });
   }, [d.id]);
@@ -665,7 +683,7 @@ function DonationView({ close, d }) {
   };
   return html`
     <${DraftDialog} f=${f} title=${`${d.kindLabel} · ${d.name}`} close=${close}
-      what="This donation" saveWhy=${whyRead(d)}
+      what="This donation" read=${whyRead(d) || false} row=${onRow ? DONATION_ROW : []}
       done=${rec?.removed ? 'Donation deleted' : 'Saved'}
       extra=${({ save }) =>
         rec
@@ -680,9 +698,11 @@ function DonationView({ close, d }) {
               }}>Delete</${Action}><span class="spacer"></span>
           `
           : null}>
-      <div class="list-item"><span class="grow dim">Date</span>${date(d.date)}</div>
-      <div class="list-item"><span class="grow dim">Amount</span><${Amt} v=${d.amount} /></div>
-      ${d.symbol
+      ${onRow ? null : html`
+        <div class="list-item"><span class="grow dim">Date</span>${date(d.date)}</div>
+        <div class="list-item"><span class="grow dim">Amount</span><${Amt} v=${d.amount} /></div>
+      `}
+      ${d.symbol && !onRow
         ? html`
           <div
             class="list-item"><span class="grow dim">Shares</span>${quantity(d.quantity)} ${d
@@ -692,15 +712,25 @@ function DonationView({ close, d }) {
       ${d.description
         ? html`<div class="list-item"><span class="grow dim">Given</span>${d.description}</div>`
         : null}
-      <div class="list-item"><span class="grow dim">Deductible</span>${d.deductible
-        ? 'yes'
-        : 'no'}</div>
-      ${rec && d.kind === 'daf-grant' && d.access.writable
+      ${onRow ? null : html`<div class="list-item"><span class="grow dim">Deductible</span>${
+        d
+            .deductible
+          ? 'yes'
+          : 'no'
+      }</div>`}
+      ${rec && d.kind === 'daf-grant'
         ? html`<${RecField} rec=${rec} name="granted" label="Paid by the fund" />`
         : null}
-      ${rec && d.access.writable
+      ${rec
+        ? html`<${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />`
+        : null}
+      ${!rec ? null : !d.access.writable
         ? html`
-          <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />
+          <div class="toolbar">
+            <${Action} class="btn sm" why=${whyRead(d)}><${Icon}
+                    name="clip" /> Attach the acknowledgement</${Action}></div>
+        `
+        : html`
           <div
             class="toolbar"><label class="btn sm" for="f-ack-files"><${Icon} name="clip" /> ${busy
               ? 'Uploading…'
@@ -713,8 +743,7 @@ function DonationView({ close, d }) {
                 send(ev.currentTarget.files);
                 ev.currentTarget.value = '';
               }} /></div>
-        `
-        : null}
+        `}
     </${DraftDialog}>
   `;
 }
@@ -740,6 +769,11 @@ class OrganisationRec extends Rec {
   };
 }
 
+/** What an organisation's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const ORG_ROW = ['name', 'ein', 'deductible', 'causes', 'pledge', 'pledgeEvery'];
+/** What a donation's row shows. */
+const DONATION_ROW = ['acknowledged'];
+
 /** @param {{ close: (v?: any) => void, o: any }} p */
 function OrganisationDialog({ close, o }) {
   useDialogGuide('dialog-organisation');
@@ -751,30 +785,24 @@ function OrganisationDialog({ close, o }) {
   const canWrite = !o || o.access.writable;
   return html`
     <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
-      what="This organisation" done="Saved" saveWhy=${canWrite ? null : READ_ONLY}>
+      row=${o ? ORG_ROW : []}
+      what="This organisation" done="Saved" read=${!canWrite}>
       ${rec
         ? html`
-          <fieldset disabled=${!canWrite} style=${{
-            border: 0,
-            padding: 0,
-            margin: 0,
-            minWidth: 0,
-          }}>
-            <${RecField} rec=${rec} name="name" label="Name"
-              placeholder="ex: Greater Chicago Food Depository" />
-            <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
-            <${RecField} rec=${rec} name="deductible" label="Deductible"
-              hint="A 501(c)(3) charity. Not a political campaign or a person." />
-            <${RecField} rec=${rec} name="causes" label="Causes"
-              hint="Separated by commas: Hunger, Local." />
-            <div class="row">
-              <${RecField} rec=${rec} name="pledge" label="Pledge"
-                hint="Shown as expected donations." />
-              <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
-                options=${[['month', 'Month'], ['year', 'Year']]} />
-            </div>
-            <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
-          </fieldset>
+          <${RecField} rec=${rec} name="name" label="Name"
+            placeholder="ex: Greater Chicago Food Depository" />
+          <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
+          <${RecField} rec=${rec} name="deductible" label="Deductible"
+            hint="A 501(c)(3) charity. Not a political campaign or a person." />
+          <${RecField} rec=${rec} name="causes" label="Causes"
+            hint="Separated by commas: Hunger, Local." />
+          <div class="row">
+            <${RecField} rec=${rec} name="pledge" label="Pledge"
+              hint="Shown as expected donations." />
+            <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
+              options=${[['month', 'Month'], ['year', 'Year']]} />
+          </div>
+          <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
         `
         : null}
     </${DraftDialog}>

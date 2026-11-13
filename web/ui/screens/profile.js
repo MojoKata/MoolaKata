@@ -23,7 +23,7 @@ import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
 import { confirmAction } from '../components/confirm.js';
-import { StatePill } from '../components/state.js';
+import { RowTool, StatePill } from '../components/state.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -164,6 +164,8 @@ function Relations({ p, reload }) {
     rels.reload();
     reload();
   };
+  // A relationship's row shows the whole of it: one who only reads it has nothing more to
+  // see, so no tool (S12.19.5).
   const open = (/** @type {any} */ r) =>
     openDialog(RelationshipDialog, { me: p.personId, r }).then((x) => x && again());
   // A marriage counts for wash sales and tax books once both have confirmed it (S10.10.4).
@@ -189,10 +191,7 @@ function Relations({ p, reload }) {
       ${rows.length
         ? rows.map((/** @type {any} */ r) =>
           html`
-            <div class=${'list-item' + (r.access.writable ? ' click' : '')} onClick=${r.access
-                .writable
-              ? () => open(r)
-              : null}>
+            <div class="list-item">
               <div class="grow"><b>${name(r)}</b> · ${word(r)}${relDates(r) ||
                   r.confirmed !== null
                 ? html`<div class="small dim">${
@@ -207,6 +206,9 @@ function Relations({ p, reload }) {
                   ev.stopPropagation();
                   confirm(r);
                 }}>Confirm</button>`
+                : null}
+              ${r.access.writable
+                ? html`<${RowTool} name=${`${name(r)}, ${word(r)}`} onClick=${() => open(r)} />`
                 : null}
             </div>
           `

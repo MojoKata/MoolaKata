@@ -351,6 +351,39 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, alice):
     assert Decimal(str(theirs["points"][-1][1])) == 1000, "only the joint account's balance"
 
 
+@pytest.mark.parametrize("kind", ["portfolio", "accounts"])
+def test_one_shared_a_projection_sees_its_results_over_what_it_is_built_on(server, alice, kind):
+    # S6.1: its results are the projection's, worked out over its owner's accounts, though
+    # what it is built on isn't shared with them; named as not shared, never by its name.
+    own = new_account(alice, name="Alice's savings", type="savings")
+    add(alice, own["id"], "9000.00", "2026-10-01")
+    built = {"kind": "accounts", "ids": [own["id"]]}
+    if kind == "portfolio":
+        port = make(alice, "Portf", name="Alice's nest egg", accountIds=[own["id"]])
+        assert port.status_code == 200, port.text
+        built = {"kind": "portfolio", "id": port.json()["id"]}
+    r = make(alice, "Prjct", name="House", goal="savings", builtOn=built,
+             inputs={"target": 50000, "date": "2030-01-01", "monthly": 500})  # fmt: skip
+    pid = r.json()["id"]
+    bob = make_user(server, "bob")
+    assert share(alice, "projection", pid, users={bob.id: "read"}).status_code == 200
+    mine = alice.get(f"/ui/api/projections/{pid}").json()
+    bobs = sign_in(server, "bob")
+    (row,) = bobs.get("/ui/api/projections").json()["items"]
+    theirs = bobs.get(f"/ui/api/projections/{pid}").json()
+    assert theirs["result"]["start"] == mine["result"]["start"] == Decimal("9000.00")
+    assert theirs["result"]["percentiles"] == mine["result"]["percentiles"]
+    assert mine["builtOnLabel"] in ("Portfolio: Alice's nest egg", "Alice's savings")
+    what = "a portfolio" if kind == "portfolio" else "an account"
+    assert row["builtOnLabel"] == theirs["builtOnLabel"] == f"{what} not shared with you"
+    # Shared with them, it is named as its owner names it: the portfolio, though its one
+    # account isn't shared with them; the account.
+    item = ("portfolio", built["id"]) if kind == "portfolio" else ("account", own["id"])
+    assert share(alice, *item, users={bob.id: "read"}).status_code == 200
+    seen = bobs.get(f"/ui/api/projections/{pid}").json()
+    assert seen["builtOnLabel"] == mine["builtOnLabel"]
+
+
 def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server, alice):
     # S6.8.3: a set of the receiver's own record, through the save.
     p = retirement(alice)

@@ -5,7 +5,7 @@ import { equal, truthy } from './assert.js';
 
 const g = /** @type {any} */ (globalThis);
 g.document = { querySelector: () => null, getElementById: () => null };
-const { Action, Attention, Empty, StatePill } = await import('../components/state.js');
+const { Action, Attention, Empty, RowTool, StatePill } = await import('../components/state.js');
 
 /** Every element in the tree, depth first. @param {any} v @returns {any[]} */
 function all(v) {
@@ -72,4 +72,34 @@ Deno.test('a pill says why on hover and focus; attention is a line and its actio
     all(Attention({ children: 'x' })).some((x) => x.props?.class === 'attention-actions'),
     false,
   );
+});
+
+Deno.test('a row opens from its tool: a pencil to edit, an eye to view, named by both', () => {
+  /** The button the tool draws, and its icon's name. @param {any} p */
+  const drawn = (p) => {
+    const v = RowTool(p);
+    equal(v.type, Action);
+    const [b] = all(Action(v.props));
+    return { b, icon: all(b).find((x) => x.props?.name)?.props.name };
+  };
+  let opened = 0;
+  const edit = drawn({ name: 'Whole Foods', onClick: () => opened++ });
+  equal([edit.b.props['aria-label'], edit.b.props['data-tip'], edit.icon], [
+    'Edit Whole Foods',
+    'Edit Whole Foods',
+    'pencil',
+  ]);
+  equal(edit.b.props.class, 'icon-btn row-tool');
+  edit.b.props.onClick();
+  equal(opened, 1);
+  const view = drawn({ name: 'Whole Foods', read: true, onClick: () => opened++ });
+  equal([view.b.props['aria-label'], view.icon], ['View Whole Foods', 'eye']);
+  // With a reason, it is off: its reason replaces its name as the tooltip, and it opens nothing.
+  const off = drawn({ name: 'Rent', why: 'Shared with you to read', onClick: () => opened++ });
+  equal([off.b.props['aria-disabled'], off.b.props['data-tip']], [
+    'true',
+    'Shared with you to read',
+  ]);
+  off.b.props.onClick({ preventDefault() {} });
+  equal(opened, 1);
 });

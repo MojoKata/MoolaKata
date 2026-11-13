@@ -10,7 +10,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { openDialog } from '../components/dialog.js';
-import { Field, Seg, Select, SwitchRow, TypedInput } from '../components/fields.js';
+import { Field, ReadValue, Seg, Select, SwitchRow, TypedInput } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -19,7 +19,7 @@ import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
 import { canAdd, Record as Rec, TYPES, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
-import { Action, Attention } from '../components/state.js';
+import { Action, Attention, RowTool } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import {
   DraftDialog,
@@ -316,9 +316,35 @@ const ageLine = (/** @type {any} */ d, /** @type {number} */ year) => {
   return `Age ${d.age} on Dec 31, ${year}${marks.length ? ': ' + marks.join(' and ') : ''}`;
 };
 
+/** What a dependent's line shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const DEPENDENT_ROW = ['personId', 'claimedAs', 'months', 'student'];
+/** What a filing's card shows. */
+const FILING_ROW = [
+  'jurisdiction',
+  'place',
+  'form',
+  'progress',
+  'dueDate',
+  'extendedDue',
+  'filedOn',
+  'sentBy',
+  'resultKind',
+  'resultAmount',
+];
+/** What a tax document's row shows. */
+const DOCUMENT_ROW = ['direction', 'form', 'issuer', 'receiptId'];
+
+/** A dependent claimed on another tax book of the year, said so beside them. @param {any} d */
+function elsewhere(d) {
+  if (!d.claimedElsewhere) return null;
+  const tip = 'Claimed on another tax book for this year';
+  return html`${' '}<span class="pill warn" title=${tip}>also claimed elsewhere</span>`;
+}
+
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Dependents({ b, done }) {
-  const open = (/** @type {any} */ d) => openDialog(DependentDialog, { b, d }).then(done);
+  const open = (/** @type {any} */ d) =>
+    openDialog(DependentDialog, { b, d, fromRow: !!d }).then(done);
   return html`
     <div
       class="card mt">
@@ -328,21 +354,19 @@ function Dependents({ b, done }) {
       ${b.dependents.length
         ? b.dependents.map((/** @type {any} */ d) =>
           html`
-            <div class=${'list-item' + (b.access.writable ? ' click' : '')}
-              onClick=${b.access.writable ? () => open(d) : null}><div class="grow"><b>${d
-                .name}</b><div class="small dim">${[
+            <div
+              class="list-item"><div class="grow"><b>${d.name}</b><div class="small dim">${[
                 d.relation && d.relation[0].toUpperCase() + d.relation.slice(1),
                 d.claimedAs,
                 `${d.months} month${d.months === 1 ? '' : 's'}`,
                 d.student && 'student',
               ].filter(Boolean).join(' · ')}${d.agesOut.length
                 ? html`<br />${d.agesOut.join('; ')}`
-                : null}</div></div><span class="small">${ageLine(d, b.year)}</span>${d
-                  .claimedElsewhere
-                ? html`
-                  ${' '}<span class="pill warn" title="Claimed on another tax book for this year"
-                  >also claimed elsewhere</span>
-                `
+                : null}</div></div><span class="small">${ageLine(d, b.year)}</span>${elsewhere(
+                  d,
+                )}${b.access.writable || (d.accountIds || []).length
+                ? html`<${RowTool} name=${d.name} read=${!b.access
+                  .writable} onClick=${() => open(d)} />`
                 : null}</div>
           `
         )
@@ -376,8 +400,10 @@ class DependentRec extends Rec {
   static defaults = { claimedAs: 'qualifying child', months: 12, student: false, accountIds: [] };
 }
 
-/** @param {{ close: (v?: any) => void, b: any, d: any }} p */
-function DependentDialog({ close, b, d }) {
+/** @param {{ close: (v?: any) => void, b: any, d: any, fromRow?: boolean }} p */
+function DependentDialog({ close, b, d, fromRow }) {
+  /** Read from its row, what the row shows is left out (S12.18.6.5). @param {string} n */
+  const onRow = (n) => !b.access.writable && !!fromRow && DEPENDENT_ROW.includes(n);
   useDialogGuide('dialog-dependent');
   const cands = useList(`/tax-books/${b.id}/dependent-candidates`);
   const list = /** @type {any[] | null} */ (cands.data);
@@ -404,18 +430,17 @@ function DependentDialog({ close, b, d }) {
   const toggle = (/** @type {string} */ id) => (/** @type {boolean} */ on) =>
     rec?.set('accountIds', on ? [...ids, id] : ids.filter((x) => x !== id));
   return html`
-    <${DraftDialog} f=${f} close=${close} what="This dependent" title=${d
-      ? d.name
-      : 'Add a dependent'}
+    <${DraftDialog} f=${f} close=${close} what="This dependent" row=${fromRow ? DEPENDENT_ROW : []}
+      title=${d ? d.name : 'Add a dependent'}
       label=${d ? 'Save' : 'Add'} done=${rec?.removed
         ? 'Dependent removed'
         : d
         ? 'Dependent saved'
-        : 'Dependent added'} disabled=${!rec?.get('personId')}
+        : 'Dependent added'} disabled=${!rec?.get('personId')} read=${whyRead(b) || false}
       extra=${({ save }) =>
         d
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(b)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
@@ -426,45 +451,49 @@ function DependentDialog({ close, b, d }) {
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
-              }}>Remove</button><span class="spacer"></span>
+              }}>Remove</${Action}><span class="spacer"></span>
           `
           : null}>
       ${rec
         ? html`
-          <div class="row">
-            <${Field} label="Person" id="person" error=${rec.error('personId')}
-              hint="From the household's people. Add someone new on the Gifts screen.">
-              <${Select} value=${rec.get('personId') || ''} onChange=${(
-                /** @type {string} */ x,
-              ) => {
-                rec.input('personId', x);
-                suggest(x, rec.get('student'));
-              }} options=${[
-                ['', list ? 'Choose…' : 'Loading…'],
-                ...choices.map((c) => [
-                  c.personId,
-                  c.name + (c.relation ? ` · ${c.relation}` : ''),
-                ]),
-              ]} />
-              </${Field}>
-              <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}
-                hint="Suggested from the family tree. As you file it.">
-              <${Select} value=${rec.get('claimedAs')} onChange=${(/** @type {string} */ x) => {
-                setPicked(true);
-                rec.input('claimedAs', x);
-              }} options=${[
-                ['qualifying child', 'Qualifying child'],
-                ['qualifying relative', 'Qualifying relative'],
-              ]} />
-            </${Field}>
-          </div>
+          ${onRow('personId') ? null : html`
+            <div class="row">
+              <${Field} label="Person" id="person" error=${rec.error('personId')}
+                hint="From the household's people. Add someone new on the Gifts screen.">
+                <${Select} value=${rec.get('personId') || ''} onChange=${(
+                  /** @type {string} */ x,
+                ) => {
+                  rec.input('personId', x);
+                  suggest(x, rec.get('student'));
+                }} options=${[
+                  ['', list ? 'Choose…' : 'Loading…'],
+                  ...choices.map((c) => [
+                    c.personId,
+                    c.name + (c.relation ? ` · ${c.relation}` : ''),
+                  ]),
+                ]} />
+                </${Field}>
+                <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}
+                  hint="Suggested from the family tree. As you file it.">
+                  <${Select} value=${rec.get('claimedAs')} onChange=${(/** @type {string} */ x) => {
+                    setPicked(true);
+                    rec.input('claimedAs', x);
+                  }} options=${[
+                    ['qualifying child', 'Qualifying child'],
+                    ['qualifying relative', 'Qualifying relative'],
+                  ]} />
+                  </${Field}>
+                  </div>
+          `}
           <div class="row">
             <${RecField} rec=${rec} name="months" label="Months lived with you" id="months" />
-            <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
-              on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
-                rec.set('student', on);
-                suggest(rec.get('personId'), on);
-              }} />
+            ${onRow('student') ? null : html`
+              <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
+                on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
+                  rec.set('student', on);
+                  suggest(rec.get('personId'), on);
+                }} />
+            `}
           </div>
           ${theirs.length
             ? html`<div class="field" data-help="accounts-in-their-name" id="x-accounts"><label
@@ -488,7 +517,8 @@ function DependentDialog({ close, b, d }) {
 
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Filings({ b, done }) {
-  const open = (/** @type {any} */ f) => openDialog(FilingDialog, { b, f }).then(done);
+  const open = (/** @type {any} */ f) =>
+    openDialog(FilingDialog, { b, f, fromRow: !!f }).then(done);
   return html`
     <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
       of its own.</span><span class="spacer"></span><${Action} class="btn sm"
@@ -501,8 +531,8 @@ function Filings({ b, done }) {
             class="card mt"><h3>${f.label}<span class=${'pill ' + (TONE[f.progress] ||
               '')}>${PROGRESS.find(([k]) => k === f.progress)?.[1]}</span>${f.overdue
               ? html`<span class="pill warn">past its due date</span>`
-              : null}<span class="spacer"></span><button class="btn sm" onClick=${() =>
-              open(f)}>${b.access.writable ? 'Edit' : 'Open'}</button></h3>
+              : null}<span class="spacer"></span><${RowTool} name=${f.label}
+              read=${!b.access.writable} onClick=${() => open(f)} /></h3>
                     <div class="grid g4">
                       <div><div class="small dim">Due</div>${f.extendedDue
                         ? html`${date(f.extendedDue)} <span class="small dim">extended</span>`
@@ -546,7 +576,7 @@ function Documents({ b, done }) {
   const add = (/** @type {any} */ start) => openDialog(DocumentDialog, { b, start }).then(done);
   // A document kept opens to change or remove it (CR3-36).
   const open = (/** @type {any} */ doc) =>
-    b.access.writable && openDialog(DocumentDialog, { b, doc }).then(done);
+    openDialog(DocumentDialog, { b, doc, fromRow: true }).then(done);
   const filed = b.filings.flatMap((/** @type {any} */ f) =>
     f.documents.map((/** @type {any} */ d) => ({ ...d, filing: f.label }))
   );
@@ -565,13 +595,13 @@ function Documents({ b, done }) {
               <th>From</th>
               <th>Why expected</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
         ${b.expected.map((/** @type {any} */ e) =>
           html`
-            <tr class=${e.document && b.access.writable ? 'click' : ''} onClick=${() =>
-              e.document && open(e.document)}>
+            <tr>
               <td>${e.form}</td>
               <td class="dim">${e.issuer || '—'}</td>
               <td class="small dim">${e
@@ -594,12 +624,23 @@ function Documents({ b, done }) {
                       });
                     }}><${Icon} name="upload" /> Attach</${Action}>
                 `}</td>
+              <td class="tool">${e.document
+                ? html`
+                  ${b.access.writable || e.document.notes || e.document.accountId ||
+                      e.document.filingId
+                    ? html`
+                      <${RowTool} name=${e.form} read=${!b.access.writable}
+                        onClick=${() => open(e.document)} />
+                    `
+                    : null}
+                `
+                : null}</td>
             </tr>
           `
         )}
         ${b.received.map((/** @type {any} */ d) =>
           html`
-            <tr class=${b.access.writable ? 'click' : ''} onClick=${() => open(d)}>
+            <tr>
               <td>${d.form}</td>
               <td class="dim">${d.issuer || '—'}</td>
               <td
@@ -607,6 +648,14 @@ function Documents({ b, done }) {
               <td><span class="pill ok"><${Icon} name="check" /> received</span>${d.fileName
                 ? html`${' '}<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
                 : null}</td>
+              <td class="tool">
+                ${b.access.writable || d.notes || d.accountId || d.filingId
+                  ? html`
+                    <${RowTool} name=${d.form} read=${!b.access.writable}
+                      onClick=${() => open(d)} />
+                  `
+                  : null}
+              </td>
             </tr>
           `
         )}
@@ -628,13 +677,18 @@ function Documents({ b, done }) {
       ? html`<div class="card" style=${{ padding: '4px 8px' }}>${
         filed.map((/** @type {any} */ d) =>
           html`
-            <div class=${'list-item' + (b.access.writable ? ' click' : '')}
-              onClick=${() => open(d)}><div class="grow">${d.form}<div class="small dim">${d
+            <div
+              class="list-item"><div class="grow">${d.form}<div class="small dim">${d
                 .filing}${d.issuer ? ` · ${d.issuer}` : ''}${d.notes
                 ? ` · ${d.notes}`
                 : ''}</div></div>${d
                   .fileName
                 ? html`<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
+                : null}${b.access.writable || d.notes || d.accountId
+                ? html`
+                  <${RowTool} name=${d.form} read=${!b.access.writable}
+                    onClick=${() => open(d)} />
+                `
                 : null}</div>
           `
         )
@@ -831,8 +885,10 @@ function BasisField({ rec, who, label }) {
   `;
 }
 
-/** @param {{ close: (v?: any) => void, b: any, f: any }} p */
-function FilingDialog({ close, b, f: filing }) {
+/** @param {{ close: (v?: any) => void, b: any, f: any, fromRow?: boolean }} p */
+function FilingDialog({ close, b, f: filing, fromRow }) {
+  /** Read from its card, what the card shows is left out (S12.18.6.5). @param {string} n */
+  const onRow = (n) => !b.access.writable && !!fromRow && FILING_ROW.includes(n);
   useDialogGuide('dialog-filing');
   const meta = useApi('/tax-forms');
   const txns = useApi('/transactions', { limit: 200 });
@@ -862,9 +918,10 @@ function FilingDialog({ close, b, f: filing }) {
   const where = rec?.get('jurisdiction');
   const carried = rec?.get('carried') || {};
   return html`
-    <${DraftDialog} f=${f} wide close=${close} what="This filing"
+    <${DraftDialog} f=${f} wide close=${close} what="This filing" row=${fromRow ? FILING_ROW : []}
       title=${filing ? `${filing.label} · ${b.year}` : 'Add a filing'}
       done=${rec?.removed ? 'Filing deleted' : 'Filing saved'} saveWhy=${whyRead(b)}
+      read=${!can}
       extra=${({ save }) =>
         filing
           ? html`
@@ -880,129 +937,135 @@ function FilingDialog({ close, b, f: filing }) {
           : null}>
       ${rec
         ? html`
-          <fieldset disabled=${!can} style=${{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            <div class="row">
-              <${RecField} rec=${rec} name="jurisdiction" label="Jurisdiction" options=${[
-                ['federal', 'Federal'],
-                ['state', 'A state'],
-                ['local', 'A locality'],
+          <div class="row">
+            <${RecField} rec=${rec} name="jurisdiction" label="Jurisdiction" options=${[
+              ['federal', 'Federal'],
+              ['state', 'A state'],
+              ['local', 'A locality'],
+            ]} />
+            <${RecField} rec=${rec} name="place" id="place"
+              label=${where === 'state' ? 'State' : 'Locality'}
+              placeholder=${where === 'state' ? 'ex: Utah' : 'ex: New York City'} />
+            <${RecField} rec=${rec} name="form" label="Form" placeholder="ex: Form 1040, TC-40…" />
+            <${RecField} rec=${rec} name="amendsId" label="Amends" id="amends" options=${[
+              ['', 'Nothing: an original return'],
+              ...b.filings.filter((/** @type {any} */ x) => x.id !== filing?.id).map((
+                /** @type {any} */ x,
+              ) => [x.id, x.label]),
+            ]} />
+          </div>
+          <div class="row">
+            <${RecField} rec=${rec} name="filingStatus" label="Filing status"
+              id="filing-status" hint="As filed. MoolaKata never chooses it." options=${[
+                ['', 'Not chosen yet'],
+                ...statuses.map((/** @type {string} */ x) => [x, x]),
               ]} />
-              <${RecField} rec=${rec} name="place" id="place"
-                label=${where === 'state' ? 'State' : 'Locality'}
-                placeholder=${where === 'state' ? 'ex: Utah' : 'ex: New York City'} />
-              <${RecField} rec=${rec} name="form" label="Form" placeholder="ex: Form 1040, TC-40…" />
-              <${RecField} rec=${rec} name="amendsId" label="Amends" id="amends" options=${[
-                ['', 'Nothing: an original return'],
-                ...b.filings.filter((/** @type {any} */ x) => x.id !== filing?.id).map((
-                  /** @type {any} */ x,
-                ) => [x.id, x.label]),
-              ]} />
-            </div>
-            <div class="row">
-              <${RecField} rec=${rec} name="filingStatus" label="Filing status"
-                id="filing-status" hint="As filed. MoolaKata never chooses it." options=${[
-                  ['', 'Not chosen yet'],
-                  ...statuses.map((/** @type {string} */ x) => [x, x]),
-                ]} />
-              <${RecField} rec=${rec} name="preparedBy" label="Prepared by" id="prepared-by"
-                placeholder="yourself, software, a preparer" />
-              <${RecField} rec=${rec} name="sentBy" label="Sent by" id="sent-by" options=${[
-                ['e-file', 'E-file'],
-                ['paper', 'Paper'],
-              ]} />
-            </div>
-            <div class="field" data-help="progress" id="x-progress"><label>Progress</label>
-              <${Seg} label="Progress" value=${rec.get('progress')} onChange=${(
-                /** @type {string} */ v,
-              ) => rec.set('progress', v)} options=${PROGRESS} />
-              ${rec.error('progress')
+            <${RecField} rec=${rec} name="preparedBy" label="Prepared by" id="prepared-by"
+              placeholder="yourself, software, a preparer" />
+            <${RecField} rec=${rec} name="sentBy" label="Sent by" id="sent-by" options=${[
+              ['e-file', 'E-file'],
+              ['paper', 'Paper'],
+            ]} />
+          </div>
+          ${onRow('progress')
+            ? null
+            : html`<div class="field" data-help="progress" id="x-progress"><label>Progress</label>
+            <${Seg} label="Progress" value=${rec.get('progress')} onChange=${(
+              /** @type {string} */ v,
+            ) => rec.set('progress', v)} options=${PROGRESS} />
+            ${
+              rec.error('progress')
                 ? html`<div class="err" role="alert">${rec.error('progress')}</div>`
-                : null}</div>
-            <div class="row">
-              <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
-                hint=${where === 'federal' ? 'Blank: from the tax tables.' : ''} />
-              <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
-                id="extension-filed-on" type="date" />
-              <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"
-                type="date" />
-              <${RecField} rec=${rec} name="filedOn" label="Date filed" id="filed-on"
-                type="date" />
-            </div>
-            <${RecField} rec=${rec} name="confirmation" label="Confirmation number"
-              id="confirmation" placeholder="submission ID or mailing receipt" />
-            <div class="row">
-              <${RecField} rec=${rec} name="resultKind" label="Result" id="result-kind" options=${[
+                : null
+            }</div>`}
+          <div class="row">
+            <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
+              hint=${where === 'federal' ? 'Blank: from the tax tables.' : ''} />
+            <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
+              id="extension-filed-on" type="date" />
+            <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"
+              type="date" />
+            <${RecField} rec=${rec} name="filedOn" label="Date filed" id="filed-on"
+              type="date" />
+          </div>
+          <${RecField} rec=${rec} name="confirmation" label="Confirmation number"
+            id="confirmation" placeholder="submission ID or mailing receipt" />
+          <div class="row">
+            <${RecField} rec=${rec} name="resultKind" label="Result" id="result-kind"
+              options=${[
                 ['', 'Not known yet'],
                 ['refund', 'Refund'],
                 ['owed', 'Amount owed'],
                 ['none', 'Nothing due'],
               ]} />
-              <${RecField} rec=${rec} name="resultAmount" label="Amount" id="result-amount" />
-              <${RecField} rec=${rec} name="resultTransactionId" label="Paid or received in"
-                id="result-transaction" hint="Match the transaction." options=${[
-                  ['', 'Not yet'],
-                  ...items.map((/** @type {any} */ t) => [
-                    t.id,
-                    `${t.accountName || ''} · ${date(t.date)} · ${t.payee || ''} ${t.amount}`,
-                  ]),
-                ]} />
-            </div>
-            <div class="toolbar"><b class="small" data-help="estimated-payments">Estimated
-                payments</b><span class="spacer"></span><button type="button" class="btn sm"
-                onClick=${() =>
-                  draft?.add(PaymentRec, {
-                    filingId: rec.id,
-                    quarter: Math.min(4, payments.length + 1),
-                  })}><${Icon} name="plus" /> Add a payment</button></div>
-            ${payments.map((p, i) =>
-              html`
-                <div class="row" key=${p.key}>
-                  <${Field} label="Quarter" help="estimated-payments" id=${'quarter-' + i}>
-                    <${RecField} rec=${p} name="quarter" bare label="Quarter"
-                      options=${['1', '2', '3', '4']} />
+            <${RecField} rec=${rec} name="resultAmount" label="Amount" id="result-amount" />
+            <${RecField} rec=${rec} name="resultTransactionId" label="Paid or received in"
+              id="result-transaction" hint="Match the transaction." options=${[
+                ['', 'Not yet'],
+                ...items.map((/** @type {any} */ t) => [
+                  t.id,
+                  `${t.accountName || ''} · ${date(t.date)} · ${t.payee || ''} ${t.amount}`,
+                ]),
+              ]} />
+          </div>
+          <div class="toolbar"><b class="small" data-help="estimated-payments">Estimated
+              payments</b><span class="spacer"></span><${Action} class="btn sm"
+              why=${whyRead(b)} onClick=${() =>
+                draft?.add(PaymentRec, {
+                  filingId: rec.id,
+                  quarter: Math.min(4, payments.length + 1),
+                })}><${Icon} name="plus" /> Add a payment</${Action}></div>
+          ${payments.map((p, i) =>
+            html`
+              <div class="row" key=${p.key}>
+                <${Field} label="Quarter" help="estimated-payments" id=${'quarter-' + i}>
+                  <${RecField} rec=${p} name="quarter" bare label="Quarter"
+                    options=${['1', '2', '3', '4']} />
+                  </${Field}>
+                  <${Field} label="Due" help="estimated-payments" id=${'pay-due-' + i}>
+                    <${RecField} rec=${p} name="dueDate" bare label="Due" type="date" />
                     </${Field}>
-                    <${Field} label="Due" help="estimated-payments" id=${'pay-due-' + i}>
-                      <${RecField} rec=${p} name="dueDate" bare label="Due" type="date" />
+                    <${Field} label="Amount" help="estimated-payments" id=${'pay-amount-' + i}
+                      error=${p.error('amount')}>
+                      <${RecField} rec=${p} name="amount" bare label="Amount" />
                       </${Field}>
-                      <${Field} label="Amount" help="estimated-payments" id=${'pay-amount-' + i}
-                        error=${p.error('amount')}>
-                        <${RecField} rec=${p} name="amount" bare label="Amount" />
+                      <${Field} label="Paid on" help="estimated-payments" id=${'pay-on-' + i}>
+                        <${RecField} rec=${p} name="paidOn" bare label="Paid on" type="date" />
                         </${Field}>
-                        <${Field} label="Paid on" help="estimated-payments" id=${'pay-on-' + i}>
-                          <${RecField} rec=${p} name="paidOn" bare label="Paid on" type="date" />
-                          </${Field}>
-                          <button type="button" class="icon-btn" aria-label="Remove the payment"
-                            onClick=${() => draft?.remove(p)}><${Icon} name="x" /></button>
+                        <${Action} class="icon-btn" aria-label="Remove the payment"
+                          why=${whyRead(b)} onClick=${() => draft?.remove(p)}>
+                          <${Icon}
+                            name="x" />
+                          </${Action}>
                           </div>
+            `
+          )}
+          <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried forward to
+            next year</h4>
+          <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
+            year's tax book shows them under <b>From last year</b>.</p>
+          <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
+            k === 'basis8606'
+              ? b.filers.map((/** @type {any} */ who) =>
+                html`<${BasisField} rec=${rec} who=${who} label=${
+                  b.filers.length > 1 ? `${label}, ${who.name}` : label
+                } />`
+              )
+              : html`
+                <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
+                  error=${rec.error('carried-' + k)}>
+                  <${TypedInput} kind="money" value=${rec.typed('carried-' + k) ??
+                    (carried[k] == null ? '' : String(carried[k]))}
+                    onInput=${(/** @type {string} */ x) =>
+                      rec.inputAs('carried-' + k, x, (t) => {
+                        const r = carriedAmount(t);
+                        return 'error' in r
+                          ? r
+                          : { value: { carried: { ...rec.get('carried'), [k]: r.value } } };
+                      })} />
+                  </${Field}>
               `
-            )}
-            <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried forward to
-              next year</h4>
-            <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
-              year's tax book shows them under <b>From last year</b>.</p>
-            <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
-              k === 'basis8606'
-                ? b.filers.map((/** @type {any} */ who) =>
-                  html`<${BasisField} rec=${rec} who=${who} label=${
-                    b.filers.length > 1 ? `${label}, ${who.name}` : label
-                  } />`
-                )
-                : html`
-                  <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
-                    error=${rec.error('carried-' + k)}>
-                    <${TypedInput} kind="money" value=${rec.typed('carried-' + k) ??
-                      (carried[k] == null ? '' : String(carried[k]))}
-                      onInput=${(/** @type {string} */ x) =>
-                        rec.inputAs('carried-' + k, x, (t) => {
-                          const r = carriedAmount(t);
-                          return 'error' in r
-                            ? r
-                            : { value: { carried: { ...rec.get('carried'), [k]: r.value } } };
-                        })} />
-                    </${Field}>
-                `
-            )}</div>
-          </fieldset>
+          )}</div>
         `
         : null}
     </${DraftDialog}>
@@ -1035,9 +1098,11 @@ class DocumentRec extends Rec {
 /**
  * A tax document kept, or one to keep: `doc` opens a kept one to change its form, issuer,
  * account, notes or file, or to remove it (CR3-36); `start` fills a new one.
- * @param {{ close: (v?: any) => void, b: any, start?: any, doc?: any }} p
+ * @param {{ close: (v?: any) => void, b: any, start?: any, doc?: any, fromRow?: boolean }} p
  */
-function DocumentDialog({ close, b, start, doc }) {
+function DocumentDialog({ close, b, start, doc, fromRow }) {
+  /** Read from its row, what the row shows is left out (S12.18.6.5). @param {string} n */
+  const onRow = (n) => !b.access.writable && !!fromRow && DOCUMENT_ROW.includes(n);
   useDialogGuide('dialog-tax-document');
   const meta = useApi('/tax-forms');
   const forms = /** @type {any} */ (meta.data) || { received: [], filed: [] };
@@ -1062,14 +1127,15 @@ function DocumentDialog({ close, b, start, doc }) {
   );
   const filed = rec?.get('direction') === 'filed';
   return html`
-    <${DraftDialog} f=${f} close=${close} what="This document"
+    <${DraftDialog} f=${f} close=${close} what="This document" row=${fromRow ? DOCUMENT_ROW : []}
       title=${doc ? doc.form : filed ? 'Add a filed document' : 'Add a tax document'}
       label=${doc ? 'Save' : 'Add'}
       done=${rec?.removed ? 'Document removed' : doc ? 'Document saved' : 'Document kept'}
+      read=${whyRead(b) || false}
       extra=${({ save }) =>
         doc
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(b)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
@@ -1080,18 +1146,20 @@ function DocumentDialog({ close, b, start, doc }) {
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
-              }}>Remove</button><span class="spacer"></span>
+              }}>Remove</${Action}><span class="spacer"></span>
           `
           : null}>
       ${rec
         ? html`
-          <div class="field" data-help="direction" id="x-direction"><label>Kind</label>
+          ${onRow('direction')
+            ? null
+            : html`<div class="field" data-help="direction" id="x-direction"><label>Kind</label>
             <${Seg} label="Kind" value=${rec.get('direction')} onChange=${(
               /** @type {string} */ x,
             ) => {
               rec.set('direction', x);
               rec.set('form', x === 'filed' ? 'Return as filed' : 'W-2', 'direction');
-            }} options=${[['received', 'Received'], ['filed', 'Filed']]} /></div>
+            }} options=${[['received', 'Received'], ['filed', 'Filed']]} /></div>`}
           <div class="row">
             <${RecField} rec=${rec} name="form" label="Document" id="form"
               options=${filed ? forms.filed : forms.received} />
@@ -1111,18 +1179,22 @@ function DocumentDialog({ close, b, start, doc }) {
             hint=${file
               ? `${file.name}, kept with your receipts.`
               : 'The PDF or a photo, kept with your receipts.'}>
-            <input class="in" type="file" accept=${ACCEPT} onChange=${async (
-              /** @type {any} */ ev,
-            ) => {
-              const picked = ev.currentTarget.files[0];
-              if (!picked) return;
-              // Uploaded at once, as a receipt of its own (S12.15.7); kept with it on Save.
-              const made = (await uploadAll([picked]))[0];
-              if (made) {
-                setFile({ name: made.fileName || picked.name });
-                rec.set('receiptId', made.id);
-              }
-            }} /></${Field}>
+            ${b.access.writable
+              ? html`<input class="in" type="file" accept=${ACCEPT} onChange=${async (
+                /** @type {any} */ ev,
+              ) => {
+                const picked = ev.currentTarget.files[0];
+                if (!picked) return;
+                // Uploaded at once, as a receipt of its own (S12.15.7); kept with it on Save.
+                const made = (await uploadAll([picked]))[0];
+                if (made) {
+                  setFile({ name: made.fileName || picked.name });
+                  rec.set('receiptId', made.id);
+                }
+              }} />`
+              : onRow('receiptId')
+              ? null
+              : html`<${ReadValue} text=${doc?.fileName || '—'} />`}</${Field}>
           <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
         `
         : null}

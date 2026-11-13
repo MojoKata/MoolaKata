@@ -93,9 +93,14 @@
          when one fails. Over
          `<ValueInput>`'s controls (× ↺ Min Max All), it keeps the mark: set when the field is
          left, at Save, or when a key or paste is refused, and cleared by any change. Kinds are
-         plain data and functions, tested without a page.
+         plain data and functions, tested without a page. Read (S12.18.6), every input in
+         `fields.js` draws `<ReadValue>` instead, the text its kind gives it (`readText`, and a
+         record's page from its id's prefix, `pageOf`); a form reads through one context,
+         `Reading`, which `<DraftDialog read>` and `<DraftForm read>` set, its value the
+         reason the form's own actions show.
       9. **Actions and state** (S12.19) are components of `components/state.js`: `<Action>`
          (a button; given `why`, it is `aria-disabled`, ignores its click and Enter, and shows
          `why` as its tooltip and screen-reader description), `<Empty>` (a line and its
-         action), `<StatePill>` (a pill whose tooltip, reached by Tab, explains it) and
-         `<Attention>` (a one-line notice and its action buttons).
+         action), `<StatePill>` (a pill whose tooltip, reached by Tab, explains it),
+         `<Attention>` (a one-line notice and its action buttons) and `<RowTool>` (a row's
+         pencil or eye, S12.19.5).

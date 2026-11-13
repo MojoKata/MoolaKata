@@ -158,22 +158,23 @@ function Open({ rows, reload }) {
           <tbody>${rows.map((r) => {
             const key = r.accountId + r.instrumentId;
             return html`
-              <tr class="click" tabindex="0" aria-expanded=${shown === key ? 'true' : 'false'}
-                onClick=${() => setShown(shown === key ? null : key)} onKeyDown=${(
-                  /** @type {KeyboardEvent} */ e,
-                ) => e.key === 'Enter' && setShown(shown === key ? null : key)}>
-                <td onClick=${(/** @type {Event} */ e) => e.stopPropagation()}><input
+              <tr>
+                <td><input
                   type="checkbox" aria-label=${'Select ' + r.symbol}
                   checked=${picked.includes(key)} onChange=${() => pick(key)} /></td>
-                <td><b>${r.symbol}</b>${r.daysToExpiry != null
-                  ? html`${' '}<span class=${'pill ' + (r.daysToExpiry <= 7 ? 'warn' : '')}>${
-                    r.daysToExpiry < 0 ? 'expired' : `${r.daysToExpiry}d`
-                  }</span>${
-                    r.inTheMoney != null
-                      ? html`${' '}<span class="small dim">${r.inTheMoney ? 'ITM' : 'OTM'}</span>`
-                      : null
-                  }`
-                  : null}${r.name ? html`<div class="small dim">${r.name}</div>` : null}</td>
+                <td><button type="button" class="linklike" aria-expanded=${shown === key
+                  ? 'true'
+                  : 'false'} onClick=${() => setShown(shown === key ? null : key)}
+                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${r.symbol}</button>${r
+                      .daysToExpiry != null
+                    ? html`${' '}<span class=${'pill ' + (r.daysToExpiry <= 7 ? 'warn' : '')}>${
+                      r.daysToExpiry < 0 ? 'expired' : `${r.daysToExpiry}d`
+                    }</span>${
+                      r.inTheMoney != null
+                        ? html`${' '}<span class="small dim">${r.inTheMoney ? 'ITM' : 'OTM'}</span>`
+                        : null
+                    }`
+                    : null}${r.name ? html`<div class="small dim">${r.name}</div>` : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td><span class=${'pill ' + (r.side === 'short' ? 'warn' : '')}>${r.side === 'short'
                   ? 'Short'

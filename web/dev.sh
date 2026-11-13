@@ -40,8 +40,9 @@ web/dev.sh <command>
                types and its drafts' fields (web/ui/api/), from the routes
   mockup       build docs/mockups/MoolaKata-app.html from the app, to open from disk
                (CI builds it on every run; main's is on the Pages site, S12.9)
-  mockup-link PR
-               the address of the generated mockup a pull request's latest CI run built
+  mockup-link PR [hand]
+               the address of the generated mockup a pull request's latest CI run built;
+               with hand, of the hand-written mockup it kept
   ci-times [RUN | --pr N]
                a CI run's job times against the budget, and how evenly its parts split
   ci-durations [RUN | --pr N]
@@ -184,16 +185,18 @@ case "$cmd" in
     cd "$SERVER" && exec uv run --frozen python "$WEB/ui/mockup/build.py"
     ;;
   mockup-link)
-    # The generated mockup a pull request's latest CI run built (S12.9): its artifact, uploaded
-    # as the file itself, for the pull request's comment.
-    pr="${1:?usage: web/dev.sh mockup-link PR}"
+    # The generated mockup a pull request's latest CI run built (S12.9), or with `hand` the
+    # hand-written one it kept: its artifact, uploaded as the file itself, for the pull request.
+    pr="${1:?usage: web/dev.sh mockup-link PR [hand]}"
+    file=MoolaKata-app.html
+    [[ "${2:-}" == hand ]] && file=MoolaKata-mock.html
     repo=MojoKata/MoolaKata
     sha=$(gh pr view "$pr" -R "$repo" --json headRefOid -q .headRefOid)
     run=$(gh run list -R "$repo" --commit "$sha" --workflow check --limit 1 --json databaseId \
       -q '.[0].databaseId')
     id=$(gh api "repos/$repo/actions/runs/$run/artifacts" \
-      -q '.artifacts[] | select(.name == "MoolaKata-app.html") | .id')
-    [[ -n "$id" ]] || { echo "run $run kept no MoolaKata-app.html (yet)" >&2; exit 1; }
+      -q ".artifacts[] | select(.name == \"$file\") | .id")
+    [[ -n "$id" ]] || { echo "run $run kept no $file (yet)" >&2; exit 1; }
     echo "https://github.com/$repo/actions/runs/$run/artifacts/$id"
     ;;
   help-shots)

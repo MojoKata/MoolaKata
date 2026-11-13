@@ -235,11 +235,11 @@ function Holdings({ a }) {
           </thead>
           <tbody>${h.holdings.map((/** @type {any} */ x) =>
             html`
-              <tr class="click" onClick=${() =>
-                setOpen(open === x.instrumentId ? null : x.instrumentId)}>
+              <tr>
                 <td><button type="button" class="linklike" aria-expanded=${open === x.instrumentId
                   ? 'true'
-                  : 'false'}
+                  : 'false'} onClick=${() =>
+                  setOpen(open === x.instrumentId ? null : x.instrumentId)}
                   style=${{ color: 'var(--fg)', fontWeight: 600 }}>${x.symbol}</button>${x.stale
                     ? html`${' '}<span class="pill warn">stale</span>`
                     : null}</td>

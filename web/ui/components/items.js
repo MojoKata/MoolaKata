@@ -10,7 +10,7 @@ import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, Input, Select, TypedInput } from './fields.js';
+import { Field, Input, Reads, Select, TypedInput } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
@@ -19,7 +19,7 @@ import { Dec, dec, num } from '../app/dec.js';
 import { READ_ONLY, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
-import { Action } from './state.js';
+import { Action, RowTool } from './state.js';
 
 export const METALS = /** @type {[string, string][]} */ ([
   ['gold', 'Gold'],
@@ -123,12 +123,10 @@ export function Items({ a }) {
                 <tr><th>Item</th>${metals
                   ? html`<th class="num">Fine oz</th>`
                   : null}<th>Acquired</th><th class="num">Cost basis</th><th>Value</th>
-                      <th class="num">Gain</th></tr>
+                      <th class="num">Gain</th><th></th></tr>
               </thead>
               <tbody>${v.items.map((/** @type {any} */ i) =>
-                html`<tr class="click" tabindex="0" onClick=${() => open(i.id)} onKeyDown=${(
-                  /** @type {KeyboardEvent} */ e,
-                ) => e.key === 'Enter' && open(i.id)}>
+                html`<tr>
               <td>${i.name}<div class="small dim">${
                   [
                     i.metal ? METAL[i.metal] : null,
@@ -168,7 +166,9 @@ export function Items({ a }) {
                         : null
                     }`
                 }</td>
-              <td class="num"><${Amt} v=${i.gain} signed cents=${false} /></td></tr>`
+              <td class="num"><${Amt} v=${i.gain} signed cents=${false} /></td>
+              <td class="tool"><${RowTool} name=${i.name} read=${!a.access.writable}
+                onClick=${() => open(i.id)} /></td></tr>`
               )}</tbody>
               <tfoot>
                 <tr>
@@ -181,6 +181,7 @@ export function Items({ a }) {
                   <td class="num">
                     <${Amt} v=${v.gain} signed cents=${false} />
                   </td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>
@@ -305,6 +306,9 @@ function newItem(type, accountId) {
   };
 }
 
+/** What an item's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const ITEM_ROW = ['name', 'metal', 'category', 'quantity', 'acquiredOn', 'costBasis'];
+
 /** @param {{ close: (v?: any) => void, a: any, id: string | null }} p */
 export function ItemDialog({ close, a, id }) {
   useDialogGuide('dialog-item');
@@ -342,13 +346,8 @@ export function ItemDialog({ close, a, id }) {
       ${rec
         ? html`
           <div class="split" style=${{ alignItems: 'flex-start' }}>
-            <fieldset disabled=${!canWrite} style=${{
-              flex: '1 1 320px',
-              border: 0,
-              padding: 0,
-              margin: 0,
-              minWidth: 0,
-            }}>
+            <div style=${{ flex: '1 1 320px', minWidth: 0 }}>
+              <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
               <${RecField} rec=${rec} name="name" label="Name" placeholder=${{
                 'precious-metals': 'American Gold Eagle, 1 oz',
                 collectables: 'Rolex Submariner 124060',
@@ -445,7 +444,7 @@ export function ItemDialog({ close, a, id }) {
                 `
                 : null}
               <${RecField} rec=${rec} name="notes" label="Notes" hint="Markdown." rows=${3} />
-            </fieldset>
+            </${Reads}></div>
             ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
           </div>
         `

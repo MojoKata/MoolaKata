@@ -16,7 +16,7 @@ import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
 import { num } from '../app/dec.js';
-import { READ_ONLY, Record as Rec, whyNot } from '../app/draft.js';
+import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { Action } from '../components/state.js';
@@ -228,10 +228,7 @@ function Detail({ id, reloadList }) {
                   } a month would reach it with a 90% chance`}</div>
             </div>
           `}
-        ${x.access.writable ? html`<${Inputs} x=${x} reload=${reload} />` : html`
-          <div class="card">
-            <${Action} why=${READ_ONLY}>Change its inputs</${Action}></div>
-        `}
+        <${Inputs} x=${x} reload=${reload} />
       </div>
     </div>
   `;
@@ -336,7 +333,7 @@ class ProjRec extends Rec {
 
 /**
  * The inputs, saved with Run. An active projection asks whether its baseline should move to
- * the new inputs (S6.7.4).
+ * the new inputs (S6.7.4). One who can only read sees them read, Run off (S12.18.6).
  * @param {{ x: any, reload: () => void }} p
  */
 function Inputs({ x, reload }) {
@@ -377,10 +374,11 @@ function Inputs({ x, reload }) {
   const people = f.people || [];
   return html`
     <${DraftForm} f=${fd} class="card" where="the projection's inputs" what="This projection"
-      label="Run" before=${before} saved=${() => {
+      label="Run" before=${before} read=${!x.access.writable} saved=${() => {
         toast('Recomputed');
         reload();
-      }} extra=${({ save }) => {
+      }}
+      extra=${({ save }) => {
         runRef.current = save;
         return null;
       }}><h3>Inputs</h3>

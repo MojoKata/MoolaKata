@@ -116,3 +116,15 @@ starts locked (S15.4) every renewal: every 60 to 90 days for an ACME certificate
 connections, keeping the old one if the new pair doesn't load; the catalog apps then mount the
 certificate rather than copy it, so TrueNAS has no reason to restart them. **Waits on:** a
 household on a renewing certificate.
+
+## G31: A 529's contributions in one table — Low
+
+**What is named:** S1.8.2: contributions record who contributed, totalled per contributor per
+year against the annual gift exclusion; the mockup's Contributions tab has one table (Year,
+Contributor, Amount, Against the annual gift exclusion).
+
+**What is not:** the app's tab, which has two panels (the exclusion by year and contributor,
+and each deposit with its source as a list in its row). **Proposed:** the mockup's one table;
+each deposit is edited from its pencil (S12.19.5) in a Contribution dialog (who it came from,
+the five-year election; its date and amount read from its transaction), and one who only
+reads has no tool. The mockup is drawn first. **Waits on:** its own pull request.

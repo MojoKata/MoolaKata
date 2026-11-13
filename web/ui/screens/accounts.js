@@ -111,7 +111,7 @@ export default function Accounts() {
                 <tbody>
                   ${as.map((a) =>
                     html`
-                      <tr class="click">
+                      <tr>
                         <td><a href=${`/ui/accounts/${a.id}`} class="acct-row" style=${{
                           color: 'inherit',
                         }}>

@@ -7,6 +7,8 @@ import {
   cleanPaste,
   kindOf,
   KINDS,
+  pageOf,
+  readText,
   says,
   URL_MOST,
   webAddress,
@@ -134,4 +136,54 @@ Deno.test('a web address is http or https with a host, up to 2,000 characters', 
   equal(webAddress(long), null);
   equal(webAddress(long + 'a'), 'At most 2,000 characters.');
   equal(webAddress('https://[::1'), refused, 'one the URL parser refuses');
+});
+
+Deno.test('a value read shows as its kind shows it, a blank as a dash (S12.18.6)', () => {
+  equal(
+    [
+      readText('money', '1234.5'),
+      readText('money', '-12'),
+      readText('quantity', '1234.5678'),
+      readText('count', '12000'),
+      readText('percent', '5.875'),
+      readText('percent', '5.875%'),
+      readText('date', '2026-10-12'),
+      readText('duration', '1d 4h'),
+      readText('url', 'https://example.com'),
+      readText('text', '  Whole Foods  '),
+    ],
+    [
+      '$1,234.50',
+      '−$12.00',
+      '1,234.5678',
+      '12,000',
+      '5.875%',
+      '5.875%',
+      'Oct 12, 2026',
+      '1d 4h',
+      'https://example.com',
+      'Whole Foods',
+    ],
+  );
+  equal([null, undefined, '', '  '].map((v) => readText('money', v)), ['—', '—', '—', '—']);
+  // What doesn't read as its kind is shown as it is, never misread.
+  equal(readText('money', '12abc'), '12abc');
+  equal(readText('date', '2026-10'), '2026-10');
+  // A field's own format reads a number as it shows it.
+  equal(readText('quantity', '0.5', (/** @type {any} */ n) => `${n} BTC`), '0.5 BTC');
+});
+
+Deno.test('a reference reads as a link to its record page where its kind has one', () => {
+  const id = (/** @type {string} */ p) => `${p}_01jbx3h7yq0000000000000000`;
+  equal(
+    ['Acct', 'Bdgt', 'Portf', 'Prjct'].map((p) => pageOf(id(p))),
+    [
+      `/ui/accounts/${id('Acct')}`,
+      `/ui/budgets/${id('Bdgt')}/month`,
+      `/ui/portfolios/${id('Portf')}`,
+      `/ui/projections/${id('Prjct')}`,
+    ],
+  );
+  equal(['Cat', 'Persn', 'User'].map((p) => pageOf(id(p))), [null, null, null]);
+  equal([null, '', 'Checking', 'monthly'].map(pageOf), [null, null, null, null]);
 });
