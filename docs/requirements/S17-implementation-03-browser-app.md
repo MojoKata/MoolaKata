@@ -33,8 +33,10 @@
       in a release. A build between releases (a `-dev` version, S17.10.2.2) and the dev server
       serve the same paths with `no-cache`, since their files change under one version.
       `index.html`, templated with the version and the nonce, is `no-store`.
-   6. **Plain CSS** with custom properties and `@layer`: `tokens.css` (colours and sizes, dark
-      first), `base.css`, `components.css`. Icons are one SVG sprite.
+   6. **Plain CSS** with custom properties and `@layer`: the ui-kit's theme (S17.3.10:
+      `tokens.css`, colours and sizes, dark first; `kit.css`, its controls), then the app's
+      `base.css` and `components.css`, which draw their colours and sizes from the tokens.
+      Icons are one SVG sprite, the kit's.
    7. **The server is the only state.** The browser remembers only how the page looks: theme,
       sidebar, help pane, a tour's width, page size, privacy mode; and, for a tab, the tour
       open in it and the counts it started from (S12.17.2).
@@ -87,20 +89,56 @@
          save's answer names the record as it was sent. One kind is built this way; a
          second would make it a declaration of the draft and the save.
       8. **Typed inputs** (S12.18) are one component, `<TypedInput>` in
-         `components/fields.js`, given a kind from `app/kinds.js`: the kind's characters (a
+         `kit/fields.js`, given a kind from `kit/kinds.js`: the kind's characters (a
          pattern each typed or pasted character is tested against, in `beforeinput`), its
          paste clean-up (also for text put in whole), its whole-value check and what it says
          when one fails. Over
          `<ValueInput>`'s controls (× ↺ Min Max All), it keeps the mark: set when the field is
          left, at Save, or when a key or paste is refused, and cleared by any change. Kinds are
-         plain data and functions, tested without a page. Read (S12.18.6), every input in
-         `fields.js` draws `<ReadValue>` instead, the text its kind gives it (`readText`, and a
-         record's page from its id's prefix, `pageOf`); a form reads through one context,
-         `Reading`, which `<DraftDialog read>` and `<DraftForm read>` set, its value the
-         reason the form's own actions show.
-      9. **Actions and state** (S12.19) are components of `components/state.js`: `<Action>`
+         plain data and functions, tested without a page. Read (S12.18.6), every input of
+         the kit draws `<ReadValue>` instead, the text its kind gives it (`readText`, and a
+         record's page from its id's prefix, which the app passes in); a form reads through
+         the kit's one context, `Reading`, which `<DraftDialog read>` and `<DraftForm read>`
+         set, its value the reason the form's own actions show.
+      9. **Actions and state** (S12.19) are components of `kit/state.js`: `<Action>`
          (a button; given `why`, it is `aria-disabled`, ignores its click and Enter, and shows
          `why` as its tooltip and screen-reader description), `<Empty>` (a line and its
          action), `<StatePill>` (a pill whose tooltip, reached by Tab, explains it),
          `<Attention>` (a one-line notice and its action buttons) and `<RowTool>` (a row's
          pencil or eye, S12.19.5).
+   10. **The ui-kit** (`web/ui/kit/`): the app's controls and theme as a package of their own,
+       which the app builds on and which never imports the app.
+       1. **What it holds**: the theme (`theme/tokens.css`, every colour, size and radius as a
+          custom property, dark first and then light; `theme/kit.css`, the controls' styles,
+          drawn only from the tokens; the icon sprite); the HTM binding (`kit/html.js`, which
+          `app/html.js` passes on); the value types (exact decimals, durations, the kinds of
+          S12.18, and formatting that takes the user's choices as arguments); the fields
+          (`Field`, `Input`, `TypedInput`, `ValueInput`, `CountInput`, `Select`, `Switch`,
+          `ReadValue`, `TagInput`, `DateInput`, `TimeInput`); the building blocks (tabs,
+          chips, avatars, tiles, loading and failure, amounts and percents, and the
+          components of S17.3.9.9); and the overlays (the dialog shell and its stack, the
+          question before an action, menus, tooltips, toasts, the pager). What knows records,
+          drafts, guides, screens or the server stays in the app: `RecField` binds a kit
+          control to a record's field, a dialog's guide and its guard against losing changes
+          are passed to the dialog shell, and so is the pager's page size.
+       2. **A control's contract**: its value in and its change out, `readOnly` (its read
+          persona, S12.18.6), `invalid` and `disabled`. The `id` it is given is on the element
+          that takes the focus, so the app's guide follows it (S12.7.3). It keeps no state
+          its caller can't set.
+       3. **On its own**: a module in `kit/` imports only `kit/` and the vendored libraries,
+          and a check fails on any other import. So the kit's tests run only when the kit
+          changes (S17.10.1), while the app's tests, which draw the kit's controls, run on
+          every change.
+       4. **Its pages**: `kit/pages/` holds a page per component, its states side by side
+          (empty, filled, many and long values, refused, off, read; dark and light), each
+          instance with a line saying what it last reported, and beside them its keys, its
+          states and its props, written for a reader without the code. The pages load the
+          vendored libraries through an import map and carry the app's CSP in a `<meta>`
+          tag. They are what the kit's browser tests drive (S17.5.13), and they are
+          published: main's on the Pages site under `/kit/`, a pull request's as its run's
+          artifact (`web/dev.sh kit-link PR`), linked at the end of its description.
+       5. **Copied code**: what the kit adapts from an open-source project keeps its licence.
+          `kit/NOTICE.md` names the project, the commit and what was taken into each file,
+          with the licence's text; each such file says so in its first line; the dependency
+          register lists it (S17.2.1). It is never updated on its own: a later fix there is
+          copied as a change of its own, read like any other.

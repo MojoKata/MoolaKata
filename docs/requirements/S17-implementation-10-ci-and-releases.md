@@ -13,14 +13,17 @@
        the same way; the parts split by measured time, each test weighing what it took in a
        recent run (`web/server/tests/durations.json`, which `web/dev.sh ci-durations` gathers
        from a run's artifacts), the longest first, each to the part with the least so far, a
-       module whose tests run one after another kept whole; the generated mockup, built, opened and kept as the run's artifact; the hand-written mockup's screens, opened and kept as the run's artifact too),
+       module whose tests run one after another kept whole; the generated mockup, built, opened and kept as the run's artifact; the hand-written mockup's screens, opened and kept as the run's artifact too; the ui-kit's pages and tests, S17.5.13, kept with their screenshots as the run's artifact),
        then the coverage of the test jobs together, from their measurements passed on as
        artifacts; the `check` job, the status the rulesets require, passes when every part
-       does. Each job fetches the commit before as well, for the coverage of the changed
+       does. The ui-kit's job runs on a pull request only when it changes the kit (or the
+       workflow or the vendored libraries), as a first job works out from the files the pull
+       request changes, and on every push to `main`; the `check` job takes its being skipped
+       as passing. Each job fetches the commit before as well, for the coverage of the changed
        lines, and the coverage reports (S17.5.8) are kept as the
        run's artifact. A newer push to a pull request cancels its older run; on `main`,
        runs queue instead, and after a passing check the `coverage site` job publishes the
-       coverage site (S17.5.8.5) to the repository's GitHub Pages, through the
+       coverage site (S17.5.8.5), with the mockups and the ui-kit's pages, to the repository's GitHub Pages, through the
        `github-pages` environment, which takes `main` alone.
     2. **Releases**: `.github/workflows/release.yml`, on a `v<version>` tag matching
        `web/VERSION`, builds both images on an amd64 and an arm64 runner, runs

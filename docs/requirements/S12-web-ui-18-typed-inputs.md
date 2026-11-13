@@ -6,9 +6,9 @@
        an **amount** (digits and one `.`, at most two places), a **quantity** or ratio (digits
        and one `.`), a **percent** (digits, one `.`, and `%` at its end), a **count** (digits),
        a **duration** (digits, `w`, `d`, `h`, `m` and spaces, read as S12.13 says), a **date**
-       (the browser's date picker), a **web address** (no spaces; `http://` or `https://`, then
-       a host) and **text** (anything). An amount, quantity or count takes a `-` where the
-       field takes a negative.
+       (S12.18.10), a **time of day** (S12.18.11), a **web address** (no spaces; `http://` or
+       `https://`, then a host) and **text** (anything). An amount, quantity or count takes a
+       `-` where the field takes a negative.
     2. **A key or a paste outside the kind's characters is not taken**, and the field is
        marked with what it takes (*Digits and . only*). A paste, or text put in whole (by
        autofill or dictation), is cleaned first: a dollar sign, spaces and non-breaking spaces
@@ -23,10 +23,11 @@
     4. **Without a Save** (a filter, a preview), Enter or leaving the field is when its value
        is taken: one not yet checked, or marked, is left out, and what is shown stays as it
        was until the value passes.
-    5. **What is shown and what is stored** are the input's own: an amount is shown at its two
-       places (`1234.50`) and stored as an exact decimal (S12.12), a percent is shown with its
-       `%` and stored as the number, a duration reads back as typed (S12.13), and a date shows
-       in the browser's own format and is stored as `YYYY-MM-DD`.
+    5. **What is shown and what is stored** are the input's own: an amount is shown grouped at
+       its two places (`1,234.50`) and stored as an exact decimal (S12.12), a quantity is shown
+       grouped, a percent is shown with its `%` and stored as the number, a duration reads back
+       as typed (S12.13), a date is shown as `Oct 12, 2026` and stored as `YYYY-MM-DD`, and a
+       time of day is shown as `5:30 PM` and stored as `HH:MM`.
     6. **Read**: every input has a read persona, drawn where the person may only read (a
        record shared with them to read, a form they don't own), never as a control that is
        off:
@@ -52,3 +53,50 @@
           fields that row shows. Opened from elsewhere (a link, a tour), it keeps every field
           that has a value.
     7. **The server checks every value again**, whatever the browser did (S13.8).
+    8. **Numbers as they are typed** (amounts and quantities; a count, a year or a code is not
+       grouped): the digits sit at the field's right end and the commas that group them appear
+       as they are typed, so the number grows to the left. After each change the caret keeps
+       its place among the digits (as many digits to its right as before), and Backspace just
+       after a comma takes the digit before it.
+       1. **An amount in dollars is typed from its cents**, as a cash register takes it: each
+          digit comes in at the right, so `1` reads `0.01`, `12` reads `0.12` and `123` reads
+          `1.23`. A `.` is passed over, and Backspace takes the last digit off.
+       2. **A quantity, and bitcoin, are typed as written**: a `.` starts the fraction, and
+          leaving the field pads the fraction to the places its kind has, where it has a fixed
+          number.
+       3. A paste is read as a whole value (S12.18.2), whichever way the field is typed:
+          `$1,234.5` pasted into an amount is `1,234.50`. A `-` changes the sign where the field
+          takes a negative.
+    9. **Units**: an amount in dollars shows `$` before its digits, inside the field; a quantity
+       shows its unit after them (`shares`, `days`, `%`, or `BTC` or `sats`, as the user chose
+       in Profile, S1.6.4). A unit is neither typed nor stored: a click on it puts the caret in
+       the field, and a `%` typed into a percent is taken and dropped.
+    10. **Dates**: at rest a date reads `Oct 12, 2026`. In the field it can be typed as
+        `10/12/2026`, `10/12/26`, `10/12` (this year), `oct 12`, `Oct 12, 2026` or `today`;
+        leaving the field shows it as `Oct 12, 2026` again, and anything else is marked
+        (S12.18.3, *Type a date, such as 10/12/2026.*).
+        1. **The calendar**: a button at the field's right end, or ↓ (with Alt or without),
+           opens a month of days below it, on the field's date or today. In it, the arrows
+           move a day or a week, Page Up and Page Down a month, Home and End to the week's
+           first and last day; Enter or a click picks the day, Escape closes it, and either
+           way the focus goes back to the field. The grid is always six weeks, so it keeps
+           its size from month to month.
+        2. **Bounds**: a day before or after the field's bounds is shown off in the calendar,
+           and a typed one is refused in the bound's words (*On or after Jan 1, 2020.*).
+    11. **Times of day**: at rest a time reads `5:30 PM`. It can be typed as `5:30 pm`,
+        `5:30p`, `530p`, `5p`, `17:30`, `noon` or `midnight`; without am or pm a time is read
+        on the 24-hour clock (`5:30` is morning). Anything else is marked (*Type a time, such
+        as 5:30 PM.*).
+    12. **Several of a list** (a record's tags, a gift's people): each chosen item is a chip
+        with its own ×, and after them a box to type in. Typing lists the matches below it
+        (tags most used first, people by name); Enter, or a comma, adds the one highlighted,
+        or what was typed; Backspace in the empty box takes off the last chip; a paste of
+        names separated by commas adds each. Two names that differ only in case are one, and
+        the spelling chosen first is kept; an item already chosen is not added again.
+        1. **New items**: where the list may grow (tags), a name that matches none is a new
+           item, made with the record when it is saved. Where it can't (people, who are
+           added on their own page), a name that matches none is refused (*No match*).
+        2. **Many chips**: the field grows a row at a time to three rows of chips, and then
+           scrolls. A field kept to one line (a filter) scrolls sideways instead, and a count
+           before the chips (‹ 3) says how many are out of sight to the left; a click on it
+           goes back to the first, and a screen reader reads it as *3 before*.
