@@ -8,9 +8,11 @@ import re
 import httpx
 import pytest
 from browser import PASSWORD, made, months_back, open_page, wait
-from edits import make, plan529, saved, share
+from edits import make, plan529, remove, saved, share
 
-pytestmark = pytest.mark.browser
+# One after another on one worker: the reader and what it is given are undone after them, so
+# the household the other browser tests share is as it was.
+pytestmark = [pytest.mark.browser, pytest.mark.xdist_group("reader")]
 
 READER_PW = "a long reader passphrase"
 
@@ -32,22 +34,24 @@ def reader(household):
         r = anon.post("/ui/api/invitations/accept", json={"token": token, "password": READER_PW})
         assert r.status_code == 200, r.text
     rita = {user["id"]: "read"}
-    made(share(h.c, "account", h.checking["id"], users=rita))
-    # And what else the household keeps, to read: the home and its item, a 529, the budget,
-    # Emma's gift plan, this year's giving plan.
-    made(share(h.c, "account", h.extra["homes"]["id"], users=rita))
+    plan = h.c.get("/ui/api/giving", params={"year": int(months_back(0)[:4])}).json()["plan"]
+    given = [("account", h.checking["id"]), ("account", h.extra["homes"]["id"]),
+             ("budget", h.budget["id"]), ("gift-plan", h.extra["emma"]["id"]),
+             ("giving-plan", plan["id"])]  # fmt: skip
+    # And a 529 of its own, for its contributions and expenses.
     a529 = made(make(h.c, "Acct", name="Reader's 529", type="529", institution="my529"))
     emma = h.c.get(f"/ui/api/persons/{h.extra['emma']['personId']}").json()
     saved(plan529(h.c, a529["id"], planState="Utah", planName="my529", beneficiaryId=emma["id"],
                   openedOn="2018-05-02", stateDeduction="2410"))  # fmt: skip
-    made(share(h.c, "account", a529["id"], users=rita))
-    made(share(h.c, "budget", h.budget["id"], users=rita))
-    made(share(h.c, "gift-plan", h.extra["emma"]["id"], users=rita))
-    year = int(months_back(0)[:4])
-    plan = h.c.get("/ui/api/giving", params={"year": year}).json()["plan"]
-    made(share(h.c, "giving-plan", plan["id"], users=rita))
+    given.append(("account", a529["id"]))
+    for kind, item in given:
+        made(share(h.c, kind, item, users=rita))
     user["a529"] = a529
-    return user
+    yield user
+    # Undone: nothing shared with the reader any more, and the 529 gone.
+    for kind, item in given:
+        made(share(h.c, kind, item, users={user["id"]: "none"}))
+    made(remove(h.c, "Acct", h.c.get(f"/ui/api/accounts/{a529['id']}").json(), confirm=True))
 
 
 def signed_in_as_reader(browser, h, path: str, ready: str):
