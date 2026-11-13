@@ -7,8 +7,8 @@ import re
 
 import httpx
 import pytest
-from browser import PASSWORD, made, open_page, wait
-from edits import make, share
+from browser import PASSWORD, made, months_back, open_page, wait
+from edits import make, plan529, saved, share
 
 pytestmark = pytest.mark.browser
 
@@ -31,7 +31,22 @@ def reader(household):
     with httpx.Client(base_url=h.base, verify=False, headers={"Origin": h.base}) as anon:
         r = anon.post("/ui/api/invitations/accept", json={"token": token, "password": READER_PW})
         assert r.status_code == 200, r.text
-    made(share(h.c, "account", h.checking["id"], users={user["id"]: "read"}))
+    rita = {user["id"]: "read"}
+    made(share(h.c, "account", h.checking["id"], users=rita))
+    # And what else the household keeps, to read: the home and its item, a 529, the budget,
+    # Emma's gift plan, this year's giving plan.
+    made(share(h.c, "account", h.extra["homes"]["id"], users=rita))
+    a529 = made(make(h.c, "Acct", name="Reader's 529", type="529", institution="my529"))
+    emma = h.c.get(f"/ui/api/persons/{h.extra['emma']['personId']}").json()
+    saved(plan529(h.c, a529["id"], planState="Utah", planName="my529", beneficiaryId=emma["id"],
+                  openedOn="2018-05-02", stateDeduction="2410"))  # fmt: skip
+    made(share(h.c, "account", a529["id"], users=rita))
+    made(share(h.c, "budget", h.budget["id"], users=rita))
+    made(share(h.c, "gift-plan", h.extra["emma"]["id"], users=rita))
+    year = int(months_back(0)[:4])
+    plan = h.c.get("/ui/api/giving", params={"year": year}).json()["plan"]
+    made(share(h.c, "giving-plan", plan["id"], users=rita))
+    user["a529"] = a529
     return user
 
 
@@ -101,5 +116,79 @@ def test_a_readers_reconcile_tab_shows_its_checks_off(browser, household, reader
         b = page.get_by_role("button", name=name, exact=True).first
         assert b.get_attribute("aria-disabled") == "true", name
         assert b.get_attribute("data-tip") == "Shared with you to read", name
+    assert problems == []
+    page.close()
+
+
+READ = "Shared with you to read"
+
+
+def off(scope, name: str, why: str = READ) -> None:
+    """The action is shown, off, its reason its tooltip (S12.19.1)."""
+    b = scope.get_by_role("button", name=name, exact=True).first
+    assert b.get_attribute("aria-disabled") == "true", name
+    assert b.get_attribute("data-tip") == why, (name, b.get_attribute("data-tip"))
+
+
+def test_a_readers_item_shows_its_changes_off(browser, household, reader):
+    h = household
+    page, problems = signed_in_as_reader(
+        browser, h, f"/ui/accounts/{h.extra['homes']['id']}/items", "text=1428 Elm St"
+    )
+    off(page, "Add an item")
+    page.locator("text=1428 Elm St").first.click()
+    wait(page, ".dialog", problems)
+    dialog = page.locator(".dialog")
+    for name in ("Save", "Add a valuation", "Add improvement", "Add", "Record the sale…"):
+        off(dialog, name)
+    off(dialog, "Remove Kitchen remodel")
+    assert problems == []
+    page.close()
+
+
+def test_a_readers_529_shows_its_contribution_and_expense_off(browser, household, reader):
+    h = household
+    a = reader["a529"]
+    page, problems = signed_in_as_reader(
+        browser, h, f"/ui/accounts/{a['id']}/contributions", "text=Record a contribution"
+    )
+    off(page, "Record a contribution")
+    page.goto(h.base + f"/ui/accounts/{a['id']}/withdrawals")
+    wait(page, "text=Add a qualified expense", problems)
+    off(page, "Add a qualified expense")
+    assert problems == []
+    page.close()
+
+
+def test_a_readers_budget_shows_its_changes_off(browser, household, reader):
+    h = household
+    page, problems = signed_in_as_reader(
+        browser, h, f"/ui/budgets/{h.budget['id']}/month", "text=Edit plan"
+    )
+    off(page, "Share", "Only its owner shares it")
+    for name in ("Settings", "Estimate from history…", "Edit plan"):
+        off(page, name)
+    page.goto(h.base + f"/ui/budgets/{h.budget['id']}/review")
+    wait(page, "#f-month-reviewed", problems)
+    page.wait_for_selector("button:has-text('Mark reviewed'), button:has-text('Review again')")
+    b = page.locator("button:has-text('Mark reviewed'), button:has-text('Review again')").first
+    assert b.get_attribute("aria-disabled") == "true"
+    assert b.get_attribute("data-tip") == READ
+    assert problems == []
+    page.close()
+
+
+def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, household, reader):
+    h = household
+    page, problems = signed_in_as_reader(browser, h, "/ui/giving", "text=shared by")
+    off(page, "Edit")
+    page.goto(h.base + "/ui/gifts/people")
+    wait(page, "text=Emma Griffin", problems)
+    page.locator("text=Emma Griffin").first.click()
+    wait(page, ".dialog", problems)
+    dialog = page.locator(".dialog")
+    off(dialog, "Save")
+    off(dialog, "Share", "Only its owner shares it")
+    off(dialog, "Delete plan", "Only its owner deletes it")
     assert problems == []
     page.close()
