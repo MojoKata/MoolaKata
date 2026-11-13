@@ -18,6 +18,7 @@ import FieldsPage from './fields.js';
 import StatePage from './state.js';
 import OverlaysPage from './overlays.js';
 import ThemePage from './theme.js';
+import NotesPage from './notes.js';
 
 /** Every page, in the order listed. @type {[string, string, () => any][]} */
 export const PAGES = [
@@ -27,6 +28,7 @@ export const PAGES = [
   ['fields', 'Fields', FieldsPage],
   ['state', 'Actions and state', StatePage],
   ['overlays', 'Dialogs, menus and the rest', OverlaysPage],
+  ['notes', 'Notes', NotesPage],
   ['theme', 'Theme', ThemePage],
 ];
 

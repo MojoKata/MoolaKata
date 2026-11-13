@@ -17,7 +17,7 @@ from playwright.sync_api import sync_playwright
 
 UI = Path(__file__).resolve().parents[2]
 # The kit's pages, by the names their addresses take (#numbers), as the catalog lists them.
-PAGES_IN_ORDER = ["numbers", "tags", "dates", "fields", "state", "overlays", "theme"]
+PAGES_IN_ORDER = ["numbers", "tags", "dates", "fields", "state", "overlays", "notes", "theme"]
 SHOTS = UI.parent / ".dev" / "kit-shots"
 VIEWPORT = {"width": 1440, "height": 900}
 

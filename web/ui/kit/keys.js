@@ -1,4 +1,4 @@
-// Home and End in anything typed into (requirements S12.18.13): the start and end of the line,
+// Home and End in anything typed into (requirements S12.18.13), a note's text too: the start and end of the line,
 // as drawn, on every platform. A Mac's browsers read them as the page's top and bottom, and in
 // a field that scrolls without moving the caret.
 
@@ -62,7 +62,17 @@ function typedInto(el) {
 export function homeEndInText() {
   document.addEventListener('keydown', (e) => {
     const el = e.target;
-    if (e.defaultPrevented || !typedInto(el)) return;
+    if (e.defaultPrevented) return;
+    // A note's text, written in place: the browser moves by its drawn lines, or the key is left.
+    if (el instanceof HTMLElement && el.isContentEditable) {
+      const m = homeEnd(e, true);
+      const sel = getSelection();
+      if (!m || !sel || typeof sel.modify !== 'function') return;
+      e.preventDefault();
+      sel.modify(m.extend ? 'extend' : 'move', m.dir, m.by);
+      return;
+    }
+    if (!typedInto(el)) return;
     const field = /** @type {HTMLInputElement | HTMLTextAreaElement} */ (el);
     const m = homeEnd(e, field instanceof HTMLTextAreaElement);
     if (!m) return;

@@ -128,3 +128,15 @@ and each deposit with its source as a list in its row). **Proposed:** the mockup
 each deposit is edited from its pencil (S12.19.5) in a Contribution dialog (who it came from,
 the five-year election; its date and amount read from its transaction), and one who only
 reads has no tool. The mockup is drawn first. **Waits on:** its own pull request.
+
+## G32: Which records carry a note — Medium
+
+**What is named:** S12.18.15: a note, its editor, its links and its limits, and the kit's
+`NoteInput` and `NoteView` on their page.
+
+**What is not:** which records carry one, where it shows on their screens and dialogs, and its
+storage: the column, the server's check against `note-spec.json`, the plain-text copy, and
+links to pages carried to a linked copy. **Proposed:** a `note` on the records people write
+about (an account, a budget, a projection, a gift plan), drawn as a section of the record's
+page, with the server checking it as S12.18.15 says; the mockup drawn first. **Waits on:** a
+look at the editor on the kit's page.

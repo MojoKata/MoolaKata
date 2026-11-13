@@ -65,6 +65,12 @@
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 14px;
   }
+  /* A note's editor wants its toolbar on one line: two columns where there are three. */
+  @media (min-width: 1100px) {
+    .demo:has(.note) {
+      grid-column: span 2;
+    }
+  }
   .demo {
     background: var(--bg-2);
     border: 1px solid var(--border);

@@ -10,6 +10,16 @@ const VENDORED = new Set([
   'htm',
   '@preact/signals',
   '@preact/signals-core',
+  // The note editor's (S12.18.15).
+  'prosemirror-model',
+  'prosemirror-state',
+  'prosemirror-view',
+  'prosemirror-transform',
+  'prosemirror-commands',
+  'prosemirror-keymap',
+  'prosemirror-history',
+  'prosemirror-inputrules',
+  'prosemirror-schema-list',
 ]);
 
 /** Every .js file under a directory. @param {URL} dir @returns {URL[]} */

@@ -74,7 +74,9 @@ LOADER = """
   const urls = {};
   for (const s of document.querySelectorAll('script[data-module]')) {
     urls['@ui/' + s.dataset.module] = URL.createObjectURL(
-      new Blob([s.textContent || ''], { type: 'text/javascript' }),
+      new Blob([s.textContent || ''], {
+        type: s.dataset.module.endsWith('.json') ? 'application/json' : 'text/javascript',
+      }),
     );
   }
   const bare = JSON.parse(document.getElementById('kit-bare').textContent);
@@ -99,6 +101,7 @@ def pack() -> str:
             "kit/theme/tokens.css",
             "kit/theme/base.css",
             "kit/theme/kit.css",
+            "vendor/prosemirror-view/style/prosemirror.css",
             "kit/pages/pages.css",
         )
     )

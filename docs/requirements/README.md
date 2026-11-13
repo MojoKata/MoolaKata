@@ -70,8 +70,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | **G29** | [Whether an IRA contribution can be deducted](gaps.md#g29-whether-an-ira-contribution-can-be-deducted--low) | Low |
 | **G30** | [A renewed certificate without a restart](gaps.md#g30-a-renewed-certificate-without-a-restart--low) | Low |
 | **G31** | [A 529's contributions in one table](gaps.md#g31-a-529s-contributions-in-one-table--low) | Low |
+| **G32** | [Which records carry a note](gaps.md#g32-which-records-carry-a-note--medium) | Medium |
 
-A new gap takes the next id after G31.
+A new gap takes the next id after G32.
 
 ## Open questions
 

@@ -65,6 +65,8 @@
     /* Text on the update colour, and what a QR code is printed on, in both themes. */
     --on-update: #1a0d00;
     --qr-bg: #fff;
+    /* A note's highlight: a marker pen's colour behind the text. */
+    --note-mark: #f2c14e40;
   }
 
   :root[data-theme='light'] {
@@ -87,6 +89,7 @@
     --ask: #8a5f00;
     --info: #2f5fd0;
     --update: #c25a00;
+    --note-mark: #ffd84d80;
     --ok-bg: #1f8a4c14;
     --deny-bg: #c4334514;
     --ask-bg: #9a6a0014;
