@@ -25,7 +25,7 @@ from . import coverage, hardening
 
 SITE = coverage.OUT / "site"
 # The mockups published beside the reports (S12.9): the hand-written one, committed, and the one
-# generated from the app, which CI downloads here before the site is built.
+# generated from the app when it is here (CI's Pages job adds the run's own to the site).
 MOCKUPS = paths.ROOT / "docs" / "mockups"
 PUBLISHED = "https://mojokata.github.io/MoolaKata/"
 REPO = "https://github.com/MojoKata/MoolaKata"

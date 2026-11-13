@@ -76,7 +76,7 @@ fi
 # the run's artifact and publishes main's.
 if want app-mockup && [[ -f "$WEB/ui/mockup/build.py" ]]; then
   step "generated mockup" py python "$WEB/ui/mockup/build.py"
-  step "generated mockup opened" py python -m pytest -m mockup tests/test_mockup_app.py
+  step "generated mockup opened" py python -m pytest -n 3 -m mockup tests/test_mockup_app.py
 fi
 # The server's tests across a worker per core (S17.5), each its own process measured as the rest
 # are, with the 30 slowest listed so a test that grows shows in the log. The browser modules' across four, each worker with its own servers, seeded household and
