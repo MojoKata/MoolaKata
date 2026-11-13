@@ -70,3 +70,36 @@ def test_actions_not_open_to_a_reader_are_shown_off_with_why(browser, household,
     assert share_btn.get_attribute("data-tip") == "Only its owner shares it"
     assert problems == []
     page.close()
+
+
+def test_a_reader_opens_a_transaction_its_changes_off(browser, household, reader):
+    """S12.19.1: the dialog shows the transaction; Delete and Save are off, saying why, and
+    Add a receipt too; Close closes it."""
+    h = household
+    page, problems = signed_in_as_reader(
+        browser, h, f"/ui/accounts/{h.checking['id']}/transactions", "table tbody tr"
+    )
+    page.locator("table tbody tr td button.linklike").first.click()
+    wait(page, ".dialog", problems)
+    assert page.locator("#dialog-title").inner_text() == "Transaction"
+    for name in ("Delete", "Save", "Add a receipt"):
+        b = page.locator(".dialog").get_by_role("button", name=name, exact=True)
+        assert b.get_attribute("aria-disabled") == "true", name
+        assert b.get_attribute("data-tip") == "Shared with you to read", name
+    page.locator('.dialog footer button:has-text("Close")').click()
+    wait(page, ".dialog", problems, state="detached")
+    assert problems == []
+    page.close()
+
+
+def test_a_readers_reconcile_tab_shows_its_checks_off(browser, household, reader):
+    h = household
+    page, problems = signed_in_as_reader(
+        browser, h, f"/ui/accounts/{h.checking['id']}/reconcile", "h3:has-text('Balance checks')"
+    )
+    for name in ("Type today's balance", "Tick off against a statement"):
+        b = page.get_by_role("button", name=name, exact=True).first
+        assert b.get_attribute("aria-disabled") == "true", name
+        assert b.get_attribute("data-tip") == "Shared with you to read", name
+    assert problems == []
+    page.close()
