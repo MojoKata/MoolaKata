@@ -310,7 +310,7 @@ def test_its_stylesheet_keeps_moolakatas_colours_and_type():
     """S18.11.5: the page reads as MoolaKata does, dark and light; a token changed on one side
     only fails here."""
     ours = page.STYLE.read_text()
-    theirs = (page.STYLE.parents[2] / "web" / "ui" / "styles" / "tokens.css").read_text()
+    theirs = (page.STYLE.parents[2] / "web" / "ui" / "kit" / "theme" / "tokens.css").read_text()
     dark, light = (
         _block(ours, ":root {"),
         _block(ours.split("prefers-color-scheme: light", 1)[1], ":root {"),
