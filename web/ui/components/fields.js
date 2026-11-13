@@ -49,7 +49,7 @@ export function ReadValue({ text, href, external, select, rows, id, style, ...re
     (blank ? ' blank' : '');
   const named = {
     'aria-label': rest['aria-label'],
-    'aria-labelledby': rest['aria-label'] || !id ? undefined : id + '-label',
+    'aria-labelledby': rest['aria-label'] || !id ? undefined : 'lbl-' + id,
     'aria-describedby': rest['aria-describedby'],
     'data-help': rest['data-help'],
   };
@@ -88,7 +88,7 @@ export function Field({ label, id, hint, error, help, children }) {
       : c
   );
   return html`<div class="field">
-    <label for=${fid} id=${fid + '-label'}>${label}</label>
+    <label for=${fid} id=${'lbl-' + fid}>${label}</label>
     ${control}
     ${hint ? html`<div class="hint">${hint}</div>` : null}
     ${error ? html`<div class="err" id=${fid + '-err'} role="alert">${error}</div>` : null}

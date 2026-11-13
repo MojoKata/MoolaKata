@@ -637,7 +637,7 @@ def test_a_gift_plan_changed_keeps_its_gifts_occasions(browser, household):
     h = household
     before, gifts = gift_plan(h)
     page, problems = signed_in(browser, h, "/ui/gifts/people", 'tr:has-text("Emma Griffin")')
-    page.click('tr:has-text("Emma Griffin")')
+    page.click('tr:has-text("Emma Griffin") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog button.chip:has-text("Thanksgiving")')
     page.fill("#f-notes", "likes paints and puzzles")

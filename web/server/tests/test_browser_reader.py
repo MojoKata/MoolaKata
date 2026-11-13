@@ -117,7 +117,7 @@ def test_a_reader_opens_a_transaction_its_changes_off(browser, household, reader
     date = dialog.locator("#f-date")
     assert date.get_attribute("role") == "textbox"
     assert date.get_attribute("aria-readonly") == "true"
-    assert date.get_attribute("aria-labelledby") == "f-date-label"
+    assert date.get_attribute("aria-labelledby") == "lbl-f-date"
     assert re.fullmatch(r"[A-Z][a-z]{2} \d{1,2}, \d{4}", date.inner_text())
     assert dialog.locator("#f-amount").inner_text().startswith(("$", "−$"))
     # Tab reaches a read value, and the help pane follows it.

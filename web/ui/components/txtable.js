@@ -19,6 +19,13 @@ export { useCategories };
 /** What a transaction is called in its row: its payee, else its kind and symbol. @param {any} t */
 const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
 
+/** A transaction's receipts, as a clip after its payee whose tooltip counts them. @param {any} t */
+function clipOf(t) {
+  if (!t.receipts) return null;
+  const n = `${t.receipts} receipt${t.receipts === 1 ? '' : 's'}`;
+  return html`${' '}<span class="dim" title=${n}><${Icon} name="clip" /></span>`;
+}
+
 /**
  * @param {{ rows: any[], showAccount?: boolean, onChanged: () => void, accounts?: any[] }} p
  */
@@ -80,16 +87,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
             } disabled=${!t.access.writable} checked=${sel.has(t.id)} onChange=${() =>
               toggle(t.id)} /></span></td>
         <td class="dim" style=${{ whiteSpace: 'nowrap' }}>${date(t.date)}</td>
-        <td><span>${payeeOf(t)}${
-              t.receipts
-                ? html`
-                  ${' '}<span class="dim" title=${`${t.receipts} receipt${
-                    t.receipts === 1 ? '' : 's'
-                  }`}><${Icon} name="clip" /></span>
-                `
-                : null
-            }</span>
-          ${
+        <td>${payeeOf(t)}${clipOf(t)}${
               t.symbol && t.quantity
                 ? html`<div class="small dim">${quantity(t.quantity)} ${t.symbol}${
                   t.price ? [' at ', html`<span class="amt">${price(t.price)}</span>`] : null
@@ -107,9 +105,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
               t.tags.length
                 ? html`<div class="small">${
                   t.tags.map((/** @type {string} */ g) =>
-                    html`
-                      <span class="pill">${g}</span>
-                    `
+                    html`<span class="pill">${g}</span>${' '}`
                   )
                 }</div>`
                 : null

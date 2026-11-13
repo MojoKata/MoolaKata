@@ -708,15 +708,13 @@ function DonationView({ close, d }) {
       ${rec
         ? html`<${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />`
         : null}
-      ${rec && !d.access.writable
+      ${!rec ? null : !d.access.writable
         ? html`
           <div class="toolbar">
             <${Action} class="btn sm" why=${whyRead(d)}><${Icon}
                     name="clip" /> Attach the acknowledgement</${Action}></div>
         `
-        : null}
-      ${rec && d.access.writable
-        ? html`
+        : html`
           <div
             class="toolbar"><label class="btn sm" for="f-ack-files"><${Icon} name="clip" /> ${busy
               ? 'Uploading…'
@@ -729,8 +727,7 @@ function DonationView({ close, d }) {
                 send(ev.currentTarget.files);
                 ev.currentTarget.value = '';
               }} /></div>
-        `
-        : null}
+        `}
     </${DraftDialog}>
   `;
 }

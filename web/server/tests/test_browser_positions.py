@@ -68,7 +68,7 @@ def toast(page, text: str, problems: list) -> None:
 def test_an_open_holdings_lots_show_their_terms_one_moved_in_unknown(browser, household):
     # S3.1, CR3-73: a lot bought years ago is long term, a newer one short; shares moved in
     # without the day bought are a lot whose term is unknown and whose basis is missing, so the
-    # row's cost is missing and its term unknown. Enter on the row opens its lots.
+    # row's cost is missing and its term unknown. Enter on its symbol opens its lots.
     h = household
     acct = brokerage(h, "Lots held")
     trade(h, acct, f"{months_back(30)}-03", "buy", "ZLT", 10, 100)
@@ -79,9 +79,9 @@ def test_an_open_holdings_lots_show_their_terms_one_moved_in_unknown(browser, ho
     r = row(page, "ZLT")
     assert "Unknown: when bought is missing" in r.inner_text()
     assert "missing" in r.locator("td").nth(5).inner_text()
-    r.focus()
+    r.locator("button.linklike").first.focus()
     page.keyboard.press("Enter")
-    wait(page, 'main tr[aria-expanded="true"]', problems)
+    wait(page, 'main tr button[aria-expanded="true"]', problems)
     lots = page.locator("main .list-item").all_inner_texts()
     assert len(lots) == 3
     assert any("bought" in x and "long term" in x for x in lots), lots
@@ -105,7 +105,7 @@ def test_a_wash_sales_replacement_lot_is_held_from_the_sold_shares_day(browser, 
     (held,) = open_rows(h, acct)
     assert held["lots"][0]["heldFrom"] is not None
     page, problems = signed_in(browser, h, "/ui/positions/open", "text=ZWO")
-    row(page, "ZWO").click()
+    row(page, "ZWO").locator("button.linklike").first.click()
     wait(page, "main .list-item", problems)
     lot = page.locator("main .list-item").first.inner_text()
     assert "(a wash sale)" in lot and "held from" in lot and "long term" in lot, lot
@@ -140,7 +140,7 @@ def test_an_options_mark_typed_is_its_value_until_a_close(browser, household):
     acct = brokerage(h, "Marked")
     option(h, acct, OPENED, "buy-to-open", "ZMK", "call", "75", premium="2.00")
     page, problems = signed_in(browser, h, "/ui/positions/open", "text=ZMK")
-    row(page, "ZMK").click()
+    row(page, "ZMK").locator("button.linklike").first.click()
     page.get_by_role("button", name="Type a mark…").click()
     wait(page, "#f-mark-price", problems)
     assert page.locator(".dialog").inner_text().startswith("Mark ZMK")
@@ -167,7 +167,7 @@ def test_a_mark_typed_today_opens_to_be_changed(browser, household):
     saved(create(h.c, "TyPrc", instrumentId=held["instrumentId"], date=today, close="3.25"))
     page.reload()
     wait(page, 'main tbody tr:has-text("ZMA"):has-text("typed mark")', problems)
-    row(page, "ZMA").click()
+    row(page, "ZMA").locator("button.linklike").first.click()
     page.get_by_role("button", name="Type a mark…").click()
     wait(page, "#f-mark-price", problems)
     assert Decimal(page.input_value("#f-mark-price")) == Decimal("3.25")
@@ -281,7 +281,7 @@ def test_an_options_end_is_recorded_as_it_happened(
     option(h, acct, OPENED, action, sym, right, strike, expiry=f"{months_back(1)}-15",
            contracts="2")  # fmt: skip
     page, problems = signed_in(browser, h, "/ui/positions/open", f"text={sym}")
-    row(page, re.compile(rf"{sym} \S+ {strike} [PC]")).click()
+    row(page, re.compile(rf"{sym} \S+ {strike} [PC]")).locator("button.linklike").first.click()
     page.get_by_role("button", name="Expired, assigned or exercised…").click()
     wait(page, ".dialog .value-input input", problems)
     checked = page.locator('.dialog [role="radio"][aria-checked="true"]').inner_text()
@@ -520,7 +520,7 @@ def test_a_strategy_named_cash_secured_and_given_a_margin(browser, household):
     h = household
     acct = short_put_strategy(h, "Wheel desk", "ZWH")
     page, problems = signed_in(browser, h, "/ui/positions/strategies", "text=Wheel desk")
-    row(page, "Wheel desk").locator(".row-tool").click()
+    row(page, "Wheel desk").locator(".row-tool").locator("button.linklike").first.click()
     wait(page, "#f-strategy-name", problems)
     assert "Empty: its shape, short put." in page.locator(".dialog").inner_text()
     page.fill("#f-strategy-name", "The wheel")
@@ -543,7 +543,7 @@ def test_a_strategy_ungrouped_leaves_its_legs(browser, household):
     h = household
     acct = short_put_strategy(h, "Ungrouped desk", "ZUG")
     page, problems = signed_in(browser, h, "/ui/positions/strategies", "text=Ungrouped desk")
-    row(page, "Ungrouped desk").locator(".row-tool").click()
+    row(page, "Ungrouped desk").locator(".row-tool").locator("button.linklike").first.click()
     wait(page, "#f-strategy-name", problems)
     page.get_by_role("button", name="Ungroup").click()
     page.get_by_role("button", name="No", exact=True).click()
