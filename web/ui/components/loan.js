@@ -100,7 +100,8 @@ export function TermsFields({ rec, type }) {
       <${RecField} rec=${rec} name="startDate" label="Start date" type="date" />
     </div>
     <div class="row">
-      <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months" />
+      <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months"
+        spin=${true} min=${1} max=${600} />
       <${RecField} rec=${rec} name="rate" label="Interest rate" kind="percent" atMost=${40}
         negative=${false} format=${(/** @type {any} */ n) => n + '%'} placeholder="ex: 5.875%" />
     </div>
@@ -127,6 +128,7 @@ export function TermsFields({ rec, type }) {
     ${type === 'heloc'
       ? html`
         <${RecField} rec=${rec} name="drawMonths" label="Draw period (months)" id="draw-months"
+          spin=${true} min=${0} max=${Math.max(0, Number(rec.get('termMonths') || 600) - 1)}
           hint="Interest only while drawing; then the balance is repaid over the rest of the term." />
       `
       : null}

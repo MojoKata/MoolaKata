@@ -484,7 +484,8 @@ function DependentDialog({ close, b, d, fromRow }) {
                   </div>
           `}
           <div class="row">
-            <${RecField} rec=${rec} name="months" label="Months lived with you" id="months" />
+            <${RecField} rec=${rec} name="months" label="Months lived with you" id="months"
+              spin=${true} min=${0} max=${12} />
             ${onRow('student') ? null : html`
               <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
                 on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {

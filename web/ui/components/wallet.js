@@ -81,7 +81,8 @@ export function WalletFields({ rec, readonly }) {
           spellcheck="false" autocomplete="off"></textarea>
       `}
       </${Field}>
-      <${RecField} rec=${rec} name="gapLimit" label="Gap limit" readonly=${reading}
+      <${RecField} rec=${rec} name="gapLimit" label="Gap limit" readonly=${reading} spin=${true}
+        min=${1} max=${1000}
         hint="Addresses derived past the last one used. 20 suits most wallets." />
   `;
 }

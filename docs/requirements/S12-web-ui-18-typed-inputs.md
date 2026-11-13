@@ -122,3 +122,10 @@
     13. **The focus stays with the field**: a click on anything in or under it (its ×, a word
         under it, a list's option, a calendar's day, a picker's time, a chevron) leaves the
         focus in the field, never on the page.
+    14. **Small counts are stepped**: a whole number with bounds a hundred or so apart (months
+        lived with a dependent, a loan's term and draw period, a wallet's gap limit, the days
+        of backups kept, the years receipts and statements are kept, lockout failures, a
+        password's least length, the largest receipt, a projection's ages and years) has, at
+        its right end, a chevron up and one down that step it by one, as ↑ and ↓ do (Page Up and
+        Page Down by ten), each off at its bound; a blank steps from its least. It is still
+        typed, and checked, as a count is.

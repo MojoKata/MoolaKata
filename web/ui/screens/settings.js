@@ -17,6 +17,7 @@ import {
   FormError,
   Input,
   Select,
+  SpinInput,
   Switch,
   SwitchRow,
   TypedInput,
@@ -210,7 +211,7 @@ function Plain({ section }) {
                   e,
                   'lockoutFailures',
                 )}>
-                  <${TypedInput} kind="count"
+                  <${SpinInput} min=${3} max=${100}
                     value=${f.lockoutFailures} onInput=${set(
                       'lockoutFailures',
                       true,
@@ -306,7 +307,7 @@ function Plain({ section }) {
           <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP,
             HEIC <span class="small dim">· checked from the content</span></div>
           <${Field} label="Largest file (MB)" id="receipt-max-mb" error=${errAt(e, 'receiptMaxMb')}>
-            <${TypedInput} kind="count" value=${f.receiptMaxMb} onInput=${set(
+            <${SpinInput} min=${1} max=${100} value=${f.receiptMaxMb} onInput=${set(
               'receiptMaxMb',
               true,
             )} />
@@ -364,7 +365,7 @@ function Plain({ section }) {
         <h3>Passwords</h3>
         <${Field} label="Minimum length" error=${errAt(e, 'passwordMinLength')}
           hint="At least 8. The only rule: no character classes, no expiry; the most common passwords are refused.">
-          <${TypedInput} kind="count"
+          <${SpinInput} min=${8} max=${128}
             value=${f.passwordMinLength} onInput=${set(
               'passwordMinLength',
               true,
@@ -1154,7 +1155,7 @@ function CopiesKept({ close, v }) {
       footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
       <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
         hint="Every backup of each of these most recent days is kept: 3 to 365.">
-        <${TypedInput} kind="count" value=${n} onInput=${setN} required />
+        <${SpinInput} min=${3} max=${365} value=${n} onInput=${setN} required />
         </${Field}>
       ${fewer
         ? html`

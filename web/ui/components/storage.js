@@ -9,7 +9,7 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { withReauth } from './reauth.js';
 import { Failed, Loading } from '../kit/bits.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
-import { errAt, Field, FormError, Input, TypedInput } from '../kit/fields.js';
+import { errAt, Field, FormError, Input, SpinInput, TypedInput } from '../kit/fields.js';
 import { useDialogGuide } from './help.js';
 import { toast } from '../kit/toast.js';
 import { Record } from '../app/draft.js';
@@ -139,8 +139,9 @@ export function StorageSection() {
         <${Field} label="Keep statements for" id="keep-statements-years"
           error=${rec.error('keepStatementsYears')}
           hint="Years after each statement's period. Empty keeps them for ever.">
-          <${TypedInput} kind="count" value=${years ?? ''} onInput=${(/** @type {string} */ x) =>
-            rec.set('keepStatementsYears', x.trim() ? Number(x) : null)}
+          <${SpinInput} value=${years ?? ''} min=${1} max=${100} onInput=${(
+            /** @type {string} */ x,
+          ) => rec.set('keepStatementsYears', x.trim() ? Number(x) : null)}
             placeholder="for ever" />
           </${Field}>
           </${DraftForm}>
@@ -255,7 +256,8 @@ function CategoryDialog({ close, c }) {
       ${rec
         ? html`
           <${RecField} rec=${rec} name="keepReceiptsYears" label="Keep receipts for"
-            id="keep-receipts-years" placeholder="for ever" hint=${years != null && years < 7
+            id="keep-receipts-years" placeholder="for ever" spin=${true} min=${1}
+            hint=${years != null && years < 7
               ? html`<b>Under 7 years:</b> 7 covers every IRS audit window.`
               : 'Years after the record a receipt is attached to ended. Empty keeps them for ever, or as its parent says.'} />
         `
