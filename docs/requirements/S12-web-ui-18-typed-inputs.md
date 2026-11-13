@@ -27,4 +27,22 @@
        places (`1234.50`) and stored as an exact decimal (S12.12), a percent is shown with its
        `%` and stored as the number, a duration reads back as typed (S12.13), and a date shows
        in the browser's own format and is stored as `YYYY-MM-DD`.
-    6. **The server checks every value again**, whatever the browser did (S13.8).
+    6. **Read**: every input has a read persona, drawn where the person may only read (a
+       record shared with them to read, a form they don't own), never as a control that is
+       off:
+       1. **Its kind decides how it reads**: an amount as `$1,234.50`, a quantity or count
+          grouped, a percent with its `%`, a date as `Oct 12, 2026`, a choice as the chosen
+          option's words, a yes or no as a check or a dash in the switch's place, a long text
+          with its lines; a blank as `—`.
+       2. **A link where it leads somewhere**: a web address opens in a new tab, and a
+          reference to a record with a page of its own (an account, a budget, a portfolio, a
+          projection) links to that page when the person can see the record. One they can't
+          see reads *Not shared with you*, never its id.
+       3. **The edit footprint**: the read value sits in the control's own box, unframed, at
+          its height and width, with a list's chevron space kept, so a form drawn read and
+          drawn to edit don't move. It is reached by Tab, so the guide follows it (S12.7.3),
+          and named by its label.
+       4. **One switch per form**: a dialog or a screen's form reads as a whole, and a control
+          may read on its own. The form's own actions (add a part, remove a row, Save) are
+          shown off, saying why (S12.19.1).
+    7. **The server checks every value again**, whatever the browser did (S13.8).

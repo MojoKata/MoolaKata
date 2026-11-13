@@ -2,8 +2,10 @@
 
 1. **A projection** asks how money will grow and what it will pay for. It has an owner, a name,
    a **goal type** (S6.2), what it is **built on**, and whether it is **active** (S6.7). It is
-   shared like an account (S10.3): a viewer sees its results, and the values and tracking of
-   only the accounts shared with them.
+   shared like an account (S10.3): a viewer sees its results, worked out over its owner's
+   accounts, and the values and tracking of only the accounts shared with them. What it is
+   built on, when it isn't shared with them, is named *a portfolio not shared with you* or
+   *an account not shared with you*.
    1. **Built on** chosen accounts, a portfolio, or a typed amount for a what-if. Built on
       accounts or a portfolio, it starts from their **current values** each time it opens,
       with their *as of*, and from their allocation by asset class.

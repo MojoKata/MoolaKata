@@ -14,9 +14,10 @@
           another level, never theirs to do.
        3. **A preference turned off** (a budget's moves): hidden, with no marker: they chose
           not to see it.
-       4. What a person can only read is shown as read, not as a form of fields that are off. A
-          list of tasks only a record's writer can do (the bank transactions offered to link
-          to a loan, the transfers to pair) is the writer's alone.
+       4. What a person can only read is shown read (S12.18.6), never as a form of fields that
+          are off: a dialog, a form, a contribution's source, a wallet's keys, a projection's
+          inputs. A list of tasks only a record's writer can do (the bank transactions offered
+          to link to a loan, the transfers to pair) is the writer's alone.
     2. **Empty**: a short line where the content would be (*No saved plans*), beside the
        action that makes the first one when there is one.
     3. **A count or a status**: a pill on the card's header or the row (*3 uncategorised*,
@@ -25,10 +26,15 @@
     4. **Something needing attention**: a notice of one line naming it, with its actions as
        buttons (*Statement overdue · Import · Type today's balance*). A warning of what an
        action will do (*No backup is made first.*) is such a notice, beside the action.
-    5. **One component each** draws them, the same on every screen. A test fails on an
-       action left out because of a permission on its record, and on one shown unavailable
-       without a reason.
-    6. **What this doesn't cover**: the answer to an action just taken (a save's question or
+    5. **Opening a record** from a list is a tool at the end of its row, an icon-only button,
+       never a click on the row: a **pencil** for a record the person may change, which opens
+       it to edit, and an **eye** for one they may only read, which opens it read. Its name
+       says which and whose (*Edit Whole Foods*, *View Whole Foods*), as its tooltip. A row
+       that shows more of itself (a holding's lots) does so from a button on its name.
+    6. **One component each** draws them, the same on every screen. A test fails on an
+       action left out because of a permission on its record, on one shown unavailable
+       without a reason, and on a form switched off whole.
+    7. **What this doesn't cover**: the answer to an action just taken (a save's question or
        refusal, beside the buttons that took it), a tour's steps (S12.17), the screens outside
        the frame (sign-in, the welcome, the locked screen), which are one task each, results
        a screen works out (a plan's payoff, the money to move), and a security prompt that
